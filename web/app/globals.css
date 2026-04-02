@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+/* Dark mode por classe (escolha do usuário) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── DESIGN SYSTEM DROPCORE ──────────────────────────────────────────────────── */
+/* Tokens globais - todas as páginas usam esses valores */
+
+:root {
+  /* Light theme (default) */
+  --background: #F5F6F8;
+  --foreground: #111827;
+  --card: #FFFFFF;
+  --card-border: #E5E7EB;
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --muted: #6B7280;
+
+  /* Cores de ação (iguais em ambos temas) */
+  --success: #22C55E;
+  --info: #3B82F6;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --accent: #22C55E;
+
+  /* Bordas e sombras */
+  --radius: 8px;
+  --radius-sm: 6px;
+  --metric-highlight: #22C55E;
+  --metric-info: #3B82F6;
+  --table-row-border: rgba(0, 0, 0, 0.05);
+  --section-gap: 1.5rem;
+  --shadow: 0 1px 3px rgb(0 0 0 / 0.06);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.08);
+}
+
+/* Background sutil para áreas de app (seller, admin) */
+.app-bg {
+  background: linear-gradient(165deg, #f8fafc 0%, #f1f5f9 30%, #e2e8f0 70%, #cbd5e1 100%);
+  min-height: 100vh;
+}
+html.dark .app-bg,
+.dark .app-bg {
+  background: linear-gradient(165deg, #0c0c0e 0%, #060608 35%, #030305 70%, #010102 100%);
+  min-height: 100vh;
+}
+
+/* Animação suave de entrada */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s ease-out forwards;
+  opacity: 0;
+}
+.animate-fade-in-up-delay-1 { animation: fade-in-up 0.4s ease-out 0.06s forwards; opacity: 0; }
+.animate-fade-in-up-delay-2 { animation: fade-in-up 0.4s ease-out 0.12s forwards; opacity: 0; }
+.animate-fade-in-up-delay-3 { animation: fade-in-up 0.4s ease-out 0.18s forwards; opacity: 0; }
+.animate-fade-in-up-delay-4 { animation: fade-in-up 0.4s ease-out 0.24s forwards; opacity: 0; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.03) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Tema escuro - preto puro, zero azul */
+html.dark,
+.dark {
+  --background: #000000;
+  --foreground: #ededed;
+  --card: #0c0c0c;
+  --card-border: #1c1c1c;
+  --border-subtle: #1c1c1c;
+  --muted: #a0a0a0;
+  --success: #22C55E;
+  --info: #3B82F6;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --accent: #22C55E;
+  --metric-highlight: #22C55E;
+  --metric-info: #3B82F6;
+  --table-row-border: rgba(255, 255, 255, 0.06);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.4);
+  --section-gap: 1.5rem;
+}
+html.dark {
+  background: #000 !important;
+}
+
+@theme inline {
+  --color-border-subtle: var(--border-subtle);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-border: var(--card-border);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-info: var(--info);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Card - contraste sutil, borda discreta, shadow leve */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Seções - spacing vertical */
+.section-gap {
+  gap: var(--section-gap);
+}
+
+/* Tabela - linhas suaves, hover */
+.table-row-hover:hover {
+  background: color-mix(in srgb, var(--card) 95%, var(--background) 5%);
+}
+
+/* Inputs base */
+input, select, textarea {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  color: var(--foreground);
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+/* Utilitários para substituir inline styles */
+.u-card {
+  background: var(--card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+.u-input {
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+}
+
+.u-btn {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+.u-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.u-btn-success { background: var(--success); color: white; }
+.u-btn-danger { background: var(--danger); color: white; }
+.u-btn-warning { background: var(--warning); color: white; }
+.u-btn-info { background: var(--info); color: white; }
+.u-btn-secondary { background: var(--muted); color: white; }
