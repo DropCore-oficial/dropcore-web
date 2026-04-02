@@ -1,0 +1,27 @@
+---
+description: O fornecedor nunca vê a taxa DropCore — regra de privacidade
+globs: **/fornecedor/**/*, **/api/fornecedor/**/*
+alwaysApply: false
+---
+
+# Fornecedor — Privacidade da taxa DropCore
+
+**Regra geral:** O fornecedor NUNCA vê a porcentagem ou valor que o DropCore cobra em cima dos pedidos.
+
+## Campos e uso correto
+
+| Campo | Significado | Visível ao fornecedor? |
+|-------|-------------|------------------------|
+| `valor_fornecedor` | O que o fornecedor recebe (custo do produto) | ✅ Sim |
+| `valor_dropcore` | Taxa da plataforma (ex: 15%) | ❌ Nunca |
+| `valor_total` | valor_fornecedor + valor_dropcore | ❌ Nunca |
+
+## O que usar em código do fornecedor
+
+- **Sempre** exibir/somar `valor_fornecedor` (o que ele recebe)
+- **Nunca** exibir ou enviar `valor_dropcore` ou `valor_total` do pedido para o fornecedor
+- **Notificações** (ex: "Novo pedido para postar"): usar `valor_fornecedor` na mensagem, nunca `valor_total`
+
+## Exceção
+
+`financial_repasse_fornecedor` usa coluna `valor_total`, mas o valor armazenado é o que o fornecedor recebe (equivale a valor_fornecedor). OK para fornecedor.

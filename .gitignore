@@ -1,0 +1,16 @@
+# Raiz do monorepo DropCore
+node_modules/
+.DS_Store
+*.pem
+
+# Ambiente / segredos (qualquer nível comum)
+.env
+.env.*
+!.env.example
+
+# Next.js em web/ (reforço; web/.gitignore também cobre parte disso)
+web/.next/
+web/out/
+web/build/
+web/.vercel/
+web/coverage/
