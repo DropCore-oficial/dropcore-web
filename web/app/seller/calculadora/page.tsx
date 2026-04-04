@@ -876,13 +876,16 @@ export default function SellerCalculadoraPage() {
           subtitle="Preencha custos e operacionais por marketplace para gerar preço e margem."
         />
         {calcOnly && calcValidoAte && (
-          <div className="rounded-xl border border-emerald-200/80 dark:border-emerald-900/50 bg-emerald-50/60 dark:bg-emerald-950/30 px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm text-emerald-900 dark:text-emerald-100 leading-snug flex gap-2.5 items-start">
-            <span className="text-base leading-none shrink-0 mt-0.5" aria-hidden>
+          <div
+            className="rounded-xl border border-neutral-200 dark:border-neutral-700/80 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400 bg-white dark:bg-neutral-900/60 px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm leading-snug flex gap-2.5 items-start text-emerald-800 dark:text-emerald-300 shadow-sm dark:shadow-none"
+            role="status"
+          >
+            <span className="text-lg leading-none shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" aria-hidden>
               ✓
             </span>
             <span>
-              <strong className="font-semibold">Teste da calculadora:</strong>{" "}
-              <span className="text-emerald-800/95 dark:text-emerald-100/95">
+              <strong className="font-semibold text-emerald-900 dark:text-emerald-200">Teste da calculadora:</strong>{" "}
+              <span className="text-emerald-700 dark:text-emerald-400/95">
                 válido até{" "}
                 {new Date(calcValidoAte).toLocaleString("pt-BR", {
                   dateStyle: "short",
@@ -1036,7 +1039,7 @@ export default function SellerCalculadoraPage() {
                   >
                     {preset === "todos" ? (
                       <>
-                        <p className="font-semibold text-emerald-900 dark:text-emerald-100 mb-1.5">Rebate (só Mercado Livre)</p>
+                        <p className="font-semibold text-neutral-900 dark:text-neutral-100 mb-1.5">Rebate (só Mercado Livre)</p>
                         <p>
                           É dinheiro devolvido pelo ML (estorno de parte da tarifa) e <strong>soma</strong> ao que você recebe na venda.
                         </p>
@@ -1046,7 +1049,7 @@ export default function SellerCalculadoraPage() {
                       </>
                     ) : (
                       <>
-                        <p className="font-semibold text-emerald-900 dark:text-emerald-100 mb-1.5">Rebate</p>
+                        <p className="font-semibold text-neutral-900 dark:text-neutral-100 mb-1.5">Rebate</p>
                         <p>
                           Estorno de parte da tarifa do Mercado Livre por venda. Soma ao valor líquido que você recebe (não é desconto no preço de venda).
                         </p>
@@ -1054,15 +1057,17 @@ export default function SellerCalculadoraPage() {
                     )}
                   </HelpBubble>
                 </div>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={rebateML}
-                  onChange={(e) => setRebateML(sanitizeNumInput(e.target.value))}
-                  placeholder="0,00"
-                  className={`${inputLight} w-full min-w-0`}
-                />
-                <span className={`${unitBadge} self-center sm:self-start justify-self-end sm:justify-self-start`}>R$</span>
+                <div className="flex flex-row items-center gap-2 min-w-0 sm:contents">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={rebateML}
+                    onChange={(e) => setRebateML(sanitizeNumInput(e.target.value))}
+                    placeholder="0,00"
+                    className={`${inputLight} w-full min-w-0 flex-1 sm:flex-none sm:w-full`}
+                  />
+                  <span className={`${unitBadge} shrink-0`}>R$</span>
+                </div>
               </div>
               {isModoTodos && (
                 <p className="text-[11px] leading-snug text-orange-600 dark:text-orange-400 font-medium mt-2">
@@ -1073,8 +1078,8 @@ export default function SellerCalculadoraPage() {
           )}
 
           {isModoTodos && (
-            <div className="px-4 py-3.5 border-b border-neutral-200/70 dark:border-neutral-700/60 bg-gradient-to-b from-emerald-50/40 to-neutral-50/90 dark:from-emerald-950/20 dark:to-neutral-900/50">
-              <div className="rounded-xl border border-emerald-200/50 dark:border-emerald-900/40 bg-white dark:bg-neutral-900/55 shadow-sm p-4 space-y-3 overflow-visible">
+            <div className="px-4 py-3.5 border-b border-neutral-200/70 dark:border-neutral-700/60 bg-neutral-50/50 dark:bg-neutral-900/30">
+              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm p-4 space-y-3 overflow-visible">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 pr-1">Cupom por canal (%)</p>
                   <HelpBubble
@@ -1085,7 +1090,7 @@ export default function SellerCalculadoraPage() {
                     side="above"
                     align="end"
                   >
-                    <p className="font-semibold text-emerald-900 dark:text-emerald-100 mb-1.5">Cupom por canal</p>
+                    <p className="font-semibold text-neutral-900 dark:text-neutral-100 mb-1.5">Cupom por canal</p>
                     <p>
                       Cada marketplace tem o seu %. O cupom <strong>reduz</strong> o peso de margem, imposto e outros percentuais <strong>só naquele canal</strong> — não é um custo em R$ à parte.
                     </p>
@@ -1348,9 +1353,9 @@ export default function SellerCalculadoraPage() {
                       </div>
                       <div className="flex justify-between items-baseline gap-2 text-sm flex-wrap">
                         <span className="text-neutral-500 shrink-0">Lucro na margem</span>
-                        <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-300 text-right">
+                        <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-300 text-right">
                           {BRL.format(v.valorLucro)}
-                          <span className="text-xs font-semibold whitespace-nowrap">
+                          <span className="text-xs font-medium text-emerald-600/95 dark:text-emerald-400/95 whitespace-nowrap">
                             {" "}
                             · {v.precoVenda > 0 ? ((v.valorLucro / v.precoVenda) * 100).toFixed(1) : "0"}% margem
                           </span>
@@ -1374,9 +1379,20 @@ export default function SellerCalculadoraPage() {
                           </div>
                         </>
                       )}
-                      <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/50 px-3 py-2 flex justify-between gap-2">
-                        <span className="text-xs font-semibold text-amber-900 dark:text-amber-100">Você recebe (estimado)</span>
-                        <span className="text-sm font-bold tabular-nums text-amber-900 dark:text-amber-100">{BRL.format(v.recebe)}</span>
+                      <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/70 shadow-sm overflow-hidden">
+                        <div className="flex min-h-0 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400">
+                          <div className="min-w-0 flex-1 px-3 py-3">
+                            <div className="flex justify-between items-center gap-3">
+                              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 leading-snug">
+                                Você recebe{" "}
+                                <span className="text-[10px] font-normal text-neutral-400 dark:text-neutral-500">(estimado)</span>
+                              </span>
+                              <span className="text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300 leading-none shrink-0">
+                                {BRL.format(v.recebe)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                       {v.operacionalBruto != null && (
                         <div className="text-[11px] text-neutral-500 space-y-0.5 pt-1 border-t border-neutral-200/80 dark:border-neutral-700/80">
@@ -1397,7 +1413,7 @@ export default function SellerCalculadoraPage() {
                   <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5 space-y-1.5">
                     <div className="flex justify-between items-center gap-3">
                       <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Preço</span>
-                      <span className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tabular-nums text-right shrink-0">
+                      <span className="text-xl font-bold tabular-nums text-right shrink-0 text-neutral-900 dark:text-neutral-50 tracking-tight">
                         {resultado.precoVenda > 0 ? BRL.format(resultado.precoVenda) : "—"}
                       </span>
                     </div>
@@ -1412,7 +1428,7 @@ export default function SellerCalculadoraPage() {
                         {resultado.precoVenda > 0 ? (
                           <>
                             {BRL.format(resultado.valorLucro)}
-                            <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                            <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                               {" "}
                               · {((resultado.valorLucro / resultado.precoVenda) * 100).toFixed(1)}% margem
                             </span>
@@ -1430,9 +1446,20 @@ export default function SellerCalculadoraPage() {
               )}
 
               {resultado.recebe != null && resultado.modo === "single" && (
-                <div className="rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30 px-4 py-3 flex justify-between items-center gap-2">
-                  <span className="text-sm font-semibold text-violet-900 dark:text-violet-100">Você recebe (estimado, após taxas)</span>
-                  <span className="text-lg font-bold tabular-nums text-violet-900 dark:text-violet-100">{BRL.format(resultado.recebe)}</span>
+                <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/70 shadow-sm overflow-hidden">
+                  <div className="flex min-h-0 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400">
+                    <div className="min-w-0 flex-1 px-4 py-4 sm:px-5">
+                      <div className="flex justify-between items-center gap-3 sm:gap-4">
+                        <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 leading-snug min-w-0">
+                          Você recebe{" "}
+                          <span className="text-[10px] font-normal text-neutral-400 dark:text-neutral-500">(estimado)</span>
+                        </span>
+                        <span className="text-2xl sm:text-3xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300 leading-none tracking-tight shrink-0">
+                          {BRL.format(resultado.recebe)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1447,7 +1474,7 @@ export default function SellerCalculadoraPage() {
                       <th className="text-left px-3 py-2 font-medium min-w-[96px]">Marketplace</th>
                       <th className="text-right px-3 py-2 font-medium min-w-[88px]">Preço</th>
                       <th className="text-right px-3 py-2 font-medium min-w-[112px]">Margem</th>
-                      <th className="text-right px-3 py-2 font-medium min-w-[100px]">Recebe</th>
+                      <th className="text-right px-3 py-2 font-medium min-w-[100px] text-emerald-700/90 dark:text-emerald-300/90">Recebe</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1470,15 +1497,15 @@ export default function SellerCalculadoraPage() {
                             {mp.semOperacional || mp.valorLucro == null || mp.precoVenda == null ? (
                               <span className="text-xs text-neutral-500">—</span>
                             ) : (
-                              <div className="flex flex-col items-end gap-0.5 tabular-nums">
-                                <span className="text-emerald-600 dark:text-emerald-300 font-semibold">{BRL.format(mp.valorLucro)}</span>
-                                <span className="text-emerald-600/90 dark:text-emerald-400 text-xs font-medium whitespace-nowrap">
-                                  {mp.precoVenda > 0 ? `${((mp.valorLucro / mp.precoVenda) * 100).toFixed(1)}% margem` : ""}
+                              <div className="flex flex-row flex-wrap items-baseline justify-end gap-x-1.5 gap-y-0 tabular-nums text-right">
+                                <span className="text-emerald-700 dark:text-emerald-300 font-semibold">{BRL.format(mp.valorLucro)}</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 text-xs font-medium whitespace-nowrap">
+                                  {mp.precoVenda > 0 ? `· ${((mp.valorLucro / mp.precoVenda) * 100).toFixed(1)}% margem` : ""}
                                 </span>
                               </div>
                             )}
                           </td>
-                          <td className="px-3 py-2.5 text-right align-top tabular-nums text-xs font-medium text-violet-800 dark:text-violet-200">
+                          <td className="px-3 py-2.5 text-right align-top tabular-nums text-sm font-semibold text-emerald-700 dark:text-emerald-300">
                             {mp.recebe == null || mp.semOperacional ? "—" : BRL.format(mp.recebe)}
                           </td>
                         </tr>
@@ -1487,8 +1514,10 @@ export default function SellerCalculadoraPage() {
                 </table>
               </div>
               )}
-              <div className="rounded-xl border border-neutral-200 dark:border-[var(--card-border)] bg-neutral-50 dark:bg-neutral-900/40 overflow-hidden">
-                <div className="text-xs font-medium text-neutral-600 dark:text-[var(--muted)] px-3 py-2 border-b border-neutral-200 dark:border-[var(--card-border)] uppercase tracking-wide">Composição de custos</div>
+              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/55 overflow-hidden shadow-sm">
+                <div className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 px-3 py-2.5 border-b border-neutral-200/80 dark:border-neutral-700/70 uppercase tracking-wider">
+                  Composição de custos
+                </div>
                 <div className="divide-y divide-neutral-200 dark:divide-neutral-800/60">
                   <Linha
                     label="Custos fixos"
@@ -1509,9 +1538,9 @@ export default function SellerCalculadoraPage() {
                   )}
                   {resultado.efeitoCupom &&
                     (resultado.efeitoCupom.cupomPct > 0 || resultado.efeitoCupom.reducaoPreco > 0) && (
-                    <div className="px-3 py-2.5 bg-emerald-50/60 dark:bg-emerald-950/25 border-t border-emerald-200/70 dark:border-emerald-900/50">
-                      <p className="text-[11px] text-emerald-900 dark:text-emerald-200/90 mb-2 leading-snug">
-                        <strong>Cupom:</strong> não entra como custo acima; reduz os % usados na fórmula (margem, imposto, ADS/TACOS, perdas, extras). Abaixo, o efeito no preço final.
+                    <div className="px-3 py-2.5 bg-neutral-100/80 dark:bg-neutral-800/50 border-t border-neutral-200 dark:border-neutral-700/80">
+                      <p className="text-[11px] text-neutral-700 dark:text-neutral-300 mb-2 leading-snug">
+                        <strong className="text-neutral-900 dark:text-neutral-100">Cupom:</strong> não entra como custo acima; reduz os % usados na fórmula (margem, imposto, ADS/TACOS, perdas, extras). Abaixo, o efeito no preço final.
                       </p>
                       <div className="space-y-1.5 text-sm">
                         <div className="flex justify-between gap-2">
@@ -1520,13 +1549,13 @@ export default function SellerCalculadoraPage() {
                             {resultado.efeitoCupom.cupomPct > 0 ? `−${resultado.efeitoCupom.cupomPct.toFixed(1).replace(/\.0$/, "")}%` : "0%"}
                           </span>
                         </div>
-                        <div className="flex justify-between gap-2 text-xs text-neutral-600 dark:text-neutral-400 pt-1 border-t border-emerald-200/50 dark:border-emerald-800/40">
+                        <div className="flex justify-between gap-2 text-xs text-neutral-600 dark:text-neutral-400 pt-1 border-t border-neutral-200/90 dark:border-neutral-600/50">
                           <span>Preço de referência (sem cupom)</span>
                           <span className="tabular-nums font-medium">{BRL.format(resultado.efeitoCupom.precoSemCupom)}</span>
                         </div>
                         <div className="flex justify-between gap-2 pt-1">
-                          <span className="font-semibold text-emerald-800 dark:text-emerald-200">Redução no preço final (efeito cupom)</span>
-                          <span className="tabular-nums font-bold text-emerald-700 dark:text-emerald-300">
+                          <span className="font-semibold text-neutral-800 dark:text-neutral-200">Redução no preço final (efeito cupom)</span>
+                          <span className="tabular-nums font-bold text-neutral-900 dark:text-neutral-100">
                             {resultado.efeitoCupom.reducaoPreco > 0
                               ? `−${BRL.format(resultado.efeitoCupom.reducaoPreco)}`
                               : "R$ 0,00"}
@@ -1537,8 +1566,8 @@ export default function SellerCalculadoraPage() {
                   )}
                 </div>
               </div>
-              <p className="text-xs text-neutral-600 dark:text-neutral-400 text-center">
-                Preço = Custos Fixos ÷ (1 − Percentuais Totais)
+              <p className="text-[11px] text-neutral-400 dark:text-neutral-500 text-center leading-relaxed px-2 pt-2 border-t border-neutral-200/50 dark:border-neutral-700/40 mt-1">
+                Preço = Custos fixos ÷ (1 − percentuais totais)
               </p>
             </div>
           </div>
@@ -1605,7 +1634,11 @@ function Linha({
         {sublabel && <span className="text-xs text-neutral-500 dark:text-neutral-600 leading-snug">{sublabel}</span>}
       </div>
       <span
-        className={`text-sm font-medium tabular-nums shrink-0 text-right pt-0.5 ${red ? "text-red-600 dark:text-red-300" : "text-neutral-700 dark:text-neutral-300"}`}
+        className={`text-sm tabular-nums shrink-0 text-right pt-0.5 ${
+          red
+            ? "font-semibold text-red-700 dark:text-red-400"
+            : "font-medium text-neutral-700 dark:text-neutral-300"
+        }`}
       >
         {BRL.format(valor)}
       </span>
