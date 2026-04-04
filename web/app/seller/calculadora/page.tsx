@@ -1204,9 +1204,17 @@ export default function SellerCalculadoraPage() {
                     )}
                   </HelpBubble>
                 </div>
-                <input type="text" inputMode="decimal" value={ads}
-                  onChange={(e) => setAds(sanitizeNumInput(e.target.value))} placeholder="0" className={`${inputLight} w-full min-w-0`} />
-                <span className={unitBadge}>%</span>
+                <div className="flex flex-row items-center gap-2 min-w-0 sm:contents">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={ads}
+                    onChange={(e) => setAds(sanitizeNumInput(e.target.value))}
+                    placeholder="0"
+                    className={`${inputLight} w-full min-w-0 flex-1 sm:flex-none sm:w-full`}
+                  />
+                  <span className={`${unitBadge} shrink-0 sm:shrink-0`}>%</span>
+                </div>
               </div>
               {isModoTodos && (
                 <p className="text-[11px] leading-snug text-orange-600 dark:text-orange-400 font-medium mt-2">
@@ -1332,16 +1340,19 @@ export default function SellerCalculadoraPage() {
                       className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5 space-y-2"
                     >
                       <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 uppercase tracking-wide">{v.label}</p>
-                      <div className="flex justify-between gap-2 text-sm">
-                        <span className="text-neutral-500">Preço</span>
-                        <span className="font-bold tabular-nums text-neutral-900 dark:text-neutral-100">{BRL.format(v.precoVenda)}</span>
+                      <div className="flex justify-between items-center gap-2 text-sm">
+                        <span className="text-neutral-500 shrink-0">Preço</span>
+                        <span className="font-bold tabular-nums text-neutral-900 dark:text-neutral-100 text-right">
+                          {BRL.format(v.precoVenda)}
+                        </span>
                       </div>
-                      <div className="flex justify-between gap-2 text-sm">
-                        <span className="text-neutral-500">Lucro na margem</span>
-                        <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-300">
+                      <div className="flex justify-between items-baseline gap-2 text-sm flex-wrap">
+                        <span className="text-neutral-500 shrink-0">Lucro na margem</span>
+                        <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-300 text-right">
                           {BRL.format(v.valorLucro)}
-                          <span className="text-xs font-normal ml-1">
-                            ({v.precoVenda > 0 ? ((v.valorLucro / v.precoVenda) * 100).toFixed(1) : "0"}%)
+                          <span className="text-xs font-semibold whitespace-nowrap">
+                            {" "}
+                            · {v.precoVenda > 0 ? ((v.valorLucro / v.precoVenda) * 100).toFixed(1) : "0"}% margem
                           </span>
                         </span>
                       </div>
@@ -1383,25 +1394,37 @@ export default function SellerCalculadoraPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5">
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-0.5">Preço</p>
-                    <p className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tabular-nums break-all">
-                      {resultado.precoVenda > 0 ? BRL.format(resultado.precoVenda) : "—"}
-                    </p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5 space-y-1.5">
+                    <div className="flex justify-between items-center gap-3">
+                      <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Preço</span>
+                      <span className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tabular-nums text-right shrink-0">
+                        {resultado.precoVenda > 0 ? BRL.format(resultado.precoVenda) : "—"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
                       {PRESET_TO_MARKETPLACE_NOME[preset] ?? (preset === "todos" ? "Comparativo" : "Canal")}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5">
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-0.5">Lucro</p>
-                    <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums break-all">
-                      {resultado.precoVenda > 0 ? BRL.format(resultado.valorLucro) : "—"}
-                    </p>
-                    <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1 font-medium tabular-nums">
-                      {resultado.precoVenda > 0
-                        ? `${((resultado.valorLucro / resultado.precoVenda) * 100).toFixed(1)}% margem`
-                        : preset === "todos" ? "Preencha os operacionais na tabela abaixo" : "—"}
-                    </p>
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5 space-y-1">
+                    <div className="flex justify-between items-baseline gap-2 flex-wrap">
+                      <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 shrink-0">Lucro</span>
+                      <span className="text-xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums text-right min-w-0">
+                        {resultado.precoVenda > 0 ? (
+                          <>
+                            {BRL.format(resultado.valorLucro)}
+                            <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                              {" "}
+                              · {((resultado.valorLucro / resultado.precoVenda) * 100).toFixed(1)}% margem
+                            </span>
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </span>
+                    </div>
+                    {resultado.precoVenda <= 0 && preset === "todos" && (
+                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Preencha os operacionais na tabela abaixo</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -1548,12 +1571,15 @@ function Row({
         <label className="text-sm font-medium text-neutral-600 dark:text-neutral-400 shrink-0 flex items-center gap-1.5 min-w-0 overflow-visible">
           {label}
         </label>
-        <div className="min-w-0 w-full">{children}</div>
-        <div className="flex justify-end sm:justify-start shrink-0">
+        {/* Mobile: input + R$/% na mesma linha; sm+: contents para encaixar na grid de 3 colunas */}
+        <div className="flex flex-row items-center gap-2 min-w-0 sm:contents">
+          <div className="min-w-0 flex-1 w-full sm:min-w-0">{children}</div>
           {unit ? (
-            <span className={unitBadge}>{unit}</span>
+            <div className="flex items-center justify-end sm:justify-start shrink-0">
+              <span className={unitBadge}>{unit}</span>
+            </div>
           ) : (
-            <span className="hidden sm:inline-block sm:w-[52px] sm:shrink-0" aria-hidden />
+            <div className="hidden sm:flex sm:w-[52px] sm:shrink-0 sm:items-center" aria-hidden />
           )}
         </div>
       </div>
@@ -1573,12 +1599,14 @@ function Linha({
   red?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 px-3 py-2.5">
-      <div className="flex flex-col gap-0.5 min-w-0">
-        <span className="text-sm text-neutral-600 dark:text-neutral-300 truncate">{label}</span>
-        {sublabel && <span className="text-xs text-neutral-500 dark:text-neutral-600">{sublabel}</span>}
+    <div className="flex items-start justify-between gap-3 px-3 py-2.5">
+      <div className="flex flex-col gap-0.5 min-w-0 pr-2">
+        <span className="text-sm text-neutral-600 dark:text-neutral-300 leading-snug">{label}</span>
+        {sublabel && <span className="text-xs text-neutral-500 dark:text-neutral-600 leading-snug">{sublabel}</span>}
       </div>
-      <span className={`text-sm font-medium tabular-nums shrink-0 ${red ? "text-red-600 dark:text-red-300" : "text-neutral-700 dark:text-neutral-300"}`}>
+      <span
+        className={`text-sm font-medium tabular-nums shrink-0 text-right pt-0.5 ${red ? "text-red-600 dark:text-red-300" : "text-neutral-700 dark:text-neutral-300"}`}
+      >
         {BRL.format(valor)}
       </span>
     </div>
