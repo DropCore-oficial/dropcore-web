@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* Evita scroll horizontal e “dança” lateral no mobile quando algum filho ultrapassa a largura */
+html {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+body {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
 /* Dark mode por classe (escolha do usuário) */
 @custom-variant dark (&:where(.dark, .dark *));
 

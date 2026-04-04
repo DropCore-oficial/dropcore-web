@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -17,6 +17,14 @@ export const metadata: Metadata = {
   title: "DropCore",
   description: "Hub de gestão para sellers e fornecedores",
   icons: { icon: "/logo-icon.png", apple: "/logo-icon.png" },
+};
+
+/** Mobile: evita zoom por pinça e ajuda a não “puxar” a página na horizontal (calculadora / PWA-like). */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 const themeScript = `
