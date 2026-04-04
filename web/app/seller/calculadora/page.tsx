@@ -91,10 +91,10 @@ function HelpBubble({
 const cardClass = "rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm";
 /** Inputs base igual ao Dashboard */
 const inputLight =
-  "w-full rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-600 px-3 py-2.5 text-neutral-900 dark:text-neutral-100 text-sm focus:outline-none focus:border-neutral-400 dark:focus:border-neutral-500 placeholder-neutral-400 dark:placeholder-neutral-500";
+  "w-full rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-600 px-3 py-3 md:py-2.5 text-neutral-900 dark:text-neutral-100 text-base md:text-sm focus:outline-none focus:border-neutral-400 dark:focus:border-neutral-500 placeholder-neutral-400 dark:placeholder-neutral-500";
 /** Só Perdas — destaque escuro para chamar atenção */
 const inputPerdas =
-  "w-full rounded-xl bg-neutral-900 dark:bg-neutral-950 border border-neutral-900 dark:border-neutral-700 px-3 py-2.5 text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-neutral-500/40 placeholder-neutral-300";
+  "w-full rounded-xl bg-neutral-900 dark:bg-neutral-950 border border-neutral-900 dark:border-neutral-700 px-3 py-2.5 text-white text-base md:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-neutral-500/40 placeholder-neutral-300";
 const btnSecondaryClass =
   "rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-2.5 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors";
 const unitBadge =
@@ -861,53 +861,56 @@ export default function SellerCalculadoraPage() {
   }
 
   const calcOnly = calcAccess === "calc_only";
-  async function sairCalculadora() {
-    await supabaseBrowser.auth.signOut();
-    router.replace("/calculadora/login");
-  }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-24 md:pb-8">
-      <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6">
+    <div
+      className={
+        calcOnly
+          ? "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
+          : "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-24 md:pb-8"
+      }
+    >
+      <div className="w-full max-w-6xl mx-auto px-3 min-[400px]:px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-5 md:space-y-6">
         <SellerPageHeader
           title="Calculadora de preço"
           subtitle="Preencha custos e operacionais por marketplace para gerar preço e margem."
         />
         {calcOnly && calcValidoAte && (
-          <div className="rounded-xl border border-emerald-200/80 dark:border-emerald-900/50 bg-emerald-50/60 dark:bg-emerald-950/30 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <strong>Teste da calculadora:</strong> acesso válido até{" "}
-              {new Date(calcValidoAte).toLocaleString("pt-BR", {
-                dateStyle: "short",
-                timeStyle: "short",
-              })}
+          <div className="rounded-xl border border-emerald-200/80 dark:border-emerald-900/50 bg-emerald-50/60 dark:bg-emerald-950/30 px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm text-emerald-900 dark:text-emerald-100 leading-snug flex gap-2.5 items-start">
+            <span className="text-base leading-none shrink-0 mt-0.5" aria-hidden>
+              ✓
+            </span>
+            <span>
+              <strong className="font-semibold">Teste da calculadora:</strong>{" "}
+              <span className="text-emerald-800/95 dark:text-emerald-100/95">
+                válido até{" "}
+                {new Date(calcValidoAte).toLocaleString("pt-BR", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                })}
+              </span>
               .
-            </div>
-            <button
-              type="button"
-              onClick={sairCalculadora}
-              className="self-start sm:self-auto rounded-lg border border-emerald-300/80 dark:border-emerald-700 bg-white/70 dark:bg-emerald-900/30 px-3 py-1.5 text-xs font-medium text-emerald-800 dark:text-emerald-200 hover:bg-white dark:hover:bg-emerald-900/50 transition-colors"
-            >
-              Sair
-            </button>
+            </span>
           </div>
         )}
 
         <div className="flex flex-col lg:flex-row lg:items-start gap-6 lg:gap-8 w-full">
         <div className="w-full lg:flex-1 lg:min-w-0 space-y-4">
-        <div className="block rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm px-5 py-4 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              <span className="text-amber-700 dark:text-amber-300">Regra:</span> margem mínima de {MARGEM_MINIMA}%
-            </p>
-            <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">
-              O preço mínimo deve garantir pelo menos {MARGEM_MINIMA}% de margem de lucro.
-            </p>
+        {!calcOnly && (
+          <div className="block rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm px-5 py-4 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                <span className="text-amber-700 dark:text-amber-300">Regra:</span> margem mínima de {MARGEM_MINIMA}%
+              </p>
+              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">
+                O preço mínimo deve garantir pelo menos {MARGEM_MINIMA}% de margem de lucro.
+              </p>
+            </div>
+            <span className="shrink-0 text-3xl leading-none text-amber-500 dark:text-amber-400">
+              ⚠️
+            </span>
           </div>
-          <span className="shrink-0 text-3xl leading-none text-amber-500 dark:text-amber-400">
-            ⚠️
-          </span>
-        </div>
+        )}
         <div className={`${cardClass} px-4 py-3.5`}>
           <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Operacional por marketplace</p>
           <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">
@@ -1268,17 +1271,18 @@ export default function SellerCalculadoraPage() {
           </div>
 
           {/* Botões */}
-          <div className="flex gap-2 px-4 py-4 items-center bg-white dark:bg-neutral-900/50 border-t border-neutral-200/60 dark:border-neutral-700/60">
+          <div className="flex gap-2 px-3 sm:px-4 py-3 sm:py-4 items-center bg-white dark:bg-neutral-900/50 border-t border-neutral-200/60 dark:border-neutral-700/60">
             <button
+              type="button"
               onClick={calcular}
-              className="flex-1 rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 font-semibold py-2.5 text-sm hover:opacity-90 transition-colors"
+              className="flex-1 rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 font-semibold py-3.5 sm:py-2.5 text-base sm:text-sm hover:opacity-90 transition-colors touch-manipulation min-h-[48px] sm:min-h-0"
             >
               Calcular
             </button>
             <button
               type="button"
               onClick={limpar}
-              className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 px-4 py-2.5 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors shrink-0"
+              className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 px-4 py-3.5 sm:py-2.5 text-base sm:text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors shrink-0 touch-manipulation min-h-[48px] sm:min-h-0 min-w-[5.5rem]"
             >
               Limpar
             </button>
@@ -1288,16 +1292,20 @@ export default function SellerCalculadoraPage() {
 
         {/* Coluna direita: resultado */}
         <div className="w-full lg:w-[min(100%,440px)] xl:w-[min(100%,480px)] lg:shrink-0 space-y-4 lg:sticky lg:top-20 self-start">
-        {precoMinimo != null && custoProduto && parseNum(custoProduto) > 0 ? (
+        {!calcOnly && precoMinimo != null && custoProduto && parseNum(custoProduto) > 0 ? (
           <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5">
             <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-0.5">Preço mínimo ({MARGEM_MINIMA}% margem)</div>
             <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">{BRL.format(precoMinimo)}</div>
           </div>
-        ) : (
+        ) : !calcOnly ? (
           <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm p-4 min-h-[80px] flex items-center justify-center">
             <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">Preencha o custo e clique em Calcular.</p>
           </div>
-        )}
+        ) : !resultado ? (
+          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm p-4 min-h-[72px] flex items-center justify-center">
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">Preencha o custo e clique em Calcular.</p>
+          </div>
+        ) : null}
 
         {resultado ? (
           <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm overflow-hidden">
@@ -1305,7 +1313,7 @@ export default function SellerCalculadoraPage() {
               <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Resultado</h3>
             </div>
             <div className="p-4 space-y-4">
-              {abaixoMinimo && (
+              {!calcOnly && abaixoMinimo && (
                 <div className="rounded-xl border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-3 text-sm text-red-800 dark:text-red-200">
                   ⚠️ Margem abaixo do mínimo! Você está vendendo com menos de {MARGEM_MINIMA}% de lucro.
                 </div>

@@ -26,3 +26,33 @@ export async function apiGet<T>(path: string) {
 
   return json as T;
 }
+
+export async function apiPost<T>(path: string, body: unknown) {
+  const { data } = await supabaseBrowser.auth.getSession();
+  const token = data.session?.access_token;
+
+  const res = await fetch(path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  const text = await res.text();
+  let json: unknown = null;
+  try {
+    json = text ? JSON.parse(text as string) : null;
+  } catch {
+    throw new Error(`API não retornou JSON. Status ${res.status}. Body: ${text.slice(0, 200)}`);
+  }
+
+  if (!res.ok) {
+    const err = json as { error?: string } | null;
+    throw new Error(err?.error || `Erro API ${res.status}`);
+  }
+
+  return json as T;
+}

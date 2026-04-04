@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { apiGet, apiPost } from "@/lib/api";
 import Link from "next/link";
 
 type Invite = {
@@ -47,14 +48,8 @@ export default function AdminCalculadoraConvitesPage() {
       if (!session?.access_token) {
         throw new Error("Sem sessão. Faça login novamente.");
       }
-      const res = await fetch("/api/org/calculadora/assinantes", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json?.error ?? "Erro ao carregar assinantes.");
-      }
-      setAssinantes(Array.isArray(json.items) ? (json.items as Assinante[]) : []);
+      const json = await apiGet<{ items?: Assinante[] }>("/api/org/calculadora/assinantes");
+      setAssinantes(Array.isArray(json.items) ? json.items : []);
     } catch (e: unknown) {
       setAssinantesErro(e instanceof Error ? e.message : "Erro inesperado ao carregar assinantes.");
     } finally {
@@ -87,22 +82,11 @@ export default function AdminCalculadoraConvitesPage() {
         throw new Error("Sem sessão. Faça login novamente.");
       }
 
-      const res = await fetch("/api/org/calculadora/invites", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          email_alvo: emailAlvo.trim() || null,
-          validade_dias: diasNum,
-        }),
+      const json = await apiPost<{ invite: Invite }>("/api/org/calculadora/invites", {
+        email_alvo: emailAlvo.trim() || null,
+        validade_dias: diasNum,
       });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json?.error ?? "Erro ao criar convite.");
-      }
-      setUltimoConvite(json.invite as Invite);
+      setUltimoConvite(json.invite);
     } catch (e: unknown) {
       setErro(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
