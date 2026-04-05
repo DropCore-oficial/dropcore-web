@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { apiGet, apiPost } from "@/lib/api";
@@ -40,6 +40,8 @@ export default function AdminCalculadoraConvitesPage() {
   const [apagarLoginModal, setApagarLoginModal] = useState<{ userId: string; emailHint: string } | null>(null);
   const [apagarLoginEmail, setApagarLoginEmail] = useState("");
   const [apagarLoginSending, setApagarLoginSending] = useState(false);
+  const [linkCopiado, setLinkCopiado] = useState(false);
+  const [copiarErro, setCopiarErro] = useState<string | null>(null);
 
   async function carregarAssinantes() {
     setAssinantesErro(null);
@@ -98,6 +100,42 @@ export default function AdminCalculadoraConvitesPage() {
   }
 
   const linkMostrar = ultimoConvite?.link ?? "";
+
+  const mailtoConviteHref = useMemo(() => {
+    if (!linkMostrar) return "";
+    const subject = encodeURIComponent("Convite — DropCore Calculadora (teste grátis)");
+    const body = encodeURIComponent(
+      `Olá,\n\nSegue o link para criar a sua conta e ativar o teste grátis da DropCore Calculadora:\n\n${linkMostrar}\n\nAtenciosamente,`
+    );
+    const toRaw = ultimoConvite?.email_alvo?.trim();
+    const to = toRaw ? encodeURIComponent(toRaw) : "";
+    return `mailto:${to}?subject=${subject}&body=${body}`;
+  }, [linkMostrar, ultimoConvite?.email_alvo]);
+
+  async function copiarLinkConvite() {
+    setCopiarErro(null);
+    if (!linkMostrar) return;
+    try {
+      await navigator.clipboard.writeText(linkMostrar);
+      setLinkCopiado(true);
+      window.setTimeout(() => setLinkCopiado(false), 2500);
+    } catch {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = linkMostrar;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        setLinkCopiado(true);
+        window.setTimeout(() => setLinkCopiado(false), 2500);
+      } catch {
+        setCopiarErro("Não foi possível copiar. Selecione o link acima manualmente.");
+      }
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -199,6 +237,31 @@ export default function AdminCalculadoraConvitesPage() {
                   {linkMostrar}
                 </a>
               </div>
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => void copiarLinkConvite()}
+                  className="rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--card)] transition-colors touch-manipulation min-h-[40px]"
+                >
+                  {linkCopiado ? "Copiado!" : "Copiar link"}
+                </button>
+                <a
+                  href={mailtoConviteHref}
+                  className="inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 text-xs font-semibold shadow-sm transition-colors touch-manipulation min-h-[40px]"
+                >
+                  {ultimoConvite.email_alvo?.trim()
+                    ? "Abrir e-mail para o cliente"
+                    : "Abrir rascunho de e-mail"}
+                </a>
+              </div>
+              {copiarErro && (
+                <p className="text-[11px] text-red-600 dark:text-red-400">{copiarErro}</p>
+              )}
+              <p className="text-[11px] text-[var(--muted)] max-w-xl">
+                O botão verde abre o teu programa de e-mail (Mail, Outlook, Gmail no navegador, etc.) com o texto e o link
+                prontos{ultimoConvite.email_alvo?.trim() ? " e o destinatário preenchido" : ""}. O envio não sai dos servidores
+                DropCore — é o teu e-mail que envia.
+              </p>
             </div>
           </section>
         )}
