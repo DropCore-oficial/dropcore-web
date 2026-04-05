@@ -37,6 +37,9 @@ export default function AdminCalculadoraConvitesPage() {
   const [assinantes, setAssinantes] = useState<Assinante[]>([]);
   const [assinantesLoading, setAssinantesLoading] = useState(false);
   const [assinantesErro, setAssinantesErro] = useState<string | null>(null);
+  const [apagarLoginModal, setApagarLoginModal] = useState<{ userId: string; emailHint: string } | null>(null);
+  const [apagarLoginEmail, setApagarLoginEmail] = useState("");
+  const [apagarLoginSending, setApagarLoginSending] = useState(false);
 
   async function carregarAssinantes() {
     setAssinantesErro(null);
@@ -267,7 +270,7 @@ export default function AdminCalculadoraConvitesPage() {
                           </span>
                         </td>
                         <td className="px-2 py-1.5 text-right">
-                          <div className="inline-flex items-center gap-1.5">
+                          <div className="inline-flex flex-wrap items-center justify-end gap-1.5 max-w-[280px] ml-auto">
                             <button
                               type="button"
                               disabled={assinantesLoading}
@@ -397,6 +400,22 @@ export default function AdminCalculadoraConvitesPage() {
                             >
                               Excluir
                             </button>
+                            <button
+                              type="button"
+                              disabled={assinantesLoading || !a.email}
+                              title={
+                                !a.email
+                                  ? "Sem e-mail na lista — não dá para confirmar a conta."
+                                  : "Apaga o login no Supabase (irreversível). Bloqueado para sellers e membros de org."
+                              }
+                              onClick={() => {
+                                setApagarLoginEmail(a.email ?? "");
+                                setApagarLoginModal({ userId: a.user_id, emailHint: a.email ?? "" });
+                              }}
+                              className="rounded-lg border border-amber-800/80 bg-amber-950 px-2 py-1 text-[10px] text-amber-100 hover:bg-amber-900 disabled:opacity-40 disabled:cursor-not-allowed dark:border-amber-700/80 dark:bg-amber-950/80"
+                            >
+                              Apagar login
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -408,6 +427,92 @@ export default function AdminCalculadoraConvitesPage() {
           )}
         </section>
       </main>
+
+      {apagarLoginModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="apagar-login-titulo"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-xl p-5 space-y-4">
+            <h2 id="apagar-login-titulo" className="text-base font-semibold text-[var(--foreground)]">
+              Apagar conta de login (Auth)
+            </h2>
+            <p className="text-xs text-[var(--muted)] leading-relaxed">
+              Remove o utilizador do <strong className="text-[var(--foreground)]">Supabase Auth</strong>. A pessoa deixa de
+              conseguir entrar com este e-mail. <strong className="text-[var(--foreground)]">Não dá para desfazer.</strong>
+              <br />
+              <br />
+              Não é permitido se for <strong className="text-[var(--foreground)]">seller</strong> ou tiver{" "}
+              <strong className="text-[var(--foreground)]">organização (org)</strong>.
+            </p>
+            <div>
+              <label className="block text-[11px] font-medium text-[var(--muted)] mb-1">
+                Digite o e-mail da conta para confirmar
+              </label>
+              <input
+                type="email"
+                value={apagarLoginEmail}
+                onChange={(e) => setApagarLoginEmail(e.target.value)}
+                className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)]"
+                placeholder={apagarLoginModal.emailHint || "email@exemplo.com"}
+                autoComplete="off"
+              />
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end pt-1">
+              <button
+                type="button"
+                disabled={apagarLoginSending}
+                onClick={() => {
+                  setApagarLoginModal(null);
+                  setApagarLoginEmail("");
+                }}
+                className="rounded-lg border border-[var(--card-border)] px-4 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={apagarLoginSending}
+                onClick={async () => {
+                  try {
+                    setApagarLoginSending(true);
+                    setAssinantesErro(null);
+                    const {
+                      data: { session },
+                    } = await supabaseBrowser.auth.getSession();
+                    if (!session?.access_token) throw new Error("Sem sessão.");
+                    const res = await fetch(
+                      `/api/org/calculadora/assinantes/${apagarLoginModal.userId}/apagar-conta`,
+                      {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: `Bearer ${session.access_token}`,
+                        },
+                        body: JSON.stringify({ email: apagarLoginEmail.trim() }),
+                      },
+                    );
+                    const j = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(j?.error ?? "Erro ao apagar conta.");
+                    setApagarLoginModal(null);
+                    setApagarLoginEmail("");
+                    await carregarAssinantes();
+                  } catch (e: unknown) {
+                    setAssinantesErro(e instanceof Error ? e.message : "Erro ao apagar conta.");
+                  } finally {
+                    setApagarLoginSending(false);
+                  }
+                }}
+                className="rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
+              >
+                {apagarLoginSending ? "Apagando…" : "Apagar definitivamente"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
