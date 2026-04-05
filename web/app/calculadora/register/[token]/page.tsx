@@ -64,7 +64,7 @@ export default function CalculadoraRegisterPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error ?? "Erro ao criar conta.");
 
-      const { error: loginErr } = await supabaseBrowser.auth.signInWithPassword({
+      const { data: authData, error: loginErr } = await supabaseBrowser.auth.signInWithPassword({
         email: email.trim(),
         password: senha,
       });
@@ -72,7 +72,30 @@ export default function CalculadoraRegisterPage() {
         setSucesso(true);
         return;
       }
-      router.replace("/seller/calculadora");
+
+      const accessToken = authData.session?.access_token;
+      if (!accessToken) {
+        setSucesso(true);
+        return;
+      }
+
+      const me = await fetch("/api/calculadora/me", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: "no-store",
+      });
+      const meBody = await me.json().catch(() => ({}));
+      if (!me.ok) {
+        await supabaseBrowser.auth.signOut();
+        setFormError(
+          typeof meBody?.error === "string"
+            ? `${meBody.error} Se a conta foi criada, use /calculadora/login.`
+            : "Conta criada, mas a entrada automática falhou. Tente em /calculadora/login.",
+        );
+        return;
+      }
+
+      // Navegação completa evita falha de chunk/sessão no Safari após login (página genérica da Vercel).
+      window.location.assign("/seller/calculadora");
     } catch (e: unknown) {
       setFormError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {

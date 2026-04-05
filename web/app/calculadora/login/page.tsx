@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
@@ -13,7 +12,6 @@ import { ThemeToggle } from "@/components/ThemeToggle";
  * (Futuro: entitlements calc-only sem linha em `sellers` — ver /api/calculadora/me.)
  */
 export default function CalculadoraLoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +71,7 @@ export default function CalculadoraLoginPage() {
             : "Sem acesso à calculadora. Verifique assinatura ou conta seller.",
         );
       }
-      router.replace("/seller/calculadora");
+      window.location.assign("/seller/calculadora");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro ao fazer login.");
     } finally {
