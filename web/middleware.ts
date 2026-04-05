@@ -2,8 +2,38 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { getSiteUrl } from "@/lib/siteUrl";
+
+/**
+ * Produção no URL *.vercel.app (ex.: dropcore-web.vercel.app) → domínio canónico.
+ * Previews com -git- no hostname (branch deploy) não redirecionam.
+ * Defina NEXT_PUBLIC_APP_URL na Vercel = URL oficial (ex.: https://www.dropcore.com.br).
+ */
+function redirectVercelProductionToCanonical(req: NextRequest): NextResponse | null {
+  if (process.env.NODE_ENV !== "production") return null;
+
+  const host = (req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "").toLowerCase();
+  if (!host.endsWith(".vercel.app")) return null;
+  if (host.includes("-git-")) return null;
+
+  let canonicalOrigin: string;
+  try {
+    canonicalOrigin = new URL(getSiteUrl()).origin;
+  } catch {
+    return null;
+  }
+
+  const canonicalHost = new URL(canonicalOrigin).hostname.toLowerCase();
+  if (host === canonicalHost) return null;
+
+  const dest = new URL(req.nextUrl.pathname + req.nextUrl.search, canonicalOrigin);
+  return NextResponse.redirect(dest, 308);
+}
 
 export async function middleware(req: NextRequest) {
+  const canonicalRedirect = redirectVercelProductionToCanonical(req);
+  if (canonicalRedirect) return canonicalRedirect;
+
   let res = NextResponse.next();
 
   const supabase = createServerClient(
