@@ -4,7 +4,8 @@
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { requireAdmin } from "@/lib/apiOrgAuth";
+import { orgErrorHttpStatus, requireAdmin } from "@/lib/apiOrgAuth";
+import { resolvePublicOrigin } from "@/lib/appOrigin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,11 +42,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error?.message ?? "Erro ao criar convite." }, { status: 500 });
     }
 
-    const origin = process.env.NEXT_PUBLIC_APP_URL ?? "";
-    const base =
-      origin && origin.startsWith("http")
-        ? origin.replace(/\/+$/, "")
-        : "";
+    const base = resolvePublicOrigin(req);
     const link =
       base.length > 0
         ? `${base}/calculadora/register/${data.token}`
@@ -60,8 +57,7 @@ export async function POST(req: Request) {
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
-    const status = msg === "Unauthorized" || msg === "Usuário sem organização." ? 401 : msg === "Sem permissão." ? 403 : 500;
-    return NextResponse.json({ error: msg }, { status });
+    return NextResponse.json({ error: msg }, { status: orgErrorHttpStatus(e) });
   }
 }
 
