@@ -21,16 +21,18 @@ const SIZES: Record<Variant, { w: number; h: number }> = {
 export function Logo({ variant = "horizontal", href = "/", className = "", theme = "dark" }: LogoProps) {
   const { w, h } = SIZES[variant];
   const src =
-    variant === "icon" ? "/logo-icon.png" : variant === "vertical" ? "/logo-vertical.png" : "/logo-horizontal.png";
+    variant === "icon" ? "/icon.svg" : variant === "vertical" ? "/logo-vertical.png" : "/logo-horizontal.png";
 
-  /* theme=light: logo com fundo preto → inverte cores para legibilidade em fundo claro */
+  /* theme=light: PNGs escuros → inverte; ícone /icon.svg já é o símbolo preto+verde */
   const imgStyle: React.CSSProperties = {
     width: w,
     height: h,
     maxWidth: w,
     maxHeight: h,
     background: "transparent",
-    ...(theme === "light" ? { filter: "invert(1) brightness(1.05) contrast(1.1)" } : {}),
+    ...(theme === "light" && variant !== "icon"
+      ? { filter: "invert(1) brightness(1.05) contrast(1.1)" }
+      : {}),
   };
 
   const img = (

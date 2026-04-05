@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" fill="none">
+  <title>DropCore</title>
+  <rect width="36" height="36" rx="8" fill="#000000" stroke="#1c1c1c" stroke-width="1" />
+  <path
+    d="M18 18 L10 18 M14 14 L10 18 L14 22"
+    stroke="#ededed"
+    stroke-width="2.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M18 18 L26 18 M22 14 L26 18 L22 22"
+    stroke="#22C55E"
+    stroke-width="2.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
