@@ -13,10 +13,29 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://dropcore.com.br";
+
 export const metadata: Metadata = {
-  title: "DropCore",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "DropCore",
+    template: "%s | DropCore",
+  },
   description: "Hub de gestão para sellers e fornecedores",
   icons: { icon: "/logo-icon.png", apple: "/logo-icon.png" },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    siteName: "DropCore",
+    title: "DropCore",
+    description: "Hub de gestão para sellers e fornecedores",
+    url: siteUrl,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DropCore",
+    description: "Hub de gestão para sellers e fornecedores",
+  },
 };
 
 /** Mobile: evita zoom por pinça e ajuda a não “puxar” a página na horizontal (calculadora / PWA-like). */
