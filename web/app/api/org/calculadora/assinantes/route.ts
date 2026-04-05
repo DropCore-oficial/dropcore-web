@@ -4,7 +4,7 @@
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { requireAdmin } from "@/lib/apiOrgAuth";
+import { orgErrorHttpStatus, requireAdmin } from "@/lib/apiOrgAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -75,8 +75,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ items });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
-    const status = msg === "Unauthorized" || msg === "Usuário sem organização." ? 401 : msg === "Sem permissão." ? 403 : 500;
-    return NextResponse.json({ error: msg }, { status });
+    return NextResponse.json({ error: msg }, { status: orgErrorHttpStatus(e) });
   }
 }
 
