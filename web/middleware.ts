@@ -80,9 +80,11 @@ export async function middleware(req: NextRequest) {
     // então não depende da sessão por cookie no middleware.
     !path.startsWith("/seller/calculadora");
 
-  /** DropCore Calculadora: rotas internas exigem sessão; login público em /calculadora/login */
+  /** DropCore Calculadora: rotas internas exigem sessão; públicas: login e registo por convite */
   const isCalculadoraProtegido =
-    path.startsWith("/calculadora") && !path.startsWith("/calculadora/login");
+    path.startsWith("/calculadora") &&
+    !path.startsWith("/calculadora/login") &&
+    !path.startsWith("/calculadora/register");
 
   if (
     (rotasProtegidas ||
