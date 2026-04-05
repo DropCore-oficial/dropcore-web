@@ -158,7 +158,7 @@ export default function CalculadoraRegisterPage() {
             </div>
 
             <h1 className="text-lg font-semibold text-[var(--foreground)]">
-              {sucessoContaExistente ? "Calculadora ativada na sua conta" : "Conta criada com sucesso"}
+              {sucessoContaExistente ? "Acesso à calculadora liberado de novo" : "Conta criada com sucesso"}
             </h1>
 
             {em ? (
@@ -172,8 +172,10 @@ export default function CalculadoraRegisterPage() {
               {sucessoContaExistente ? (
                 <>
                   <p>
-                    Você <strong className="text-[var(--foreground)]">já tinha cadastro</strong> na DropCore com esse e-mail.
-                    O teste da calculadora foi ligado nessa mesma conta.
+                    Esse e-mail <strong className="text-[var(--foreground)]">já tem login</strong> na DropCore (a conta não
+                    some quando o acesso à calculadora é pausado). Com este convite,{" "}
+                    <strong className="text-[var(--foreground)]">reativamos só o teste da calculadora</strong> nessa mesma
+                    conta.
                   </p>
                   <p>
                     <strong className="text-[var(--foreground)]">No próximo passo</strong>, entre com a{" "}
