@@ -359,6 +359,44 @@ export default function AdminCalculadoraConvitesPage() {
                             >
                               Desativar
                             </button>
+                            <button
+                              type="button"
+                              disabled={assinantesLoading}
+                              onClick={async () => {
+                                const label = a.email ?? a.user_id;
+                                if (
+                                  !confirm(
+                                    `Excluir ${label} da calculadora?\n\nRemove só o acesso à calculadora (a conta no login continua a existir).`,
+                                  )
+                                ) {
+                                  return;
+                                }
+                                try {
+                                  setAssinantesErro(null);
+                                  const {
+                                    data: { session },
+                                  } = await supabaseBrowser.auth.getSession();
+                                  if (!session?.access_token) throw new Error("Sem sessão.");
+                                  const res = await fetch(
+                                    `/api/org/calculadora/assinantes/${a.user_id}/excluir`,
+                                    {
+                                      method: "DELETE",
+                                      headers: {
+                                        Authorization: `Bearer ${session.access_token}`,
+                                      },
+                                    },
+                                  );
+                                  const j = await res.json().catch(() => ({}));
+                                  if (!res.ok) throw new Error(j?.error ?? "Erro ao excluir.");
+                                  await carregarAssinantes();
+                                } catch (e: unknown) {
+                                  setAssinantesErro(e instanceof Error ? e.message : "Erro ao excluir.");
+                                }
+                              }}
+                              className="rounded-lg border border-red-900 bg-red-900 px-2 py-1 text-[10px] text-white hover:bg-red-800 disabled:opacity-50"
+                            >
+                              Excluir
+                            </button>
                           </div>
                         </td>
                       </tr>
