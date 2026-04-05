@@ -24,13 +24,13 @@ export function PageLayout({
   return (
     <div
       className={cn(
-        "min-h-screen bg-[var(--background)] text-[var(--foreground)]",
+        "min-h-screen min-h-[100dvh] bg-[var(--background)] text-[var(--foreground)]",
         className
       )}
     >
       <div
         className={cn(
-          "mx-auto px-4 py-6 sm:px-6 sm:py-8 space-y-8",
+          "mx-auto dropcore-px-layout pt-[max(1.5rem,env(safe-area-inset-top,0px))] pb-6 sm:pt-8 sm:pb-8 space-y-8",
           maxWidthMap[maxWidth]
         )}
       >

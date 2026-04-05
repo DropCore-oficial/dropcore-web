@@ -199,9 +199,9 @@ export default function SellerIntegracoesErpPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-24 md:pb-8">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
       <SellerNav active="integracoes" />
-      <div className="w-full max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+      <div className="w-full max-w-2xl mx-auto dropcore-px-wide py-6 lg:py-8">
         <SellerPageHeader
           title="Integração ERP"
           subtitle="Conecte seu ERP ao DropCore para enviar pedidos automaticamente. Use o mesmo SKU do catálogo."

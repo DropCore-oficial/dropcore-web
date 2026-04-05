@@ -262,7 +262,7 @@ export default function MensalidadesPage() {
           Nenhuma mensalidade encontrada. Clique em &quot;Gerar mensalidades&quot; para criar.
         </div>
       ) : (
-        <div style={{ overflowX: "auto" }}>
+        <div className="dropcore-scroll-x">
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid #e5e7eb" }}>

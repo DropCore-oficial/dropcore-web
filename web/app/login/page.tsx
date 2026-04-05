@@ -43,9 +43,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-6">
-      <div className="absolute top-4 right-4">
-        <ThemeToggle />
+    <div className="min-h-screen min-h-[100dvh] bg-[var(--background)] flex items-center justify-center dropcore-p-auth">
+      <div className="absolute top-[max(1rem,env(safe-area-inset-top,0px))] right-[max(1rem,env(safe-area-inset-right,0px))]">
+        <ThemeToggle className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center touch-manipulation" />
       </div>
       <form onSubmit={entrar} className="w-full max-w-md">
         <Card className="p-8 shadow-[var(--shadow-card)]" padding="none">

@@ -206,7 +206,7 @@ export default function DevolucoesPage() {
       {list.length === 0 ? (
         <p style={{ color: "#6b7280" }}>Nenhum bloqueio com status BLOQUEADO, ENTREGUE, AGUARDANDO_REPASSE ou EM_DEVOLUCAO. Crie um pedido em &quot;Pedidos&quot; para testar.</p>
       ) : (
-        <div style={{ overflowX: "auto" }}>
+        <div className="dropcore-scroll-x">
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
             <thead>
               <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
@@ -273,7 +273,7 @@ export default function DevolucoesPage() {
       {listPago.length === 0 ? (
         <p style={{ color: "#6b7280" }}>Nenhum registro com status PAGO no momento.</p>
       ) : (
-        <div style={{ overflowX: "auto" }}>
+        <div className="dropcore-scroll-x">
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
             <thead>
               <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>

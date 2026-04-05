@@ -571,7 +571,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-24 md:pb-8">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
       {/* Barra superior — logo DropCore + atalho ativo (como seller) */}
       <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/98 dark:bg-neutral-950/98 backdrop-blur-xl shadow-sm">
         <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 flex items-center gap-6">
@@ -590,15 +590,15 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      <div className="w-full max-w-4xl mx-auto px-4 sm:px-5 py-5 space-y-4">
+      <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 space-y-4">
         {/* Logo no mobile (desktop usa a barra fixa) */}
         <div className="flex md:hidden items-center pb-1">
           <DropCoreLogo variant="horizontal" href="/dashboard" className="shrink-0" />
         </div>
 
         {/* 1. Header — igual ao seller/fornecedor */}
-        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
+        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 min-w-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center text-base font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">
               {roleInitial}
             </div>
@@ -621,15 +621,15 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end sm:shrink-0">
             <div className="md:hidden">
-              <ThemeToggle />
+              <ThemeToggle className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center touch-manipulation" />
             </div>
             <NotificationBell context="admin" />
-            <button onClick={load} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+            <button type="button" onClick={load} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 min-h-[40px] sm:min-h-0 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 touch-manipulation">
               Atualizar
             </button>
-            <button onClick={sair} className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-[var(--card)] px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+            <button type="button" onClick={sair} className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-[var(--card)] px-3 py-2 min-h-[40px] sm:min-h-0 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 touch-manipulation">
               Sair
             </button>
           </div>

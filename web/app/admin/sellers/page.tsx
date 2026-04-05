@@ -495,7 +495,8 @@ export default function AdminSellersPage() {
               {detail.movimentacoes.length === 0 ? (
                 <div className="text-[13px] text-[var(--muted)]">Nenhuma movimentação ainda.</div>
               ) : (
-                <table className="w-full text-[13px] border-collapse">
+                <div className="dropcore-scroll-x -mx-1">
+                <table className="w-full text-[13px] border-collapse min-w-[320px]">
                   <thead>
                     <tr className="border-b border-[var(--card-border)] text-left">
                       <th className="py-1.5 px-2">Data</th>
@@ -517,6 +518,7 @@ export default function AdminSellersPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           </>

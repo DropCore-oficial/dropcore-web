@@ -4,10 +4,108 @@
 html {
   overflow-x: hidden;
   overscroll-behavior-x: none;
+  -webkit-text-size-adjust: 100%;
 }
-body {
-  overflow-x: hidden;
-  overscroll-behavior-x: none;
+/* Tabelas / blocos largos: scroll horizontal com inércia no iOS */
+.dropcore-scroll-x {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+/* Mesmo comportamento para qualquer `overflow-x-auto` (tabelas em admin/seller) */
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  max-width: 100%;
+}
+/* Padding lateral respeitando notch / barra home */
+.dropcore-safe-x {
+  padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
+}
+
+/* Conteúdo principal (max-w-4xl / dashboards seller-admin) — px-4 sm:px-5 + safe area */
+.dropcore-px-content {
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+@media (min-width: 640px) {
+  .dropcore-px-content {
+    padding-left: max(1.25rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
+  }
+}
+
+/* Catálogo seller / integrações — px-4 sm:px-6 lg:px-8 + safe area */
+.dropcore-px-wide {
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+@media (min-width: 640px) {
+  .dropcore-px-wide {
+    padding-left: max(1.5rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1.5rem, env(safe-area-inset-right, 0px));
+  }
+}
+@media (min-width: 1024px) {
+  .dropcore-px-wide {
+    padding-left: max(2rem, env(safe-area-inset-left, 0px));
+    padding-right: max(2rem, env(safe-area-inset-right, 0px));
+  }
+}
+
+/* Calculadora — px-3 · 400px:px-4 · sm:px-6 · lg:px-8 + safe area */
+.dropcore-px-calc {
+  padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
+}
+@media (min-width: 400px) {
+  .dropcore-px-calc {
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  }
+}
+@media (min-width: 640px) {
+  .dropcore-px-calc {
+    padding-left: max(1.5rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1.5rem, env(safe-area-inset-right, 0px));
+  }
+}
+@media (min-width: 1024px) {
+  .dropcore-px-calc {
+    padding-left: max(2rem, env(safe-area-inset-left, 0px));
+    padding-right: max(2rem, env(safe-area-inset-right, 0px));
+  }
+}
+
+/* PageLayout — px-4 sm:px-6 + safe area */
+.dropcore-px-layout {
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+@media (min-width: 640px) {
+  .dropcore-px-layout {
+    padding-left: max(1.5rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1.5rem, env(safe-area-inset-right, 0px));
+  }
+}
+
+/* Login / auth — padding 1.5rem + safe area em todos os lados */
+.dropcore-p-auth {
+  padding-top: max(1.5rem, env(safe-area-inset-top, 0px));
+  padding-right: max(1.5rem, env(safe-area-inset-right, 0px));
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+  padding-left: max(1.5rem, env(safe-area-inset-left, 0px));
+}
+/* Menos delay de toque em iOS (evita double-tap zoom delay em controles) */
+button,
+[role="button"],
+input[type="submit"],
+input[type="button"],
+summary {
+  touch-action: manipulation;
 }
 
 /* Dark mode por classe (escolha do usuário) */
@@ -46,11 +144,13 @@ body {
 /* Background sutil para áreas de app (seller, admin) */
 .app-bg {
   background: linear-gradient(165deg, #f8fafc 0%, #f1f5f9 30%, #e2e8f0 70%, #cbd5e1 100%);
+  min-height: 100dvh;
   min-height: 100vh;
 }
 html.dark .app-bg,
 .dark .app-bg {
   background: linear-gradient(165deg, #0c0c0e 0%, #060608 35%, #030305 70%, #010102 100%);
+  min-height: 100dvh;
   min-height: 100vh;
 }
 
@@ -126,6 +226,10 @@ html.dark {
 }
 
 body {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+  min-height: 100dvh;
+  min-width: 0;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
@@ -159,6 +263,15 @@ input, select, textarea {
   border: 1px solid var(--card-border);
   color: var(--foreground);
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+/* iOS: fonte < 16px em inputs foca e dá zoom — mantém legível no mobile */
+@media (max-width: 639px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="image"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+  select,
+  textarea {
+    font-size: max(16px, 1rem);
+  }
 }
 
 /* Utilitários para substituir inline styles */

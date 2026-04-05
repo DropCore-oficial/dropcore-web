@@ -140,7 +140,7 @@ export default function APagarFornecedoresPage() {
           <p style={{ marginBottom: 16, fontSize: 15, fontWeight: 600 }}>
             Total a pagar (pendente/liberado): {formatMoney(totalAPagar)}
           </p>
-          <div style={{ overflowX: "auto" }}>
+          <div className="dropcore-scroll-x">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
               <thead>
                 <tr style={{ borderBottom: "2px solid var(--card-border)", textAlign: "left" }}>

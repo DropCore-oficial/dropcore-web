@@ -925,10 +925,10 @@ export default function SellerCalculadoraPage() {
       className={
         calcOnly
           ? "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
-          : "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-24 md:pb-8"
+          : "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8"
       }
     >
-      <div className="w-full max-w-6xl mx-auto px-3 min-[400px]:px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-5 md:space-y-6">
+      <div className="w-full max-w-6xl mx-auto dropcore-px-calc py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-5 md:space-y-6">
         <SellerPageHeader
           title="Calculadora de preço"
           subtitle="Preencha custos e operacionais por marketplace para gerar preço e margem."

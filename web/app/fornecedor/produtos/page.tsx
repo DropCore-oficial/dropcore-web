@@ -252,8 +252,8 @@ export default function FornecedorProdutosPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-24 md:pb-8">
-      <div className="w-full max-w-4xl mx-auto px-4 sm:px-5 py-5 space-y-6">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+      <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <Link

@@ -168,8 +168,8 @@ export function SellerNav({
         </div>
       </nav>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200/80 dark:border-neutral-800/80 bg-white/[0.98] dark:bg-neutral-950/[0.98] backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
-        <div className="max-w-3xl mx-auto flex">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200/80 dark:border-neutral-800/80 bg-white/[0.98] dark:bg-neutral-950/[0.98] backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.5)] pb-[env(safe-area-inset-bottom)]">
+        <div className="max-w-3xl mx-auto flex min-h-[52px]">
           <Link href="/seller/dashboard" className={mobileLinkClass("dashboard")}>
             <IconHome active={active === "dashboard"} />
             <span className="text-[10px] font-medium">Dashboard</span>

@@ -73,7 +73,7 @@ export default function SellerLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
+    <div className="min-h-screen min-h-[100dvh] bg-[var(--background)] flex items-center justify-center dropcore-p-auth">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center">
           <DropCoreLogo variant="horizontal" href={null} className="mb-2" />

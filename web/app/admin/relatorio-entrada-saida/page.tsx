@@ -152,7 +152,7 @@ export default function RelatorioEntradaSaidaPage() {
                 {data.linhas_entrada.length === 0 ? (
                   <p style={{ color: "#6b7280", fontSize: 14 }}>Nenhuma entrada no período.</p>
                 ) : (
-                  <div style={{ overflowX: "auto" }}>
+                  <div className="dropcore-scroll-x">
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                       <thead>
                         <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
@@ -177,7 +177,7 @@ export default function RelatorioEntradaSaidaPage() {
                 {data.linhas_saida.length === 0 ? (
                   <p style={{ color: "#6b7280", fontSize: 14 }}>Nenhuma saída no período.</p>
                 ) : (
-                  <div style={{ overflowX: "auto" }}>
+                  <div className="dropcore-scroll-x">
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                       <thead>
                         <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>

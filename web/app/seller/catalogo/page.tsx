@@ -423,8 +423,8 @@ export default function SellerCatalogoPage() {
   const totalSkus = itemsFiltrados.filter((i) => !isSemente(i) && !isGrupoOculto(i.sku)).length;
 
 return (
-      <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-24 md:pb-8">
-      <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6">
+      <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+      <div className="w-full max-w-6xl mx-auto dropcore-px-wide py-6 lg:py-8 space-y-6">
 
         <SellerPageHeader
           title="Catálogo"
@@ -432,16 +432,16 @@ return (
         />
 
         {/* Busca */}
-        <div className="flex gap-2">
+        <div className="flex flex-col min-[420px]:flex-row gap-2 min-w-0">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onBlur={() => setQ(toTitleCase(q))}
             placeholder="Buscar por nome, SKU, cor ou tamanho..."
-            className="flex-1 rounded-2xl bg-white/95 dark:bg-neutral-900/80 border border-neutral-200/80 dark:border-neutral-700/50 px-4 py-3.5 text-neutral-900 dark:text-neutral-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500/50 placeholder-neutral-400 dark:placeholder-neutral-500 shadow-sm hover:shadow-md transition-all"
+            className="min-w-0 w-full min-[420px]:flex-1 rounded-2xl bg-white/95 dark:bg-neutral-900/80 border border-neutral-200/80 dark:border-neutral-700/50 px-4 py-3.5 text-neutral-900 dark:text-neutral-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500/50 placeholder-neutral-400 dark:placeholder-neutral-500 shadow-sm hover:shadow-md transition-all"
           />
           {q && (
-            <button type="button" onClick={() => setQ("")} className="rounded-2xl border border-neutral-200 dark:border-neutral-700 px-4 py-3 text-sm text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors font-medium">
+            <button type="button" onClick={() => setQ("")} className="rounded-2xl border border-neutral-200 dark:border-neutral-700 px-4 py-3 min-h-[44px] min-[420px]:min-h-0 text-sm text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors font-medium touch-manipulation shrink-0">
               Limpar
             </button>
           )}
