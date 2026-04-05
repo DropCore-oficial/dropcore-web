@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { getSiteUrl } from "@/lib/siteUrl";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,7 +14,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://dropcore.com.br";
+const siteUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -30,11 +31,21 @@ export const metadata: Metadata = {
     title: "DropCore",
     description: "Hub de gestão para sellers e fornecedores",
     url: siteUrl,
+    images: [
+      {
+        url: "/og-social.png",
+        width: 1200,
+        height: 630,
+        alt: "DropCore",
+        type: "image/png",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "DropCore",
     description: "Hub de gestão para sellers e fornecedores",
+    images: ["/og-social.png"],
   },
 };
 
