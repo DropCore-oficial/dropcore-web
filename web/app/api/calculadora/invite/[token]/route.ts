@@ -61,6 +61,39 @@ function computeValidoAte(baseISO: string | null, validadeDias: number): string 
   return end.toISOString();
 }
 
+function isDuplicateUserError(authErr: { message?: string } | null | undefined): boolean {
+  const m = (authErr?.message ?? "").toLowerCase();
+  return (
+    m.includes("already") ||
+    m.includes("registered") ||
+    m.includes("exists") ||
+    m.includes("duplicate") ||
+    m.includes("unique")
+  );
+}
+
+/** Lista páginas até achar e-mail (convite nominativo). Limite de páginas por segurança. */
+async function findUserIdByEmail(emailNorm: string): Promise<string | null> {
+  const target = emailNorm.toLowerCase();
+  let page = 1;
+  const perPage = 200;
+  const maxPages = 40;
+
+  while (page <= maxPages) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      console.error("listUsers:", error.message);
+      return null;
+    }
+    const users = data?.users ?? [];
+    const hit = users.find((u) => (u.email ?? "").toLowerCase() === target);
+    if (hit?.id) return hit.id;
+    if (users.length < perPage) break;
+    page += 1;
+  }
+  return null;
+}
+
 export async function POST(req: Request, { params }: Params) {
   try {
     const { token } = await params;
@@ -94,6 +127,7 @@ export async function POST(req: Request, { params }: Params) {
 
     const existing = await sbAnon.auth.signInWithPassword({ email, password: senha });
     let userId: string | null = existing.data.user?.id ?? null;
+    let linkedExistingAccount = false;
 
     if (!userId) {
       const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
@@ -104,18 +138,33 @@ export async function POST(req: Request, { params }: Params) {
 
       if (authErr || !authData?.user) {
         const msg = authErr?.message ?? "Erro ao criar conta.";
-        if (msg.toLowerCase().includes("already")) {
+        const nominativo =
+          invite.email_alvo != null && invite.email_alvo.toLowerCase() === email;
+
+        if (isDuplicateUserError(authErr) && nominativo) {
+          const existingId = await findUserIdByEmail(email);
+          if (!existingId) {
+            return NextResponse.json(
+              { error: "Conta já existe, mas não foi possível localizar o usuário. Tente /calculadora/login." },
+              { status: 500 },
+            );
+          }
+          userId = existingId;
+          linkedExistingAccount = true;
+        } else if (isDuplicateUserError(authErr)) {
           return NextResponse.json(
             {
               error:
-                "Este e-mail já existe com outra senha. Faça login em /calculadora/login e solicite renovação com suporte.",
+                "Este e-mail já tem conta na DropCore. Entre em /calculadora/login com sua senha. Se esqueceu a senha, use “Esqueci a senha” no login.",
             },
             { status: 400 },
           );
+        } else {
+          return NextResponse.json({ error: msg }, { status: 500 });
         }
-        return NextResponse.json({ error: msg }, { status: 500 });
+      } else {
+        userId = authData.user.id;
       }
-      userId = authData.user.id;
     }
 
     const { data: currentAssin, error: assinReadErr } = await supabaseAdmin
@@ -161,7 +210,13 @@ export async function POST(req: Request, { params }: Params) {
       );
     }
 
-    return NextResponse.json({ ok: true, message: "Conta criada e assinatura ativada com sucesso." });
+    return NextResponse.json({
+      ok: true,
+      message: linkedExistingAccount
+        ? "Acesso da calculadora atualizado na sua conta. Entre com a senha que você já usa."
+        : "Conta criada e assinatura ativada com sucesso.",
+      linkedExistingAccount,
+    });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Erro inesperado.";
     return NextResponse.json({ error: message }, { status: 500 });

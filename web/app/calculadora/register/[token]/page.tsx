@@ -21,6 +21,8 @@ export default function CalculadoraRegisterPage() {
   const [sending, setSending] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
+  /** Convite aplicado em conta que já existia (e-mail nominativo) — mensagem pede login com senha antiga */
+  const [sucessoContaExistente, setSucessoContaExistente] = useState(false);
   const [mostrarSenha, setMostrarSenha] = useState(false);
 
   useEffect(() => {
@@ -64,17 +66,21 @@ export default function CalculadoraRegisterPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error ?? "Erro ao criar conta.");
 
+      const linkedExisting = Boolean(json?.linkedExistingAccount);
+
       const { data: authData, error: loginErr } = await supabaseBrowser.auth.signInWithPassword({
         email: email.trim(),
         password: senha,
       });
       if (loginErr) {
+        setSucessoContaExistente(linkedExisting);
         setSucesso(true);
         return;
       }
 
       const accessToken = authData.session?.access_token;
       if (!accessToken) {
+        setSucessoContaExistente(linkedExisting);
         setSucesso(true);
         return;
       }
@@ -126,8 +132,14 @@ export default function CalculadoraRegisterPage() {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
         <div className="rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent)]/10 p-8 max-w-sm w-full text-center shadow-sm">
-          <div className="text-[var(--accent)] font-semibold text-lg mb-2">Conta criada!</div>
-          <p className="text-[var(--accent)]/90 text-sm mb-6">Seu acesso foi criado com sucesso. Faça login para continuar.</p>
+          <div className="text-[var(--accent)] font-semibold text-lg mb-2">
+            {sucessoContaExistente ? "Acesso atualizado!" : "Conta criada!"}
+          </div>
+          <p className="text-[var(--accent)]/90 text-sm mb-6">
+            {sucessoContaExistente
+              ? "O teste da calculadora foi ligado na sua conta. Entre com o e-mail acima e a senha que você já usa na DropCore (não a que acabou de digitar, se era nova). Esqueceu? Use “Esqueci a senha” no login."
+              : "Seu acesso foi criado com sucesso. Faça login para continuar."}
+          </p>
           <button
             type="button"
             onClick={() => router.replace("/calculadora/login")}
