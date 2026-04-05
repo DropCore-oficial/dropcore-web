@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
@@ -19,6 +19,16 @@ export default function CalculadoraLoginPage() {
   const [esqueciSenha, setEsqueciSenha] = useState(false);
   const [resetEnviado, setResetEnviado] = useState(false);
   const [mostrarSenha, setMostrarSenha] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const q = new URLSearchParams(window.location.search).get("email");
+      if (q) setEmail(decodeURIComponent(q).trim());
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   async function solicitarReset() {
     setError(null);

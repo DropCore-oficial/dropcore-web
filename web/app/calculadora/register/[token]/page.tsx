@@ -21,8 +21,9 @@ export default function CalculadoraRegisterPage() {
   const [sending, setSending] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
-  /** Convite aplicado em conta que já existia (e-mail nominativo) — mensagem pede login com senha antiga */
+  /** Convite aplicado em conta que já existia (e-mail nominativo) */
   const [sucessoContaExistente, setSucessoContaExistente] = useState(false);
+  const [sucessoEmail, setSucessoEmail] = useState("");
   const [mostrarSenha, setMostrarSenha] = useState(false);
 
   useEffect(() => {
@@ -72,7 +73,9 @@ export default function CalculadoraRegisterPage() {
         email: email.trim(),
         password: senha,
       });
+      const emailOk = email.trim();
       if (loginErr) {
+        setSucessoEmail(emailOk);
         setSucessoContaExistente(linkedExisting);
         setSucesso(true);
         return;
@@ -80,6 +83,7 @@ export default function CalculadoraRegisterPage() {
 
       const accessToken = authData.session?.access_token;
       if (!accessToken) {
+        setSucessoEmail(emailOk);
         setSucessoContaExistente(linkedExisting);
         setSucesso(true);
         return;
@@ -129,24 +133,74 @@ export default function CalculadoraRegisterPage() {
   }
 
   if (sucesso) {
+    const em = sucessoEmail || email;
+    const loginHref = em ? `/calculadora/login?email=${encodeURIComponent(em)}` : "/calculadora/login";
+
     return (
-      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
-        <div className="rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent)]/10 p-8 max-w-sm w-full text-center shadow-sm">
-          <div className="text-[var(--accent)] font-semibold text-lg mb-2">
-            {sucessoContaExistente ? "Acesso atualizado!" : "Conta criada!"}
+      <div className="min-h-screen bg-[var(--background)] flex flex-col items-center justify-center p-4">
+        <div className="absolute top-4 right-4">
+          <ThemeToggle />
+        </div>
+        <div className="w-full max-w-sm">
+          <div className="mb-6 flex flex-col items-center">
+            <DropCoreLogo variant="horizontal" href={null} className="mb-2" />
+            <p className="text-[var(--muted)] text-sm text-center">DropCore Calculadora</p>
           </div>
-          <p className="text-[var(--accent)]/90 text-sm mb-6">
-            {sucessoContaExistente
-              ? "O teste da calculadora foi ligado na sua conta. Entre com o e-mail acima e a senha que você já usa na DropCore (não a que acabou de digitar, se era nova). Esqueceu? Use “Esqueci a senha” no login."
-              : "Seu acesso foi criado com sucesso. Faça login para continuar."}
-          </p>
-          <button
-            type="button"
-            onClick={() => router.replace("/calculadora/login")}
-            className="w-full rounded-xl bg-[var(--accent)] hover:opacity-90 text-white font-medium py-2.5 transition"
-          >
-            Ir para o login
-          </button>
+
+          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm p-6 text-center">
+            <div
+              className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400"
+              aria-hidden
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+
+            <h1 className="text-lg font-semibold text-[var(--foreground)]">
+              {sucessoContaExistente ? "Calculadora ativada na sua conta" : "Conta criada com sucesso"}
+            </h1>
+
+            {em ? (
+              <div className="mt-4 rounded-xl border border-[var(--card-border)] bg-[var(--background)] px-4 py-3 text-left">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted)]">Use este e-mail no login</p>
+                <p className="mt-1 text-sm font-semibold text-[var(--foreground)] break-all">{em}</p>
+              </div>
+            ) : null}
+
+            <div className="mt-5 space-y-3 text-left text-sm text-[var(--muted)] leading-relaxed">
+              {sucessoContaExistente ? (
+                <>
+                  <p>
+                    Você <strong className="text-[var(--foreground)]">já tinha cadastro</strong> na DropCore com esse e-mail.
+                    O teste da calculadora foi ligado nessa mesma conta.
+                  </p>
+                  <p>
+                    <strong className="text-[var(--foreground)]">No próximo passo</strong>, entre com a{" "}
+                    <strong className="text-[var(--foreground)]">senha que você já usava</strong> na DropCore.
+                    O que você digitou nesta página não vira uma senha nova — só serviu para tentarmos entrar
+                    automaticamente.
+                  </p>
+                  <p className="text-xs">
+                    Esqueceu a senha? No login, use <strong className="text-[var(--foreground)]">Esqueci a senha</strong>.
+                  </p>
+                </>
+              ) : (
+                <p>
+                  No login, use <strong className="text-[var(--foreground)]">o mesmo e-mail e a mesma senha</strong> que você
+                  acabou de cadastrar aqui.
+                </p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => router.replace(loginHref)}
+              className="mt-6 w-full rounded-xl bg-[var(--accent)] hover:opacity-90 text-white font-semibold py-2.5 text-sm transition"
+            >
+              Ir para o login
+            </button>
+          </div>
         </div>
       </div>
     );
