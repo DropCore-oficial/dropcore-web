@@ -23,7 +23,6 @@ export const metadata: Metadata = {
     template: "%s | DropCore",
   },
   description: "Hub de gestão para sellers e fornecedores",
-  icons: { icon: "/logo-icon.png", apple: "/logo-icon.png" },
   openGraph: {
     type: "website",
     locale: "pt_BR",
