@@ -41,13 +41,13 @@ function IconCreditCard({ active }: { active: boolean }) {
   );
 }
 
-export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "pedidos" | "dados-bancarios" }) {
-  const linkClass = (key: "dashboard" | "produtos" | "pedidos" | "dados-bancarios") =>
+export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "pedidos" | "cadastro" }) {
+  const linkClass = (key: "dashboard" | "produtos" | "pedidos" | "cadastro") =>
     `flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ${
       active === key ? activeClass + " hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20" : inactiveClass + " border-transparent hover:bg-neutral-100/80 dark:hover:bg-neutral-800/50"
     }`;
 
-  const mobileLinkClass = (key: "dashboard" | "produtos" | "pedidos" | "dados-bancarios") =>
+  const mobileLinkClass = (key: "dashboard" | "produtos" | "pedidos" | "cadastro") =>
     `flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 transition-all duration-200 border-t-2 relative ${
       active === key ? activeClass + " bg-emerald-50/30 dark:bg-emerald-950/20" : inactiveClass + " border-transparent active:bg-neutral-100 dark:active:bg-neutral-800/50"
     }`;
@@ -70,9 +70,9 @@ export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "
               <IconTruck active={active === "pedidos"} />
               Pedidos
             </Link>
-            <Link href="/fornecedor/dados-bancarios" className={linkClass("dados-bancarios")}>
-              <IconCreditCard active={active === "dados-bancarios"} />
-              Dados bancários
+            <Link href="/fornecedor/cadastro" className={linkClass("cadastro")}>
+              <IconCreditCard active={active === "cadastro"} />
+              Cadastro
             </Link>
           </div>
           <Link
@@ -99,9 +99,9 @@ export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "
             <IconTruck active={active === "pedidos"} />
             <span className="text-[10px] font-medium">Pedidos</span>
           </Link>
-          <Link href="/fornecedor/dados-bancarios" className={mobileLinkClass("dados-bancarios")}>
-            <IconCreditCard active={active === "dados-bancarios"} />
-            <span className="text-[10px] font-medium">Bancários</span>
+          <Link href="/fornecedor/cadastro" className={mobileLinkClass("cadastro")}>
+            <IconCreditCard active={active === "cadastro"} />
+            <span className="text-[10px] font-medium">Cadastro</span>
           </Link>
         </div>
       </nav>

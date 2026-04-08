@@ -35,7 +35,7 @@ export async function GET(req: Request) {
     const { url, anon, serviceRole } = getEnv();
     if (!url || !anon) {
       return jsonNoStore(
-        { error: "Env NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY ausentes" },
+        { error: "Configuração de ambiente ausente" },
         500
       );
     }
@@ -50,7 +50,7 @@ export async function GET(req: Request) {
 
     const { data: me, error: meErr } = await supabaseUser.auth.getUser();
     if (meErr || !me?.user) {
-      return jsonNoStore({ error: "Sessão inválida" }, 401);
+      return jsonNoStore({ error: "Erro de autenticação" }, 401);
     }
 
     const userId = me.user.id;
@@ -71,7 +71,7 @@ export async function GET(req: Request) {
     if (myErr) {
       console.error("GET /api/org/membros - erro ao buscar permissão:", myErr);
       return jsonNoStore(
-        { error: "Erro ao verificar permissões. Verifique se a tabela org_members existe e se o usuário está cadastrado." },
+        { error: "Erro ao verificar permissões." },
         500
       );
     }
@@ -79,7 +79,7 @@ export async function GET(req: Request) {
     const role = myMember?.role_base;
     if (!myMember || !["owner", "admin"].includes(role ?? "")) {
       return jsonNoStore(
-        { error: "Sem permissão. Apenas owner ou admin podem ver membros." },
+        { error: "Acesso negado. Apenas administradores podem visualizar membros." },
         403
       );
     }
@@ -151,7 +151,7 @@ export async function POST(req: Request) {
     const { url, anon, serviceRole } = getEnv();
     if (!url || !anon) {
       return jsonNoStore(
-        { error: "Env NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY ausentes" },
+        { error: "Configuração de ambiente ausente" },
         500
       );
     }
@@ -166,7 +166,7 @@ export async function POST(req: Request) {
 
     const { data: me, error: meErr } = await supabaseUser.auth.getUser();
     if (meErr || !me?.user) {
-      return jsonNoStore({ error: "Sessão inválida" }, 401);
+      return jsonNoStore({ error: "Erro de autenticação" }, 401);
     }
 
     const supabaseAdmin = createClient(url, serviceRole, {

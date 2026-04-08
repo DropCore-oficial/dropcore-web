@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { cadastroMinimoCompleto } from "@/lib/fornecedorCadastro";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,7 +46,9 @@ export async function GET(req: Request) {
 
     const { data: forn, error: fornErr } = await supabaseAdmin
       .from("fornecedores")
-      .select("id, nome, org_id, status, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta")
+      .select(
+        "id, nome, org_id, status, cnpj, telefone, email_comercial, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta"
+      )
       .eq("id", member.fornecedor_id)
       .maybeSingle();
 
@@ -53,23 +56,66 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Fornecedor não encontrado." }, { status: 404 });
     }
 
-    if (forn.status === "inativo") {
+    const frow = forn as typeof forn & {
+      cnpj?: string | null;
+      telefone?: string | null;
+      email_comercial?: string | null;
+      endereco_cep?: string | null;
+      endereco_logradouro?: string | null;
+      endereco_numero?: string | null;
+      endereco_complemento?: string | null;
+      endereco_bairro?: string | null;
+      endereco_cidade?: string | null;
+      endereco_uf?: string | null;
+    };
+
+    if (frow.status === "inativo") {
       return NextResponse.json({ error: "Conta inativa. Entre em contato com o suporte." }, { status: 403 });
     }
+
+    const cadastro = {
+      cnpj: frow.cnpj ?? null,
+      telefone: frow.telefone ?? null,
+      email_comercial: frow.email_comercial ?? null,
+      endereco_cep: frow.endereco_cep ?? null,
+      endereco_logradouro: frow.endereco_logradouro ?? null,
+      endereco_numero: frow.endereco_numero ?? null,
+      endereco_complemento: frow.endereco_complemento ?? null,
+      endereco_bairro: frow.endereco_bairro ?? null,
+      endereco_cidade: frow.endereco_cidade ?? null,
+      endereco_uf: frow.endereco_uf ?? null,
+      chave_pix: frow.chave_pix ?? null,
+      nome_banco: frow.nome_banco ?? null,
+      nome_no_banco: frow.nome_no_banco ?? null,
+      agencia: frow.agencia ?? null,
+      conta: frow.conta ?? null,
+      tipo_conta: frow.tipo_conta ?? null,
+    };
 
     return NextResponse.json({
       ok: true,
       fornecedor: {
-        id: forn.id,
-        nome: forn.nome,
-        org_id: forn.org_id,
-        status: forn.status,
-        chave_pix: forn.chave_pix ?? null,
-        nome_banco: forn.nome_banco ?? null,
-        nome_no_banco: forn.nome_no_banco ?? null,
-        agencia: forn.agencia ?? null,
-        conta: forn.conta ?? null,
-        tipo_conta: forn.tipo_conta ?? null,
+        id: frow.id,
+        nome: frow.nome,
+        org_id: frow.org_id,
+        status: frow.status,
+        cnpj: cadastro.cnpj,
+        telefone: cadastro.telefone,
+        email_comercial: cadastro.email_comercial,
+        endereco_cep: cadastro.endereco_cep,
+        endereco_logradouro: cadastro.endereco_logradouro,
+        endereco_numero: cadastro.endereco_numero,
+        endereco_complemento: cadastro.endereco_complemento,
+        endereco_bairro: cadastro.endereco_bairro,
+        endereco_cidade: cadastro.endereco_cidade,
+        endereco_uf: cadastro.endereco_uf,
+        chave_pix: cadastro.chave_pix,
+        nome_banco: cadastro.nome_banco,
+        nome_no_banco: cadastro.nome_no_banco,
+        agencia: cadastro.agencia,
+        conta: cadastro.conta,
+        tipo_conta: cadastro.tipo_conta,
+        cadastro_minimo_completo: cadastroMinimoCompleto(cadastro),
       },
     });
   } catch (e: unknown) {

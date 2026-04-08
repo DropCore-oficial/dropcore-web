@@ -15,6 +15,7 @@ type FornecedorData = {
   nome: string;
   org_id: string;
   status: string;
+  cadastro_minimo_completo?: boolean;
 };
 
 type RepasseItem = {
@@ -371,6 +372,19 @@ export default function FornecedorDashboardPage() {
           </div>
         </header>
 
+        {fornecedor && fornecedor.cadastro_minimo_completo === false && (
+          <Link
+            href="/fornecedor/cadastro"
+            className="block rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50/90 dark:bg-sky-950/30 px-4 py-3 shadow-sm hover:bg-sky-50 dark:hover:bg-sky-950/50 transition-colors"
+          >
+            <p className="text-sm font-semibold text-sky-900 dark:text-sky-200">Complete o cadastro da empresa</p>
+            <p className="text-xs text-sky-800/80 dark:text-sky-300/90 mt-0.5">
+              Informe CNPJ, telefone, e-mail comercial e PIX ou dados bancários para repasses.
+            </p>
+            <span className="text-xs font-medium text-sky-700 dark:text-sky-400 mt-2 inline-block">Preencher agora →</span>
+          </Link>
+        )}
+
         {/* 1b. Repasses futuros — alerta no início */}
         {repasseFuturos.length > 0 && (
           <section className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/20 shadow-sm overflow-hidden">
@@ -675,14 +689,14 @@ export default function FornecedorDashboardPage() {
             </div>
             <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">Pedidos</span>
           </button>
-          <button onClick={() => router.push("/fornecedor/dados-bancarios")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left group">
+          <button onClick={() => router.push("/fornecedor/cadastro")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left group">
             <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
               <svg className="w-5 h-5 text-neutral-600 dark:text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect width="20" height="14" x="2" y="5" rx="2" />
                 <line x1="2" x2="22" y1="10" y2="10" />
               </svg>
             </div>
-            <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">Dados bancários</span>
+            <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">Cadastro</span>
           </button>
         </section>
 

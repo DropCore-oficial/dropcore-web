@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
+import { deleteFornecedorCascade } from "@/lib/fornecedorDeleteCascade";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -90,6 +91,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!data) return NextResponse.json({ error: "Fornecedor não encontrado" }, { status: 404 });
 
     return NextResponse.json({ ok: true, id: data.id, premium: data.premium });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Erro inesperado";
+    const status = msg === "Não autenticado" ? 401 : msg === "Sem permissão" ? 403 : msg === "orgId é obrigatório" ? 400 : 500;
+    return NextResponse.json({ error: msg }, { status });
+  }
+}
+
+/**
+ * DELETE /api/org/fornecedores/[id]?orgId=...
+ * Remove fornecedor e dados ligados (pedidos, ledger, SKUs, convites, etc.).
+ */
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { supabaseAdmin: sb, orgId } = await requireOwnerOrAdmin(req);
+    const { id } = await params;
+    if (!id) return NextResponse.json({ error: "id é obrigatório" }, { status: 400 });
+
+    const result = await deleteFornecedorCascade(sb, orgId, id);
+    if (!result.ok) {
+      const status = result.message.includes("não encontrado") ? 404 : 400;
+      return NextResponse.json({ error: result.message }, { status });
+    }
+
+    return NextResponse.json({ ok: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     const status = msg === "Não autenticado" ? 401 : msg === "Sem permissão" ? 403 : msg === "orgId é obrigatório" ? 400 : 500;

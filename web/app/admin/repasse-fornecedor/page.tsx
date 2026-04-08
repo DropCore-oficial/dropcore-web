@@ -21,6 +21,7 @@ type Preview = {
   total_count?: number;
   status_counts?: Record<string, number>;
   debitos_count: number;
+  fornecedores_cadastro_pendente?: string[];
   por_fornecedor: PreviewItem[];
   total_fornecedores: number;
   total_dropcore: number;
@@ -162,6 +163,13 @@ export default function RepasseFornecedorPage() {
 
   async function fecharRepasse() {
     if (!preview || preview.entries_count === 0) return;
+    if ((preview.fornecedores_cadastro_pendente?.length ?? 0) > 0) {
+      setMessage({
+        type: "err",
+        text: "Existem fornecedores com cadastro incompleto neste ciclo. Peça para completarem o cadastro antes de fechar o repasse.",
+      });
+      return;
+    }
     setClosing(true);
     setMessage(null);
     try {
@@ -445,12 +453,23 @@ export default function RepasseFornecedorPage() {
                         ⚠ {preview.debitos_count} débito(s) de devolução serão descontados neste repasse.
                       </p>
                     )}
+                    {(preview.fornecedores_cadastro_pendente?.length ?? 0) > 0 && (
+                      <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        <p className="font-semibold mb-1">Cadastro pendente bloqueia fechamento</p>
+                        <p>
+                          Fornecedores pendentes: {preview.fornecedores_cadastro_pendente!.slice(0, 5).join(", ")}
+                          {preview.fornecedores_cadastro_pendente!.length > 5
+                            ? ` e mais ${preview.fornecedores_cadastro_pendente!.length - 5}.`
+                            : "."}
+                        </p>
+                      </div>
+                    )}
 
                     <button
                       onClick={fecharRepasse}
-                      disabled={closing}
+                      disabled={closing || (preview.fornecedores_cadastro_pendente?.length ?? 0) > 0}
                       className={`w-full rounded-xl py-3 text-sm font-semibold transition-colors ${
-                        closing
+                        closing || (preview.fornecedores_cadastro_pendente?.length ?? 0) > 0
                           ? "bg-neutral-200 text-neutral-500 cursor-not-allowed"
                           : "bg-emerald-600 hover:bg-emerald-500 text-white"
                       }`}

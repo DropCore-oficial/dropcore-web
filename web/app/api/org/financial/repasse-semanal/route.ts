@@ -9,12 +9,23 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
+import { cadastroMinimoCompleto } from "@/lib/fornecedorCadastro";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const READY_STATUSES = ["ENTREGUE", "AGUARDANDO_REPASSE"] as const;
+
+function toFornecedorIds(rows: Array<{ fornecedor_id: string | null }>): string[] {
+  return Array.from(
+    new Set(
+      rows
+        .map((r) => r.fornecedor_id)
+        .filter((id): id is string => Boolean(id && uuidRegex.test(id)))
+    )
+  );
+}
 
 /** GET: preview do repasse para um ciclo (sem alterar nada). Query: ciclo_repasse=YYYY-MM-DD */
 export async function GET(req: Request) {
@@ -121,13 +132,28 @@ export async function GET(req: Request) {
     const ja_fechado = cicloRow?.status === "fechado";
 
     let fornecedorNomes: Record<string, string> = {};
+    let fornecedoresCadastroPendente: string[] = [];
     if (fornecedorIds.length > 0) {
       const { data: fornRows } = await supabaseAdmin
         .from("fornecedores")
-        .select("id, nome")
+        .select(
+          "id, nome, cnpj, telefone, email_comercial, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta"
+        )
         .in("id", fornecedorIds);
       for (const f of fornRows ?? []) {
         fornecedorNomes[f.id] = f.nome ?? "—";
+        const completo = cadastroMinimoCompleto({
+          cnpj: f.cnpj ?? null,
+          telefone: f.telefone ?? null,
+          email_comercial: f.email_comercial ?? null,
+          chave_pix: f.chave_pix ?? null,
+          nome_banco: f.nome_banco ?? null,
+          nome_no_banco: f.nome_no_banco ?? null,
+          agencia: f.agencia ?? null,
+          conta: f.conta ?? null,
+          tipo_conta: f.tipo_conta ?? null,
+        });
+        if (!completo) fornecedoresCadastroPendente.push(f.nome ?? "Fornecedor sem nome");
       }
     }
 
@@ -150,6 +176,7 @@ export async function GET(req: Request) {
       total_count: (ledgerAllRows ?? []).length,
       status_counts,
       debitos_count: debitosList.length,
+      fornecedores_cadastro_pendente: fornecedoresCadastroPendente,
       por_fornecedor,
       total_fornecedores,
       total_dropcore,
@@ -235,7 +262,53 @@ export async function POST(req: Request) {
       total_dropcore += Math.max(0, v.valor_dropcore);
     }
 
-    // 3) Atualizar ledger: status → PAGO
+    // 3) Bloqueio leve: só permite fechar se os fornecedores do ciclo tiverem cadastro mínimo completo
+    const fornecedorIdsNoCiclo = toFornecedorIds(entries);
+    if (fornecedorIdsNoCiclo.length > 0) {
+      const { data: fornecedoresNoCiclo, error: fornecedoresErr } = await supabaseAdmin
+        .from("fornecedores")
+        .select(
+          "id, nome, cnpj, telefone, email_comercial, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta"
+        )
+        .in("id", fornecedorIdsNoCiclo)
+        .eq("org_id", org_id);
+
+      if (fornecedoresErr) {
+        return NextResponse.json({ error: fornecedoresErr.message }, { status: 500 });
+      }
+
+      const pendentes = (fornecedoresNoCiclo ?? []).filter(
+        (f) =>
+          !cadastroMinimoCompleto({
+            cnpj: f.cnpj ?? null,
+            telefone: f.telefone ?? null,
+            email_comercial: f.email_comercial ?? null,
+            chave_pix: f.chave_pix ?? null,
+            nome_banco: f.nome_banco ?? null,
+            nome_no_banco: f.nome_no_banco ?? null,
+            agencia: f.agencia ?? null,
+            conta: f.conta ?? null,
+            tipo_conta: f.tipo_conta ?? null,
+          })
+      );
+
+      if (pendentes.length > 0) {
+        const nomes = pendentes
+          .slice(0, 5)
+          .map((f) => f.nome ?? "Fornecedor sem nome")
+          .join(", ");
+        const extra = pendentes.length > 5 ? ` e mais ${pendentes.length - 5}` : "";
+        return NextResponse.json(
+          {
+            error: `Não foi possível fechar o repasse: ${pendentes.length} fornecedor(es) com cadastro incompleto (${nomes}${extra}).`,
+            code: "FORNECEDOR_CADASTRO_INCOMPLETO",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    // 4) Atualizar ledger: status → PAGO
     const ledgerIds = entries.map((e) => e.id);
     if (ledgerIds.length > 0) {
       const { error: upLedger } = await supabaseAdmin
@@ -249,7 +322,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 4) Marcar débitos como descontados
+    // 5) Marcar débitos como descontados
     for (const d of debitosList) {
       await supabaseAdmin
         .from("financial_debito_descontar")
@@ -257,10 +330,10 @@ export async function POST(req: Request) {
         .eq("id", d.id);
     }
 
-    // 5) Recalcular totais
+    // 6) Recalcular totais
     const now = new Date().toISOString();
 
-    // 6) Recalcular totais do ciclo a partir de TODOS os PAGO (não só os deste batch)
+    // 7) Recalcular totais do ciclo a partir de TODOS os PAGO (não só os deste batch)
     const { data: allPago } = await supabaseAdmin
       .from("financial_ledger")
       .select("fornecedor_id, valor_fornecedor, valor_dropcore")

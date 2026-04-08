@@ -4,41 +4,16 @@
  * Requer token de fornecedor.
  */
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getFornecedorIdFromBearer } from "@/lib/fornecedorAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: string } | null> {
-  const auth = req.headers.get("authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  if (!token) return null;
-
-  const sbAnon = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { persistSession: false } }
-  );
-  const { data: userData, error: userErr } = await sbAnon.auth.getUser(token);
-  if (userErr || !userData?.user) return null;
-
-  const { data: member } = await supabaseAdmin
-    .from("org_members")
-    .select("fornecedor_id")
-    .eq("user_id", userData.user.id)
-    .not("fornecedor_id", "is", null)
-    .limit(1)
-    .maybeSingle();
-
-  if (!member?.fornecedor_id) return null;
-  return { fornecedor_id: member.fornecedor_id };
-}
-
 export async function PATCH(req: Request) {
   try {
-    const ctx = await getFornecedorFromToken(req);
-    if (!ctx) {
+    const fornecedor_id = await getFornecedorIdFromBearer(req);
+    if (!fornecedor_id) {
       return NextResponse.json({ error: "Não autenticado como fornecedor." }, { status: 401 });
     }
 
@@ -60,7 +35,7 @@ export async function PATCH(req: Request) {
     const { error } = await supabaseAdmin
       .from("fornecedores")
       .update(update)
-      .eq("id", ctx.fornecedor_id);
+      .eq("id", fornecedor_id);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

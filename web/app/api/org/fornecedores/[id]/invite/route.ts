@@ -10,6 +10,24 @@ import { requireAdmin } from "@/lib/apiOrgAuth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function resolveBaseUrl(req: Request): string {
+  // Domínio público explícito vence: na Vercel o x-forwarded-host pode vir como
+  // *.vercel.app e geraria links de convite quebrados mesmo com site em domínio próprio.
+  const envBase = (process.env.NEXT_PUBLIC_APP_URL ?? "").trim().replace(/\/+$/, "");
+  if (envBase) return envBase;
+
+  const url = new URL(req.url);
+  const xfHost = req.headers.get("x-forwarded-host");
+  const xfProto = req.headers.get("x-forwarded-proto");
+
+  if (xfHost) {
+    const proto = xfProto === "http" || xfProto === "https" ? xfProto : "https";
+    return `${proto}://${xfHost}`;
+  }
+
+  return url.origin;
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -60,7 +78,7 @@ export async function POST(
       return NextResponse.json({ error: inviteErr?.message ?? "Erro ao gerar convite." }, { status: 500 });
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const baseUrl = resolveBaseUrl(req);
     const link = `${baseUrl}/fornecedor/register/${invite.token}`;
 
     return NextResponse.json({

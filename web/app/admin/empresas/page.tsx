@@ -7,6 +7,7 @@ import { PlanLimitsBadge } from "@/components/PlanLimitsBadge";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { PageLayout, Card, Button, Alert, Input } from "@/components/ui";
 import { toTitleCase } from "@/lib/formatText";
+import { formatCnpjBr } from "@/lib/fornecedorCadastro";
 
 type Fornecedor = {
   id: string;
@@ -17,6 +18,9 @@ type Fornecedor = {
   sla_postagem_dias: number | null;
   janela_validacao_dias: number | null;
   criado_em: string;
+  cnpj?: string | null;
+  telefone?: string | null;
+  email_comercial?: string | null;
 };
 
 export default function AdminEmpresasPage() {
@@ -30,6 +34,7 @@ export default function AdminEmpresasPage() {
   const [modalNova, setModalNova] = useState(false);
   const [novoNome, setNovoNome] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadOrg() {
@@ -141,6 +146,34 @@ export default function AdminEmpresasPage() {
     }
   }
 
+  async function excluirFornecedor(emp: Fornecedor) {
+    if (!orgId) return;
+    const ok = window.confirm(
+      `Excluir permanentemente "${emp.nome || "esta empresa"}"? Pedidos, SKUs e dados financeiros ligados a este fornecedor serão removidos. Esta ação não pode ser desfeita.`
+    );
+    if (!ok) return;
+    setDeletingId(emp.id);
+    setError(null);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/login");
+        return;
+      }
+      const res = await fetch(
+        `/api/org/fornecedores/${encodeURIComponent(emp.id)}?orgId=${encodeURIComponent(orgId)}`,
+        { method: "DELETE", headers: { Authorization: `Bearer ${session.access_token}` } }
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Erro ao excluir empresa.");
+      setEmpresas((prev) => prev.filter((e) => e.id !== emp.id));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao excluir empresa.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   async function adicionarEmpresa() {
     if (!orgId || !novoNome.trim()) return;
     setSaving(true);
@@ -237,6 +270,23 @@ export default function AdminEmpresasPage() {
                   Status: {emp.status || "—"}
                   {emp.sla_postagem_dias != null && ` · SLA: ${emp.sla_postagem_dias} dias`}
                 </div>
+                <dl className="mt-2 text-xs text-[var(--foreground)] space-y-1 border-t border-[var(--card-border)] pt-2">
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                    <dt className="text-[var(--muted)] shrink-0">CNPJ</dt>
+                    <dd className="font-mono tabular-nums">{formatCnpjBr(emp.cnpj ?? null)}</dd>
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                    <dt className="text-[var(--muted)] shrink-0">Telefone</dt>
+                    <dd>{emp.telefone?.trim() || "—"}</dd>
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                    <dt className="text-[var(--muted)] shrink-0">E-mail</dt>
+                    <dd className="break-all">{emp.email_comercial?.trim() || "—"}</dd>
+                  </div>
+                </dl>
+                <p className="text-[11px] text-[var(--muted)] mt-1.5">
+                  Preenchidos pelo fornecedor no painel (Cadastro).
+                </p>
                 <div className="mt-3 flex gap-2 flex-wrap">
                   <Button variant="success" size="sm" onClick={() => irParaCatalogo(emp)}>
                     Editar catálogo
@@ -246,6 +296,14 @@ export default function AdminEmpresasPage() {
                   </Button>
                   <Button variant="secondary" size="sm" onClick={() => enviarConvite(emp)} disabled={!!invitingId} className="border-[var(--info)] text-[var(--info)]">
                     {invitingId === emp.id ? "Gerando..." : "Convidar (login)"}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => excluirFornecedor(emp)}
+                    disabled={deletingId !== null}
+                  >
+                    {deletingId === emp.id ? "Excluindo…" : "Excluir"}
                   </Button>
                 </div>
               </Card>
