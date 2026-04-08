@@ -313,6 +313,12 @@ export default function FornecedorDashboardPage() {
   const hojeKeyChart = new Date().toISOString().slice(0, 10);
   const ultimoDiaHoje = !isHojeMode && ultimoDiaKey === hojeKeyChart;
 
+  const dataHojeFmt = new Date().toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
@@ -343,51 +349,75 @@ export default function FornecedorDashboardPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 space-y-4">
-        {/* 1. Header compacto */}
-        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center text-base font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">
-              {fornecedor?.nome?.charAt(0).toUpperCase() ?? "F"}
+      <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 md:py-7 space-y-5 md:space-y-6">
+        <header className="rounded-2xl border border-[var(--card-border)] bg-gradient-to-br from-[var(--card)] via-[var(--card)] to-emerald-50/40 dark:to-emerald-950/20 p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center text-lg font-bold shadow-md shadow-emerald-500/25 shrink-0">
+                {fornecedor?.nome?.charAt(0).toUpperCase() ?? "F"}
+              </div>
+              <div className="min-w-0 pt-0.5">
+                <p className="text-xs font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90">Painel do fornecedor</p>
+                <h1 className="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-neutral-50 tracking-tight truncate">
+                  {fornecedor?.nome ?? "Fornecedor"}
+                </h1>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1 capitalize">{dataHojeFmt}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">Olá,</p>
-              <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 truncate">{fornecedor?.nome}</h1>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end sm:shrink-0">
-            {(stats?.pedidos_aguardando_postagem ?? 0) > 0 && (
-              <Link
-                href="/fornecedor/pedidos?status=enviado"
-                className="rounded-lg bg-[var(--card)] border border-[var(--card-border)] px-2.5 py-2 min-h-[40px] sm:min-h-0 inline-flex items-center text-xs font-medium text-neutral-700 dark:text-neutral-300 touch-manipulation"
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:shrink-0">
+              {(stats?.pedidos_aguardando_postagem ?? 0) > 0 && (
+                <Link
+                  href="/fornecedor/pedidos?status=enviado"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500/15 dark:bg-amber-500/20 border border-amber-400/40 dark:border-amber-600/40 px-3 py-2 text-xs font-semibold text-amber-900 dark:text-amber-200 touch-manipulation hover:bg-amber-500/25 transition-colors"
+                >
+                  <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-md bg-amber-500 text-white text-[10px] font-bold tabular-nums">
+                    {stats?.pedidos_aguardando_postagem ?? 0}
+                  </span>
+                  aguardando postagem
+                </Link>
+              )}
+              <ThemeToggle className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center touch-manipulation rounded-xl" />
+              <NotificationBell context="fornecedor" />
+              <button
+                type="button"
+                onClick={sair}
+                className="rounded-xl border border-[var(--card-border)] bg-[var(--background)]/80 px-3 py-2 min-h-[40px] text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 touch-manipulation transition-colors"
               >
-                {stats?.pedidos_aguardando_postagem ?? 0} para postar
-              </Link>
-            )}
-            <ThemeToggle className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center touch-manipulation" />
-            <NotificationBell context="fornecedor" />
-            <button type="button" onClick={sair} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 min-h-[40px] sm:min-h-0 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 touch-manipulation">
-              Sair
-            </button>
+                Sair
+              </button>
+            </div>
           </div>
         </header>
 
         {fornecedor && fornecedor.cadastro_minimo_completo === false && (
           <Link
             href="/fornecedor/cadastro"
-            className="block rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50/90 dark:bg-sky-950/30 px-4 py-3 shadow-sm hover:bg-sky-50 dark:hover:bg-sky-950/50 transition-colors"
+            className="group flex gap-4 rounded-2xl border border-sky-200/90 dark:border-sky-800/80 bg-sky-50/95 dark:bg-sky-950/35 px-4 py-4 shadow-sm hover:border-sky-300 dark:hover:border-sky-700 hover:shadow-md transition-all"
           >
-            <p className="text-sm font-semibold text-sky-900 dark:text-sky-200">Complete o cadastro da empresa</p>
-            <p className="text-xs text-sky-800/80 dark:text-sky-300/90 mt-0.5">
-              Informe CNPJ, telefone, e-mail comercial e PIX ou dados bancários para repasses.
-            </p>
-            <span className="text-xs font-medium text-sky-700 dark:text-sky-400 mt-2 inline-block">Preencher agora →</span>
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-500 text-white shadow-sm">
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-sky-950 dark:text-sky-100">Complete o cadastro da empresa</p>
+              <p className="text-xs text-sky-800/85 dark:text-sky-300/90 mt-1 leading-relaxed">
+                CNPJ, telefone, e-mail comercial e PIX ou dados bancários para receber repasses.
+              </p>
+              <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-sky-700 dark:text-sky-400 group-hover:gap-2 transition-all">
+                Preencher agora
+                <span aria-hidden>→</span>
+              </span>
+            </div>
           </Link>
         )}
 
         {/* 1b. Repasses futuros — alerta no início */}
         {repasseFuturos.length > 0 && (
-          <section className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/20 shadow-sm overflow-hidden">
+          <section className="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/20 shadow-sm overflow-hidden">
             <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">Repasses futuros</p>
@@ -415,78 +445,93 @@ export default function FornecedorDashboardPage() {
           </section>
         )}
 
-        {/* 2. Card de resumo principal — A receber em destaque */}
-        <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
-          <div className="p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-0.5">A receber</p>
-                <p className="text-2xl sm:text-3xl font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(totalAReceber)}</p>
-              </div>
+        <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
+          <div className="relative p-4 sm:p-5">
+            <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-emerald-500 to-emerald-600 opacity-90" aria-hidden />
+            <div className="pl-4 sm:pl-5">
+              <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Total a receber (repasses)</p>
+              <p className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
+                {BRL.format(totalAReceber)}
+              </p>
+              <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Valores liberados e pendentes conforme regras da organização</p>
             </div>
-            <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <Link
-                href="/fornecedor/pedidos?status=enviado"
-                className={`rounded-lg px-3 py-2 transition-colors text-left ${
-                  (stats?.pedidos_aguardando_postagem ?? 0) > 0
-                    ? "bg-[var(--card)] border border-[var(--card-border)]"
-                    : "bg-[var(--card)] border border-[var(--card-border)] hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                }`}
-              >
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">Para postar</p>
-                <p className="text-sm font-bold tabular-nums text-neutral-900 dark:text-neutral-100">
-                  {stats?.pedidos_aguardando_postagem ?? 0}
-                </p>
-              </Link>
-              <Link
-                href="/fornecedor/produtos"
-                className="rounded-lg bg-[var(--card)] border border-[var(--card-border)] px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left"
-              >
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">Produtos ativos</p>
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{stats?.produtos_ativos ?? 0}</p>
-              </Link>
-              <Link
-                href="/fornecedor/produtos?estoqueBaixo=1"
-                className={`rounded-lg px-3 py-2 transition-colors text-left ${
-                  (stats?.estoque_baixo ?? 0) > 0
-                    ? "bg-[var(--card)] border border-[var(--card-border)]"
-                    : "bg-[var(--card)] border border-[var(--card-border)] hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                }`}
-              >
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">Estoque baixo</p>
-                <p className="text-sm font-bold tabular-nums text-neutral-900 dark:text-neutral-100">
-                  {stats?.estoque_baixo ?? 0}
-                </p>
-              </Link>
-              <Link
-                href="/fornecedor/pedidos"
-                className="rounded-lg bg-[var(--card)] border border-[var(--card-border)] px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left"
-              >
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">Pedidos (mês)</p>
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{stats?.pedidos_mes_count ?? 0}</p>
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">{BRL.format(stats?.pedidos_mes_valor ?? 0)}</p>
-              </Link>
-            </div>
-
-            {/* Mensalidades */}
-            {mensalidades.length > 0 && (
-              <div className="mt-3 pt-3 border-t flex items-center justify-between rounded-lg px-3 py-2 bg-[var(--card)] border border-[var(--card-border)]">
-                <div>
-                  <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">Mensalidade pendente</p>
-                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">{mensalidades[0].vencido ? "Vencida" : mensalidades[0].vencimento_em ? `Vence ${new Date(mensalidades[0].vencimento_em + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}` : ""}</p>
-                </div>
-                <button onClick={() => abrirPixMensalidade(mensalidades[0])} className="rounded-lg bg-neutral-900 dark:bg-neutral-100 hover:opacity-90 text-white dark:text-neutral-900 px-3 py-1.5 text-xs font-medium">
-                  Pagar {BRL.format(mensalidades[0].valor)}
-                </button>
-              </div>
-            )}
           </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 sm:p-4 pt-0 border-t border-[var(--card-border)]/80 bg-neutral-50/50 dark:bg-neutral-900/30">
+            <Link
+              href="/fornecedor/pedidos?status=enviado"
+              className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-3 transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm text-left"
+            >
+              <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Para postar</p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                {stats?.pedidos_aguardando_postagem ?? 0}
+              </p>
+              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">pedidos enviados</p>
+            </Link>
+            <Link
+              href="/fornecedor/produtos"
+              className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-3 transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm text-left"
+            >
+              <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Produtos ativos</p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                {stats?.produtos_ativos ?? 0}
+              </p>
+              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">no catálogo</p>
+            </Link>
+            <Link
+              href="/fornecedor/produtos?estoqueBaixo=1"
+              className={`group rounded-xl border px-3 py-3 transition-all hover:shadow-sm text-left ${
+                (stats?.estoque_baixo ?? 0) > 0
+                  ? "border-amber-300/80 dark:border-amber-700/80 bg-amber-50/50 dark:bg-amber-950/20"
+                  : "border-[var(--card-border)] bg-[var(--card)] hover:border-emerald-300 dark:hover:border-emerald-700"
+              }`}
+            >
+              <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Estoque baixo</p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-neutral-900 dark:text-neutral-100">{stats?.estoque_baixo ?? 0}</p>
+              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">abaixo do mínimo</p>
+            </Link>
+            <Link
+              href="/fornecedor/pedidos"
+              className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-3 transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm text-left"
+            >
+              <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Pedidos no mês</p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                {stats?.pedidos_mes_count ?? 0}
+              </p>
+              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 tabular-nums">{BRL.format(stats?.pedidos_mes_valor ?? 0)}</p>
+            </Link>
+          </div>
+
+          {mensalidades.length > 0 && (
+            <div className="mx-3 mb-3 sm:mx-4 sm:mb-4 flex flex-col gap-3 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-100/60 dark:bg-neutral-800/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Mensalidade pendente</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  {mensalidades[0].vencido
+                    ? "Em atraso — regularize para manter o acesso"
+                    : mensalidades[0].vencimento_em
+                      ? `Vence em ${new Date(mensalidades[0].vencimento_em + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}`
+                      : "Pagamento em aberto"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => abrirPixMensalidade(mensalidades[0])}
+                className="shrink-0 rounded-xl bg-neutral-900 dark:bg-neutral-100 px-4 py-2.5 text-sm font-semibold text-white dark:text-neutral-900 hover:opacity-90 transition-opacity"
+              >
+                Pagar {BRL.format(mensalidades[0].valor)}
+              </button>
+            </div>
+          )}
         </section>
 
-        {/* 2a. Gráfico — volume a receber (igual ao seller) */}
-        <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Volume a receber · Hoje fixo</p>
+        <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
+          <div className="px-4 py-3.5 border-b border-neutral-100 dark:border-neutral-800 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <div>
+              <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Volume a receber</p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                {chartMode === "hoje" ? "Por hora — hoje" : "Por dia — escolha o período"}
+              </p>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
                 <button
@@ -610,13 +655,25 @@ export default function FornecedorDashboardPage() {
                 </div>
               </>
             ) : (
-              <div className="text-center py-10">
-                <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-3">Sem pedidos neste período</p>
+              <div className="text-center py-12 px-4">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100/80 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
+                  <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M3 3v18h18" />
+                    <path d="M18 17V9" />
+                    <path d="M13 17V5" />
+                    <path d="M8 17v-3" />
+                  </svg>
+                </div>
+                <p className="text-base font-semibold text-neutral-800 dark:text-neutral-200">Nenhum volume neste período</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm mx-auto">
+                  Quando houver pedidos confirmados, o gráfico mostra o valor a receber por hora ou por dia.
+                </p>
                 <button
+                  type="button"
                   onClick={() => router.push("/fornecedor/produtos")}
-                  className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-sm font-semibold"
+                  className="mt-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 text-sm font-semibold shadow-sm shadow-emerald-600/25 transition-colors"
                 >
-                  Ver produtos
+                  Gerir catálogo
                 </button>
               </div>
             )}
@@ -625,7 +682,7 @@ export default function FornecedorDashboardPage() {
 
         {/* 2b. Analytics — desempenho detalhado (igual ao seller) */}
         {desempenho && (desempenho.totalPedidos > 0 || desempenho.valorTotal > 0) && (
-          <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
+          <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
             <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 bg-[var(--card)]">
               <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 Desempenho · {chartMode === "hoje" ? "Hoje" : `${desempenho.dias} dias`}
@@ -667,37 +724,66 @@ export default function FornecedorDashboardPage() {
           </section>
         )}
 
-        {/* 3. Atalhos — grid 3 colunas (alinhado ao seller) */}
-        <section className="grid grid-cols-3 gap-2">
-          <button onClick={() => router.push("/fornecedor/produtos")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left group">
-            <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5 text-neutral-600 dark:text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                <line x1="12" y1="22.08" x2="12" y2="12" />
-              </svg>
-            </div>
-            <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">Produtos</span>
-          </button>
-          <button onClick={() => router.push("/fornecedor/pedidos")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left group">
-            <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5 text-neutral-600 dark:text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" />
-                <path d="M15 18h2" />
-                <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14" />
-              </svg>
-            </div>
-            <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">Pedidos</span>
-          </button>
-          <button onClick={() => router.push("/fornecedor/cadastro")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left group">
-            <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5 text-neutral-600 dark:text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect width="20" height="14" x="2" y="5" rx="2" />
-                <line x1="2" x2="22" y1="10" y2="10" />
-              </svg>
-            </div>
-            <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">Cadastro</span>
-          </button>
+        <section aria-label="Atalhos">
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2 px-0.5">Acesso rápido</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button
+              type="button"
+              onClick={() => router.push("/fornecedor/produtos")}
+              className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md group"
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400">
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                    <line x1="12" y1="22.08" x2="12" y2="12" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Produtos</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug">SKUs, preços e estoque</p>
+                </div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/fornecedor/pedidos")}
+              className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md group"
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400">
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" />
+                    <path d="M15 18h2" />
+                    <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Pedidos</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug">Postagem e acompanhamento</p>
+                </div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/fornecedor/cadastro")}
+              className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md group"
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400">
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <rect width="20" height="14" x="2" y="5" rx="2" />
+                    <line x1="2" x2="22" y1="10" y2="10" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Cadastro</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug">Empresa e dados bancários</p>
+                </div>
+              </div>
+            </button>
+          </div>
         </section>
 
         {/* 4. Alerta estoque baixo */}
@@ -724,11 +810,11 @@ export default function FornecedorDashboardPage() {
         )}
 
         {/* 5. Repasses — recolhível */}
-        <section ref={repasseRef} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-neutral-200 dark:border-neutral-700 bg-[var(--card)] px-3">
+        <section ref={repasseRef} className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between gap-3 border-b border-neutral-200 dark:border-neutral-700 bg-[var(--card)] px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Repasses</p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">Valores por ciclo de repasse</p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">Histórico por ciclo e status de pagamento</p>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={load} className="rounded-lg border border-neutral-200 dark:border-neutral-600 px-2.5 py-1.5 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
