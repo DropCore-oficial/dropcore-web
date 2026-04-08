@@ -54,7 +54,7 @@ export function resolvePublicOrigin(req: Request): string {
 /**
  * Base para links de convite (fornecedor, seller, etc.).
  * Usa getSiteUrl(), que rejeita NEXT_PUBLIC_APP_URL em *.vercel.app morto
- * (ex.: dropcore.vercel.app) e cai em dropcore.com.br em produção.
+ * (ex.: dropcore.vercel.app) e cai no domínio canónico (www.dropcore.com.br) em produção.
  * Fora da Vercel, prefere o host do request (localhost, etc.).
  */
 export function resolveInvitePublicOrigin(req: Request): string {

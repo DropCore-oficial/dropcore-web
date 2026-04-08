@@ -1,8 +1,8 @@
 /**
  * Domínio canónico de produção (convites, redirects, OG).
- * Sem barra final.
+ * Sem barra final. Alinhe com NEXT_PUBLIC_APP_URL na Vercel (ex.: https://www.dropcore.com.br).
  */
-export const CANONICAL_SITE_ORIGIN = "https://dropcore.com.br";
+export const CANONICAL_SITE_ORIGIN = "https://www.dropcore.com.br";
 
 function trimUrl(raw: string): string {
   return raw.trim().replace(/\/$/, "");
