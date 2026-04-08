@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
+import { resolveInvitePublicOrigin } from "@/lib/appOrigin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,7 +57,7 @@ export async function POST(
       return NextResponse.json({ error: inviteErr?.message ?? "Erro ao gerar convite." }, { status: 500 });
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const baseUrl = resolveInvitePublicOrigin(req);
     const link = `${baseUrl}/seller/register/${invite.token}`;
 
     return NextResponse.json({

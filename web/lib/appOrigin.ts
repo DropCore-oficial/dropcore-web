@@ -3,6 +3,8 @@
  * Prioriza o host do request atual para não gerar links para NEXT_PUBLIC_APP_URL errado.
  */
 
+import { getSiteUrl } from "@/lib/siteUrl";
+
 function hostnameOnly(host: string): string {
   return host.split(":")[0].trim().toLowerCase();
 }
@@ -47,4 +49,27 @@ export function resolvePublicOrigin(req: Request): string {
     return `https://${process.env.VERCEL_URL}`.replace(/\/+$/, "");
   }
   return "";
+}
+
+/**
+ * Base para links de convite (fornecedor, seller, etc.).
+ * Em produção na Vercel sem NEXT_PUBLIC_APP_URL, usa getSiteUrl() para não gerar links
+ * *.vercel.app órfãos (DEPLOYMENT_NOT_FOUND quando o hostname não aponta mais a um deploy).
+ */
+export function resolveInvitePublicOrigin(req: Request): string {
+  const envBase = (process.env.NEXT_PUBLIC_APP_URL ?? "").trim().replace(/\/+$/, "");
+  if (envBase) return envBase;
+
+  if (process.env.VERCEL === "1" && process.env.VERCEL_ENV === "production") {
+    return getSiteUrl();
+  }
+
+  const fromReq = resolvePublicOrigin(req);
+  if (fromReq) return fromReq;
+
+  if (process.env.VERCEL === "1" && process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`.replace(/\/+$/, "");
+  }
+
+  return getSiteUrl();
 }

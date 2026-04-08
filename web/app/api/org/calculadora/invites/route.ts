@@ -5,7 +5,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { orgErrorHttpStatus, requireAdmin } from "@/lib/apiOrgAuth";
-import { resolvePublicOrigin } from "@/lib/appOrigin";
+import { resolveInvitePublicOrigin } from "@/lib/appOrigin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error?.message ?? "Erro ao criar convite." }, { status: 500 });
     }
 
-    const base = resolvePublicOrigin(req);
+    const base = resolveInvitePublicOrigin(req);
     const link =
       base.length > 0
         ? `${base}/calculadora/register/${data.token}`
