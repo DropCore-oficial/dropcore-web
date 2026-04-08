@@ -53,23 +53,14 @@ export function resolvePublicOrigin(req: Request): string {
 
 /**
  * Base para links de convite (fornecedor, seller, etc.).
- * Em produção na Vercel sem NEXT_PUBLIC_APP_URL, usa getSiteUrl() para não gerar links
- * *.vercel.app órfãos (DEPLOYMENT_NOT_FOUND quando o hostname não aponta mais a um deploy).
+ * Usa getSiteUrl(), que rejeita NEXT_PUBLIC_APP_URL em *.vercel.app morto
+ * (ex.: dropcore.vercel.app) e cai em dropcore.com.br em produção.
+ * Fora da Vercel, prefere o host do request (localhost, etc.).
  */
 export function resolveInvitePublicOrigin(req: Request): string {
-  const envBase = (process.env.NEXT_PUBLIC_APP_URL ?? "").trim().replace(/\/+$/, "");
-  if (envBase) return envBase;
-
-  if (process.env.VERCEL === "1" && process.env.VERCEL_ENV === "production") {
-    return getSiteUrl();
+  if (process.env.VERCEL !== "1") {
+    const fromReq = resolvePublicOrigin(req);
+    if (fromReq) return fromReq;
   }
-
-  const fromReq = resolvePublicOrigin(req);
-  if (fromReq) return fromReq;
-
-  if (process.env.VERCEL === "1" && process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`.replace(/\/+$/, "");
-  }
-
   return getSiteUrl();
 }
