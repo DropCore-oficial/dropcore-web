@@ -32,6 +32,8 @@ export function MensalidadeBloqueioGate({
   const router = useRouter();
   const pathname = usePathname();
   const isLoginPage = pathname === `/${context}/login`;
+  /** Registo por convite é público (sem sessão), como o login. */
+  const isRegisterPage = pathname.startsWith(`/${context}/register`);
   const isSellerCalculadora = context === "seller" && pathname.startsWith("/seller/calculadora");
   const [loading, setLoading] = useState(true);
   const [mensalidades, setMensalidades] = useState<Mensalidade[]>([]);
@@ -90,13 +92,13 @@ export function MensalidadeBloqueioGate({
   };
 
   useEffect(() => {
-    // Login e calculadora do seller não passam pelo gate de mensalidade
-    if (isLoginPage || isSellerCalculadora) {
+    // Login, registo por convite e calculadora do seller não passam pelo gate de mensalidade
+    if (isLoginPage || isRegisterPage || isSellerCalculadora) {
       setLoading(false);
       return;
     }
     load();
-  }, [apiMens, isLoginPage, isSellerCalculadora]);
+  }, [apiMens, isLoginPage, isRegisterPage, isSellerCalculadora]);
 
   useEffect(() => {
     const vencida = mensalidades.some((m) => m.vencido);
@@ -154,7 +156,7 @@ export function MensalidadeBloqueioGate({
   const temMensalidadeVencida = mensalidades.some((m) => m.vencido);
   const primeiraVencida = mensalidades.find((m) => m.vencido) ?? mensalidades[0];
 
-  if (isLoginPage || isSellerCalculadora) return <>{children}</>;
+  if (isLoginPage || isRegisterPage || isSellerCalculadora) return <>{children}</>;
 
   if (loading) {
     return (
