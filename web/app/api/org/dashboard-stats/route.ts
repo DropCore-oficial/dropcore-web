@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { marcarInadimplentes, contarInadimplentes } from "@/lib/inadimplencia";
+import { resumoMensalidadePortal } from "@/lib/mensalidadeResumoPortal";
+import { portalTrialDays } from "@/lib/portalTrial";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -163,6 +165,7 @@ export async function GET(req: Request) {
     const mensalidades_fornecedores_pendente = mensalFornData.reduce((s, r) => s + Number(r.valor || 0), 0);
 
     const inadimplentes = await contarInadimplentes(supabase, org_id);
+    const mensalidade_portal = await resumoMensalidadePortal(supabase, org_id);
 
     // Notificação para admins quando há inadimplentes (deduplicação 24h)
     const totalInadimplentes = inadimplentes.sellers + inadimplentes.fornecedores;
@@ -327,6 +330,8 @@ export async function GET(req: Request) {
       mensalidades_fornecedores_pendente,
       inadimplentes_sellers: inadimplentes.sellers,
       inadimplentes_fornecedores: inadimplentes.fornecedores,
+      mensalidade_portal,
+      portal_trial_days: portalTrialDays(),
       pedidos_aguardando_envio,
       alteracoes_pendentes,
       plano,

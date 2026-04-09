@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createClient } from "@supabase/supabase-js";
+import { isPortalTrialAtivo } from "@/lib/portalTrial";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -193,6 +194,8 @@ export async function GET(req: Request) {
         telefone: seller.telefone,
         fornecedor_id,
         fornecedor_nome,
+        trial_valido_ate: (seller as { trial_valido_ate?: string | null }).trial_valido_ate ?? null,
+        trial_ativo: isPortalTrialAtivo((seller as { trial_valido_ate?: string | null }).trial_valido_ate),
       },
       kpis: {
         pedidos_mes: pedidosMes.length,

@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { isPortalTrialAtivo } from "@/lib/portalTrial";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,13 +30,16 @@ export async function GET(req: Request) {
 
     const { data: seller } = await supabaseAdmin
       .from("sellers")
-      .select("id, org_id")
+      .select("id, org_id, trial_valido_ate")
       .eq("user_id", userData.user.id)
       .maybeSingle();
 
     if (!seller) {
       return NextResponse.json({ error: "Seller não encontrado." }, { status: 404 });
     }
+
+    const trialValidoAte = (seller as { trial_valido_ate?: string | null }).trial_valido_ate ?? null;
+    const trialAtivo = isPortalTrialAtivo(trialValidoAte);
 
     const { data: rows } = await supabaseAdmin
       .from("financial_mensalidades")
@@ -65,7 +69,7 @@ export async function GET(req: Request) {
     const desde = new Date();
     desde.setHours(desde.getHours() - 24);
 
-    if (vencendoEm3Dias) {
+    if (vencendoEm3Dias && !trialAtivo) {
       const { data: jaExisteVencendo } = await supabaseAdmin
         .from("notifications")
         .select("id")
@@ -87,7 +91,7 @@ export async function GET(req: Request) {
       }
     }
 
-    if (temVencidas) {
+    if (temVencidas && !trialAtivo) {
       const { data: jaExiste } = await supabaseAdmin
         .from("notifications")
         .select("id")
@@ -112,7 +116,11 @@ export async function GET(req: Request) {
       }
     }
 
-    return NextResponse.json({ items });
+    return NextResponse.json({
+      items,
+      trial_valido_ate: trialValidoAte,
+      trial_ativo: trialAtivo,
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

@@ -45,6 +45,7 @@ export function MensalidadeBloqueioGate({
   const [pixExpiraEm, setPixExpiraEm] = useState<string | null>(null);
   const [pixRestanteSec, setPixRestanteSec] = useState<number | null>(null);
   const [pixCopiado, setPixCopiado] = useState(false);
+  const [trialAtivo, setTrialAtivo] = useState(false);
 
   const apiMens = context === "seller" ? "/api/seller/mensalidades" : "/api/fornecedor/mensalidades";
   const apiSync = context === "seller" ? "/api/seller/mensalidades/sync" : "/api/fornecedor/mensalidades/sync";
@@ -58,6 +59,7 @@ export function MensalidadeBloqueioGate({
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) {
+        setTrialAtivo(false);
         router.replace(loginPath);
         return;
       }
@@ -75,17 +77,21 @@ export function MensalidadeBloqueioGate({
       });
       if (!res.ok) {
         if (res.status === 401 || res.status === 404) {
+          setTrialAtivo(false);
           await supabaseBrowser.auth.signOut();
           router.replace(loginPath);
           return;
         }
         setMensalidades([]);
+        setTrialAtivo(false);
         return;
       }
       const json = await res.json();
       setMensalidades(json.items ?? []);
+      setTrialAtivo(!!json.trial_ativo);
     } catch {
       setMensalidades([]);
+      setTrialAtivo(false);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -102,11 +108,11 @@ export function MensalidadeBloqueioGate({
 
   useEffect(() => {
     const vencida = mensalidades.some((m) => m.vencido);
-    if (!vencida) return;
+    if (!vencida || trialAtivo) return;
     const run = () => load({ doSync: true, silent: true });
     const id = setInterval(run, 10000);
     return () => clearInterval(id);
-  }, [mensalidades]);
+  }, [mensalidades, trialAtivo]);
 
   const abrirPix = async (m: Mensalidade) => {
     setModalPix(m);
@@ -155,6 +161,7 @@ export function MensalidadeBloqueioGate({
 
   const temMensalidadeVencida = mensalidades.some((m) => m.vencido);
   const primeiraVencida = mensalidades.find((m) => m.vencido) ?? mensalidades[0];
+  const bloquearPorMensalidade = temMensalidadeVencida && !trialAtivo;
 
   if (isLoginPage || isRegisterPage || isSellerCalculadora) return <>{children}</>;
 
@@ -166,7 +173,7 @@ export function MensalidadeBloqueioGate({
     );
   }
 
-  if (temMensalidadeVencida && primeiraVencida) {
+  if (bloquearPorMensalidade && primeiraVencida) {
     return (
       <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[var(--background)] p-4">
         <div className="w-full max-w-md space-y-6">

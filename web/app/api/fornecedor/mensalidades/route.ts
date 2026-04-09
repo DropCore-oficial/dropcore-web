@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { isPortalTrialAtivo } from "@/lib/portalTrial";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +40,14 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Fornecedor não encontrado." }, { status: 404 });
     }
 
+    const { data: fornRow } = await supabaseAdmin
+      .from("fornecedores")
+      .select("trial_valido_ate")
+      .eq("id", member.fornecedor_id)
+      .maybeSingle();
+    const trialValidoAte = (fornRow as { trial_valido_ate?: string | null } | null)?.trial_valido_ate ?? null;
+    const trialAtivo = isPortalTrialAtivo(trialValidoAte);
+
     const { data: rows } = await supabaseAdmin
       .from("financial_mensalidades")
       .select("id, ciclo, valor, status, vencimento_em, pago_em")
@@ -67,7 +76,7 @@ export async function GET(req: Request) {
     const desde = new Date();
     desde.setHours(desde.getHours() - 24);
 
-    if (vencendoEm3Dias) {
+    if (vencendoEm3Dias && !trialAtivo) {
       const { data: jaExisteVencendo } = await supabaseAdmin
         .from("notifications")
         .select("id")
@@ -89,7 +98,7 @@ export async function GET(req: Request) {
       }
     }
 
-    if (temVencidas) {
+    if (temVencidas && !trialAtivo) {
       const { data: jaExiste } = await supabaseAdmin
         .from("notifications")
         .select("id")
@@ -114,7 +123,11 @@ export async function GET(req: Request) {
       }
     }
 
-    return NextResponse.json({ items });
+    return NextResponse.json({
+      items,
+      trial_valido_ate: trialValidoAte,
+      trial_ativo: trialAtivo,
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

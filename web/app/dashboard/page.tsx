@@ -47,6 +47,11 @@ type Stats = {
   repasse_futuros_previstos_ciclos_qtd?: number;
   repasse_futuros_proximo_ciclo?: string | null;
   repasse_futuros_proximo_pedidos?: number;
+  mensalidade_portal?: {
+    sellers: { em_teste: number; adimplentes: number; inadimplentes: number };
+    fornecedores: { em_teste: number; adimplentes: number; inadimplentes: number };
+  };
+  portal_trial_days?: number;
 };
 
 type ProData = {
@@ -682,6 +687,45 @@ export default function DashboardPage() {
             </section>
           );
         })()}
+
+        {/* Mensalidades: quem está em teste grátis, em dia ou inadimplente */}
+        {isAdmin && stats?.mensalidade_portal && (
+          <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
+            <div className="p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Mensalidades DropCore</p>
+                <button
+                  type="button"
+                  onClick={() => router.push("/admin/mensalidades")}
+                  className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline shrink-0"
+                >
+                  Gerenciar mensalidades →
+                </button>
+              </div>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-3">
+                Novos sellers e fornecedores ganham {stats.portal_trial_days ?? 7} dias de teste ao aceitar o convite (como a calculadora). &quot;Pagando&quot; = sem mensalidade inadimplente; &quot;Não pagou&quot; = bloqueio até regularizar.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-lg border border-[var(--card-border)] bg-neutral-50/80 dark:bg-neutral-900/40 p-3">
+                  <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Sellers</p>
+                  <ul className="text-sm space-y-1.5 text-neutral-800 dark:text-neutral-200">
+                    <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Em teste grátis</span><span className="font-semibold tabular-nums">{stats.mensalidade_portal.sellers.em_teste}</span></li>
+                    <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Pagando (em dia)</span><span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{stats.mensalidade_portal.sellers.adimplentes}</span></li>
+                    <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Não pagou (inadimplente)</span><span className="font-semibold tabular-nums text-red-600 dark:text-red-400">{stats.mensalidade_portal.sellers.inadimplentes}</span></li>
+                  </ul>
+                </div>
+                <div className="rounded-lg border border-[var(--card-border)] bg-neutral-50/80 dark:bg-neutral-900/40 p-3">
+                  <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Fornecedores</p>
+                  <ul className="text-sm space-y-1.5 text-neutral-800 dark:text-neutral-200">
+                    <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Em teste grátis</span><span className="font-semibold tabular-nums">{stats.mensalidade_portal.fornecedores.em_teste}</span></li>
+                    <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Pagando (em dia)</span><span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{stats.mensalidade_portal.fornecedores.adimplentes}</span></li>
+                    <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Não pagou (inadimplente)</span><span className="font-semibold tabular-nums text-red-600 dark:text-red-400">{stats.mensalidade_portal.fornecedores.inadimplentes}</span></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* 2. Visão geral — card principal como seller/fornecedor */}
         {isAdmin && stats && (

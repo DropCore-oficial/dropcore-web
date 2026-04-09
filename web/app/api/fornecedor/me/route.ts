@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { cadastroMinimoCompleto } from "@/lib/fornecedorCadastro";
+import { isPortalTrialAtivo } from "@/lib/portalTrial";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,7 +48,7 @@ export async function GET(req: Request) {
     const { data: forn, error: fornErr } = await supabaseAdmin
       .from("fornecedores")
       .select(
-        "id, nome, org_id, status, cnpj, telefone, email_comercial, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta"
+        "id, nome, org_id, status, trial_valido_ate, cnpj, telefone, email_comercial, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta"
       )
       .eq("id", member.fornecedor_id)
       .maybeSingle();
@@ -57,6 +58,7 @@ export async function GET(req: Request) {
     }
 
     const frow = forn as typeof forn & {
+      trial_valido_ate?: string | null;
       cnpj?: string | null;
       telefone?: string | null;
       email_comercial?: string | null;
@@ -116,6 +118,8 @@ export async function GET(req: Request) {
         conta: cadastro.conta,
         tipo_conta: cadastro.tipo_conta,
         cadastro_minimo_completo: cadastroMinimoCompleto(cadastro),
+        trial_valido_ate: frow.trial_valido_ate ?? null,
+        trial_ativo: isPortalTrialAtivo(frow.trial_valido_ate),
       },
     });
   } catch (e: unknown) {

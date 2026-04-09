@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createClient } from "@supabase/supabase-js";
+import { addPortalTrialIso } from "@/lib/portalTrial";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -97,6 +98,18 @@ export async function POST(req: Request, { params }: Params) {
       // Rollback: remove o usuário criado
       await supabaseAdmin.auth.admin.deleteUser(user_id);
       return NextResponse.json({ error: "Erro ao vincular conta ao seller: " + sellerErr.message }, { status: 500 });
+    }
+
+    const { data: trialRow } = await supabaseAdmin
+      .from("sellers")
+      .select("trial_valido_ate")
+      .eq("id", invite.seller_id)
+      .maybeSingle();
+    if (!(trialRow as { trial_valido_ate?: string | null } | null)?.trial_valido_ate) {
+      await supabaseAdmin
+        .from("sellers")
+        .update({ trial_valido_ate: addPortalTrialIso() })
+        .eq("id", invite.seller_id);
     }
 
     // Marca convite como usado

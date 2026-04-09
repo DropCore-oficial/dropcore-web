@@ -9,6 +9,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { addPortalTrialIso } from "@/lib/portalTrial";
 
 function isEmailAlreadyRegisteredError(msg: string): boolean {
   const m = msg.toLowerCase();
@@ -202,6 +203,18 @@ export async function POST(req: Request, { params }: Params) {
           { status: 500 }
         );
       }
+    }
+
+    const { data: trialForn } = await supabaseAdmin
+      .from("fornecedores")
+      .select("trial_valido_ate")
+      .eq("id", invite.fornecedor_id)
+      .maybeSingle();
+    if (!(trialForn as { trial_valido_ate?: string | null } | null)?.trial_valido_ate) {
+      await supabaseAdmin
+        .from("fornecedores")
+        .update({ trial_valido_ate: addPortalTrialIso() })
+        .eq("id", invite.fornecedor_id);
     }
 
     await supabaseAdmin
