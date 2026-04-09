@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { FornecedorNav } from "../FornecedorNav";
+import { NotificationBell } from "@/components/NotificationBell";
+import { NotificationToasts } from "@/components/NotificationToasts";
 import { IconArrowRight, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
 
 type FornecedorData = {
@@ -952,6 +954,7 @@ export default function FornecedorDashboardPage() {
       )}
 
       <FornecedorNav active="dashboard" />
+      <NotificationToasts />
     </div>
   );
 }

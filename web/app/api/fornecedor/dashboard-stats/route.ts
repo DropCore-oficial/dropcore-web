@@ -51,6 +51,22 @@ export async function GET(req: Request) {
       .eq("fornecedor_id", fornecedor_id)
       .eq("status", "enviado");
 
+    const idsPedidosEnviado = new Set((pedidosParaPostar ?? []).map((p) => p.id));
+    const { data: notifsPedidoPostar } = await supabaseAdmin
+      .from("notifications")
+      .select("id, metadata")
+      .eq("user_id", user_id)
+      .eq("tipo", "pedido_para_postar");
+    const idsNotifsOrfas = (notifsPedidoPostar ?? [])
+      .filter((n) => {
+        const pid = (n.metadata as { pedido_id?: string } | null)?.pedido_id;
+        return !pid || !idsPedidosEnviado.has(pid);
+      })
+      .map((n) => n.id);
+    if (idsNotifsOrfas.length > 0) {
+      await supabaseAdmin.from("notifications").delete().in("id", idsNotifsOrfas);
+    }
+
     // Garantir notificação "pedido_para_postar" para cada pedido que não tem
     if (pedidosParaPostar && pedidosParaPostar.length > 0) {
       const { data: notifsExistentes } = await supabaseAdmin
