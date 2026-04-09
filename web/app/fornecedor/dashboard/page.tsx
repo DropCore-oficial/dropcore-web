@@ -349,9 +349,9 @@ export default function FornecedorDashboardPage() {
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
       <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 md:py-7 space-y-5 md:space-y-6">
-        <header className="rounded-2xl border border-[var(--card-border)] bg-gradient-to-br from-[var(--card)] via-[var(--card)] to-emerald-50/40 dark:to-emerald-950/20 p-4 sm:p-5 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex items-start gap-3 min-w-0">
+        <header className="rounded-2xl border border-[var(--card-border)] bg-gradient-to-br from-[var(--card)] via-[var(--card)] to-emerald-50/40 dark:to-emerald-950/20 p-4 sm:p-5 shadow-sm overflow-visible">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center text-lg font-bold shadow-md shadow-emerald-500/25 shrink-0">
                 {fornecedor?.nome?.charAt(0).toUpperCase() ?? "F"}
               </div>
@@ -363,7 +363,7 @@ export default function FornecedorDashboardPage() {
                 <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1 capitalize">{dataHojeFmt}</p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:shrink-0">
+            <div className="flex w-full flex-wrap items-center justify-end gap-2 border-t border-neutral-200/70 pt-3 dark:border-neutral-700/60 sm:w-auto sm:border-0 sm:pt-0 sm:shrink-0">
               {(stats?.pedidos_aguardando_postagem ?? 0) > 0 && (
                 <Link
                   href="/fornecedor/pedidos?status=enviado"

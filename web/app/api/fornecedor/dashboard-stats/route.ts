@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { syncMensalidadeNotifications } from "@/lib/syncMensalidadeNotifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,6 +43,8 @@ export async function GET(req: Request) {
     }
 
     const { fornecedor_id, org_id, user_id } = ctx;
+
+    await syncMensalidadeNotifications(user_id);
 
     // Pedidos aguardando postagem — buscar IDs para criar notificações em falta
     const { data: pedidosParaPostar } = await supabaseAdmin

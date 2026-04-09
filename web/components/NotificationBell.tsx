@@ -101,7 +101,16 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 shadow-xl shadow-neutral-900/10 dark:shadow-black/20 backdrop-blur-sm animate-in fade-in-0 zoom-in-95 slide-in-from-top-1 duration-200">
+        <>
+          <button
+            type="button"
+            aria-label="Fechar notificações"
+            className="fixed inset-0 z-[90] bg-black/30 backdrop-blur-[1px] md:hidden"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            className="fixed left-3 right-3 top-[max(5.5rem,env(safe-area-inset-top)+4rem)] z-[100] max-h-[min(70vh,calc(100dvh-7rem))] w-auto overflow-hidden rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 shadow-xl shadow-neutral-900/10 dark:shadow-black/20 backdrop-blur-sm animate-in fade-in-0 zoom-in-95 duration-200 md:absolute md:inset-x-auto md:left-auto md:right-0 md:top-full md:mt-2 md:max-h-72 md:w-80 md:translate-x-0"
+          >
           <div className="border-b border-neutral-100 dark:border-neutral-800 bg-gradient-to-r from-emerald-50/80 to-transparent dark:from-emerald-950/30 dark:to-transparent px-4 py-3">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
@@ -272,7 +281,8 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
               </div>
             )}
           </div>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

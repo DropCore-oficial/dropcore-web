@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { syncMensalidadeNotifications } from "@/lib/syncMensalidadeNotifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +29,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Token inválido" }, { status: 401 });
     }
     const userId = userData.user.id;
+
+    await syncMensalidadeNotifications(userId);
 
     const { searchParams } = new URL(req.url);
     const markRead = searchParams.get("mark_read") === "1";
