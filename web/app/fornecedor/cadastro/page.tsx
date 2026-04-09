@@ -7,6 +7,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { FornecedorNav } from "../FornecedorNav";
 import { toTitleCase } from "@/lib/formatText";
 import { isValidCnpjDigits, normalizeCnpjInput } from "@/lib/fornecedorCadastro";
+import { BANCOS_BRASIL } from "@/lib/bancosBrasil";
 
 function formatCnpjDisplay(digits: string): string {
   const d = digits.slice(0, 14);
@@ -482,12 +483,22 @@ export default function FornecedorCadastroPage() {
                 <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Nome do banco</label>
                 <input
                   type="text"
+                  name="nome_banco"
+                  list="fornecedor-bancos-brasil"
+                  autoComplete="off"
                   value={form.nome_banco}
                   onChange={(e) => setForm((f) => ({ ...f, nome_banco: e.target.value }))}
-                  onBlur={() => setForm((f) => ({ ...f, nome_banco: toTitleCase(f.nome_banco) }))}
-                  placeholder="Ex: Banco do Brasil"
+                  placeholder="Digite para buscar ou selecione…"
                   className={inputClass}
                 />
+                <datalist id="fornecedor-bancos-brasil">
+                  {BANCOS_BRASIL.map((nome) => (
+                    <option key={nome} value={nome} />
+                  ))}
+                </datalist>
+                <p className="text-[11px] text-[var(--muted)] mt-1">
+                  Lista com principais bancos e instituições de pagamento. Se o seu não aparecer, digite o nome completo.
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Nome no banco / titular</label>
