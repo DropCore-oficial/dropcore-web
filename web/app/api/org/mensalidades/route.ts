@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
+import { isPortalTrialAtivo } from "@/lib/portalTrial";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,18 +47,23 @@ export async function GET(req: Request) {
     const fornIds = [...new Set(rows.filter((r) => r.tipo === "fornecedor").map((r) => r.entidade_id))];
 
     const [sellersRes, fornRes] = await Promise.all([
-      sellerIds.length > 0 ? supabaseAdmin.from("sellers").select("id, nome").in("id", sellerIds) : { data: [] },
-      fornIds.length > 0 ? supabaseAdmin.from("fornecedores").select("id, nome").in("id", fornIds) : { data: [] },
+      sellerIds.length > 0 ? supabaseAdmin.from("sellers").select("id, nome, trial_valido_ate").in("id", sellerIds) : { data: [] },
+      fornIds.length > 0 ? supabaseAdmin.from("fornecedores").select("id, nome, trial_valido_ate").in("id", fornIds) : { data: [] },
     ]);
 
-    const sellersMap = new Map((sellersRes.data ?? []).map((s) => [s.id, s.nome]));
-    const fornMap = new Map((fornRes.data ?? []).map((f) => [f.id, f.nome]));
+    const sellersMap = new Map((sellersRes.data ?? []).map((s) => [s.id, { nome: s.nome, trial: (s as { trial_valido_ate?: string | null }).trial_valido_ate ?? null }]));
+    const fornMap = new Map((fornRes.data ?? []).map((f) => [f.id, { nome: f.nome, trial: (f as { trial_valido_ate?: string | null }).trial_valido_ate ?? null }]));
 
-    const enriched = rows.map((r) => ({
-      ...r,
-      entidade_nome:
-        r.tipo === "seller" ? sellersMap.get(r.entidade_id) ?? "—" : fornMap.get(r.entidade_id) ?? "—",
-    }));
+    const enriched = rows.map((r) => {
+      const meta = r.tipo === "seller" ? sellersMap.get(r.entidade_id) : fornMap.get(r.entidade_id);
+      const nome = meta?.nome ?? "—";
+      const trialAte = meta?.trial ?? null;
+      return {
+        ...r,
+        entidade_nome: nome,
+        em_teste_gratis: isPortalTrialAtivo(trialAte),
+      };
+    });
 
     return NextResponse.json(enriched);
   } catch (e: unknown) {

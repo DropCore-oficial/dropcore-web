@@ -14,6 +14,7 @@ type Mensalidade = {
   vencimento_em: string | null;
   pago_em: string | null;
   entidade_nome?: string;
+  em_teste_gratis?: boolean;
 };
 
 const btnPrimary: React.CSSProperties = {
@@ -38,8 +39,13 @@ function formatMoney(n: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
 }
 
-function formatDate(s: string) {
-  return new Date(s).toLocaleDateString("pt-BR", { dateStyle: "short" });
+/** Evita exibir véspera do dia por UTC (ex.: ciclo 2026-04-01 → 01/04, não 31/03). */
+function formatDateLocalYmd(s: string) {
+  if (!s) return "—";
+  const iso = s.length >= 10 ? `${s.slice(0, 10)}T12:00:00` : s;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleDateString("pt-BR", { dateStyle: "short" });
 }
 
 function cicloAtual(): string {
@@ -171,10 +177,13 @@ export default function MensalidadesPage() {
     return map[s] ?? s;
   }
 
-  const totalPendente = rows.filter((r) => r.status === "pendente").reduce((s, r) => s + r.valor, 0);
+  const pendentes = rows.filter((r) => r.status === "pendente");
+  const totalPendente = pendentes.reduce((s, r) => s + r.valor, 0);
+  const pendenteEmTeste = pendentes.filter((r) => r.em_teste_gratis).reduce((s, r) => s + r.valor, 0);
+  const pendenteCobravelPortal = totalPendente - pendenteEmTeste;
 
   return (
-    <div style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
+    <div className="dropcore-safe-x max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>Mensalidades</h1>
       <p style={{ color: "#6b7280", marginBottom: 24, fontSize: 14 }}>
         Mensalidades de sellers e fornecedores. Gere para o mês e marque como pago quando receber.
@@ -251,7 +260,16 @@ export default function MensalidadesPage() {
 
       {totalPendente > 0 && (
         <div style={{ marginBottom: 16, padding: 12, background: "#fef3c7", borderRadius: 8 }}>
-          <strong>Total pendente:</strong> {formatMoney(totalPendente)}
+          <p className="m-0 text-sm">
+            <strong>Total pendente (lista):</strong> {formatMoney(totalPendente)}
+          </p>
+          {pendenteEmTeste > 0 && (
+            <p className="m-0 mt-2 text-xs text-amber-900/90 dark:text-amber-200/95 leading-relaxed">
+              Deste valor, <strong>{formatMoney(pendenteEmTeste)}</strong> são de contas em <strong>teste grátis</strong> — o acesso ao painel seller/fornecedor{" "}
+              <strong>não bloqueia</strong> por mensalidade até o fim do período. Cobrança efetiva no portal:{" "}
+              <strong>{formatMoney(pendenteCobravelPortal)}</strong>.
+            </p>
+          )}
         </div>
       )}
 
@@ -262,8 +280,10 @@ export default function MensalidadesPage() {
           Nenhuma mensalidade encontrada. Clique em &quot;Gerar mensalidades&quot; para criar.
         </div>
       ) : (
-        <div className="dropcore-scroll-x">
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <>
+        <p className="md:hidden text-[11px] text-neutral-500 mb-2">Deslize horizontalmente para ver todas as colunas.</p>
+        <div className="dropcore-scroll-x rounded-lg border border-neutral-200 dark:border-neutral-700">
+          <table className="min-w-[700px] w-full border-collapse text-sm" style={{ fontSize: 14 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
                 <th style={{ textAlign: "left", padding: 10 }}>Ciclo</th>
@@ -272,6 +292,7 @@ export default function MensalidadesPage() {
                 <th style={{ textAlign: "right", padding: 10 }}>Valor</th>
                 <th style={{ textAlign: "left", padding: 10 }}>Status</th>
                 <th style={{ textAlign: "left", padding: 10 }}>Vencimento</th>
+                <th style={{ textAlign: "left", padding: 10 }}>Portal</th>
                 <th style={{ padding: 10 }}></th>
               </tr>
             </thead>
@@ -285,9 +306,16 @@ export default function MensalidadesPage() {
                     ...(destaqueId === r.id ? { background: "#f0fdf4", boxShadow: "inset 0 0 0 2px #22c55e" } : {}),
                   }}
                 >
-                  <td style={{ padding: 10 }}>{formatDate(r.ciclo)}</td>
+                  <td style={{ padding: 10 }}>{formatDateLocalYmd(r.ciclo)}</td>
                   <td style={{ padding: 10 }}>{r.tipo === "seller" ? "Seller" : "Fornecedor"}</td>
-                  <td style={{ padding: 10 }}>{r.entidade_nome ?? "—"}</td>
+                  <td style={{ padding: 10 }}>
+                    {r.entidade_nome ?? "—"}
+                    {r.em_teste_gratis && (
+                      <span className="ml-1.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300">
+                        Teste grátis
+                      </span>
+                    )}
+                  </td>
                   <td style={{ padding: 10, textAlign: "right", fontWeight: 500 }}>{formatMoney(r.valor)}</td>
                   <td style={{ padding: 10 }}>
                     <span
@@ -302,8 +330,15 @@ export default function MensalidadesPage() {
                       {statusLabel(r.status)}
                     </span>
                   </td>
-                  <td style={{ padding: 10 }}>{r.vencimento_em ? formatDate(r.vencimento_em) : "—"}</td>
-                  <td style={{ padding: 10, display: "flex", gap: 6 }}>
+                  <td style={{ padding: 10 }}>{r.vencimento_em ? formatDateLocalYmd(r.vencimento_em) : "—"}</td>
+                  <td style={{ padding: 10, fontSize: 12 }}>
+                    {r.em_teste_gratis ? (
+                      <span className="text-sky-700 dark:text-sky-400">Não bloqueia</span>
+                    ) : (
+                      <span className="text-neutral-500">Bloqueio se inadimpl.</span>
+                    )}
+                  </td>
+                  <td style={{ padding: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {r.status === "pendente" && (
                       <button
                         type="button"
@@ -328,6 +363,7 @@ export default function MensalidadesPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );
