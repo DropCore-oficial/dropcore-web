@@ -7,7 +7,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { FornecedorNav } from "../FornecedorNav";
 import { toTitleCase } from "@/lib/formatText";
 import { isValidCnpjDigits, normalizeCnpjInput } from "@/lib/fornecedorCadastro";
-import { BANCOS_BRASIL } from "@/lib/bancosBrasil";
+import { BankCombobox } from "@/components/fornecedor/BankCombobox";
 
 function formatCnpjDisplay(digits: string): string {
   const d = digits.slice(0, 14);
@@ -294,7 +294,7 @@ export default function FornecedorCadastroPage() {
           </button>
         </div>
 
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-5 shadow-sm">
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-5 shadow-sm overflow-visible">
           <h1 className="text-lg font-semibold text-[var(--foreground)] mb-1">Cadastro da empresa</h1>
           <p className="text-xs text-[var(--muted)] mb-6">
             Identificação, contato e dados para receber repasses
@@ -462,7 +462,7 @@ export default function FornecedorCadastroPage() {
               </div>
             </section>
 
-            <section id="repasse" className="space-y-5">
+            <section id="repasse" className="space-y-5 overflow-visible">
               <h2 className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 border-b border-neutral-200 dark:border-neutral-700 pb-2">
                 Dados para repasse
               </h2>
@@ -480,25 +480,15 @@ export default function FornecedorCadastroPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Nome do banco</label>
-                <input
-                  type="text"
-                  name="nome_banco"
-                  list="fornecedor-bancos-brasil"
-                  autoComplete="off"
+                <label className="block text-xs font-medium text-[var(--muted)] mb-1.5" htmlFor="fornecedor-nome-banco">
+                  Nome do banco
+                </label>
+                <BankCombobox
+                  id="fornecedor-nome-banco"
                   value={form.nome_banco}
-                  onChange={(e) => setForm((f) => ({ ...f, nome_banco: e.target.value }))}
-                  placeholder="Digite para buscar ou selecione…"
-                  className={inputClass}
+                  onChange={(v) => setForm((f) => ({ ...f, nome_banco: v }))}
+                  inputClassName={inputClass}
                 />
-                <datalist id="fornecedor-bancos-brasil">
-                  {BANCOS_BRASIL.map((nome) => (
-                    <option key={nome} value={nome} />
-                  ))}
-                </datalist>
-                <p className="text-[11px] text-[var(--muted)] mt-1">
-                  Lista com principais bancos e instituições de pagamento. Se o seu não aparecer, digite o nome completo.
-                </p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Nome no banco / titular</label>
