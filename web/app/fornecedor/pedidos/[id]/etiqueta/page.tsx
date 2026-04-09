@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type EtiquetaItem = {
   sku_id: string | null;
@@ -126,7 +127,8 @@ export default function FornecedorPedidoEtiquetaPage() {
               <div className="text-sm text-neutral-600 dark:text-neutral-400">
                 Etiqueta de separação · Pedido <span className="font-semibold text-neutral-900 dark:text-neutral-100">{referencia}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <ThemeToggle className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-1.5 shrink-0" />
                     {(etiqueta.pedido.etiqueta_pdf_url || etiqueta.pedido.etiqueta_pdf_base64) && (
                       <button
                         type="button"

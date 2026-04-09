@@ -169,7 +169,7 @@ export function SellerNav({
       </nav>
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200/80 dark:border-neutral-800/80 bg-white/[0.98] dark:bg-neutral-950/[0.98] backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.5)] pb-[env(safe-area-inset-bottom)]">
-        <div className="max-w-3xl mx-auto flex min-h-[52px]">
+        <div className="max-w-3xl mx-auto grid grid-cols-5 min-h-[52px] items-stretch">
           <Link href="/seller/dashboard" className={mobileLinkClass("dashboard")}>
             <IconHome active={active === "dashboard"} />
             <span className="text-[10px] font-medium">Dashboard</span>
@@ -186,6 +186,10 @@ export function SellerNav({
             <IconPlug active={active === "integracoes"} />
             <span className="text-[10px] font-medium">Integrações</span>
           </Link>
+          <div className="flex flex-col items-center justify-center gap-0.5 border-t-2 border-transparent py-2 px-1 min-h-[52px] touch-manipulation">
+            <ThemeToggle className="p-1.5 min-h-[36px] min-w-[36px] inline-flex items-center justify-center shrink-0 rounded-lg" />
+            <span className="text-[9px] font-medium text-neutral-500 dark:text-neutral-400 leading-none">Tema</span>
+          </div>
         </div>
       </nav>
     </>

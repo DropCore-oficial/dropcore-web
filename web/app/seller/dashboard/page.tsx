@@ -598,7 +598,7 @@ export default function SellerDashboardPage() {
                 {pendentesCount} PIX pendente{pendentesCount !== 1 ? "s" : ""}
               </button>
             )}
-            <ThemeToggle className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center touch-manipulation" />
+            <ThemeToggle className="hidden md:inline-flex min-h-[40px] min-w-[40px] items-center justify-center touch-manipulation" />
             <NotificationBell context="seller" />
             <button type="button" onClick={sair} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 min-h-[40px] sm:min-h-0 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 touch-manipulation">
               Sair

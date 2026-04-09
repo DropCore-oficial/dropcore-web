@@ -5,9 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { FornecedorNav } from "../FornecedorNav";
-import { NotificationBell } from "@/components/NotificationBell";
-import { NotificationToasts } from "@/components/NotificationToasts";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { IconArrowRight, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
 
 type FornecedorData = {
@@ -376,8 +373,6 @@ export default function FornecedorDashboardPage() {
                   aguardando postagem
                 </Link>
               )}
-              <ThemeToggle className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center touch-manipulation rounded-xl" />
-              <NotificationBell context="fornecedor" />
               <button
                 type="button"
                 onClick={sair}
@@ -957,7 +952,6 @@ export default function FornecedorDashboardPage() {
       )}
 
       <FornecedorNav active="dashboard" />
-      <NotificationToasts />
     </div>
   );
 }

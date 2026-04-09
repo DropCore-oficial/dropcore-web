@@ -177,7 +177,7 @@ export function MensalidadeBloqueioGate({
               <DropCoreLogo variant="horizontal" href={null} className="min-w-[140px]" />
             )}
             <div className="flex items-center gap-2">
-              <NotificationBell context={context} />
+              {context === "seller" && <NotificationBell context={context} />}
               <ThemeToggle />
               <button
                 onClick={sair}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { apiGet, apiPost } from "@/lib/api";
 import Link from "next/link";
@@ -142,14 +143,15 @@ export default function AdminCalculadoraConvitesPage() {
       <header className="border-b border-[var(--border-subtle)] bg-[var(--card)]/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <DropCoreLogo variant="horizontal" href="/dashboard" className="h-7" />
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
             <Link
               href="/dashboard"
               className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
             >
               Início da dash
             </Link>
-            <div className="text-xs text-[var(--muted)]">Admin · Convites da calculadora</div>
+            <ThemeToggle className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-2 min-h-[40px] min-w-[40px] inline-flex items-center justify-center touch-manipulation" />
+            <div className="text-xs text-[var(--muted)] hidden sm:block">Admin · Convites da calculadora</div>
           </div>
         </div>
       </header>
