@@ -375,6 +375,7 @@ export default function FornecedorDashboardPage() {
                   aguardando postagem
                 </Link>
               )}
+              <NotificationBell context="fornecedor" className="md:hidden" />
               <button
                 type="button"
                 onClick={sair}

@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
+import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const activeClass = "text-emerald-600 dark:text-emerald-400 border-emerald-500";
@@ -42,6 +44,9 @@ function IconCreditCard({ active }: { active: boolean }) {
 }
 
 export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "pedidos" | "cadastro" }) {
+  const pathname = usePathname();
+  const showMobileFloatingBell = pathname !== "/fornecedor/dashboard";
+
   const linkClass = (key: "dashboard" | "produtos" | "pedidos" | "cadastro") =>
     `flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ${
       active === key ? activeClass + " hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20" : inactiveClass + " border-transparent hover:bg-neutral-100/80 dark:hover:bg-neutral-800/50"
@@ -81,9 +86,17 @@ export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "
           >
             Início
           </Link>
+          <NotificationBell context="fornecedor" />
           <ThemeToggle />
         </div>
       </nav>
+
+      {/* Mobile (exceto dashboard): sino acima da tab bar — no dashboard o sino fica no cartão do perfil */}
+      {showMobileFloatingBell && (
+        <div className="md:hidden fixed right-3 z-[45] bottom-[calc(3.5rem+env(safe-area-inset-bottom))]">
+          <NotificationBell context="fornecedor" />
+        </div>
+      )}
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200/80 dark:border-neutral-800/80 bg-white/[0.98] dark:bg-neutral-950/[0.98] backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.5)] pb-[env(safe-area-inset-bottom)]">
         <div className="max-w-3xl mx-auto grid grid-cols-5 min-h-[52px] items-stretch">
