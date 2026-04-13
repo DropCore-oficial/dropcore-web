@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
+import { MobileAppBar } from "@/components/MobileAppBar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
@@ -71,19 +72,14 @@ export function SellerNav({
     }`;
 
   const mobileLinkClass = (key: "dashboard" | "catalogo" | "calculadora" | "integracoes") =>
-    `flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 transition-all duration-200 border-t-2 relative ${
+    `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 overflow-visible px-1.5 py-2.5 transition-all duration-200 border-t-2 touch-manipulation relative ${
       active === key ? activeClass + " bg-emerald-50/30 dark:bg-emerald-950/20" : inactiveClass + " border-transparent active:bg-neutral-100 dark:active:bg-neutral-800/50"
     }`;
 
   if (calcOnly) {
     return (
       <>
-        {/* Mobile: logo no topo (convidado / só calculadora) */}
-        <header className="md:hidden fixed top-0 left-0 right-0 z-40 border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/[0.98] dark:bg-neutral-950/[0.98] backdrop-blur-xl pt-[env(safe-area-inset-top)]">
-          <div className="flex h-12 w-full items-center gap-2 px-3">
-            <DropCoreLogo variant="horizontal" href="/seller/calculadora" className="min-w-0 shrink" />
-          </div>
-        </header>
+        <MobileAppBar logoHref="/seller/calculadora" />
         <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/98 dark:bg-neutral-950/98 backdrop-blur-xl shadow-sm">
           <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 flex items-center gap-8">
             <DropCoreLogo variant="horizontal" href="/seller/calculadora" className="shrink-0" />
@@ -169,27 +165,23 @@ export function SellerNav({
       </nav>
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200/80 dark:border-neutral-800/80 bg-white/[0.98] dark:bg-neutral-950/[0.98] backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.5)] pb-[env(safe-area-inset-bottom)]">
-        <div className="max-w-3xl mx-auto grid grid-cols-5 min-h-[52px] items-stretch">
+        <div className="mx-auto grid max-w-3xl grid-cols-4 items-stretch min-h-[56px]">
           <Link href="/seller/dashboard" className={mobileLinkClass("dashboard")}>
             <IconHome active={active === "dashboard"} />
-            <span className="text-[10px] font-medium">Dashboard</span>
+            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Dashboard</span>
           </Link>
           <Link href="/seller/catalogo" className={mobileLinkClass("catalogo")}>
             <IconPackage active={active === "catalogo"} />
-            <span className="text-[10px] font-medium">Catálogo</span>
+            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Catálogo</span>
           </Link>
           <Link href="/seller/calculadora" className={mobileLinkClass("calculadora")}>
             <IconCalculator active={active === "calculadora"} />
-            <span className="text-[10px] font-medium">Calculadora</span>
+            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Calculadora</span>
           </Link>
           <Link href="/seller/integracoes-erp" className={mobileLinkClass("integracoes")}>
             <IconPlug active={active === "integracoes"} />
-            <span className="text-[10px] font-medium">Integrações</span>
+            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Integrações</span>
           </Link>
-          <div className="flex flex-col items-center justify-center gap-0.5 border-t-2 border-transparent py-2 px-1 min-h-[52px] touch-manipulation">
-            <ThemeToggle className="p-1.5 min-h-[36px] min-w-[36px] inline-flex items-center justify-center shrink-0 rounded-lg" />
-            <span className="text-[9px] font-medium text-neutral-500 dark:text-neutral-400 leading-none">Tema</span>
-          </div>
         </div>
       </nav>
     </>

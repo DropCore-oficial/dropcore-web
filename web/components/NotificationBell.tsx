@@ -14,8 +14,10 @@ type Notif = {
 };
 
 const TIPOS_POR_CONTEXTO: Record<string, string[]> = {
-  admin: ["deposito_entrou", "mensalidade_vencida", "mensalidade_vencendo", "mensalidade_paga_admin"],
+  /** Resumo de inadimplência da org — só faz sentido no painel admin */
+  admin: ["deposito_entrou", "mensalidade_inadimplentes_org", "mensalidade_vencendo", "mensalidade_paga_admin"],
   seller: ["deposito_aprovado", "estoque_baixo", "mensalidade_vencida", "mensalidade_vencendo", "saldo_baixo"],
+  /** Sem tipo de admin: fornecedor em trial não vê alerta de «X fornecedores inadimplentes» */
   fornecedor: ["mensalidade_paga", "mensalidade_vencida", "mensalidade_vencendo", "estoque_baixo", "pedido_para_postar", "repasse_recebido"],
 };
 
@@ -27,7 +29,20 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
   const ref = useRef<HTMLDivElement>(null);
 
   const tiposPermitidos = TIPOS_POR_CONTEXTO[context] ?? [];
-  const itemsFiltrados = context ? items.filter((n) => !n.tipo || tiposPermitidos.includes(n.tipo)) : items;
+  const itemsFiltrados = context
+    ? items.filter((n) => {
+        if (n.tipo && !tiposPermitidos.includes(n.tipo)) return false;
+        // Legado: resumo da org ia como mensalidade_vencida — não mostrar em seller/fornecedor
+        if (
+          (context === "seller" || context === "fornecedor") &&
+          n.tipo === "mensalidade_vencida" &&
+          n.titulo === "Mensalidades vencidas"
+        ) {
+          return false;
+        }
+        return true;
+      })
+    : items;
   const unreadCount = itemsFiltrados.filter((n) => !n.lido).length;
 
   const fetchNotifs = async (markRead = false) => {
@@ -158,10 +173,17 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                   const isMensalidadePagaAdmin = n.tipo === "mensalidade_paga_admin";
                   const isFornecedor = ["mensalidade_paga", "mensalidade_vencida", "mensalidade_vencendo", "estoque_baixo", "pedido_para_postar", "repasse_recebido", "saldo_baixo"].includes(n.tipo ?? "");
                   return (
-                    <button
+                    <div
                       key={n.id}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setExpandedId(isExpanded ? null : n.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setExpandedId(isExpanded ? null : n.id);
+                        }
+                      }}
                       className={`flex w-full cursor-pointer gap-3 px-4 py-3 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 active:bg-neutral-100 dark:active:bg-neutral-800 ${
                         !n.lido ? "bg-emerald-50/40 dark:bg-emerald-950/20" : ""
                       }`}
@@ -226,6 +248,15 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                                 Ver esta mensalidade →
                               </a>
                             )}
+                            {n.tipo === "mensalidade_inadimplentes_org" && (
+                              <a
+                                href="/admin/mensalidades"
+                                onClick={(e) => e.stopPropagation()}
+                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400 hover:underline"
+                              >
+                                Ver mensalidades →
+                              </a>
+                            )}
                             {(n.tipo === "mensalidade_vencida" || n.tipo === "mensalidade_vencendo") && (
                               <a
                                 href={context === "fornecedor" ? "/fornecedor/dashboard?pagar=1" : context === "seller" ? "/seller/dashboard?pagar=1" : "/admin/mensalidades"}
@@ -275,7 +306,7 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                         )}
                       </div>
                       {!n.lido && <div className="h-2 w-2 shrink-0 rounded-full bg-emerald-500 mt-2" />}
-                    </button>
+                    </div>
                   );
                 })}
               </div>

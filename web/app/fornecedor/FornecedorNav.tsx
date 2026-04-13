@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
+import { MobileAppBar } from "@/components/MobileAppBar";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -53,7 +54,7 @@ export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "
     }`;
 
   const mobileLinkClass = (key: "dashboard" | "produtos" | "pedidos" | "cadastro") =>
-    `flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 transition-all duration-200 border-t-2 relative ${
+    `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 overflow-visible px-1.5 py-2.5 transition-all duration-200 border-t-2 touch-manipulation relative ${
       active === key ? activeClass + " bg-emerald-50/30 dark:bg-emerald-950/20" : inactiveClass + " border-transparent active:bg-neutral-100 dark:active:bg-neutral-800/50"
     }`;
 
@@ -93,33 +94,31 @@ export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "
 
       {/* Mobile (exceto dashboard): sino acima da tab bar — no dashboard o sino fica no cartão do perfil */}
       {showMobileFloatingBell && (
-        <div className="md:hidden fixed right-3 z-[45] bottom-[calc(3.5rem+env(safe-area-inset-bottom))]">
+        <div className="md:hidden fixed right-3 z-[45] bottom-[calc(4rem+env(safe-area-inset-bottom))]">
           <NotificationBell context="fornecedor" />
         </div>
       )}
 
+      <MobileAppBar logoHref="/fornecedor/dashboard" />
+
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200/80 dark:border-neutral-800/80 bg-white/[0.98] dark:bg-neutral-950/[0.98] backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.5)] pb-[env(safe-area-inset-bottom)]">
-        <div className="max-w-3xl mx-auto grid grid-cols-5 min-h-[52px] items-stretch">
+        <div className="mx-auto grid max-w-3xl grid-cols-4 items-stretch min-h-[56px]">
           <Link href="/fornecedor/dashboard" className={mobileLinkClass("dashboard")}>
             <IconHome active={active === "dashboard"} />
-            <span className="text-[10px] font-medium">Dashboard</span>
+            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Dashboard</span>
           </Link>
           <Link href="/fornecedor/produtos" className={mobileLinkClass("produtos")}>
             <IconPackage active={active === "produtos"} />
-            <span className="text-[10px] font-medium">Produtos</span>
+            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Produtos</span>
           </Link>
           <Link href="/fornecedor/pedidos" className={mobileLinkClass("pedidos")}>
             <IconTruck active={active === "pedidos"} />
-            <span className="text-[10px] font-medium">Pedidos</span>
+            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Pedidos</span>
           </Link>
           <Link href="/fornecedor/cadastro" className={mobileLinkClass("cadastro")}>
             <IconCreditCard active={active === "cadastro"} />
-            <span className="text-[10px] font-medium">Cadastro</span>
+            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Cadastro</span>
           </Link>
-          <div className="flex flex-col items-center justify-center gap-0.5 border-t-2 border-transparent py-2 px-1 min-h-[52px] touch-manipulation">
-            <ThemeToggle className="p-1.5 min-h-[36px] min-w-[36px] inline-flex items-center justify-center shrink-0 rounded-lg" />
-            <span className="text-[9px] font-medium text-neutral-500 dark:text-neutral-400 leading-none">Tema</span>
-          </div>
         </div>
       </nav>
     </>

@@ -17,3 +17,17 @@ export function isPortalTrialAtivo(trialValidoAte: string | null | undefined): b
   const t = new Date(trialValidoAte).getTime();
   return !Number.isNaN(t) && t > Date.now();
 }
+
+/** Soma dias ao fim do trial atual (se ainda ativo) ou a partir de hoje. */
+export function trialValidoAteSomarDias(trialValidoAteAtual: string | null | undefined, dias: number): string {
+  const d = new Date();
+  const now = Date.now();
+  if (trialValidoAteAtual) {
+    const cur = new Date(trialValidoAteAtual).getTime();
+    if (!Number.isNaN(cur) && cur > now) {
+      d.setTime(cur);
+    }
+  }
+  d.setDate(d.getDate() + dias);
+  return d.toISOString();
+}

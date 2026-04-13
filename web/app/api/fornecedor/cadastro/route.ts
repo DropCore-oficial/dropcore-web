@@ -5,7 +5,9 @@
 import { NextResponse } from "next/server";
 import { getFornecedorIdFromBearer } from "@/lib/fornecedorAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { validarCnpjNasApisPublicas } from "@/lib/cnpjValidacaoExterna";
 import { isValidCnpjDigits, normalizeCnpjInput } from "@/lib/fornecedorCadastro";
+import { validarRepasseTitularEmpresa } from "@/lib/repasseTitularCnpj";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,35 +22,6 @@ const ENDERECO_FIELDS = [
   "endereco_cidade",
   "endereco_uf",
 ] as const;
-
-async function validarCnpjExterno(cnpjDigits: string): Promise<{ ok: true } | { ok: false; reason: string }> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 6000);
-  try {
-    const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjDigits}`, {
-      method: "GET",
-      cache: "no-store",
-      signal: ctrl.signal,
-      headers: { Accept: "application/json" },
-    });
-
-    if (res.ok) return { ok: true };
-
-    if (res.status === 404) {
-      return { ok: false, reason: "CNPJ não encontrado na base oficial." };
-    }
-
-    if (res.status === 429) {
-      return { ok: false, reason: "Validação de CNPJ indisponível no momento (limite da API). Tente novamente." };
-    }
-
-    return { ok: false, reason: "Não foi possível validar o CNPJ agora. Tente novamente em instantes." };
-  } catch {
-    return { ok: false, reason: "Não foi possível validar o CNPJ agora. Tente novamente em instantes." };
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 export async function PATCH(req: Request) {
   try {
@@ -84,7 +57,7 @@ export async function PATCH(req: Request) {
             { status: 400 }
           );
         }
-        const validacaoExterna = await validarCnpjExterno(digits);
+        const validacaoExterna = await validarCnpjNasApisPublicas(digits);
         if (!validacaoExterna.ok) {
           return NextResponse.json({ error: validacaoExterna.reason }, { status: 400 });
         }
@@ -138,6 +111,30 @@ export async function PATCH(req: Request) {
 
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ ok: true, message: "Nenhum dado alterado." });
+    }
+
+    const { data: rowAtual, error: errRow } = await supabaseAdmin
+      .from("fornecedores")
+      .select("nome, cnpj, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta")
+      .eq("id", fornecedor_id)
+      .maybeSingle();
+
+    if (errRow || !rowAtual) {
+      return NextResponse.json({ error: "Fornecedor não encontrado." }, { status: 404 });
+    }
+
+    const repasseCheck = validarRepasseTitularEmpresa({
+      razaoSocial: String(("nome" in update ? update.nome : rowAtual.nome) ?? "").trim(),
+      cnpjEmpresa: normalizeCnpjInput(String(("cnpj" in update ? update.cnpj : rowAtual.cnpj) ?? "")),
+      chave_pix: ("chave_pix" in update ? update.chave_pix : rowAtual.chave_pix) ?? null,
+      nome_banco: ("nome_banco" in update ? update.nome_banco : rowAtual.nome_banco) ?? null,
+      nome_no_banco: ("nome_no_banco" in update ? update.nome_no_banco : rowAtual.nome_no_banco) ?? null,
+      agencia: ("agencia" in update ? update.agencia : rowAtual.agencia) ?? null,
+      conta: ("conta" in update ? update.conta : rowAtual.conta) ?? null,
+      tipo_conta: ("tipo_conta" in update ? update.tipo_conta : rowAtual.tipo_conta) ?? null,
+    });
+    if (!repasseCheck.ok) {
+      return NextResponse.json({ error: repasseCheck.error }, { status: 400 });
     }
 
     const { error } = await supabaseAdmin.from("fornecedores").update(update).eq("id", fornecedor_id);

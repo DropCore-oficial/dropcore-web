@@ -199,7 +199,7 @@ export default function SellerIntegracoesErpPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
       <SellerNav active="integracoes" />
       <div className="w-full max-w-2xl mx-auto dropcore-px-wide py-6 lg:py-8">
         <SellerPageHeader

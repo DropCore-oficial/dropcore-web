@@ -11,6 +11,8 @@ export type DropCoreLogoProps = {
   className?: string;
   /** "dark" | "light" = fixo; undefined = usa tema atual (troca automática) */
   theme?: "dark" | "light";
+  /** Ícone e wordmark um pouco menores — barras mobile sem cortar o desenho */
+  compact?: boolean;
 };
 
 // Paleta oficial DropCore (preto puro no dark)
@@ -52,7 +54,8 @@ function LogoIcon({
       viewBox="0 0 36 36"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={className}
+      className={`shrink-0 overflow-visible ${className}`}
+      style={{ overflow: "visible" }}
       aria-hidden
     >
       <defs>
@@ -96,11 +99,19 @@ function LogoIcon({
 }
 
 /** Wordmark: Drop (cinza) + Core (verde) */
-function Wordmark({ theme = "dark", className = "" }: { theme?: "dark" | "light"; className?: string }) {
+function Wordmark({
+  theme = "dark",
+  compact = false,
+  className = "",
+}: {
+  theme?: "dark" | "light";
+  compact?: boolean;
+  className?: string;
+}) {
   const c = theme === "dark" ? DARK : LIGHT;
   return (
     <span
-      className={`font-bold tracking-tight text-base antialiased ${className}`}
+      className={`font-bold tracking-tight antialiased whitespace-nowrap ${compact ? "text-sm" : "text-base"} ${className}`}
       style={{
         fontFamily: "var(--font-geist-sans), Inter, system-ui, -apple-system, sans-serif",
         letterSpacing: "-0.02em",
@@ -117,17 +128,35 @@ export function DropCoreLogo({
   href = "/",
   className = "",
   theme: themeProp,
+  compact = false,
 }: DropCoreLogoProps) {
   const { theme: ctxTheme } = useTheme();
   const theme = themeProp ?? ctxTheme;
-  const iconSize = variant === "horizontal" ? 36 : 40;
+  const iconSize =
+    variant === "horizontal"
+      ? compact
+        ? 32
+        : 36
+      : compact
+        ? 32
+        : 40;
   const content = (
     <>
-      <LogoIcon size={iconSize} theme={theme} />
-      {variant === "horizontal" && <Wordmark theme={theme} />}
+      {/* Sombra/anel leves no tema claro: o quadrado branco não «some» no fundo branco da barra mobile */}
+      <span
+        className={
+          theme === "light"
+            ? "inline-flex shrink-0 rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.07)] ring-1 ring-neutral-200/90"
+            : "inline-flex shrink-0 rounded-[8px]"
+        }
+      >
+        <LogoIcon size={iconSize} theme={theme} />
+      </span>
+      {variant === "horizontal" && <Wordmark theme={theme} compact={compact} />}
     </>
   );
-  const wrapperClass = `inline-flex items-center gap-2.5 shrink-0 hover:opacity-90 transition-opacity ${className}`;
+  const gap = compact ? "gap-2" : "gap-2.5";
+  const wrapperClass = `inline-flex items-center ${gap} shrink-0 hover:opacity-90 transition-opacity ${className}`;
 
   if (href && href !== "") {
     return <Link href={href} className={wrapperClass}>{content}</Link>;

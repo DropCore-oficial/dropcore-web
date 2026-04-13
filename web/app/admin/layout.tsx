@@ -71,13 +71,18 @@ export default function AdminLayout({
       {!hasOwnHeader && (
         <header className="border-b border-[var(--border-subtle)] bg-[var(--card)]/80 backdrop-blur-sm pt-[env(safe-area-inset-top,0px)]">
           <div className="mx-auto flex max-w-5xl min-w-0 items-center justify-between py-3 pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))]">
-            <DropCoreLogo variant="horizontal" href="/dashboard" className="h-7" />
+            <DropCoreLogo variant="horizontal" href="/dashboard" className="shrink-0 overflow-visible py-0.5" />
             <div className="flex items-center gap-2">
               <Link
                 href="/dashboard"
-                className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                title="Início do painel"
+                aria-label="Início do painel"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
               >
-                Início da dash
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <path d="M9 22V12h6v10" />
+                </svg>
               </Link>
               <ThemeToggle />
             </div>

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAdmin } from "@/lib/apiOrgAuth";
-import { marcarInadimplentes, contarInadimplentes } from "@/lib/inadimplencia";
+import { marcarInadimplentes, contarInadimplentes, reverterInadimplentesDuranteTrial } from "@/lib/inadimplencia";
 import { resumoMensalidadePortal } from "@/lib/mensalidadeResumoPortal";
 import { portalTrialDays } from "@/lib/portalTrial";
 
@@ -38,7 +38,8 @@ export async function GET(req: Request) {
     const { data: org } = await supabase.from("orgs").select("plano").eq("id", org_id).maybeSingle();
     const plano = org?.plano ?? "starter";
 
-    // Marca mensalidades vencidas como inadimplente (roda a cada load do dashboard)
+    // Trial ativo: não é inadimplência — corrige linhas antigas e só então marca vencidos fora do trial
+    await reverterInadimplentesDuranteTrial(supabase, org_id);
     await marcarInadimplentes(supabase, org_id);
 
     const now = new Date();
@@ -167,41 +168,47 @@ export async function GET(req: Request) {
     const inadimplentes = await contarInadimplentes(supabase, org_id);
     const mensalidade_portal = await resumoMensalidadePortal(supabase, org_id);
 
-    // Notificação para admins quando há inadimplentes (deduplicação 24h)
+    // Notificação só para admins da org (tipo próprio — não misturar com mensalidade_vencida do painel seller/fornecedor)
     const totalInadimplentes = inadimplentes.sellers + inadimplentes.fornecedores;
+    const { data: adminsInad } = await supabase
+      .from("org_members")
+      .select("user_id")
+      .eq("org_id", org_id)
+      .in("role_base", ["owner", "admin"]);
+    const tipoInadOrg = "mensalidade_inadimplentes_org";
     if (totalInadimplentes > 0) {
       const desde = new Date();
       desde.setHours(desde.getHours() - 24);
-      const { data: admins } = await supabase
-        .from("org_members")
-        .select("user_id")
-        .eq("org_id", org_id)
-        .in("role_base", ["owner", "admin"]);
       const msg =
         inadimplentes.sellers > 0 && inadimplentes.fornecedores > 0
           ? `${inadimplentes.sellers} seller(s) e ${inadimplentes.fornecedores} fornecedor(es) inadimplentes. Verifique as mensalidades.`
           : inadimplentes.sellers > 0
             ? `${inadimplentes.sellers} seller(s) inadimplente(s). Verifique as mensalidades.`
             : `${inadimplentes.fornecedores} fornecedor(es) inadimplente(s). Verifique as mensalidades.`;
-      for (const a of admins ?? []) {
+      for (const a of adminsInad ?? []) {
         if (!a.user_id) continue;
         const { data: jaExiste } = await supabase
           .from("notifications")
           .select("id")
           .eq("user_id", a.user_id)
-          .eq("tipo", "mensalidade_vencida")
+          .eq("tipo", tipoInadOrg)
           .gte("criado_em", desde.toISOString())
           .limit(1)
           .maybeSingle();
         if (!jaExiste) {
           await supabase.from("notifications").insert({
             user_id: a.user_id,
-            tipo: "mensalidade_vencida",
+            tipo: tipoInadOrg,
             titulo: "Mensalidades vencidas",
             mensagem: msg,
             metadata: {},
           });
         }
+      }
+    } else {
+      for (const a of adminsInad ?? []) {
+        if (!a.user_id) continue;
+        await supabase.from("notifications").delete().eq("user_id", a.user_id).eq("tipo", tipoInadOrg);
       }
     }
 

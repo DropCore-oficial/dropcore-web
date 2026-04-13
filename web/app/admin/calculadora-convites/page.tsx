@@ -142,7 +142,7 @@ export default function AdminCalculadoraConvitesPage() {
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <header className="border-b border-[var(--border-subtle)] bg-[var(--card)]/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <DropCoreLogo variant="horizontal" href="/dashboard" className="h-7" />
+          <DropCoreLogo variant="horizontal" href="/dashboard" className="shrink-0 overflow-visible py-0.5" />
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
             <Link
               href="/dashboard"

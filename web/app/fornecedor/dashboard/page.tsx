@@ -46,6 +46,28 @@ function formatDate(s: string) {
   return new Date(s).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+/** Mesma regra que `vencimentoExibicaoAdmin`: em trial ativo → data fim do trial; senão → vencimento da mensalidade. */
+function subtituloBannerMensalidade(
+  m: Mensalidade,
+  trialAtivo: boolean,
+  trialValidoAte: string | null
+): string {
+  if (m.vencido && !trialAtivo) {
+    return "Em atraso — regularize para manter o acesso";
+  }
+  if (trialAtivo && trialValidoAte) {
+    const iso = trialValidoAte.length >= 10 ? `${trialValidoAte.slice(0, 10)}T12:00:00` : trialValidoAte;
+    const d = new Date(iso);
+    if (!Number.isNaN(d.getTime())) {
+      return `Teste grátis até ${d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}`;
+    }
+  }
+  if (m.vencimento_em) {
+    return `Vence em ${new Date(m.vencimento_em + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}`;
+  }
+  return "Pagamento em aberto";
+}
+
 const statusLabel: Record<string, { label: string; cor: string }> = {
   pendente: { label: "Pendente", cor: "text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700" },
   liberado: { label: "Liberado", cor: "text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 border-sky-300 dark:border-sky-700" },
@@ -69,6 +91,8 @@ export default function FornecedorDashboardPage() {
     total_a_receber: number;
   } | null>(null);
   const [mensalidades, setMensalidades] = useState<Mensalidade[]>([]);
+  const [trialAtivo, setTrialAtivo] = useState(false);
+  const [trialValidoAte, setTrialValidoAte] = useState<string | null>(null);
   const [modalPixMensalidade, setModalPixMensalidade] = useState<Mensalidade | null>(null);
   const [pixLoading, setPixLoading] = useState(false);
   const [pixQrCode, setPixQrCode] = useState<string | null>(null);
@@ -99,6 +123,7 @@ export default function FornecedorDashboardPage() {
   const pagarAbertoRef = useRef(false);
 
   const temMensalidadeVencida = mensalidades.some((m) => m.vencido);
+  const cobrancaMensalidadeAtiva = !trialAtivo;
   const totalRepasseFuturo = repasseFuturos.reduce((acc, item) => acc + Number(item.valor_previsto || 0), 0);
   const proxRepasseFuturo = repasseFuturos[0] ?? null;
 
@@ -152,8 +177,12 @@ export default function FornecedorDashboardPage() {
       if (mensRes.ok) {
         const mensJson = await mensRes.json();
         setMensalidades(mensJson.items ?? []);
+        setTrialAtivo(!!mensJson.trial_ativo);
+        setTrialValidoAte(mensJson.trial_valido_ate ?? null);
       } else {
         setMensalidades([]);
+        setTrialAtivo(false);
+        setTrialValidoAte(null);
       }
 
       const modo = chartMode;
@@ -203,17 +232,23 @@ export default function FornecedorDashboardPage() {
 
   useEffect(() => {
     const pagar = searchParams.get("pagar");
-    if (pagar === "1" && mensalidades.length > 0 && !loading && !pagarAbertoRef.current) {
+    if (
+      pagar === "1" &&
+      mensalidades.length > 0 &&
+      !loading &&
+      !pagarAbertoRef.current &&
+      cobrancaMensalidadeAtiva
+    ) {
       pagarAbertoRef.current = true;
       abrirPixMensalidade(mensalidades[0]);
     }
-  }, [searchParams.get("pagar"), mensalidades.length, loading]);
+  }, [searchParams.get("pagar"), mensalidades.length, loading, cobrancaMensalidadeAtiva]);
 
   useEffect(() => {
-    if (!temMensalidadeVencida) return;
+    if (!temMensalidadeVencida || !cobrancaMensalidadeAtiva) return;
     const id = setInterval(load, 10000);
     return () => clearInterval(id);
-  }, [temMensalidadeVencida]);
+  }, [temMensalidadeVencida, cobrancaMensalidadeAtiva]);
 
   useEffect(() => {
     if (!pixExpiraEm || !pixQrCode) return;
@@ -347,7 +382,7 @@ export default function FornecedorDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
       <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 md:py-7 space-y-5 md:space-y-6">
         <header className="rounded-2xl border border-[var(--card-border)] bg-gradient-to-br from-[var(--card)] via-[var(--card)] to-emerald-50/40 dark:to-emerald-950/20 p-4 sm:p-5 shadow-sm overflow-visible">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
@@ -454,83 +489,86 @@ export default function FornecedorDashboardPage() {
               <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Valores liberados e pendentes conforme regras da organização</p>
             </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 sm:p-4 pt-0 border-t border-[var(--card-border)]/80 bg-neutral-50/50 dark:bg-neutral-900/30">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 sm:p-4 pt-0 border-t border-[var(--card-border)]/80 bg-neutral-50/50 dark:bg-neutral-900/30">
             <Link
               href="/fornecedor/pedidos?status=enviado"
-              className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-3 transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm text-left"
+              className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm text-left active:scale-[0.99]"
             >
-              <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Para postar</p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+              <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Para postar</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                 {stats?.pedidos_aguardando_postagem ?? 0}
               </p>
-              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">pedidos enviados</p>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-snug">pedidos enviados</p>
             </Link>
             <Link
               href="/fornecedor/produtos"
-              className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-3 transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm text-left"
+              className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm text-left active:scale-[0.99]"
             >
-              <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Produtos ativos</p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+              <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Produtos ativos</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                 {stats?.produtos_ativos ?? 0}
               </p>
-              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">no catálogo</p>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-snug">no catálogo</p>
             </Link>
             <Link
               href="/fornecedor/produtos?estoqueBaixo=1"
-              className={`group rounded-xl border px-3 py-3 transition-all hover:shadow-sm text-left ${
+              className={`group rounded-xl border px-3.5 py-3.5 min-h-[5.25rem] transition-all hover:shadow-sm text-left active:scale-[0.99] ${
                 (stats?.estoque_baixo ?? 0) > 0
                   ? "border-amber-300/80 dark:border-amber-700/80 bg-amber-50/50 dark:bg-amber-950/20"
                   : "border-[var(--card-border)] bg-[var(--card)] hover:border-emerald-300 dark:hover:border-emerald-700"
               }`}
             >
-              <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Estoque baixo</p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-neutral-900 dark:text-neutral-100">{stats?.estoque_baixo ?? 0}</p>
-              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">abaixo do mínimo</p>
+              <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Estoque baixo</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100">{stats?.estoque_baixo ?? 0}</p>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-snug">abaixo do mínimo</p>
             </Link>
             <Link
               href="/fornecedor/pedidos"
-              className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-3 transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm text-left"
+              className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm text-left active:scale-[0.99]"
             >
-              <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Pedidos no mês</p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+              <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Pedidos no mês</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                 {stats?.pedidos_mes_count ?? 0}
               </p>
-              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 tabular-nums">{BRL.format(stats?.pedidos_mes_valor ?? 0)}</p>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 tabular-nums leading-snug">{BRL.format(stats?.pedidos_mes_valor ?? 0)}</p>
             </Link>
           </div>
 
           {mensalidades.length > 0 && (
-            <div className="mx-3 mb-3 sm:mx-4 sm:mb-4 flex flex-col gap-3 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-100/60 dark:bg-neutral-800/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+            <div className="mx-3 mb-3 sm:mx-4 sm:mb-4 flex flex-col gap-3 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-100/60 dark:bg-neutral-800/40 px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+              <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Mensalidade pendente</p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {mensalidades[0].vencido
-                    ? "Em atraso — regularize para manter o acesso"
-                    : mensalidades[0].vencimento_em
-                      ? `Vence em ${new Date(mensalidades[0].vencimento_em + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}`
-                      : "Pagamento em aberto"}
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                  {subtituloBannerMensalidade(mensalidades[0], trialAtivo, trialValidoAte)}
                 </p>
+                {!cobrancaMensalidadeAtiva && (
+                  <p className="text-xs text-neutral-500 dark:text-neutral-500 pt-0.5 leading-relaxed">
+                    Sem cobrança enquanto o teste grátis estiver ativo.
+                  </p>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => abrirPixMensalidade(mensalidades[0])}
-                className="shrink-0 rounded-xl bg-neutral-900 dark:bg-neutral-100 px-4 py-2.5 text-sm font-semibold text-white dark:text-neutral-900 hover:opacity-90 transition-opacity"
-              >
-                Pagar {BRL.format(mensalidades[0].valor)}
-              </button>
+              {cobrancaMensalidadeAtiva ? (
+                <button
+                  type="button"
+                  onClick={() => abrirPixMensalidade(mensalidades[0])}
+                  className="w-full shrink-0 rounded-xl bg-neutral-900 dark:bg-neutral-100 px-4 py-2.5 text-sm font-semibold text-white dark:text-neutral-900 hover:opacity-90 transition-opacity sm:w-auto touch-manipulation"
+                >
+                  Pagar {BRL.format(mensalidades[0].valor)}
+                </button>
+              ) : null}
             </div>
           )}
         </section>
 
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
-          <div className="px-4 py-3.5 border-b border-neutral-100 dark:border-neutral-800 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-            <div>
+          <div className="px-4 py-3.5 border-b border-neutral-100 dark:border-neutral-800 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Volume a receber</p>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                 {chartMode === "hoje" ? "Por hora — hoje" : "Por dia — escolha o período"}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="dropcore-scroll-x -mx-1 flex max-w-full flex-nowrap items-center gap-2 overflow-x-auto px-1 pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0">
               <div className="flex rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
                 <button
                   type="button"

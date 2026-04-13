@@ -423,7 +423,7 @@ export default function SellerCatalogoPage() {
   const totalSkus = itemsFiltrados.filter((i) => !isSemente(i) && !isGrupoOculto(i.sku)).length;
 
 return (
-      <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+      <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
       <div className="w-full max-w-6xl mx-auto dropcore-px-wide py-6 lg:py-8 space-y-6">
 
         <SellerPageHeader

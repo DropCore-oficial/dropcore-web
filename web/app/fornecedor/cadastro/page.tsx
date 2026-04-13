@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { FornecedorNav } from "../FornecedorNav";
-import { toTitleCase } from "@/lib/formatText";
-import { isValidCnpjDigits, normalizeCnpjInput } from "@/lib/fornecedorCadastro";
 import { BankCombobox } from "@/components/fornecedor/BankCombobox";
+import { isValidCnpjDigits, normalizeCnpjInput } from "@/lib/fornecedorCadastro";
+
+function upper(s: string): string {
+  return s.toLocaleUpperCase("pt-BR");
+}
 
 function formatCnpjDisplay(digits: string): string {
   const d = digits.slice(0, 14);
@@ -44,6 +47,7 @@ export default function FornecedorCadastroPage() {
   const [saving, setSaving] = useState(false);
   const [loadingCnpj, setLoadingCnpj] = useState(false);
   const [overwriteFromCnpj, setOverwriteFromCnpj] = useState(false);
+  const [confirmoRepasseTitularCnpj, setConfirmoRepasseTitularCnpj] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({
@@ -92,22 +96,22 @@ export default function FornecedorCadastroPage() {
       const f = json.fornecedor ?? {};
       const cnpjDigits = normalizeCnpjInput(f.cnpj ?? "");
       setForm({
-        nome: f.nome ?? "",
+        nome: upper(String(f.nome ?? "")),
         cnpj: formatCnpjDisplay(cnpjDigits),
-        telefone: f.telefone ?? "",
-        email_comercial: f.email_comercial ?? "",
-        endereco_cep: f.endereco_cep ?? "",
-        endereco_logradouro: f.endereco_logradouro ?? "",
-        endereco_numero: f.endereco_numero ?? "",
-        endereco_complemento: f.endereco_complemento ?? "",
-        endereco_bairro: f.endereco_bairro ?? "",
-        endereco_cidade: f.endereco_cidade ?? "",
-        endereco_uf: f.endereco_uf ?? "",
-        chave_pix: f.chave_pix ?? "",
-        nome_banco: f.nome_banco ?? "",
-        nome_no_banco: f.nome_no_banco ?? "",
-        agencia: f.agencia ?? "",
-        conta: f.conta ?? "",
+        telefone: upper(String(f.telefone ?? "")),
+        email_comercial: upper(String(f.email_comercial ?? "")),
+        endereco_cep: String(f.endereco_cep ?? "").replace(/\D/g, "").slice(0, 8),
+        endereco_logradouro: upper(String(f.endereco_logradouro ?? "")),
+        endereco_numero: upper(String(f.endereco_numero ?? "")),
+        endereco_complemento: upper(String(f.endereco_complemento ?? "")),
+        endereco_bairro: upper(String(f.endereco_bairro ?? "")),
+        endereco_cidade: upper(String(f.endereco_cidade ?? "")),
+        endereco_uf: upper(String(f.endereco_uf ?? "")).replace(/[^A-Z]/g, "").slice(0, 2),
+        chave_pix: upper(String(f.chave_pix ?? "")),
+        nome_banco: upper(String(f.nome_banco ?? "")),
+        nome_no_banco: upper(String(f.nome_no_banco ?? "")),
+        agencia: upper(String(f.agencia ?? "")),
+        conta: upper(String(f.conta ?? "")),
         tipo_conta: f.tipo_conta ?? "",
       });
     } catch (e: unknown) {
@@ -120,6 +124,12 @@ export default function FornecedorCadastroPage() {
   useEffect(() => {
     load();
   }, []);
+
+  function temDadosRepassePreenchidos(f: FormState): boolean {
+    return [f.chave_pix, f.nome_banco, f.nome_no_banco, f.agencia, f.conta, f.tipo_conta].some(
+      (s) => String(s ?? "").trim().length > 0
+    );
+  }
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
@@ -138,6 +148,13 @@ export default function FornecedorCadastroPage() {
         setSaving(false);
         return;
       }
+      if (temDadosRepassePreenchidos(form) && !confirmoRepasseTitularCnpj) {
+        setError(
+          "Marque a confirmação: os dados de PIX/conta são da empresa (mesmo CNPJ e razão social informados acima)."
+        );
+        setSaving(false);
+        return;
+      }
       const res = await fetch("/api/fornecedor/cadastro", {
         method: "PATCH",
         headers: {
@@ -145,22 +162,22 @@ export default function FornecedorCadastroPage() {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          nome: form.nome.trim(),
+          nome: upper(form.nome.trim()),
           cnpj: cnpjDigits.length > 0 ? cnpjDigits : null,
-          telefone: form.telefone.trim() || null,
-          email_comercial: form.email_comercial.trim() || null,
+          telefone: upper(form.telefone.trim()) || null,
+          email_comercial: upper(form.email_comercial.trim()) || null,
           endereco_cep: form.endereco_cep.replace(/\D/g, "") || null,
-          endereco_logradouro: form.endereco_logradouro.trim() || null,
-          endereco_numero: form.endereco_numero.trim() || null,
-          endereco_complemento: form.endereco_complemento.trim() || null,
-          endereco_bairro: form.endereco_bairro.trim() || null,
-          endereco_cidade: form.endereco_cidade.trim() || null,
-          endereco_uf: form.endereco_uf.trim().toUpperCase() || null,
-          chave_pix: form.chave_pix.trim() || null,
-          nome_banco: form.nome_banco.trim() || null,
-          nome_no_banco: form.nome_no_banco.trim() || null,
-          agencia: form.agencia.trim() || null,
-          conta: form.conta.trim() || null,
+          endereco_logradouro: upper(form.endereco_logradouro.trim()) || null,
+          endereco_numero: upper(form.endereco_numero.trim()) || null,
+          endereco_complemento: upper(form.endereco_complemento.trim()) || null,
+          endereco_bairro: upper(form.endereco_bairro.trim()) || null,
+          endereco_cidade: upper(form.endereco_cidade.trim()) || null,
+          endereco_uf: upper(form.endereco_uf.trim()).replace(/[^A-Z]/g, "").slice(0, 2) || null,
+          chave_pix: upper(form.chave_pix.trim()) || null,
+          nome_banco: upper(form.nome_banco.trim()) || null,
+          nome_no_banco: upper(form.nome_no_banco.trim()) || null,
+          agencia: upper(form.agencia.trim()) || null,
+          conta: upper(form.conta.trim()) || null,
           tipo_conta: form.tipo_conta.trim() || null,
         }),
       });
@@ -169,6 +186,7 @@ export default function FornecedorCadastroPage() {
         throw new Error(json?.error ?? "Erro ao salvar.");
       }
       setOkMsg("Cadastro atualizado.");
+      setConfirmoRepasseTitularCnpj(false);
       if (cnpjDigits.length === 14) {
         setForm((prev) => ({ ...prev, cnpj: formatCnpjDisplay(cnpjDigits) }));
       }
@@ -210,38 +228,46 @@ export default function FornecedorCadastroPage() {
       setForm((prev) => ({
         ...prev,
         cnpj: formatCnpjDisplay(cnpjDigits),
-        nome: overwriteFromCnpj || !prev.nome.trim() ? (empresa.nome ?? prev.nome) : prev.nome,
-        telefone: overwriteFromCnpj || !prev.telefone.trim() ? (empresa.telefone ?? prev.telefone) : prev.telefone,
+        nome:
+          overwriteFromCnpj || !prev.nome.trim()
+            ? upper(String(empresa.nome ?? prev.nome))
+            : prev.nome,
+        telefone:
+          overwriteFromCnpj || !prev.telefone.trim()
+            ? upper(String(empresa.telefone ?? prev.telefone))
+            : prev.telefone,
         email_comercial:
           overwriteFromCnpj || !prev.email_comercial.trim()
-            ? (empresa.email_comercial ?? prev.email_comercial)
+            ? upper(String(empresa.email_comercial ?? prev.email_comercial))
             : prev.email_comercial,
         endereco_cep:
           overwriteFromCnpj || !prev.endereco_cep.trim()
-            ? (empresa.endereco_cep ?? prev.endereco_cep)
+            ? String(empresa.endereco_cep ?? prev.endereco_cep).replace(/\D/g, "").slice(0, 8)
             : prev.endereco_cep,
         endereco_logradouro:
           overwriteFromCnpj || !prev.endereco_logradouro.trim()
-            ? (empresa.endereco_logradouro ?? prev.endereco_logradouro)
+            ? upper(String(empresa.endereco_logradouro ?? prev.endereco_logradouro))
             : prev.endereco_logradouro,
         endereco_numero:
           overwriteFromCnpj || !prev.endereco_numero.trim()
-            ? (empresa.endereco_numero ?? prev.endereco_numero)
+            ? upper(String(empresa.endereco_numero ?? prev.endereco_numero))
             : prev.endereco_numero,
         endereco_complemento:
           overwriteFromCnpj || !prev.endereco_complemento.trim()
-            ? (empresa.endereco_complemento ?? prev.endereco_complemento)
+            ? upper(String(empresa.endereco_complemento ?? prev.endereco_complemento))
             : prev.endereco_complemento,
         endereco_bairro:
           overwriteFromCnpj || !prev.endereco_bairro.trim()
-            ? (empresa.endereco_bairro ?? prev.endereco_bairro)
+            ? upper(String(empresa.endereco_bairro ?? prev.endereco_bairro))
             : prev.endereco_bairro,
         endereco_cidade:
           overwriteFromCnpj || !prev.endereco_cidade.trim()
-            ? (empresa.endereco_cidade ?? prev.endereco_cidade)
+            ? upper(String(empresa.endereco_cidade ?? prev.endereco_cidade))
             : prev.endereco_cidade,
         endereco_uf:
-          overwriteFromCnpj || !prev.endereco_uf.trim() ? (empresa.endereco_uf ?? prev.endereco_uf) : prev.endereco_uf,
+          overwriteFromCnpj || !prev.endereco_uf.trim()
+            ? upper(String(empresa.endereco_uf ?? prev.endereco_uf)).replace(/[^A-Z]/g, "").slice(0, 2)
+            : prev.endereco_uf,
       }));
       setOkMsg("Dados da empresa carregados pelo CNPJ. Revise e salve.");
     } catch (e: unknown) {
@@ -273,10 +299,10 @@ export default function FornecedorCadastroPage() {
   }
 
   const inputClass =
-    "w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]";
+    "w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2.5 text-sm uppercase text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]";
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
       <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 space-y-6">
         <div className="flex items-center justify-between gap-3">
           <Link
@@ -321,8 +347,7 @@ export default function FornecedorCadastroPage() {
                 <input
                   type="text"
                   value={form.nome}
-                  onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-                  onBlur={() => setForm((f) => ({ ...f, nome: toTitleCase(f.nome) }))}
+                  onChange={(e) => setForm((f) => ({ ...f, nome: upper(e.target.value) }))}
                   placeholder="Como a empresa deve aparecer"
                   className={inputClass}
                   required
@@ -365,7 +390,7 @@ export default function FornecedorCadastroPage() {
                 <input
                   type="tel"
                   value={form.telefone}
-                  onChange={(e) => setForm((f) => ({ ...f, telefone: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({ ...f, telefone: upper(e.target.value) }))}
                   placeholder="(00) 00000-0000"
                   className={inputClass}
                 />
@@ -375,7 +400,7 @@ export default function FornecedorCadastroPage() {
                 <input
                   type="email"
                   value={form.email_comercial}
-                  onChange={(e) => setForm((f) => ({ ...f, email_comercial: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({ ...f, email_comercial: upper(e.target.value) }))}
                   placeholder="contato@empresa.com.br"
                   className={inputClass}
                 />
@@ -401,7 +426,7 @@ export default function FornecedorCadastroPage() {
                     <input
                       type="text"
                       value={form.endereco_logradouro}
-                      onChange={(e) => setForm((f) => ({ ...f, endereco_logradouro: e.target.value }))}
+                      onChange={(e) => setForm((f) => ({ ...f, endereco_logradouro: upper(e.target.value) }))}
                       placeholder="Rua / Avenida"
                       className={inputClass}
                     />
@@ -411,7 +436,7 @@ export default function FornecedorCadastroPage() {
                     <input
                       type="text"
                       value={form.endereco_numero}
-                      onChange={(e) => setForm((f) => ({ ...f, endereco_numero: e.target.value }))}
+                      onChange={(e) => setForm((f) => ({ ...f, endereco_numero: upper(e.target.value) }))}
                       placeholder="123"
                       className={inputClass}
                     />
@@ -421,7 +446,7 @@ export default function FornecedorCadastroPage() {
                     <input
                       type="text"
                       value={form.endereco_complemento}
-                      onChange={(e) => setForm((f) => ({ ...f, endereco_complemento: e.target.value }))}
+                      onChange={(e) => setForm((f) => ({ ...f, endereco_complemento: upper(e.target.value) }))}
                       placeholder="Sala, bloco, etc. (opcional)"
                       className={inputClass}
                     />
@@ -431,7 +456,7 @@ export default function FornecedorCadastroPage() {
                     <input
                       type="text"
                       value={form.endereco_bairro}
-                      onChange={(e) => setForm((f) => ({ ...f, endereco_bairro: e.target.value }))}
+                      onChange={(e) => setForm((f) => ({ ...f, endereco_bairro: upper(e.target.value) }))}
                       placeholder="Bairro"
                       className={inputClass}
                     />
@@ -441,7 +466,7 @@ export default function FornecedorCadastroPage() {
                     <input
                       type="text"
                       value={form.endereco_cidade}
-                      onChange={(e) => setForm((f) => ({ ...f, endereco_cidade: e.target.value }))}
+                      onChange={(e) => setForm((f) => ({ ...f, endereco_cidade: upper(e.target.value) }))}
                       placeholder="Cidade"
                       className={inputClass}
                     />
@@ -464,17 +489,19 @@ export default function FornecedorCadastroPage() {
 
             <section id="repasse" className="space-y-5 overflow-visible">
               <h2 className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 border-b border-neutral-200 dark:border-neutral-700 pb-2">
-                Dados para repasse
+                Editar dados bancários e PIX (repasse)
               </h2>
-              <p className="text-xs text-[var(--muted)] -mt-2">
-                Informe a chave PIX ou os dados bancários (conta em nome da empresa).
+              <p className="text-xs leading-relaxed text-[var(--muted)] -mt-2">
+                Informe a chave PIX e/ou conta <strong className="text-[var(--foreground)]">em nome da empresa</strong>{" "}
+                (mesma razão social e CNPJ deste cadastro). Contas de terceiros não são aceitas. A equipe DropCore
+                confere os dados antes de liberar repasses.
               </p>
               <div>
                 <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Chave PIX</label>
                 <input
                   type="text"
                   value={form.chave_pix}
-                  onChange={(e) => setForm((f) => ({ ...f, chave_pix: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({ ...f, chave_pix: upper(e.target.value) }))}
                   placeholder="E-mail, telefone, CPF/CNPJ ou chave aleatória"
                   className={inputClass}
                 />
@@ -486,7 +513,7 @@ export default function FornecedorCadastroPage() {
                 <BankCombobox
                   id="fornecedor-nome-banco"
                   value={form.nome_banco}
-                  onChange={(v) => setForm((f) => ({ ...f, nome_banco: v }))}
+                  onChange={(v) => setForm((f) => ({ ...f, nome_banco: upper(v) }))}
                   inputClassName={inputClass}
                 />
               </div>
@@ -495,9 +522,8 @@ export default function FornecedorCadastroPage() {
                 <input
                   type="text"
                   value={form.nome_no_banco}
-                  onChange={(e) => setForm((f) => ({ ...f, nome_no_banco: e.target.value }))}
-                  onBlur={() => setForm((f) => ({ ...f, nome_no_banco: toTitleCase(f.nome_no_banco) }))}
-                  placeholder="Como aparece no extrato"
+                  onChange={(e) => setForm((f) => ({ ...f, nome_no_banco: upper(e.target.value) }))}
+                  placeholder="MESMA RAZÃO SOCIAL DO CAMPO «NOME / RAZÃO SOCIAL»"
                   className={inputClass}
                 />
               </div>
@@ -507,7 +533,7 @@ export default function FornecedorCadastroPage() {
                   <input
                     type="text"
                     value={form.agencia}
-                    onChange={(e) => setForm((f) => ({ ...f, agencia: e.target.value }))}
+                    onChange={(e) => setForm((f) => ({ ...f, agencia: upper(e.target.value) }))}
                     placeholder="0000"
                     className={inputClass}
                   />
@@ -517,7 +543,7 @@ export default function FornecedorCadastroPage() {
                   <input
                     type="text"
                     value={form.conta}
-                    onChange={(e) => setForm((f) => ({ ...f, conta: e.target.value }))}
+                    onChange={(e) => setForm((f) => ({ ...f, conta: upper(e.target.value) }))}
                     placeholder="00000-0"
                     className={inputClass}
                   />
@@ -530,11 +556,26 @@ export default function FornecedorCadastroPage() {
                   onChange={(e) => setForm((f) => ({ ...f, tipo_conta: e.target.value }))}
                   className={inputClass}
                 >
-                  <option value="">Selecione</option>
-                  <option value="corrente">Corrente</option>
-                  <option value="poupanca">Poupança</option>
+                  <option value="">SELECIONE</option>
+                  <option value="corrente">CORRENTE</option>
+                  <option value="poupanca">POUPANÇA</option>
                 </select>
               </div>
+              {temDadosRepassePreenchidos(form) && (
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-amber-200/80 bg-amber-50/50 px-3 py-3 text-xs text-neutral-800 dark:border-amber-800/60 dark:bg-amber-950/20 dark:text-neutral-200">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300"
+                    checked={confirmoRepasseTitularCnpj}
+                    onChange={(e) => setConfirmoRepasseTitularCnpj(e.target.checked)}
+                  />
+                  <span>
+                    Declaro que a chave PIX e/ou a conta informadas são da <strong>empresa cadastrada acima</strong>{" "}
+                    (mesmo CNPJ e titular igual à razão social). Entendo que dados inconsistentes serão rejeitados e
+                    que a DropCore pode solicitar comprovante.
+                  </span>
+                </label>
+              )}
             </section>
 
             <button

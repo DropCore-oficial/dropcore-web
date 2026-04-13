@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
+import { MobileAppBar } from "@/components/MobileAppBar";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -576,7 +577,9 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] md:pb-8">
+      <MobileAppBar logoHref="/dashboard" />
+
       {/* Barra superior — logo DropCore + atalho ativo (como seller) */}
       <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/98 dark:bg-neutral-950/98 backdrop-blur-xl shadow-sm">
         <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 flex items-center gap-6">
@@ -596,11 +599,6 @@ export default function DashboardPage() {
       </nav>
 
       <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 space-y-4">
-        {/* Logo no mobile (desktop usa a barra fixa) */}
-        <div className="flex md:hidden items-center pb-1">
-          <DropCoreLogo variant="horizontal" href="/dashboard" className="shrink-0" />
-        </div>
-
         {/* 1. Header — igual ao seller/fornecedor */}
         <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 min-w-0">
           <div className="flex items-center gap-3 min-w-0 flex-1">
