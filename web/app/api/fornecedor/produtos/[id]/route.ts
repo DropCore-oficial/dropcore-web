@@ -141,10 +141,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: "Produto não encontrado ou não pertence a você." }, { status: 404 });
     }
 
-    // Bloquear nova alteração se já existir uma pendente (fornecedor só pode enviar outra após o admin aprovar ou recusar)
+    // Se já existe pendência: mescla em dados_propostos (fornecedor pode corrigir antes do admin analisar)
     const { data: existente } = await supabaseAdmin
       .from("sku_alteracoes_pendentes")
-      .select("id")
+      .select("id, dados_propostos")
       .eq("sku_id", skuId)
       .eq("fornecedor_id", ctx.fornecedor_id)
       .eq("org_id", ctx.org_id)
@@ -152,22 +152,24 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       .maybeSingle();
 
     if (existente) {
-      return NextResponse.json(
-        { error: "Este produto já tem uma alteração em análise. Aguarde aprovação ou recusa do admin para enviar nova alteração." },
-        { status: 400 }
-      );
-    }
-
-    const { error: insErr } = await supabaseAdmin
-      .from("sku_alteracoes_pendentes")
-      .insert({
+      const prev = (existente.dados_propostos as Record<string, unknown> | null) ?? {};
+      const merged: Record<string, unknown> = { ...prev, ...dadosPropostos };
+      const { error: updErr } = await supabaseAdmin
+        .from("sku_alteracoes_pendentes")
+        .update({ dados_propostos: merged })
+        .eq("id", existente.id)
+        .eq("org_id", ctx.org_id);
+      if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
+    } else {
+      const { error: insErr } = await supabaseAdmin.from("sku_alteracoes_pendentes").insert({
         sku_id: skuId,
         fornecedor_id: ctx.fornecedor_id,
         org_id: ctx.org_id,
         dados_propostos: dadosPropostos,
         status: "pendente",
       });
-    if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
+      if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
+    }
 
     // Devolver o SKU atual para o front não quebrar
     const { data: skuAtual } = await supabaseAdmin
@@ -179,7 +181,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({
       ...skuAtual,
       _enviado_para_analise: true,
-      mensagem: "Alteração enviada para análise. O admin verá em Alterações de produtos.",
+      _alteracao_atualizada: !!existente,
+      mensagem: existente
+        ? "Alteração atualizada e segue em análise. O admin verá a última versão em Alterações de produtos."
+        : "Alteração enviada para análise. O admin verá em Alterações de produtos.",
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";

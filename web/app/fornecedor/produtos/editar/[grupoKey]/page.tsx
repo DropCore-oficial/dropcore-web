@@ -604,7 +604,7 @@ export default function EditarVariantesPage() {
       {statusAlteracaoEditar === "pendente" && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
           <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-200">
-            <strong>Alteração em análise.</strong> Este produto já tem alteração(s) aguardando aprovação do admin. A edição fica bloqueada até ser aprovada ou recusada. Você pode visualizar os dados, mas não pode salvar novas alterações.
+            <strong>Alteração em análise.</strong> O admin ainda não aprovou. Você pode <strong>ajustar e salvar de novo</strong> — a última versão enviada é a que o DropCore analisa em Alterações de produtos.
           </div>
         </div>
       )}
@@ -809,7 +809,7 @@ export default function EditarVariantesPage() {
                 </div>
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400">As fotos por variação ficam na tabela de variantes.</p>
                 {formError && <p className="text-sm text-red-400">{formError}</p>}
-                <button type="submit" disabled={loadingOutros || !dirtyMidia || statusAlteracaoEditar === "pendente"} className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyMidia && statusAlteracaoEditar !== "pendente" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}>{loadingOutros ? "Salvando…" : statusAlteracaoEditar === "pendente" ? "Bloqueado (em análise)" : "Salvar"}</button>
+                <button type="submit" disabled={loadingOutros || !dirtyMidia} className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyMidia ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}>{loadingOutros ? "Salvando…" : "Salvar"}</button>
               </form>
             </div>
           )}
@@ -865,7 +865,7 @@ export default function EditarVariantesPage() {
                   </div>
                 </div>
                 {formError && <p className="text-sm text-red-400">{formError}</p>}
-                <button type="submit" disabled={loadingOutros || !dirtyImpostos || statusAlteracaoEditar === "pendente"} className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyImpostos && statusAlteracaoEditar !== "pendente" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}>{loadingOutros ? "Salvando…" : statusAlteracaoEditar === "pendente" ? "Bloqueado (em análise)" : "Salvar"}</button>
+                <button type="submit" disabled={loadingOutros || !dirtyImpostos} className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyImpostos ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}>{loadingOutros ? "Salvando…" : "Salvar"}</button>
               </form>
             </div>
           )}
@@ -954,9 +954,9 @@ export default function EditarVariantesPage() {
                     {formError && <p className="text-sm text-red-500 dark:text-red-400">{formError}</p>}
                     <button
                       type="submit"
-                      disabled={tabelaMedidasSaving || statusAlteracaoEditar === "pendente" || tamanhosOrdenados.length === 0}
+                      disabled={tabelaMedidasSaving || tamanhosOrdenados.length === 0}
                       className={`inline-flex items-center gap-2 rounded-xl font-semibold px-5 py-3 text-sm transition-all disabled:opacity-60 ${
-                        statusAlteracaoEditar !== "pendente" && tamanhosOrdenados.length > 0
+                        tamanhosOrdenados.length > 0
                           ? "bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg"
                           : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"
                       }`}
@@ -966,8 +966,6 @@ export default function EditarVariantesPage() {
                           <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                           Salvando…
                         </>
-                      ) : statusAlteracaoEditar === "pendente" ? (
-                        "Bloqueado (em análise)"
                       ) : (
                         "Enviar para análise"
                       )}
