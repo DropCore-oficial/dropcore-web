@@ -8,6 +8,7 @@ import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { FotoVariacaoCell } from "@/components/FotoVariacaoCell";
 import { toTitleCase } from "@/lib/formatText";
+import { CORES_PREDEFINIDAS, TAMANHOS_PREDEFINIDOS } from "@/lib/fornecedorVariantesUi";
 import { inferirTipo, getColunasTabelaMedidas } from "@/lib/tipoProduto";
 
 type Produto = {
@@ -1016,26 +1017,63 @@ export default function EditarVariantesPage() {
                   required
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
                   <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Cor</label>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-2">
+                    Clique numa cor para preencher; depois pode editar no campo (ex.: Verde → Verde militar).
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {CORES_PREDEFINIDAS.map((cor) => (
+                      <button
+                        key={cor}
+                        type="button"
+                        onClick={() => setEditCor((prev) => (prev.trim().toLowerCase() === cor.toLowerCase() ? "" : cor))}
+                        className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${
+                          editCor.trim().toLowerCase() === cor.toLowerCase()
+                            ? "border-blue-500 dark:border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
+                            : "border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                        }`}
+                      >
+                        {cor}
+                      </button>
+                    ))}
+                  </div>
                   <input
                     type="text"
                     value={editCor}
                     onChange={(e) => setEditCor(e.target.value)}
                     onBlur={() => setEditCor(toTitleCase(editCor))}
-                    placeholder="Ex: Preto"
+                    placeholder="Ou digite outra cor (ex.: Verde militar)"
                     className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
-                <div>
+                <div className="sm:col-span-2">
                   <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Tamanho</label>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {TAMANHOS_PREDEFINIDOS.map((tam) => (
+                      <button
+                        key={tam}
+                        type="button"
+                        onClick={() =>
+                          setEditTamanho((prev) => (prev.trim().toUpperCase() === tam.toUpperCase() ? "" : tam))
+                        }
+                        className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${
+                          editTamanho.trim().toUpperCase() === tam.toUpperCase()
+                            ? "border-blue-500 dark:border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
+                            : "border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                        }`}
+                      >
+                        {tam}
+                      </button>
+                    ))}
+                  </div>
                   <input
                     type="text"
                     value={editTamanho}
                     onChange={(e) => setEditTamanho(e.target.value)}
                     onBlur={() => setEditTamanho(editTamanho.trim().toUpperCase())}
-                    placeholder="Ex: M"
+                    placeholder="Ou digite outro tamanho"
                     className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   />
                 </div>

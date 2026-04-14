@@ -7,15 +7,7 @@ import Link from "next/link";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toTitleCase } from "@/lib/formatText";
-
-const CORES_PREDEFINIDAS = [
-  "Preto", "Branco", "Vermelho", "Verde", "Cinza", "Marrom", "Rosa", "Laranja",
-  "Vinho Tinto", "Branco Leitoso", "Azul Escuro", "Roxo", "Azul", "Amarelo", "Bege"
-];
-
-const TAMANHOS_PREDEFINIDOS = [
-  "PP", "P", "M", "G", "GG", "L", "XL", "XXL", "XXXL", "Único"
-];
+import { CORES_PREDEFINIDAS, TAMANHOS_PREDEFINIDOS } from "@/lib/fornecedorVariantesUi";
 
 type TabId = "info-basica" | "info-variantes" | "lista-variantes" | "midia" | "info-impostos";
 

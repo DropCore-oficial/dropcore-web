@@ -7,11 +7,7 @@ import Link from "next/link";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toTitleCase } from "@/lib/formatText";
-
-const CORES_PREDEFINIDAS = [
-  "Preto", "Branco", "Vermelho", "Verde", "Cinza", "Marrom", "Rosa", "Laranja",
-  "Vinho Tinto", "Branco Leitoso", "Azul Escuro", "Roxo", "Azul", "Amarelo", "Bege"
-];
+import { CORES_PREDEFINIDAS } from "@/lib/fornecedorVariantesUi";
 
 const inputClass = "w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500";
 
