@@ -7,6 +7,8 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationToasts } from "@/components/NotificationToasts";
+import { AdminMobileBottomNav } from "@/components/AdminMobileBottomNav";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export default function AdminLayout({
   children,
@@ -84,12 +86,19 @@ export default function AdminLayout({
                   <path d="M9 22V12h6v10" />
                 </svg>
               </Link>
-              <ThemeToggle />
+              <span className="hidden md:inline-flex">
+                <ThemeToggle />
+              </span>
             </div>
           </div>
         </header>
       )}
-      {children}
+      <div className="min-h-0 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-0">{children}</div>
+      {/* Sino acima da tab bar (igual fornecedor) — header em mobile não mostra o sino duplicado */}
+      <div className="pointer-events-auto md:hidden fixed right-3 z-[110] bottom-[calc(4rem+env(safe-area-inset-bottom,0px))]">
+        <NotificationBell context="admin" />
+      </div>
+      <AdminMobileBottomNav />
       <NotificationToasts />
     </>
   );

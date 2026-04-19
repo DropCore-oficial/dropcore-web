@@ -1,13 +1,26 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
-import { DropCoreLogo } from "@/components/DropCoreLogo";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { FornecedorNav } from "../../FornecedorNav";
+import { NotificationToasts } from "@/components/NotificationToasts";
 import { toTitleCase } from "@/lib/formatText";
 import { CORES_PREDEFINIDAS, TAMANHOS_PREDEFINIDOS } from "@/lib/fornecedorVariantesUi";
+
+/** Ordem estável para listar tamanhos (PP… depois extras). */
+function ordenarTamanhosLista(tams: string[]): string[] {
+  const ordem = new Map(TAMANHOS_PREDEFINIDOS.map((t, i) => [t.toUpperCase(), i]));
+  return [...tams].sort((a, b) => {
+    const ia = ordem.get(a.toUpperCase()) ?? 999;
+    const ib = ordem.get(b.toUpperCase()) ?? 999;
+    if (ia !== ib) return ia - ib;
+    return a.localeCompare(b, undefined, { numeric: true });
+  });
+}
+import { HelpBubble } from "@/components/HelpBubble";
+import { VarianteExtrasTagInput } from "@/components/VarianteExtrasTagInput";
 
 type TabId = "info-basica" | "info-variantes" | "lista-variantes" | "midia" | "info-impostos";
 
@@ -23,6 +36,7 @@ const inputBase = "w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-no
 
 export default function CriarVariantesPage() {
   const router = useRouter();
+  const tabsNavRef = useRef<HTMLDivElement | null>(null);
   const [tabAtiva, setTabAtiva] = useState<TabId>("info-basica");
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -42,8 +56,11 @@ export default function CriarVariantesPage() {
   const [dataLancamento, setDataLancamento] = useState("");
   const [precoVarejo, setPrecoVarejo] = useState("");
   const [custoCompra, setCustoCompra] = useState("");
-  const [estoqueInicial, setEstoqueInicial] = useState("0");
+  const [estoqueInicial, setEstoqueInicial] = useState("");
+  /** Quando há tamanhos: quantidade por tamanho (vale para todas as cores daquele tamanho). Chave = tamanho em maiúsculas. */
+  const [estoquePorTamanho, setEstoquePorTamanho] = useState<Record<string, string>>({});
   const [peso, setPeso] = useState("");
+  const [helpVariantesOpen, setHelpVariantesOpen] = useState<null | "precoVarejo" | "custoCompra">(null);
   const [comp, setComp] = useState("");
   const [largura, setLargura] = useState("");
   const [altura, setAltura] = useState("");
@@ -54,13 +71,23 @@ export default function CriarVariantesPage() {
 
   const coresFinais = useMemo(() => {
     const set = new Set(coresSelecionadas);
-    if (corCustom.trim()) set.add(toTitleCase(corCustom.trim()));
+    for (const part of corCustom
+      .split(/[,;\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean)) {
+      set.add(toTitleCase(part));
+    }
     return Array.from(set);
   }, [coresSelecionadas, corCustom]);
 
   const tamanhosFinais = useMemo(() => {
     const set = new Set(tamanhosSelecionados);
-    if (tamanhoCustom.trim()) set.add(toTitleCase(tamanhoCustom.trim()));
+    for (const part of tamanhoCustom
+      .split(/[,;\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean)) {
+      set.add(part.toUpperCase());
+    }
     return Array.from(set);
   }, [tamanhosSelecionados, tamanhoCustom]);
 
@@ -84,6 +111,33 @@ export default function CriarVariantesPage() {
     return out;
   }, [coresFinais, tamanhosFinais]);
 
+  const tamanhosOrdenados = useMemo(() => ordenarTamanhosLista(tamanhosFinais), [tamanhosFinais]);
+
+  useEffect(() => {
+    setEstoquePorTamanho((prev) => {
+      const next: Record<string, string> = {};
+      for (const tam of tamanhosFinais) {
+        const k = tam.toUpperCase();
+        next[k] = prev[k] ?? "";
+      }
+      return next;
+    });
+  }, [tamanhosFinais.join("|")]);
+
+  function parseQty(s: string): number | null {
+    const raw = s.trim();
+    if (!raw) return null;
+    const n = parseFloat(raw.replace(",", "."));
+    return Number.isFinite(n) ? Math.max(0, Math.round(n)) : null;
+  }
+
+  /** Pré-visualização do estoque que cada linha terá ao salvar. */
+  function estoquePreviewParaLinha(tamanho: string): number | null {
+    const t = tamanho.trim();
+    if (!t) return parseQty(estoqueInicial);
+    return parseQty(estoquePorTamanho[t.toUpperCase()] ?? "");
+  }
+
   function toggleCor(cor: string) {
     setCoresSelecionadas((prev) => {
       const next = new Set(prev);
@@ -102,6 +156,57 @@ export default function CriarVariantesPage() {
     });
   }
 
+  function moverCorParaCampoExtras(cor: string) {
+    setCoresSelecionadas((prev) => {
+      const next = new Set(prev);
+      next.delete(cor);
+      return next;
+    });
+    setCorCustom((prev) => {
+      const parts = prev
+        .split(/[,;\n]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const lower = new Set(parts.map((p) => p.toLowerCase()));
+      if (!lower.has(cor.toLowerCase())) parts.unshift(cor);
+      else {
+        const filtered = parts.filter((p) => p.toLowerCase() !== cor.toLowerCase());
+        return [cor, ...filtered].join(", ");
+      }
+      return parts.join(", ");
+    });
+  }
+
+  function moverTamanhoParaCampoExtras(tam: string) {
+    setTamanhosSelecionados((prev) => {
+      const next = new Set(prev);
+      next.delete(tam);
+      return next;
+    });
+    setTamanhoCustom((prev) => {
+      const parts = prev
+        .split(/[,;\n]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const upper = new Set(parts.map((p) => p.toUpperCase()));
+      if (!upper.has(tam.toUpperCase())) parts.unshift(tam);
+      else {
+        const filtered = parts.filter((p) => p.toUpperCase() !== tam.toUpperCase());
+        return [tam, ...filtered].join(", ");
+      }
+      return parts.join(", ");
+    });
+  }
+
+  const indiceTab = TABS.findIndex((t) => t.id === tabAtiva);
+
+  function irParaTab(delta: -1 | 1) {
+    const next = indiceTab + delta;
+    if (next < 0 || next >= TABS.length) return;
+    setTabAtiva(TABS[next].id);
+    window.setTimeout(() => tabsNavRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
@@ -110,7 +215,13 @@ export default function CriarVariantesPage() {
       return;
     }
     if (combinacoes.length === 0) {
-      setFormError("Informe pelo menos uma cor ou um tamanho.");
+      setFormError(
+        "Falta escolher variante: marque pelo menos uma cor ou um tamanho na aba «Informações de Variantes» (deslize as abas no telemóvel se não as vir todas)."
+      );
+      setTabAtiva("info-variantes");
+      window.setTimeout(() => {
+        tabsNavRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 50);
       return;
     }
     setFormLoading(true);
@@ -132,11 +243,22 @@ export default function CriarVariantesPage() {
         comprimento_cm: comp.trim() ? parseFloat(comp.replace(",", ".")) : undefined,
         largura_cm: largura.trim() ? parseFloat(largura.replace(",", ".")) : undefined,
         altura_cm: altura.trim() ? parseFloat(altura.replace(",", ".")) : undefined,
-        estoque_atual: estoqueInicial.trim() ? parseFloat(estoqueInicial.replace(",", ".")) : undefined,
         peso_kg: peso.trim() ? parseFloat(peso.replace(",", ".")) : undefined,
         custo_base: custoCompra.trim() ? parseFloat(custoCompra.replace(",", ".")) : undefined,
         data_lancamento: dataLancamento || null,
       };
+      if (tamanhos.length > 0) {
+        const por: Record<string, number> = {};
+        for (const tam of tamanhos) {
+          const k = tam.toUpperCase();
+          const q = parseQty(estoquePorTamanho[k] ?? "");
+          if (q != null) por[k] = q;
+        }
+        body.estoque_por_tamanho = por;
+      } else {
+        const q = parseQty(estoqueInicial);
+        if (q != null) body.estoque_atual = q;
+      }
       const res = await fetch("/api/fornecedor/produtos/multivariante", {
         method: "POST",
         headers: {
@@ -156,40 +278,41 @@ export default function CriarVariantesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      {/* Header */}
-      <div className="bg-[var(--card)] border-b border-[var(--card-border)] sticky top-0 z-30">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4 min-w-0">
-            <DropCoreLogo variant="horizontal" href="/fornecedor/dashboard" className="shrink-0" />
-            <ThemeToggle className="shrink-0" />
+    <div className="min-h-screen min-w-0 bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+      {/*
+        Barra do formulário: sticky só no mobile (abaixo do MobileAppBar).
+        No desktop, fixed + sticky empilhados costumam causar “travamento”/cliques estranhos no topo — aqui fica estática; use «Salvar» no fim do formulário.
+      */}
+      <div className="sticky top-[calc(3rem+env(safe-area-inset-top,0px))] z-20 border-b border-[var(--card-border)] bg-[var(--card)] shadow-sm md:static md:top-auto md:z-auto md:shadow-none">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <Link
               href="/fornecedor/produtos"
-              className="flex items-center gap-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white shrink-0"
+              className="flex shrink-0 items-center gap-1.5 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
-              <span className="text-sm">Voltar</span>
+              <span className="text-sm font-medium">Voltar</span>
             </Link>
-            <h1 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 truncate">
-              Produtos do Armazém / Criar variantes
+            <h1 className="min-w-0 truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100 sm:text-base">
+              Criar variantes
             </h1>
           </div>
           <button
             type="submit"
             form="form-criar-variantes"
             disabled={formLoading}
-            className="shrink-0 rounded-lg bg-blue-600 text-white font-semibold px-4 py-2 text-sm hover:bg-blue-700 disabled:opacity-60 transition"
+            className="relative z-10 shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
           >
             Salvar
           </button>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex gap-6">
+      <div className="mx-auto flex min-w-0 max-w-5xl flex-col gap-4 overflow-x-hidden px-4 py-4 sm:px-6 md:flex-row md:gap-6">
         {/* Conteúdo principal */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1 order-2 md:order-1">
           <form id="form-criar-variantes" onSubmit={handleSubmit} className="space-y-6">
             {formError && (
               <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-800 dark:text-red-300">
@@ -200,6 +323,23 @@ export default function CriarVariantesPage() {
             {tabAtiva === "info-basica" && (
               <div className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm p-6">
                 <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Informação Básica</h2>
+                <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">
+                  <p className="font-medium">Antes de salvar</p>
+                  <p className="mt-1 text-sky-800/90 dark:text-sky-200/90">
+                    É obrigatório escolher <strong>pelo menos uma cor ou um tamanho</strong>. Use as abas acima (no telemóvel, deslize para a direita) e abra{" "}
+                    <strong>Informações de Variantes</strong> para marcar as opções.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTabAtiva("info-variantes");
+                      window.setTimeout(() => tabsNavRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
+                    }}
+                    className="mt-3 w-full rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 sm:w-auto"
+                  >
+                    Ir para cores e tamanhos →
+                  </button>
+                </div>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">
@@ -268,60 +408,88 @@ export default function CriarVariantesPage() {
                   <div className="space-y-4">
                     <div>
                       <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-2">Cor</p>
+                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-2">
+                        Para <strong>personalizar um nome de lista</strong> (ex.: Verde → Verde militar), clique no nome da cor — ele vai para o campo abaixo para você editar.
+                      </p>
                       <div className="flex flex-wrap gap-2">
                         {CORES_PREDEFINIDAS.map((cor) => (
-                          <label
+                          <div
                             key={cor}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                           >
                             <input
+                              id={`criar-pref-cor-${cor}`}
                               type="checkbox"
                               checked={coresSelecionadas.has(cor)}
                               onChange={() => toggleCor(cor)}
-                              className="rounded border-neutral-300 dark:border-neutral-600 text-blue-600 focus:ring-blue-500"
+                              className="rounded border-neutral-300 dark:border-neutral-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
                             />
-                            <span className="text-sm text-neutral-900 dark:text-neutral-100">{cor}</span>
-                          </label>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                moverCorParaCampoExtras(cor);
+                              }}
+                              className="text-sm text-neutral-900 dark:text-neutral-100 hover:text-blue-600 dark:hover:text-blue-400 underline decoration-dotted underline-offset-2 cursor-pointer bg-transparent border-0 p-0 font-normal text-left"
+                              title="Levar ao campo abaixo para editar o nome"
+                            >
+                              {cor}
+                            </button>
+                          </div>
                         ))}
                       </div>
                       <div className="mt-2">
-                        <input
-                          type="text"
+                        <VarianteExtrasTagInput
                           value={corCustom}
-                          onChange={(e) => setCorCustom(e.target.value)}
-                          onBlur={() => setCorCustom(toTitleCase(corCustom))}
-                          placeholder="Ou escreva a cor se não encontrar"
-                          className={`${inputBase} max-w-xs py-2`}
+                          onChange={setCorCustom}
+                          normalize="title"
+                          placeholder="Ex.: Azul Royal"
+                          aria-label="Cores extras ou personalizadas"
+                          inputClassName="max-w-xl"
                         />
                       </div>
                     </div>
 
                     <div>
                       <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-2">Tamanho</p>
+                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-2">
+                        Clique no rótulo do tamanho para levar ao campo e personalizar.
+                      </p>
                       <div className="flex flex-wrap gap-2">
                         {TAMANHOS_PREDEFINIDOS.map((tam) => (
-                          <label
+                          <div
                             key={tam}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                           >
                             <input
+                              id={`criar-pref-tam-${tam}`}
                               type="checkbox"
                               checked={tamanhosSelecionados.has(tam)}
                               onChange={() => toggleTamanho(tam)}
-                              className="rounded border-neutral-300 dark:border-neutral-600 text-blue-600 focus:ring-blue-500"
+                              className="rounded border-neutral-300 dark:border-neutral-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
                             />
-                            <span className="text-sm text-neutral-900 dark:text-neutral-100">{tam}</span>
-                          </label>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                moverTamanhoParaCampoExtras(tam);
+                              }}
+                              className="text-sm text-neutral-900 dark:text-neutral-100 hover:text-blue-600 dark:hover:text-blue-400 underline decoration-dotted underline-offset-2 cursor-pointer bg-transparent border-0 p-0 font-normal text-left"
+                              title="Levar ao campo abaixo para editar"
+                            >
+                              {tam}
+                            </button>
+                          </div>
                         ))}
                       </div>
                       <div className="mt-2">
-                        <input
-                          type="text"
+                        <VarianteExtrasTagInput
                           value={tamanhoCustom}
-                          onChange={(e) => setTamanhoCustom(e.target.value)}
-                          onBlur={() => setTamanhoCustom(toTitleCase(tamanhoCustom))}
-                          placeholder="Ou escreva o tamanho se não encontrar"
-                          className={`${inputBase} max-w-xs py-2`}
+                          onChange={setTamanhoCustom}
+                          normalize="upper"
+                          placeholder="Ex.: 42"
+                          aria-label="Tamanhos extras ou personalizados"
+                          inputClassName="max-w-xl"
                         />
                       </div>
                     </div>
@@ -337,79 +505,231 @@ export default function CriarVariantesPage() {
             )}
 
             {tabAtiva === "lista-variantes" && (
-              <div className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm overflow-hidden">
-                <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/50 flex items-center justify-between">
-                  <span className="text-xs text-neutral-500 dark:text-neutral-400">Preencher em massa</span>
-                  <span className="text-xs text-neutral-600 dark:text-neutral-400">+ Adicionar Opções</span>
+              <div className="overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
+                <div className="border-b border-[var(--card-border)] bg-gradient-to-r from-emerald-50/80 to-transparent px-4 py-4 dark:from-emerald-950/25 dark:to-transparent sm:px-5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">Lista de variantes</h2>
+                      <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                        Pré-visualização do que será criado — SKUs gerados ao salvar.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200">
+                        {combinacoes.length} variante{combinacoes.length !== 1 ? "s" : ""}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTabAtiva("info-variantes");
+                          window.setTimeout(() => tabsNavRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
+                        }}
+                        className="rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                      >
+                        Ajustar cores / tamanhos
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-neutral-50 dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-400 text-left border-b border-neutral-100 dark:border-neutral-700">
-                        <th className="px-4 py-2.5 font-medium w-24">Cor</th>
-                        <th className="px-4 py-2.5 font-medium w-20">Tamanho</th>
-                        <th className="px-4 py-2.5 font-medium w-48">SKU</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                      {combinacoes.length === 0 ? (
-                        <tr>
-                          <td colSpan={3} className="px-4 py-8 text-center text-neutral-500 dark:text-neutral-400 text-sm">
-                            Selecione cores e tamanhos na aba &quot;Informações de Variantes&quot; para ver a lista.
-                          </td>
-                        </tr>
-                      ) : (
-                        combinacoes.map((c, i) => (
-                          <tr key={i} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50">
-                            <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{c.cor || "—"}</td>
-                            <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{c.tamanho || "—"}</td>
-                            <td className="px-4 py-2.5 text-neutral-400 dark:text-neutral-500 text-xs">Será gerado automaticamente</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+
+                {combinacoes.length === 0 ? (
+                  <div className="px-4 py-12 text-center sm:px-6">
+                    <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                      Selecione cores e tamanhos em <strong>Informações de Variantes</strong> para ver a lista aqui.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="hidden md:block">
+                      <div className="max-h-[min(28rem,55vh)] overflow-auto">
+                        <table className="w-full text-sm">
+                          <thead className="sticky top-0 z-10 bg-neutral-100/95 dark:bg-neutral-900/95 backdrop-blur-sm">
+                            <tr className="border-b border-neutral-200 text-left text-neutral-600 dark:border-neutral-700 dark:text-neutral-400">
+                              <th className="px-4 py-3 font-medium">#</th>
+                              <th className="px-4 py-3 font-medium">Cor</th>
+                              <th className="px-4 py-3 font-medium">Tamanho</th>
+                              <th className="px-4 py-3 font-medium text-right">Estq.</th>
+                              <th className="px-4 py-3 font-medium">SKU</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                            {combinacoes.map((c, i) => {
+                              const eq = estoquePreviewParaLinha(c.tamanho);
+                              return (
+                                <tr key={i} className="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40">
+                                  <td className="px-4 py-2.5 tabular-nums text-neutral-400 dark:text-neutral-500">{i + 1}</td>
+                                  <td className="px-4 py-2.5 font-medium text-neutral-800 dark:text-neutral-200">{c.cor || "—"}</td>
+                                  <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{c.tamanho || "—"}</td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums text-neutral-700 dark:text-neutral-300">
+                                    {eq != null ? eq : "—"}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-xs text-neutral-400 dark:text-neutral-500">Automático ao salvar</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    <div className="max-h-[min(24rem,50vh)] space-y-2 overflow-y-auto p-3 md:hidden">
+                      {combinacoes.map((c, i) => {
+                        const eq = estoquePreviewParaLinha(c.tamanho);
+                        return (
+                          <div
+                            key={i}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-white px-3 py-2.5 dark:border-neutral-700 dark:bg-neutral-900/80"
+                          >
+                            <span className="text-xs text-neutral-400 tabular-nums">{i + 1}</span>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                                {[c.cor, c.tamanho].filter(Boolean).join(" · ") || "—"}
+                              </p>
+                              <p className="text-[11px] text-neutral-400">
+                                Estq. {eq != null ? eq : "—"} · SKU automático
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
                 {combinacoes.length > 0 && (
-                  <div className="px-4 py-4 border-t border-neutral-100 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/50 space-y-3">
-                    <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Editar em Massa</p>
-                    <div className="flex flex-wrap gap-4">
-                      <div>
-                        <label className="block text-[11px] text-neutral-500 dark:text-neutral-400 mb-1">Data de Lançamento</label>
+                  <div className="space-y-4 border-t border-[var(--card-border)] bg-neutral-50/70 p-4 dark:bg-neutral-900/40 sm:p-5">
+                    <div>
+                      <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Editar em massa</h3>
+                      <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+                        Preço, custo, peso e dimensões valem para todas as variantes.{" "}
+                        {tamanhosFinais.length > 0 ? (
+                          <>
+                            O <strong>estoque</strong> é por <strong>tamanho</strong> (o mesmo número para todas as cores daquele tamanho).
+                          </>
+                        ) : (
+                          <>O estoque inicial aplica-se a cada variante de cor.</>
+                        )}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="min-w-0">
+                        <label className="mb-1.5 block text-xs font-medium text-neutral-600 dark:text-neutral-400">Data de lançamento</label>
                         <input
                           type="date"
                           value={dataLancamento}
                           onChange={(e) => setDataLancamento(e.target.value)}
-                          className={`${inputBase} py-1.5`}
+                          className={`${inputBase} w-full py-2`}
                         />
                       </div>
-                      <div>
-                        <label className="block text-[11px] text-neutral-500 dark:text-neutral-400 mb-1">Preço varejo (R$)</label>
-                        <input type="text" value={precoVarejo} onChange={(e) => setPrecoVarejo(e.target.value)} placeholder="0,00" className={`${inputBase} w-24 py-1.5`} />
+                      <div className="min-w-0">
+                        <div className="mb-1.5 flex items-center gap-1.5">
+                          <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Preço varejo (R$)</span>
+                          <HelpBubble
+                            open={helpVariantesOpen === "precoVarejo"}
+                            onOpen={() => setHelpVariantesOpen("precoVarejo")}
+                            onClose={() => setHelpVariantesOpen(null)}
+                            ariaLabel="Ajuda: preço varejo"
+                          >
+                            Preço de referência de venda ao público (preço de loja). Aparece no catálogo e ajuda a entender a margem face ao custo.
+                          </HelpBubble>
+                        </div>
+                        <input
+                          type="text"
+                          value={precoVarejo}
+                          onChange={(e) => setPrecoVarejo(e.target.value)}
+                          placeholder="0,00"
+                          className={`${inputBase} w-full py-2`}
+                        />
                       </div>
-                      <div>
-                        <label className="block text-[11px] text-neutral-500 dark:text-neutral-400 mb-1">Custo de Compra (R$)</label>
-                        <input type="text" value={custoCompra} onChange={(e) => setCustoCompra(e.target.value)} placeholder="0,00" className={`${inputBase} w-24 py-1.5`} />
+                      <div className="min-w-0">
+                        <div className="mb-1.5 flex items-center gap-1.5">
+                          <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Custo de compra (R$)</span>
+                          <HelpBubble
+                            open={helpVariantesOpen === "custoCompra"}
+                            onOpen={() => setHelpVariantesOpen("custoCompra")}
+                            onClose={() => setHelpVariantesOpen(null)}
+                            ariaLabel="Ajuda: custo de compra"
+                          >
+                            Quanto você paga para fabricar ou adquirir cada unidade (seu custo), antes de margens e taxas da plataforma.
+                          </HelpBubble>
+                        </div>
+                        <input
+                          type="text"
+                          value={custoCompra}
+                          onChange={(e) => setCustoCompra(e.target.value)}
+                          placeholder="0,00"
+                          className={`${inputBase} w-full py-2`}
+                        />
                       </div>
-                      <div>
-                        <label className="block text-[11px] text-neutral-500 dark:text-neutral-400 mb-1">Estoque Inicial</label>
-                        <input type="text" value={estoqueInicial} onChange={(e) => setEstoqueInicial(e.target.value)} placeholder="eg:999" className={`${inputBase} w-24 py-1.5`} />
+                      {tamanhosFinais.length > 0 ? (
+                        <div className="min-w-0 sm:col-span-2 lg:col-span-3">
+                          <p className="mb-2 text-xs font-medium text-neutral-600 dark:text-neutral-400">Estoque inicial por tamanho</p>
+                          <p className="mb-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+                            Cada <strong>SKU</strong> (cor + tamanho) usa o número daquele tamanho. Ex.: P = 100 com 3 cores → três SKUs em P com 100 cada (300 unidades em P no total).
+                          </p>
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                            {tamanhosOrdenados.map((tam) => {
+                              const k = tam.toUpperCase();
+                              return (
+                                <div key={k}>
+                                  <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">{tam}</label>
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={estoquePorTamanho[k] ?? ""}
+                                    onChange={(e) =>
+                                      setEstoquePorTamanho((prev) => ({ ...prev, [k]: e.target.value }))
+                                    }
+                                    placeholder="0"
+                                    className={`${inputBase} w-full py-2 tabular-nums`}
+                                    aria-label={`Estoque tamanho ${tam}`}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="min-w-0">
+                          <label className="mb-1.5 block text-xs font-medium text-neutral-600 dark:text-neutral-400">Estoque inicial (por variante)</label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={estoqueInicial}
+                            onChange={(e) => setEstoqueInicial(e.target.value)}
+                            placeholder="0"
+                            className={`${inputBase} w-full py-2 tabular-nums`}
+                          />
+                          <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+                            Cada cor listada acima recebe esta quantidade.
+                          </p>
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <label className="mb-1.5 block text-xs font-medium text-neutral-600 dark:text-neutral-400">Peso (kg)</label>
+                        <input
+                          type="text"
+                          value={peso}
+                          onChange={(e) => setPeso(e.target.value)}
+                          placeholder="ex.: 0,25"
+                          className={`${inputBase} w-full py-2`}
+                        />
                       </div>
-                      <div>
-                        <label className="block text-[11px] text-neutral-500 dark:text-neutral-400 mb-1">Peso (g)</label>
-                        <input type="text" value={peso} onChange={(e) => setPeso(e.target.value)} placeholder="eg:999" className={`${inputBase} w-24 py-1.5`} />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-neutral-500 dark:text-neutral-400 mb-1">Comp (cm)</label>
-                        <input type="text" value={comp} onChange={(e) => setComp(e.target.value)} placeholder="—" className={`${inputBase} w-20 py-1.5`} />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-neutral-500 dark:text-neutral-400 mb-1">Largura (cm)</label>
-                        <input type="text" value={largura} onChange={(e) => setLargura(e.target.value)} placeholder="—" className={`${inputBase} w-20 py-1.5`} />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-neutral-500 dark:text-neutral-400 mb-1">Altura (cm)</label>
-                        <input type="text" value={altura} onChange={(e) => setAltura(e.target.value)} placeholder="—" className={`${inputBase} w-20 py-1.5`} />
+                      <div className="min-w-0 sm:col-span-2 lg:col-span-3">
+                        <p className="mb-2 text-xs font-medium text-neutral-600 dark:text-neutral-400">Dimensões do pacote (cm)</p>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-500">Compr.</label>
+                            <input type="text" value={comp} onChange={(e) => setComp(e.target.value)} placeholder="—" className={`${inputBase} w-full py-2`} />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-500">Larg.</label>
+                            <input type="text" value={largura} onChange={(e) => setLargura(e.target.value)} placeholder="—" className={`${inputBase} w-full py-2`} />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-500">Alt.</label>
+                            <input type="text" value={altura} onChange={(e) => setAltura(e.target.value)} placeholder="—" className={`${inputBase} w-full py-2`} />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -455,21 +775,63 @@ export default function CriarVariantesPage() {
                 <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-2">Em breve.</p>
               </div>
             )}
+
+            {/* Navegação entre passos — «Seguir» não envia; «Salvar» submete o formulário */}
+            <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
+              <p className="mb-4 text-xs leading-relaxed text-[var(--muted)]">
+                <strong className="text-[var(--foreground)]">Lembrete:</strong> «Seguir» e as abas só organizam o ecrã.{" "}
+                <strong className="text-[var(--foreground)]">Só «Salvar»</strong> envia o produto ao servidor.
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-xs text-[var(--muted)]">
+                  Passo {indiceTab + 1} de {TABS.length} · {TABS[indiceTab]?.label}
+                </div>
+                <div className="flex flex-wrap items-stretch gap-2 sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => irParaTab(-1)}
+                    disabled={indiceTab <= 0}
+                    className="min-h-[44px] rounded-lg border border-[var(--card-border)] px-4 py-2.5 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--background)] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    ← Anterior
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => irParaTab(1)}
+                    disabled={indiceTab >= TABS.length - 1}
+                    className="min-h-[44px] rounded-lg bg-neutral-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-200 dark:text-neutral-900 dark:hover:bg-white"
+                  >
+                    Seguir →
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={formLoading}
+                    className="min-h-[44px] rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {formLoading ? "Salvando…" : "Salvar produto"}
+                  </button>
+                </div>
+              </div>
+            </div>
           </form>
         </div>
 
-        {/* Menu lateral direito */}
-        <aside className="w-52 shrink-0">
-          <nav className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm overflow-hidden sticky top-24">
+        {/* Abas: no mobile scroll horizontal no topo; no desktop coluna à direita */}
+        <aside className="order-1 w-full shrink-0 md:order-2 md:w-52">
+          <nav
+            ref={tabsNavRef}
+            className="flex flex-row gap-0 overflow-x-auto rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm md:sticky md:top-28 md:flex-col md:overflow-visible"
+            aria-label="Secções do formulário"
+          >
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setTabAtiva(tab.id)}
-                className={`block w-full text-left px-4 py-2.5 text-sm transition ${
+                className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-left text-sm transition md:block md:w-full ${
                   tabAtiva === tab.id
-                    ? "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-medium border-l-2 border-blue-600 dark:border-blue-500"
-                    : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-100"
+                    ? "border-b-2 border-blue-600 bg-blue-50 font-medium text-blue-700 dark:border-blue-500 dark:bg-blue-950/40 dark:text-blue-300 md:border-b-0 md:border-l-2"
+                    : "border-b-2 border-transparent text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 md:border-b-0 md:border-l-2 md:border-transparent"
                 }`}
               >
                 {tab.label}
@@ -478,6 +840,8 @@ export default function CriarVariantesPage() {
           </nav>
         </aside>
       </div>
+      <FornecedorNav active="produtos" />
+      <NotificationToasts />
     </div>
   );
 }

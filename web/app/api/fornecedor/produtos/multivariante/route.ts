@@ -1,7 +1,9 @@
 /**
  * POST /api/fornecedor/produtos/multivariante
  * Cria produto multivariante: 1 SKU pai (000) com link_fotos + N filhos (cor/tamanho)
- * body: { nome_produto, cores?: string[], tamanhos?: string[], link_fotos?: string }
+ * body: { nome_produto, cores?: string[], tamanhos?: string[], link_fotos?: string,
+ *   estoque_atual?: number (só variantes sem tamanho ou legado),
+ *   estoque_por_tamanho?: Record<string, number> (por tamanho, ex.: { P: 10, M: 20 }; cada SKU filho com esse tamanho recebe o valor) }
  * Pelo menos cores ou tamanhos deve ter pelo menos um valor.
  */
 import { NextResponse } from "next/server";
@@ -88,6 +90,21 @@ export async function POST(req: Request) {
     const altura_cm = body?.altura_cm != null ? parseFloat(String(body.altura_cm).replace(",", ".")) : null;
     const estoque_atual = body?.estoque_atual != null ? (typeof body.estoque_atual === "number" ? body.estoque_atual : parseFloat(String(body.estoque_atual).replace(",", "."))) : null;
     const estoque_minimo = body?.estoque_minimo != null ? (typeof body.estoque_minimo === "number" ? body.estoque_minimo : parseFloat(String(body.estoque_minimo).replace(",", "."))) : null;
+
+    /** Se o cliente envia `estoque_por_tamanho`, cada SKU filho usa a quantidade do seu tamanho (não o mesmo total em todas as variantes). */
+    let estoquePorTamanhoMap: Record<string, number> | null = null;
+    if (
+      body?.estoque_por_tamanho != null &&
+      typeof body.estoque_por_tamanho === "object" &&
+      !Array.isArray(body.estoque_por_tamanho)
+    ) {
+      estoquePorTamanhoMap = {};
+      for (const [k, v] of Object.entries(body.estoque_por_tamanho as Record<string, unknown>)) {
+        const num = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(",", "."));
+        if (Number.isFinite(num)) estoquePorTamanhoMap[k.trim().toUpperCase()] = Math.max(0, Math.round(num));
+      }
+    }
+    const usarEstoquePorTamanho = estoquePorTamanhoMap !== null;
     const custo_base = body?.custo_base != null ? (typeof body.custo_base === "number" ? body.custo_base : parseFloat(String(body.custo_base).replace(",", "."))) : null;
     const peso_g = body?.peso_kg != null ? (typeof body.peso_kg === "number" ? body.peso_kg : parseFloat(String(body.peso_kg).replace(",", "."))) : null;
     const peso_kg = Number.isFinite(peso_g) ? peso_g / 1000 : null;
@@ -166,10 +183,20 @@ export async function POST(req: Request) {
       altura_cm: Number.isFinite(altura_cm) ? altura_cm : null,
     };
 
-    const estoque = {
+    const estoqueBase = {
       estoque_atual: Number.isFinite(estoque_atual) ? Math.max(0, Math.round(estoque_atual)) : null,
       estoque_minimo: Number.isFinite(estoque_minimo) ? Math.max(0, Math.round(estoque_minimo)) : null,
     };
+
+    function estoqueParaVariante(tamanhoVariante: string | null): { estoque_atual: number | null; estoque_minimo: number | null } {
+      const t = (tamanhoVariante ?? "").trim();
+      if (t && usarEstoquePorTamanho && estoquePorTamanhoMap) {
+        const k = t.toUpperCase();
+        const q = k in estoquePorTamanhoMap ? estoquePorTamanhoMap[k]! : 0;
+        return { estoque_atual: q, estoque_minimo: estoqueBase.estoque_minimo };
+      }
+      return { ...estoqueBase };
+    }
 
     const extras: Record<string, unknown> = {
       custo_base: Number.isFinite(custo_base) ? custo_base : null,
@@ -177,22 +204,6 @@ export async function POST(req: Request) {
     };
     if (marca) extras.marca = marca;
     if (data_lancamento) extras.data_lancamento = data_lancamento;
-
-    const paiRow = {
-      org_id: ctx.org_id,
-      fornecedor_id: ctx.fornecedor_id,
-      fornecedor_org_id: ctx.org_id,
-      sku: skuPai,
-      nome_produto: nomeBase,
-      cor: null,
-      tamanho: null,
-      status: "ativo",
-      link_fotos,
-      descricao,
-      ...dims,
-      ...estoque,
-      ...extras,
-    };
 
     const filhosRows = combinacoes.map((c, i) => ({
       org_id: ctx.org_id,
@@ -206,9 +217,28 @@ export async function POST(req: Request) {
       link_fotos: null,
       descricao,
       ...dims,
-      ...estoque,
+      ...estoqueParaVariante(c.tamanho),
       ...extras,
     }));
+
+    const somaEstoqueFilhos = filhosRows.reduce((acc, row) => acc + (row.estoque_atual ?? 0), 0);
+
+    const paiRow = {
+      org_id: ctx.org_id,
+      fornecedor_id: ctx.fornecedor_id,
+      fornecedor_org_id: ctx.org_id,
+      sku: skuPai,
+      nome_produto: nomeBase,
+      cor: null,
+      tamanho: null,
+      status: "ativo",
+      link_fotos,
+      descricao,
+      ...dims,
+      estoque_atual: filhosRows.length > 0 ? somaEstoqueFilhos : estoqueBase.estoque_atual,
+      estoque_minimo: estoqueBase.estoque_minimo,
+      ...extras,
+    };
 
     const toInsert = [paiRow, ...filhosRows];
 

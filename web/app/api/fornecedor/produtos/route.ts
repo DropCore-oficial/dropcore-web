@@ -26,6 +26,44 @@ const SKU_FIELDS = `
   ncm, origem, cest, cfop, peso_liquido_kg, peso_bruto_kg, criado_em
 `;
 
+/** Campos de `skus` que podem vir em `dados_propostos` (alteração pendente) — exibe o valor enviado na lista. */
+const CAMPOS_PROPOSTOS_SKU = new Set([
+  "nome_produto",
+  "cor",
+  "tamanho",
+  "descricao",
+  "imagem_url",
+  "peso_kg",
+  "estoque_atual",
+  "estoque_minimo",
+  "custo_base",
+  "custo_dropcore",
+  "categoria",
+  "dimensoes_pacote",
+  "comprimento_cm",
+  "largura_cm",
+  "altura_cm",
+  "link_fotos",
+  "ncm",
+  "origem",
+  "cest",
+  "cfop",
+  "peso_liquido_kg",
+  "peso_bruto_kg",
+]);
+
+function aplicarPropostosPendentes<T extends Record<string, unknown>>(
+  sku: T,
+  propostos: Record<string, unknown> | null | undefined
+): T {
+  if (!propostos || typeof propostos !== "object") return sku;
+  const out = { ...sku } as Record<string, unknown>;
+  for (const key of CAMPOS_PROPOSTOS_SKU) {
+    if (key in propostos) out[key] = propostos[key];
+  }
+  return out as T;
+}
+
 async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: string; org_id: string } | null> {
   const auth = req.headers.get("authorization") ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
@@ -66,7 +104,35 @@ export async function GET(req: Request) {
       .order("criado_em", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json(data ?? []);
+    const rows = data ?? [];
+    const ids = rows.map((r) => r.id).filter(Boolean);
+    if (ids.length === 0) return NextResponse.json(rows);
+
+    const { data: pendentesRows, error: errPend } = await supabaseAdmin
+      .from("sku_alteracoes_pendentes")
+      .select("sku_id, dados_propostos")
+      .eq("org_id", ctx.org_id)
+      .eq("fornecedor_id", ctx.fornecedor_id)
+      .eq("status", "pendente")
+      .in("sku_id", ids);
+
+    if (errPend) return NextResponse.json({ error: errPend.message }, { status: 500 });
+
+    const propostosPorSku = new Map<string, Record<string, unknown>>();
+    for (const row of pendentesRows ?? []) {
+      const sid = row.sku_id as string | undefined;
+      const dp = row.dados_propostos;
+      if (sid && dp && typeof dp === "object" && !Array.isArray(dp)) {
+        propostosPorSku.set(sid, dp as Record<string, unknown>);
+      }
+    }
+
+    const merged = rows.map((sku) => {
+      const prop = propostosPorSku.get(sku.id);
+      return aplicarPropostosPendentes(sku as Record<string, unknown>, prop) as (typeof rows)[number];
+    });
+
+    return NextResponse.json(merged);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

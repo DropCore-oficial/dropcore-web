@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DashboardHeader } from "@/components/DashboardHeader";
@@ -68,8 +68,40 @@ export default function AdminAlteracoesProdutosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
+  /** Em massa: qual operação está a correr (evita mostrar «Rejeitando» durante aprovações). */
+  const [bulkAction, setBulkAction] = useState<null | "approve" | "reject">(null);
+  const actingBulk = bulkAction !== null;
   const [rejeitarId, setRejeitarId] = useState<string | null>(null);
   const [motivoRejeicao, setMotivoRejeicao] = useState("");
+  const [fornecedorSelecionado, setFornecedorSelecionado] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  /** Motivo único aplicado a cada item em rejeição em massa (opcional) */
+  const [motivoRejeicaoMassa, setMotivoRejeicaoMassa] = useState("");
+
+  const fornecedoresOpcoes = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of list) map.set(a.fornecedor_id, a.fornecedor_nome);
+    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
+  }, [list]);
+
+  /** Fornecedor efetivo: escolha do admin ou o primeiro da lista (nunca mistura fornecedores na tela). */
+  const fornecedorAtivo = useMemo(() => {
+    if (list.length === 0) return null;
+    if (fornecedorSelecionado && list.some((a) => a.fornecedor_id === fornecedorSelecionado)) {
+      return fornecedorSelecionado;
+    }
+    return fornecedoresOpcoes[0]?.[0] ?? null;
+  }, [list, fornecedorSelecionado, fornecedoresOpcoes]);
+
+  const filtradas = useMemo(
+    () => (fornecedorAtivo ? list.filter((a) => a.fornecedor_id === fornecedorAtivo) : []),
+    [list, fornecedorAtivo]
+  );
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+    setMotivoRejeicaoMassa("");
+  }, [fornecedorAtivo]);
 
   async function load() {
     setLoading(true);
@@ -118,6 +150,92 @@ export default function AdminAlteracoesProdutosPage() {
     }
   }
 
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selecionarTodasDoFornecedor() {
+    setSelectedIds(new Set(filtradas.map((a) => a.id)));
+  }
+
+  function limparSelecao() {
+    setSelectedIds(new Set());
+  }
+
+  async function aprovarEmMassa(ids: string[]) {
+    if (ids.length === 0) return;
+    const { data: { session } } = await supabaseBrowser.auth.getSession();
+    if (!session?.access_token) return;
+    setBulkAction("approve");
+    setError(null);
+    let ok = 0;
+    const falhas: string[] = [];
+    try {
+      for (const id of ids) {
+        const res = await fetch(`/api/org/alteracoes-pendentes/${id}/aprovar`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) falhas.push(`${id.slice(0, 8)}…: ${json?.error ?? res.statusText}`);
+        else ok += 1;
+      }
+      if (falhas.length > 0) {
+        setError(
+          `Aprovadas ${ok} de ${ids.length}. Falhas: ${falhas.slice(0, 3).join("; ")}${falhas.length > 3 ? "…" : ""}`
+        );
+      }
+      setSelectedIds(new Set());
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao aprovar em massa");
+    } finally {
+      setBulkAction(null);
+    }
+  }
+
+  async function rejeitarEmMassa(ids: string[]) {
+    if (ids.length === 0) return;
+    const { data: { session } } = await supabaseBrowser.auth.getSession();
+    if (!session?.access_token) return;
+    setBulkAction("reject");
+    setError(null);
+    let ok = 0;
+    const falhas: string[] = [];
+    const motivo = motivoRejeicaoMassa.trim() || undefined;
+    try {
+      for (const id of ids) {
+        const res = await fetch(`/api/org/alteracoes-pendentes/${id}/rejeitar`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ motivo }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) falhas.push(`${id.slice(0, 8)}…: ${json?.error ?? res.statusText}`);
+        else ok += 1;
+      }
+      if (falhas.length > 0) {
+        setError(
+          `Rejeitadas ${ok} de ${ids.length}. Falhas: ${falhas.slice(0, 3).join("; ")}${falhas.length > 3 ? "…" : ""}`
+        );
+      }
+      setSelectedIds(new Set());
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao rejeitar em massa");
+    } finally {
+      setBulkAction(null);
+    }
+  }
+
   async function rejeitar(id: string) {
     const { data: { session } } = await supabaseBrowser.auth.getSession();
     if (!session?.access_token) return;
@@ -147,19 +265,24 @@ export default function AdminAlteracoesProdutosPage() {
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <DashboardHeader href="/dashboard" onRefresh={load} onLogout={() => router.push("/login")} />
-      <div className="max-w-3xl mx-auto p-4 sm:p-6">
-        <h1 className="text-xl font-semibold mb-2">Alterações de produtos em análise</h1>
-        <p className="text-sm text-[var(--muted)] mb-6">
-          Os fornecedores enviam alterações que ficam em análise. Aprove ou rejeite para aplicar ou descartar as mudanças.
-        </p>
-
-        <button
-          type="button"
-          onClick={() => router.push("/admin/empresas")}
-          className="mb-6 text-sm text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-2"
-        >
-          ← Voltar às Empresas
-        </button>
+      <div className="mx-auto w-full min-w-0 max-w-3xl px-4 py-4 sm:px-6 sm:py-6 lg:max-w-6xl lg:px-8 lg:py-8">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-semibold tracking-tight text-[var(--foreground)] lg:text-2xl">
+              Alterações de produtos em análise
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm text-[var(--muted)] lg:text-[15px] lg:leading-relaxed">
+              Os fornecedores enviam alterações que ficam em análise. Aprove ou rejeite para aplicar ou descartar as mudanças.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => router.push("/admin/empresas")}
+            className="shrink-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5 text-sm font-medium text-[var(--muted)] shadow-sm transition-colors hover:border-violet-300/60 hover:bg-violet-50/50 hover:text-[var(--foreground)] dark:hover:border-violet-600/40 dark:hover:bg-violet-950/30"
+          >
+            ← Voltar às Empresas
+          </button>
+        </div>
 
         {error && (
           <div className="mb-6 p-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-300 text-sm">
@@ -175,81 +298,247 @@ export default function AdminAlteracoesProdutosPage() {
           </div>
         )}
 
-        {!loading && list.length > 0 && (
-          <div className="space-y-4">
-            {list.map((a) => (
-              <div
-                key={a.id}
-                className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-5 space-y-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="font-semibold text-[var(--foreground)]">
-                      {a.sku?.nome_produto ?? "—"} · {a.sku?.sku ?? "—"}
-                    </div>
-                    <div className="text-sm text-[var(--muted)] mt-1">
-                      Fornecedor: {a.fornecedor_nome} · {formatDate(a.criado_em)}
+        {!loading && list.length > 0 && fornecedoresOpcoes.length > 0 && (
+          <div className="mb-8 overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
+            <div className="border-b border-[var(--card-border)] bg-gradient-to-r from-violet-50/80 via-transparent to-transparent px-4 py-4 dark:from-violet-950/25 sm:px-5 lg:flex lg:items-center lg:justify-between lg:gap-6 lg:px-6 lg:py-4">
+              <label className="block min-w-0 flex-1 lg:max-w-xl">
+                <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Fornecedor</span>
+                <select
+                  value={fornecedorAtivo ?? ""}
+                  onChange={(e) => setFornecedorSelecionado(e.target.value || null)}
+                  className="mt-1.5 w-full rounded-xl border border-[var(--card-border)] bg-[var(--background)] px-3 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-sm focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 dark:focus:border-violet-500"
+                >
+                  {fornecedoresOpcoes.map(([id, nome]) => (
+                    <option key={id} value={id}>
+                      {nome} ({list.filter((x) => x.fornecedor_id === id).length} pendente(s))
+                    </option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-[11px] text-[var(--muted)]">Analise um fornecedor de cada vez.</span>
+              </label>
+              {filtradas.length > 0 && (
+                <div className="mt-3 flex shrink-0 flex-wrap gap-2 lg:mt-0">
+                  <button
+                    type="button"
+                    onClick={selecionarTodasDoFornecedor}
+                    disabled={actingBulk}
+                    className="rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-medium text-[var(--foreground)] hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-100 dark:hover:bg-neutral-800/80"
+                  >
+                    Selecionar todas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={limparSelecao}
+                    disabled={actingBulk || selectedIds.size === 0}
+                    className="rounded-lg border border-transparent px-3 py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--background)] disabled:cursor-not-allowed disabled:opacity-100"
+                  >
+                    Limpar seleção
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {filtradas.length > 0 && (
+              <div className="p-4 sm:p-5 lg:p-6">
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch lg:gap-0">
+                  <div className="min-w-0 flex-1 lg:pr-8">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Aprovar</p>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => void aprovarEmMassa([...selectedIds])}
+                        disabled={selectedIds.size === 0 || actingBulk}
+                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 sm:min-w-[200px] sm:flex-none"
+                      >
+                        {bulkAction === "approve" ? "Aprovando…" : `Aprovar selecionadas (${selectedIds.size})`}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void aprovarEmMassa(filtradas.map((x) => x.id))}
+                        disabled={actingBulk}
+                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-emerald-600 bg-emerald-50/50 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100/80 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:bg-emerald-950/20 dark:text-emerald-300 dark:hover:bg-emerald-950/40 sm:min-w-[240px] sm:flex-none"
+                      >
+                        {bulkAction === "approve" ? "…" : `Aprovar todas (${filtradas.length})`}
+                      </button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => aprovar(a.id)}
-                      disabled={actingId === a.id}
-                      className="rounded-lg bg-green-600 text-white font-medium px-4 py-2 text-sm hover:bg-green-700 disabled:opacity-60"
-                    >
-                      {actingId === a.id ? "…" : "Aprovar"}
-                    </button>
-                    {rejeitarId !== a.id ? (
+
+                  <div
+                    className="hidden shrink-0 lg:block lg:w-px lg:self-stretch lg:bg-[var(--card-border)]"
+                    aria-hidden
+                  />
+
+                  <div className="min-w-0 flex-1 lg:pl-8">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-400">Rejeitar</p>
+                    <label className="mb-3 block">
+                      <span className="sr-only">Motivo opcional para rejeições em massa</span>
+                      <input
+                        type="text"
+                        value={motivoRejeicaoMassa}
+                        onChange={(e) => setMotivoRejeicaoMassa(e.target.value)}
+                        disabled={actingBulk}
+                        placeholder="Motivo opcional (rejeições em massa)"
+                        className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--background)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)]/60 disabled:cursor-not-allowed disabled:opacity-100"
+                      />
+                    </label>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedIds.size === 0) return;
+                          if (
+                            !window.confirm(
+                              `Rejeitar ${selectedIds.size} alteração(ões) selecionada(s)? Os fornecedores serão notificados.`
+                            )
+                          ) {
+                            return;
+                          }
+                          void rejeitarEmMassa([...selectedIds]);
+                        }}
+                        disabled={selectedIds.size === 0 || actingBulk}
+                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 sm:min-w-[200px] sm:flex-none"
+                      >
+                        {bulkAction === "reject" ? "Rejeitando…" : `Rejeitar selecionadas (${selectedIds.size})`}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (
+                            !window.confirm(
+                              `Rejeitar todas as ${filtradas.length} alterações pendentes deste fornecedor? Esta ação não pode ser desfeita.`
+                            )
+                          ) {
+                            return;
+                          }
+                          void rejeitarEmMassa(filtradas.map((x) => x.id));
+                        }}
+                        disabled={actingBulk || filtradas.length === 0}
+                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-red-600 bg-red-50/40 px-4 py-2.5 text-sm font-semibold text-red-800 transition hover:bg-red-100/60 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:bg-red-950/25 dark:text-red-300 dark:hover:bg-red-950/45 sm:min-w-[240px] sm:flex-none"
+                      >
+                        {bulkAction === "reject" ? "…" : `Rejeitar todas (${filtradas.length})`}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!loading && list.length > 0 && filtradas.length > 0 && (
+          <div className="space-y-4 lg:space-y-4">
+            {filtradas.map((a) => {
+              const dp = a.dados_propostos as Record<string, unknown>;
+              const isExclusao =
+                dp?._solicitacao_dropcore === "exclusao_grupo" && typeof dp.grupo_key === "string";
+              return (
+              <div
+                key={a.id}
+                className={`overflow-hidden rounded-2xl border bg-[var(--card)] shadow-sm ${
+                  isExclusao
+                    ? "border-l-[5px] border-l-red-500 border-[var(--card-border)]"
+                    : "border-[var(--card-border)] border-l-[5px] border-l-violet-400/70 dark:border-l-violet-500/50"
+                }`}
+              >
+                <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8 lg:p-6">
+                  <div className="flex min-w-0 flex-1 gap-3 lg:gap-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(a.id)}
+                      onChange={() => toggleSelect(a.id)}
+                      disabled={actingBulk || actingId === a.id}
+                      className="mt-1.5 h-4 w-4 shrink-0 rounded border-[var(--card-border)]"
+                      aria-label={`Selecionar alteração ${a.sku?.sku ?? a.id}`}
+                    />
+                    <div className="min-w-0">
+                      <div className="text-base font-semibold leading-snug text-[var(--foreground)] break-words lg:text-lg lg:leading-tight">
+                        {a.sku?.nome_produto ?? "—"}
+                      </div>
+                      <div className="mt-1 font-mono text-xs text-[var(--muted)] lg:text-sm">{a.sku?.sku ?? "—"}</div>
+                      <div className="mt-2 text-sm text-[var(--muted)]">
+                        <span className="text-[var(--foreground)]/80">{a.fornecedor_nome}</span>
+                        <span className="mx-2 text-[var(--card-border)]">·</span>
+                        {formatDate(a.criado_em)}
+                      </div>
+                    </div>
+                  </div>
+                  {rejeitarId !== a.id ? (
+                    <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:justify-end lg:w-auto lg:min-w-[220px] lg:flex-col lg:justify-start lg:gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => aprovar(a.id)}
+                        disabled={actingId === a.id || actingBulk}
+                        className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-100 lg:min-h-[46px] lg:w-full"
+                      >
+                        {actingId === a.id ? "…" : "Aprovar"}
+                      </button>
                       <button
                         type="button"
                         onClick={() => setRejeitarId(a.id)}
-                        disabled={actingId === a.id}
-                        className="rounded-lg border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-60"
+                        disabled={actingId === a.id || actingBulk}
+                        className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border-2 border-red-600 bg-red-50/60 px-5 py-2.5 text-sm font-semibold text-red-800 transition hover:bg-red-100/80 disabled:cursor-not-allowed disabled:opacity-100 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50 lg:min-h-[46px] lg:w-full"
                       >
                         Rejeitar
                       </button>
-                    ) : (
-                      <div className="flex gap-2 items-center">
-                        <input
-                          type="text"
-                          placeholder="Motivo (opcional)"
-                          value={motivoRejeicao}
-                          onChange={(e) => setMotivoRejeicao(e.target.value)}
-                          onBlur={() => setMotivoRejeicao(toTitleCase(motivoRejeicao))}
-                          className="rounded-lg border border-[var(--card-border)] px-3 py-2 text-sm w-48"
-                        />
+                    </div>
+                  ) : (
+                    <div className="flex w-full min-w-0 flex-col gap-2 sm:max-w-md sm:shrink-0">
+                      <input
+                        type="text"
+                        placeholder="Motivo (opcional)"
+                        value={motivoRejeicao}
+                        onChange={(e) => setMotivoRejeicao(e.target.value)}
+                        onBlur={() => setMotivoRejeicao(toTitleCase(motivoRejeicao))}
+                        className="w-full min-w-0 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2.5 text-sm text-[var(--foreground)]"
+                      />
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           onClick={() => rejeitar(a.id)}
-                          disabled={actingId === a.id}
-                          className="rounded-lg bg-red-600 text-white px-4 py-2 text-sm hover:bg-red-700 disabled:opacity-60"
+                          disabled={actingId === a.id || actingBulk}
+                          className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-100"
                         >
-                          Confirmar
+                          Confirmar rejeição
                         </button>
                         <button
                           type="button"
                           onClick={() => { setRejeitarId(null); setMotivoRejeicao(""); }}
-                          className="text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
+                          className="rounded-lg border border-[var(--card-border)] px-4 py-2.5 text-sm font-medium text-[var(--muted)] hover:bg-[var(--background)] hover:text-[var(--foreground)]"
                         >
                           Cancelar
                         </button>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
-                <div className="border-t border-[var(--card-border)] pt-4">
+                <div className="border-t border-[var(--card-border)] bg-neutral-50/40 px-4 py-4 dark:bg-neutral-900/40 sm:px-5 lg:px-6 lg:py-5">
                   {(() => {
                     const { tabela_medidas: tm, ...rest } = a.dados_propostos as Record<string, unknown> & { tabela_medidas?: { tipo_produto?: string; medidas?: Record<string, Record<string, number>> } };
-                    const entries = Object.entries(rest);
+                    const isExclusaoGrupo =
+                      rest._solicitacao_dropcore === "exclusao_grupo" && typeof rest.grupo_key === "string";
+                    const chavesInternas = new Set(["_solicitacao_dropcore", "grupo_key", "nome_produto_exclusao"]);
+                    const entries = Object.entries(rest).filter(([k]) => !chavesInternas.has(k));
                     return (
                       <>
+                        {isExclusaoGrupo && (
+                          <div className="mb-4 rounded-xl border border-red-200/90 dark:border-red-800/60 bg-red-50 dark:bg-red-950/35 px-4 py-3.5 text-sm text-red-900 dark:text-red-100">
+                            <p className="font-semibold">Pedido de exclusão (DropCore)</p>
+                            <p className="mt-1.5 text-xs leading-relaxed opacity-95">
+                              O fornecedor pediu para remover o produto inteiro{" "}
+                              <span className="font-mono font-medium">{String(rest.grupo_key)}</span>
+                              {typeof rest.nome_produto_exclusao === "string" && rest.nome_produto_exclusao
+                                ? ` — ${rest.nome_produto_exclusao}`
+                                : ""}
+                              . <strong>Aprovar</strong> apaga todas as variantes do grupo; <strong>Rejeitar</strong> mantém o catálogo.
+                            </p>
+                          </div>
+                        )}
                         {entries.length > 0 && (
                           <div className="text-xs font-medium text-[var(--muted)] mb-2">Campos alterados (atual → proposto):</div>
                         )}
                         {entries.length > 0 && (
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm mb-4">
+                          <div className="mb-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3 lg:grid-cols-4 lg:gap-3">
                             {entries.map(([k, v]) => {
                               const skuVal = a.sku && (k in a.sku) ? (a.sku as Record<string, unknown>)[k] : undefined;
                               const atual = formatValor(k, skuVal ?? null);
@@ -303,7 +592,8 @@ export default function AdminAlteracoesProdutosPage() {
                   })()}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

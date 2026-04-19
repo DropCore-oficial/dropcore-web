@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { MobileAppBar } from "@/components/MobileAppBar";
+import { AdminMobileBottomNav } from "@/components/AdminMobileBottomNav";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -577,8 +578,14 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] md:pb-8">
-      <MobileAppBar logoHref="/dashboard" />
+    <div
+      className={`min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 ${
+        isAdmin
+          ? "pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
+          : "pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] md:pb-8"
+      }`}
+    >
+      <MobileAppBar logoHref="/dashboard" end={isAdmin ? <></> : undefined} />
 
       {/* Barra superior — logo DropCore + atalho ativo (como seller) */}
       <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/98 dark:bg-neutral-950/98 backdrop-blur-xl shadow-sm">
@@ -625,10 +632,14 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end sm:shrink-0">
-            <div className="md:hidden">
-              <ThemeToggle className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center touch-manipulation" />
+            {!isAdmin && (
+              <div className="md:hidden">
+                <ThemeToggle className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center touch-manipulation" />
+              </div>
+            )}
+            <div className={isAdmin ? "hidden md:block" : ""}>
+              <NotificationBell context="admin" />
             </div>
-            <NotificationBell context="admin" />
             <button type="button" onClick={load} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 min-h-[40px] sm:min-h-0 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 touch-manipulation">
               Atualizar
             </button>
@@ -1001,6 +1012,15 @@ export default function DashboardPage() {
           </section>
         )}
       </div>
+
+      {isAdmin && (
+        <>
+          <div className="pointer-events-auto md:hidden fixed right-3 z-[110] bottom-[calc(4rem+env(safe-area-inset-bottom,0px))]">
+            <NotificationBell context="admin" />
+          </div>
+          <AdminMobileBottomNav />
+        </>
+      )}
     </div>
   );
 }

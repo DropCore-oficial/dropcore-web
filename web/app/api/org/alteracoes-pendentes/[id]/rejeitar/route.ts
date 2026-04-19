@@ -22,7 +22,7 @@ export async function POST(
 
     const { data: alteracao, error: fetchErr } = await supabaseAdmin
       .from("sku_alteracoes_pendentes")
-      .select("id, fornecedor_id, status")
+      .select("id, fornecedor_id, status, dados_propostos")
       .eq("id", id)
       .eq("org_id", org_id)
       .single();
@@ -66,13 +66,19 @@ export async function POST(
     const fornecedorUserId = forn?.user_id;
 
     if (fornecedorUserId) {
-      const msg = motivo
-        ? `Suas alterações foram rejeitadas. Motivo: ${motivo}`
-        : "Suas alterações foram rejeitadas.";
+      const dp = (alteracao as { dados_propostos?: Record<string, unknown> }).dados_propostos ?? {};
+      const exclusao = dp._solicitacao_dropcore === "exclusao_grupo";
+      const msg = exclusao
+        ? motivo
+          ? `O pedido de exclusão do produto foi recusado. Motivo: ${motivo}`
+          : "O pedido de exclusão do produto foi recusado pela DropCore."
+        : motivo
+          ? `Suas alterações foram rejeitadas. Motivo: ${motivo}`
+          : "Suas alterações foram rejeitadas.";
       await supabaseAdmin.from("notifications").insert({
         user_id: fornecedorUserId,
         tipo: "alteracao_rejeitada",
-        titulo: "Alterações rejeitadas",
+        titulo: exclusao ? "Exclusão não aprovada" : "Alterações rejeitadas",
         mensagem: msg,
         metadata: { alteracao_id: id, motivo },
       });

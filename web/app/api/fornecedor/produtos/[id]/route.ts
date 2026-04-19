@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { toTitleCase } from "@/lib/formatText";
+import { notifyAdminsAlteracaoProdutoPendente } from "@/lib/notifyAdminsAlteracaoProduto";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,21 @@ const SKU_FIELDS = `
   dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao,
   ncm, origem, cest, cfop, peso_liquido_kg, peso_bruto_kg, criado_em
 `;
+
+/** SKU pai do bloco multivariante (ex.: DJU001001 → DJU001000). */
+function skuPaiDoBloco(sku: string): string {
+  const s = (sku || "").trim().toUpperCase();
+  const m = s.match(/^([A-Z]+)(\d{3})(\d{3})$/);
+  if (!m) return s;
+  return `${m[1]}${m[2]}000`;
+}
+
+/** Prefixo de 6 caracteres do bloco (ex.: DJU001) para listar variantes do mesmo grupo. */
+function skuPrefix6(sku: string): string | null {
+  const s = (sku || "").trim().toUpperCase();
+  const m = s.match(/^([A-Z]+)(\d{3})\d{3}$/);
+  return m ? `${m[1]}${m[2]}` : null;
+}
 
 async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: string; org_id: string } | null> {
   const auth = req.headers.get("authorization") ?? "";
@@ -161,14 +177,36 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         .eq("org_id", ctx.org_id);
       if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
     } else {
-      const { error: insErr } = await supabaseAdmin.from("sku_alteracoes_pendentes").insert({
-        sku_id: skuId,
-        fornecedor_id: ctx.fornecedor_id,
-        org_id: ctx.org_id,
-        dados_propostos: dadosPropostos,
-        status: "pendente",
-      });
+      const { data: criada, error: insErr } = await supabaseAdmin
+        .from("sku_alteracoes_pendentes")
+        .insert({
+          sku_id: skuId,
+          fornecedor_id: ctx.fornecedor_id,
+          org_id: ctx.org_id,
+          dados_propostos: dadosPropostos,
+          status: "pendente",
+        })
+        .select("id")
+        .single();
       if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
+
+      const { data: fornNome } = await supabaseAdmin
+        .from("fornecedores")
+        .select("nome")
+        .eq("id", ctx.fornecedor_id)
+        .maybeSingle();
+      const nomeForn = (fornNome?.nome as string | undefined)?.trim() || "Fornecedor";
+      const rotulo = sku.nome_produto ? `«${sku.nome_produto}»` : `SKU ${sku.sku ?? ""}`;
+
+      await notifyAdminsAlteracaoProdutoPendente({
+        org_id: ctx.org_id,
+        titulo: "Alteração de produto para analisar",
+        mensagem: `${nomeForn} enviou alterações em ${rotulo}. Revise em Alterações de produtos.`,
+        metadata: {
+          alteracao_id: criada?.id,
+          sku_id: skuId,
+        },
+      });
     }
 
     // Devolver o SKU atual para o front não quebrar
@@ -186,6 +224,73 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         ? "Alteração atualizada e segue em análise. O admin verá a última versão em Alterações de produtos."
         : "Alteração enviada para análise. O admin verá em Alterações de produtos.",
     });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Erro inesperado";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/fornecedor/produtos/[id] — remove um SKU do fornecedor.
+ * Não permite excluir o SKU pai (…000) se ainda existir outra variante no mesmo bloco.
+ */
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const ctx = await getFornecedorFromToken(req);
+    if (!ctx) {
+      return NextResponse.json({ error: "Não autenticado como fornecedor." }, { status: 401 });
+    }
+
+    const { id: skuId } = await params;
+    if (!skuId) return NextResponse.json({ error: "ID do produto é obrigatório." }, { status: 400 });
+
+    const { data: row, error: skuErr } = await supabaseAdmin
+      .from("skus")
+      .select("id, sku")
+      .eq("id", skuId)
+      .eq("org_id", ctx.org_id)
+      .eq("fornecedor_id", ctx.fornecedor_id)
+      .single();
+
+    if (skuErr || !row?.sku) {
+      return NextResponse.json({ error: "Produto não encontrado ou não pertence a você." }, { status: 404 });
+    }
+
+    const skuU = String(row.sku).trim().toUpperCase();
+    const parentSku = skuPaiDoBloco(skuU);
+    const prefix6 = skuPrefix6(skuU);
+
+    if (prefix6 && skuU === parentSku) {
+      const { count, error: cntErr } = await supabaseAdmin
+        .from("skus")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", ctx.org_id)
+        .eq("fornecedor_id", ctx.fornecedor_id)
+        .like("sku", `${prefix6}%`)
+        .neq("id", skuId);
+
+      if (cntErr) return NextResponse.json({ error: cntErr.message }, { status: 500 });
+      if ((count ?? 0) > 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Não é possível excluir o SKU pai (produto base) enquanto existirem outras variantes neste grupo. Exclua primeiro as variantes ou desative a categoria inteira.",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const { error: delErr } = await supabaseAdmin.from("skus").delete().eq("id", skuId).eq("org_id", ctx.org_id).eq("fornecedor_id", ctx.fornecedor_id);
+
+    if (delErr) {
+      return NextResponse.json(
+        { error: delErr.message.includes("violates") ? "Não foi possível excluir (pode haver pedidos ou vínculos)." : delErr.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ ok: true, mensagem: "Variante removida do catálogo." });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

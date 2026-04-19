@@ -13,6 +13,13 @@ export const dynamic = "force-dynamic";
 const TEXT_FIELDS = ["nome_produto", "categoria", "cor", "tamanho", "link_fotos", "imagem_url", "descricao", "ncm", "origem", "cest", "cfop"] as const;
 const NUM_FIELDS = ["comprimento_cm", "largura_cm", "altura_cm", "peso_kg", "peso_liquido_kg", "peso_bruto_kg", "estoque_atual", "estoque_minimo", "custo_base", "custo_dropcore"] as const;
 
+function paiKey(sku: string): string {
+  const s = (sku || "").trim().toUpperCase();
+  const m = s.match(/^([A-Z]+)(\d{3})(\d{3})$/);
+  if (!m) return s;
+  return `${m[1]}${m[2]}000`;
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -36,6 +43,66 @@ export async function POST(
     }
 
     const dados = alteracao.dados_propostos as Record<string, unknown>;
+
+    /** Exclusão de grupo inteiro — só após aprovação explícita da DropCore (admin). */
+    if (dados._solicitacao_dropcore === "exclusao_grupo" && typeof dados.grupo_key === "string") {
+      const gk = dados.grupo_key.trim().toUpperCase();
+      const { data: skusGrupo, error: sgErr } = await supabaseAdmin
+        .from("skus")
+        .select("id, sku")
+        .eq("org_id", org_id)
+        .eq("fornecedor_id", alteracao.fornecedor_id);
+
+      if (sgErr) return NextResponse.json({ error: sgErr.message }, { status: 500 });
+
+      const ids = (skusGrupo ?? [])
+        .filter((s) => paiKey(s.sku) === gk || String(s.sku).toUpperCase() === gk)
+        .map((s) => s.id);
+
+      if (ids.length === 0) {
+        return NextResponse.json({ error: "Nenhum SKU encontrado para este grupo." }, { status: 404 });
+      }
+
+      const { data: forn } = await supabaseAdmin
+        .from("org_members")
+        .select("user_id")
+        .eq("org_id", org_id)
+        .eq("fornecedor_id", alteracao.fornecedor_id)
+        .limit(1)
+        .maybeSingle();
+      const fornecedorUserId = forn?.user_id;
+
+      const { error: delErr } = await supabaseAdmin
+        .from("skus")
+        .delete()
+        .in("id", ids)
+        .eq("org_id", org_id)
+        .eq("fornecedor_id", alteracao.fornecedor_id);
+
+      if (delErr) {
+        return NextResponse.json(
+          {
+            error: delErr.message.includes("violates")
+              ? "Não foi possível excluir (pode haver pedidos ou vínculos)."
+              : delErr.message,
+          },
+          { status: 500 }
+        );
+      }
+
+      if (fornecedorUserId) {
+        await supabaseAdmin.from("notifications").insert({
+          user_id: fornecedorUserId,
+          tipo: "alteracao_aprovada",
+          titulo: "Exclusão aprovada",
+          mensagem: `A DropCore aprovou a exclusão do produto (${gk}).`,
+          metadata: { alteracao_id: id, grupo_key: gk },
+        });
+      }
+
+      return NextResponse.json({ ok: true, mensagem: "Grupo excluído do catálogo." });
+    }
+
     const clean: Record<string, unknown> = {};
 
     for (const k of [...TEXT_FIELDS, ...NUM_FIELDS]) {

@@ -10,15 +10,36 @@ type Notif = {
   tipo?: string;
   lido: boolean;
   criado_em: string;
-  metadata?: { deposito_id?: string; mensalidade_id?: string; pedido_id?: string; repasse_id?: string };
+  metadata?: {
+    deposito_id?: string;
+    mensalidade_id?: string;
+    pedido_id?: string;
+    repasse_id?: string;
+    alteracao_id?: string;
+  };
 };
 
 const TIPOS_POR_CONTEXTO: Record<string, string[]> = {
   /** Resumo de inadimplência da org — só faz sentido no painel admin */
-  admin: ["deposito_entrou", "mensalidade_inadimplentes_org", "mensalidade_vencendo", "mensalidade_paga_admin"],
+  admin: [
+    "deposito_entrou",
+    "mensalidade_inadimplentes_org",
+    "mensalidade_vencendo",
+    "mensalidade_paga_admin",
+    "alteracao_produto_pendente",
+  ],
   seller: ["deposito_aprovado", "estoque_baixo", "mensalidade_vencida", "mensalidade_vencendo", "saldo_baixo"],
   /** Sem tipo de admin: fornecedor em trial não vê alerta de «X fornecedores inadimplentes» */
-  fornecedor: ["mensalidade_paga", "mensalidade_vencida", "mensalidade_vencendo", "estoque_baixo", "pedido_para_postar", "repasse_recebido"],
+  fornecedor: [
+    "mensalidade_paga",
+    "mensalidade_vencida",
+    "mensalidade_vencendo",
+    "estoque_baixo",
+    "pedido_para_postar",
+    "repasse_recebido",
+    "alteracao_aprovada",
+    "alteracao_rejeitada",
+  ],
 };
 
 export function NotificationBell({ className = "", context = "admin" }: { className?: string; context?: "admin" | "seller" | "fornecedor" }) {
@@ -171,6 +192,7 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                   const isExpanded = expandedId === n.id;
                   const isDeposito = n.tipo === "deposito_aprovado" || n.tipo === "deposito_entrou";
                   const isMensalidadePagaAdmin = n.tipo === "mensalidade_paga_admin";
+                  const isAlteracaoProduto = n.tipo === "alteracao_produto_pendente";
                   const isFornecedor = ["mensalidade_paga", "mensalidade_vencida", "mensalidade_vencendo", "estoque_baixo", "pedido_para_postar", "repasse_recebido", "saldo_baixo"].includes(n.tipo ?? "");
                   return (
                     <div
@@ -193,7 +215,17 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                           ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400"
                           : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-500"
                       }`}>
-                        {isDeposito ? <span className="text-sm">💰</span> : isMensalidadePagaAdmin ? <span className="text-sm">✅</span> : isFornecedor ? <span className="text-sm">📋</span> : <span className="text-sm">📌</span>}
+                        {isDeposito ? (
+                          <span className="text-sm">💰</span>
+                        ) : isMensalidadePagaAdmin ? (
+                          <span className="text-sm">✅</span>
+                        ) : isAlteracaoProduto ? (
+                          <span className="text-sm">📦</span>
+                        ) : isFornecedor ? (
+                          <span className="text-sm">📋</span>
+                        ) : (
+                          <span className="text-sm">📌</span>
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{n.titulo}</p>
@@ -246,6 +278,19 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                                 className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
                               >
                                 Ver esta mensalidade →
+                              </a>
+                            )}
+                            {n.tipo === "alteracao_produto_pendente" && (
+                              <a
+                                href={
+                                  n.metadata?.alteracao_id
+                                    ? `/admin/alteracoes-produtos?destaque=${n.metadata.alteracao_id}`
+                                    : "/admin/alteracoes-produtos"
+                                }
+                                onClick={(e) => e.stopPropagation()}
+                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline"
+                              >
+                                Abrir alterações de produtos →
                               </a>
                             )}
                             {n.tipo === "mensalidade_inadimplentes_org" && (

@@ -38,8 +38,10 @@ export function DashboardHeader({
           <span className="sm:hidden">Início</span>
           <span className="hidden sm:inline">Início da dash</span>
         </Link>
-        <ThemeToggle className="rounded-[var(--radius)] p-2 min-h-[40px] min-w-[40px] inline-flex items-center justify-center transition-colors bg-[var(--card)] border border-[var(--border-subtle)] hover:opacity-90 shadow-[var(--shadow)] touch-manipulation" />
-        <NotificationBell context="admin" />
+        <ThemeToggle className="hidden md:inline-flex rounded-[var(--radius)] p-2 min-h-[40px] min-w-[40px] items-center justify-center transition-colors bg-[var(--card)] border border-[var(--border-subtle)] hover:opacity-90 shadow-[var(--shadow)] touch-manipulation" />
+        <div className="hidden md:block">
+          <NotificationBell context="admin" />
+        </div>
         {onRefresh && (
           <Button variant="secondary" onClick={onRefresh} className="min-h-[40px] sm:min-h-0 touch-manipulation">
             Atualizar

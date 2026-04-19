@@ -150,7 +150,7 @@ export default function AdminCalculadoraConvitesPage() {
             >
               Início da dash
             </Link>
-            <ThemeToggle className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-2 min-h-[40px] min-w-[40px] inline-flex items-center justify-center touch-manipulation" />
+            <ThemeToggle className="hidden md:inline-flex rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-2 min-h-[40px] min-w-[40px] items-center justify-center touch-manipulation" />
             <div className="text-xs text-[var(--muted)] hidden sm:block">Admin · Convites da calculadora</div>
           </div>
         </div>

@@ -45,6 +45,28 @@ function getLinkFotos(produto: Produto, todos: Produto[]): string | null {
   return pai?.link_fotos ?? null;
 }
 
+/** Se `cor` tiver vários valores numa string (dados antigos com vírgulas), mostra em chips em vez de um bloco único. */
+function CorCelulaProduto({ cor }: { cor: string | null }) {
+  const raw = (cor ?? "").trim();
+  if (!raw) return <>—</>;
+  const parts = raw.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+  if (parts.length <= 1) {
+    return <span className="break-words">{raw}</span>;
+  }
+  return (
+    <span className="flex flex-wrap gap-1">
+      {parts.map((p, i) => (
+        <span
+          key={`${i}-${p}`}
+          className="inline-flex max-w-full rounded-md bg-neutral-100 px-1.5 py-0.5 text-[11px] font-medium text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
+        >
+          {p}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 type GrupoProduto = { paiKey: string; pai: Produto | null; filhos: Produto[] };
 
 function isEstoqueBaixo(p: Produto): boolean {
@@ -79,6 +101,7 @@ export default function FornecedorProdutosPage() {
   const [editCusto, setEditCusto] = useState("");
   const [expandido, setExpandido] = useState<Set<string>>(new Set());
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [solicitandoExclusao, setSolicitandoExclusao] = useState<string | null>(null);
   const [alteracoesStatus, setAlteracoesStatus] = useState<{
     pendentes: string[];
     por_sku: Record<string, { status: "aprovado" | "rejeitado"; motivo_rejeicao?: string; analisado_em: string }>;
@@ -198,6 +221,42 @@ export default function FornecedorProdutosPage() {
     setFormError(null);
   }
 
+  async function handleSolicitarExclusaoGrupo(g: GrupoProduto) {
+    const representante = g.pai ?? g.filhos[0];
+    const nome = representante?.nome_produto ?? g.paiKey;
+    const n = g.pai ? 1 + g.filhos.length : g.filhos.length;
+    if (
+      !window.confirm(
+        `Pedir à DropCore para excluir "${nome}" (${g.paiKey})?\n\nSerão ${n} SKU(s). Nada é apagado na hora: um admin aprova em Alterações de produtos.`
+      )
+    ) {
+      return;
+    }
+    setFormError(null);
+    setSolicitandoExclusao(g.paiKey);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) throw new Error("Sessão expirada.");
+      const res = await fetch("/api/fornecedor/produtos/solicitar-exclusao-grupo", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ grupoKey: g.paiKey, nome_produto: nome }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j?.error ?? "Erro ao enviar pedido.");
+      setSuccessMessage(j?.mensagem ?? "Pedido enviado à DropCore.");
+      setTimeout(() => setSuccessMessage(null), 6000);
+      await load();
+    } catch (e: unknown) {
+      setFormError(e instanceof Error ? e.message : "Erro ao enviar pedido.");
+    } finally {
+      setSolicitandoExclusao(null);
+    }
+  }
+
   async function handleEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editando) return;
@@ -252,20 +311,75 @@ export default function FornecedorProdutosPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-3">
-          <Link
-            href="/fornecedor/dashboard"
-            className="flex items-center gap-2.5 min-w-0 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            <span className="text-sm font-medium">Voltar</span>
-          </Link>
-          <h1 className="text-lg font-semibold truncate text-neutral-900 dark:text-neutral-100">Meus produtos</h1>
+    <div className="min-h-screen min-w-0 max-w-[100%] overflow-x-hidden bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+      <div className="mx-auto w-full min-w-0 max-w-4xl space-y-6 py-5 dropcore-px-content lg:max-w-5xl">
+        {/* Header + filtros (desktop: título à esquerda, ações à direita) */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
+          <div className="min-w-0 space-y-1">
+            <Link
+              href="/fornecedor/dashboard"
+              className="inline-flex items-center gap-2.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+              Voltar
+            </Link>
+            <h1 className="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Meus produtos</h1>
+          </div>
+          <div className="flex w-full min-w-0 flex-col gap-3 sm:w-auto sm:items-end sm:pt-0.5">
+            <label className="flex w-full cursor-pointer items-center gap-2 text-sm text-[var(--muted)] sm:w-auto sm:justify-end">
+              <input
+                type="checkbox"
+                checked={filtroEstoqueBaixo}
+                onChange={(e) => router.push(e.target.checked ? "/fornecedor/produtos?estoqueBaixo=1" : "/fornecedor/produtos")}
+                className="rounded border-[var(--card-border)]"
+              />
+              Só estoque baixo
+            </label>
+            <div className="flex w-full flex-col gap-2 sm:hidden">
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">Criar produto</p>
+              <Link
+                href="/fornecedor/produtos/criar-unico"
+                className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800"
+              >
+                Criar único produto
+              </Link>
+              <Link
+                href="/fornecedor/produtos/criar-variantes"
+                className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800"
+              >
+                Criar variantes (cor / tamanho)
+              </Link>
+            </div>
+            <div className="hidden sm:flex sm:justify-end">
+              <div className="relative group">
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                >
+                  + Criar produto
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+                <div className="absolute right-0 top-full z-10 mt-1 min-w-[200px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg opacity-0 invisible transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 dark:border-neutral-700 dark:bg-neutral-900">
+                  <Link
+                    href="/fornecedor/produtos/criar-unico"
+                    className="block w-full px-4 py-2.5 text-left text-sm font-medium text-emerald-800 hover:bg-emerald-50 dark:text-emerald-200 dark:hover:bg-emerald-950"
+                  >
+                    Criar único produto
+                  </Link>
+                  <Link
+                    href="/fornecedor/produtos/criar-variantes"
+                    className="block w-full px-4 py-2.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                  >
+                    Criar variantes (cor/tamanho)
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {error && (
@@ -281,54 +395,22 @@ export default function FornecedorProdutosPage() {
           </div>
         )}
 
-        {/* Filtro estoque baixo */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--muted)]">
-            <input
-              type="checkbox"
-              checked={filtroEstoqueBaixo}
-              onChange={(e) => router.push(e.target.checked ? "/fornecedor/produtos?estoqueBaixo=1" : "/fornecedor/produtos")}
-              className="rounded border-[var(--card-border)]"
-            />
-            Só estoque baixo
-          </label>
-        </div>
-
-        {/* Add button */}
-        <div className="flex justify-end gap-2">
-          <div className="relative group">
-            <button
-              className="rounded-lg bg-blue-600 text-white font-semibold px-4 py-2.5 text-sm hover:bg-blue-700 transition flex items-center gap-1.5"
-            >
-              + Criar produto
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M6 9l6 6 6-6" />
-              </svg>
+        {formError && modal === "none" && (
+          <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-4 text-sm text-red-800 dark:text-red-300 flex items-start justify-between gap-3">
+            <span>{formError}</span>
+            <button type="button" onClick={() => setFormError(null)} className="shrink-0 text-red-700 dark:text-red-400 underline text-xs">
+              Fechar
             </button>
-            <div className="absolute right-0 top-full mt-1 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition z-10 min-w-[200px]">
-              <Link
-                href="/fornecedor/produtos/criar-unico"
-                className="block w-full text-left px-4 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              >
-                Criar único produto
-              </Link>
-              <Link
-                href="/fornecedor/produtos/criar-variantes"
-                className="block w-full text-left px-4 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              >
-                Criar variantes (cor/tamanho)
-              </Link>
-            </div>
           </div>
-        </div>
+        )}
 
-        {/* Lista — estilo UpSeller: tabela com variantes */}
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800">
+        {/* Lista — mobile: cartões; desktop largo: tabela */}
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm overflow-hidden min-w-0">
+          <div className="px-3 py-3 sm:px-4 border-b border-neutral-200 dark:border-neutral-800">
             <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">Produtos do armazém</h2>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Gerencie seus produtos e links de fotos</p>
           </div>
-          <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+          <div className="divide-y divide-neutral-100 dark:divide-neutral-800 min-w-0">
             {grupos.length === 0 ? (
               <div className="px-4 py-12 text-center">
                 <p className="text-neutral-500 dark:text-neutral-400 text-sm">
@@ -344,97 +426,212 @@ export default function FornecedorProdutosPage() {
                 const todosInativos = linhas.every((p) => (p.status || "").toLowerCase() !== "ativo");
                 return (
                   <div key={g.paiKey} className="bg-white dark:bg-transparent">
-                    {/* Cabeçalho do produto — clicável para expandir */}
+                    {/* Cabeçalho do produto — mobile: coluna; sm+: linha */}
                     <div
-                      className="flex items-center gap-4 px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 cursor-pointer"
+                      className="flex cursor-pointer flex-col gap-3 px-3 py-3 sm:flex-row sm:flex-nowrap sm:items-center sm:gap-4 sm:px-4 sm:py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 min-w-0"
                       onClick={() => toggleExpandido(g.paiKey)}
                     >
-                      <button
-                        type="button"
-                        className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-400 p-0.5 -ml-1"
-                        aria-label={exp ? "Recolher" : "Expandir"}
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          className={`transition ${exp ? "rotate-90" : ""}`}
+                      <div className="flex min-w-0 flex-1 items-start gap-3 overflow-hidden sm:min-w-[0]">
+                        <button
+                          type="button"
+                          className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-400 p-0.5 -ml-1 shrink-0 mt-0.5"
+                          aria-label={exp ? "Recolher" : "Expandir"}
                         >
-                          <path d="M9 18l6-6-6-6" />
-                        </svg>
-                      </button>
-                      <div className="w-12 h-12 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 flex items-center justify-center shrink-0 overflow-hidden">
-                        {getLinkFotos(representante!, produtos) ? (
-                          <a
-                            href={getLinkFotos(representante!, produtos)!}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full h-full flex items-center justify-center bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 text-lg hover:bg-neutral-300 dark:hover:bg-neutral-600"
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            className={`transition ${exp ? "rotate-90" : ""}`}
                           >
-                            📷
-                          </a>
-                        ) : (
-                          <span className="text-neutral-400 dark:text-neutral-500 text-lg">—</span>
-                        )}
+                            <path d="M9 18l6-6-6-6" />
+                          </svg>
+                        </button>
+                        <div className="w-12 h-12 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 flex items-center justify-center shrink-0 overflow-hidden">
+                          {getLinkFotos(representante!, produtos) ? (
+                            <a
+                              href={getLinkFotos(representante!, produtos)!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full h-full flex items-center justify-center bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 text-lg hover:bg-neutral-300 dark:hover:bg-neutral-600"
+                            >
+                              📷
+                            </a>
+                          ) : (
+                            <span className="text-neutral-400 dark:text-neutral-500 text-lg">—</span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className="min-w-0 break-words">{representante?.nome_produto}</span>
+                            {todosInativos && (
+                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300">
+                                Inativo
+                              </span>
+                            )}
+                            {statusAlteracaoGrupo(g) === "pendente" && (
+                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300" title="Alteração aguardando aprovação do admin">
+                                Em análise
+                              </span>
+                            )}
+                            {statusAlteracaoGrupo(g) === "aprovado" && (
+                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 dark:bg-green-950/40 text-green-800 dark:text-green-300">
+                                Aprovado
+                              </span>
+                            )}
+                            {statusAlteracaoGrupo(g) === "rejeitado" && (
+                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 dark:bg-red-950/40 text-red-800 dark:text-red-300" title={motivoRejeicaoGrupo(g) ? `Motivo: ${motivoRejeicaoGrupo(g)}` : undefined}>
+                                Recusado
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 break-words">
+                            <span className="font-mono text-neutral-600 dark:text-neutral-500 break-all">{g.paiKey}</span>
+                            {linhas.length > 0 && (
+                              <span> · Variantes ({linhas.length})</span>
+                            )}
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate flex items-center gap-2 flex-wrap">
-                          {representante?.nome_produto}
-                          {todosInativos && (
-                            <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300">
-                              Inativo
-                            </span>
-                          )}
-                          {statusAlteracaoGrupo(g) === "pendente" && (
-                            <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300" title="Alteração aguardando aprovação do admin">
-                              Em análise
-                            </span>
-                          )}
-                          {statusAlteracaoGrupo(g) === "aprovado" && (
-                            <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 dark:bg-green-950/40 text-green-800 dark:text-green-300">
-                              Aprovado
-                            </span>
-                          )}
-                          {statusAlteracaoGrupo(g) === "rejeitado" && (
-                            <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 dark:bg-red-950/40 text-red-800 dark:text-red-300" title={motivoRejeicaoGrupo(g) ? `Motivo: ${motivoRejeicaoGrupo(g)}` : undefined}>
-                              Recusado
-                            </span>
-                          )}
-                        </p>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                          <span className="font-mono text-neutral-600 dark:text-neutral-500">{g.paiKey}</span>
-                          {linhas.length > 0 && (
-                            <span> · Variantes ({linhas.length})</span>
-                          )}
-                        </p>
-                      </div>
-                      <Link
-                        href={`/fornecedor/produtos/editar/${encodeURIComponent(g.paiKey)}`}
+                      <div
+                        className="relative z-10 flex w-full min-w-0 flex-col gap-2 border-t border-neutral-100 pt-3 dark:border-neutral-800 sm:w-auto sm:shrink-0 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-end sm:gap-2 sm:border-t-0 sm:pt-0"
                         onClick={(e) => e.stopPropagation()}
-                        className="shrink-0 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
                       >
-                        Editar variantes
-                      </Link>
+                        <Link
+                          href={`/fornecedor/produtos/editar/${encodeURIComponent(g.paiKey)}`}
+                          className="flex w-full items-center justify-center rounded-lg bg-neutral-900 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-neutral-800 active:bg-black sm:inline-flex sm:h-9 sm:w-auto sm:min-w-0 sm:whitespace-nowrap sm:rounded-md sm:px-3 sm:py-0 sm:text-xs dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white dark:active:bg-neutral-200 touch-manipulation"
+                        >
+                          Editar variantes
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (solicitandoExclusao === g.paiKey) return;
+                            if (statusAlteracaoGrupo(g) === "pendente") {
+                              setFormError(
+                                "Não é possível pedir exclusão enquanto houver alterações em análise neste produto. Aguarde a análise da DropCore."
+                              );
+                              return;
+                            }
+                            void handleSolicitarExclusaoGrupo(g);
+                          }}
+                          disabled={solicitandoExclusao === g.paiKey}
+                          className="flex w-full items-center justify-center rounded-lg bg-red-700 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-red-800 active:bg-red-900 disabled:cursor-wait disabled:opacity-80 sm:inline-flex sm:h-9 sm:w-auto sm:min-w-0 sm:whitespace-nowrap sm:rounded-md sm:px-3 sm:py-0 sm:text-xs touch-manipulation"
+                          title={
+                            statusAlteracaoGrupo(g) === "pendente"
+                              ? "Há alterações em análise neste produto"
+                              : "Pedir exclusão (aprovação DropCore)"
+                          }
+                        >
+                          {solicitandoExclusao === g.paiKey ? "Enviando…" : "Excluir produto"}
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Tabela de variantes — estilo UpSeller */}
+                    {/* Variantes: cartões (sem scroll horizontal) até lg; tabela a partir de lg */}
                     {exp && linhas.length > 0 && (
-                      <div className="border-t border-neutral-100 dark:border-neutral-800 overflow-x-auto">
-                        <table className="w-full text-sm">
+                      <>
+                      <div className="border-t border-neutral-100 dark:border-neutral-800 lg:hidden divide-y divide-neutral-100 dark:divide-neutral-800 min-w-0 bg-neutral-50/40 dark:bg-neutral-900/20">
+                        {linhas.map((row) => {
+                          const lf = getLinkFotos(row, produtos) || row.link_fotos;
+                          return (
+                            <div key={row.id} className="px-2.5 py-2 min-w-0" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex gap-2.5 min-w-0 items-start">
+                                <FotoVariacaoCell
+                                  variant="stacked"
+                                  skuId={row.id}
+                                  imagemUrl={row.imagem_url ?? null}
+                                  onUpdate={async (url) => {
+                                      setProdutos((prev) =>
+                                        prev.map((p) => (p.id === row.id ? { ...p, imagem_url: url } : p))
+                                      );
+                                      const mesmaCor = linhas.filter((p) => (p.cor ?? "") === (row.cor ?? ""));
+                                      const primeiroDaCor = mesmaCor.sort((a, b) => a.sku.localeCompare(b.sku))[0];
+                                      if (primeiroDaCor?.id === row.id && url) {
+                                        const sibs = mesmaCor.filter((p) => p.id !== row.id);
+                                        if (sibs.length > 0) {
+                                          const { data } = await supabaseBrowser.auth.getSession();
+                                          const token = data.session?.access_token;
+                                          if (token) {
+                                            await Promise.all(
+                                              sibs.map((p) =>
+                                                fetch(`/api/fornecedor/produtos/${p.id}`, {
+                                                  method: "PATCH",
+                                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                                  body: JSON.stringify({ imagem_url: url }),
+                                                })
+                                              )
+                                            );
+                                            setProdutos((prev) =>
+                                              prev.map((p) => (sibs.some((s) => s.id === p.id) ? { ...p, imagem_url: url } : p))
+                                            );
+                                          }
+                                        }
+                                      }
+                                    }}
+                                    getToken={async () => {
+                                      const { data } = await supabaseBrowser.auth.getSession();
+                                      return data.session?.access_token ?? null;
+                                    }}
+                                />
+                                <div className="min-w-0 flex-1 pt-0.5">
+                                  <div className="flex items-start justify-between gap-2 min-w-0">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-medium leading-snug text-neutral-900 dark:text-neutral-100">
+                                        <CorCelulaProduto cor={row.cor} />
+                                        <span className="text-neutral-400 dark:text-neutral-500 mx-1">·</span>
+                                        <span className="text-neutral-600 dark:text-neutral-400 font-normal">{row.tamanho || "—"}</span>
+                                      </p>
+                                      <p className="font-mono text-[10px] text-neutral-500 dark:text-neutral-500 break-all leading-tight mt-0.5">{row.sku}</p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => openEdit(row)}
+                                      className="shrink-0 rounded-md px-2 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-950 active:bg-blue-200 dark:active:bg-blue-900 touch-manipulation -mr-1"
+                                    >
+                                      Editar
+                                    </button>
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+                                    <span>
+                                      Estoque{" "}
+                                      <span className="tabular-nums font-medium text-neutral-800 dark:text-neutral-200">
+                                        {row.estoque_atual != null ? row.estoque_atual : "—"}
+                                      </span>
+                                    </span>
+                                    {lf ? (
+                                      <a
+                                        href={lf}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="font-medium text-blue-600 dark:text-blue-400 underline underline-offset-2 break-all"
+                                      >
+                                        Link fotos
+                                      </a>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="hidden lg:block min-w-0 overflow-x-auto border-t border-neutral-100 dark:border-neutral-800">
+                        <table className="w-full min-w-[640px] table-fixed text-sm">
                           <thead>
-                            <tr className="bg-neutral-50 dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-400 text-left">
-                              <th className="px-4 py-2 font-medium w-16">Foto</th>
-                              <th className="px-4 py-2 font-medium w-24">Cor</th>
-                              <th className="px-4 py-2 font-medium w-20">Tamanho</th>
-                              <th className="px-4 py-2 font-medium w-24">SKU</th>
-                              <th className="px-4 py-2 font-medium w-20 text-right">Estoque</th>
-                              <th className="px-4 py-2 font-medium">Link fotos</th>
-                              <th className="px-4 py-2 font-medium w-24 text-right">Ações</th>
+                            <tr className="bg-neutral-50 text-left text-xs text-neutral-600 dark:bg-neutral-800/80 dark:text-neutral-400">
+                              <th className="w-[4.25rem] px-2 py-2 font-medium lg:px-3">Foto</th>
+                              <th className="w-[18%] px-2 py-2 font-medium lg:px-3">Cor</th>
+                              <th className="w-[7%] px-2 py-2 font-medium lg:px-3">Tam.</th>
+                              <th className="w-[24%] px-2 py-2 font-medium lg:px-3">SKU</th>
+                              <th className="w-[6%] px-2 py-2 text-right font-medium lg:px-3">Est.</th>
+                              <th className="w-[9%] px-2 py-2 font-medium lg:px-3">Fotos</th>
+                              <th className="w-[4.5rem] px-2 py-2 text-right font-medium lg:pl-3 lg:pr-4">Ações</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -442,7 +639,7 @@ export default function FornecedorProdutosPage() {
                               const lf = getLinkFotos(row, produtos) || row.link_fotos;
                               return (
                                 <tr key={row.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50">
-                                  <td className="px-4 py-2.5">
+                                  <td className="px-2 py-1.5 align-top lg:px-3">
                                     <FotoVariacaoCell
                                       skuId={row.id}
                                       imagemUrl={row.imagem_url ?? null}
@@ -480,31 +677,33 @@ export default function FornecedorProdutosPage() {
                                       }}
                                     />
                                   </td>
-                                  <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{row.cor || "—"}</td>
-                                  <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{row.tamanho || "—"}</td>
-                                  <td className="px-4 py-2.5 font-mono text-neutral-600 dark:text-neutral-500 text-xs">{row.sku}</td>
-                                  <td className="px-4 py-2.5 text-right tabular-nums text-neutral-700 dark:text-neutral-300">
+                                  <td className="px-2 py-1.5 align-top break-words text-xs text-neutral-700 dark:text-neutral-300 lg:px-3">
+                                    <CorCelulaProduto cor={row.cor} />
+                                  </td>
+                                  <td className="px-2 py-1.5 align-top text-xs text-neutral-700 dark:text-neutral-300 lg:px-3">{row.tamanho || "—"}</td>
+                                  <td className="px-2 py-1.5 align-top font-mono text-[11px] leading-snug text-neutral-600 break-all dark:text-neutral-500 lg:px-3">{row.sku}</td>
+                                  <td className="px-2 py-1.5 align-top text-right text-xs tabular-nums text-neutral-700 dark:text-neutral-300 lg:px-3">
                                     {row.estoque_atual != null ? row.estoque_atual : "—"}
                                   </td>
-                                  <td className="px-4 py-2.5">
+                                  <td className="min-w-0 px-2 py-1.5 align-top lg:px-3">
                                     {lf ? (
                                       <a
                                         href={lf}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs truncate max-w-[180px] block"
+                                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs break-all line-clamp-2 block"
                                       >
-                                        Ver fotos
+                                        Ver
                                       </a>
                                     ) : (
                                       <span className="text-neutral-400 dark:text-neutral-500 text-xs">—</span>
                                     )}
                                   </td>
-                                  <td className="px-4 py-2.5 text-right">
+                                  <td className="px-2 py-1.5 text-right align-top lg:pl-3 lg:pr-4">
                                     <button
                                       type="button"
                                       onClick={(e) => { e.stopPropagation(); openEdit(row); }}
-                                      className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium text-xs"
+                                      className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/50 dark:hover:text-blue-300"
                                     >
                                       Editar
                                     </button>
@@ -515,6 +714,7 @@ export default function FornecedorProdutosPage() {
                           </tbody>
                         </table>
                       </div>
+                      </>
                     )}
                   </div>
                 );
@@ -523,7 +723,7 @@ export default function FornecedorProdutosPage() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="text-center text-xs text-neutral-500 dark:text-neutral-400 px-1 break-words">
           <Link href="/fornecedor/dashboard" className="hover:text-neutral-600 dark:hover:text-neutral-300">Dashboard</Link>
           {" · "}
           <Link href="/" className="hover:text-neutral-600 dark:hover:text-neutral-300">Voltar ao DropCore</Link>
@@ -532,9 +732,12 @@ export default function FornecedorProdutosPage() {
 
       {/* Modal Edit */}
       {modal === "edit" && editando && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !formLoading && setModal("none")}>
-          <div className="w-full max-w-md rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Editar produto · {editando.sku}</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50" onClick={() => !formLoading && setModal("none")}>
+          <div
+            className="w-full max-w-md max-h-[min(92dvh,40rem)] overflow-y-auto overscroll-contain rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 sm:p-6 shadow-xl min-w-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-4 break-words">Editar produto · {editando.sku}</h3>
             <form onSubmit={handleEdit} className="space-y-4">
               <div>
                 <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Nome do produto *</label>
