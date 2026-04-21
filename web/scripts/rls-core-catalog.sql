@@ -1,23 +1,58 @@
 -- =============================================================================
 -- DropCore — RLS em orgs, fornecedores e skus (catálogo / núcleo)
--- Execute no Supabase SQL Editor.
+-- Execute no Supabase SQL Editor (um único script).
 --
--- Pré-requisito: web/scripts/rls-financeiro.sql já executado, pois usa:
---   public.fn_user_can_access_org(uuid)
---   public.fn_user_can_access_fornecedor(uuid, uuid)
+-- Cria/atualiza as funções auxiliares abaixo (mesma lógica de rls-financeiro.sql).
+-- Se você já rodou rls-financeiro.sql, isto só faz CREATE OR REPLACE (idempotente).
 --
 -- Efeito: usuários autenticados que consultarem o PostgREST direto (JWT)
 -- só enxergam linhas permitidas. As APIs Next.js com service_role ignoram RLS.
 -- =============================================================================
 
-DO $pre$
+-- Função: owner/admin da org
+CREATE OR REPLACE FUNCTION public.fn_user_can_access_org(p_org_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
-  IF to_regproc('public.fn_user_can_access_org(uuid)') IS NULL
-     OR to_regproc('public.fn_user_can_access_fornecedor(uuid,uuid)') IS NULL THEN
-    RAISE EXCEPTION 'Execute antes web/scripts/rls-financeiro.sql (funções fn_user_can_access_org / fn_user_can_access_fornecedor ausentes).';
-  END IF;
-END
-$pre$;
+  RETURN EXISTS (
+    SELECT 1 FROM public.org_members om
+    WHERE om.user_id = auth.uid()
+      AND om.org_id = p_org_id
+      AND om.role_base IN ('owner','admin')
+  );
+END;
+$$;
+
+-- Função: owner/admin da org OU usuário vinculado ao fornecedor (org_members.fornecedor_id)
+CREATE OR REPLACE FUNCTION public.fn_user_can_access_fornecedor(p_org_id uuid, p_fornecedor_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.org_members om
+    WHERE om.user_id = auth.uid()
+      AND (
+        (om.role_base IN ('owner','admin') AND om.org_id = p_org_id)
+        OR (om.fornecedor_id IS NOT NULL AND om.fornecedor_id = p_fornecedor_id)
+      )
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.fn_user_can_access_org(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.fn_user_can_access_fornecedor(uuid, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.fn_user_can_access_org(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.fn_user_can_access_fornecedor(uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.fn_user_can_access_org(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.fn_user_can_access_fornecedor(uuid, uuid) TO service_role;
 
 -- ---------------------------------------------------------------------------
 -- orgs: qualquer membro da org vê a própria org (plano, etc.)
