@@ -1,6 +1,10 @@
 -- =============================================================================
 -- DropCore — Auditoria de RLS (somente leitura)
 -- Rode no Supabase SQL Editor. Não altera nada.
+--
+-- Depois de consolidar políticas, pode rodar (uma vez) em produção:
+--   web/scripts/rls-legacy-cleanup.sql
+-- e auditar de novo aqui.
 -- =============================================================================
 
 SELECT
