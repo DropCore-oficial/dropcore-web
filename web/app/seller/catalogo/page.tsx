@@ -7,6 +7,7 @@ import { SellerNav } from "../SellerNav";
 import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
 import { toTitleCase } from "@/lib/formatText";
 import { getColunasTabelaMedidas, type TipoProduto } from "@/lib/tipoProduto";
+import { skuProntoParaVender, skuReadinessLabelsFalha } from "@/lib/sellerSkuReadiness";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -133,6 +134,26 @@ function BadgeEstoque({ atual, minimo }: { atual: number | null; minimo: number 
         : "bg-neutral-100 dark:bg-neutral-800/60 border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400"
     }`}>
       Estoque: {atual}{minimo != null ? ` / mín ${minimo}` : ""}
+    </span>
+  );
+}
+
+function BadgeReadiness({ item }: { item: ItemSKU }) {
+  const ok = skuProntoParaVender(item);
+  const falhas = ok ? [] : skuReadinessLabelsFalha(item);
+  const title = ok
+    ? "Checklist: nome, foto ou link, custo, estoque, medidas, NCM (8 dígitos) e descrição — tudo ok para anunciar e bater com o ERP."
+    : `Ajustar no catálogo do fornecedor: ${falhas.join("; ")}`;
+  return (
+    <span
+      title={title}
+      className={`inline-flex max-w-[11rem] sm:max-w-none truncate items-center rounded-full px-2 py-0.5 text-[11px] font-medium border cursor-help ${
+        ok
+          ? "bg-emerald-50 dark:bg-emerald-950/35 border-emerald-400/80 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200"
+          : "bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200"
+      }`}
+    >
+      {ok ? "Pronto p/ vender" : `${falhas.length} pendência${falhas.length !== 1 ? "s" : ""}`}
     </span>
   );
 }
@@ -318,6 +339,7 @@ function ItemCard({ item, sóVariante = false }: { item: ItemSKU; sóVariante?: 
         <div className="flex flex-col items-end gap-1.5 shrink-0">
           <BadgeStatus status={str(item.status)} />
           <BadgeEstoque atual={item.estoque_atual} minimo={item.estoque_minimo} />
+          <BadgeReadiness item={item} />
         </div>
       </div>
     </div>
@@ -336,6 +358,7 @@ export default function SellerCatalogoPage() {
   const [tabelaMedidasData, setTabelaMedidasData] = useState<{ tipo_produto: string; medidas: Record<string, Record<string, number>> } | null>(null);
   const [loadingTabela, setLoadingTabela] = useState(false);
   const [descricaoExpandidaPorGrupo, setDescricaoExpandidaPorGrupo] = useState<Set<string>>(new Set());
+  const [filtroReadiness, setFiltroReadiness] = useState<"todos" | "pendentes">("todos");
 
   useEffect(() => {
     let cancelled = false;
@@ -376,11 +399,30 @@ export default function SellerCatalogoPage() {
     });
   }, [items, q]);
 
-  const grupos = useMemo(() => agruparPaiFilhos(itemsFiltrados), [itemsFiltrados]);
+  const statsReadiness = useMemo(() => {
+    let prontos = 0;
+    let pendentes = 0;
+    for (const i of itemsFiltrados) {
+      if (isSemente(i) || isGrupoOculto(i.sku)) continue;
+      if (skuProntoParaVender(i)) prontos += 1;
+      else pendentes += 1;
+    }
+    return { prontos, pendentes, total: prontos + pendentes };
+  }, [itemsFiltrados]);
+
+  const gruposBase = useMemo(() => agruparPaiFilhos(itemsFiltrados), [itemsFiltrados]);
+
+  const grupos = useMemo(() => {
+    if (filtroReadiness !== "pendentes") return gruposBase;
+    return gruposBase.filter((grupo) => {
+      const list = [grupo.pai, ...grupo.filhos].filter(Boolean) as ItemSKU[];
+      return list.some((it) => !skuProntoParaVender(it));
+    });
+  }, [gruposBase, filtroReadiness]);
 
   useEffect(() => {
     if (q.trim()) setGruposExpandidos(new Set(grupos.map((g) => g.paiKey)));
-  }, [q, grupos.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [q, grupos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleGrupo(key: string) {
     setGruposExpandidos((prev) => {
@@ -456,10 +498,63 @@ return (
 
         {/* Contagem */}
         {!loading && !error && items.length > 0 && (
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">
-            {q ? `${totalSkus} SKU${totalSkus !== 1 ? "s" : ""} encontrado${totalSkus !== 1 ? "s" : ""}` : `${totalSkus} SKU${totalSkus !== 1 ? "s" : ""} no catálogo`}
-            {" · "}{grupos.length} grupo{grupos.length !== 1 ? "s" : ""}
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              {q ? `${totalSkus} SKU${totalSkus !== 1 ? "s" : ""} encontrado${totalSkus !== 1 ? "s" : ""}` : `${totalSkus} SKU${totalSkus !== 1 ? "s" : ""} no catálogo`}
+              {" · "}
+              {filtroReadiness === "pendentes" ? grupos.length : gruposBase.length} grupo
+              {(filtroReadiness === "pendentes" ? grupos.length : gruposBase.length) !== 1 ? "s" : ""}
+              {filtroReadiness === "pendentes" && statsReadiness.pendentes > 0 && (
+                <span className="text-neutral-400 dark:text-neutral-500"> (filtrado)</span>
+              )}
+              {statsReadiness.total > 0 && (
+                <>
+                  {" · "}
+                  <span className="text-emerald-600 dark:text-emerald-400 font-medium">{statsReadiness.prontos} pronto{statsReadiness.prontos !== 1 ? "s" : ""}</span>
+                  {statsReadiness.pendentes > 0 && (
+                    <>
+                      {" · "}
+                      <span className="text-amber-600 dark:text-amber-400 font-medium">{statsReadiness.pendentes} com pendência{statsReadiness.pendentes !== 1 ? "s" : ""}</span>
+                    </>
+                  )}
+                </>
+              )}
+            </p>
+            <div className="flex flex-col min-[480px]:flex-row min-[480px]:items-start gap-2 min-[480px]:gap-4">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFiltroReadiness("todos")}
+                  className={`rounded-full px-3.5 py-1.5 text-xs font-semibold border transition touch-manipulation ${
+                    filtroReadiness === "todos"
+                      ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200"
+                      : "border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                  }`}
+                >
+                  Todos os grupos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltroReadiness("pendentes")}
+                  disabled={statsReadiness.pendentes === 0}
+                  className={`rounded-full px-3.5 py-1.5 text-xs font-semibold border transition touch-manipulation disabled:opacity-45 disabled:cursor-not-allowed ${
+                    filtroReadiness === "pendentes"
+                      ? "border-amber-500 bg-amber-50 dark:bg-amber-950/35 text-amber-900 dark:text-amber-200"
+                      : "border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                  }`}
+                >
+                  Só grupos com pendência
+                </button>
+              </div>
+              <details className="text-xs text-neutral-500 dark:text-neutral-400 min-[480px]:max-w-md [&_summary]:cursor-pointer [&_summary]:select-none">
+                <summary className="font-medium text-neutral-600 dark:text-neutral-300">O que significa “Pronto p/ vender”?</summary>
+                <p className="mt-1.5 leading-relaxed pl-0.5">
+                  É um checklist local no painel: nome, foto ou link de fotos, custo, estoque acima de zero, medidas do pacote, NCM com 8 dígitos e descrição com pelo menos 20 caracteres.
+                  Use como guia antes de publicar anúncios e de mandar o mesmo SKU pelo ERP — o fornecedor precisa completar o que faltar no cadastro.
+                </p>
+              </details>
+            </div>
+          </div>
         )}
 
         {/* Estados */}
@@ -477,7 +572,13 @@ return (
             <div className="w-14 h-14 rounded-2xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mx-auto mb-4">
               <svg className="w-7 h-7 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M16.5 9.4 7.55 4.24" /><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /></svg>
             </div>
-            <p className="text-neutral-500 dark:text-neutral-400 text-sm font-medium">{q ? "Nenhum SKU encontrado para essa busca." : "Catálogo vazio."}</p>
+            <p className="text-neutral-500 dark:text-neutral-400 text-sm font-medium">
+              {filtroReadiness === "pendentes" && itemsFiltrados.some((i) => !isSemente(i) && !isGrupoOculto(i.sku))
+                ? "Nenhum grupo com pendência neste recorte — os SKUs visíveis passam no checklist (ou a busca não inclui itens pendentes)."
+                : q
+                  ? "Nenhum SKU encontrado para essa busca."
+                  : "Catálogo vazio."}
+            </p>
           </div>
         )}
 
