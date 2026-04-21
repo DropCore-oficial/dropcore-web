@@ -7,3 +7,5 @@ ALTER TABLE public.sellers
 CREATE INDEX IF NOT EXISTS idx_sellers_fornecedor_id ON public.sellers(fornecedor_id);
 
 COMMENT ON COLUMN public.sellers.fornecedor_id IS 'Fornecedor conectado ao seller (ex: Djulios). Usado na calculadora para pré-selecionar produtos.';
+
+-- Em seguida rode seller-fornecedor-vinculo-minimo.sql (compromisso de 3 meses + liberação antecipada).

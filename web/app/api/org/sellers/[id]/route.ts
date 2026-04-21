@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
+import { dataMinimaTrocaFornecedor, podeTrocarFornecedorAgora } from "@/lib/sellerFornecedorVinculo";
+
+function uuidNorm(v: unknown): string | null {
+  const s = typeof v === "string" ? v.trim() : "";
+  return s.length ? s : null;
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +57,22 @@ export async function PATCH(
     const { id } = await params;
     const body = await req.json();
 
+    const { data: curRow, error: curErr } = await supabaseAdmin
+      .from("sellers")
+      .select("*")
+      .eq("id", id)
+      .eq("org_id", org_id)
+      .maybeSingle();
+
+    if (curErr || !curRow) {
+      return NextResponse.json({ error: "Seller não encontrado." }, { status: 404 });
+    }
+
+    const cur = curRow as Record<string, unknown>;
+    const curForn = uuidNorm(cur.fornecedor_id);
+    const curVin = (cur.fornecedor_vinculado_em as string | null | undefined) ?? null;
+    const curLib = Boolean(cur.fornecedor_desvinculo_liberado);
+
     const allowed: Record<string, unknown> = {};
     if (body?.nome != null) allowed.nome = String(body.nome).trim();
     if (body?.documento != null) allowed.documento = String(body.documento).trim();
@@ -71,10 +93,56 @@ export async function PATCH(
     if (body?.agencia !== undefined) allowed.agencia = body?.agencia != null ? String(body.agencia).trim() : null;
     if (body?.conta !== undefined) allowed.conta = body?.conta != null ? String(body.conta).trim() : null;
     if (body?.tipo_conta !== undefined) allowed.tipo_conta = body?.tipo_conta != null ? String(body.tipo_conta).trim() : null;
-    if (body?.fornecedor_id !== undefined) allowed.fornecedor_id = body?.fornecedor_id ? String(body.fornecedor_id).trim() : null;
+
+    const libNoBody =
+      body?.fornecedor_desvinculo_liberado !== undefined ? Boolean(body.fornecedor_desvinculo_liberado) : undefined;
+    const liberadoParaChecagem = libNoBody !== undefined ? libNoBody : curLib;
+    const confirmAdmin = Boolean(body?.confirmar_troca_fornecedor_antes_prazo);
+
+    if (body?.fornecedor_id !== undefined) {
+      const novoForn = uuidNorm(body.fornecedor_id);
+      if (novoForn !== curForn) {
+        if (!curForn && novoForn) {
+          allowed.fornecedor_id = novoForn;
+          allowed.fornecedor_vinculado_em = new Date().toISOString();
+          allowed.fornecedor_desvinculo_liberado = false;
+        } else if (curForn) {
+          if (
+            !podeTrocarFornecedorAgora(curVin, liberadoParaChecagem, confirmAdmin)
+          ) {
+            const min = dataMinimaTrocaFornecedor(curVin);
+            return NextResponse.json(
+              {
+                error:
+                  "Este seller está no período mínimo de 3 meses com o armazém. Para trocar ou remover antes, marque «Liberar troca antecipada» e/ou «Confirmo exceção documentada», ou aguarde a data indicada.",
+                code: "COMPROMISSO_FORNECEDOR_ATIVO",
+                pode_trocar_fornecedor_a_partir_de: min?.toISOString() ?? null,
+              },
+              { status: 403 }
+            );
+          }
+          allowed.fornecedor_id = novoForn;
+          if (novoForn) {
+            allowed.fornecedor_vinculado_em = new Date().toISOString();
+            allowed.fornecedor_desvinculo_liberado = false;
+          } else {
+            allowed.fornecedor_vinculado_em = null;
+            allowed.fornecedor_desvinculo_liberado = false;
+          }
+        }
+      }
+    }
+
+    if (libNoBody !== undefined && body?.fornecedor_id === undefined) {
+      allowed.fornecedor_desvinculo_liberado = libNoBody;
+    } else if (libNoBody !== undefined && body?.fornecedor_id !== undefined && uuidNorm(body.fornecedor_id) === curForn) {
+      allowed.fornecedor_desvinculo_liberado = libNoBody;
+    }
+
     allowed.atualizado_em = new Date().toISOString();
 
-    if (Object.keys(allowed).length <= 1) {
+    const keysMeaningful = Object.keys(allowed).filter((k) => k !== "atualizado_em");
+    if (keysMeaningful.length === 0) {
       return NextResponse.json({ error: "Nenhum campo para atualizar." }, { status: 400 });
     }
 
@@ -87,6 +155,15 @@ export async function PATCH(
       .single();
 
     if (error) {
+      if (error.message.includes("fornecedor_vinculado_em") || error.message.includes("fornecedor_desvinculo")) {
+        return NextResponse.json(
+          {
+            error:
+              "Execute o script SQL `seller-fornecedor-vinculo-minimo.sql` no Supabase para criar as colunas de víncio.",
+          },
+          { status: 500 }
+        );
+      }
       console.error("[sellers PATCH]", error.message);
       return NextResponse.json({ error: "Erro ao atualizar seller." }, { status: 500 });
     }

@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { Button, PageLayout } from "@/components/ui";
 import { toTitleCase } from "@/lib/formatText";
+import { MESES_MINIMOS_COM_FORNECEDOR, dataMinimaTrocaFornecedor, podeTrocarFornecedorAgora } from "@/lib/sellerFornecedorVinculo";
 
 type Seller = {
   id: string;
@@ -29,6 +30,9 @@ type Seller = {
   agencia?: string | null;
   conta?: string | null;
   tipo_conta?: string | null;
+  fornecedor_id?: string | null;
+  fornecedor_vinculado_em?: string | null;
+  fornecedor_desvinculo_liberado?: boolean;
 };
 
 type SellerComMov = Seller & {
@@ -83,6 +87,8 @@ export default function AdminSellersPage() {
   const [inviteSending, setInviteSending] = useState(false);
   const [fornecedores, setFornecedores] = useState<{ id: string; nome: string }[]>([]);
   const [editFornecedorId, setEditFornecedorId] = useState("");
+  const [editFornecedorLiberado, setEditFornecedorLiberado] = useState(false);
+  const [editConfirmarTrocaAntesPrazo, setEditConfirmarTrocaAntesPrazo] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -151,7 +157,11 @@ export default function AdminSellersPage() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       const data = await res.json();
-      if (res.ok) setDetail(data);
+      if (res.ok) {
+        setDetail(data);
+        setEditFornecedorLiberado(Boolean(data.fornecedor_desvinculo_liberado));
+        setEditConfirmarTrocaAntesPrazo(false);
+      }
       setDetailLoading(false);
     })();
   }, [selectedId, orgId]);
@@ -296,16 +306,27 @@ export default function AdminSellersPage() {
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) return;
+      const novoForn = editFornecedorId.trim() || null;
+      const antForn = detail?.fornecedor_id ?? null;
+      const fornecedorMudou = novoForn !== antForn;
+      const liberadoMudou = editFornecedorLiberado !== Boolean(detail?.fornecedor_desvinculo_liberado);
+      const patchBody: Record<string, unknown> = {
+        nome: editNome.trim(),
+        documento: editDocumento.trim() || null,
+        plano: editPlano.trim() || null,
+        status: editStatus || "ativo",
+      };
+      if (fornecedorMudou) {
+        patchBody.fornecedor_id = novoForn;
+        patchBody.fornecedor_desvinculo_liberado = editFornecedorLiberado;
+        patchBody.confirmar_troca_fornecedor_antes_prazo = editConfirmarTrocaAntesPrazo;
+      } else if (liberadoMudou) {
+        patchBody.fornecedor_desvinculo_liberado = editFornecedorLiberado;
+      }
       const res = await fetch(`/api/org/sellers/${selectedId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({
-          nome: editNome.trim(),
-          documento: editDocumento.trim() || null,
-          plano: editPlano.trim() || null,
-          status: editStatus || "ativo",
-          fornecedor_id: editFornecedorId.trim() || null,
-        }),
+        body: JSON.stringify(patchBody),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Erro");
@@ -428,7 +449,9 @@ export default function AdminSellersPage() {
                     setEditDocumento(detail.documento ?? "");
                     setEditPlano(detail.plano ?? "");
                     setEditStatus(detail.status);
-                    setEditFornecedorId((detail as any).fornecedor_id ?? "");
+                    setEditFornecedorId(detail.fornecedor_id ?? "");
+                    setEditFornecedorLiberado(Boolean(detail.fornecedor_desvinculo_liberado));
+                    setEditConfirmarTrocaAntesPrazo(false);
                     setModal("edit");
                   }}
                 >
@@ -447,6 +470,48 @@ export default function AdminSellersPage() {
                 </Button>
               </div>
             </div>
+
+            {detail.fornecedor_id && (
+              <div className="p-5 border border-[var(--card-border)] rounded-[var(--radius)] bg-[var(--card)] mb-4 shadow-[var(--shadow-card)]">
+                <h3 className="text-sm font-semibold mb-2 text-[var(--foreground)]">Armazém vinculado</h3>
+                <p className="text-[13px] text-[var(--foreground)]">
+                  {fornecedores.find((f) => f.id === detail.fornecedor_id)?.nome ?? `ID ${detail.fornecedor_id}`}
+                </p>
+                {detail.fornecedor_vinculado_em && (
+                  <p className="text-[11px] text-[var(--muted)] mt-1">
+                    Víncio registrado em {formatDate(detail.fornecedor_vinculado_em.slice(0, 10))}
+                  </p>
+                )}
+                {(() => {
+                  const pode = podeTrocarFornecedorAgora(
+                    detail.fornecedor_vinculado_em ?? null,
+                    Boolean(detail.fornecedor_desvinculo_liberado),
+                    false
+                  );
+                  const min = dataMinimaTrocaFornecedor(detail.fornecedor_vinculado_em ?? null);
+                  if (detail.fornecedor_desvinculo_liberado) {
+                    return (
+                      <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-2 font-medium">
+                        Liberação antecipada ativa — pode trocar ou remover o armazém pelo painel (com registro interno).
+                      </p>
+                    );
+                  }
+                  if (!pode && min) {
+                    return (
+                      <p className="text-[11px] text-[var(--muted)] mt-2">
+                        Regra comercial: mínimo de {MESES_MINIMOS_COM_FORNECEDOR} meses com o mesmo armazém. Troca/desvinculação liberada na plataforma a partir de{" "}
+                        <span className="font-semibold text-[var(--foreground)]">{formatDate(min.toISOString().slice(0, 10))}</span>, salvo infração comprovada (use as opções em Editar).
+                      </p>
+                    );
+                  }
+                  return (
+                    <p className="text-[11px] text-emerald-800 dark:text-emerald-300 mt-2">
+                      Período mínimo já cumprido — pode alterar o armazém vinculado.
+                    </p>
+                  );
+                })()}
+              </div>
+            )}
 
             {inviteLink && (
               <div className="p-4 border border-[var(--info)] rounded-[var(--radius)] bg-[var(--info)]/8 mb-4">
@@ -602,7 +667,32 @@ export default function AdminSellersPage() {
                     <option key={f.id} value={f.id}>{f.nome}</option>
                   ))}
                 </select>
-                <p className="text-[11px] text-[var(--muted)] mt-1">Ex: Djulios — pré-seleciona na calculadora de preço</p>
+                <p className="text-[11px] text-[var(--muted)] mt-1">Ex: Djulios — catálogo e ERP usam este armazém.</p>
+                {(editFornecedorId.trim() || detail?.fornecedor_id) && (
+                  <div className="mt-3 space-y-2 rounded-lg border border-[var(--card-border)] bg-[var(--background)] p-3">
+                    <p className="text-[11px] text-[var(--muted)] leading-relaxed">
+                      Com tudo certo entre as partes, o seller permanece pelo menos <strong>{MESES_MINIMOS_COM_FORNECEDOR} meses</strong> com o mesmo armazém. Para trocar antes (pedidos errados, infração), use as opções abaixo.
+                    </p>
+                    <label className="flex cursor-pointer items-start gap-2 text-[12px] text-[var(--foreground)]">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={editFornecedorLiberado}
+                        onChange={(e) => setEditFornecedorLiberado(e.target.checked)}
+                      />
+                      <span>Liberar troca / desvinculação antes do prazo (infração comprovada)</span>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-2 text-[12px] text-[var(--foreground)]">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={editConfirmarTrocaAntesPrazo}
+                        onChange={(e) => setEditConfirmarTrocaAntesPrazo(e.target.checked)}
+                      />
+                      <span>Confirmo exceção documentada (troca antes do prazo neste salvamento)</span>
+                    </label>
+                  </div>
+                )}
               </div>
               <div className="mb-3">
                 <label className="block text-xs text-[var(--muted)] mb-1">Plano</label>

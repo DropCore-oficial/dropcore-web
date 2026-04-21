@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createClient } from "@supabase/supabase-js";
 import { isPortalTrialAtivo } from "@/lib/portalTrial";
+import { MESES_MINIMOS_COM_FORNECEDOR, dataMinimaTrocaFornecedor, podeTrocarFornecedorAgora } from "@/lib/sellerFornecedorVinculo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,16 +50,43 @@ export async function GET(req: Request) {
 
     let fornecedor_id: string | null = null;
     let fornecedor_nome: string | null = null;
-    try {
-      const { data: s2 } = await supabaseAdmin.from("sellers").select("fornecedor_id").eq("id", seller.id).maybeSingle();
-      fornecedor_id = (s2 as any)?.fornecedor_id ?? null;
+    let fornecedor_vinculado_em: string | null = null;
+    let fornecedor_desvinculo_liberado = false;
+    {
+      const rFull = await supabaseAdmin
+        .from("sellers")
+        .select("fornecedor_id, fornecedor_vinculado_em, fornecedor_desvinculo_liberado")
+        .eq("id", seller.id)
+        .maybeSingle();
+      if (rFull.error && (rFull.error.message?.includes("column") || rFull.error.code === "42703")) {
+        const r2 = await supabaseAdmin.from("sellers").select("fornecedor_id").eq("id", seller.id).maybeSingle();
+        fornecedor_id = (r2.data as { fornecedor_id?: string | null } | null)?.fornecedor_id ?? null;
+      } else {
+        const s2 = rFull.data as {
+          fornecedor_id?: string | null;
+          fornecedor_vinculado_em?: string | null;
+          fornecedor_desvinculo_liberado?: boolean | null;
+        } | null;
+        fornecedor_id = s2?.fornecedor_id ?? null;
+        fornecedor_vinculado_em = s2?.fornecedor_vinculado_em ?? null;
+        fornecedor_desvinculo_liberado = Boolean(s2?.fornecedor_desvinculo_liberado);
+      }
       if (fornecedor_id) {
         const { data: forn } = await supabaseAdmin.from("fornecedores").select("nome").eq("id", fornecedor_id).maybeSingle();
         fornecedor_nome = forn?.nome ?? null;
       }
-    } catch {
-      // coluna fornecedor_id pode não existir (rode seller-fornecedor-id.sql)
     }
+
+    const podeTrocarArmazem = !fornecedor_id || podeTrocarFornecedorAgora(fornecedor_vinculado_em, fornecedor_desvinculo_liberado, false);
+    const dataMinTroca = dataMinimaTrocaFornecedor(fornecedor_vinculado_em);
+    const vinculo_fornecedor = {
+      ativo: Boolean(fornecedor_id),
+      vinculado_em: fornecedor_vinculado_em,
+      pode_trocar_a_partir_de: dataMinTroca?.toISOString() ?? null,
+      meses_minimos: MESES_MINIMOS_COM_FORNECEDOR,
+      dentro_compromisso: Boolean(fornecedor_id) && !podeTrocarArmazem,
+      liberado_antecipado: fornecedor_desvinculo_liberado,
+    };
 
     // Extrato recente (últimas 200 movimentações do ledger — necessário para gráfico de 120 dias)
     const { data: extrato } = await supabaseAdmin
@@ -259,6 +287,7 @@ export async function GET(req: Request) {
         total_mes: totalMes,
       },
       saldo_alerta: saldo_alerta,
+      vinculo_fornecedor: vinculo_fornecedor,
       extrato: extratoEnriquecido,
       depositos: depositos ?? [],
     });

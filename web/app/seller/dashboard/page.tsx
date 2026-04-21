@@ -35,6 +35,15 @@ type SaldoAlerta = {
   pedidos_estimados: number | null;
 };
 
+type VinculoFornecedor = {
+  ativo: boolean;
+  vinculado_em: string | null;
+  pode_trocar_a_partir_de: string | null;
+  meses_minimos: number;
+  dentro_compromisso: boolean;
+  liberado_antecipado: boolean;
+};
+
 type LedgerEntry = {
   id: string;
   tipo: string;
@@ -146,6 +155,7 @@ export default function SellerDashboardPage() {
   const [seller, setSeller] = useState<SellerData | null>(null);
   const [kpis, setKpis] = useState<Kpis | null>(null);
   const [saldoAlerta, setSaldoAlerta] = useState<SaldoAlerta | null>(null);
+  const [vinculoFornecedor, setVinculoFornecedor] = useState<VinculoFornecedor | null>(null);
   const [extrato, setExtrato] = useState<LedgerEntry[]>([]);
   const [depositos, setDepositos] = useState<Deposito[]>([]);
   const [mensalidades, setMensalidades] = useState<Mensalidade[]>([]);
@@ -205,6 +215,7 @@ export default function SellerDashboardPage() {
       setSeller(json.seller);
       setKpis(json.kpis ?? null);
       setSaldoAlerta(json.saldo_alerta ?? null);
+      setVinculoFornecedor(json.vinculo_fornecedor ?? null);
       // Deduplica extrato por id
       const raw = json.extrato ?? [];
       const seen = new Set<string>();
@@ -615,6 +626,38 @@ export default function SellerDashboardPage() {
             </button>
           </div>
         </header>
+
+        {vinculoFornecedor?.ativo && (vinculoFornecedor.dentro_compromisso || vinculoFornecedor.liberado_antecipado) && (
+          <div
+            role="note"
+            className={`rounded-xl border p-4 text-sm shadow-sm ${
+              vinculoFornecedor.liberado_antecipado
+                ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30"
+                : "border-sky-300 bg-sky-50 dark:border-sky-800 dark:bg-sky-950/25"
+            }`}
+          >
+            <p className={`font-semibold ${vinculoFornecedor.liberado_antecipado ? "text-amber-900 dark:text-amber-200" : "text-sky-900 dark:text-sky-200"}`}>
+              {vinculoFornecedor.liberado_antecipado ? "Troca de armazém liberada pela DropCore" : "Compromisso mínimo com o armazém"}
+            </p>
+            <p className="mt-1 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
+              {vinculoFornecedor.liberado_antecipado ? (
+                <>A equipe marcou liberação antecipada (ex.: infração comprovada). Combine a troca ou desvinculação pelo suporte antes de alterar integrações ou catálogo.</>
+              ) : (
+                <>
+                  Pela regra da plataforma, permanecemos pelo menos <strong>{vinculoFornecedor.meses_minimos} meses</strong> com o mesmo armazém quando tudo corre bem.
+                  {vinculoFornecedor.pode_trocar_a_partir_de ? (
+                    <>
+                      {" "}
+                      Troca ou remoção do víncio com a equipe a partir de{" "}
+                      <span className="font-semibold">{formatDate(vinculoFornecedor.pode_trocar_a_partir_de.slice(0, 10))}</span>.
+                    </>
+                  ) : null}{" "}
+                  Em caso de erro grave do fornecedor (pedidos errados, descumprimento), fale com o suporte DropCore.
+                </>
+              )}
+            </p>
+          </div>
+        )}
 
         {saldoAlerta && saldoAlerta.nivel !== "ok" && (
           <div
