@@ -137,6 +137,59 @@ export async function GET(req: Request) {
       fornecedor_nome: e.fornecedor_id ? (fornNomes[e.fornecedor_id] ?? "—") : null,
     }));
 
+    const saldoDisponivel = Math.max(0, Number(seller.saldo_atual ?? 0) - Number(seller.saldo_bloqueado ?? 0));
+
+    /** Custo médio por pedido (BLOQUEIO/VENDA) para estimar quantos pedidos o saldo ainda cobre. */
+    function custoMedioPedidosRecentes(dias: number): { media: number | null; amostra: number } {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - dias);
+      cutoff.setHours(0, 0, 0, 0);
+      const cutoffIso = cutoff.toISOString();
+      const linhas = extratoEnriquecido.filter(
+        (e) =>
+          (e.tipo === "BLOQUEIO" || e.tipo === "VENDA") &&
+          String(e.status).toUpperCase() !== "CANCELADO" &&
+          typeof e.data_evento === "string" &&
+          e.data_evento >= cutoffIso
+      );
+      if (linhas.length === 0) return { media: null, amostra: 0 };
+      const soma = linhas.reduce((s, e) => s + (Number.isFinite(e.valor_total) ? e.valor_total : 0), 0);
+      return { media: soma / linhas.length, amostra: linhas.length };
+    }
+
+    let { media: custoMedioPedido, amostra: amostraPedidos } = custoMedioPedidosRecentes(30);
+    if (custoMedioPedido == null || amostraPedidos === 0) {
+      const fallback = extratoEnriquecido.filter(
+        (e) =>
+          (e.tipo === "BLOQUEIO" || e.tipo === "VENDA") && String(e.status).toUpperCase() !== "CANCELADO"
+      );
+      if (fallback.length > 0) {
+        const soma = fallback.reduce((s, e) => s + (Number.isFinite(e.valor_total) ? e.valor_total : 0), 0);
+        custoMedioPedido = soma / fallback.length;
+        amostraPedidos = fallback.length;
+      }
+    }
+
+    const pedidosEstimados =
+      custoMedioPedido != null && custoMedioPedido > 0 ? Math.floor(saldoDisponivel / custoMedioPedido) : null;
+
+    let saldo_alerta_nivel: "ok" | "atencao" | "critico" = "ok";
+    if (pedidosEstimados != null) {
+      if (pedidosEstimados < 2 || saldoDisponivel <= 0) saldo_alerta_nivel = "critico";
+      else if (pedidosEstimados < 8) saldo_alerta_nivel = "atencao";
+    } else {
+      if (saldoDisponivel < 100) saldo_alerta_nivel = "critico";
+      else if (saldoDisponivel < 400) saldo_alerta_nivel = "atencao";
+    }
+
+    const saldo_alerta = {
+      nivel: saldo_alerta_nivel,
+      saldo_disponivel: saldoDisponivel,
+      custo_medio_pedido: custoMedioPedido != null && custoMedioPedido > 0 ? Math.round(custoMedioPedido * 100) / 100 : null,
+      amostra_pedidos: amostraPedidos,
+      pedidos_estimados: pedidosEstimados,
+    };
+
     // KPIs do mês atual
     const now = new Date();
     const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -145,8 +198,7 @@ export async function GET(req: Request) {
     );
     const totalMes = pedidosMes.reduce((s, e) => s + e.valor_total, 0);
 
-    const saldoDisponivel = Math.max(0, Number(seller.saldo_atual ?? 0) - Number(seller.saldo_bloqueado ?? 0));
-    if (saldoDisponivel < 100) {
+    if (saldo_alerta_nivel === "critico") {
       const desde = new Date();
       desde.setHours(desde.getHours() - 24);
       const { data: jaExiste } = await supabaseAdmin
@@ -158,12 +210,17 @@ export async function GET(req: Request) {
         .limit(1)
         .maybeSingle();
       if (!jaExiste) {
+        const fmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+        const mensagemCritico =
+          pedidosEstimados != null && custoMedioPedido != null && custoMedioPedido > 0
+            ? `Saldo disponível ${fmt.format(saldoDisponivel)} cobre cerca de ${pedidosEstimados} pedido(s) (média ${fmt.format(custoMedioPedido)}). Deposite via PIX para não travar vendas.`
+            : `Saldo disponível ${fmt.format(saldoDisponivel)}. Faça um depósito PIX para continuar vendendo.`;
         await supabaseAdmin.from("notifications").insert({
           user_id,
           tipo: "saldo_baixo",
-          titulo: "Saldo baixo",
-          mensagem: `Seu saldo está em ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(saldoDisponivel)}. Faça um depósito PIX para continuar vendendo.`,
-          metadata: {},
+          titulo: "Saldo crítico para pedidos",
+          mensagem: mensagemCritico,
+          metadata: { pedidos_estimados: pedidosEstimados },
         });
       }
     }
@@ -201,6 +258,7 @@ export async function GET(req: Request) {
         pedidos_mes: pedidosMes.length,
         total_mes: totalMes,
       },
+      saldo_alerta: saldo_alerta,
       extrato: extratoEnriquecido,
       depositos: depositos ?? [],
     });

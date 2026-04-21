@@ -27,6 +27,14 @@ type Kpis = {
   total_mes: number;
 };
 
+type SaldoAlerta = {
+  nivel: "ok" | "atencao" | "critico";
+  saldo_disponivel: number;
+  custo_medio_pedido: number | null;
+  amostra_pedidos: number;
+  pedidos_estimados: number | null;
+};
+
 type LedgerEntry = {
   id: string;
   tipo: string;
@@ -137,6 +145,7 @@ export default function SellerDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [seller, setSeller] = useState<SellerData | null>(null);
   const [kpis, setKpis] = useState<Kpis | null>(null);
+  const [saldoAlerta, setSaldoAlerta] = useState<SaldoAlerta | null>(null);
   const [extrato, setExtrato] = useState<LedgerEntry[]>([]);
   const [depositos, setDepositos] = useState<Deposito[]>([]);
   const [mensalidades, setMensalidades] = useState<Mensalidade[]>([]);
@@ -195,6 +204,7 @@ export default function SellerDashboardPage() {
       }
       setSeller(json.seller);
       setKpis(json.kpis ?? null);
+      setSaldoAlerta(json.saldo_alerta ?? null);
       // Deduplica extrato por id
       const raw = json.extrato ?? [];
       const seen = new Set<string>();
@@ -605,6 +615,47 @@ export default function SellerDashboardPage() {
             </button>
           </div>
         </header>
+
+        {saldoAlerta && saldoAlerta.nivel !== "ok" && (
+          <div
+            role="status"
+            className={`rounded-xl border p-4 shadow-sm ${
+              saldoAlerta.nivel === "critico"
+                ? "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/35"
+                : "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30"
+            }`}
+          >
+            <p className={`text-sm font-semibold ${saldoAlerta.nivel === "critico" ? "text-red-900 dark:text-red-200" : "text-amber-900 dark:text-amber-200"}`}>
+              {saldoAlerta.nivel === "critico" ? "Saldo crítico para novos pedidos" : "Saldo baixo — antecipe um depósito"}
+            </p>
+            <p className="mt-1 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
+              Disponível: <span className="font-semibold tabular-nums">{BRL.format(saldoAlerta.saldo_disponivel)}</span>
+              {saldoAlerta.custo_medio_pedido != null && saldoAlerta.pedidos_estimados != null ? (
+                <>
+                  {" "}
+                  · Com base no custo médio dos seus últimos pedidos no extrato (~{BRL.format(saldoAlerta.custo_medio_pedido)} por pedido
+                  {saldoAlerta.amostra_pedidos > 0 ? `, ${saldoAlerta.amostra_pedidos} lançamentos` : ""}), dá para aproximadamente{" "}
+                  <span className="font-semibold tabular-nums">{saldoAlerta.pedidos_estimados}</span> pedido
+                  {saldoAlerta.pedidos_estimados === 1 ? "" : "s"} sem recarregar.
+                </>
+              ) : (
+                <>
+                  {" "}
+                  · Sem histórico suficiente de pedidos no extrato para estimar; faça um depósito PIX antes de escalar vendas.
+                </>
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={() => setModalDeposito(true)}
+              className={`mt-3 rounded-lg px-4 py-2 text-sm font-semibold text-white ${
+                saldoAlerta.nivel === "critico" ? "bg-red-700 hover:bg-red-800" : "bg-amber-700 hover:bg-amber-800"
+              }`}
+            >
+              Depositar PIX
+            </button>
+          </div>
+        )}
 
         {/* 2. Resumo financeiro */}
         <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
