@@ -65,6 +65,15 @@ export default function SellerMapeamentoSkuPage() {
           </section>
 
           <section className="rounded-xl border border-blue-200/80 dark:border-blue-900/50 bg-blue-50/60 dark:bg-blue-950/20 px-4 py-3 text-xs text-neutral-700 dark:text-neutral-300">
+            <strong className="text-neutral-900 dark:text-neutral-100">Estoque de volta ao ERP.</strong> Depois de cada{" "}
+            <strong>POST /api/erp/pedidos</strong> aceito, o DropCore pode chamar um <strong>webhook HTTPS</strong> seu (em{" "}
+            <Link href="/seller/integracoes-erp" className="font-medium text-emerald-600 dark:text-emerald-400 hover:underline">
+              Integrações ERP
+            </Link>
+            ) com o evento <code className="text-[10px]">dropcore.estoque_atualizado</code> e o estoque já debitado — ideal para n8n ou middleware que atualiza Bling/Tiny.
+          </section>
+
+          <section className="rounded-xl border border-blue-200/80 dark:border-blue-900/50 bg-blue-50/60 dark:bg-blue-950/20 px-4 py-3 text-xs text-neutral-700 dark:text-neutral-300">
             <strong className="text-neutral-900 dark:text-neutral-100">Operação da org.</strong> Quem cadastra fornecedor
             e vincula seller precisa garantir que o seller está no armazém certo; o catálogo já filtra pelo fornecedor
             conectado ao seller.
