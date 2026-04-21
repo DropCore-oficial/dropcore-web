@@ -204,7 +204,14 @@ export default function SellerIntegracoesErpPage() {
       <div className="w-full max-w-2xl mx-auto dropcore-px-wide py-6 lg:py-8">
         <SellerPageHeader
           title="Integração ERP"
-          subtitle="Conecte seu ERP ao DropCore para enviar pedidos automaticamente. Use o mesmo SKU do catálogo."
+          subtitle={
+            <>
+              Conecte seu ERP ao DropCore para enviar pedidos automaticamente (fluxo <strong>marketplace → ERP → DropCore</strong>).
+              <span className="block mt-1.5 text-neutral-600 dark:text-neutral-300">
+                Cada linha de pedido na API deve referenciar o <strong>mesmo SKU</strong> exibido em <strong>Catálogo</strong> no painel do seller — sem esse alinhamento, estoque e saldo não batem.
+              </span>
+            </>
+          }
         />
 
         {loading ? (

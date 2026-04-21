@@ -1,10 +1,11 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 type SellerPageHeaderProps = {
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   showBack?: boolean;
   backHref?: string;
   right?: React.ReactNode;

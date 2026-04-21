@@ -428,7 +428,14 @@ return (
 
         <SellerPageHeader
           title="Catálogo"
-          subtitle="Produtos disponíveis para vender nos seus marketplaces"
+          subtitle={
+            <>
+              Produtos disponíveis para vender nos seus marketplaces.
+              <span className="block mt-1.5 text-neutral-600 dark:text-neutral-300">
+                Na integração <strong>ERP → DropCore</strong>, os pedidos enviados pela API devem usar o <strong>mesmo SKU</strong> (e referência de produto) que você vê aqui — é a ponte entre anúncio no marketplace, cadastro no ERP e o DropCore.
+              </span>
+            </>
+          }
         />
 
         {/* Busca */}
