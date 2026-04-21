@@ -8,6 +8,11 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { executeBlockSale } from "@/lib/blockSale";
 import { isInadimplente } from "@/lib/inadimplencia";
+import {
+  assertSellerPodeVenderSkus,
+  isSellerPlanoPro,
+  MSG_STARTER_PEDIDO_SEM_SKU,
+} from "@/lib/sellerSkuHabilitado";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -156,6 +161,62 @@ export async function POST(req: Request) {
         { error: "Fornecedor inadimplente. Regularize as mensalidades pendentes antes de criar pedidos.", code: "FORNECEDOR_INADIMPLENTE" },
         { status: 403 }
       );
+    }
+
+    const { data: sellerRow, error: sellerLookupErr } = await supabaseAdmin
+      .from("sellers")
+      .select("id, plano, fornecedor_id")
+      .eq("id", seller_id)
+      .eq("org_id", org_id)
+      .maybeSingle();
+    if (sellerLookupErr) {
+      console.error("[pedidos POST] seller:", sellerLookupErr.message);
+      return NextResponse.json({ error: "Erro ao verificar seller." }, { status: 500 });
+    }
+    if (!sellerRow) {
+      return NextResponse.json({ error: "Seller não encontrado nesta organização." }, { status: 404 });
+    }
+    if (String(sellerRow.fornecedor_id ?? "") !== String(fornecedor_id)) {
+      return NextResponse.json(
+        { error: "O fornecedor_id do pedido não coincide com o fornecedor ligado a este seller." },
+        { status: 400 }
+      );
+    }
+
+    const sellerPlano = (sellerRow as { plano?: string | null }).plano;
+    if (!isSellerPlanoPro(sellerPlano)) {
+      if (!sku_id) {
+        return NextResponse.json(
+          { error: MSG_STARTER_PEDIDO_SEM_SKU, code: "STARTER_SKU_OBRIGATORIO" },
+          { status: 400 }
+        );
+      }
+      const { data: skuCheck, error: skuErr } = await supabaseAdmin
+        .from("skus")
+        .select("id, sku, org_id, fornecedor_id, status")
+        .eq("id", sku_id)
+        .maybeSingle();
+      if (skuErr) {
+        console.error("[pedidos POST] sku:", skuErr.message);
+        return NextResponse.json({ error: "Erro ao validar SKU." }, { status: 500 });
+      }
+      if (!skuCheck || String(skuCheck.org_id) !== org_id || String(skuCheck.fornecedor_id ?? "") !== String(fornecedor_id)) {
+        return NextResponse.json({ error: "SKU inválido para este pedido (org/fornecedor)." }, { status: 400 });
+      }
+      if (String(skuCheck.status ?? "").toLowerCase() !== "ativo") {
+        return NextResponse.json({ error: "SKU inativo — não pode ser usado no pedido." }, { status: 400 });
+      }
+      const vendaOk = await assertSellerPodeVenderSkus(supabaseAdmin, {
+        sellerId: seller_id,
+        sellerPlano,
+        skus: [{ id: skuCheck.id, sku: String(skuCheck.sku ?? "") }],
+      });
+      if (!vendaOk.ok) {
+        return NextResponse.json(
+          { error: vendaOk.error, code: "SKU_NAO_HABILITADO_PLANO" },
+          { status: 403 }
+        );
+      }
     }
 
     // 1) Criar pedido (status enviado; ledger_id preenchido após block-sale)

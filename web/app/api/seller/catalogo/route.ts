@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createClient } from "@supabase/supabase-js";
+import { countHabilitadosQueContamNoLimite, isSellerPlanoPro } from "@/lib/sellerSkuHabilitado";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
 
     const { data: seller, error: sellerErr } = await supabaseAdmin
       .from("sellers")
-      .select("id, org_id, fornecedor_id")
+      .select("id, org_id, fornecedor_id, plano")
       .eq("user_id", userData.user.id)
       .maybeSingle();
     if (sellerErr || !seller) return NextResponse.json({ error: "Seller não encontrado." }, { status: 404 });
@@ -53,6 +54,26 @@ export async function GET(req: Request) {
     const { data, error } = await query;
     if (error) throw error;
 
+    let habilitadoSet = new Set<string>();
+    let habilitados_count = 0;
+    let habilitados_tabela_ok = true;
+    const { data: habRows, error: habErr } = await supabaseAdmin
+      .from("seller_skus_habilitados")
+      .select("sku_id")
+      .eq("seller_id", (seller as { id: string }).id);
+    if (habErr) {
+      const m = String(habErr.message ?? "");
+      if (m.includes("does not exist") || habErr.code === "42P01") {
+        habilitados_tabela_ok = false;
+      } else {
+        throw habErr;
+      }
+    } else {
+      habilitadoSet = new Set((habRows ?? []).map((r: { sku_id: string }) => r.sku_id));
+      const cnt = await countHabilitadosQueContamNoLimite(supabaseAdmin, (seller as { id: string }).id);
+      habilitados_count = cnt.count;
+    }
+
     const parseNum = (v: unknown): number => {
       if (v == null || v === "") return 0;
       if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -61,17 +82,27 @@ export async function GET(req: Request) {
     };
 
     // custo_dropcore já inclui 15% DropCore — é o custo total que o seller paga
+    const sellerPlano = (seller as { plano?: string | null }).plano ?? null;
     const items = (data ?? []).map((row) => {
       const cd = parseNum(row.custo_dropcore);
       const custoTotal = cd > 0 ? cd : null;
       const { custo_dropcore: _, ...rest } = row;
-      return { ...rest, custo_total: custoTotal };
+      const id = String((row as { id?: string }).id ?? "");
+      return {
+        ...rest,
+        custo_total: custoTotal,
+        habilitado_venda: habilitadoSet.has(id),
+      };
     });
 
     return NextResponse.json({
       ok: true,
       items,
       fornecedor_id: fornecedorId,
+      seller_plano: sellerPlano,
+      habilitados_count,
+      habilitados_max: isSellerPlanoPro(sellerPlano) ? null : 15,
+      habilitados_tabela_ok,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro inesperado" }, { status: 500 });

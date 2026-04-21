@@ -11,7 +11,9 @@ export function isPro(org: { plano?: string | null } | null): boolean {
 }
 
 const PRODUTO_COR_MAX_STARTER = 15;
-const PREFIXO_OCULTO = "DJU999";
+
+/** SKUs com este prefixo (ex.: linha DJU999) não entram no limite de pares produto+cor da org Starter. */
+export const PREFIXO_SKU_SISTEMA = "DJU999";
 
 /**
  * Retorna quantos pares (produto+cor) a org pode ter. Pro = ilimitado (retorna null).
@@ -56,7 +58,7 @@ export async function assertPodeAtivarMaisSkus(
     .select("nome_produto, cor")
     .eq("org_id", orgId)
     .ilike("status", "ativo")
-    .not("sku", "ilike", `${PREFIXO_OCULTO}%`);
+    .not("sku", "ilike", `${PREFIXO_SKU_SISTEMA}%`);
 
   if (error) {
     return { ok: false, currentCount: 0, limit, error: String(error) };

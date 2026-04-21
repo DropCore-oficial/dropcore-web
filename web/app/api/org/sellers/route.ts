@@ -41,20 +41,22 @@ export async function POST(req: Request) {
     const { org_id } = await requireAdmin(req);
     const body = await req.json();
     const nome = String(body?.nome ?? "").trim();
-    const documento = body?.documento != null ? String(body.documento).trim() : null;
-    const plano = body?.plano != null ? String(body.plano).trim() : null;
+    const documentoRaw = body?.documento != null ? String(body.documento).trim() : "";
+    const documento = documentoRaw === "" ? null : documentoRaw;
+    const planoRaw = body?.plano != null ? String(body.plano).trim() : "";
+    const planoLc = planoRaw.toLowerCase();
+    const plano = planoLc === "pro" ? "Pro" : planoLc === "starter" ? "Starter" : null;
     const status = ["ativo", "inativo", "bloqueado"].includes(String(body?.status ?? "").toLowerCase())
       ? String(body.status).toLowerCase()
       : "ativo";
 
     if (!nome) return NextResponse.json({ error: "Nome é obrigatório." }, { status: 400 });
-    if (!documento) return NextResponse.json({ error: "CNPJ ou CPF é obrigatório." }, { status: 400 });
 
     const insertData: Record<string, unknown> = {
       org_id,
       nome,
-      documento: documento.trim(),
-      plano: plano || null,
+      documento,
+      plano,
       status,
       saldo_atual: 0,
       saldo_bloqueado: 0,

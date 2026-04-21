@@ -17,6 +17,7 @@ import { isInadimplente } from "@/lib/inadimplencia";
 import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
 import { resolveLedgerIdForPedido } from "@/lib/resolveLedgerForPedido";
 import { fireErpEstoqueWebhook } from "@/lib/erpEstoqueOutbound";
+import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,6 +39,7 @@ type SellerForPedido = {
   id: string;
   org_id: string;
   fornecedor_id: string | null;
+  plano?: string | null;
   erp_estoque_webhook_url?: string | null;
   erp_estoque_webhook_secret?: string | null;
 };
@@ -266,7 +268,7 @@ export async function POST(req: Request) {
     {
       const r = await supabaseAdmin
         .from("sellers")
-        .select("id, org_id, fornecedor_id, erp_estoque_webhook_url, erp_estoque_webhook_secret")
+        .select("id, org_id, fornecedor_id, plano, erp_estoque_webhook_url, erp_estoque_webhook_secret")
         .eq("erp_api_key_hash", keyHash)
         .maybeSingle();
       if (
@@ -276,7 +278,7 @@ export async function POST(req: Request) {
       ) {
         const r2 = await supabaseAdmin
           .from("sellers")
-          .select("id, org_id, fornecedor_id")
+          .select("id, org_id, fornecedor_id, plano")
           .eq("erp_api_key_hash", keyHash)
           .maybeSingle();
         if (r2.error) {
@@ -383,6 +385,18 @@ export async function POST(req: Request) {
     const valor_total = valor_fornecedor + valor_dropcore;
     if (valor_total <= 0) {
       return NextResponse.json({ error: "Valor total do pedido deve ser positivo." }, { status: 400 });
+    }
+
+    const vendaSkuCheck = await assertSellerPodeVenderSkus(supabaseAdmin, {
+      sellerId: seller.id,
+      sellerPlano: sellerRow.plano,
+      skus: skuRows.map((r) => ({ id: r.id, sku: r.sku })),
+    });
+    if (!vendaSkuCheck.ok) {
+      return NextResponse.json(
+        { error: vendaSkuCheck.error, code: "SKU_NAO_HABILITADO_PLANO" },
+        { status: 403 }
+      );
     }
 
     // Limite plano Starter

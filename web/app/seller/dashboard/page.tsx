@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
@@ -8,6 +9,7 @@ import { NotificationToasts } from "@/components/NotificationToasts";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { IconTipoExtrato, IconDevolucao, IconArrowRight, IconPlus, IconClipboard, IconDeposito, IconChevronDown, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
+import { planoSellerDefinido } from "@/lib/sellerDocumento";
 
 type SellerData = {
   id: string;
@@ -88,6 +90,28 @@ function formatDateTime(s: string) {
   });
 }
 
+/** Mesma regra do fornecedor: em trial ativo → data fim do trial; senão → vencimento da mensalidade. */
+function subtituloBannerMensalidade(
+  m: Mensalidade,
+  trialAtivo: boolean,
+  trialValidoAte: string | null
+): string {
+  if (m.vencido && !trialAtivo) {
+    return "Em atraso — regularize para manter o acesso";
+  }
+  if (trialAtivo && trialValidoAte) {
+    const iso = trialValidoAte.length >= 10 ? `${trialValidoAte.slice(0, 10)}T12:00:00` : trialValidoAte;
+    const d = new Date(iso);
+    if (!Number.isNaN(d.getTime())) {
+      return `Teste grátis até ${d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}`;
+    }
+  }
+  if (m.vencimento_em) {
+    return `Vence em ${new Date(m.vencimento_em + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}`;
+  }
+  return "Pagamento em aberto";
+}
+
 const tipoLabel: Record<string, { label: string }> = {
   CREDITO:   { label: "Depósito recebido" },
   BLOQUEIO:  { label: "Pedido enviado" },
@@ -159,6 +183,8 @@ export default function SellerDashboardPage() {
   const [extrato, setExtrato] = useState<LedgerEntry[]>([]);
   const [depositos, setDepositos] = useState<Deposito[]>([]);
   const [mensalidades, setMensalidades] = useState<Mensalidade[]>([]);
+  const [trialAtivo, setTrialAtivo] = useState(false);
+  const [trialValidoAte, setTrialValidoAte] = useState<string | null>(null);
   const [tab, setTab] = useState<"extrato" | "depositos">(tabParam === "depositos" ? "depositos" : "extrato");
   const [filtroStatus, setFiltroStatus] = useState("");
   const [modalDeposito, setModalDeposito] = useState(false);
@@ -188,6 +214,7 @@ export default function SellerDashboardPage() {
   const [chartTooltipHover, setChartTooltipHover] = useState<{ dia: string; valor: number; count: number } | null>(null);
 
   const temMensalidadeVencida = mensalidades.some((m) => m.vencido);
+  const cobrancaMensalidadeAtiva = !trialAtivo;
 
   async function load() {
     setLoading(true);
@@ -224,8 +251,12 @@ export default function SellerDashboardPage() {
       if (mensRes.ok) {
         const mensJson = await mensRes.json();
         setMensalidades(mensJson.items ?? []);
+        setTrialAtivo(!!mensJson.trial_ativo);
+        setTrialValidoAte(mensJson.trial_valido_ate ?? null);
       } else {
         setMensalidades([]);
+        setTrialAtivo(false);
+        setTrialValidoAte(null);
       }
       if (erpRes.ok) {
         const erpJson = await erpRes.json();
@@ -240,20 +271,10 @@ export default function SellerDashboardPage() {
     }
   }
 
-  const pagarMensRef = useRef(false);
-
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    const pagar = searchParams.get("pagar");
-    if (pagar === "1" && mensalidades.length > 0 && !loading && !pagarMensRef.current) {
-      pagarMensRef.current = true;
-      abrirPixMensalidade(mensalidades[0]);
-    }
-  }, [searchParams.get("pagar"), mensalidades.length, loading]);
 
   useEffect(() => {
     if (!pixExpiraEm || !pixQrCode) return;
@@ -267,11 +288,10 @@ export default function SellerDashboardPage() {
   }, [pixExpiraEm, pixQrCode]);
 
   useEffect(() => {
-    if (temMensalidadeVencida) {
-      const id = setInterval(load, 10000);
-      return () => clearInterval(id);
-    }
-  }, [temMensalidadeVencida]);
+    if (!temMensalidadeVencida || !cobrancaMensalidadeAtiva) return;
+    const id = setInterval(load, 10000);
+    return () => clearInterval(id);
+  }, [temMensalidadeVencida, cobrancaMensalidadeAtiva]);
 
   useEffect(() => {
     if (tabParam === "depositos" || destaqueId) {
@@ -290,12 +310,18 @@ export default function SellerDashboardPage() {
   const pagarParam = searchParams.get("pagar");
   const pagarAbertoRef = useRef(false);
   useEffect(() => {
-    if (pagarParam === "1" && mensalidades.length > 0 && !loading && !pagarAbertoRef.current) {
+    if (
+      pagarParam === "1" &&
+      mensalidades.length > 0 &&
+      !loading &&
+      !pagarAbertoRef.current &&
+      cobrancaMensalidadeAtiva
+    ) {
       pagarAbertoRef.current = true;
       abrirPixMensalidade(mensalidades[0]);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagarParam, mensalidades.length, loading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagarParam, mensalidades.length, loading, cobrancaMensalidadeAtiva]);
 
   useEffect(() => {
     if (destaqueId && depositos.length > 0 && !loading) {
@@ -419,6 +445,7 @@ export default function SellerDashboardPage() {
   }
 
   const isPro = seller?.plano?.toLowerCase() === "pro";
+  const planoOk = planoSellerDefinido(seller?.plano);
 
   const extratoFiltrado = (() => {
     let list = extrato;
@@ -607,9 +634,24 @@ export default function SellerDashboardPage() {
               <p className="text-xs text-neutral-500 dark:text-neutral-400">Olá,</p>
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 truncate">{seller?.nome}</h1>
-                <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
-                  isPro ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
-                }`}>{isPro ? "PRO" : "STARTER"}</span>
+                {!planoOk ? (
+                  <Link
+                    href="/seller/cadastro"
+                    className="rounded-md px-2 py-0.5 text-[10px] font-semibold bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-200 hover:opacity-90"
+                  >
+                    Definir plano
+                  </Link>
+                ) : (
+                  <span
+                    className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
+                      isPro
+                        ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300"
+                        : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                    }`}
+                  >
+                    {isPro ? "PRO" : "STARTER"}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -767,14 +809,27 @@ export default function SellerDashboardPage() {
               </div>
             )}
             {mensalidades.length > 0 && (
-              <div className="mt-3 pt-3 border-t flex items-center justify-between rounded-lg px-3 py-2 bg-[var(--card)] border border-[var(--card-border)]">
-                <div>
+              <div className="mt-3 pt-3 border-t flex flex-col gap-2 rounded-lg px-3 py-2.5 bg-neutral-100/60 dark:bg-neutral-800/40 border border-[var(--card-border)] sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 space-y-1">
                   <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">Mensalidade pendente</p>
-                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">{mensalidades[0].vencido ? "Vencida" : mensalidades[0].vencimento_em ? `Vence ${new Date(mensalidades[0].vencimento_em + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}` : ""}</p>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                    {subtituloBannerMensalidade(mensalidades[0], trialAtivo, trialValidoAte)}
+                  </p>
+                  {!cobrancaMensalidadeAtiva && (
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-500 pt-0.5 leading-relaxed">
+                      Sem cobrança enquanto o teste grátis estiver ativo.
+                    </p>
+                  )}
                 </div>
-                <button onClick={() => abrirPixMensalidade(mensalidades[0])} className="rounded-lg bg-neutral-900 dark:bg-neutral-100 hover:opacity-90 text-white dark:text-neutral-900 px-3 py-1.5 text-xs font-medium">
-                  Pagar {BRL.format(mensalidades[0].valor)}
-                </button>
+                {cobrancaMensalidadeAtiva ? (
+                  <button
+                    type="button"
+                    onClick={() => abrirPixMensalidade(mensalidades[0])}
+                    className="shrink-0 rounded-lg bg-neutral-900 dark:bg-neutral-100 hover:opacity-90 text-white dark:text-neutral-900 px-3 py-1.5 text-xs font-medium"
+                  >
+                    Pagar {BRL.format(mensalidades[0].valor)}
+                  </button>
+                ) : null}
               </div>
             )}
           </div>

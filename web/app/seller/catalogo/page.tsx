@@ -9,6 +9,7 @@ import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
 import { toTitleCase } from "@/lib/formatText";
 import { getColunasTabelaMedidas, type TipoProduto } from "@/lib/tipoProduto";
 import { skuProntoParaVender, skuReadinessLabelsFalha } from "@/lib/sellerSkuReadiness";
+import { skuContaLimiteHabilitacaoSeller } from "@/lib/sellerSkuHabilitado";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -32,6 +33,7 @@ type ItemSKU = {
   link_fotos: string | null;
   descricao: string | null;
   ncm: string | null;
+  habilitado_venda?: boolean;
 };
 
 function str(v: unknown): string {
@@ -88,6 +90,7 @@ function normalizarItems(raw: unknown): ItemSKU[] {
         link_fotos: row?.link_fotos != null ? str(row.link_fotos) : null,
         descricao: row?.descricao != null ? str(row.descricao) : null,
         ncm: row?.ncm != null ? str(row.ncm) : null,
+        habilitado_venda: row?.habilitado_venda === true,
       } as ItemSKU;
     } catch { return null; }
   }).filter(Boolean) as ItemSKU[];
@@ -260,7 +263,15 @@ function ProductInfoBlock({
   );
 }
 
-function ItemCard({ item, sóVariante = false }: { item: ItemSKU; sóVariante?: boolean }) {
+type HabilitarRowProps = {
+  starterComLimite: boolean;
+  isento: boolean;
+  habilitado: boolean;
+  loading: boolean;
+  onToggle: () => void;
+};
+
+function ItemCard({ item, sóVariante = false, habilitarRow }: { item: ItemSKU; sóVariante?: boolean; habilitarRow?: HabilitarRowProps }) {
   const custo = item.custo_total;
   const imgSrc = urlImagem(item.imagem_url);
   const dimensoes = [
@@ -341,6 +352,31 @@ function ItemCard({ item, sóVariante = false }: { item: ItemSKU; sóVariante?: 
           <BadgeStatus status={str(item.status)} />
           <BadgeEstoque atual={item.estoque_atual} minimo={item.estoque_minimo} />
           <BadgeReadiness item={item} />
+          {habilitarRow?.starterComLimite && (
+            <div className="mt-1 w-full max-w-[14rem] text-right space-y-1">
+              {habilitarRow.isento ? (
+                <p className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-snug">
+                  SKU de sistema: dispensa lista de habilitados no Starter.
+                </p>
+              ) : (
+                <>
+                  <label className="flex items-center justify-end gap-2 cursor-pointer select-none touch-manipulation">
+                    <span className="text-[11px] font-medium text-neutral-700 dark:text-neutral-300">Vender (Starter)</span>
+                    <input
+                      type="checkbox"
+                      checked={habilitarRow.habilitado}
+                      disabled={habilitarRow.loading}
+                      onChange={() => { void habilitarRow.onToggle(); }}
+                      className="h-4 w-4 rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500 disabled:opacity-50"
+                    />
+                  </label>
+                  {habilitarRow.loading && (
+                    <span className="text-[10px] text-neutral-500">A gravar…</span>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -360,6 +396,54 @@ export default function SellerCatalogoPage() {
   const [loadingTabela, setLoadingTabela] = useState(false);
   const [descricaoExpandidaPorGrupo, setDescricaoExpandidaPorGrupo] = useState<Set<string>>(new Set());
   const [filtroReadiness, setFiltroReadiness] = useState<"todos" | "pendentes">("todos");
+  const [catalogMeta, setCatalogMeta] = useState<{
+    plano: string | null;
+    habilitados_count: number;
+    habilitados_max: number | null;
+    tabela_ok: boolean;
+  }>({ plano: null, habilitados_count: 0, habilitados_max: null, tabela_ok: true });
+  const [toggleLoadingId, setToggleLoadingId] = useState<string | null>(null);
+
+  const planoSellerPro = String(catalogMeta.plano ?? "").toLowerCase() === "pro";
+  const starterComLimiteHabilitados = !planoSellerPro && catalogMeta.tabela_ok;
+
+  const setSkuHabilitado = useCallback(async (item: ItemSKU, ativar: boolean) => {
+    if (!item.id) return;
+    setToggleLoadingId(item.id);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const base = "/api/seller/catalogo/habilitados";
+      const res = ativar
+        ? await fetch(base, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ sku_id: item.id }),
+          })
+        : await fetch(`${base}?sku_id=${encodeURIComponent(item.id)}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Erro ao atualizar habilitação");
+      setItems((prev) =>
+        prev.map((row) => (row.id === item.id ? { ...row, habilitado_venda: ativar } : row))
+      );
+      if (typeof json.habilitados_count === "number") {
+        setCatalogMeta((m) => ({ ...m, habilitados_count: json.habilitados_count }));
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Erro ao atualizar habilitação");
+    } finally {
+      setToggleLoadingId(null);
+    }
+  }, [router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -376,6 +460,12 @@ export default function SellerCatalogoPage() {
         if (cancelled) return;
         if (!res.ok) throw new Error(json.error || "Erro ao buscar catálogo");
         setItems(normalizarItems(json.items));
+        setCatalogMeta({
+          plano: json.seller_plano ?? null,
+          habilitados_count: typeof json.habilitados_count === "number" ? json.habilitados_count : 0,
+          habilitados_max: json.habilitados_max === null || json.habilitados_max === undefined ? null : Number(json.habilitados_max),
+          tabela_ok: json.habilitados_tabela_ok !== false,
+        });
       } catch (err: unknown) {
         if (!cancelled) { setError(err instanceof Error ? err.message : "Erro inesperado"); setItems([]); }
       } finally {
@@ -487,6 +577,29 @@ return (
           </Link>{" "}
           (como ligar anúncio no marketplace ao cadastro do ERP e ao DropCore).
         </p>
+
+        {!loading && !catalogMeta.tabela_ok && (
+          <div className="rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/35 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+            A lista de SKUs habilitados para venda ainda não está disponível na base (migração pendente). Executa o script{" "}
+            <code className="text-xs bg-amber-100/80 dark:bg-amber-900/50 px-1 rounded">web/scripts/create-seller-skus-habilitados.sql</code>{" "}
+            no Supabase para ativar o limite de 15 no Starter e a integração ERP alinhada ao catálogo.
+          </div>
+        )}
+
+        {!loading && catalogMeta.tabela_ok && !planoSellerPro && (
+          <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50/90 dark:bg-neutral-800/40 px-4 py-3 text-sm text-neutral-800 dark:text-neutral-200">
+            <strong>Plano Starter:</strong> escolhe até 15 SKUs para habilitar para venda (API ERP e pedidos). SKUs com prefixo de sistema não contam nesse limite.
+            {catalogMeta.habilitados_max != null && (
+              <span className="block mt-1 text-neutral-600 dark:text-neutral-400">
+                Habilitados agora:{" "}
+                <strong className="text-neutral-900 dark:text-neutral-100">
+                  {catalogMeta.habilitados_count}/{catalogMeta.habilitados_max}
+                </strong>
+                . Marca os SKUs que queres vender; a API ERP recusa itens fora desta lista. Para limites maiores, faz upgrade para o plano Pro.
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Busca */}
         <div className="flex flex-col min-[420px]:flex-row gap-2 min-w-0">
@@ -645,9 +758,40 @@ return (
                       />
                     )}
                     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                      {grupo.pai && <ItemCard item={grupo.pai} sóVariante />}
+                      {grupo.pai && (
+                        <ItemCard
+                          item={grupo.pai}
+                          sóVariante
+                          habilitarRow={
+                            starterComLimiteHabilitados
+                              ? {
+                                  starterComLimite: true,
+                                  isento: !skuContaLimiteHabilitacaoSeller(grupo.pai.sku),
+                                  habilitado: grupo.pai.habilitado_venda === true,
+                                  loading: toggleLoadingId === grupo.pai.id,
+                                  onToggle: () => setSkuHabilitado(grupo.pai!, !(grupo.pai!.habilitado_venda === true)),
+                                }
+                              : undefined
+                          }
+                        />
+                      )}
                       {grupo.filhos.map((item) => (
-                        <ItemCard key={item.id} item={item} sóVariante />
+                        <ItemCard
+                          key={item.id}
+                          item={item}
+                          sóVariante
+                          habilitarRow={
+                            starterComLimiteHabilitados
+                              ? {
+                                  starterComLimite: true,
+                                  isento: !skuContaLimiteHabilitacaoSeller(item.sku),
+                                  habilitado: item.habilitado_venda === true,
+                                  loading: toggleLoadingId === item.id,
+                                  onToggle: () => setSkuHabilitado(item, !(item.habilitado_venda === true)),
+                                }
+                              : undefined
+                          }
+                        />
                       ))}
                     </div>
                   </div>

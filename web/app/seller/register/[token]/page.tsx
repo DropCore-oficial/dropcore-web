@@ -12,6 +12,7 @@ export default function SellerRegisterPage() {
 
   const [loading, setLoading] = useState(true);
   const [sellerNome, setSellerNome] = useState<string | null>(null);
+  const [cadastroPendenteConvite, setCadastroPendenteConvite] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
@@ -26,8 +27,10 @@ export default function SellerRegisterPage() {
     fetch(`/api/seller/invite/${token}`)
       .then((r) => r.json())
       .then((j) => {
-        if (j?.ok) setSellerNome(j.seller_nome);
-        else setTokenError(j?.error ?? "Convite inválido.");
+        if (j?.ok) {
+          setSellerNome(j.seller_nome);
+          setCadastroPendenteConvite(!!j.cadastro_pendente);
+        } else setTokenError(j?.error ?? "Convite inválido.");
       })
       .catch(() => setTokenError("Erro ao validar convite."))
       .finally(() => setLoading(false));
@@ -66,6 +69,18 @@ export default function SellerRegisterPage() {
       if (loginErr) {
         setSucesso(true);
         return;
+      }
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (session?.access_token) {
+        const r = await fetch("/api/seller/cadastro", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: "no-store",
+        });
+        const cj = await r.json();
+        if (r.ok && cj.cadastro_pendente) {
+          router.replace("/seller/cadastro");
+          return;
+        }
       }
       router.replace("/seller/dashboard");
     } catch (e: unknown) {
@@ -126,6 +141,11 @@ export default function SellerRegisterPage() {
           <div className="mb-5 rounded-xl bg-[var(--background)] border border-[var(--card-border)] px-4 py-3">
             <p className="text-xs text-[var(--muted)]">Convite para</p>
             <p className="text-[var(--foreground)] font-semibold mt-0.5">{sellerNome}</p>
+            {cadastroPendenteConvite && (
+              <p className="text-[11px] text-[var(--muted)] mt-2 leading-relaxed">
+                Depois de criar a senha, você completa CNPJ ou CPF, contato, endereço e escolhe o plano (Starter ou Pro) na tela de Cadastro — com explicação para comparar.
+              </p>
+            )}
           </div>
 
           <div className="space-y-4">

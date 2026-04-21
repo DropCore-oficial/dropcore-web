@@ -35,6 +35,7 @@ export function MensalidadeBloqueioGate({
   /** Registo por convite é público (sem sessão), como o login. */
   const isRegisterPage = pathname.startsWith(`/${context}/register`);
   const isSellerCalculadora = context === "seller" && pathname.startsWith("/seller/calculadora");
+  const isSellerCadastro = context === "seller" && pathname.startsWith("/seller/cadastro");
   const [loading, setLoading] = useState(true);
   const [mensalidades, setMensalidades] = useState<Mensalidade[]>([]);
   const [modalPix, setModalPix] = useState<Mensalidade | null>(null);
@@ -98,13 +99,13 @@ export function MensalidadeBloqueioGate({
   };
 
   useEffect(() => {
-    // Login, registo por convite e calculadora do seller não passam pelo gate de mensalidade
-    if (isLoginPage || isRegisterPage || isSellerCalculadora) {
+    // Login, registo por convite, cadastro comercial e calculadora do seller não passam pelo gate de mensalidade
+    if (isLoginPage || isRegisterPage || isSellerCalculadora || isSellerCadastro) {
       setLoading(false);
       return;
     }
     load();
-  }, [apiMens, isLoginPage, isRegisterPage, isSellerCalculadora]);
+  }, [apiMens, isLoginPage, isRegisterPage, isSellerCalculadora, isSellerCadastro]);
 
   useEffect(() => {
     const vencida = mensalidades.some((m) => m.vencido);
@@ -163,7 +164,7 @@ export function MensalidadeBloqueioGate({
   const primeiraVencida = mensalidades.find((m) => m.vencido) ?? mensalidades[0];
   const bloquearPorMensalidade = temMensalidadeVencida && !trialAtivo;
 
-  if (isLoginPage || isRegisterPage || isSellerCalculadora) return <>{children}</>;
+  if (isLoginPage || isRegisterPage || isSellerCalculadora || isSellerCadastro) return <>{children}</>;
 
   if (loading) {
     return (

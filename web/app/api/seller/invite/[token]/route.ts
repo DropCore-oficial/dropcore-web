@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createClient } from "@supabase/supabase-js";
 import { addPortalTrialIso } from "@/lib/portalTrial";
+import { sellerCadastroPendente } from "@/lib/sellerDocumento";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,14 +37,20 @@ export async function GET(_req: Request, { params }: Params) {
 
     const { data: seller } = await supabaseAdmin
       .from("sellers")
-      .select("nome, documento")
+      .select("nome, documento, plano")
       .eq("id", invite.seller_id)
       .maybeSingle();
+
+    const cadastro_pendente = sellerCadastroPendente(
+      seller?.documento ?? null,
+      (seller as { plano?: string | null } | null)?.plano ?? null
+    );
 
     return NextResponse.json({
       ok: true,
       seller_nome: seller?.nome ?? "—",
       expira_em: invite.expira_em,
+      cadastro_pendente,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";

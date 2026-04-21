@@ -10,6 +10,11 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { executeBlockSale } from "@/lib/blockSale";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  assertSellerPodeVenderSkus,
+  isSellerPlanoPro,
+  MSG_STARTER_PEDIDO_SEM_SKU,
+} from "@/lib/sellerSkuHabilitado";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,12 +49,59 @@ export async function POST(req: Request) {
     if (pedido_id) {
       const { data: pedido, error: pedidoErr } = await supabaseAdmin
         .from("pedidos")
-        .select("id")
+        .select("id, seller_id, sku_id")
         .eq("id", pedido_id)
         .eq("org_id", org_id)
         .maybeSingle();
       if (pedidoErr || !pedido) {
         return NextResponse.json({ error: "pedido_id inválido ou não pertence à organização." }, { status: 400 });
+      }
+
+      const pedidoSellerId = (pedido as { seller_id?: string }).seller_id;
+      if (String(pedidoSellerId ?? "") !== String(seller_id ?? "")) {
+        return NextResponse.json({ error: "pedido_id não corresponde ao seller_id informado." }, { status: 400 });
+      }
+
+      const { data: sellerPlanoRow } = await supabaseAdmin
+        .from("sellers")
+        .select("plano")
+        .eq("id", seller_id)
+        .eq("org_id", org_id)
+        .maybeSingle();
+      const sellerPlano = sellerPlanoRow?.plano ?? null;
+      if (!isSellerPlanoPro(sellerPlano)) {
+        const { data: itens } = await supabaseAdmin
+          .from("pedido_itens")
+          .select("sku_id")
+          .eq("pedido_id", pedido_id);
+        const fromItens = [...new Set((itens ?? []).map((r: { sku_id: string | null }) => r.sku_id).filter(Boolean))] as string[];
+        const headSku = (pedido as { sku_id?: string | null }).sku_id;
+        const skuIds = fromItens.length > 0 ? fromItens : headSku ? [String(headSku)] : [];
+        if (skuIds.length === 0) {
+          return NextResponse.json(
+            { error: MSG_STARTER_PEDIDO_SEM_SKU, code: "STARTER_SKU_OBRIGATORIO" },
+            { status: 403 }
+          );
+        }
+        const { data: skuRows, error: skusErr } = await supabaseAdmin
+          .from("skus")
+          .select("id, sku")
+          .in("id", skuIds)
+          .eq("org_id", org_id);
+        if (skusErr || !skuRows?.length || skuRows.length !== skuIds.length) {
+          return NextResponse.json({ error: "Não foi possível validar os SKUs deste pedido." }, { status: 400 });
+        }
+        const vendaOk = await assertSellerPodeVenderSkus(supabaseAdmin, {
+          sellerId: seller_id,
+          sellerPlano,
+          skus: skuRows.map((r: { id: string; sku: string | null }) => ({ id: r.id, sku: String(r.sku ?? "") })),
+        });
+        if (!vendaOk.ok) {
+          return NextResponse.json(
+            { error: vendaOk.error, code: "SKU_NAO_HABILITADO_PLANO" },
+            { status: 403 }
+          );
+        }
       }
     }
 

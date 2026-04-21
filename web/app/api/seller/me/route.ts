@@ -8,6 +8,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createClient } from "@supabase/supabase-js";
 import { isPortalTrialAtivo } from "@/lib/portalTrial";
 import { MESES_MINIMOS_COM_FORNECEDOR, dataMinimaTrocaFornecedor, podeTrocarFornecedorAgora } from "@/lib/sellerFornecedorVinculo";
+import { sellerCadastroPendente } from "@/lib/sellerDocumento";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -262,8 +263,11 @@ export async function GET(req: Request) {
       .order("criado_em", { ascending: false })
       .limit(10);
 
+    const cadastro_pendente = sellerCadastroPendente(seller.documento, seller.plano);
+
     return NextResponse.json({
       ok: true,
+      cadastro_pendente,
       seller: {
         id: seller.id,
         org_id: seller.org_id,

@@ -1,8 +1,9 @@
- "use client";
+"use client";
 
 import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { MensalidadeBloqueioGate } from "@/components/MensalidadeBloqueioGate";
+import { SellerCadastroRedirect } from "@/components/seller/SellerCadastroRedirect";
 
 export default function SellerLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -14,7 +15,7 @@ export default function SellerLayout({ children }: { children: ReactNode }) {
 
   return (
     <MensalidadeBloqueioGate context="seller" logoHref="/seller/dashboard">
-      {children}
+      <SellerCadastroRedirect>{children}</SellerCadastroRedirect>
     </MensalidadeBloqueioGate>
   );
 }

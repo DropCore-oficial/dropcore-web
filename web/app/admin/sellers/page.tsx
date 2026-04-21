@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/DashboardHeader";
 import { Button, PageLayout } from "@/components/ui";
 import { toTitleCase } from "@/lib/formatText";
 import { MESES_MINIMOS_COM_FORNECEDOR, dataMinimaTrocaFornecedor, podeTrocarFornecedorAgora } from "@/lib/sellerFornecedorVinculo";
+import { sellerCadastroPendente } from "@/lib/sellerDocumento";
 
 type Seller = {
   id: string;
@@ -59,22 +60,6 @@ export default function AdminSellersPage() {
   const [creditSending, setCreditSending] = useState(false);
   const [pixChave, setPixChave] = useState("");
   const [newNome, setNewNome] = useState("");
-  const [newTipoDocumento, setNewTipoDocumento] = useState<"CNPJ" | "CPF" | "">("");
-  const [newDocumento, setNewDocumento] = useState("");
-  const [newPlano, setNewPlano] = useState("");
-  const [newEmail, setNewEmail] = useState("");
-  const [newTelefone, setNewTelefone] = useState("");
-  const [newCep, setNewCep] = useState("");
-  const [newEndereco, setNewEndereco] = useState("");
-  const [cepLoading, setCepLoading] = useState(false);
-  const [newNomeResponsavel, setNewNomeResponsavel] = useState("");
-  const [newCpfResponsavel, setNewCpfResponsavel] = useState("");
-  const [newDataNascimento, setNewDataNascimento] = useState("");
-  const [newNomeBanco, setNewNomeBanco] = useState("");
-  const [newNomeNoBanco, setNewNomeNoBanco] = useState("");
-  const [newAgencia, setNewAgencia] = useState("");
-  const [newConta, setNewConta] = useState("");
-  const [newTipoConta, setNewTipoConta] = useState("");
   const [newSending, setNewSending] = useState(false);
   const [editNome, setEditNome] = useState("");
   const [editDocumento, setEditDocumento] = useState("");
@@ -166,38 +151,6 @@ export default function AdminSellersPage() {
     })();
   }, [selectedId, orgId]);
 
-  useEffect(() => {
-    const cepLimpo = newCep.replace(/\D/g, "");
-    if (cepLimpo.length === 8) {
-      setCepLoading(true);
-      fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.erro) {
-            setError("CEP não encontrado.");
-            setCepLoading(false);
-            return;
-          }
-          const partes = [];
-          if (data.logradouro) partes.push(data.logradouro);
-          if (data.bairro) partes.push(data.bairro);
-          if (data.localidade) partes.push(data.localidade);
-          if (data.uf) partes.push(data.uf);
-          const enderecoCompleto = partes.join(", ");
-          if (enderecoCompleto) setNewEndereco(enderecoCompleto);
-          setCepLoading(false);
-        })
-        .catch(() => {
-          setCepLoading(false);
-        });
-    } else if (cepLimpo.length === 0) {
-      setNewEndereco("");
-      setCepLoading(false);
-    } else {
-      setCepLoading(false);
-    }
-  }, [newCep]);
-
   const MINIMO_CREDITO = 500;
 
   async function addCredit() {
@@ -253,10 +206,6 @@ export default function AdminSellersPage() {
       setError("Nome é obrigatório.");
       return;
     }
-    if (!newTipoDocumento || !newDocumento.trim()) {
-      setError("CNPJ ou CPF é obrigatório.");
-      return;
-    }
     setNewSending(true);
     setError(null);
     try {
@@ -267,30 +216,13 @@ export default function AdminSellersPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({
           nome: newNome.trim(),
-          documento: newDocumento.trim(),
-          plano: newPlano.trim() || undefined,
           status: "ativo",
-          email: newEmail.trim() || undefined,
-          telefone: newTelefone.trim() || undefined,
-          cep: newCep.trim() || undefined,
-          endereco: newEndereco.trim() || undefined,
-          nome_responsavel: newNomeResponsavel.trim() || undefined,
-          cpf_responsavel: newCpfResponsavel.trim() || undefined,
-          data_nascimento: newDataNascimento.trim() || undefined,
-          nome_banco: newNomeBanco.trim() || undefined,
-          nome_no_banco: newNomeNoBanco.trim() || undefined,
-          agencia: newAgencia.trim() || undefined,
-          conta: newConta.trim() || undefined,
-          tipo_conta: newTipoConta.trim() || undefined,
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Erro");
       setSellers((prev) => [json, ...prev]);
-      setNewNome(""); setNewTipoDocumento(""); setNewDocumento(""); setNewPlano("");
-      setNewEmail(""); setNewTelefone(""); setNewCep(""); setNewEndereco("");
-      setNewNomeResponsavel(""); setNewCpfResponsavel(""); setNewDataNascimento("");
-      setNewNomeBanco(""); setNewNomeNoBanco(""); setNewAgencia(""); setNewConta(""); setNewTipoConta("");
+      setNewNome("");
       setModal(null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro ao criar seller");
@@ -386,27 +318,6 @@ export default function AdminSellersPage() {
   const formatMoney = (n: number) => `R$ ${Number(n).toFixed(2).replace(".", ",")}`;
   const formatDate = (s: string | null) => (s ? new Date(s).toLocaleDateString("pt-BR") : "—");
 
-  function formatarCNPJouCPF(val: string, tipo: "CNPJ" | "CPF" | ""): string {
-    if (!tipo) return val;
-    const dig = val.replace(/\D/g, "");
-    if (tipo === "CNPJ") {
-      const maxLen = 14;
-      const limited = dig.slice(0, maxLen);
-      if (limited.length <= 2) return limited;
-      if (limited.length <= 5) return `${limited.slice(0, 2)}.${limited.slice(2)}`;
-      if (limited.length <= 8) return `${limited.slice(0, 2)}.${limited.slice(2, 5)}.${limited.slice(5)}`;
-      if (limited.length <= 12) return `${limited.slice(0, 2)}.${limited.slice(2, 5)}.${limited.slice(5, 8)}/${limited.slice(8)}`;
-      return `${limited.slice(0, 2)}.${limited.slice(2, 5)}.${limited.slice(5, 8)}/${limited.slice(8, 12)}-${limited.slice(12)}`;
-    } else {
-      const maxLen = 11;
-      const limited = dig.slice(0, maxLen);
-      if (limited.length <= 3) return limited;
-      if (limited.length <= 6) return `${limited.slice(0, 3)}.${limited.slice(3)}`;
-      if (limited.length <= 9) return `${limited.slice(0, 3)}.${limited.slice(3, 6)}.${limited.slice(6)}`;
-      return `${limited.slice(0, 3)}.${limited.slice(3, 6)}.${limited.slice(6, 9)}-${limited.slice(9)}`;
-    }
-  }
-
   if (!orgId && !loading) return null;
 
   if (selectedId && (detail || detailLoading)) {
@@ -424,6 +335,11 @@ export default function AdminSellersPage() {
               <div className="text-[13px] text-[var(--muted)]">
                 Documento: {detail.documento || "—"} · Plano: {detail.plano || "—"} · Status: {detail.status}
               </div>
+              {sellerCadastroPendente(detail.documento, detail.plano) && (
+                <p className="text-[12px] text-amber-800 dark:text-amber-300 mt-2 leading-relaxed">
+                  O seller ainda não concluiu dados comerciais, CNPJ/CPF, endereço ou escolha de plano no painel. Gere o convite para ele acessar e preencher em Cadastro.
+                </p>
+              )}
               <div className="text-[13px] mt-2">
                 Data entrada: {formatDate(detail.data_entrada)}
               </div>
@@ -747,7 +663,9 @@ export default function AdminSellersPage() {
     <PageLayout maxWidth="md">
       <DashboardHeader href="/dashboard" onLogout={() => router.push("/login")} />
       <h1 className="text-2xl font-semibold mb-2 text-[var(--foreground)]">Sellers</h1>
-      <p className="text-[var(--muted)] mb-5 text-sm">Cadastre e gerencie sellers. Adicione crédito na ficha de cada um.</p>
+      <p className="text-[var(--muted)] mb-5 text-sm">
+        Cadastre sellers só com nome interno; CNPJ, contato, endereço e plano (Starter ou Pro) o seller escolhe no painel (Cadastro), após o convite.
+      </p>
 
       {error && <div className="mb-4 p-3 bg-[var(--danger)]/8 text-[var(--danger)] rounded-[var(--radius)]">{error}</div>}
 
@@ -787,7 +705,11 @@ export default function AdminSellersPage() {
             >
               <div className="font-semibold text-[var(--foreground)]">{s.nome || "Sem nome"}</div>
               <div className="text-[13px] text-[var(--muted)] mt-1">
-                {s.documento && `${s.documento} · `}Saldo: {formatMoney(s.saldo_atual)} · Status: {s.status}
+                {s.documento && `${s.documento} · `}
+                Saldo: {formatMoney(s.saldo_atual)} · Status: {s.status}
+                {sellerCadastroPendente(s.documento, s.plano) && (
+                  <span className="text-amber-700 dark:text-amber-400"> · Cadastro / plano pendente</span>
+                )}
               </div>
             </div>
           ))}
@@ -805,99 +727,34 @@ export default function AdminSellersPage() {
           <div className="flex flex-col max-w-[420px] max-h-[90vh] rounded-[var(--radius)] border border-[var(--card-border)] bg-[var(--card)] p-5 w-[calc(100%-32px)] shadow-[var(--shadow-card)]">
             <h3 id="modal-new-seller-title" className="mb-3 shrink-0 text-lg">Novo Seller</h3>
             <div className="overflow-y-auto flex-1 mb-4">
-            <div className="mb-3">
-              <label className="block text-xs text-[var(--muted)] mb-1">{newTipoDocumento === "CPF" ? "Nome do seller *" : "Razão social *"}</label>
-              <input type="text" value={newNome} onChange={(e) => setNewNome(e.target.value)} onBlur={() => setNewNome(toTitleCase(newNome))} placeholder={newTipoDocumento === "CPF" ? "Nome do seller" : "Razão social"} className="w-full u-input" />
-            </div>
-            <div className="mb-3">
-              <label className="block text-xs text-[var(--muted)] mb-1">Tipo de documento *</label>
-              <select value={newTipoDocumento} onChange={(e) => { setNewTipoDocumento(e.target.value as "CNPJ" | "CPF" | ""); setNewDocumento(""); }} className="w-full u-input">
-                <option value="">Selecione</option>
-                <option value="CNPJ">CNPJ</option>
-                <option value="CPF">CPF</option>
-              </select>
-            </div>
-            <div className="mb-3">
-              <label className="block text-xs text-[var(--muted)] mb-1">{newTipoDocumento || "CNPJ/CPF"} *</label>
-              <input type="text" value={newDocumento} onChange={(e) => { if (newTipoDocumento) setNewDocumento(formatarCNPJouCPF(e.target.value, newTipoDocumento)); }} placeholder={newTipoDocumento === "CPF" ? "000.000.000-00" : newTipoDocumento === "CNPJ" ? "00.000.000/0001-00" : "Selecione o tipo primeiro"} maxLength={newTipoDocumento === "CPF" ? 14 : 18} disabled={!newTipoDocumento} className={`w-full u-input ${!newTipoDocumento ? "bg-[var(--border-subtle)]" : ""}`} />
-              {newTipoDocumento === "CNPJ" && <p className="text-[11px] text-[var(--muted)] mt-1 italic">⚠️ O CNPJ deve ser o mesmo da conta do marketplace do seller.</p>}
-            </div>
-            <div className="mb-4">
-              <label className="block text-xs text-[var(--muted)] mb-1">Plano</label>
-              <select value={newPlano} onChange={(e) => setNewPlano(e.target.value)} className="w-full u-input">
-                <option value="">Selecione</option>
-                <option value="Starter">Starter</option>
-                <option value="Pro">Pro</option>
-              </select>
-            </div>
-            <div className="border-t border-[var(--card-border)] pt-4 mb-4">
-              <div className="text-[13px] font-semibold mb-2 text-[var(--foreground)]">Contato e endereço</div>
-              <div className="mb-2.5">
-                <label className="block text-xs text-[var(--muted)] mb-1">E-mail</label>
-                <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="Opcional" className="w-full u-input" />
+              <p className="text-[12px] text-[var(--muted)] mb-3 leading-relaxed">
+                Crie só com identificação interna (nome). O seller preenche CNPJ ou CPF, e-mail, endereço e escolhe o plano (Starter ou Pro) no painel após aceitar o convite.
+              </p>
+              <div className="mb-3">
+                <label className="block text-xs text-[var(--muted)] mb-1">Nome ou razão provisória *</label>
+                <input
+                  type="text"
+                  value={newNome}
+                  onChange={(e) => setNewNome(e.target.value)}
+                  onBlur={() => setNewNome(toTitleCase(newNome))}
+                  placeholder="Ex.: Loja parceira X"
+                  className="w-full u-input"
+                />
               </div>
-              <div className="mb-2.5">
-                <label className="block text-xs text-[var(--muted)] mb-1">Telefone celular</label>
-                <input type="text" value={newTelefone} onChange={(e) => setNewTelefone(e.target.value)} placeholder="Opcional" className="w-full u-input" />
-              </div>
-              <div className="mb-2.5">
-                <label className="block text-xs text-[var(--muted)] mb-1">CEP</label>
-                <input type="text" value={newCep} onChange={(e) => { const val = e.target.value.replace(/\D/g, ""); if (val.length <= 8) setNewCep(val.replace(/(\d{5})(\d{3})/, "$1-$2")); }} placeholder="00000-000" maxLength={9} className="w-full u-input" />
-                {cepLoading && <p className="text-[11px] text-[var(--info)] mt-1">Buscando endereço...</p>}
-              </div>
-              <div className="mb-2.5">
-                <label className="block text-xs text-[var(--muted)] mb-1">Endereço da loja</label>
-                <input type="text" value={newEndereco} onChange={(e) => setNewEndereco(e.target.value)} onBlur={() => setNewEndereco(toTitleCase(newEndereco))} placeholder="Preenchido automaticamente ao digitar CEP" className="w-full u-input" />
-              </div>
-              <div className="mb-2.5">
-                <label className="block text-xs text-[var(--muted)] mb-1">Nome do responsável</label>
-                <input type="text" value={newNomeResponsavel} onChange={(e) => setNewNomeResponsavel(e.target.value)} onBlur={() => setNewNomeResponsavel(toTitleCase(newNomeResponsavel))} placeholder="Opcional" className="w-full u-input" />
-              </div>
-              <div className="mb-2.5">
-                <label className="block text-xs text-[var(--muted)] mb-1">CPF do responsável</label>
-                <input type="text" value={newCpfResponsavel} onChange={(e) => setNewCpfResponsavel(formatarCNPJouCPF(e.target.value, "CPF"))} placeholder="000.000.000-00" maxLength={14} className="w-full u-input" />
-              </div>
-              <div className="mb-2.5">
-                <label className="block text-xs text-[var(--muted)] mb-1">Data de nascimento</label>
-                <input type="date" value={newDataNascimento} onChange={(e) => setNewDataNascimento(e.target.value)} className="w-full u-input" />
-              </div>
-            </div>
-            <div className="border-t border-[var(--card-border)] pt-4 mb-4">
-              <div className="text-[13px] font-semibold mb-2 text-[var(--foreground)]">Dados bancários</div>
-              <div className="mb-2.5">
-                <label className="block text-xs text-[var(--muted)] mb-1">Nome do banco</label>
-                <input type="text" value={newNomeBanco} onChange={(e) => setNewNomeBanco(e.target.value)} onBlur={() => setNewNomeBanco(toTitleCase(newNomeBanco))} placeholder="Opcional" className="w-full u-input" />
-              </div>
-              <div className="mb-2.5">
-                <label className="block text-xs text-[var(--muted)] mb-1">Nome registrado no banco</label>
-                <input type="text" value={newNomeNoBanco} onChange={(e) => setNewNomeNoBanco(e.target.value)} onBlur={() => setNewNomeNoBanco(toTitleCase(newNomeNoBanco))} placeholder="Opcional" className="w-full u-input" />
-              </div>
-              <div className="flex gap-2 mb-2.5">
-                <div className="flex-1">
-                  <label className="block text-xs text-[var(--muted)] mb-1">Agência</label>
-                  <input type="text" value={newAgencia} onChange={(e) => setNewAgencia(e.target.value)} placeholder="Opcional" className="w-full u-input" />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-xs text-[var(--muted)] mb-1">Conta</label>
-                  <input type="text" value={newConta} onChange={(e) => setNewConta(e.target.value)} placeholder="Opcional" className="w-full u-input" />
-                </div>
-              </div>
-              <div className="mb-2.5">
-                <label className="block text-xs text-[var(--muted)] mb-1">Tipo de conta</label>
-                <select value={newTipoConta} onChange={(e) => setNewTipoConta(e.target.value)} className="w-full u-input">
-                  <option value="">Selecione</option>
-                  <option value="Corrente">Corrente</option>
-                  <option value="Poupança">Poupança</option>
-                </select>
-              </div>
-            </div>
             </div>
             {error && <div className="text-[var(--danger)] text-[13px] mb-3 shrink-0">{error}</div>}
             <div className="flex gap-2 shrink-0">
               <Button type="button" variant="success" onClick={createSeller} disabled={newSending}>
                 {newSending ? "Salvando…" : "Criar"}
               </Button>
-              <Button variant="secondary" onClick={() => { setModal(null); setNewNome(""); setNewTipoDocumento(""); setNewDocumento(""); setNewPlano(""); setNewEmail(""); setNewTelefone(""); setNewCep(""); setNewEndereco(""); setNewNomeResponsavel(""); setNewCpfResponsavel(""); setNewDataNascimento(""); setNewNomeBanco(""); setNewNomeNoBanco(""); setNewAgencia(""); setNewConta(""); setNewTipoConta(""); setError(null); }}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setModal(null);
+                  setNewNome("");
+                  setError(null);
+                }}
+              >
                 Cancelar
               </Button>
             </div>
