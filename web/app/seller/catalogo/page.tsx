@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
@@ -479,6 +480,13 @@ return (
             </>
           }
         />
+
+        <p className="text-xs text-neutral-500 dark:text-neutral-400 -mt-2 mb-1">
+          <Link href="/seller/integracoes-erp/mapeamento" className="font-medium text-emerald-600 dark:text-emerald-400 hover:underline">
+            Guia: mapeamento SKU
+          </Link>{" "}
+          (como ligar anúncio no marketplace ao cadastro do ERP e ao DropCore).
+        </p>
 
         {/* Busca */}
         <div className="flex flex-col min-[420px]:flex-row gap-2 min-w-0">

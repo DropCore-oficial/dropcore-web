@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
@@ -213,6 +214,15 @@ export default function SellerIntegracoesErpPage() {
             </>
           }
         />
+
+        <div className="mb-5 -mt-1">
+          <Link
+            href="/seller/integracoes-erp/mapeamento"
+            className="inline-flex text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+          >
+            Guia: mapeamento SKU (marketplace → ERP → DropCore)
+          </Link>
+        </div>
 
         {loading ? (
           <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm p-12 text-center">
