@@ -1,0 +1,9 @@
+{
+  "profile": "openai",
+  "env": {
+    "OPENAI_BASE_URL": "https://openrouter.ai/api/v1",
+    "OPENAI_MODEL": "gpt-4oanthropic/claude-3.5-sonnet",
+    "OPENAI_API_KEY": "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"
+  },
+  "createdAt": "2026-04-08T01:22:50.754Z"
+}
