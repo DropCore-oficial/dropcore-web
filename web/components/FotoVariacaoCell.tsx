@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { fornecedorProdutoImagemSrc } from "@/lib/fornecedorProdutoImagemSrc";
 
 type Props = {
   skuId: string;
   imagemUrl: string | null;
+  /** Miniatura só para exibição quando o SKU não tem `imagem_url` (ex.: pai espelhando a 1ª variante). Upload/apagar usam só `imagemUrl`. */
+  fallbackImagemUrl?: string | null;
   onUpdate: (novaUrl: string | null) => void;
   getToken: () => Promise<string | null>;
   /** `stacked`: miniatura em cima e ações em baixo — melhor em listas estreitas (mobile). */
@@ -12,18 +15,45 @@ type Props = {
   variant?: "row" | "stacked" | "table";
 };
 
-export function FotoVariacaoCell({ skuId, imagemUrl, onUpdate, getToken, variant = "row" }: Props) {
+type PreviewMode = "off" | "hover" | "fixo";
+
+export function FotoVariacaoCell({
+  skuId,
+  imagemUrl,
+  fallbackImagemUrl = null,
+  onUpdate,
+  getToken,
+  variant = "row",
+}: Props) {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [previewVisivel, setPreviewVisivel] = useState(false);
+  const [previewMode, setPreviewMode] = useState<PreviewMode>("off");
   const [imgErro, setImgErro] = useState(false);
   const [previewImgErro, setPreviewImgErro] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastPointerTypeRef = useRef<string>("mouse");
+
+  const urlExibicao = imagemUrl || fallbackImagemUrl || null;
+  const temImagemSalva = Boolean(imagemUrl);
 
   useEffect(() => {
     setImgErro(false);
     setPreviewImgErro(false);
-  }, [imagemUrl]);
+  }, [imagemUrl, fallbackImagemUrl]);
+
+  useEffect(() => {
+    if (previewMode !== "fixo") return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setPreviewMode("off");
+    }
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [previewMode]);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -72,15 +102,9 @@ export function FotoVariacaoCell({ skuId, imagemUrl, onUpdate, getToken, variant
     }
   }
 
-  const mostraThumb = imagemUrl && !imgErro;
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const usaProxy = Boolean(imagemUrl && supabaseUrl && imagemUrl.startsWith(supabaseUrl));
-  const srcImagem = imagemUrl
-    ? usaProxy
-      ? `/api/fornecedor/produtos/imagem-proxy?url=${encodeURIComponent(imagemUrl)}`
-      : imagemUrl
-    : "";
+  const mostraThumb = Boolean(urlExibicao) && !imgErro;
+  const srcImagem = urlExibicao ? fornecedorProdutoImagemSrc(urlExibicao) : "";
+  const previewAberto = previewMode !== "off";
 
   const stacked = variant === "stacked";
   const table = variant === "table";
@@ -88,12 +112,37 @@ export function FotoVariacaoCell({ skuId, imagemUrl, onUpdate, getToken, variant
   const imgPx = stacked ? 44 : table ? 36 : 40;
   const iconSz = stacked ? 18 : table ? 16 : 20;
 
+  const previewImgBlock = srcImagem ? (
+    !previewImgErro ? (
+      <img
+        src={srcImagem}
+        alt="Preview"
+        className="w-full h-auto max-h-[min(85dvh,28rem)] object-contain block rounded-lg"
+        onError={() => setPreviewImgErro(true)}
+      />
+    ) : (
+      <div className="flex items-center justify-center py-8 px-4 text-neutral-400 text-xs">Imagem não carregou</div>
+    )
+  ) : null;
+
   const thumbBlock = mostraThumb ? (
     <div className="relative">
       <button
         type="button"
-        onMouseEnter={() => setPreviewVisivel(true)}
-        onMouseLeave={() => setPreviewVisivel(false)}
+        onPointerDown={(e) => {
+          lastPointerTypeRef.current = e.pointerType;
+        }}
+        onPointerEnter={(e) => {
+          if (e.pointerType === "mouse") setPreviewMode("hover");
+        }}
+        onPointerLeave={(e) => {
+          if (e.pointerType === "mouse") setPreviewMode("off");
+        }}
+        onClick={() => {
+          if (lastPointerTypeRef.current !== "mouse") {
+            setPreviewMode((m) => (m === "fixo" ? "off" : "fixo"));
+          }
+        }}
         className={`shrink-0 ${box} rounded border border-neutral-200 dark:border-neutral-600 overflow-hidden bg-neutral-100 dark:bg-neutral-800 p-0 block focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer touch-manipulation`}
       >
         <img
@@ -105,7 +154,7 @@ export function FotoVariacaoCell({ skuId, imagemUrl, onUpdate, getToken, variant
           onError={() => setImgErro(true)}
         />
       </button>
-      {previewVisivel && srcImagem && (
+      {previewMode === "hover" && srcImagem && (
         <div
           className={`absolute z-[80] rounded-lg overflow-hidden border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-xl pointer-events-none ${
             stacked ? "left-1/2 -translate-x-1/2 bottom-full mb-2" : table ? "left-full top-1/2 -translate-y-1/2 ml-2" : "left-full top-0 ml-2"
@@ -123,6 +172,19 @@ export function FotoVariacaoCell({ skuId, imagemUrl, onUpdate, getToken, variant
           ) : (
             <div className="flex items-center justify-center py-8 px-4 text-neutral-400 text-xs">Imagem não carregou</div>
           )}
+        </div>
+      )}
+      {previewMode === "fixo" && previewImgBlock && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true" aria-label="Visualização da foto">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default border-0 bg-black/55 p-0"
+            aria-label="Fechar"
+            onClick={() => setPreviewMode("off")}
+          />
+          <div className="relative z-[110] w-full max-w-lg rounded-xl border border-neutral-200 bg-white p-2 shadow-2xl dark:border-neutral-600 dark:bg-neutral-900">
+            {previewImgBlock}
+          </div>
         </div>
       )}
     </div>
@@ -160,7 +222,7 @@ export function FotoVariacaoCell({ skuId, imagemUrl, onUpdate, getToken, variant
       >
         {mostraThumb ? "Trocar" : "Enviar"}
       </button>
-      {mostraThumb && (
+      {temImagemSalva && (
         <button
           type="button"
           onClick={handleDelete}

@@ -2,8 +2,11 @@
  * POST /api/fornecedor/produtos/multivariante
  * Cria produto multivariante: 1 SKU pai (000) com link_fotos + N filhos (cor/tamanho)
  * body: { nome_produto, cores?: string[], tamanhos?: string[], link_fotos?: string,
- *   estoque_atual?: number (só variantes sem tamanho ou legado),
- *   estoque_por_tamanho?: Record<string, number> (por tamanho, ex.: { P: 10, M: 20 }; cada SKU filho com esse tamanho recebe o valor) }
+ *   estoque_atual?: number (fallback quando não há mapas específicos),
+ *   estoque_por_variante?: Record<string, number> chaves `corLower|tamUpper` (uma célula por SKU cor×tamanho),
+ *   estoque_por_cor?: Record<string, number> chaves cor em minúsculas (mesmo estoque em todos os tamanhos daquela cor),
+ *   estoque_por_tamanho?: Record<string, number> (mesmo estoque em todas as cores daquele tamanho) }
+ * Prioridade por filho: estoque_por_variante → estoque_por_cor → estoque_por_tamanho → estoque_atual.
  * Pelo menos cores ou tamanhos deve ter pelo menos um valor.
  */
 import { NextResponse } from "next/server";
@@ -11,6 +14,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { toTitleCase } from "@/lib/formatText";
 import { assertPodeAtivarMaisSkus } from "@/lib/planos";
+import { chaveEstoqueVariante, normalizarChaveEstoqueVarianteApi } from "@/lib/estoqueVarianteKeys";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -91,7 +95,7 @@ export async function POST(req: Request) {
     const estoque_atual = body?.estoque_atual != null ? (typeof body.estoque_atual === "number" ? body.estoque_atual : parseFloat(String(body.estoque_atual).replace(",", "."))) : null;
     const estoque_minimo = body?.estoque_minimo != null ? (typeof body.estoque_minimo === "number" ? body.estoque_minimo : parseFloat(String(body.estoque_minimo).replace(",", "."))) : null;
 
-    /** Se o cliente envia `estoque_por_tamanho`, cada SKU filho usa a quantidade do seu tamanho (não o mesmo total em todas as variantes). */
+    /** Mapa por tamanho: mesmo número para todas as cores daquele tamanho. */
     let estoquePorTamanhoMap: Record<string, number> | null = null;
     if (
       body?.estoque_por_tamanho != null &&
@@ -105,6 +109,37 @@ export async function POST(req: Request) {
       }
     }
     const usarEstoquePorTamanho = estoquePorTamanhoMap !== null;
+
+    let estoquePorVarianteMap: Record<string, number> | null = null;
+    if (
+      body?.estoque_por_variante != null &&
+      typeof body.estoque_por_variante === "object" &&
+      !Array.isArray(body.estoque_por_variante)
+    ) {
+      estoquePorVarianteMap = {};
+      for (const [k, v] of Object.entries(body.estoque_por_variante as Record<string, unknown>)) {
+        const num = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(",", "."));
+        if (!Number.isFinite(num)) continue;
+        const nk = normalizarChaveEstoqueVarianteApi(k);
+        estoquePorVarianteMap[nk] = Math.max(0, Math.round(num));
+      }
+    }
+    const usarEstoquePorVariante = estoquePorVarianteMap !== null;
+
+    let estoquePorCorMap: Record<string, number> | null = null;
+    if (
+      body?.estoque_por_cor != null &&
+      typeof body.estoque_por_cor === "object" &&
+      !Array.isArray(body.estoque_por_cor)
+    ) {
+      estoquePorCorMap = {};
+      for (const [k, v] of Object.entries(body.estoque_por_cor as Record<string, unknown>)) {
+        const num = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(",", "."));
+        if (!Number.isFinite(num)) continue;
+        estoquePorCorMap[k.trim().toLowerCase()] = Math.max(0, Math.round(num));
+      }
+    }
+    const usarEstoquePorCor = estoquePorCorMap !== null;
     const custo_base = body?.custo_base != null ? (typeof body.custo_base === "number" ? body.custo_base : parseFloat(String(body.custo_base).replace(",", "."))) : null;
     const peso_g = body?.peso_kg != null ? (typeof body.peso_kg === "number" ? body.peso_kg : parseFloat(String(body.peso_kg).replace(",", "."))) : null;
     const peso_kg = Number.isFinite(peso_g) ? peso_g / 1000 : null;
@@ -188,11 +223,26 @@ export async function POST(req: Request) {
       estoque_minimo: Number.isFinite(estoque_minimo) ? Math.max(0, Math.round(estoque_minimo)) : null,
     };
 
-    function estoqueParaVariante(tamanhoVariante: string | null): { estoque_atual: number | null; estoque_minimo: number | null } {
-      const t = (tamanhoVariante ?? "").trim();
-      if (t && usarEstoquePorTamanho && estoquePorTamanhoMap) {
-        const k = t.toUpperCase();
-        const q = k in estoquePorTamanhoMap ? estoquePorTamanhoMap[k]! : 0;
+    function estoqueParaVariante(c: { cor: string | null; tamanho: string | null }): {
+      estoque_atual: number | null;
+      estoque_minimo: number | null;
+    } {
+      const cor = (c.cor ?? "").trim();
+      const tam = (c.tamanho ?? "").trim();
+
+      if (usarEstoquePorVariante && estoquePorVarianteMap) {
+        const keyV = chaveEstoqueVariante(cor, tam);
+        const q = estoquePorVarianteMap[keyV] ?? 0;
+        return { estoque_atual: q, estoque_minimo: estoqueBase.estoque_minimo };
+      }
+      if (usarEstoquePorCor && estoquePorCorMap && cor) {
+        const k = cor.toLowerCase();
+        const q = estoquePorCorMap[k] ?? 0;
+        return { estoque_atual: q, estoque_minimo: estoqueBase.estoque_minimo };
+      }
+      if (tam && usarEstoquePorTamanho && estoquePorTamanhoMap) {
+        const k = tam.toUpperCase();
+        const q = estoquePorTamanhoMap[k] ?? 0;
         return { estoque_atual: q, estoque_minimo: estoqueBase.estoque_minimo };
       }
       return { ...estoqueBase };
@@ -217,7 +267,7 @@ export async function POST(req: Request) {
       link_fotos: null,
       descricao,
       ...dims,
-      ...estoqueParaVariante(c.tamanho),
+      ...estoqueParaVariante(c),
       ...extras,
     }));
 

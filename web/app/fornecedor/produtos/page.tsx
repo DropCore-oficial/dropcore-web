@@ -7,6 +7,7 @@ import Link from "next/link";
 import { FornecedorNav } from "../FornecedorNav";
 import { FotoVariacaoCell } from "@/components/FotoVariacaoCell";
 import { toTitleCase } from "@/lib/formatText";
+import { fornecedorProdutoImagemSrc } from "@/lib/fornecedorProdutoImagemSrc";
 
 type Produto = {
   id: string;
@@ -68,6 +69,26 @@ function CorCelulaProduto({ cor }: { cor: string | null }) {
 }
 
 type GrupoProduto = { paiKey: string; pai: Produto | null; filhos: Produto[] };
+
+/** Primeira variante (menor SKU) que já tem `imagem_url`. */
+function primeiraImagemUrlEntreFilhos(filhos: Produto[]): string | null {
+  const comFoto = filhos.filter((f) => f.imagem_url);
+  if (comFoto.length === 0) return null;
+  comFoto.sort((a, b) => a.sku.localeCompare(b.sku));
+  return comFoto[0].imagem_url ?? null;
+}
+
+/** Capa do grupo: foto do pai ou, se vazia, da primeira variante com imagem. */
+function imagemCapaGrupo(g: GrupoProduto): string | null {
+  if (g.pai?.imagem_url) return g.pai.imagem_url;
+  return primeiraImagemUrlEntreFilhos(g.filhos);
+}
+
+function fallbackImagemSkuPai(row: Produto, g: GrupoProduto): string | null {
+  if (row.sku !== g.paiKey) return null;
+  if (row.imagem_url) return null;
+  return primeiraImagemUrlEntreFilhos(g.filhos);
+}
 
 function isEstoqueBaixo(p: Produto): boolean {
   const min = p.estoque_minimo;
@@ -451,19 +472,33 @@ export default function FornecedorProdutosPage() {
                           </svg>
                         </button>
                         <div className="w-12 h-12 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 flex items-center justify-center shrink-0 overflow-hidden">
-                          {getLinkFotos(representante!, produtos) ? (
-                            <a
-                              href={getLinkFotos(representante!, produtos)!}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-full h-full flex items-center justify-center bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 text-lg hover:bg-neutral-300 dark:hover:bg-neutral-600"
-                            >
-                              📷
-                            </a>
-                          ) : (
-                            <span className="text-neutral-400 dark:text-neutral-500 text-lg">—</span>
-                          )}
+                          {(() => {
+                            const capa = imagemCapaGrupo(g);
+                            const lf = getLinkFotos(representante!, produtos);
+                            if (capa) {
+                              return (
+                                <img
+                                  src={fornecedorProdutoImagemSrc(capa)}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                />
+                              );
+                            }
+                            if (lf) {
+                              return (
+                                <a
+                                  href={lf}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="flex h-full w-full items-center justify-center bg-neutral-200 text-lg text-neutral-500 hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-600"
+                                >
+                                  📷
+                                </a>
+                              );
+                            }
+                            return <span className="text-lg text-neutral-400 dark:text-neutral-500">—</span>;
+                          })()}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -546,6 +581,7 @@ export default function FornecedorProdutosPage() {
                                   variant="stacked"
                                   skuId={row.id}
                                   imagemUrl={row.imagem_url ?? null}
+                                  fallbackImagemUrl={fallbackImagemSkuPai(row, g)}
                                   onUpdate={async (url) => {
                                       setProdutos((prev) =>
                                         prev.map((p) => (p.id === row.id ? { ...p, imagem_url: url } : p))
@@ -643,6 +679,7 @@ export default function FornecedorProdutosPage() {
                                     <FotoVariacaoCell
                                       skuId={row.id}
                                       imagemUrl={row.imagem_url ?? null}
+                                      fallbackImagemUrl={fallbackImagemSkuPai(row, g)}
                                       onUpdate={async (url) => {
                                         setProdutos((prev) =>
                                           prev.map((p) => (p.id === row.id ? { ...p, imagem_url: url } : p))

@@ -148,6 +148,16 @@ export default function EditarVariantesPage() {
     [grupoProdutos]
   );
 
+  /** 1ª variante (não-pai, menor SKU) com foto — usada como miniatura do SKU pai quando ele não tem imagem. */
+  const imagemUrlFallbackPai = useMemo(() => {
+    const pk = grupoKey.trim().toUpperCase();
+    return (
+      [...grupoProdutos]
+        .filter((p) => p.sku.trim().toUpperCase() !== pk && p.imagem_url)
+        .sort((a, b) => a.sku.localeCompare(b.sku))[0]?.imagem_url ?? null
+    );
+  }, [grupoProdutos, grupoKey]);
+
   const coresFinais = useMemo(() => {
     const set = new Set(coresSelecionadas);
     for (const part of corCustom
@@ -1025,6 +1035,7 @@ export default function EditarVariantesPage() {
                             variant="stacked"
                             skuId={row.id}
                             imagemUrl={row.imagem_url ?? null}
+                            fallbackImagemUrl={ehPai && !row.imagem_url ? imagemUrlFallbackPai : null}
                             onUpdate={async (url) => {
                               setProdutos((prev) =>
                                 prev.map((p) => (p.id === row.id ? { ...p, imagem_url: url } : p))
@@ -1147,6 +1158,8 @@ export default function EditarVariantesPage() {
                     <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                       {grupoProdutos.map((row) => {
                         const lf = getLinkFotos(row, produtos) || row.link_fotos;
+                        const pkTable = grupoKey.trim().toUpperCase();
+                        const ehPaiRow = row.sku.trim().toUpperCase() === pkTable;
                         return (
                           <tr key={row.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50">
                             <td className="px-2 py-2 align-middle lg:px-3">
@@ -1154,6 +1167,7 @@ export default function EditarVariantesPage() {
                                 variant="table"
                                 skuId={row.id}
                                 imagemUrl={row.imagem_url ?? null}
+                                fallbackImagemUrl={ehPaiRow && !row.imagem_url ? imagemUrlFallbackPai : null}
                                 onUpdate={async (url) => {
                                   setProdutos((prev) =>
                                     prev.map((p) => (p.id === row.id ? { ...p, imagem_url: url } : p))

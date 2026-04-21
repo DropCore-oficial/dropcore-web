@@ -278,7 +278,7 @@ export default function AdminAlteracoesProdutosPage() {
           <button
             type="button"
             onClick={() => router.push("/admin/empresas")}
-            className="shrink-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5 text-sm font-medium text-[var(--muted)] shadow-sm transition-colors hover:border-violet-300/60 hover:bg-violet-50/50 hover:text-[var(--foreground)] dark:hover:border-violet-600/40 dark:hover:bg-violet-950/30"
+            className="shrink-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5 text-sm font-medium text-[var(--muted)] shadow-sm transition-colors hover:border-neutral-300 hover:bg-neutral-50 hover:text-[var(--foreground)] dark:hover:border-neutral-600 dark:hover:bg-neutral-800/90 dark:hover:text-neutral-100"
           >
             ← Voltar às Empresas
           </button>
@@ -300,13 +300,15 @@ export default function AdminAlteracoesProdutosPage() {
 
         {!loading && list.length > 0 && fornecedoresOpcoes.length > 0 && (
           <div className="mb-8 overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
-            <div className="border-b border-[var(--card-border)] bg-gradient-to-r from-violet-50/80 via-transparent to-transparent px-4 py-4 dark:from-violet-950/25 sm:px-5 lg:flex lg:items-center lg:justify-between lg:gap-6 lg:px-6 lg:py-4">
+            <div className="border-b border-[var(--card-border)] bg-gradient-to-r from-neutral-50/90 via-neutral-50/20 to-transparent px-4 py-4 dark:from-neutral-800/50 dark:via-neutral-900/30 dark:to-transparent sm:px-5 lg:flex lg:items-center lg:justify-between lg:gap-6 lg:px-6 lg:py-4">
               <label className="block min-w-0 flex-1 lg:max-w-xl">
-                <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Fornecedor</span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                  Fornecedor
+                </span>
                 <select
                   value={fornecedorAtivo ?? ""}
                   onChange={(e) => setFornecedorSelecionado(e.target.value || null)}
-                  className="mt-1.5 w-full rounded-xl border border-[var(--card-border)] bg-[var(--background)] px-3 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-sm focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 dark:focus:border-violet-500"
+                  className="mt-1.5 w-full rounded-xl border border-[var(--card-border)] bg-[var(--background)] px-3 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-sm focus:border-emerald-500/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 dark:border-neutral-600 dark:focus:border-emerald-500 dark:focus:ring-emerald-400/20"
                 >
                   {fornecedoresOpcoes.map(([id, nome]) => (
                     <option key={id} value={id}>
@@ -314,7 +316,7 @@ export default function AdminAlteracoesProdutosPage() {
                     </option>
                   ))}
                 </select>
-                <span className="mt-1 block text-[11px] text-[var(--muted)]">Analise um fornecedor de cada vez.</span>
+                <span className="mt-1 block text-[11px] text-neutral-500 dark:text-neutral-500">Analise um fornecedor de cada vez.</span>
               </label>
               {filtradas.length > 0 && (
                 <div className="mt-3 flex shrink-0 flex-wrap gap-2 lg:mt-0">
@@ -348,7 +350,7 @@ export default function AdminAlteracoesProdutosPage() {
                         type="button"
                         onClick={() => void aprovarEmMassa([...selectedIds])}
                         disabled={selectedIds.size === 0 || actingBulk}
-                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 sm:min-w-[200px] sm:flex-none"
+                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:disabled:ring-white/15 sm:min-w-[200px] sm:flex-none"
                       >
                         {bulkAction === "approve" ? "Aprovando…" : `Aprovar selecionadas (${selectedIds.size})`}
                       </button>
@@ -356,7 +358,7 @@ export default function AdminAlteracoesProdutosPage() {
                         type="button"
                         onClick={() => void aprovarEmMassa(filtradas.map((x) => x.id))}
                         disabled={actingBulk}
-                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-emerald-600 bg-emerald-50/50 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100/80 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:bg-emerald-950/20 dark:text-emerald-300 dark:hover:bg-emerald-950/40 sm:min-w-[240px] sm:flex-none"
+                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-emerald-600 bg-emerald-50/50 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100/80 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:border-emerald-500/70 dark:bg-emerald-950/25 dark:text-emerald-200 dark:hover:bg-emerald-950/45 dark:disabled:ring-white/15 sm:min-w-[240px] sm:flex-none"
                       >
                         {bulkAction === "approve" ? "…" : `Aprovar todas (${filtradas.length})`}
                       </button>
@@ -396,7 +398,7 @@ export default function AdminAlteracoesProdutosPage() {
                           void rejeitarEmMassa([...selectedIds]);
                         }}
                         disabled={selectedIds.size === 0 || actingBulk}
-                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 sm:min-w-[200px] sm:flex-none"
+                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:disabled:ring-white/15 sm:min-w-[200px] sm:flex-none"
                       >
                         {bulkAction === "reject" ? "Rejeitando…" : `Rejeitar selecionadas (${selectedIds.size})`}
                       </button>
@@ -413,7 +415,7 @@ export default function AdminAlteracoesProdutosPage() {
                           void rejeitarEmMassa(filtradas.map((x) => x.id));
                         }}
                         disabled={actingBulk || filtradas.length === 0}
-                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-red-600 bg-red-50/40 px-4 py-2.5 text-sm font-semibold text-red-800 transition hover:bg-red-100/60 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:bg-red-950/25 dark:text-red-300 dark:hover:bg-red-950/45 sm:min-w-[240px] sm:flex-none"
+                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-red-600 bg-red-50/40 px-4 py-2.5 text-sm font-semibold text-red-800 transition hover:bg-red-100/60 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:border-red-500/80 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50 dark:disabled:ring-white/15 sm:min-w-[240px] sm:flex-none"
                       >
                         {bulkAction === "reject" ? "…" : `Rejeitar todas (${filtradas.length})`}
                       </button>
@@ -437,7 +439,7 @@ export default function AdminAlteracoesProdutosPage() {
                 className={`overflow-hidden rounded-2xl border bg-[var(--card)] shadow-sm ${
                   isExclusao
                     ? "border-l-[5px] border-l-red-500 border-[var(--card-border)]"
-                    : "border-[var(--card-border)] border-l-[5px] border-l-violet-400/70 dark:border-l-violet-500/50"
+                    : "border-[var(--card-border)] border-l-[5px] border-l-neutral-400 dark:border-l-neutral-500"
                 }`}
               >
                 <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8 lg:p-6">
@@ -447,7 +449,7 @@ export default function AdminAlteracoesProdutosPage() {
                       checked={selectedIds.has(a.id)}
                       onChange={() => toggleSelect(a.id)}
                       disabled={actingBulk || actingId === a.id}
-                      className="mt-1.5 h-4 w-4 shrink-0 rounded border-[var(--card-border)]"
+                      className="mt-1.5 h-4 w-4 shrink-0 rounded border-neutral-400 text-emerald-600 accent-emerald-600 dark:border-neutral-500"
                       aria-label={`Selecionar alteração ${a.sku?.sku ?? a.id}`}
                     />
                     <div className="min-w-0">
@@ -512,7 +514,7 @@ export default function AdminAlteracoesProdutosPage() {
                   )}
                 </div>
 
-                <div className="border-t border-[var(--card-border)] bg-neutral-50/40 px-4 py-4 dark:bg-neutral-900/40 sm:px-5 lg:px-6 lg:py-5">
+                <div className="border-t border-[var(--card-border)] bg-neutral-50/50 px-4 py-4 dark:bg-neutral-950/80 sm:px-5 lg:px-6 lg:py-5">
                   {(() => {
                     const { tabela_medidas: tm, ...rest } = a.dados_propostos as Record<string, unknown> & { tabela_medidas?: { tipo_produto?: string; medidas?: Record<string, Record<string, number>> } };
                     const isExclusaoGrupo =
@@ -522,9 +524,9 @@ export default function AdminAlteracoesProdutosPage() {
                     return (
                       <>
                         {isExclusaoGrupo && (
-                          <div className="mb-4 rounded-xl border border-red-200/90 dark:border-red-800/60 bg-red-50 dark:bg-red-950/35 px-4 py-3.5 text-sm text-red-900 dark:text-red-100">
-                            <p className="font-semibold">Pedido de exclusão (DropCore)</p>
-                            <p className="mt-1.5 text-xs leading-relaxed opacity-95">
+                          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm text-red-900 dark:border-red-700/70 dark:bg-red-950/70 dark:text-red-50">
+                            <p className="font-semibold text-red-950 dark:text-red-100">Pedido de exclusão (DropCore)</p>
+                            <p className="mt-1.5 text-xs leading-relaxed text-red-900 dark:text-red-100/95">
                               O fornecedor pediu para remover o produto inteiro{" "}
                               <span className="font-mono font-medium">{String(rest.grupo_key)}</span>
                               {typeof rest.nome_produto_exclusao === "string" && rest.nome_produto_exclusao

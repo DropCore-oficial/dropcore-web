@@ -8,6 +8,7 @@ import { FornecedorNav } from "../../FornecedorNav";
 import { NotificationToasts } from "@/components/NotificationToasts";
 import { toTitleCase } from "@/lib/formatText";
 import { CORES_PREDEFINIDAS, TAMANHOS_PREDEFINIDOS } from "@/lib/fornecedorVariantesUi";
+import { chaveEstoqueVariante } from "@/lib/estoqueVarianteKeys";
 
 /** Ordem estável para listar tamanhos (PP… depois extras). */
 function ordenarTamanhosLista(tams: string[]): string[] {
@@ -21,6 +22,8 @@ function ordenarTamanhosLista(tams: string[]): string[] {
 }
 import { HelpBubble } from "@/components/HelpBubble";
 import { VarianteExtrasTagInput } from "@/components/VarianteExtrasTagInput";
+
+type ModoEstoque = "matriz" | "por_tamanho" | "por_cor";
 
 type TabId = "info-basica" | "info-variantes" | "lista-variantes" | "midia" | "info-impostos";
 
@@ -57,8 +60,13 @@ export default function CriarVariantesPage() {
   const [precoVarejo, setPrecoVarejo] = useState("");
   const [custoCompra, setCustoCompra] = useState("");
   const [estoqueInicial, setEstoqueInicial] = useState("");
-  /** Quando há tamanhos: quantidade por tamanho (vale para todas as cores daquele tamanho). Chave = tamanho em maiúsculas. */
+  /** Quando há tamanhos (modo «por tamanho»): mesmo número para todas as cores daquele tamanho. Chave = tamanho em maiúsculas. */
   const [estoquePorTamanho, setEstoquePorTamanho] = useState<Record<string, string>>({});
+  /** Cor × tamanho: uma quantidade por célula (modo «matriz»). Chave = `corLower|tamUpper`. */
+  const [estoqueMatriz, setEstoqueMatriz] = useState<Record<string, string>>({});
+  /** Mesmo estoque em todos os tamanhos daquela cor (modo «por cor»). Chave = cor em minúsculas. */
+  const [estoquePorCor, setEstoquePorCor] = useState<Record<string, string>>({});
+  const [modoEstoque, setModoEstoque] = useState<ModoEstoque>("matriz");
   const [peso, setPeso] = useState("");
   const [helpVariantesOpen, setHelpVariantesOpen] = useState<null | "precoVarejo" | "custoCompra">(null);
   const [comp, setComp] = useState("");
@@ -124,6 +132,31 @@ export default function CriarVariantesPage() {
     });
   }, [tamanhosFinais.join("|")]);
 
+  useEffect(() => {
+    if (coresFinais.length === 0 || tamanhosFinais.length === 0) return;
+    setEstoqueMatriz((prev) => {
+      const next: Record<string, string> = {};
+      for (const cor of coresFinais) {
+        for (const tam of tamanhosFinais) {
+          const key = chaveEstoqueVariante(cor, tam);
+          next[key] = prev[key] ?? "";
+        }
+      }
+      return next;
+    });
+  }, [coresFinais.join("|"), tamanhosFinais.join("|")]);
+
+  useEffect(() => {
+    setEstoquePorCor((prev) => {
+      const next: Record<string, string> = {};
+      for (const cor of coresFinais) {
+        const k = cor.trim().toLowerCase();
+        next[k] = prev[k] ?? "";
+      }
+      return next;
+    });
+  }, [coresFinais.join("|")]);
+
   function parseQty(s: string): number | null {
     const raw = s.trim();
     if (!raw) return null;
@@ -131,11 +164,23 @@ export default function CriarVariantesPage() {
     return Number.isFinite(n) ? Math.max(0, Math.round(n)) : null;
   }
 
-  /** Pré-visualização do estoque que cada linha terá ao salvar. */
-  function estoquePreviewParaLinha(tamanho: string): number | null {
-    const t = tamanho.trim();
-    if (!t) return parseQty(estoqueInicial);
-    return parseQty(estoquePorTamanho[t.toUpperCase()] ?? "");
+  /** Pré-visualização do estoque que cada linha terá ao salvar (alinhada à API). */
+  function estoquePreviewParaLinha(cor: string, tamanho: string): number | null {
+    const hasC = cor.trim().length > 0;
+    const hasT = tamanho.trim().length > 0;
+    if (coresFinais.length > 0 && tamanhosFinais.length > 0) {
+      if (modoEstoque === "matriz") {
+        const k = chaveEstoqueVariante(cor, tamanho);
+        return parseQty(estoqueMatriz[k] ?? "");
+      }
+      if (modoEstoque === "por_cor") {
+        return parseQty(estoquePorCor[cor.trim().toLowerCase()] ?? "");
+      }
+      return parseQty(estoquePorTamanho[tamanho.trim().toUpperCase()] ?? "");
+    }
+    if (hasC && !hasT) return parseQty(estoqueInicial);
+    if (!hasC && hasT) return parseQty(estoquePorTamanho[tamanho.trim().toUpperCase()] ?? "");
+    return parseQty(estoqueInicial);
   }
 
   function toggleCor(cor: string) {
@@ -247,7 +292,35 @@ export default function CriarVariantesPage() {
         custo_base: custoCompra.trim() ? parseFloat(custoCompra.replace(",", ".")) : undefined,
         data_lancamento: dataLancamento || null,
       };
-      if (tamanhos.length > 0) {
+      if (cores.length > 0 && tamanhos.length > 0) {
+        if (modoEstoque === "matriz") {
+          const por: Record<string, number> = {};
+          for (const cor of cores) {
+            for (const tam of tamanhos) {
+              const k = chaveEstoqueVariante(cor, tam);
+              const q = parseQty(estoqueMatriz[k] ?? "");
+              por[k] = q ?? 0;
+            }
+          }
+          body.estoque_por_variante = por;
+        } else if (modoEstoque === "por_cor") {
+          const por: Record<string, number> = {};
+          for (const cor of cores) {
+            const k = cor.trim().toLowerCase();
+            const q = parseQty(estoquePorCor[k] ?? "");
+            por[k] = q ?? 0;
+          }
+          body.estoque_por_cor = por;
+        } else {
+          const por: Record<string, number> = {};
+          for (const tam of tamanhos) {
+            const k = tam.toUpperCase();
+            const q = parseQty(estoquePorTamanho[k] ?? "");
+            if (q != null) por[k] = q;
+          }
+          body.estoque_por_tamanho = por;
+        }
+      } else if (tamanhos.length > 0) {
         const por: Record<string, number> = {};
         for (const tam of tamanhos) {
           const k = tam.toUpperCase();
@@ -554,7 +627,7 @@ export default function CriarVariantesPage() {
                           </thead>
                           <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                             {combinacoes.map((c, i) => {
-                              const eq = estoquePreviewParaLinha(c.tamanho);
+                              const eq = estoquePreviewParaLinha(c.cor, c.tamanho);
                               return (
                                 <tr key={i} className="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40">
                                   <td className="px-4 py-2.5 tabular-nums text-neutral-400 dark:text-neutral-500">{i + 1}</td>
@@ -573,7 +646,7 @@ export default function CriarVariantesPage() {
                     </div>
                     <div className="max-h-[min(24rem,50vh)] space-y-2 overflow-y-auto p-3 md:hidden">
                       {combinacoes.map((c, i) => {
-                        const eq = estoquePreviewParaLinha(c.tamanho);
+                        const eq = estoquePreviewParaLinha(c.cor, c.tamanho);
                         return (
                           <div
                             key={i}
@@ -601,10 +674,13 @@ export default function CriarVariantesPage() {
                       <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Editar em massa</h3>
                       <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
                         Preço, custo, peso e dimensões valem para todas as variantes.{" "}
-                        {tamanhosFinais.length > 0 ? (
+                        {tamanhosFinais.length > 0 && coresFinais.length > 0 ? (
                           <>
-                            O <strong>estoque</strong> é por <strong>tamanho</strong> (o mesmo número para todas as cores daquele tamanho).
+                            Defina o <strong>estoque</strong> por combinação <strong>cor × tamanho</strong>, só por{" "}
+                            <strong>tamanho</strong> ou só por <strong>cor</strong> — escolha abaixo.
                           </>
+                        ) : tamanhosFinais.length > 0 ? (
+                          <>O estoque é por <strong>tamanho</strong> (cada numeração).</>
                         ) : (
                           <>O estoque inicial aplica-se a cada variante de cor.</>
                         )}
@@ -660,11 +736,157 @@ export default function CriarVariantesPage() {
                           className={`${inputBase} w-full py-2`}
                         />
                       </div>
-                      {tamanhosFinais.length > 0 ? (
+                      {tamanhosFinais.length > 0 && coresFinais.length > 0 ? (
+                        <div className="min-w-0 sm:col-span-2 lg:col-span-3 space-y-3">
+                          <div>
+                            <p className="mb-2 text-xs font-medium text-neutral-600 dark:text-neutral-400">Estoque inicial</p>
+                            <div className="flex flex-wrap gap-2" role="group" aria-label="Modo de estoque">
+                              {(
+                                [
+                                  ["matriz", "Cor × tamanho (matriz)"],
+                                  ["por_tamanho", "Só por tamanho"],
+                                  ["por_cor", "Só por cor"],
+                                ] as const
+                              ).map(([id, label]) => (
+                                <button
+                                  key={id}
+                                  type="button"
+                                  onClick={() => setModoEstoque(id)}
+                                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                                    modoEstoque === id
+                                      ? "border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-600"
+                                      : "border-[var(--card-border)] bg-[var(--background)] text-neutral-700 hover:bg-neutral-50 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                            <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+                              {modoEstoque === "matriz" && (
+                                <>
+                                  Uma quantidade por <strong>célula</strong> (cada SKU cor + numeração). Ideal quando o stock difere por cor e tamanho.
+                                </>
+                              )}
+                              {modoEstoque === "por_tamanho" && (
+                                <>
+                                  Um número por <strong>tamanho</strong> — repete em <strong>todas</strong> as cores daquele tamanho (comportamento anterior).
+                                </>
+                              )}
+                              {modoEstoque === "por_cor" && (
+                                <>
+                                  Um número por <strong>cor</strong> — o mesmo em <strong>todos</strong> os tamanhos dessa cor.
+                                </>
+                              )}
+                            </p>
+                          </div>
+                          {modoEstoque === "matriz" && (
+                            <div className="overflow-x-auto rounded-lg border border-[var(--card-border)]">
+                              <table className="w-full min-w-[16rem] border-collapse text-xs">
+                                <thead>
+                                  <tr className="border-b border-[var(--card-border)] bg-neutral-100/80 dark:bg-neutral-800/50">
+                                    <th className="sticky left-0 z-[1] border-r border-[var(--card-border)] bg-neutral-100/95 px-2 py-2 text-left font-medium text-neutral-700 dark:bg-neutral-900/95 dark:text-neutral-200">
+                                      Cor
+                                    </th>
+                                    {tamanhosOrdenados.map((tam) => (
+                                      <th key={tam} className="px-2 py-2 text-center font-medium text-neutral-700 dark:text-neutral-300">
+                                        {tam}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {coresFinais.map((cor) => (
+                                    <tr key={cor} className="border-b border-neutral-100 dark:border-neutral-800">
+                                      <td className="sticky left-0 z-[1] border-r border-[var(--card-border)] bg-[var(--card)] px-2 py-1.5 font-medium text-neutral-800 dark:text-neutral-100">
+                                        {cor}
+                                      </td>
+                                      {tamanhosOrdenados.map((tam) => {
+                                        const key = chaveEstoqueVariante(cor, tam);
+                                        return (
+                                          <td key={key} className="p-1">
+                                            <input
+                                              type="text"
+                                              inputMode="numeric"
+                                              value={estoqueMatriz[key] ?? ""}
+                                              onChange={(e) =>
+                                                setEstoqueMatriz((prev) => ({ ...prev, [key]: e.target.value }))
+                                              }
+                                              placeholder="0"
+                                              className={`${inputBase} w-full min-w-[3.25rem] py-1.5 tabular-nums text-center text-xs`}
+                                              aria-label={`Estoque ${cor} ${tam}`}
+                                            />
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                          {modoEstoque === "por_tamanho" && (
+                            <div>
+                              <p className="mb-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+                                Cada tamanho abaixo aplica-se a todas as cores nesse tamanho.
+                              </p>
+                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                                {tamanhosOrdenados.map((tam) => {
+                                  const k = tam.toUpperCase();
+                                  return (
+                                    <div key={k}>
+                                      <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">{tam}</label>
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={estoquePorTamanho[k] ?? ""}
+                                        onChange={(e) =>
+                                          setEstoquePorTamanho((prev) => ({ ...prev, [k]: e.target.value }))
+                                        }
+                                        placeholder="0"
+                                        className={`${inputBase} w-full py-2 tabular-nums`}
+                                        aria-label={`Estoque tamanho ${tam}`}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          {modoEstoque === "por_cor" && (
+                            <div>
+                              <p className="mb-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+                                Cada cor abaixo repete o mesmo estoque em todos os tamanhos.
+                              </p>
+                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                                {coresFinais.map((cor) => {
+                                  const k = cor.trim().toLowerCase();
+                                  return (
+                                    <div key={cor}>
+                                      <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">{cor}</label>
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={estoquePorCor[k] ?? ""}
+                                        onChange={(e) =>
+                                          setEstoquePorCor((prev) => ({ ...prev, [k]: e.target.value }))
+                                        }
+                                        placeholder="0"
+                                        className={`${inputBase} w-full py-2 tabular-nums`}
+                                        aria-label={`Estoque cor ${cor}`}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : tamanhosFinais.length > 0 ? (
                         <div className="min-w-0 sm:col-span-2 lg:col-span-3">
                           <p className="mb-2 text-xs font-medium text-neutral-600 dark:text-neutral-400">Estoque inicial por tamanho</p>
                           <p className="mb-2 text-[11px] text-neutral-500 dark:text-neutral-400">
-                            Cada <strong>SKU</strong> (cor + tamanho) usa o número daquele tamanho. Ex.: P = 100 com 3 cores → três SKUs em P com 100 cada (300 unidades em P no total).
+                            Cada numeração tem a sua quantidade (sem combinação com cor).
                           </p>
                           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                             {tamanhosOrdenados.map((tam) => {

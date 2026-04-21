@@ -288,7 +288,7 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                                     : "/admin/alteracoes-produtos"
                                 }
                                 onClick={(e) => e.stopPropagation()}
-                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline"
+                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
                               >
                                 Abrir alterações de produtos →
                               </a>
