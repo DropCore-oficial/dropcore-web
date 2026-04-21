@@ -16,6 +16,7 @@ import { executeBlockSale } from "@/lib/blockSale";
 import { isInadimplente } from "@/lib/inadimplencia";
 import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
 import { resolveLedgerIdForPedido } from "@/lib/resolveLedgerForPedido";
+import { fireErpEstoqueWebhook } from "@/lib/erpEstoqueOutbound";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,14 @@ function hashApiKey(key: string): string {
 }
 
 type ItemInput = { sku: string; quantidade: number };
+
+type SellerForPedido = {
+  id: string;
+  org_id: string;
+  fornecedor_id: string | null;
+  erp_estoque_webhook_url?: string | null;
+  erp_estoque_webhook_secret?: string | null;
+};
 
 function getClientIp(req: Request): string {
   const hdr =
@@ -253,16 +262,36 @@ export async function POST(req: Request) {
     }
 
     // Buscar seller pela API key (Modelo B: cada seller tem sua chave)
-    const { data: sellerRow, error: sellerErr } = await supabaseAdmin
-      .from("sellers")
-      .select("id, org_id, fornecedor_id")
-      .eq("erp_api_key_hash", keyHash)
-      .maybeSingle();
-
-    if (sellerErr) {
-      console.error("[erp/pedidos] seller lookup:", sellerErr.message);
-      return NextResponse.json({ error: "Erro ao verificar credenciais." }, { status: 500 });
+    let sellerRow: SellerForPedido | null = null;
+    {
+      const r = await supabaseAdmin
+        .from("sellers")
+        .select("id, org_id, fornecedor_id, erp_estoque_webhook_url, erp_estoque_webhook_secret")
+        .eq("erp_api_key_hash", keyHash)
+        .maybeSingle();
+      if (
+        r.error &&
+        (r.error.code === "42703" ||
+          String(r.error.message ?? "").toLowerCase().includes("erp_estoque_webhook"))
+      ) {
+        const r2 = await supabaseAdmin
+          .from("sellers")
+          .select("id, org_id, fornecedor_id")
+          .eq("erp_api_key_hash", keyHash)
+          .maybeSingle();
+        if (r2.error) {
+          console.error("[erp/pedidos] seller lookup:", r2.error.message);
+          return NextResponse.json({ error: "Erro ao verificar credenciais." }, { status: 500 });
+        }
+        sellerRow = r2.data as SellerForPedido;
+      } else if (r.error) {
+        console.error("[erp/pedidos] seller lookup:", r.error.message);
+        return NextResponse.json({ error: "Erro ao verificar credenciais." }, { status: 500 });
+      } else {
+        sellerRow = r.data as SellerForPedido;
+      }
     }
+
     if (!sellerRow) {
       return NextResponse.json({ error: "API Key inválida." }, { status: 401 });
     }
@@ -506,6 +535,23 @@ export async function POST(req: Request) {
       .from("pedidos")
       .update({ ledger_id: blockResult.ledger_id, atualizado_em: new Date().toISOString() })
       .eq("id", pedido.id);
+
+    fireErpEstoqueWebhook({
+      webhookUrl: sellerRow.erp_estoque_webhook_url,
+      webhookSecret: sellerRow.erp_estoque_webhook_secret,
+      payload: {
+        event: "dropcore.estoque_atualizado",
+        pedido_id: pedido.id,
+        referencia_externa: referencia_externa ?? null,
+        seller_id: seller.id,
+        org_id,
+        items: items.map((it, i) => ({
+          sku: skuRows[i].sku,
+          quantidade_vendida: it.quantidade,
+          estoque_atual_dropcore: skuRows[i].estoque_atual - it.quantidade,
+        })),
+      },
+    });
 
     await addPedidoEvento({
       org_id,

@@ -50,7 +50,15 @@ export default function SellerIntegracoesErpPage() {
       processado_em: string | null;
     }>;
     eventos_unavailable?: boolean;
+    estoque_webhook_configured?: boolean;
+    estoque_webhook_columns_ok?: boolean;
   } | null>(null);
+
+  const [estoqueWebhookUrl, setEstoqueWebhookUrl] = useState("");
+  const [estoqueWebhookSecret, setEstoqueWebhookSecret] = useState("");
+  const [estoqueWebhookSaving, setEstoqueWebhookSaving] = useState(false);
+  const [estoqueWebhookColsMissing, setEstoqueWebhookColsMissing] = useState(false);
+  const [estoqueHasSecret, setEstoqueHasSecret] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -70,6 +78,7 @@ export default function SellerIntegracoesErpPage() {
       setPrefix(json.prefix ?? null);
       await loadDiagnostics(session.access_token);
       await loadBling(session.access_token);
+      await loadEstoqueWebhook(session.access_token);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro ao carregar.");
     } finally {
@@ -98,6 +107,96 @@ export default function SellerIntegracoesErpPage() {
       setError(e instanceof Error ? e.message : "Erro ao consultar diagnóstico.");
     } finally {
       setDiagLoading(false);
+    }
+  }
+
+  async function loadEstoqueWebhook(token?: string) {
+    try {
+      let accessToken = token;
+      if (!accessToken) {
+        const { data: { session } } = await supabaseBrowser.auth.getSession();
+        accessToken = session?.access_token;
+      }
+      if (!accessToken) return;
+      const res = await fetch("/api/seller/erp-estoque-webhook", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: "no-store",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json.columns_missing) {
+        setEstoqueWebhookColsMissing(true);
+        setEstoqueWebhookUrl("");
+        setEstoqueHasSecret(false);
+        return;
+      }
+      setEstoqueWebhookColsMissing(false);
+      if (!res.ok) return;
+      setEstoqueWebhookUrl(typeof json.url === "string" ? json.url : "");
+      setEstoqueHasSecret(Boolean(json.has_secret));
+      setEstoqueWebhookSecret("");
+    } catch {
+      /* não bloquear página */
+    }
+  }
+
+  async function salvarEstoqueWebhook() {
+    setEstoqueWebhookSaving(true);
+    setError(null);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const body: Record<string, string> = { url: estoqueWebhookUrl.trim() };
+      if (estoqueWebhookSecret.trim() !== "") {
+        body.secret = estoqueWebhookSecret.trim();
+      }
+      const res = await fetch("/api/seller/erp-estoque-webhook", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Erro ao salvar.");
+      setEstoqueWebhookSecret("");
+      await loadEstoqueWebhook(session.access_token);
+      await loadDiagnostics(session.access_token);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao salvar webhook.");
+    } finally {
+      setEstoqueWebhookSaving(false);
+    }
+  }
+
+  async function limparSegredoEstoqueWebhook() {
+    setEstoqueWebhookSaving(true);
+    setError(null);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const res = await fetch("/api/seller/erp-estoque-webhook", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ secret: "" }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Erro ao limpar segredo.");
+      await loadEstoqueWebhook(session.access_token);
+      await loadDiagnostics(session.access_token);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao limpar segredo.");
+    } finally {
+      setEstoqueWebhookSaving(false);
     }
   }
 
@@ -341,12 +440,69 @@ export default function SellerIntegracoesErpPage() {
               )}
             </div>
 
+            <div className="rounded-2xl border border-blue-200/70 dark:border-blue-900/45 bg-white dark:bg-neutral-900/80 shadow-md p-6 mb-6">
+              <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-1">Estoque → seu ERP (webhook)</h2>
+              <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-4 leading-relaxed">
+                Depois que o <strong>POST /api/erp/pedidos</strong> é aceito (estoque já debitado no DropCore), enviamos um <strong>POST</strong> para a URL abaixo com o JSON do evento{" "}
+                <code className="text-[10px] bg-neutral-100 dark:bg-neutral-800 px-1 rounded">dropcore.estoque_atualizado</code>.
+                Use n8n, Cloudflare Worker ou seu middleware para chamar Bling/Tiny com o token de vocês. Opcional: segredo compartilhado → cabeçalho{" "}
+                <code className="text-[10px] bg-neutral-100 dark:bg-neutral-800 px-1 rounded">X-DropCore-Signature</code> (HMAC-SHA256 hex do corpo).
+              </p>
+              {estoqueWebhookColsMissing ? (
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  Colunas não encontradas. Execute <code className="text-xs">add-seller-erp-estoque-webhook.sql</code> no Supabase.
+                </p>
+              ) : (
+                <>
+                  <label className="block text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-1">URL (https; localhost só em dev)</label>
+                  <input
+                    type="url"
+                    value={estoqueWebhookUrl}
+                    onChange={(e) => setEstoqueWebhookUrl(e.target.value)}
+                    placeholder="https://seu-dominio.com/webhooks/dropcore-estoque"
+                    className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 mb-3"
+                  />
+                  <label className="block text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-1">
+                    Segredo (opcional) {estoqueHasSecret ? <span className="text-emerald-600 dark:text-emerald-400">· já salvo</span> : null}
+                  </label>
+                  <input
+                    type="password"
+                    value={estoqueWebhookSecret}
+                    onChange={(e) => setEstoqueWebhookSecret(e.target.value)}
+                    placeholder={estoqueHasSecret ? "Deixe em branco para manter o atual" : "Opcional"}
+                    autoComplete="off"
+                    className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 mb-3"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void salvarEstoqueWebhook()}
+                      disabled={estoqueWebhookSaving}
+                      className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 text-sm font-semibold disabled:opacity-60"
+                    >
+                      {estoqueWebhookSaving ? "Salvando…" : "Salvar webhook"}
+                    </button>
+                    {estoqueHasSecret && (
+                      <button
+                        type="button"
+                        onClick={() => void limparSegredoEstoqueWebhook()}
+                        disabled={estoqueWebhookSaving}
+                        className="rounded-xl border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 disabled:opacity-60"
+                      >
+                        Remover segredo
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
             <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900/80 shadow-md hover:shadow-lg transition-shadow p-6">
               <div className="flex items-center justify-between gap-3 mb-4">
                 <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">Status da integração</h2>
                 <button
                   type="button"
-                  onClick={() => { void loadDiagnostics(); void loadBling(); }}
+                  onClick={() => { void loadDiagnostics(); void loadBling(); void loadEstoqueWebhook(); }}
                   className="rounded-lg border border-neutral-300 dark:border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                 >
                   {diagLoading ? "Atualizando..." : "Atualizar status"}
@@ -366,6 +522,16 @@ export default function SellerIntegracoesErpPage() {
                     {diag?.fornecedor_vinculado ? "OK" : "Pendente"}
                   </p>
                 </div>
+                <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 p-3 sm:col-span-2">
+                  <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Webhook estoque → ERP</p>
+                  <p className={`mt-1 text-sm font-medium ${diag?.estoque_webhook_configured ? "text-emerald-700 dark:text-emerald-300" : "text-neutral-600 dark:text-neutral-400"}`}>
+                    {diag?.estoque_webhook_columns_ok === false
+                      ? "SQL pendente (colunas)"
+                      : diag?.estoque_webhook_configured
+                        ? "Configurado"
+                        : "Opcional — não configurado"}
+                  </p>
+                </div>
               </div>
 
               <div className={`rounded-xl border px-4 py-3 mb-6 ${diag?.integracao_pronta ? "border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/20" : "border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/20"}`}>
@@ -373,7 +539,9 @@ export default function SellerIntegracoesErpPage() {
                   {diag?.integracao_pronta ? "Integração pronta para uso" : "Integração incompleta"}
                 </p>
                 <p className="text-xs mt-1 text-neutral-600 dark:text-neutral-300">
-                  Modo atual: sem webhook (sync por API). Intervalo recomendado: 1 a 2 minutos.
+                  {diag?.mode === "com_webhook_estoque"
+                    ? "Modo: após cada pedido aceito, o DropCore também POSTa o estoque atualizado para o seu webhook (além da API)."
+                    : "Modo: pedidos só pela API (X-API-Key). Webhook de estoque opcional na seção anterior. Intervalo recomendado: 1 a 2 minutos."}
                 </p>
               </div>
 

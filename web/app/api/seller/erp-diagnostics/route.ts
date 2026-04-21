@@ -18,13 +18,27 @@ async function getSellerFromToken(req: Request) {
   const { data: userData, error: userErr } = await sbAnon.auth.getUser(token);
   if (userErr || !userData?.user) return null;
 
-  const { data: seller } = await supabaseAdmin
+  const r = await supabaseAdmin
     .from("sellers")
-    .select("id, org_id, fornecedor_id, erp_api_key_prefix, erp_api_key_hash")
+    .select("id, org_id, fornecedor_id, erp_api_key_prefix, erp_api_key_hash, erp_estoque_webhook_url")
     .eq("user_id", userData.user.id)
     .maybeSingle();
 
-  return seller;
+  if (
+    r.error &&
+    (r.error.code === "42703" || String(r.error.message ?? "").toLowerCase().includes("erp_estoque_webhook"))
+  ) {
+    const r2 = await supabaseAdmin
+      .from("sellers")
+      .select("id, org_id, fornecedor_id, erp_api_key_prefix, erp_api_key_hash")
+      .eq("user_id", userData.user.id)
+      .maybeSingle();
+    if (r2.error || !r2.data) return null;
+    return { ...r2.data, erp_estoque_webhook_url: null as string | null, erp_estoque_webhook_columns: false as const };
+  }
+  if (r.error || !r.data) return null;
+
+  return { ...r.data, erp_estoque_webhook_columns: true as const };
 }
 
 export async function GET(req: Request) {
@@ -36,6 +50,9 @@ export async function GET(req: Request) {
 
     const has_key = Boolean(seller.erp_api_key_prefix);
     const fornecedor_vinculado = Boolean(seller.fornecedor_id);
+    const estoqueWebhookCols = "erp_estoque_webhook_columns" in seller ? seller.erp_estoque_webhook_columns : true;
+    const estoqueWebhookUrl = "erp_estoque_webhook_url" in seller ? String(seller.erp_estoque_webhook_url ?? "").trim() : "";
+    const estoque_webhook_configured = estoqueWebhookCols && estoqueWebhookUrl.length > 0;
 
     let eventos: Array<{
       id: string;
@@ -107,7 +124,9 @@ export async function GET(req: Request) {
       fornecedor_vinculado,
       integracao_pronta: has_key && fornecedor_vinculado,
       endpoint: "/api/erp/pedidos",
-      mode: "sem_webhook_sync",
+      mode: estoque_webhook_configured ? "com_webhook_estoque" : "sem_webhook_sync",
+      estoque_webhook_configured,
+      estoque_webhook_columns_ok: estoqueWebhookCols,
       suggested_sync_interval_minutes: 1,
       rate_limit_usage,
       rate_limit_unavailable,
