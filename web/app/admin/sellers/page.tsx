@@ -499,8 +499,8 @@ export default function AdminSellersPage() {
                   if (!pode && min) {
                     return (
                       <p className="text-[11px] text-[var(--muted)] mt-2">
-                        Regra comercial: mínimo de {MESES_MINIMOS_COM_FORNECEDOR} meses com o mesmo armazém. Troca/desvinculação liberada na plataforma a partir de{" "}
-                        <span className="font-semibold text-[var(--foreground)]">{formatDate(min.toISOString().slice(0, 10))}</span>, salvo infração comprovada (use as opções em Editar).
+                        Regra: {MESES_MINIMOS_COM_FORNECEDOR} meses com o armazém atual após cada víncio ou troca (evita pinga-pinga). Liberação na plataforma a partir de{" "}
+                        <span className="font-semibold text-[var(--foreground)]">{formatDate(min.toISOString().slice(0, 10))}</span>; infração comprovada → opções em Editar.
                       </p>
                     );
                   }
@@ -671,7 +671,7 @@ export default function AdminSellersPage() {
                 {(editFornecedorId.trim() || detail?.fornecedor_id) && (
                   <div className="mt-3 space-y-2 rounded-lg border border-[var(--card-border)] bg-[var(--background)] p-3">
                     <p className="text-[11px] text-[var(--muted)] leading-relaxed">
-                      Com tudo certo entre as partes, o seller permanece pelo menos <strong>{MESES_MINIMOS_COM_FORNECEDOR} meses</strong> com o mesmo armazém. Para trocar antes (pedidos errados, infração), use as opções abaixo.
+                      Com tudo certo entre as partes, o seller fica pelo menos <strong>{MESES_MINIMOS_COM_FORNECEDOR} meses</strong> com o armazém atual após cada víncio ou troca. Para exceção (infração, pedidos errados), use as opções abaixo.
                     </p>
                     <label className="flex cursor-pointer items-start gap-2 text-[12px] text-[var(--foreground)]">
                       <input

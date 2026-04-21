@@ -1,4 +1,8 @@
-/** Meses mínimos de permanência com o mesmo fornecedor após o vínculo (regra comercial). */
+/**
+ * Meses mínimos com o armazém atual após cada víncio ou troca.
+ * O `fornecedor_vinculado_em` no seller é atualizado sempre que o `fornecedor_id` muda para outro valor:
+ * o mesmo prazo vale para o primeiro víncio e entre uma troca e outra (evita “pinga-pinga” mensal).
+ */
 export const MESES_MINIMOS_COM_FORNECEDOR = 3;
 
 /** Data a partir da qual o seller pode trocar ou remover o fornecedor (sem liberação antecipada). */

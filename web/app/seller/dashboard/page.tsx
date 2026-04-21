@@ -644,7 +644,7 @@ export default function SellerDashboardPage() {
                 <>A equipe marcou liberação antecipada (ex.: infração comprovada). Combine a troca ou desvinculação pelo suporte antes de alterar integrações ou catálogo.</>
               ) : (
                 <>
-                  Pela regra da plataforma, permanecemos pelo menos <strong>{vinculoFornecedor.meses_minimos} meses</strong> com o mesmo armazém quando tudo corre bem.
+                  Pela regra da plataforma, permanecemos pelo menos <strong>{vinculoFornecedor.meses_minimos} meses</strong> com o mesmo armazém quando tudo corre bem (vale também entre uma troca e outra).
                   {vinculoFornecedor.pode_trocar_a_partir_de ? (
                     <>
                       {" "}
@@ -655,6 +655,28 @@ export default function SellerDashboardPage() {
                   Em caso de erro grave do fornecedor (pedidos errados, descumprimento), fale com o suporte DropCore.
                 </>
               )}
+            </p>
+          </div>
+        )}
+
+        {vinculoFornecedor?.ativo && !vinculoFornecedor.dentro_compromisso && !vinculoFornecedor.liberado_antecipado && (
+          <div
+            role="note"
+            className="rounded-xl border border-emerald-200 bg-emerald-50/90 p-4 text-sm shadow-sm dark:border-emerald-800 dark:bg-emerald-950/25"
+          >
+            <p className="font-semibold text-emerald-900 dark:text-emerald-200">Armazém vinculado — troca liberada</p>
+            <p className="mt-1 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
+              {vinculoFornecedor.pode_trocar_a_partir_de ? (
+                <>
+                  <strong>Já liberado desde {formatDate(vinculoFornecedor.pode_trocar_a_partir_de.slice(0, 10))}</strong> — fale com o <strong>suporte DropCore</strong> para trocar de armazém ou ajustar o víncio (a alteração é feita pela equipe no painel).
+                </>
+              ) : (
+                <>
+                  Você pode solicitar troca ou desvinculação de armazém pelo <strong>suporte DropCore</strong>. A alteração é feita pela equipe no painel.
+                </>
+              )}
+              {" "}
+              A cada troca efetiva, o período mínimo de <strong>{vinculoFornecedor.meses_minimos} meses</strong> volta a contar com o novo armazém.
             </p>
           </div>
         )}
