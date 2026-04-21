@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AlteracoesCatalogoInfoBanner } from "@/components/fornecedor/AlteracoesCatalogoInfoBanner";
 import { FotoVariacaoCell } from "@/components/FotoVariacaoCell";
 import { toTitleCase } from "@/lib/formatText";
 import { CORES_PREDEFINIDAS, TAMANHOS_PREDEFINIDOS } from "@/lib/fornecedorVariantesUi";
@@ -806,6 +807,10 @@ export default function EditarVariantesPage() {
         </div>
       </div>
 
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 mt-3">
+        <AlteracoesCatalogoInfoBanner />
+      </div>
+
       {error && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
           <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-800 dark:text-red-300">
@@ -825,7 +830,7 @@ export default function EditarVariantesPage() {
       {statusAlteracaoEditar === "pendente" && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
           <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-200">
-            <strong>Alteração em análise.</strong> O admin ainda não aprovou. Você pode <strong>ajustar e salvar de novo</strong> — a última versão enviada é a que o DropCore analisa em Alterações de produtos.
+            <strong>Alteração em análise.</strong> O admin ainda não aprovou. O <strong>seller e o ERP</strong> seguem com os dados <strong>já aprovados</strong> até essa análise fechar. Você pode <strong>ajustar e salvar de novo</strong> — a última versão enviada é a que o DropCore analisa em Alterações de produtos.
           </div>
         </div>
       )}

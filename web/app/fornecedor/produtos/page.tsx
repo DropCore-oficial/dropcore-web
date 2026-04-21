@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { FornecedorNav } from "../FornecedorNav";
+import { AlteracoesCatalogoInfoBanner } from "@/components/fornecedor/AlteracoesCatalogoInfoBanner";
 import { FotoVariacaoCell } from "@/components/FotoVariacaoCell";
 import { toTitleCase } from "@/lib/formatText";
 import { fornecedorProdutoImagemSrc } from "@/lib/fornecedorProdutoImagemSrc";
@@ -415,6 +416,8 @@ export default function FornecedorProdutosPage() {
             {successMessage}
           </div>
         )}
+
+        <AlteracoesCatalogoInfoBanner />
 
         {formError && modal === "none" && (
           <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-4 text-sm text-red-800 dark:text-red-300 flex items-start justify-between gap-3">
