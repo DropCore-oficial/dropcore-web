@@ -1,52 +1,20 @@
 /**
  * GET  /api/seller/cadastro — dados do seller logado para o formulário de cadastro.
- * PATCH /api/seller/cadastro — atualiza campos comerciais (whitelist) do seller logado.
+ * PATCH /api/seller/cadastro — atualiza campos comerciais (whitelist) do seller logado (plano opcional).
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { createClient } from "@supabase/supabase-js";
 import {
+  cadastroSellerDocumentoPendente,
   documentoSellerValido,
   normalizeSellerDocDigits,
+  planoSellerDefinido,
   sellerCadastroPendente,
 } from "@/lib/sellerDocumento";
+import { sellerFromBearer } from "@/lib/sellerFromBearer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-async function sellerFromBearer(req: Request) {
-  const auth = req.headers.get("authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  if (!token) return { error: "Sem token de autenticação." as const, user_id: null, seller: null };
-
-  const sbAnon = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { persistSession: false } }
-  );
-  const { data: userData, error: userErr } = await sbAnon.auth.getUser(token);
-  if (userErr || !userData?.user) {
-    return { error: "Token inválido ou expirado." as const, user_id: null, seller: null };
-  }
-
-  const user_id = userData.user.id;
-  const { data: seller, error: sellerErr } = await supabaseAdmin
-    .from("sellers")
-    .select(
-      "id, org_id, nome, documento, plano, email, telefone, cep, endereco, nome_responsavel, cpf_responsavel, data_nascimento, nome_banco, nome_no_banco, agencia, conta, tipo_conta, status"
-    )
-    .eq("user_id", user_id)
-    .maybeSingle();
-
-  if (sellerErr || !seller) {
-    return { error: "Seller não encontrado para este usuário." as const, user_id: null, seller: null };
-  }
-  if (seller.status === "bloqueado") {
-    return { error: "Conta bloqueada. Entre em contato com o suporte." as const, user_id: null, seller: null };
-  }
-
-  return { error: null, user_id, seller };
-}
 
 function inferTipoDocumento(documento: string | null): "CNPJ" | "CPF" {
   const d = normalizeSellerDocDigits(documento);
@@ -62,12 +30,17 @@ export async function GET(req: Request) {
       return NextResponse.json({ error }, { status: error === "Sem token de autenticação." ? 401 : 404 });
     }
 
-    const cadastro_pendente = sellerCadastroPendente(seller.documento, (seller as { plano?: string | null }).plano);
+    const planoRow = seller.plano ?? null;
+    const cadastro_dados_pendente = cadastroSellerDocumentoPendente(seller.documento);
+    const plano_pendente = !planoSellerDefinido(planoRow);
+    const cadastro_pendente = sellerCadastroPendente(seller.documento, planoRow);
+
     const tipo_documento = inferTipoDocumento(seller.documento);
-    const planoRow = (seller as { plano?: string | null }).plano ?? null;
 
     return NextResponse.json({
       cadastro_pendente,
+      cadastro_dados_pendente,
+      plano_pendente,
       tipo_documento,
       plano: planoRow ?? "",
       nome: seller.nome ?? "",
@@ -79,11 +52,6 @@ export async function GET(req: Request) {
       nome_responsavel: seller.nome_responsavel ?? "",
       cpf_responsavel: seller.cpf_responsavel ?? "",
       data_nascimento: seller.data_nascimento ?? "",
-      nome_banco: seller.nome_banco ?? "",
-      nome_no_banco: seller.nome_no_banco ?? "",
-      agencia: seller.agencia ?? "",
-      conta: seller.conta ?? "",
-      tipo_conta: seller.tipo_conta ?? "",
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
@@ -109,15 +77,15 @@ export async function PATCH(req: Request) {
     const nome_responsavel = body?.nome_responsavel != null ? String(body.nome_responsavel).trim() : "";
     const cpf_responsavel = body?.cpf_responsavel != null ? String(body.cpf_responsavel).trim() : "";
     const data_nascimento = body?.data_nascimento != null ? String(body.data_nascimento).trim() : "";
-    const nome_banco = body?.nome_banco != null ? String(body.nome_banco).trim() : "";
-    const nome_no_banco = body?.nome_no_banco != null ? String(body.nome_no_banco).trim() : "";
-    const agencia = body?.agencia != null ? String(body.agencia).trim() : "";
-    const conta = body?.conta != null ? String(body.conta).trim() : "";
-    const tipo_conta = body?.tipo_conta != null ? String(body.tipo_conta).trim() : "";
-    const planoRaw = String(body?.plano ?? "").trim().toLowerCase();
-    const planoNorm = planoRaw === "pro" ? "Pro" : planoRaw === "starter" ? "Starter" : null;
-    if (!planoNorm) {
-      return NextResponse.json({ error: "Escolha o plano Starter ou Pro." }, { status: 400 });
+
+    let planoNorm: "Pro" | "Starter" | undefined;
+    if (body?.plano != null && String(body.plano).trim() !== "") {
+      const planoRaw = String(body.plano).trim().toLowerCase();
+      const n = planoRaw === "pro" ? "Pro" : planoRaw === "starter" ? "Starter" : null;
+      if (!n) {
+        return NextResponse.json({ error: "Plano inválido. Use Starter ou Pro." }, { status: 400 });
+      }
+      planoNorm = n;
     }
 
     if (nome.length < 2) {
@@ -161,7 +129,6 @@ export async function PATCH(req: Request) {
 
     const updateRow: Record<string, unknown> = {
       nome,
-      plano: planoNorm,
       documento: documentoSalvar,
       email: email || null,
       telefone: telefone || null,
@@ -170,32 +137,30 @@ export async function PATCH(req: Request) {
       nome_responsavel: nome_responsavel || null,
       cpf_responsavel: cpf_responsavel || null,
       data_nascimento: data_nascimento || null,
-      nome_banco: nome_banco || null,
-      nome_no_banco: nome_no_banco || null,
-      agencia: agencia || null,
-      conta: conta || null,
-      tipo_conta: tipo_conta || null,
     };
+    if (planoNorm) updateRow.plano = planoNorm;
 
     const { data: updated, error: upErr } = await supabaseAdmin
       .from("sellers")
       .update(updateRow)
       .eq("id", seller.id)
-      .select(
-        "id, nome, documento, plano, email, telefone, cep, endereco, nome_responsavel, cpf_responsavel, data_nascimento, nome_banco, nome_no_banco, agencia, conta, tipo_conta"
-      )
+      .select("id, nome, documento, plano, email, telefone, cep, endereco, nome_responsavel, cpf_responsavel, data_nascimento")
       .single();
 
     if (upErr) {
       return NextResponse.json({ error: upErr.message }, { status: 500 });
     }
 
+    const doc = updated?.documento ?? null;
+    const plan = (updated as { plano?: string | null } | null)?.plano ?? null;
+    const cadastro_dados_pendente = cadastroSellerDocumentoPendente(doc);
+    const plano_pendente = !planoSellerDefinido(plan);
+
     return NextResponse.json({
       ok: true,
-      cadastro_pendente: sellerCadastroPendente(
-        updated?.documento ?? null,
-        (updated as { plano?: string | null } | null)?.plano ?? null
-      ),
+      cadastro_pendente: sellerCadastroPendente(doc, plan),
+      cadastro_dados_pendente,
+      plano_pendente,
       seller: updated,
     });
   } catch (e: unknown) {

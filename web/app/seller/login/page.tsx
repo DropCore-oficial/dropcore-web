@@ -62,7 +62,21 @@ export default function SellerLoginPage() {
       });
       if (!res.ok) {
         await supabaseBrowser.auth.signOut();
-        throw new Error("Acesso não autorizado. Use o login do painel administrativo.");
+        const body = await res.json().catch(() => ({}));
+        const apiMsg = typeof body?.error === "string" ? body.error : "";
+        if (res.status === 404) {
+          throw new Error(
+            "Esta conta não está ligada a nenhum seller (pode ter sido removido). " +
+              "Peça à organização um novo convite e use o link de registo, ou apague este e-mail em Auth no Supabase se quiser recomeçar."
+          );
+        }
+        if (res.status === 403) {
+          throw new Error(apiMsg || "Conta bloqueada ou sem permissão.");
+        }
+        throw new Error(
+          apiMsg ||
+            "Acesso não autorizado neste painel. Se és admin da organização, usa o login em /login."
+        );
       }
       router.replace("/seller/dashboard");
     } catch (e: unknown) {

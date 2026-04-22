@@ -12,7 +12,8 @@ export default function SellerRegisterPage() {
 
   const [loading, setLoading] = useState(true);
   const [sellerNome, setSellerNome] = useState<string | null>(null);
-  const [cadastroPendenteConvite, setCadastroPendenteConvite] = useState(false);
+  const [conviteDadosPendente, setConviteDadosPendente] = useState(false);
+  const [convitePlanoPendente, setConvitePlanoPendente] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
@@ -22,6 +23,7 @@ export default function SellerRegisterPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
   const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [needsLink, setNeedsLink] = useState(false);
 
   useEffect(() => {
     fetch(`/api/seller/invite/${token}`)
@@ -29,15 +31,74 @@ export default function SellerRegisterPage() {
       .then((j) => {
         if (j?.ok) {
           setSellerNome(j.seller_nome);
-          setCadastroPendenteConvite(!!j.cadastro_pendente);
+          setConviteDadosPendente(!!j.cadastro_dados_pendente);
+          setConvitePlanoPendente(!!j.plano_pendente);
         } else setTokenError(j?.error ?? "Convite inválido.");
       })
       .catch(() => setTokenError("Erro ao validar convite."))
       .finally(() => setLoading(false));
   }, [token]);
 
+  async function afterAuthRedirect() {
+    const { data: { session } } = await supabaseBrowser.auth.getSession();
+    if (session?.access_token) {
+      const r = await fetch("/api/seller/cadastro", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: "no-store",
+      });
+      const cj = await r.json();
+      if (r.ok && cj.cadastro_dados_pendente) {
+        router.replace("/seller/cadastro");
+        return;
+      }
+    }
+    router.replace("/seller/dashboard");
+  }
+
+  async function vincularContaExistente() {
+    setFormError(null);
+    if (!email.trim() || !email.includes("@")) {
+      setFormError("Informe o mesmo e-mail da sua conta.");
+      return;
+    }
+    if (senha.length < 6) {
+      setFormError("Informe a senha da sua conta.");
+      return;
+    }
+    setSending(true);
+    try {
+      const { error: loginErr, data } = await supabaseBrowser.auth.signInWithPassword({
+        email: email.trim(),
+        password: senha,
+      });
+      if (loginErr) {
+        throw new Error(loginErr.message === "Invalid login credentials" ? "E-mail ou senha incorretos." : loginErr.message);
+      }
+      const access_token = data.session?.access_token;
+      if (!access_token) throw new Error("Não foi possível obter sessão. Tente de novo.");
+
+      const res = await fetch(`/api/seller/invite/${token}/link`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Erro ao vincular ao convite.");
+
+      await afterAuthRedirect();
+    } catch (e: unknown) {
+      setFormError(e instanceof Error ? e.message : "Erro inesperado.");
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function registrar() {
     setFormError(null);
+    setNeedsLink(false);
     if (!email.trim() || !email.includes("@")) {
       setFormError("Informe um e-mail válido.");
       return;
@@ -59,7 +120,14 @@ export default function SellerRegisterPage() {
         body: JSON.stringify({ email: email.trim(), senha }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? "Erro ao criar conta.");
+      if (!res.ok) {
+        if (json?.code === "EMAIL_ALREADY_REGISTERED") {
+          setNeedsLink(true);
+          setFormError(json?.error ?? "Este e-mail já está cadastrado.");
+          return;
+        }
+        throw new Error(json?.error ?? "Erro ao criar conta.");
+      }
 
       // Faz login automático
       const { error: loginErr } = await supabaseBrowser.auth.signInWithPassword({
@@ -70,19 +138,7 @@ export default function SellerRegisterPage() {
         setSucesso(true);
         return;
       }
-      const { data: { session } } = await supabaseBrowser.auth.getSession();
-      if (session?.access_token) {
-        const r = await fetch("/api/seller/cadastro", {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-          cache: "no-store",
-        });
-        const cj = await r.json();
-        if (r.ok && cj.cadastro_pendente) {
-          router.replace("/seller/cadastro");
-          return;
-        }
-      }
-      router.replace("/seller/dashboard");
+      await afterAuthRedirect();
     } catch (e: unknown) {
       setFormError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
@@ -141,9 +197,15 @@ export default function SellerRegisterPage() {
           <div className="mb-5 rounded-xl bg-[var(--background)] border border-[var(--card-border)] px-4 py-3">
             <p className="text-xs text-[var(--muted)]">Convite para</p>
             <p className="text-[var(--foreground)] font-semibold mt-0.5">{sellerNome}</p>
-            {cadastroPendenteConvite && (
+            {(conviteDadosPendente || convitePlanoPendente) && (
               <p className="text-[11px] text-[var(--muted)] mt-2 leading-relaxed">
-                Depois de criar a senha, você completa CNPJ ou CPF, contato, endereço e escolhe o plano (Starter ou Pro) na tela de Cadastro — com explicação para comparar.
+                {conviteDadosPendente
+                  ? "Depois de criar a senha, você completa CNPJ ou CPF, contato e endereço na tela de cadastro comercial."
+                  : null}
+                {conviteDadosPendente && convitePlanoPendente ? " " : ""}
+                {convitePlanoPendente
+                  ? `${conviteDadosPendente ? "Em seguida, no painel, " : "Depois de entrar, no painel, "}escolha o plano Starter ou Pro (com valores e comparação) antes de usar o restante.`
+                  : null}
               </p>
             )}
           </div>
@@ -154,7 +216,10 @@ export default function SellerRegisterPage() {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setNeedsLink(false);
+                }}
                 placeholder="seu@email.com"
                 className="w-full rounded-xl bg-[var(--background)] border border-[var(--card-border)] text-[var(--foreground)] placeholder-[var(--muted)] px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/50"
               />
@@ -224,6 +289,23 @@ export default function SellerRegisterPage() {
           {formError && (
             <div className="mt-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
               {formError}
+            </div>
+          )}
+
+          {needsLink && (
+            <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+              <p className="font-medium mb-2">Conta já existe com este e-mail</p>
+              <p className="text-amber-800/90 dark:text-amber-200/90 text-xs leading-relaxed mb-3">
+                Confirme o e-mail e a <strong>senha dessa conta</strong> acima e use o botão abaixo para entrar e vincular ao convite do seller <strong>{sellerNome}</strong> (sem criar utilizador novo).
+              </p>
+              <button
+                type="button"
+                onClick={() => void vincularContaExistente()}
+                disabled={sending}
+                className="w-full rounded-xl border border-amber-600 bg-amber-600 text-white font-semibold py-2.5 text-sm hover:opacity-90 transition disabled:opacity-60"
+              >
+                {sending ? "A vincular…" : "Entrar e vincular ao convite"}
+              </button>
             </div>
           )}
 

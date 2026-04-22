@@ -5,7 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 /**
- * Redireciona sellers com documento ainda não validado para /seller/cadastro.
+ * Redireciona sellers com dados comerciais incompletos para /seller/cadastro.
+ * A escolha de plano fica no dashboard (onboarding), não aqui.
  */
 export function SellerCadastroRedirect({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -31,9 +32,10 @@ export function SellerCadastroRedirect({ children }: { children: ReactNode }) {
         cache: "no-store",
       });
       if (!res.ok || cancelled) return;
-      const j = (await res.json()) as { cadastro_pendente?: boolean };
+      const j = (await res.json()) as { cadastro_dados_pendente?: boolean; cadastro_pendente?: boolean };
       if (cancelled) return;
-      if (j.cadastro_pendente) {
+      const dadosPendente = j.cadastro_dados_pendente ?? j.cadastro_pendente;
+      if (dadosPendente) {
         router.replace("/seller/cadastro");
       }
     })();

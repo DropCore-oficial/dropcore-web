@@ -38,7 +38,10 @@ export function planoSellerDefinido(plano: string | null | undefined): boolean {
   return p === "starter" || p === "pro";
 }
 
-/** Documento comercial válido e plano escolhido — usado para gate /seller/cadastro e convite. */
+/**
+ * Onboarding incompleto: falta documento/dados comerciais válidos ou plano Starter/Pro.
+ * Para gate só de dados comerciais use `cadastroSellerDocumentoPendente`; para só plano use `!planoSellerDefinido`.
+ */
 export function sellerCadastroPendente(documento: string | null | undefined, plano: string | null | undefined): boolean {
   return cadastroSellerDocumentoPendente(documento) || !planoSellerDefinido(plano);
 }

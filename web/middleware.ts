@@ -53,9 +53,20 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      console.warn("[middleware] getUser:", error.message);
+    } else {
+      user = data.user;
+    }
+  } catch (e) {
+    // Rede/DNS/TLS ou projeto Supabase indisponível — não rebentar o pedido; trata como sem sessão.
+    const msg = e instanceof Error ? e.message : String(e);
+    const cause = e instanceof Error && "cause" in e && e.cause ? String(e.cause) : "";
+    console.warn("[middleware] getUser fetch falhou:", msg, cause || "");
+  }
 
   const path = req.nextUrl.pathname;
 

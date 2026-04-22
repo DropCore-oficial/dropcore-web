@@ -5,32 +5,19 @@
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { createClient } from "@supabase/supabase-js";
 import { addPortalTrialIso } from "@/lib/portalTrial";
-import { sellerCadastroPendente } from "@/lib/sellerDocumento";
+import { cadastroSellerDocumentoPendente, planoSellerDefinido, sellerCadastroPendente } from "@/lib/sellerDocumento";
+import { resolveSellerInvite } from "@/lib/sellerInviteToken";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ token: string }> };
 
-async function resolveInvite(token: string) {
-  const { data, error } = await supabaseAdmin
-    .from("seller_invites")
-    .select("id, org_id, seller_id, usado, expira_em")
-    .eq("token", token)
-    .maybeSingle();
-
-  if (error || !data) return { error: "Convite não encontrado.", invite: null };
-  if (data.usado) return { error: "Este convite já foi utilizado.", invite: null };
-  if (new Date(data.expira_em) < new Date()) return { error: "Este convite expirou.", invite: null };
-  return { error: null, invite: data };
-}
-
 export async function GET(_req: Request, { params }: Params) {
   try {
     const { token } = await params;
-    const { error, invite } = await resolveInvite(token);
+    const { error, invite } = await resolveSellerInvite(token);
     if (error || !invite) {
       return NextResponse.json({ error }, { status: 400 });
     }
@@ -41,16 +28,19 @@ export async function GET(_req: Request, { params }: Params) {
       .eq("id", invite.seller_id)
       .maybeSingle();
 
-    const cadastro_pendente = sellerCadastroPendente(
-      seller?.documento ?? null,
-      (seller as { plano?: string | null } | null)?.plano ?? null
-    );
+    const doc = seller?.documento ?? null;
+    const plan = (seller as { plano?: string | null } | null)?.plano ?? null;
+    const cadastro_dados_pendente = cadastroSellerDocumentoPendente(doc);
+    const plano_pendente = !planoSellerDefinido(plan);
+    const cadastro_pendente = sellerCadastroPendente(doc, plan);
 
     return NextResponse.json({
       ok: true,
       seller_nome: seller?.nome ?? "—",
       expira_em: invite.expira_em,
       cadastro_pendente,
+      cadastro_dados_pendente,
+      plano_pendente,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
@@ -61,7 +51,7 @@ export async function GET(_req: Request, { params }: Params) {
 export async function POST(req: Request, { params }: Params) {
   try {
     const { token } = await params;
-    const { error: invErr, invite } = await resolveInvite(token);
+    const { error: invErr, invite } = await resolveSellerInvite(token);
     if (invErr || !invite) {
       return NextResponse.json({ error: invErr }, { status: 400 });
     }
@@ -87,7 +77,14 @@ export async function POST(req: Request, { params }: Params) {
     if (authErr || !authData?.user) {
       const msg = authErr?.message ?? "Erro ao criar conta.";
       if (msg.toLowerCase().includes("already")) {
-        return NextResponse.json({ error: "Este e-mail já está cadastrado." }, { status: 400 });
+        return NextResponse.json(
+          {
+            error:
+              "Este e-mail já está cadastrado. Use o botão abaixo para entrar com a mesma senha e vincular ao convite.",
+            code: "EMAIL_ALREADY_REGISTERED",
+          },
+          { status: 400 }
+        );
       }
       return NextResponse.json({ error: msg }, { status: 500 });
     }

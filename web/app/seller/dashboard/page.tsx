@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
@@ -177,6 +176,9 @@ export default function SellerDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [seller, setSeller] = useState<SellerData | null>(null);
+  const [planoPrecos, setPlanoPrecos] = useState<{ starter: number; pro: number } | null>(null);
+  const [planoSaving, setPlanoSaving] = useState<"" | "starter" | "pro">("");
+  const [planoEscolhaErro, setPlanoEscolhaErro] = useState<string | null>(null);
   const [kpis, setKpis] = useState<Kpis | null>(null);
   const [saldoAlerta, setSaldoAlerta] = useState<SaldoAlerta | null>(null);
   const [vinculoFornecedor, setVinculoFornecedor] = useState<VinculoFornecedor | null>(null);
@@ -240,6 +242,7 @@ export default function SellerDashboardPage() {
         throw new Error(json?.error ?? "Erro ao carregar dados.");
       }
       setSeller(json.seller);
+      setPlanoPrecos(json.plano_precos_mensalidade ?? null);
       setKpis(json.kpis ?? null);
       setSaldoAlerta(json.saldo_alerta ?? null);
       setVinculoFornecedor(json.vinculo_fornecedor ?? null);
@@ -268,6 +271,33 @@ export default function SellerDashboardPage() {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function escolherPlano(plano: "starter" | "pro") {
+    setPlanoEscolhaErro(null);
+    setPlanoSaving(plano);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const res = await fetch("/api/seller/plano", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ plano }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error ?? "Erro ao salvar o plano.");
+      await load();
+    } catch (e: unknown) {
+      setPlanoEscolhaErro(e instanceof Error ? e.message : "Erro inesperado.");
+    } finally {
+      setPlanoSaving("");
     }
   }
 
@@ -348,6 +378,16 @@ export default function SellerDashboardPage() {
     sync();
     return () => clearInterval(id);
   }, [pendentesCount, seller?.id]);
+
+  useEffect(() => {
+    const bloquear = Boolean(seller && !planoSellerDefinido(seller.plano) && !loading && !error);
+    if (!bloquear) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [seller, seller?.plano, loading, error]);
 
   async function sair() {
     await supabaseBrowser.auth.signOut();
@@ -446,6 +486,8 @@ export default function SellerDashboardPage() {
 
   const isPro = seller?.plano?.toLowerCase() === "pro";
   const planoOk = planoSellerDefinido(seller?.plano);
+  const precoStarterMensal = planoPrecos?.starter ?? 97.9;
+  const precoProMensal = planoPrecos?.pro ?? 97.9;
 
   const extratoFiltrado = (() => {
     let list = extrato;
@@ -635,12 +677,9 @@ export default function SellerDashboardPage() {
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 truncate">{seller?.nome}</h1>
                 {!planoOk ? (
-                  <Link
-                    href="/seller/cadastro"
-                    className="rounded-md px-2 py-0.5 text-[10px] font-semibold bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-200 hover:opacity-90"
-                  >
-                    Definir plano
-                  </Link>
+                  <span className="rounded-md px-2 py-0.5 text-[10px] font-semibold bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-200">
+                    Plano pendente
+                  </span>
                 ) : (
                   <span
                     className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
@@ -1457,6 +1496,64 @@ export default function SellerDashboardPage() {
         )}
 
       </div>
+
+      {!planoOk && seller && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/55 backdrop-blur-md"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="seller-plano-onboarding-titulo"
+        >
+          <div className="w-full max-w-lg rounded-2xl border border-neutral-200/90 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-2xl p-6 sm:p-8 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div>
+              <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Bem-vindo</p>
+              <h2 id="seller-plano-onboarding-titulo" className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">
+                Escolha seu plano
+              </h2>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-2 leading-relaxed">
+                Para continuar no painel, selecione Starter ou Pro. Os valores são a mensalidade de referência cadastrada na plataforma (tabela financeira); se a sua organização tiver outro valor contratual, ele será aplicado nas cobranças.
+              </p>
+            </div>
+            {planoEscolhaErro && (
+              <p className="text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl px-3 py-2">
+                {planoEscolhaErro}
+              </p>
+            )}
+            <div className="grid sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={planoSaving !== ""}
+                onClick={() => void escolherPlano("starter")}
+                className="rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-neutral-50/80 dark:bg-neutral-800/50 px-4 py-4 text-left hover:border-emerald-500/60 transition-colors disabled:opacity-50"
+              >
+                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Starter</p>
+                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums mt-1">{BRL.format(precoStarterMensal)}<span className="text-xs font-normal text-neutral-500">/mês</span></p>
+                <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-2 leading-snug">
+                  Resumo financeiro, gráfico de volume por dia e fluxo essencial para operar com o armazém.
+                </p>
+                {planoSaving === "starter" ? (
+                  <p className="text-xs text-emerald-600 mt-2">Salvando…</p>
+                ) : null}
+              </button>
+              <button
+                type="button"
+                disabled={planoSaving !== ""}
+                onClick={() => void escolherPlano("pro")}
+                className="rounded-xl border-2 border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-950/25 px-4 py-4 text-left hover:border-emerald-500 transition-colors disabled:opacity-50"
+              >
+                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Pro</p>
+                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums mt-1">{BRL.format(precoProMensal)}<span className="text-xs font-normal text-neutral-500">/mês</span></p>
+                <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-2 leading-snug">
+                  Inclui blocos de desempenho e analytics no painel para acompanhar receita, custo e margem quando houver dados de venda.
+                </p>
+                {planoSaving === "pro" ? (
+                  <p className="text-xs text-emerald-600 mt-2">Salvando…</p>
+                ) : null}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SellerNav active="dashboard" />
       <NotificationToasts />
