@@ -48,7 +48,7 @@ export async function GET(req: Request) {
     const { data: forn, error: fornErr } = await supabaseAdmin
       .from("fornecedores")
       .select(
-        "id, nome, org_id, status, trial_valido_ate, cnpj, telefone, email_comercial, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta"
+        "id, nome, org_id, status, trial_valido_ate, cnpj, telefone, email_comercial, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, expedicao_padrao_linha, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta"
       )
       .eq("id", member.fornecedor_id)
       .maybeSingle();
@@ -86,6 +86,7 @@ export async function GET(req: Request) {
       endereco_bairro: frow.endereco_bairro ?? null,
       endereco_cidade: frow.endereco_cidade ?? null,
       endereco_uf: frow.endereco_uf ?? null,
+      expedicao_padrao_linha: (frow as { expedicao_padrao_linha?: string | null }).expedicao_padrao_linha ?? null,
       chave_pix: frow.chave_pix ?? null,
       nome_banco: frow.nome_banco ?? null,
       nome_no_banco: frow.nome_no_banco ?? null,
@@ -111,6 +112,7 @@ export async function GET(req: Request) {
         endereco_bairro: cadastro.endereco_bairro,
         endereco_cidade: cadastro.endereco_cidade,
         endereco_uf: cadastro.endereco_uf,
+        expedicao_padrao_linha: cadastro.expedicao_padrao_linha,
         chave_pix: cadastro.chave_pix,
         nome_banco: cadastro.nome_banco,
         nome_no_banco: cadastro.nome_no_banco,

@@ -33,6 +33,8 @@ type FormState = {
   endereco_bairro: string;
   endereco_cidade: string;
   endereco_uf: string;
+  /** CD / despacho padrão (texto livre); sede fiscal continua nos campos de endereço acima. */
+  expedicao_padrao_linha: string;
   chave_pix: string;
   nome_banco: string;
   nome_no_banco: string;
@@ -62,6 +64,7 @@ export default function FornecedorCadastroPage() {
     endereco_bairro: "",
     endereco_cidade: "",
     endereco_uf: "",
+    expedicao_padrao_linha: "",
     chave_pix: "",
     nome_banco: "",
     nome_no_banco: "",
@@ -107,6 +110,7 @@ export default function FornecedorCadastroPage() {
         endereco_bairro: upper(String(f.endereco_bairro ?? "")),
         endereco_cidade: upper(String(f.endereco_cidade ?? "")),
         endereco_uf: upper(String(f.endereco_uf ?? "")).replace(/[^A-Z]/g, "").slice(0, 2),
+        expedicao_padrao_linha: String(f.expedicao_padrao_linha ?? ""),
         chave_pix: upper(String(f.chave_pix ?? "")),
         nome_banco: upper(String(f.nome_banco ?? "")),
         nome_no_banco: upper(String(f.nome_no_banco ?? "")),
@@ -173,6 +177,7 @@ export default function FornecedorCadastroPage() {
           endereco_bairro: upper(form.endereco_bairro.trim()) || null,
           endereco_cidade: upper(form.endereco_cidade.trim()) || null,
           endereco_uf: upper(form.endereco_uf.trim()).replace(/[^A-Z]/g, "").slice(0, 2) || null,
+          expedicao_padrao_linha: form.expedicao_padrao_linha.trim() || null,
           chave_pix: upper(form.chave_pix.trim()) || null,
           nome_banco: upper(form.nome_banco.trim()) || null,
           nome_no_banco: upper(form.nome_no_banco.trim()) || null,
@@ -483,6 +488,22 @@ export default function FornecedorCadastroPage() {
                       className={inputClass}
                     />
                   </div>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">
+                    Despacho / CD padrão (opcional)
+                  </label>
+                  <textarea
+                    value={form.expedicao_padrao_linha}
+                    onChange={(e) => setForm((f) => ({ ...f, expedicao_padrao_linha: e.target.value }))}
+                    rows={3}
+                    placeholder="Ex.: Todos os produtos — CD Goiânia GO + endereço completo de saída"
+                    className={`${inputClass} resize-y min-h-[4.5rem]`}
+                  />
+                  <p className="text-[11px] text-[var(--muted)] mt-1 leading-snug">
+                    O bloco «Endereço» acima é a sede/fiscal. Use este campo quando o stock sair sempre do mesmo CD; em
+                    produtos específicos pode haver excepção ao editar o SKU.
+                  </p>
                 </div>
               </div>
             </section>

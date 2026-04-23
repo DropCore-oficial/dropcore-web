@@ -109,6 +109,15 @@ export async function PATCH(req: Request) {
       }
     }
 
+    if ("expedicao_padrao_linha" in body) {
+      const v = body.expedicao_padrao_linha;
+      const s =
+        v === null || v === undefined || String(v).trim() === ""
+          ? null
+          : String(v).trim().slice(0, 4000);
+      update.expedicao_padrao_linha = s;
+    }
+
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ ok: true, message: "Nenhum dado alterado." });
     }

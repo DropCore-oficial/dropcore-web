@@ -13,7 +13,8 @@ const SKU_FIELDS = `
   id, sku, nome_produto, cor, tamanho, status, fornecedor_id, fornecedor_org_id, org_id,
   estoque_atual, estoque_minimo, custo_base, custo_dropcore, peso_kg, categoria,
   dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao,
-  ncm, origem, cest, cfop, peso_liquido_kg, peso_bruto_kg, criado_em
+  ncm, origem, cest, cfop, peso_liquido_kg, peso_bruto_kg, criado_em,
+  expedicao_override_linha
 `;
 
 /** SKU pai do bloco multivariante (ex.: DJU001001 → DJU001000). */
@@ -93,17 +94,32 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       "cfop",
       "peso_liquido_kg",
       "peso_bruto_kg",
+      "expedicao_override_linha",
     ] as const;
 
     const clean: Record<string, unknown> = {};
-    const textFields = ["nome_produto", "categoria", "cor", "tamanho", "dimensoes_pacote", "link_fotos", "imagem_url", "descricao", "ncm", "origem", "cest", "cfop"] as const;
+    const textFields = [
+      "nome_produto",
+      "categoria",
+      "cor",
+      "tamanho",
+      "dimensoes_pacote",
+      "link_fotos",
+      "imagem_url",
+      "descricao",
+      "ncm",
+      "origem",
+      "cest",
+      "cfop",
+      "expedicao_override_linha",
+    ] as const;
     const numFields = ["comprimento_cm", "largura_cm", "altura_cm", "peso_kg", "peso_liquido_kg", "peso_bruto_kg", "estoque_atual", "custo_base", "custo_dropcore"] as const;
 
     for (const k of allowed) {
       if (!(k in body)) continue;
       const v = body[k];
       if (textFields.includes(k as typeof textFields[number]) && (typeof v === "string" || v == null)) {
-        const trimOnly = ["link_fotos", "imagem_url", "ncm", "origem", "cest", "cfop"];
+        const trimOnly = ["link_fotos", "imagem_url", "ncm", "origem", "cest", "cfop", "expedicao_override_linha"];
         clean[k] = v == null || v === "" ? null : (trimOnly.includes(k as typeof trimOnly[number]) ? v.trim() || null : toTitleCase(v));
       } else if (numFields.includes(k as typeof numFields[number])) {
         if (v == null || v === "") clean[k] = null;

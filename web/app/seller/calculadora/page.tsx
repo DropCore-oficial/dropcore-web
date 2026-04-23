@@ -9,8 +9,6 @@ import { SellerNav } from "../SellerNav";
 import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
 import { normalizarFornecedoresSellerApi, type FornecedorSellerListaRow } from "@/lib/mapFornecedorSellerPublico";
 import { mascararSkuListagem } from "@/lib/sellerCatalogoPrivacidade";
-import { FornecedorArmazemDetalheModal } from "@/components/seller/FornecedorArmazemDetalheModal";
-
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const MARGEM_MINIMA = 5;
 
@@ -104,16 +102,6 @@ export default function SellerCalculadoraPage() {
   const [extras, setExtras] = useState<Extra[]>([]);
   const [fornecedores, setFornecedores] = useState<FornecedorSellerListaRow[]>([]);
   const [fornecedorConectadoId, setFornecedorConectadoId] = useState<string | null>(null);
-  const [vinculoMetaCalc, setVinculoMetaCalc] = useState<{
-    pode_trocar_agora: boolean;
-    pode_trocar_fornecedor_a_partir_de: string | null;
-    liberado_antecipado: boolean;
-    meses_minimos: number;
-  } | null>(null);
-  const [vinculoSavingCalc, setVinculoSavingCalc] = useState(false);
-  const [vinculoErrCalc, setVinculoErrCalc] = useState<string | null>(null);
-  const [vinculoAceiteCalc, setVinculoAceiteCalc] = useState(false);
-  const [fornecedorDetalheCalcId, setFornecedorDetalheCalcId] = useState<string | null>(null);
   const [selectedFornecedorId, setSelectedFornecedorId] = useState("");
   const [produtos, setProdutos] = useState<{ id: string; sku: string; nome_produto: string; custo: number; custo_base: number; custo_dropcore: number }[]>([]);
   const [selectedProdutoId, setSelectedProdutoId] = useState("");
@@ -220,30 +208,72 @@ export default function SellerCalculadoraPage() {
       const json = await res.json();
       if (cancelled || !res.ok) return;
       setFornecedores(normalizarFornecedoresSellerApi(json.fornecedores));
-      setVinculoMetaCalc(json.vinculo ?? null);
       const fid = json.fornecedor_conectado_id as string | null | undefined;
-      if (fid) {
-        setFornecedorConectadoId(fid);
-        setSelectedFornecedorId(fid);
-      } else {
-        setFornecedorConectadoId(null);
-        setSelectedFornecedorId("");
-      }
+      setFornecedorConectadoId(fid ? String(fid) : null);
+      /** Não pré-seleccionar: o seller escolhe o armazém na lista; «ligado ao perfil» só indica vínculo gravado em Produtos. */
+      setSelectedFornecedorId("");
     })();
     return () => {
       cancelled = true;
     };
   }, [calcAccess]);
 
-  const precisaAceiteVinculoCalc = useMemo(() => {
-    const novo = selectedFornecedorId.trim() || null;
-    const cur = fornecedorConectadoId?.trim() || null;
-    return Boolean(novo) && novo !== cur;
-  }, [selectedFornecedorId, fornecedorConectadoId]);
+  function paiKeySkuCal(sku: string): string {
+    const s = String(sku ?? "").trim();
+    if (s.length >= 3) return s.slice(0, -3) + "000";
+    return s;
+  }
+
+  const opcoesProdutoCalculadora = useMemo(() => {
+    type Opc = { id: string; label: string; custo: number };
+    const list = produtos;
+    if (list.length === 0) return [] as Opc[];
+    const eps = 0.015;
+
+    const byPai = new Map<string, typeof list>();
+    for (const p of list) {
+      const k = paiKeySkuCal(p.sku);
+      if (!byPai.has(k)) byPai.set(k, []);
+      byPai.get(k)!.push(p);
+    }
+
+    const unicos: Opc[] = [];
+    const variaveis: Opc[] = [];
+
+    for (const rows of byPai.values()) {
+      const minC = Math.min(...rows.map((r) => r.custo));
+      const maxC = Math.max(...rows.map((r) => r.custo));
+      const uniform = maxC - minC < eps;
+      const rep =
+        rows.find((r) => String(r.sku).endsWith("000")) ??
+        [...rows].sort((a, b) => String(a.sku).localeCompare(String(b.sku)))[0]!;
+      const nome = String(rep.nome_produto ?? "").trim() || mascararSkuListagem(rep.sku);
+      if (uniform) {
+        unicos.push({ id: rep.id, custo: rep.custo, label: `${nome} — ${BRL.format(rep.custo)}` });
+      } else {
+        for (const p of [...rows].sort((a, b) => String(a.sku).localeCompare(String(b.sku)))) {
+          variaveis.push({
+            id: p.id,
+            custo: p.custo,
+            label: `${String(p.nome_produto ?? "").trim() || mascararSkuListagem(p.sku)} — ${BRL.format(p.custo)} · ${p.sku}`,
+          });
+        }
+      }
+    }
+
+    unicos.sort((a, b) => a.label.localeCompare(b.label, "pt"));
+    variaveis.sort((a, b) => a.label.localeCompare(b.label, "pt"));
+    return [...unicos, ...variaveis];
+  }, [produtos]);
 
   useEffect(() => {
-    setVinculoAceiteCalc(false);
-  }, [selectedFornecedorId]);
+    if (!selectedProdutoId || opcoesProdutoCalculadora.length === 0) return;
+    const ok = opcoesProdutoCalculadora.some((o) => o.id === selectedProdutoId);
+    if (!ok) {
+      setSelectedProdutoId("");
+      setCustoProduto("");
+    }
+  }, [opcoesProdutoCalculadora, selectedProdutoId]);
 
   // Buscar produtos quando fornecedor selecionado (seller completo)
   useEffect(() => {
@@ -269,38 +299,6 @@ export default function SellerCalculadoraPage() {
     })();
     return () => { cancelled = true; };
   }, [calcAccess, selectedFornecedorId]);
-
-  const gravarVinculoCalculadora = useCallback(async () => {
-    setVinculoErrCalc(null);
-    setVinculoSavingCalc(true);
-    try {
-      const { data: { session } } = await supabaseBrowser.auth.getSession();
-      if (!session?.access_token) return;
-      const novo = selectedFornecedorId.trim() ? selectedFornecedorId.trim() : null;
-      const cur = fornecedorConectadoId?.trim() || null;
-      const body: { fornecedor_id: string | null; aceite_uso_operacional?: boolean } = { fornecedor_id: novo };
-      if (novo && novo !== cur) body.aceite_uso_operacional = true;
-      const res = await fetch("/api/seller/fornecedor-vinculo", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "Erro ao gravar vínculo");
-      const newId = typeof json.fornecedor_id === "string" && json.fornecedor_id ? json.fornecedor_id : null;
-      setFornecedorConectadoId(newId);
-      const r2 = await fetch("/api/seller/fornecedores", { headers: { Authorization: `Bearer ${session.access_token}` } });
-      const j2 = await r2.json().catch(() => ({}));
-      if (r2.ok && j2.ok) setVinculoMetaCalc(j2.vinculo ?? null);
-    } catch (e: unknown) {
-      setVinculoErrCalc(e instanceof Error ? e.message : "Erro ao gravar vínculo");
-    } finally {
-      setVinculoSavingCalc(false);
-    }
-  }, [selectedFornecedorId, fornecedorConectadoId]);
 
   function handleProdutoSelect(produtoId: string) {
     setSelectedProdutoId(produtoId);
@@ -913,7 +911,7 @@ export default function SellerCalculadoraPage() {
                 <div className="space-y-2 w-full min-w-0">
                   <select
                     value={selectedFornecedorId}
-                    onChange={(e) => { setVinculoErrCalc(null); setSelectedFornecedorId(e.target.value); }}
+                    onChange={(e) => setSelectedFornecedorId(e.target.value)}
                     className={inputLight}
                   >
                     <option value="">Selecionar fornecedor</option>
@@ -930,59 +928,6 @@ export default function SellerCalculadoraPage() {
                       );
                     })}
                   </select>
-                  <div className="flex flex-col min-[400px]:flex-row min-[400px]:items-center gap-2 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const id = selectedFornecedorId.trim();
-                        if (id) setFornecedorDetalheCalcId(id);
-                      }}
-                      disabled={!selectedFornecedorId.trim()}
-                      className={`${btnSecondaryClass} w-full min-[400px]:w-auto`}
-                    >
-                      Ver dados cadastrais
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void gravarVinculoCalculadora()}
-                      disabled={
-                        vinculoSavingCalc
-                        || ((selectedFornecedorId.trim() || null) === (fornecedorConectadoId ?? null))
-                        || (precisaAceiteVinculoCalc && !vinculoAceiteCalc)
-                        || Boolean(
-                          fornecedorConectadoId
-                          && vinculoMetaCalc
-                          && !vinculoMetaCalc.pode_trocar_agora
-                          && (selectedFornecedorId.trim() || null) !== (fornecedorConectadoId ?? null)
-                        )
-                      }
-                      className={`${btnSecondaryClass} w-full min-[400px]:w-auto text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 disabled:opacity-45`}
-                    >
-                      {vinculoSavingCalc ? "A gravar…" : "Gravar como meu armazém"}
-                    </button>
-                    {vinculoErrCalc && (
-                      <p className="text-xs text-red-600 dark:text-red-400 flex-1 min-w-0">{vinculoErrCalc}</p>
-                    )}
-                  </div>
-                  {precisaAceiteVinculoCalc && (
-                    <label className="flex items-start gap-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50/90 dark:bg-neutral-800/40 px-3 py-2.5 cursor-pointer touch-manipulation">
-                      <input
-                        type="checkbox"
-                        checked={vinculoAceiteCalc}
-                        onChange={(e) => setVinculoAceiteCalc(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500 shrink-0"
-                      />
-                      <span className="text-[11px] sm:text-xs text-neutral-700 dark:text-neutral-300 leading-snug">
-                        Confirmo que vou usar os dados cadastrais do armazém apenas para operação na DropCore (pedidos, logística e suporte alinhados à org), e não para fins externos nem fora do acordo com a organização.
-                      </span>
-                    </label>
-                  )}
-                  {fornecedorConectadoId && vinculoMetaCalc && !vinculoMetaCalc.pode_trocar_agora && vinculoMetaCalc.pode_trocar_fornecedor_a_partir_de && (
-                    <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                      Trocas de armazém permitidas a partir de{" "}
-                      {new Date(vinculoMetaCalc.pode_trocar_fornecedor_a_partir_de).toLocaleDateString("pt-BR")}.
-                    </p>
-                  )}
                 </div>
               </Row>
               {selectedFornecedorId && (
@@ -990,14 +935,14 @@ export default function SellerCalculadoraPage() {
                   <select
                     value={selectedProdutoId}
                     onChange={(e) => handleProdutoSelect(e.target.value)}
-                    className={`${inputLight} min-w-[200px]`}
+                    className={`${inputLight} min-w-[200px] w-full`}
                     disabled={produtosLoading}
                     title="Fornecedor + DropCore"
                   >
                     <option value="">Selecionar (fornecedor + DropCore)</option>
-                    {produtos.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nome_produto?.trim() || mascararSkuListagem(p.sku)} — {BRL.format(p.custo)}
+                    {opcoesProdutoCalculadora.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.label}
                       </option>
                     ))}
                     {!produtosLoading && produtos.length === 0 && selectedFornecedorId && (
@@ -1624,10 +1569,6 @@ export default function SellerCalculadoraPage() {
         </div>
         </div>
       </div>
-      <FornecedorArmazemDetalheModal
-        fornecedorId={fornecedorDetalheCalcId}
-        onClose={() => setFornecedorDetalheCalcId(null)}
-      />
       <SellerNav active="calculadora" calcOnly={calcOnly} />
     </div>
   );

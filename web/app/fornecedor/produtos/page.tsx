@@ -37,6 +37,8 @@ type Produto = {
   largura_cm: number | null;
   altura_cm: number | null;
   criado_em: string;
+  /** Despacho deste SKU quando difere do CD padrão do fornecedor (texto livre). */
+  expedicao_override_linha?: string | null;
 };
 
 /** Agrupa SKUs por produto (paiKey: XXX001000 = pai, XXX001001+ = filhos; XXX = iniciais do fornecedor) */
@@ -129,6 +131,7 @@ export default function FornecedorProdutosPage() {
   const [editPeso, setEditPeso] = useState("");
   const [editEstoque, setEditEstoque] = useState("");
   const [editCusto, setEditCusto] = useState("");
+  const [editExpedicao, setEditExpedicao] = useState("");
   const [expandido, setExpandido] = useState<Set<string>>(new Set());
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [solicitandoExclusao, setSolicitandoExclusao] = useState<string | null>(null);
@@ -247,6 +250,7 @@ export default function FornecedorProdutosPage() {
     setEditPeso(p.peso_kg != null ? String(p.peso_kg) : "");
     setEditEstoque(p.estoque_atual != null ? String(p.estoque_atual) : "");
     setEditCusto(p.custo_base != null ? String(p.custo_base) : "");
+    setEditExpedicao(p.expedicao_override_linha ?? "");
     setModal("edit");
     setFormError(null);
   }
@@ -313,6 +317,7 @@ export default function FornecedorProdutosPage() {
           peso_kg: editPeso.trim() || undefined,
           custo_base: editCusto.trim() || undefined,
           estoque_atual: editEstoque.trim() || undefined,
+          expedicao_override_linha: editExpedicao.trim() || null,
         }),
       });
       const j = await res.json();
@@ -929,6 +934,21 @@ export default function FornecedorProdutosPage() {
                   className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">Cada variante pode ter seu próprio link de fotos</p>
+              </div>
+              <div>
+                <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">
+                  Despacho / CD desta variante (opcional)
+                </label>
+                <textarea
+                  value={editExpedicao}
+                  onChange={(e) => setEditExpedicao(e.target.value)}
+                  rows={3}
+                  placeholder="Só preencha se for diferente do CD padrão no cadastro da empresa. Ex.: CD Santa Catarina + endereço completo."
+                  className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-y min-h-[4rem]"
+                />
+                <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1 leading-snug">
+                  Alterações seguem para análise da DropCore como os outros campos.
+                </p>
               </div>
               {formError && <p className="text-sm text-red-400">{formError}</p>}
               <div className="flex gap-2 pt-2">

@@ -10,7 +10,20 @@ import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TEXT_FIELDS = ["nome_produto", "categoria", "cor", "tamanho", "link_fotos", "imagem_url", "descricao", "ncm", "origem", "cest", "cfop"] as const;
+const TEXT_FIELDS = [
+  "nome_produto",
+  "categoria",
+  "cor",
+  "tamanho",
+  "link_fotos",
+  "imagem_url",
+  "descricao",
+  "ncm",
+  "origem",
+  "cest",
+  "cfop",
+  "expedicao_override_linha",
+] as const;
 const NUM_FIELDS = ["comprimento_cm", "largura_cm", "altura_cm", "peso_kg", "peso_liquido_kg", "peso_bruto_kg", "estoque_atual", "estoque_minimo", "custo_base", "custo_dropcore"] as const;
 
 function paiKey(sku: string): string {
@@ -109,7 +122,7 @@ export async function POST(
       if (!(k in dados)) continue;
       const v = dados[k];
       if (TEXT_FIELDS.includes(k as typeof TEXT_FIELDS[number]) && (typeof v === "string" || v == null)) {
-        const trimOnly = ["link_fotos", "imagem_url", "descricao", "ncm", "origem", "cest", "cfop"];
+        const trimOnly = ["link_fotos", "imagem_url", "descricao", "ncm", "origem", "cest", "cfop", "expedicao_override_linha"];
         clean[k] = v == null || v === "" ? null : (trimOnly.includes(k) ? String(v).trim() || null : toTitleCase(String(v)));
       } else if (NUM_FIELDS.includes(k as typeof NUM_FIELDS[number])) {
         if (v == null || v === "") clean[k] = null;
