@@ -57,7 +57,7 @@ export default function CriarVariantesPage() {
 
   // Info. de Variantes (bulk)
   const [dataLancamento, setDataLancamento] = useState("");
-  const [precoVarejo, setPrecoVarejo] = useState("");
+  /** Único custo em R$ por unidade — grava em `custo_base` (catálogo, seller e pedidos). */
   const [custoCompra, setCustoCompra] = useState("");
   const [estoqueInicial, setEstoqueInicial] = useState("");
   /** Quando há tamanhos (modo «por tamanho»): mesmo número para todas as cores daquele tamanho. Chave = tamanho em maiúsculas. */
@@ -68,7 +68,7 @@ export default function CriarVariantesPage() {
   const [estoquePorCor, setEstoquePorCor] = useState<Record<string, string>>({});
   const [modoEstoque, setModoEstoque] = useState<ModoEstoque>("matriz");
   const [peso, setPeso] = useState("");
-  const [helpVariantesOpen, setHelpVariantesOpen] = useState<null | "precoVarejo" | "custoCompra">(null);
+  const [helpVariantesOpen, setHelpVariantesOpen] = useState<null | "custoUnidade">(null);
   const [comp, setComp] = useState("");
   const [largura, setLargura] = useState("");
   const [altura, setAltura] = useState("");
@@ -673,7 +673,7 @@ export default function CriarVariantesPage() {
                     <div>
                       <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Editar em massa</h3>
                       <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-                        Preço, custo, peso e dimensões valem para todas as variantes.{" "}
+                        Custo, peso e dimensões valem para todas as variantes.{" "}
                         {tamanhosFinais.length > 0 && coresFinais.length > 0 ? (
                           <>
                             Defina o <strong>estoque</strong> por combinação <strong>cor × tamanho</strong>, só por{" "}
@@ -698,41 +698,21 @@ export default function CriarVariantesPage() {
                       </div>
                       <div className="min-w-0">
                         <div className="mb-1.5 flex items-center gap-1.5">
-                          <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Preço varejo (R$)</span>
+                          <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Custo por unidade (R$)</span>
                           <HelpBubble
-                            open={helpVariantesOpen === "precoVarejo"}
-                            onOpen={() => setHelpVariantesOpen("precoVarejo")}
+                            open={helpVariantesOpen === "custoUnidade"}
+                            onOpen={() => setHelpVariantesOpen("custoUnidade")}
                             onClose={() => setHelpVariantesOpen(null)}
-                            ariaLabel="Ajuda: preço varejo"
+                            ariaLabel="Ajuda: custo por unidade"
                           >
-                            Preço de referência de venda ao público (preço de loja). Aparece no catálogo e ajuda a entender a margem face ao custo.
-                          </HelpBubble>
-                        </div>
-                        <input
-                          type="text"
-                          value={precoVarejo}
-                          onChange={(e) => setPrecoVarejo(e.target.value)}
-                          placeholder="0,00"
-                          className={`${inputBase} w-full py-2`}
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="mb-1.5 flex items-center gap-1.5">
-                          <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Custo de compra (R$)</span>
-                          <HelpBubble
-                            open={helpVariantesOpen === "custoCompra"}
-                            onOpen={() => setHelpVariantesOpen("custoCompra")}
-                            onClose={() => setHelpVariantesOpen(null)}
-                            ariaLabel="Ajuda: custo de compra"
-                          >
-                            Quanto você paga para fabricar ou adquirir cada unidade (seu custo), antes de margens e taxas da plataforma.
+                            Um único valor: o que custa cada peça para si (custo base). É o que o DropCore usa no catálogo do seller e nos pedidos — não há segundo campo de «preço de loja» aqui para evitar confusão.
                           </HelpBubble>
                         </div>
                         <input
                           type="text"
                           value={custoCompra}
                           onChange={(e) => setCustoCompra(e.target.value)}
-                          placeholder="0,00"
+                          placeholder="ex.: 30,00"
                           className={`${inputBase} w-full py-2`}
                         />
                       </div>

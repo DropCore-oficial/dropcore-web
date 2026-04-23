@@ -107,7 +107,12 @@ export async function assertPodeRegistrarHabilitacao(
   }
 ): Promise<{ ok: true } | { ok: false; error: string; status?: number }> {
   if (!params.fornecedorId) {
-    return { ok: false, error: "Seller sem fornecedor vinculado.", status: 400 };
+    return {
+      ok: false,
+      error:
+        "Escolhe e grava o teu fornecedor (armazém) no catálogo ou na Calculadora antes de marcar SKUs para vender.",
+      status: 400,
+    };
   }
 
   const { data: skuRow, error: skuErr } = await supabase

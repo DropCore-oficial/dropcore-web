@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
-import { dataMinimaTrocaFornecedor, podeTrocarFornecedorAgora } from "@/lib/sellerFornecedorVinculo";
+import { buildSellerFornecedorIdPatch, uuidNormFornecedor } from "@/lib/applySellerFornecedorIdChange";
 
 function uuidNorm(v: unknown): string | null {
-  const s = typeof v === "string" ? v.trim() : "";
-  return s.length ? s : null;
+  return uuidNormFornecedor(v);
 }
 
 export const runtime = "nodejs";
@@ -102,34 +101,30 @@ export async function PATCH(
     if (body?.fornecedor_id !== undefined) {
       const novoForn = uuidNorm(body.fornecedor_id);
       if (novoForn !== curForn) {
-        if (!curForn && novoForn) {
-          allowed.fornecedor_id = novoForn;
-          allowed.fornecedor_vinculado_em = new Date().toISOString();
-          allowed.fornecedor_desvinculo_liberado = false;
-        } else if (curForn) {
-          if (
-            !podeTrocarFornecedorAgora(curVin, liberadoParaChecagem, confirmAdmin)
-          ) {
-            const min = dataMinimaTrocaFornecedor(curVin);
-            return NextResponse.json(
-              {
-                error:
-                  "Este seller está no período mínimo de 3 meses com o armazém. Para trocar ou remover antes, marque «Liberar troca antecipada» e/ou «Confirmo exceção documentada», ou aguarde a data indicada.",
-                code: "COMPROMISSO_FORNECEDOR_ATIVO",
-                pode_trocar_fornecedor_a_partir_de: min?.toISOString() ?? null,
-              },
-              { status: 403 }
-            );
+        const vin = buildSellerFornecedorIdPatch(
+          {
+            fornecedor_id: curForn,
+            fornecedor_vinculado_em: curVin,
+            fornecedor_desvinculo_liberado: liberadoParaChecagem,
+          },
+          novoForn,
+          confirmAdmin,
+          {
+            mensagemCompromisso:
+              "Este seller está no período mínimo de 3 meses com o armazém. Para trocar ou remover antes, marque «Liberar troca antecipada» e/ou «Confirmo exceção documentada», ou aguarde a data indicada.",
           }
-          allowed.fornecedor_id = novoForn;
-          if (novoForn) {
-            allowed.fornecedor_vinculado_em = new Date().toISOString();
-            allowed.fornecedor_desvinculo_liberado = false;
-          } else {
-            allowed.fornecedor_vinculado_em = null;
-            allowed.fornecedor_desvinculo_liberado = false;
-          }
+        );
+        if (!vin.ok) {
+          return NextResponse.json(
+            {
+              error: vin.error,
+              code: vin.code,
+              pode_trocar_fornecedor_a_partir_de: vin.pode_trocar_fornecedor_a_partir_de ?? null,
+            },
+            { status: vin.status }
+          );
         }
+        Object.assign(allowed, vin.allowed);
       }
     }
 

@@ -10,6 +10,14 @@ import { FotoVariacaoCell } from "@/components/FotoVariacaoCell";
 import { toTitleCase } from "@/lib/formatText";
 import { fornecedorProdutoImagemSrc } from "@/lib/fornecedorProdutoImagemSrc";
 
+const BRL_CUSTO_FORNECEDOR = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+
+/** Só `custo_base` — o que o fornecedor cadastrou (não mostrar taxa DropCore). */
+function fmtCustoBaseFornecedor(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v) || v <= 0) return "—";
+  return BRL_CUSTO_FORNECEDOR.format(v);
+}
+
 type Produto = {
   id: string;
   sku: string;
@@ -533,6 +541,21 @@ export default function FornecedorProdutosPage() {
                               <span> · Variantes ({linhas.length})</span>
                             )}
                           </p>
+                          {(() => {
+                            const custos = linhas
+                              .map((p) => p.custo_base)
+                              .filter((c): c is number => c != null && Number.isFinite(c) && c > 0);
+                            if (custos.length === 0) return null;
+                            const min = Math.min(...custos);
+                            const max = Math.max(...custos);
+                            const txt = min === max ? fmtCustoBaseFornecedor(min) : `${fmtCustoBaseFornecedor(min)} a ${fmtCustoBaseFornecedor(max)}`;
+                            return (
+                              <p className="text-xs text-neutral-600 dark:text-neutral-300 mt-1">
+                                Custo: <span className="font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">{txt}</span>
+                                <span className="text-neutral-400 dark:text-neutral-500"> / un.</span>
+                              </p>
+                            );
+                          })()}
                         </div>
                       </div>
                       <div
@@ -638,6 +661,12 @@ export default function FornecedorProdutosPage() {
                                   </div>
                                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">
                                     <span>
+                                      Custo{" "}
+                                      <span className="tabular-nums font-medium text-neutral-800 dark:text-neutral-200">
+                                        {fmtCustoBaseFornecedor(row.custo_base)}
+                                      </span>
+                                    </span>
+                                    <span>
                                       Estoque{" "}
                                       <span className="tabular-nums font-medium text-neutral-800 dark:text-neutral-200">
                                         {row.estoque_atual != null ? row.estoque_atual : "—"}
@@ -661,13 +690,14 @@ export default function FornecedorProdutosPage() {
                         })}
                       </div>
                       <div className="hidden lg:block min-w-0 overflow-x-auto border-t border-neutral-100 dark:border-neutral-800">
-                        <table className="w-full min-w-[640px] table-fixed text-sm">
+                        <table className="w-full min-w-[700px] table-fixed text-sm">
                           <thead>
                             <tr className="bg-neutral-50 text-left text-xs text-neutral-600 dark:bg-neutral-800/80 dark:text-neutral-400">
                               <th className="w-[4.25rem] px-2 py-2 font-medium lg:px-3">Foto</th>
                               <th className="w-[18%] px-2 py-2 font-medium lg:px-3">Cor</th>
                               <th className="w-[7%] px-2 py-2 font-medium lg:px-3">Tam.</th>
-                              <th className="w-[24%] px-2 py-2 font-medium lg:px-3">SKU</th>
+                              <th className="w-[20%] px-2 py-2 font-medium lg:px-3">SKU</th>
+                              <th className="w-[10%] px-2 py-2 text-right font-medium lg:px-3">Custo</th>
                               <th className="w-[6%] px-2 py-2 text-right font-medium lg:px-3">Est.</th>
                               <th className="w-[9%] px-2 py-2 font-medium lg:px-3">Fotos</th>
                               <th className="w-[4.5rem] px-2 py-2 text-right font-medium lg:pl-3 lg:pr-4">Ações</th>
@@ -722,6 +752,9 @@ export default function FornecedorProdutosPage() {
                                   </td>
                                   <td className="px-2 py-1.5 align-top text-xs text-neutral-700 dark:text-neutral-300 lg:px-3">{row.tamanho || "—"}</td>
                                   <td className="px-2 py-1.5 align-top font-mono text-[11px] leading-snug text-neutral-600 break-all dark:text-neutral-500 lg:px-3">{row.sku}</td>
+                                  <td className="px-2 py-1.5 align-top text-right text-xs tabular-nums font-medium text-neutral-800 dark:text-neutral-200 lg:px-3">
+                                    {fmtCustoBaseFornecedor(row.custo_base)}
+                                  </td>
                                   <td className="px-2 py-1.5 align-top text-right text-xs tabular-nums text-neutral-700 dark:text-neutral-300 lg:px-3">
                                     {row.estoque_atual != null ? row.estoque_atual : "—"}
                                   </td>
@@ -864,7 +897,7 @@ export default function FornecedorProdutosPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Preço / Custo (R$)</label>
+                  <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Custo por unidade (R$)</label>
                   <input
                     type="text"
                     inputMode="decimal"

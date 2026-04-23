@@ -1,0 +1,53 @@
+================================================================================
+DropCore — deploy na Vercel (app Next.js na pasta web/)
+================================================================================
+
+O repositório tem o Next em web/. Na Vercel isto TEM de estar explícito, senão o
+build falha ou deploya o projeto errado.
+
+--------------------------------------------------------------------------------
+Opção A — Painel Vercel (recomendado)
+--------------------------------------------------------------------------------
+
+1. https://vercel.com → Add New → Project → escolhe o GitHub DropCore-oficial/dropcore-web
+
+2. Em "Configure Project":
+   - Root Directory: clica "Edit" e define exactamente:  web
+   - Framework Preset: Next.js (deve aparecer sozinho depois de escolheres web)
+
+3. Environment Variables (Production):
+   Copia do teu ficheiro local web/.env.local (ou usa web/.env.example como lista):
+   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
+   NEXT_PUBLIC_APP_URL, MERCADOPAGO_*, etc.
+
+4. Deploy.
+
+5. Depois: no Supabase → Auth → URL Configuration, adiciona o domínio Vercel
+   (ex.: https://xxx.vercel.app) em Redirect URLs / Site URL se for preciso.
+
+--------------------------------------------------------------------------------
+Opção B — CLI no teu Mac (se preferires terminal)
+--------------------------------------------------------------------------------
+
+cd /Users/tiagopereirasilva/Downloads/DropCore/web
+npx vercel login
+npx vercel link          # escolhe o team e o projeto "web" (ou cria um novo)
+npx vercel deploy --prod
+
+Se der "EPIPE" ou timeout, volta a correr só:
+npx vercel deploy --prod
+
+--------------------------------------------------------------------------------
+Erros frequentes
+--------------------------------------------------------------------------------
+
+- "No Next.js version" / build falha no root: Root Directory NÃO está em "web".
+- Variáveis em falta: build passa mas login/API falha — repõe as env na Vercel.
+- Repo já ligado com Root = raiz do mono: Settings → General → Root Directory → web
+
+--------------------------------------------------------------------------------
+O que já está pronto no Git
+--------------------------------------------------------------------------------
+
+Push para main já dispara deploy automático SE o projeto GitHub estiver ligado
+na Vercel com Root Directory = web.

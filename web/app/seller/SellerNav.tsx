@@ -51,11 +51,24 @@ function IconPlug({ active }: { active: boolean }) {
   );
 }
 
+function IconProdutos({ active }: { active: boolean }) {
+  return (
+    <svg className={`w-5 h-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="7" height="7" x="3" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="14" rx="1" />
+      <rect width="7" height="7" x="3" y="14" rx="1" />
+    </svg>
+  );
+}
+
+type NavKey = "dashboard" | "catalogo" | "produtos" | "calculadora" | "integracoes";
+
 export function SellerNav({
   active,
   calcOnly = false,
 }: {
-  active: "dashboard" | "catalogo" | "calculadora" | "integracoes";
+  active: NavKey;
   /** Só assinatura calculadora: esconde Dashboard, Catálogo e Integrações */
   calcOnly?: boolean;
 }) {
@@ -66,13 +79,13 @@ export function SellerNav({
     router.replace("/calculadora/login");
   }
 
-  const linkClass = (key: "dashboard" | "catalogo" | "calculadora" | "integracoes") =>
+  const linkClass = (key: NavKey) =>
     `flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ${
       active === key ? activeClass + " hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20" : inactiveClass + " border-transparent hover:bg-neutral-100/80 dark:hover:bg-neutral-800/50"
     }`;
 
-  const mobileLinkClass = (key: "dashboard" | "catalogo" | "calculadora" | "integracoes") =>
-    `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 overflow-visible px-1.5 py-2.5 transition-all duration-200 border-t-2 touch-manipulation relative ${
+  const mobileLinkClass = (key: NavKey) =>
+    `flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 overflow-visible px-1 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ${
       active === key ? activeClass + " bg-emerald-50/30 dark:bg-emerald-950/20" : inactiveClass + " border-transparent active:bg-neutral-100 dark:active:bg-neutral-800/50"
     }`;
 
@@ -133,6 +146,7 @@ export function SellerNav({
 
   return (
     <>
+      <MobileAppBar logoHref="/seller/dashboard" />
       <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/98 dark:bg-neutral-950/98 backdrop-blur-xl shadow-sm">
         <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 flex items-center gap-8">
           <DropCoreLogo variant="horizontal" href="/seller/dashboard" className="shrink-0" />
@@ -144,6 +158,10 @@ export function SellerNav({
             <Link href="/seller/catalogo" className={linkClass("catalogo")}>
               <IconPackage active={active === "catalogo"} />
               Catálogo
+            </Link>
+            <Link href="/seller/produtos" className={linkClass("produtos")}>
+              <IconProdutos active={active === "produtos"} />
+              Produtos
             </Link>
             <Link href="/seller/calculadora" className={linkClass("calculadora")}>
               <IconCalculator active={active === "calculadora"} />
@@ -164,23 +182,27 @@ export function SellerNav({
         </div>
       </nav>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200/80 dark:border-neutral-800/80 bg-white/[0.98] dark:bg-neutral-950/[0.98] backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.5)] pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto grid max-w-3xl grid-cols-4 items-stretch min-h-[56px]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200/80 dark:border-neutral-800/80 bg-white/[0.98] dark:bg-neutral-950/[0.98] backdrop-blur-xl shadow-[0_-3px_16px_rgba(0,0,0,0.06)] dark:shadow-[0_-3px_16px_rgba(0,0,0,0.45)] pb-[env(safe-area-inset-bottom)]">
+        <div className="mx-auto grid max-w-3xl grid-cols-5 items-stretch min-h-[50px]">
           <Link href="/seller/dashboard" className={mobileLinkClass("dashboard")}>
             <IconHome active={active === "dashboard"} />
-            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Dashboard</span>
+            <span className="max-w-[4.5rem] text-center text-[9px] sm:text-[10px] font-medium leading-tight tracking-tight">Painel</span>
           </Link>
           <Link href="/seller/catalogo" className={mobileLinkClass("catalogo")}>
             <IconPackage active={active === "catalogo"} />
-            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Catálogo</span>
+            <span className="max-w-[4.5rem] text-center text-[9px] sm:text-[10px] font-medium leading-tight tracking-tight">Catálogo</span>
+          </Link>
+          <Link href="/seller/produtos" className={mobileLinkClass("produtos")}>
+            <IconProdutos active={active === "produtos"} />
+            <span className="max-w-[4.5rem] text-center text-[9px] sm:text-[10px] font-medium leading-tight tracking-tight">Produtos</span>
           </Link>
           <Link href="/seller/calculadora" className={mobileLinkClass("calculadora")}>
             <IconCalculator active={active === "calculadora"} />
-            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Calculadora</span>
+            <span className="max-w-[4.5rem] text-center text-[9px] sm:text-[10px] font-medium leading-tight tracking-tight">Calc.</span>
           </Link>
           <Link href="/seller/integracoes-erp" className={mobileLinkClass("integracoes")}>
             <IconPlug active={active === "integracoes"} />
-            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Integrações</span>
+            <span className="max-w-[4.5rem] text-center text-[9px] sm:text-[10px] font-medium leading-tight tracking-tight">Integr.</span>
           </Link>
         </div>
       </nav>

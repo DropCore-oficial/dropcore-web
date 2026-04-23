@@ -1,13 +1,14 @@
 /**
  * GET /api/seller/catalogo?q=xxx
  * Catálogo de SKUs para o seller — filtra automaticamente pelo fornecedor conectado.
- * Retorna custo_dropcore (valor total com 15% DropCore). Não expõe custo_base.
+ * Retorna custo_total por unidade (fornecedor + taxa DropCore em R$, ou base×1,15 se só base). Não expõe custo_base/custo_dropcore.
  * Requer Bearer token do seller.
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createClient } from "@supabase/supabase-js";
 import { countHabilitadosQueContamNoLimite, isSellerPlanoPro } from "@/lib/sellerSkuHabilitado";
+import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,8 +42,8 @@ export async function GET(req: Request) {
 
     let query = supabaseAdmin
       .from("skus")
-      // custo_dropcore é buscado apenas para calcular custo_total; nunca é retornado ao client
-      .select("id, sku, nome_produto, cor, tamanho, status, fornecedor_id, estoque_atual, estoque_minimo, custo_dropcore, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, peso_kg, imagem_url, link_fotos, descricao, ncm")
+      // custo_dropcore / custo_base só no servidor para calcular custo_total; nunca expor ao client
+      .select("id, sku, nome_produto, cor, tamanho, status, fornecedor_id, estoque_atual, estoque_minimo, custo_dropcore, custo_base, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, peso_kg, imagem_url, link_fotos, descricao, ncm")
       .eq("org_id", seller.org_id)
       .ilike("status", "ativo")
       .order("sku", { ascending: true })
@@ -74,19 +75,13 @@ export async function GET(req: Request) {
       habilitados_count = cnt.count;
     }
 
-    const parseNum = (v: unknown): number => {
-      if (v == null || v === "") return 0;
-      if (typeof v === "number" && Number.isFinite(v)) return v;
-      const n = parseFloat(String(v).replace(",", "."));
-      return Number.isFinite(n) ? n : 0;
-    };
-
-    // custo_dropcore já inclui 15% DropCore — é o custo total que o seller paga
     const sellerPlano = (seller as { plano?: string | null }).plano ?? null;
     const items = (data ?? []).map((row) => {
-      const cd = parseNum(row.custo_dropcore);
-      const custoTotal = cd > 0 ? cd : null;
-      const { custo_dropcore: _, ...rest } = row;
+      const custoTotal = sellerCustoTotalPagoUnitario(
+        (row as { custo_base?: unknown }).custo_base,
+        (row as { custo_dropcore?: unknown }).custo_dropcore,
+      );
+      const { custo_dropcore: _cd, custo_base: _cb, ...rest } = row as Record<string, unknown> & { custo_dropcore?: unknown; custo_base?: unknown };
       const id = String((row as { id?: string }).id ?? "");
       return {
         ...rest,

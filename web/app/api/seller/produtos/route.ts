@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createClient } from "@supabase/supabase-js";
+import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,19 +68,9 @@ export async function GET(req: Request) {
 
     if (error) throw error;
 
-    // custo_dropcore já inclui 15% embutido = valor total que o seller paga. custo_base é referência (fornecedor).
-    const parseNum = (v: unknown): number => {
-      if (v == null || v === "") return 0;
-      if (typeof v === "number" && Number.isFinite(v)) return v;
-      const s = String(v).replace(",", ".");
-      const n = parseFloat(s);
-      return Number.isFinite(n) ? n : 0;
-    };
+    // custo_total = ver `sellerCustoTotalPagoUnitario` (alinhado ao ERP: base + taxa em R$, ou base×1,15).
     const produtos = (list ?? []).map((r) => {
-      const cb = parseNum(r.custo_base);
-      const cd = parseNum(r.custo_dropcore);
-      // custo_dropcore = total (fornecedor + 15%). Se vazio, usa custo_base + 15%
-      const custoTotal = cd > 0 ? cd : (cb > 0 ? Math.round(cb * 1.15 * 100) / 100 : 0);
+      const custoTotal = sellerCustoTotalPagoUnitario(r.custo_base, r.custo_dropcore) ?? 0;
       return {
         id: r.id,
         sku: r.sku,

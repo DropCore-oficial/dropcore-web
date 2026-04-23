@@ -34,7 +34,18 @@ export async function GET(req: Request) {
     const grupoKey = (searchParams.get("grupoKey") ?? "").trim().toUpperCase();
     if (!grupoKey) return NextResponse.json({ error: "grupoKey é obrigatório." }, { status: 400 });
 
-    const fornecedorId = (seller as { fornecedor_id?: string }).fornecedor_id ?? null;
+    const fornecedorParam = (searchParams.get("fornecedor_id") ?? "").trim();
+    let fornecedorId = (seller as { fornecedor_id?: string }).fornecedor_id ?? null;
+    if (fornecedorParam) {
+      const { data: okForn, error: fe } = await supabaseAdmin
+        .from("fornecedores")
+        .select("id")
+        .eq("id", fornecedorParam)
+        .eq("org_id", seller.org_id)
+        .maybeSingle();
+      if (fe) throw fe;
+      if (okForn) fornecedorId = fornecedorParam;
+    }
     if (!fornecedorId) return NextResponse.json({ aprovada: null });
 
     const { data: row } = await supabaseAdmin
