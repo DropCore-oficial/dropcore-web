@@ -35,8 +35,50 @@ const TABS: { id: TabId; label: string }[] = [
 
 const inputBase = "w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500";
 
+/** Alinhado ao resto do formulário (ex.: py-2.5 dos inputs e CTAs sky/azul). */
+const btnRascunho =
+  "inline-flex items-center justify-center rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800 sm:px-4 sm:py-2.5";
+const btnPassoSec =
+  "inline-flex flex-1 items-center justify-center rounded-lg border border-neutral-300 bg-[var(--card)] px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-neutral-600 dark:bg-neutral-900/80 dark:text-neutral-200 dark:hover:bg-neutral-800 sm:flex-none sm:min-w-[8.5rem] sm:px-4 sm:py-2.5";
+const btnSeguir =
+  "inline-flex flex-1 items-center justify-center rounded-lg border border-blue-600 bg-blue-50/70 px-3 py-2 text-sm font-semibold text-blue-800 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-blue-500 dark:bg-blue-950/25 dark:text-blue-200 dark:hover:bg-blue-950/40 sm:flex-none sm:min-w-[8.5rem] sm:px-4 sm:py-2.5";
+const btnSalvarProduto =
+  "inline-flex flex-1 items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-55 dark:shadow-none sm:flex-none sm:px-5 sm:py-2.5";
+
 /** Limite por ficheiro na lista de variações (data URL no JSON). */
 const MAX_FOTO_COR_BYTES = 900 * 1024;
+
+const LS_RASCUNHO_CRIAR_VARIANTES = "dropcore:fornecedor:criar-variantes:rascunho:v1";
+
+type RascunhoCriarVariantesV1 = {
+  v: 1;
+  savedAt: string;
+  tabAtiva: TabId;
+  nomeProduto: string;
+  descricao: string;
+  marca: string;
+  coresSelecionadas: string[];
+  corCustom: string;
+  tamanhosSelecionados: string[];
+  tamanhoCustom: string;
+  dataLancamento: string;
+  custoCompra: string;
+  custoPorTamanho: Record<string, string>;
+  custoMatriz: Record<string, string>;
+  custoPorCor: Record<string, string>;
+  estoquePorTamanho: Record<string, string>;
+  estoqueMatriz: Record<string, string>;
+  estoquePorCor: Record<string, string>;
+  fotoUrlPorCor: Record<string, string>;
+  massaCusto: string;
+  massaEstoque: string;
+  peso: string;
+  comp: string;
+  largura: string;
+  altura: string;
+  linkFotos: string;
+  linkVideo: string;
+};
 
 export default function CriarVariantesPage() {
   const router = useRouter();
@@ -72,10 +114,11 @@ export default function CriarVariantesPage() {
   /** Barra estilo Shopee «Aplicar a todos». */
   const [massaCusto, setMassaCusto] = useState("");
   const [massaEstoque, setMassaEstoque] = useState("");
-  const [massaSku, setMassaSku] = useState("");
   /** Foto principal por cor (URL ou data URL); chave = cor em minúsculas. */
   const [fotoUrlPorCor, setFotoUrlPorCor] = useState<Record<string, string>>({});
   const [avisoFoto, setAvisoFoto] = useState<string | null>(null);
+  const [bannerRascunho, setBannerRascunho] = useState<RascunhoCriarVariantesV1 | null>(null);
+  const [msgRascunho, setMsgRascunho] = useState<string | null>(null);
   const [peso, setPeso] = useState("");
   const [helpVariantesOpen, setHelpVariantesOpen] = useState<null | "custoUnidade">(null);
   const [comp, setComp] = useState("");
@@ -376,8 +419,140 @@ export default function CriarVariantesPage() {
     }
     setMassaEstoque("");
     setMassaCusto("");
-    setMassaSku("");
   }
+
+  function construirRascunho(): RascunhoCriarVariantesV1 {
+    return {
+      v: 1,
+      savedAt: new Date().toISOString(),
+      tabAtiva,
+      nomeProduto,
+      descricao,
+      marca,
+      coresSelecionadas: [...coresSelecionadas],
+      corCustom,
+      tamanhosSelecionados: [...tamanhosSelecionados],
+      tamanhoCustom,
+      dataLancamento,
+      custoCompra,
+      custoPorTamanho: { ...custoPorTamanho },
+      custoMatriz: { ...custoMatriz },
+      custoPorCor: { ...custoPorCor },
+      estoquePorTamanho: { ...estoquePorTamanho },
+      estoqueMatriz: { ...estoqueMatriz },
+      estoquePorCor: { ...estoquePorCor },
+      fotoUrlPorCor: { ...fotoUrlPorCor },
+      massaCusto,
+      massaEstoque,
+      peso,
+      comp,
+      largura,
+      altura,
+      linkFotos,
+      linkVideo,
+    };
+  }
+
+  function aplicarPayloadRascunho(p: RascunhoCriarVariantesV1) {
+    const tabIds = new Set(TABS.map((t) => t.id));
+    setTabAtiva(tabIds.has(p.tabAtiva) ? p.tabAtiva : "info-basica");
+    setNomeProduto(p.nomeProduto ?? "");
+    setDescricao(p.descricao ?? "");
+    setMarca(p.marca ?? "");
+    setCoresSelecionadas(new Set(p.coresSelecionadas ?? []));
+    setCorCustom(p.corCustom ?? "");
+    setTamanhosSelecionados(new Set(p.tamanhosSelecionados ?? []));
+    setTamanhoCustom(p.tamanhoCustom ?? "");
+    setDataLancamento(p.dataLancamento ?? "");
+    setCustoCompra(p.custoCompra ?? "");
+    setCustoPorTamanho({ ...(p.custoPorTamanho ?? {}) });
+    setCustoMatriz({ ...(p.custoMatriz ?? {}) });
+    setCustoPorCor({ ...(p.custoPorCor ?? {}) });
+    setEstoquePorTamanho({ ...(p.estoquePorTamanho ?? {}) });
+    setEstoqueMatriz({ ...(p.estoqueMatriz ?? {}) });
+    setEstoquePorCor({ ...(p.estoquePorCor ?? {}) });
+    setFotoUrlPorCor({ ...(p.fotoUrlPorCor ?? {}) });
+    setMassaCusto(p.massaCusto ?? "");
+    setMassaEstoque(p.massaEstoque ?? "");
+    setPeso(p.peso ?? "");
+    setComp(p.comp ?? "");
+    setLargura(p.largura ?? "");
+    setAltura(p.altura ?? "");
+    setLinkFotos(p.linkFotos ?? "");
+    setLinkVideo(p.linkVideo ?? "");
+  }
+
+  function salvarRascunho() {
+    const payload = construirRascunho();
+    const gravar = (data: RascunhoCriarVariantesV1) => {
+      localStorage.setItem(LS_RASCUNHO_CRIAR_VARIANTES, JSON.stringify(data));
+    };
+    try {
+      gravar(payload);
+      setBannerRascunho(null);
+      setMsgRascunho("Rascunho guardado neste dispositivo. Ao voltar a esta página, podes continuar de onde paraste.");
+    } catch (e) {
+      const isQuota =
+        (e instanceof Error && e.name === "QuotaExceededError") ||
+        (typeof e === "object" && e !== null && (e as { code?: number }).code === 22);
+      if (isQuota) {
+        const fotoSóHttp: Record<string, string> = {};
+        for (const [k, v] of Object.entries(payload.fotoUrlPorCor ?? {})) {
+          if (typeof v === "string" && (v.startsWith("http://") || v.startsWith("https://"))) fotoSóHttp[k] = v;
+        }
+        try {
+          gravar({ ...payload, fotoUrlPorCor: fotoSóHttp });
+          setMsgRascunho(
+            "Rascunho guardado sem fotos carregadas do disco (limite do navegador). As URLs de imagem foram mantidas."
+          );
+        } catch {
+          setMsgRascunho("Não foi possível guardar o rascunho (armazenamento cheio).");
+        }
+      } else {
+        setMsgRascunho("Não foi possível guardar o rascunho.");
+      }
+    }
+    window.setTimeout(() => setMsgRascunho(null), 9000);
+  }
+
+  function continuarDeRascunho(p: RascunhoCriarVariantesV1) {
+    aplicarPayloadRascunho(p);
+    setBannerRascunho(null);
+    try {
+      localStorage.setItem(
+        LS_RASCUNHO_CRIAR_VARIANTES,
+        JSON.stringify({ ...p, savedAt: new Date().toISOString() })
+      );
+    } catch {
+      /* ignore */
+    }
+    setMsgRascunho(
+      "Rascunho recuperado. Revisa os dados; usa «Salvar rascunho» de novo se alterares muito o anúncio. «Salvar produto» envia ao servidor."
+    );
+    window.setTimeout(() => setMsgRascunho(null), 10000);
+    window.setTimeout(() => tabsNavRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 100);
+  }
+
+  function descartarRascunhoGuardado() {
+    try {
+      localStorage.removeItem(LS_RASCUNHO_CRIAR_VARIANTES);
+    } catch {
+      /* ignore */
+    }
+    setBannerRascunho(null);
+  }
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_RASCUNHO_CRIAR_VARIANTES);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== "object" || (parsed as RascunhoCriarVariantesV1).v !== 1) return;
+      setBannerRascunho(parsed as RascunhoCriarVariantesV1);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const indiceTab = TABS.findIndex((t) => t.id === tabAtiva);
 
@@ -500,6 +675,11 @@ export default function CriarVariantesPage() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j?.error ?? "Erro ao criar variantes.");
+      try {
+        localStorage.removeItem(LS_RASCUNHO_CRIAR_VARIANTES);
+      } catch {
+        /* ignore */
+      }
       router.push("/fornecedor/produtos");
     } catch (e: unknown) {
       setFormError(e instanceof Error ? e.message : "Erro ao criar variantes.");
@@ -530,14 +710,19 @@ export default function CriarVariantesPage() {
               Criar variantes
             </h1>
           </div>
-          <button
-            type="submit"
-            form="form-criar-variantes"
-            disabled={formLoading}
-            className="relative z-10 shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
-          >
-            Salvar
-          </button>
+          <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
+            <button type="button" onClick={salvarRascunho} disabled={formLoading} className={`${btnRascunho} max-w-[9.5rem] truncate px-2.5 text-[11px] sm:max-w-none sm:px-4 sm:text-sm`}>
+              Salvar rascunho
+            </button>
+            <button
+              type="submit"
+              form="form-criar-variantes"
+              disabled={formLoading}
+              className="relative z-10 inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-55 sm:px-4 sm:text-sm sm:py-2.5"
+            >
+              Salvar
+            </button>
+          </div>
         </div>
       </div>
 
@@ -548,6 +733,38 @@ export default function CriarVariantesPage() {
             {formError && (
               <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-800 dark:text-red-300">
                 {formError}
+              </div>
+            )}
+
+            {bannerRascunho && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-100">
+                <p className="font-medium">Rascunho encontrado neste dispositivo</p>
+                <p className="mt-1 text-xs text-blue-800/90 dark:text-blue-200/90">
+                  Guardado em {new Date(bannerRascunho.savedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}. Podes
+                  continuar o anúncio ou descartar.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => continuarDeRascunho(bannerRascunho)}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                  >
+                    Continuar rascunho
+                  </button>
+                  <button
+                    type="button"
+                    onClick={descartarRascunhoGuardado}
+                    className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                  >
+                    Descartar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {msgRascunho && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
+                {msgRascunho}
               </div>
             )}
 
@@ -736,15 +953,15 @@ export default function CriarVariantesPage() {
             )}
 
             {tabAtiva === "lista-variantes" && (
-              <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[var(--card)]">
+              <div className="min-w-0 rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[var(--card)]">
                 <div className="border-b border-neutral-200 bg-[#fafafa] px-4 py-4 dark:border-neutral-700 dark:bg-neutral-900/60 sm:px-5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">Lista de variações</h2>
                       <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                        Tabela única com scroll (inclui telemóvel: deslize horizontal se precisar). Foto por cor grava em{" "}
-                        <strong className="text-neutral-700 dark:text-neutral-300">imagem_url</strong> em todas as variantes dessa cor. Preço = custo base; SKU
-                        gerado ao salvar.
+                        Deslize a tabela na horizontal se precisar de mais espaço. Foto por cor grava em{" "}
+                        <strong className="text-neutral-700 dark:text-neutral-300">imagem_url</strong> em todas as variantes dessa cor. Os SKUs das variantes são
+                        gerados ao salvar o produto.
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -778,7 +995,7 @@ export default function CriarVariantesPage() {
                       <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:items-end">
                         <div className="min-w-0 sm:max-w-[11rem] sm:flex-1">
                           <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">
-                            Preço (R$) <span className="text-[#ee4d2d]">*</span>
+                            Preço (R$) <span className="text-blue-600 dark:text-blue-400">*</span>
                           </label>
                           <div className="flex overflow-hidden rounded border border-neutral-300 bg-white dark:border-neutral-600 dark:bg-neutral-800">
                             <span className="shrink-0 border-r border-neutral-200 px-2 py-2 text-xs text-neutral-500 dark:border-neutral-600">
@@ -796,7 +1013,7 @@ export default function CriarVariantesPage() {
                         </div>
                         <div className="min-w-0 sm:max-w-[9rem] sm:flex-1">
                           <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">
-                            Estoque <span className="text-[#ee4d2d]">*</span>
+                            Estoque <span className="text-blue-600 dark:text-blue-400">*</span>
                           </label>
                           <input
                             type="text"
@@ -807,22 +1024,10 @@ export default function CriarVariantesPage() {
                             className={`${inputBase} w-full py-2 tabular-nums`}
                           />
                         </div>
-                        <div className="min-w-0 col-span-2 sm:max-w-[12rem] sm:flex-1">
-                          <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">
-                            SKU da variação
-                          </label>
-                          <input
-                            type="text"
-                            value={massaSku}
-                            onChange={(e) => setMassaSku(e.target.value)}
-                            placeholder="Opcional (não usado)"
-                            className={`${inputBase} w-full py-2 text-xs`}
-                          />
-                        </div>
                         <button
                           type="button"
                           onClick={aplicarMassaTodos}
-                          className="col-span-2 rounded-sm border border-[#ee4d2d] bg-[#ee4d2d] px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-[#d73225] active:opacity-95 sm:col-span-1 sm:py-2"
+                          className="col-span-2 min-h-[44px] rounded-lg border border-blue-600 bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:border-blue-700 hover:bg-blue-700 active:opacity-95 sm:col-span-1 sm:min-h-0 sm:py-2"
                         >
                           Aplicar a todos
                         </button>
@@ -834,19 +1039,18 @@ export default function CriarVariantesPage() {
                       )}
                     </div>
 
-                    <div className="max-h-[min(52dvh,24rem)] overflow-y-auto overflow-x-auto border-t border-neutral-100 [-webkit-overflow-scrolling:touch] dark:border-neutral-800 sm:max-h-[min(60vh,28rem)]">
-                      <table className="w-full min-w-[40rem] border-collapse text-xs md:min-w-[46rem] md:text-sm">
+                    <div className="dropcore-scroll-x -mx-4 max-h-[min(52dvh,24rem)] min-w-0 overflow-y-auto border-t border-neutral-100 dark:border-neutral-800 sm:mx-0 sm:max-h-[min(60vh,28rem)]">
+                      <table className="w-full min-w-[30rem] border-collapse text-xs md:min-w-[44rem] md:text-sm">
                         <thead className="sticky top-0 z-20 shadow-sm">
                           <tr className="border-b border-neutral-200 bg-[#fafafa] text-left text-xs font-medium text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400">
-                            <th className="w-[12.5rem] min-w-[12rem] px-3 py-3 pl-4">Cor / foto</th>
-                            <th className="px-3 py-3">Tamanho</th>
-                            <th className="min-w-[9rem] px-3 py-3">
-                              Preço (R$) <span className="text-[#ee4d2d]">*</span>
+                            <th className="min-w-[11.25rem] px-2 py-2 pl-4 md:w-[12.5rem] md:min-w-[12rem] md:px-3 md:py-3 md:pl-4">Cor / foto</th>
+                            <th className="whitespace-nowrap px-2 py-2 md:px-3 md:py-3">Tamanho</th>
+                            <th className="min-w-[7.5rem] px-2 py-2 md:min-w-[9rem] md:px-3 md:py-3">
+                              Preço (R$) <span className="text-blue-600 dark:text-blue-400">*</span>
                             </th>
-                            <th className="min-w-[7rem] px-3 py-3">
-                              Estoque <span className="text-[#ee4d2d]">*</span>
+                            <th className="min-w-[5.25rem] px-2 py-2 pr-4 md:min-w-[7rem] md:px-3 md:py-3 md:pr-4">
+                              Estoque <span className="text-blue-600 dark:text-blue-400">*</span>
                             </th>
-                            <th className="min-w-[10rem] px-3 py-3 pr-4">SKU da variação</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -864,16 +1068,16 @@ export default function CriarVariantesPage() {
                                       className={`border-b border-neutral-100 bg-white dark:border-neutral-800 dark:bg-neutral-900/30 ${separadorCor ? "border-t-2 border-t-neutral-200 dark:border-t-neutral-700" : ""}`}
                                     >
                                       <td
-                                        className={`align-top border-r border-neutral-100 px-2 py-1.5 pl-3 dark:border-neutral-800 md:px-3 md:py-2 md:pl-4 ${
+                                        className={`align-top border-r border-neutral-100 px-1.5 py-1.5 pl-2 dark:border-neutral-800 max-md:min-w-0 md:px-3 md:py-2 md:pl-4 ${
                                           idx === 0
                                             ? "bg-neutral-50/95 dark:bg-neutral-900/50"
                                             : "align-middle bg-white py-1 dark:bg-neutral-900/25"
                                         }`}
                                       >
                                         {idx === 0 ? (
-                                          <div className="flex min-w-0 max-w-[14rem] flex-col gap-1.5 sm:max-w-[15rem] sm:flex-row sm:items-start">
-                                            <div className="flex shrink-0 items-start gap-1">
-                                              <label className="relative flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-neutral-300 bg-white hover:border-[#ee4d2d] hover:bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800 dark:hover:border-[#ee4d2d] md:h-12 md:w-12">
+                                          <div className="flex min-w-0 w-full max-w-full flex-row items-start gap-1.5 md:max-w-[15.5rem] md:gap-2">
+                                            <div className="flex shrink-0 flex-col items-start gap-0.5">
+                                              <label className="relative flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-neutral-300 bg-white hover:border-blue-500 hover:bg-blue-50/40 dark:border-neutral-600 dark:bg-neutral-800 dark:hover:border-blue-500 md:h-12 md:w-12">
                                                 <input
                                                   id={`foto-cor-${ck}`}
                                                   type="file"
@@ -933,7 +1137,7 @@ export default function CriarVariantesPage() {
                                         ) : (
                                           <label
                                             htmlFor={`foto-cor-${ck}`}
-                                            className="flex max-w-[10rem] cursor-pointer items-center gap-1.5 rounded-md py-0.5 md:max-w-[11rem]"
+                                            className="flex max-w-full cursor-pointer items-center gap-1 rounded-md py-0.5 md:max-w-[11rem] md:gap-1.5"
                                           >
                                             {url ? (
                                               <img src={url} alt="" className="h-7 w-7 shrink-0 rounded border border-neutral-200 object-cover dark:border-neutral-600 md:h-8 md:w-8" />
@@ -949,10 +1153,12 @@ export default function CriarVariantesPage() {
                                           </label>
                                         )}
                                       </td>
-                                      <td className="px-2 py-1.5 text-xs font-medium text-neutral-800 dark:text-neutral-200 md:px-3 md:py-2 md:text-sm">{tam}</td>
-                                      <td className="px-2 py-1 md:px-3 md:py-2">
-                                        <div className="flex max-w-[9rem] overflow-hidden rounded border border-neutral-300 bg-white dark:border-neutral-600 dark:bg-neutral-800 md:max-w-[10rem]">
-                                          <span className="shrink-0 border-r border-neutral-200 px-1.5 py-1 text-[10px] text-neutral-500 dark:border-neutral-600 md:px-2 md:py-1.5 md:text-xs">
+                                      <td className="px-1 py-1.5 text-center text-[11px] font-medium text-neutral-800 dark:text-neutral-200 md:px-3 md:py-2 md:text-left md:text-sm">
+                                        {tam}
+                                      </td>
+                                      <td className="px-1 py-1 md:px-3 md:py-2">
+                                        <div className="flex w-full min-w-0 overflow-hidden rounded border border-neutral-300 bg-white dark:border-neutral-600 dark:bg-neutral-800 md:max-w-[10rem]">
+                                          <span className="shrink-0 border-r border-neutral-200 px-1 py-1 text-[9px] text-neutral-500 dark:border-neutral-600 md:px-2 md:py-1.5 md:text-xs">
                                             R$
                                           </span>
                                           <input
@@ -960,25 +1166,17 @@ export default function CriarVariantesPage() {
                                             inputMode="decimal"
                                             value={custoMatriz[k] ?? ""}
                                             onChange={(e) => setCustoMatriz((p) => ({ ...p, [k]: e.target.value }))}
-                                            className="min-w-0 flex-1 border-0 bg-transparent px-1.5 py-1 text-xs outline-none md:px-2 md:py-1.5 md:text-sm"
+                                            className="min-w-0 flex-1 border-0 bg-transparent px-1 py-1 text-[11px] outline-none md:px-2 md:py-1.5 md:text-sm"
                                           />
                                         </div>
                                       </td>
-                                      <td className="px-2 py-1 md:px-3 md:py-2">
+                                      <td className="px-1 py-1 pr-2 md:px-3 md:py-2 md:pr-4">
                                         <input
                                           type="text"
                                           inputMode="numeric"
                                           value={estoqueMatriz[k] ?? ""}
                                           onChange={(e) => setEstoqueMatriz((p) => ({ ...p, [k]: e.target.value }))}
-                                          className={`${inputBase} w-full max-w-[5.5rem] py-1 tabular-nums md:max-w-[6.5rem] md:py-2`}
-                                        />
-                                      </td>
-                                      <td className="px-2 py-1 pr-3 md:px-3 md:py-2 md:pr-4">
-                                        <input
-                                          readOnly
-                                          tabIndex={-1}
-                                          placeholder="Automático"
-                                          className={`${inputBase} w-full max-w-[10rem] cursor-not-allowed bg-neutral-50 py-1 text-[10px] text-neutral-400 dark:bg-neutral-800/80 md:max-w-[12rem] md:py-2 md:text-xs`}
+                                          className={`${inputBase} w-full min-w-0 max-w-[7rem] py-1 tabular-nums md:max-w-[6.5rem] md:py-2`}
                                         />
                                       </td>
                                     </tr>
@@ -991,11 +1189,15 @@ export default function CriarVariantesPage() {
                                 const k = tam.toUpperCase();
                                 return (
                                   <tr key={k} className="border-b border-neutral-100 bg-white dark:border-neutral-800 dark:bg-neutral-900/30">
-                                    <td className="px-3 py-3 pl-4 text-sm text-neutral-400 dark:text-neutral-500">—</td>
-                                    <td className="px-3 py-2.5 text-sm font-medium text-neutral-800 dark:text-neutral-200">{tam}</td>
-                                    <td className="px-3 py-2">
-                                      <div className="flex max-w-[10rem] overflow-hidden rounded border border-neutral-300 bg-white dark:border-neutral-600 dark:bg-neutral-800">
-                                        <span className="shrink-0 border-r border-neutral-200 px-2 py-1.5 text-xs text-neutral-500 dark:border-neutral-600">
+                                    <td className="px-1.5 py-2 pl-2 text-xs text-neutral-400 dark:text-neutral-500 md:px-3 md:py-3 md:pl-4 md:text-sm">
+                                      —
+                                    </td>
+                                    <td className="px-1 py-2 text-center text-[11px] font-medium text-neutral-800 dark:text-neutral-200 md:px-3 md:py-2.5 md:text-left md:text-sm">
+                                      {tam}
+                                    </td>
+                                    <td className="px-1 py-2 md:px-3">
+                                      <div className="flex w-full min-w-0 overflow-hidden rounded border border-neutral-300 bg-white dark:border-neutral-600 dark:bg-neutral-800 md:max-w-[10rem]">
+                                        <span className="shrink-0 border-r border-neutral-200 px-1.5 py-1 text-[10px] text-neutral-500 dark:border-neutral-600 md:px-2 md:py-1.5 md:text-xs">
                                           R$
                                         </span>
                                         <input
@@ -1003,25 +1205,17 @@ export default function CriarVariantesPage() {
                                           inputMode="decimal"
                                           value={custoPorTamanho[k] ?? ""}
                                           onChange={(e) => setCustoPorTamanho((p) => ({ ...p, [k]: e.target.value }))}
-                                          className="min-w-0 flex-1 border-0 bg-transparent px-2 py-1.5 text-sm outline-none"
+                                          className="min-w-0 flex-1 border-0 bg-transparent px-1.5 py-1 text-[11px] outline-none md:px-2 md:py-1.5 md:text-sm"
                                         />
                                       </div>
                                     </td>
-                                    <td className="px-3 py-2">
+                                    <td className="px-1 py-2 pr-2 md:px-3 md:pr-4">
                                       <input
                                         type="text"
                                         inputMode="numeric"
                                         value={estoquePorTamanho[k] ?? ""}
                                         onChange={(e) => setEstoquePorTamanho((p) => ({ ...p, [k]: e.target.value }))}
-                                        className={`${inputBase} w-full max-w-[6.5rem] py-2 tabular-nums`}
-                                      />
-                                    </td>
-                                    <td className="px-3 py-2 pr-4">
-                                      <input
-                                        readOnly
-                                        tabIndex={-1}
-                                        placeholder="Automático"
-                                        className={`${inputBase} w-full max-w-[12rem] cursor-not-allowed bg-neutral-50 py-2 text-xs text-neutral-400 dark:bg-neutral-800/80`}
+                                        className={`${inputBase} w-full min-w-0 max-w-[7rem] py-1.5 tabular-nums md:max-w-[6.5rem] md:py-2`}
                                       />
                                     </td>
                                   </tr>
@@ -1033,13 +1227,13 @@ export default function CriarVariantesPage() {
                                 const k = cor.trim().toLowerCase();
                                 return (
                                   <tr key={k} className="border-b border-neutral-100 bg-white dark:border-neutral-800 dark:bg-neutral-900/30">
-                                    <td className="px-3 py-3 pl-4 align-top">
+                                    <td className="px-1.5 py-2 pl-2 align-top md:px-3 md:py-3 md:pl-4">
                                       {(() => {
                                         const ck = cor.trim().toLowerCase();
                                         const url = fotoUrlPorCor[ck] ?? "";
                                         const urlHttp = url.startsWith("http://") || url.startsWith("https://") ? url : "";
                                         return (
-                                          <div className="flex w-[11.25rem] flex-col gap-2">
+                                          <div className="flex w-full max-w-full flex-col gap-2 md:w-[11.25rem]">
                                             <div className="flex items-start gap-2">
                                               <label className="relative flex h-14 w-14 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-neutral-300 bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800">
                                                 <input
@@ -1097,10 +1291,12 @@ export default function CriarVariantesPage() {
                                         );
                                       })()}
                                     </td>
-                                    <td className="px-3 py-2.5 text-sm text-neutral-400 dark:text-neutral-500">—</td>
-                                    <td className="px-3 py-2">
-                                      <div className="flex max-w-[10rem] overflow-hidden rounded border border-neutral-300 bg-white dark:border-neutral-600 dark:bg-neutral-800">
-                                        <span className="shrink-0 border-r border-neutral-200 px-2 py-1.5 text-xs text-neutral-500 dark:border-neutral-600">
+                                    <td className="px-1 py-2 text-center text-[11px] text-neutral-400 dark:text-neutral-500 md:px-3 md:py-2.5 md:text-left md:text-sm">
+                                      —
+                                    </td>
+                                    <td className="px-1 py-2 md:px-3">
+                                      <div className="flex w-full min-w-0 overflow-hidden rounded border border-neutral-300 bg-white dark:border-neutral-600 dark:bg-neutral-800 md:max-w-[10rem]">
+                                        <span className="shrink-0 border-r border-neutral-200 px-1.5 py-1 text-[10px] text-neutral-500 dark:border-neutral-600 md:px-2 md:py-1.5 md:text-xs">
                                           R$
                                         </span>
                                         <input
@@ -1108,25 +1304,17 @@ export default function CriarVariantesPage() {
                                           inputMode="decimal"
                                           value={custoPorCor[k] ?? ""}
                                           onChange={(e) => setCustoPorCor((p) => ({ ...p, [k]: e.target.value }))}
-                                          className="min-w-0 flex-1 border-0 bg-transparent px-2 py-1.5 text-sm outline-none"
+                                          className="min-w-0 flex-1 border-0 bg-transparent px-1.5 py-1 text-[11px] outline-none md:px-2 md:py-1.5 md:text-sm"
                                         />
                                       </div>
                                     </td>
-                                    <td className="px-3 py-2">
+                                    <td className="px-1 py-2 pr-2 md:px-3 md:pr-4">
                                       <input
                                         type="text"
                                         inputMode="numeric"
                                         value={estoquePorCor[k] ?? ""}
                                         onChange={(e) => setEstoquePorCor((p) => ({ ...p, [k]: e.target.value }))}
-                                        className={`${inputBase} w-full max-w-[6.5rem] py-2 tabular-nums`}
-                                      />
-                                    </td>
-                                    <td className="px-3 py-2 pr-4">
-                                      <input
-                                        readOnly
-                                        tabIndex={-1}
-                                        placeholder="Automático"
-                                        className={`${inputBase} w-full max-w-[12rem] cursor-not-allowed bg-neutral-50 py-2 text-xs text-neutral-400 dark:bg-neutral-800/80`}
+                                        className={`${inputBase} w-full min-w-0 max-w-[7rem] py-1.5 tabular-nums md:max-w-[6.5rem] md:py-2`}
                                       />
                                     </td>
                                   </tr>
@@ -1263,38 +1451,37 @@ export default function CriarVariantesPage() {
               </div>
             )}
 
-            {/* Navegação entre passos — «Seguir» não envia; «Salvar» submete o formulário */}
+            {/* Navegação entre passos — «Seguir» não envia; «Salvar produto» submete */}
             <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
-              <p className="mb-4 text-xs leading-relaxed text-[var(--muted)]">
+              <p className="mb-4 text-xs leading-relaxed text-[var(--muted)] sm:text-[13px]">
                 <strong className="text-[var(--foreground)]">Lembrete:</strong> «Seguir» e as abas só organizam o ecrã.{" "}
-                <strong className="text-[var(--foreground)]">Só «Salvar»</strong> envia o produto ao servidor.
+                <strong className="text-[var(--foreground)]">«Salvar rascunho»</strong> guarda o anúncio neste aparelho (local) para continuares mais tarde.{" "}
+                <strong className="text-[var(--foreground)]">Só «Salvar produto»</strong> envia ao servidor.
               </p>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-xs text-[var(--muted)]">
-                  Passo {indiceTab + 1} de {TABS.length} · {TABS[indiceTab]?.label}
+
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                  <p className="order-2 text-center text-xs text-[var(--muted)] sm:order-1 sm:text-left">
+                    <span className="font-medium text-[var(--foreground)]">Passo {indiceTab + 1}</span> de {TABS.length}
+                    <span className="text-[var(--muted)]"> · {TABS[indiceTab]?.label}</span>
+                  </p>
+                  <div className="order-1 flex w-full gap-2 sm:order-2 sm:w-auto sm:justify-end">
+                    <button type="button" onClick={() => irParaTab(-1)} disabled={indiceTab <= 0} className={btnPassoSec}>
+                      ← Anterior
+                    </button>
+                    <button type="button" onClick={() => irParaTab(1)} disabled={indiceTab >= TABS.length - 1} className={btnSeguir}>
+                      Seguir →
+                    </button>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-stretch gap-2 sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={() => irParaTab(-1)}
-                    disabled={indiceTab <= 0}
-                    className="min-h-[44px] rounded-lg border border-[var(--card-border)] px-4 py-2.5 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--background)] disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    ← Anterior
+
+                <div className="h-px bg-neutral-200/90 dark:bg-neutral-800" aria-hidden />
+
+                <div className="flex gap-2 sm:justify-end sm:gap-2.5">
+                  <button type="button" onClick={salvarRascunho} disabled={formLoading} className={`${btnRascunho} min-w-0 flex-1 sm:flex-none`}>
+                    <span className="truncate">Salvar rascunho</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => irParaTab(1)}
-                    disabled={indiceTab >= TABS.length - 1}
-                    className="min-h-[44px] rounded-lg bg-neutral-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-200 dark:text-neutral-900 dark:hover:bg-white"
-                  >
-                    Seguir →
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={formLoading}
-                    className="min-h-[44px] rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60"
-                  >
+                  <button type="submit" disabled={formLoading} className={btnSalvarProduto}>
                     {formLoading ? "Salvando…" : "Salvar produto"}
                   </button>
                 </div>
