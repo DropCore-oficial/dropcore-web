@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { cadastroMinimoCompleto } from "@/lib/fornecedorCadastro";
+import { cadastroMinimoCompleto, type FornecedorCadastroFields } from "@/lib/fornecedorCadastro";
 import { isPortalTrialAtivo } from "@/lib/portalTrial";
 
 export const runtime = "nodejs";
@@ -32,26 +32,58 @@ export async function GET(req: Request) {
 
     const user_id = userData.user.id;
 
-    // Busca org_members onde fornecedor_id está preenchido (usuário é fornecedor)
-    const { data: member, error: memErr } = await supabaseAdmin
+    /**
+     * Não usar `.maybeSingle()` aqui: se existirem **várias** linhas em `org_members` com
+     * `fornecedor_id` preenchido (ex.: mais do que uma org, ou dados legados duplicados),
+     * o PostgREST devolve erro e o utilizador ficava bloqueado como «sem vínculo».
+     */
+    const { data: membrosForn, error: memErr } = await supabaseAdmin
       .from("org_members")
       .select("org_id, fornecedor_id")
       .eq("user_id", user_id)
       .not("fornecedor_id", "is", null)
-      .limit(1)
-      .maybeSingle();
+      .order("org_id", { ascending: true })
+      .limit(1);
 
-    if (memErr || !member?.fornecedor_id) {
-      return NextResponse.json({ error: "Fornecedor não encontrado para este usuário." }, { status: 404 });
+    if (memErr) {
+      return NextResponse.json(
+        { error: "Erro ao resolver o vínculo do fornecedor: " + memErr.message, code: "ORG_MEMBERS_QUERY" },
+        { status: 500 },
+      );
     }
 
-    const { data: forn, error: fornErr } = await supabaseAdmin
-      .from("fornecedores")
-      .select(
-        "id, nome, org_id, status, trial_valido_ate, cnpj, telefone, email_comercial, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, expedicao_padrao_linha, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta"
-      )
-      .eq("id", member.fornecedor_id)
-      .maybeSingle();
+    const member = membrosForn?.[0];
+    if (!member?.fornecedor_id) {
+      return NextResponse.json(
+        {
+          error:
+            "Esta conta não está ligada a nenhum armazém no DropCore. Completa o registo com o link de convite da organização ou pede um novo convite ao admin.",
+          code: "FORNECEDOR_SEM_VINCULO_ORG_MEMBERS",
+        },
+        { status: 403 },
+      );
+    }
+
+    const selExpedicaoCols =
+      "id, nome, org_id, status, trial_valido_ate, cnpj, telefone, email_comercial, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, expedicao_padrao_linha, expedicao_cep, expedicao_logradouro, expedicao_numero, expedicao_complemento, expedicao_bairro, expedicao_cidade, expedicao_uf, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta";
+    const selSemExpedicaoCols =
+      "id, nome, org_id, status, trial_valido_ate, cnpj, telefone, email_comercial, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, expedicao_padrao_linha, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta";
+
+    let forn: Record<string, unknown> | null = null;
+    let fornErr: { message?: string; code?: string } | null = null;
+    {
+      const r = await supabaseAdmin.from("fornecedores").select(selExpedicaoCols).eq("id", member.fornecedor_id).maybeSingle();
+      forn = r.data as Record<string, unknown> | null;
+      fornErr = r.error;
+      const colMissing =
+        fornErr &&
+        (String(fornErr.message ?? "").toLowerCase().includes("column") || fornErr.code === "42703");
+      if (fornErr && colMissing) {
+        const r2 = await supabaseAdmin.from("fornecedores").select(selSemExpedicaoCols).eq("id", member.fornecedor_id).maybeSingle();
+        forn = r2.data as Record<string, unknown> | null;
+        fornErr = r2.error;
+      }
+    }
 
     if (fornErr || !forn) {
       return NextResponse.json({ error: "Fornecedor não encontrado." }, { status: 404 });
@@ -69,6 +101,13 @@ export async function GET(req: Request) {
       endereco_bairro?: string | null;
       endereco_cidade?: string | null;
       endereco_uf?: string | null;
+      expedicao_cep?: string | null;
+      expedicao_logradouro?: string | null;
+      expedicao_numero?: string | null;
+      expedicao_complemento?: string | null;
+      expedicao_bairro?: string | null;
+      expedicao_cidade?: string | null;
+      expedicao_uf?: string | null;
     };
 
     if (frow.status === "inativo") {
@@ -87,6 +126,13 @@ export async function GET(req: Request) {
       endereco_cidade: frow.endereco_cidade ?? null,
       endereco_uf: frow.endereco_uf ?? null,
       expedicao_padrao_linha: (frow as { expedicao_padrao_linha?: string | null }).expedicao_padrao_linha ?? null,
+      expedicao_cep: frow.expedicao_cep ?? null,
+      expedicao_logradouro: frow.expedicao_logradouro ?? null,
+      expedicao_numero: frow.expedicao_numero ?? null,
+      expedicao_complemento: frow.expedicao_complemento ?? null,
+      expedicao_bairro: frow.expedicao_bairro ?? null,
+      expedicao_cidade: frow.expedicao_cidade ?? null,
+      expedicao_uf: frow.expedicao_uf ?? null,
       chave_pix: frow.chave_pix ?? null,
       nome_banco: frow.nome_banco ?? null,
       nome_no_banco: frow.nome_no_banco ?? null,
@@ -113,13 +159,20 @@ export async function GET(req: Request) {
         endereco_cidade: cadastro.endereco_cidade,
         endereco_uf: cadastro.endereco_uf,
         expedicao_padrao_linha: cadastro.expedicao_padrao_linha,
+        expedicao_cep: cadastro.expedicao_cep,
+        expedicao_logradouro: cadastro.expedicao_logradouro,
+        expedicao_numero: cadastro.expedicao_numero,
+        expedicao_complemento: cadastro.expedicao_complemento,
+        expedicao_bairro: cadastro.expedicao_bairro,
+        expedicao_cidade: cadastro.expedicao_cidade,
+        expedicao_uf: cadastro.expedicao_uf,
         chave_pix: cadastro.chave_pix,
         nome_banco: cadastro.nome_banco,
         nome_no_banco: cadastro.nome_no_banco,
         agencia: cadastro.agencia,
         conta: cadastro.conta,
         tipo_conta: cadastro.tipo_conta,
-        cadastro_minimo_completo: cadastroMinimoCompleto(cadastro),
+        cadastro_minimo_completo: cadastroMinimoCompleto(cadastro as FornecedorCadastroFields),
         trial_valido_ate: frow.trial_valido_ate ?? null,
         trial_ativo: isPortalTrialAtivo(frow.trial_valido_ate),
       },

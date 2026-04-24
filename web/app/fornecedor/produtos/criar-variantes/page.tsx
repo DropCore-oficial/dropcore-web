@@ -23,8 +23,6 @@ function ordenarTamanhosLista(tams: string[]): string[] {
 import { HelpBubble } from "@/components/HelpBubble";
 import { VarianteExtrasTagInput } from "@/components/VarianteExtrasTagInput";
 
-type ModoEstoque = "matriz" | "por_tamanho" | "por_cor";
-
 type TabId = "info-basica" | "info-variantes" | "lista-variantes" | "midia" | "info-impostos";
 
 const TABS: { id: TabId; label: string }[] = [
@@ -36,6 +34,9 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 const inputBase = "w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500";
+
+/** Limite por ficheiro na lista de variações (data URL no JSON). */
+const MAX_FOTO_COR_BYTES = 900 * 1024;
 
 export default function CriarVariantesPage() {
   const router = useRouter();
@@ -59,14 +60,22 @@ export default function CriarVariantesPage() {
   const [dataLancamento, setDataLancamento] = useState("");
   /** Único custo em R$ por unidade — grava em `custo_base` (catálogo, seller e pedidos). */
   const [custoCompra, setCustoCompra] = useState("");
-  const [estoqueInicial, setEstoqueInicial] = useState("");
-  /** Quando há tamanhos (modo «por tamanho»): mesmo número para todas as cores daquele tamanho. Chave = tamanho em maiúsculas. */
+  const [custoPorTamanho, setCustoPorTamanho] = useState<Record<string, string>>({});
+  const [custoMatriz, setCustoMatriz] = useState<Record<string, string>>({});
+  const [custoPorCor, setCustoPorCor] = useState<Record<string, string>>({});
+  /** Quando há tamanhos: mesmo número para todas as cores daquele tamanho. Chave = tamanho em maiúsculas. */
   const [estoquePorTamanho, setEstoquePorTamanho] = useState<Record<string, string>>({});
   /** Cor × tamanho: uma quantidade por célula (modo «matriz»). Chave = `corLower|tamUpper`. */
   const [estoqueMatriz, setEstoqueMatriz] = useState<Record<string, string>>({});
   /** Mesmo estoque em todos os tamanhos daquela cor (modo «por cor»). Chave = cor em minúsculas. */
   const [estoquePorCor, setEstoquePorCor] = useState<Record<string, string>>({});
-  const [modoEstoque, setModoEstoque] = useState<ModoEstoque>("matriz");
+  /** Barra estilo Shopee «Aplicar a todos». */
+  const [massaCusto, setMassaCusto] = useState("");
+  const [massaEstoque, setMassaEstoque] = useState("");
+  const [massaSku, setMassaSku] = useState("");
+  /** Foto principal por cor (URL ou data URL); chave = cor em minúsculas. */
+  const [fotoUrlPorCor, setFotoUrlPorCor] = useState<Record<string, string>>({});
+  const [avisoFoto, setAvisoFoto] = useState<string | null>(null);
   const [peso, setPeso] = useState("");
   const [helpVariantesOpen, setHelpVariantesOpen] = useState<null | "custoUnidade">(null);
   const [comp, setComp] = useState("");
@@ -122,6 +131,17 @@ export default function CriarVariantesPage() {
   const tamanhosOrdenados = useMemo(() => ordenarTamanhosLista(tamanhosFinais), [tamanhosFinais]);
 
   useEffect(() => {
+    setFotoUrlPorCor((prev) => {
+      const next: Record<string, string> = {};
+      for (const cor of coresFinais) {
+        const k = cor.trim().toLowerCase();
+        if (prev[k]) next[k] = prev[k];
+      }
+      return next;
+    });
+  }, [coresFinais.join("|")]);
+
+  useEffect(() => {
     setEstoquePorTamanho((prev) => {
       const next: Record<string, string> = {};
       for (const tam of tamanhosFinais) {
@@ -157,6 +177,42 @@ export default function CriarVariantesPage() {
     });
   }, [coresFinais.join("|")]);
 
+  useEffect(() => {
+    setCustoPorTamanho((prev) => {
+      const next: Record<string, string> = {};
+      for (const tam of tamanhosFinais) {
+        const k = tam.toUpperCase();
+        next[k] = prev[k] ?? "";
+      }
+      return next;
+    });
+  }, [tamanhosFinais.join("|")]);
+
+  useEffect(() => {
+    if (coresFinais.length === 0 || tamanhosFinais.length === 0) return;
+    setCustoMatriz((prev) => {
+      const next: Record<string, string> = {};
+      for (const cor of coresFinais) {
+        for (const tam of tamanhosFinais) {
+          const key = chaveEstoqueVariante(cor, tam);
+          next[key] = prev[key] ?? "";
+        }
+      }
+      return next;
+    });
+  }, [coresFinais.join("|"), tamanhosFinais.join("|")]);
+
+  useEffect(() => {
+    setCustoPorCor((prev) => {
+      const next: Record<string, string> = {};
+      for (const cor of coresFinais) {
+        const k = cor.trim().toLowerCase();
+        next[k] = prev[k] ?? "";
+      }
+      return next;
+    });
+  }, [coresFinais.join("|")]);
+
   function parseQty(s: string): number | null {
     const raw = s.trim();
     if (!raw) return null;
@@ -164,23 +220,12 @@ export default function CriarVariantesPage() {
     return Number.isFinite(n) ? Math.max(0, Math.round(n)) : null;
   }
 
-  /** Pré-visualização do estoque que cada linha terá ao salvar (alinhada à API). */
-  function estoquePreviewParaLinha(cor: string, tamanho: string): number | null {
-    const hasC = cor.trim().length > 0;
-    const hasT = tamanho.trim().length > 0;
-    if (coresFinais.length > 0 && tamanhosFinais.length > 0) {
-      if (modoEstoque === "matriz") {
-        const k = chaveEstoqueVariante(cor, tamanho);
-        return parseQty(estoqueMatriz[k] ?? "");
-      }
-      if (modoEstoque === "por_cor") {
-        return parseQty(estoquePorCor[cor.trim().toLowerCase()] ?? "");
-      }
-      return parseQty(estoquePorTamanho[tamanho.trim().toUpperCase()] ?? "");
-    }
-    if (hasC && !hasT) return parseQty(estoqueInicial);
-    if (!hasC && hasT) return parseQty(estoquePorTamanho[tamanho.trim().toUpperCase()] ?? "");
-    return parseQty(estoqueInicial);
+  function parseMoney(s: string): number | null {
+    const raw = s.trim();
+    if (!raw) return null;
+    const n = parseFloat(raw.replace(",", "."));
+    if (!Number.isFinite(n) || n < 0) return null;
+    return Math.round(n * 100) / 100;
   }
 
   function toggleCor(cor: string) {
@@ -243,6 +288,97 @@ export default function CriarVariantesPage() {
     });
   }
 
+  function aoEscolherFicheiroFotoCor(cor: string, e: React.ChangeEvent<HTMLInputElement>) {
+    setAvisoFoto(null);
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setAvisoFoto("Use JPEG, PNG, WebP ou GIF.");
+      return;
+    }
+    if (file.size > MAX_FOTO_COR_BYTES) {
+      setAvisoFoto("Ficheiro demasiado grande (máx. ~900 KB). Coloque uma URL pública ou comprima a imagem.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const s = typeof reader.result === "string" ? reader.result : "";
+      if (s) setFotoUrlPorCor((prev) => ({ ...prev, [cor.trim().toLowerCase()]: s }));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function aplicarMassaTodos() {
+    const es = massaEstoque.trim();
+    const cu = massaCusto.trim();
+    if (coresFinais.length > 0 && tamanhosFinais.length > 0) {
+      if (es) {
+        setEstoqueMatriz((prev) => {
+          const next = { ...prev };
+          for (const cor of coresFinais) {
+            for (const tam of tamanhosOrdenados) {
+              next[chaveEstoqueVariante(cor, tam)] = es;
+            }
+          }
+          return next;
+        });
+      }
+      if (cu) {
+        setCustoMatriz((prev) => {
+          const next = { ...prev };
+          for (const cor of coresFinais) {
+            for (const tam of tamanhosOrdenados) {
+              next[chaveEstoqueVariante(cor, tam)] = cu;
+            }
+          }
+          return next;
+        });
+      }
+    } else if (tamanhosFinais.length > 0) {
+      if (es) {
+        setEstoquePorTamanho((prev) => {
+          const next = { ...prev };
+          for (const tam of tamanhosOrdenados) {
+            next[tam.toUpperCase()] = es;
+          }
+          return next;
+        });
+      }
+      if (cu) {
+        setCustoPorTamanho((prev) => {
+          const next = { ...prev };
+          for (const tam of tamanhosOrdenados) {
+            next[tam.toUpperCase()] = cu;
+          }
+          return next;
+        });
+      }
+    } else if (coresFinais.length > 0) {
+      if (es) {
+        setEstoquePorCor((prev) => {
+          const next = { ...prev };
+          for (const cor of coresFinais) {
+            next[cor.trim().toLowerCase()] = es;
+          }
+          return next;
+        });
+      }
+      if (cu) {
+        setCustoPorCor((prev) => {
+          const next = { ...prev };
+          for (const cor of coresFinais) {
+            next[cor.trim().toLowerCase()] = cu;
+          }
+          return next;
+        });
+      }
+    }
+    setMassaEstoque("");
+    setMassaCusto("");
+    setMassaSku("");
+  }
+
   const indiceTab = TABS.findIndex((t) => t.id === tabAtiva);
 
   function irParaTab(delta: -1 | 1) {
@@ -293,45 +429,67 @@ export default function CriarVariantesPage() {
         data_lancamento: dataLancamento || null,
       };
       if (cores.length > 0 && tamanhos.length > 0) {
-        if (modoEstoque === "matriz") {
-          const por: Record<string, number> = {};
-          for (const cor of cores) {
-            for (const tam of tamanhos) {
-              const k = chaveEstoqueVariante(cor, tam);
-              const q = parseQty(estoqueMatriz[k] ?? "");
-              por[k] = q ?? 0;
-            }
-          }
-          body.estoque_por_variante = por;
-        } else if (modoEstoque === "por_cor") {
-          const por: Record<string, number> = {};
-          for (const cor of cores) {
-            const k = cor.trim().toLowerCase();
-            const q = parseQty(estoquePorCor[k] ?? "");
-            por[k] = q ?? 0;
-          }
-          body.estoque_por_cor = por;
-        } else {
-          const por: Record<string, number> = {};
+        const por: Record<string, number> = {};
+        for (const cor of cores) {
           for (const tam of tamanhos) {
-            const k = tam.toUpperCase();
-            const q = parseQty(estoquePorTamanho[k] ?? "");
-            if (q != null) por[k] = q;
+            const k = chaveEstoqueVariante(cor, tam);
+            por[k] = parseQty(estoqueMatriz[k] ?? "") ?? 0;
           }
-          body.estoque_por_tamanho = por;
         }
+        body.estoque_por_variante = por;
       } else if (tamanhos.length > 0) {
         const por: Record<string, number> = {};
         for (const tam of tamanhos) {
           const k = tam.toUpperCase();
-          const q = parseQty(estoquePorTamanho[k] ?? "");
-          if (q != null) por[k] = q;
+          por[k] = parseQty(estoquePorTamanho[k] ?? "") ?? 0;
         }
         body.estoque_por_tamanho = por;
-      } else {
-        const q = parseQty(estoqueInicial);
-        if (q != null) body.estoque_atual = q;
+      } else if (cores.length > 0) {
+        const por: Record<string, number> = {};
+        for (const cor of cores) {
+          const k = cor.trim().toLowerCase();
+          por[k] = parseQty(estoquePorCor[k] ?? "") ?? 0;
+        }
+        body.estoque_por_cor = por;
       }
+
+      const fallbackCustoNum = custoCompra.trim() ? parseFloat(custoCompra.replace(",", ".")) : NaN;
+      const fallbackCusto = Number.isFinite(fallbackCustoNum) ? Math.round(fallbackCustoNum * 100) / 100 : null;
+      if (cores.length > 0 && tamanhos.length > 0) {
+        const por: Record<string, number> = {};
+        for (const cor of cores) {
+          for (const tam of tamanhos) {
+            const k = chaveEstoqueVariante(cor, tam);
+            por[k] = parseMoney(custoMatriz[k] ?? "") ?? fallbackCusto ?? 0;
+          }
+        }
+        body.custo_por_variante = por;
+      } else if (tamanhos.length > 0) {
+        const por: Record<string, number> = {};
+        for (const tam of tamanhos) {
+          const k = tam.toUpperCase();
+          por[k] = parseMoney(custoPorTamanho[k] ?? "") ?? fallbackCusto ?? 0;
+        }
+        body.custo_por_tamanho = por;
+      } else if (cores.length > 0) {
+        const por: Record<string, number> = {};
+        for (const cor of cores) {
+          const k = cor.trim().toLowerCase();
+          por[k] = parseMoney(custoPorCor[k] ?? "") ?? fallbackCusto ?? 0;
+        }
+        body.custo_por_cor = por;
+      }
+
+      if (cores.length > 0) {
+        const img: Record<string, string> = {};
+        for (const cor of cores) {
+          const k = cor.trim().toLowerCase();
+          const u = (fotoUrlPorCor[k] ?? "").trim();
+          if (u) img[k] = u;
+        }
+        if (Object.keys(img).length > 0) body.imagem_url_por_cor = img;
+      }
+
       const res = await fetch("/api/fornecedor/produtos/multivariante", {
         method: "POST",
         headers: {
@@ -578,17 +736,19 @@ export default function CriarVariantesPage() {
             )}
 
             {tabAtiva === "lista-variantes" && (
-              <div className="overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
-                <div className="border-b border-[var(--card-border)] bg-gradient-to-r from-emerald-50/80 to-transparent px-4 py-4 dark:from-emerald-950/25 dark:to-transparent sm:px-5">
+              <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[var(--card)]">
+                <div className="border-b border-neutral-200 bg-[#fafafa] px-4 py-4 dark:border-neutral-700 dark:bg-neutral-900/60 sm:px-5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">Lista de variantes</h2>
+                      <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">Lista de variações</h2>
                       <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                        Pré-visualização do que será criado — SKUs gerados ao salvar.
+                        Tabela única com scroll (inclui telemóvel: deslize horizontal se precisar). Foto por cor grava em{" "}
+                        <strong className="text-neutral-700 dark:text-neutral-300">imagem_url</strong> em todas as variantes dessa cor. Preço = custo base; SKU
+                        gerado ao salvar.
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200">
+                      <span className="rounded border border-neutral-200 bg-white px-2.5 py-1 text-xs font-medium text-neutral-600 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
                         {combinacoes.length} variante{combinacoes.length !== 1 ? "s" : ""}
                       </span>
                       <button
@@ -597,7 +757,7 @@ export default function CriarVariantesPage() {
                           setTabAtiva("info-variantes");
                           window.setTimeout(() => tabsNavRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
                         }}
-                        className="rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                        className="rounded border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
                       >
                         Ajustar cores / tamanhos
                       </button>
@@ -613,332 +773,435 @@ export default function CriarVariantesPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="hidden md:block">
-                      <div className="max-h-[min(28rem,55vh)] overflow-auto">
-                        <table className="w-full text-sm">
-                          <thead className="sticky top-0 z-10 bg-neutral-100/95 dark:bg-neutral-900/95 backdrop-blur-sm">
-                            <tr className="border-b border-neutral-200 text-left text-neutral-600 dark:border-neutral-700 dark:text-neutral-400">
-                              <th className="px-4 py-3 font-medium">#</th>
-                              <th className="px-4 py-3 font-medium">Cor</th>
-                              <th className="px-4 py-3 font-medium">Tamanho</th>
-                              <th className="px-4 py-3 font-medium text-right">Estq.</th>
-                              <th className="px-4 py-3 font-medium">SKU</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                            {combinacoes.map((c, i) => {
-                              const eq = estoquePreviewParaLinha(c.cor, c.tamanho);
-                              return (
-                                <tr key={i} className="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40">
-                                  <td className="px-4 py-2.5 tabular-nums text-neutral-400 dark:text-neutral-500">{i + 1}</td>
-                                  <td className="px-4 py-2.5 font-medium text-neutral-800 dark:text-neutral-200">{c.cor || "—"}</td>
-                                  <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{c.tamanho || "—"}</td>
-                                  <td className="px-4 py-2.5 text-right tabular-nums text-neutral-700 dark:text-neutral-300">
-                                    {eq != null ? eq : "—"}
-                                  </td>
-                                  <td className="px-4 py-2.5 text-xs text-neutral-400 dark:text-neutral-500">Automático ao salvar</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                    <div className="max-h-[min(24rem,50vh)] space-y-2 overflow-y-auto p-3 md:hidden">
-                      {combinacoes.map((c, i) => {
-                        const eq = estoquePreviewParaLinha(c.cor, c.tamanho);
-                        return (
-                          <div
-                            key={i}
-                            className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-white px-3 py-2.5 dark:border-neutral-700 dark:bg-neutral-900/80"
-                          >
-                            <span className="text-xs text-neutral-400 tabular-nums">{i + 1}</span>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                                {[c.cor, c.tamanho].filter(Boolean).join(" · ") || "—"}
-                              </p>
-                              <p className="text-[11px] text-neutral-400">
-                                Estq. {eq != null ? eq : "—"} · SKU automático
-                              </p>
-                            </div>
+                    <div className="border-b border-neutral-200 bg-[#fafafa] px-4 py-4 dark:border-neutral-700 dark:bg-neutral-900/50 sm:px-5">
+                      <p className="mb-3 text-xs font-semibold text-neutral-800 dark:text-neutral-200">Preencher em massa</p>
+                      <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:items-end">
+                        <div className="min-w-0 sm:max-w-[11rem] sm:flex-1">
+                          <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">
+                            Preço (R$) <span className="text-[#ee4d2d]">*</span>
+                          </label>
+                          <div className="flex overflow-hidden rounded border border-neutral-300 bg-white dark:border-neutral-600 dark:bg-neutral-800">
+                            <span className="shrink-0 border-r border-neutral-200 px-2 py-2 text-xs text-neutral-500 dark:border-neutral-600">
+                              R$
+                            </span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={massaCusto}
+                              onChange={(e) => setMassaCusto(e.target.value)}
+                              placeholder="0,00"
+                              className="min-w-0 flex-1 border-0 bg-transparent px-2 py-2 text-sm outline-none focus:ring-0"
+                            />
                           </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-
-                {combinacoes.length > 0 && (
-                  <div className="space-y-4 border-t border-[var(--card-border)] bg-neutral-50/70 p-4 dark:bg-neutral-900/40 sm:p-5">
-                    <div>
-                      <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Editar em massa</h3>
-                      <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-                        Custo, peso e dimensões valem para todas as variantes.{" "}
-                        {tamanhosFinais.length > 0 && coresFinais.length > 0 ? (
-                          <>
-                            Defina o <strong>estoque</strong> por combinação <strong>cor × tamanho</strong>, só por{" "}
-                            <strong>tamanho</strong> ou só por <strong>cor</strong> — escolha abaixo.
-                          </>
-                        ) : tamanhosFinais.length > 0 ? (
-                          <>O estoque é por <strong>tamanho</strong> (cada numeração).</>
-                        ) : (
-                          <>O estoque inicial aplica-se a cada variante de cor.</>
-                        )}
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      <div className="min-w-0">
-                        <label className="mb-1.5 block text-xs font-medium text-neutral-600 dark:text-neutral-400">Data de lançamento</label>
-                        <input
-                          type="date"
-                          value={dataLancamento}
-                          onChange={(e) => setDataLancamento(e.target.value)}
-                          className={`${inputBase} w-full py-2`}
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="mb-1.5 flex items-center gap-1.5">
-                          <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Custo por unidade (R$)</span>
-                          <HelpBubble
-                            open={helpVariantesOpen === "custoUnidade"}
-                            onOpen={() => setHelpVariantesOpen("custoUnidade")}
-                            onClose={() => setHelpVariantesOpen(null)}
-                            ariaLabel="Ajuda: custo por unidade"
-                          >
-                            Um único valor: o que custa cada peça para si (custo base). É o que o DropCore usa no catálogo do seller e nos pedidos — não há segundo campo de «preço de loja» aqui para evitar confusão.
-                          </HelpBubble>
                         </div>
-                        <input
-                          type="text"
-                          value={custoCompra}
-                          onChange={(e) => setCustoCompra(e.target.value)}
-                          placeholder="ex.: 30,00"
-                          className={`${inputBase} w-full py-2`}
-                        />
+                        <div className="min-w-0 sm:max-w-[9rem] sm:flex-1">
+                          <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">
+                            Estoque <span className="text-[#ee4d2d]">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={massaEstoque}
+                            onChange={(e) => setMassaEstoque(e.target.value)}
+                            placeholder="0"
+                            className={`${inputBase} w-full py-2 tabular-nums`}
+                          />
+                        </div>
+                        <div className="min-w-0 col-span-2 sm:max-w-[12rem] sm:flex-1">
+                          <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">
+                            SKU da variação
+                          </label>
+                          <input
+                            type="text"
+                            value={massaSku}
+                            onChange={(e) => setMassaSku(e.target.value)}
+                            placeholder="Opcional (não usado)"
+                            className={`${inputBase} w-full py-2 text-xs`}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={aplicarMassaTodos}
+                          className="col-span-2 rounded-sm border border-[#ee4d2d] bg-[#ee4d2d] px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-[#d73225] active:opacity-95 sm:col-span-1 sm:py-2"
+                        >
+                          Aplicar a todos
+                        </button>
                       </div>
-                      {tamanhosFinais.length > 0 && coresFinais.length > 0 ? (
-                        <div className="min-w-0 sm:col-span-2 lg:col-span-3 space-y-3">
-                          <div>
-                            <p className="mb-2 text-xs font-medium text-neutral-600 dark:text-neutral-400">Estoque inicial</p>
-                            <div className="flex flex-wrap gap-2" role="group" aria-label="Modo de estoque">
-                              {(
-                                [
-                                  ["matriz", "Cor × tamanho (matriz)"],
-                                  ["por_tamanho", "Só por tamanho"],
-                                  ["por_cor", "Só por cor"],
-                                ] as const
-                              ).map(([id, label]) => (
-                                <button
-                                  key={id}
-                                  type="button"
-                                  onClick={() => setModoEstoque(id)}
-                                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
-                                    modoEstoque === id
-                                      ? "border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-600"
-                                      : "border-[var(--card-border)] bg-[var(--background)] text-neutral-700 hover:bg-neutral-50 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                                  }`}
-                                >
-                                  {label}
-                                </button>
-                              ))}
-                            </div>
-                            <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
-                              {modoEstoque === "matriz" && (
-                                <>
-                                  Uma quantidade por <strong>célula</strong> (cada SKU cor + numeração). Ideal quando o stock difere por cor e tamanho.
-                                </>
-                              )}
-                              {modoEstoque === "por_tamanho" && (
-                                <>
-                                  Um número por <strong>tamanho</strong> — repete em <strong>todas</strong> as cores daquele tamanho (comportamento anterior).
-                                </>
-                              )}
-                              {modoEstoque === "por_cor" && (
-                                <>
-                                  Um número por <strong>cor</strong> — o mesmo em <strong>todos</strong> os tamanhos dessa cor.
-                                </>
-                              )}
-                            </p>
-                          </div>
-                          {modoEstoque === "matriz" && (
-                            <div className="overflow-x-auto rounded-lg border border-[var(--card-border)]">
-                              <table className="w-full min-w-[16rem] border-collapse text-xs">
-                                <thead>
-                                  <tr className="border-b border-[var(--card-border)] bg-neutral-100/80 dark:bg-neutral-800/50">
-                                    <th className="sticky left-0 z-[1] border-r border-[var(--card-border)] bg-neutral-100/95 px-2 py-2 text-left font-medium text-neutral-700 dark:bg-neutral-900/95 dark:text-neutral-200">
-                                      Cor
-                                    </th>
-                                    {tamanhosOrdenados.map((tam) => (
-                                      <th key={tam} className="px-2 py-2 text-center font-medium text-neutral-700 dark:text-neutral-300">
-                                        {tam}
-                                      </th>
-                                    ))}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {coresFinais.map((cor) => (
-                                    <tr key={cor} className="border-b border-neutral-100 dark:border-neutral-800">
-                                      <td className="sticky left-0 z-[1] border-r border-[var(--card-border)] bg-[var(--card)] px-2 py-1.5 font-medium text-neutral-800 dark:text-neutral-100">
-                                        {cor}
-                                      </td>
-                                      {tamanhosOrdenados.map((tam) => {
-                                        const key = chaveEstoqueVariante(cor, tam);
-                                        return (
-                                          <td key={key} className="p-1">
-                                            <input
-                                              type="text"
-                                              inputMode="numeric"
-                                              value={estoqueMatriz[key] ?? ""}
-                                              onChange={(e) =>
-                                                setEstoqueMatriz((prev) => ({ ...prev, [key]: e.target.value }))
-                                              }
-                                              placeholder="0"
-                                              className={`${inputBase} w-full min-w-[3.25rem] py-1.5 tabular-nums text-center text-xs`}
-                                              aria-label={`Estoque ${cor} ${tam}`}
-                                            />
-                                          </td>
-                                        );
-                                      })}
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                          {modoEstoque === "por_tamanho" && (
-                            <div>
-                              <p className="mb-2 text-[11px] text-neutral-500 dark:text-neutral-400">
-                                Cada tamanho abaixo aplica-se a todas as cores nesse tamanho.
-                              </p>
-                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                                {tamanhosOrdenados.map((tam) => {
-                                  const k = tam.toUpperCase();
+                      {avisoFoto && (
+                        <p className="mt-2 text-xs text-amber-700 dark:text-amber-300" role="status">
+                          {avisoFoto}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="max-h-[min(52dvh,24rem)] overflow-y-auto overflow-x-auto border-t border-neutral-100 [-webkit-overflow-scrolling:touch] dark:border-neutral-800 sm:max-h-[min(60vh,28rem)]">
+                      <table className="w-full min-w-[40rem] border-collapse text-xs md:min-w-[46rem] md:text-sm">
+                        <thead className="sticky top-0 z-20 shadow-sm">
+                          <tr className="border-b border-neutral-200 bg-[#fafafa] text-left text-xs font-medium text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400">
+                            <th className="w-[12.5rem] min-w-[12rem] px-3 py-3 pl-4">Cor / foto</th>
+                            <th className="px-3 py-3">Tamanho</th>
+                            <th className="min-w-[9rem] px-3 py-3">
+                              Preço (R$) <span className="text-[#ee4d2d]">*</span>
+                            </th>
+                            <th className="min-w-[7rem] px-3 py-3">
+                              Estoque <span className="text-[#ee4d2d]">*</span>
+                            </th>
+                            <th className="min-w-[10rem] px-3 py-3 pr-4">SKU da variação</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {coresFinais.length > 0 && tamanhosFinais.length > 0
+                            ? coresFinais.flatMap((cor, corIndex) =>
+                                tamanhosOrdenados.map((tam, idx) => {
+                                  const k = chaveEstoqueVariante(cor, tam);
+                                  const ck = cor.trim().toLowerCase();
+                                  const url = fotoUrlPorCor[ck] ?? "";
+                                  const urlHttp = url.startsWith("http://") || url.startsWith("https://") ? url : "";
+                                  const separadorCor = idx === 0 && corIndex > 0;
                                   return (
-                                    <div key={k}>
-                                      <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">{tam}</label>
+                                    <tr
+                                      key={k}
+                                      className={`border-b border-neutral-100 bg-white dark:border-neutral-800 dark:bg-neutral-900/30 ${separadorCor ? "border-t-2 border-t-neutral-200 dark:border-t-neutral-700" : ""}`}
+                                    >
+                                      <td
+                                        className={`align-top border-r border-neutral-100 px-2 py-1.5 pl-3 dark:border-neutral-800 md:px-3 md:py-2 md:pl-4 ${
+                                          idx === 0
+                                            ? "bg-neutral-50/95 dark:bg-neutral-900/50"
+                                            : "align-middle bg-white py-1 dark:bg-neutral-900/25"
+                                        }`}
+                                      >
+                                        {idx === 0 ? (
+                                          <div className="flex min-w-0 max-w-[14rem] flex-col gap-1.5 sm:max-w-[15rem] sm:flex-row sm:items-start">
+                                            <div className="flex shrink-0 items-start gap-1">
+                                              <label className="relative flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-neutral-300 bg-white hover:border-[#ee4d2d] hover:bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800 dark:hover:border-[#ee4d2d] md:h-12 md:w-12">
+                                                <input
+                                                  id={`foto-cor-${ck}`}
+                                                  type="file"
+                                                  accept="image/jpeg,image/png,image/webp,image/gif"
+                                                  className="sr-only"
+                                                  onChange={(e) => aoEscolherFicheiroFotoCor(cor, e)}
+                                                />
+                                                {url ? (
+                                                  <img src={url} alt="" className="h-full w-full object-cover" />
+                                                ) : (
+                                                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-neutral-400 md:h-[22px] md:w-[22px]">
+                                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                                    <circle cx="12" cy="13" r="3" />
+                                                  </svg>
+                                                )}
+                                              </label>
+                                              {url ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    setFotoUrlPorCor((p) => {
+                                                      const n = { ...p };
+                                                      delete n[ck];
+                                                      return n;
+                                                    })
+                                                  }
+                                                  className="shrink-0 rounded border border-neutral-200 px-1 py-0.5 text-[9px] font-medium text-neutral-500 hover:bg-neutral-100 dark:border-neutral-600 dark:text-neutral-400 dark:hover:bg-neutral-800 md:text-[10px]"
+                                                >
+                                                  Limpar
+                                                </button>
+                                              ) : null}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                              <input
+                                                type="url"
+                                                value={urlHttp}
+                                                onChange={(e) => {
+                                                  const v = e.target.value.trim();
+                                                  setFotoUrlPorCor((prev) => {
+                                                    const n = { ...prev };
+                                                    if (!v) {
+                                                      delete n[ck];
+                                                      return n;
+                                                    }
+                                                    if (v.startsWith("http://") || v.startsWith("https://")) n[ck] = v;
+                                                    return n;
+                                                  });
+                                                }}
+                                                placeholder="https://… (opcional)"
+                                                className={`${inputBase} w-full py-1 text-[11px] md:py-1.5 md:text-xs`}
+                                              />
+                                              <p className="mt-0.5 truncate text-[11px] font-semibold leading-tight text-neutral-900 dark:text-neutral-100 md:text-xs">
+                                                {cor}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <label
+                                            htmlFor={`foto-cor-${ck}`}
+                                            className="flex max-w-[10rem] cursor-pointer items-center gap-1.5 rounded-md py-0.5 md:max-w-[11rem]"
+                                          >
+                                            {url ? (
+                                              <img src={url} alt="" className="h-7 w-7 shrink-0 rounded border border-neutral-200 object-cover dark:border-neutral-600 md:h-8 md:w-8" />
+                                            ) : (
+                                              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-dashed border-neutral-200 bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800 md:h-8 md:w-8">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-neutral-400">
+                                                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                                  <circle cx="12" cy="13" r="3" />
+                                                </svg>
+                                              </span>
+                                            )}
+                                            <span className="min-w-0 truncate text-[10px] font-medium text-neutral-600 dark:text-neutral-300 md:text-[11px]">{cor}</span>
+                                          </label>
+                                        )}
+                                      </td>
+                                      <td className="px-2 py-1.5 text-xs font-medium text-neutral-800 dark:text-neutral-200 md:px-3 md:py-2 md:text-sm">{tam}</td>
+                                      <td className="px-2 py-1 md:px-3 md:py-2">
+                                        <div className="flex max-w-[9rem] overflow-hidden rounded border border-neutral-300 bg-white dark:border-neutral-600 dark:bg-neutral-800 md:max-w-[10rem]">
+                                          <span className="shrink-0 border-r border-neutral-200 px-1.5 py-1 text-[10px] text-neutral-500 dark:border-neutral-600 md:px-2 md:py-1.5 md:text-xs">
+                                            R$
+                                          </span>
+                                          <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={custoMatriz[k] ?? ""}
+                                            onChange={(e) => setCustoMatriz((p) => ({ ...p, [k]: e.target.value }))}
+                                            className="min-w-0 flex-1 border-0 bg-transparent px-1.5 py-1 text-xs outline-none md:px-2 md:py-1.5 md:text-sm"
+                                          />
+                                        </div>
+                                      </td>
+                                      <td className="px-2 py-1 md:px-3 md:py-2">
+                                        <input
+                                          type="text"
+                                          inputMode="numeric"
+                                          value={estoqueMatriz[k] ?? ""}
+                                          onChange={(e) => setEstoqueMatriz((p) => ({ ...p, [k]: e.target.value }))}
+                                          className={`${inputBase} w-full max-w-[5.5rem] py-1 tabular-nums md:max-w-[6.5rem] md:py-2`}
+                                        />
+                                      </td>
+                                      <td className="px-2 py-1 pr-3 md:px-3 md:py-2 md:pr-4">
+                                        <input
+                                          readOnly
+                                          tabIndex={-1}
+                                          placeholder="Automático"
+                                          className={`${inputBase} w-full max-w-[10rem] cursor-not-allowed bg-neutral-50 py-1 text-[10px] text-neutral-400 dark:bg-neutral-800/80 md:max-w-[12rem] md:py-2 md:text-xs`}
+                                        />
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              )
+                            : null}
+                          {tamanhosFinais.length > 0 && coresFinais.length === 0
+                            ? tamanhosOrdenados.map((tam) => {
+                                const k = tam.toUpperCase();
+                                return (
+                                  <tr key={k} className="border-b border-neutral-100 bg-white dark:border-neutral-800 dark:bg-neutral-900/30">
+                                    <td className="px-3 py-3 pl-4 text-sm text-neutral-400 dark:text-neutral-500">—</td>
+                                    <td className="px-3 py-2.5 text-sm font-medium text-neutral-800 dark:text-neutral-200">{tam}</td>
+                                    <td className="px-3 py-2">
+                                      <div className="flex max-w-[10rem] overflow-hidden rounded border border-neutral-300 bg-white dark:border-neutral-600 dark:bg-neutral-800">
+                                        <span className="shrink-0 border-r border-neutral-200 px-2 py-1.5 text-xs text-neutral-500 dark:border-neutral-600">
+                                          R$
+                                        </span>
+                                        <input
+                                          type="text"
+                                          inputMode="decimal"
+                                          value={custoPorTamanho[k] ?? ""}
+                                          onChange={(e) => setCustoPorTamanho((p) => ({ ...p, [k]: e.target.value }))}
+                                          className="min-w-0 flex-1 border-0 bg-transparent px-2 py-1.5 text-sm outline-none"
+                                        />
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2">
                                       <input
                                         type="text"
                                         inputMode="numeric"
                                         value={estoquePorTamanho[k] ?? ""}
-                                        onChange={(e) =>
-                                          setEstoquePorTamanho((prev) => ({ ...prev, [k]: e.target.value }))
-                                        }
-                                        placeholder="0"
-                                        className={`${inputBase} w-full py-2 tabular-nums`}
-                                        aria-label={`Estoque tamanho ${tam}`}
+                                        onChange={(e) => setEstoquePorTamanho((p) => ({ ...p, [k]: e.target.value }))}
+                                        className={`${inputBase} w-full max-w-[6.5rem] py-2 tabular-nums`}
                                       />
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                          {modoEstoque === "por_cor" && (
-                            <div>
-                              <p className="mb-2 text-[11px] text-neutral-500 dark:text-neutral-400">
-                                Cada cor abaixo repete o mesmo estoque em todos os tamanhos.
-                              </p>
-                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                                {coresFinais.map((cor) => {
-                                  const k = cor.trim().toLowerCase();
-                                  return (
-                                    <div key={cor}>
-                                      <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">{cor}</label>
+                                    </td>
+                                    <td className="px-3 py-2 pr-4">
+                                      <input
+                                        readOnly
+                                        tabIndex={-1}
+                                        placeholder="Automático"
+                                        className={`${inputBase} w-full max-w-[12rem] cursor-not-allowed bg-neutral-50 py-2 text-xs text-neutral-400 dark:bg-neutral-800/80`}
+                                      />
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            : null}
+                          {coresFinais.length > 0 && tamanhosFinais.length === 0
+                            ? coresFinais.map((cor) => {
+                                const k = cor.trim().toLowerCase();
+                                return (
+                                  <tr key={k} className="border-b border-neutral-100 bg-white dark:border-neutral-800 dark:bg-neutral-900/30">
+                                    <td className="px-3 py-3 pl-4 align-top">
+                                      {(() => {
+                                        const ck = cor.trim().toLowerCase();
+                                        const url = fotoUrlPorCor[ck] ?? "";
+                                        const urlHttp = url.startsWith("http://") || url.startsWith("https://") ? url : "";
+                                        return (
+                                          <div className="flex w-[11.25rem] flex-col gap-2">
+                                            <div className="flex items-start gap-2">
+                                              <label className="relative flex h-14 w-14 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-neutral-300 bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800">
+                                                <input
+                                                  id={`foto-cor-${ck}`}
+                                                  type="file"
+                                                  accept="image/jpeg,image/png,image/webp,image/gif"
+                                                  className="sr-only"
+                                                  onChange={(e) => aoEscolherFicheiroFotoCor(cor, e)}
+                                                />
+                                                {url ? (
+                                                  <img src={url} alt="" className="h-full w-full object-cover" />
+                                                ) : (
+                                                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-neutral-400">
+                                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                                    <circle cx="12" cy="13" r="3" />
+                                                  </svg>
+                                                )}
+                                              </label>
+                                              {url ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    setFotoUrlPorCor((p) => {
+                                                      const n = { ...p };
+                                                      delete n[ck];
+                                                      return n;
+                                                    })
+                                                  }
+                                                  className="shrink-0 rounded border border-neutral-200 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500 hover:bg-neutral-100 dark:border-neutral-600 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                                                >
+                                                  Limpar
+                                                </button>
+                                              ) : null}
+                                            </div>
+                                            <input
+                                              type="url"
+                                              value={urlHttp}
+                                              onChange={(e) => {
+                                                const v = e.target.value.trim();
+                                                setFotoUrlPorCor((prev) => {
+                                                  const n = { ...prev };
+                                                  if (!v) {
+                                                    delete n[ck];
+                                                    return n;
+                                                  }
+                                                  if (v.startsWith("http://") || v.startsWith("https://")) n[ck] = v;
+                                                  return n;
+                                                });
+                                              }}
+                                              placeholder="https://…"
+                                              className={`${inputBase} w-full py-1.5 text-xs`}
+                                            />
+                                            <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">{cor}</span>
+                                          </div>
+                                        );
+                                      })()}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-sm text-neutral-400 dark:text-neutral-500">—</td>
+                                    <td className="px-3 py-2">
+                                      <div className="flex max-w-[10rem] overflow-hidden rounded border border-neutral-300 bg-white dark:border-neutral-600 dark:bg-neutral-800">
+                                        <span className="shrink-0 border-r border-neutral-200 px-2 py-1.5 text-xs text-neutral-500 dark:border-neutral-600">
+                                          R$
+                                        </span>
+                                        <input
+                                          type="text"
+                                          inputMode="decimal"
+                                          value={custoPorCor[k] ?? ""}
+                                          onChange={(e) => setCustoPorCor((p) => ({ ...p, [k]: e.target.value }))}
+                                          className="min-w-0 flex-1 border-0 bg-transparent px-2 py-1.5 text-sm outline-none"
+                                        />
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2">
                                       <input
                                         type="text"
                                         inputMode="numeric"
                                         value={estoquePorCor[k] ?? ""}
-                                        onChange={(e) =>
-                                          setEstoquePorCor((prev) => ({ ...prev, [k]: e.target.value }))
-                                        }
-                                        placeholder="0"
-                                        className={`${inputBase} w-full py-2 tabular-nums`}
-                                        aria-label={`Estoque cor ${cor}`}
+                                        onChange={(e) => setEstoquePorCor((p) => ({ ...p, [k]: e.target.value }))}
+                                        className={`${inputBase} w-full max-w-[6.5rem] py-2 tabular-nums`}
                                       />
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ) : tamanhosFinais.length > 0 ? (
-                        <div className="min-w-0 sm:col-span-2 lg:col-span-3">
-                          <p className="mb-2 text-xs font-medium text-neutral-600 dark:text-neutral-400">Estoque inicial por tamanho</p>
-                          <p className="mb-2 text-[11px] text-neutral-500 dark:text-neutral-400">
-                            Cada numeração tem a sua quantidade (sem combinação com cor).
-                          </p>
-                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                            {tamanhosOrdenados.map((tam) => {
-                              const k = tam.toUpperCase();
-                              return (
-                                <div key={k}>
-                                  <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">{tam}</label>
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    value={estoquePorTamanho[k] ?? ""}
-                                    onChange={(e) =>
-                                      setEstoquePorTamanho((prev) => ({ ...prev, [k]: e.target.value }))
-                                    }
-                                    placeholder="0"
-                                    className={`${inputBase} w-full py-2 tabular-nums`}
-                                    aria-label={`Estoque tamanho ${tam}`}
-                                  />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ) : (
+                                    </td>
+                                    <td className="px-3 py-2 pr-4">
+                                      <input
+                                        readOnly
+                                        tabIndex={-1}
+                                        placeholder="Automático"
+                                        className={`${inputBase} w-full max-w-[12rem] cursor-not-allowed bg-neutral-50 py-2 text-xs text-neutral-400 dark:bg-neutral-800/80`}
+                                      />
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            : null}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="space-y-4 border-t border-neutral-200 bg-[#fafafa] p-4 dark:border-neutral-700 dark:bg-neutral-900/40 sm:p-5">
+                      <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">Outros dados (iguais para todas)</p>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         <div className="min-w-0">
-                          <label className="mb-1.5 block text-xs font-medium text-neutral-600 dark:text-neutral-400">Estoque inicial (por variante)</label>
+                          <label className="mb-1.5 block text-xs font-medium text-neutral-600 dark:text-neutral-400">Data de lançamento</label>
+                          <input
+                            type="date"
+                            value={dataLancamento}
+                            onChange={(e) => setDataLancamento(e.target.value)}
+                            className={`${inputBase} w-full py-2`}
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="mb-1.5 flex items-center gap-1.5">
+                            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Custo de referência (R$)</span>
+                            <HelpBubble
+                              open={helpVariantesOpen === "custoUnidade"}
+                              onOpen={() => setHelpVariantesOpen("custoUnidade")}
+                              onClose={() => setHelpVariantesOpen(null)}
+                              ariaLabel="Ajuda: custo de referência"
+                            >
+                              Valor usado nas células de <strong>preço</strong> vazias e no envio à API como fallback.
+                            </HelpBubble>
+                          </div>
                           <input
                             type="text"
-                            inputMode="numeric"
-                            value={estoqueInicial}
-                            onChange={(e) => setEstoqueInicial(e.target.value)}
-                            placeholder="0"
-                            className={`${inputBase} w-full py-2 tabular-nums`}
+                            value={custoCompra}
+                            onChange={(e) => setCustoCompra(e.target.value)}
+                            placeholder="ex.: 30,00"
+                            className={`${inputBase} w-full py-2`}
                           />
-                          <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
-                            Cada cor listada acima recebe esta quantidade.
-                          </p>
                         </div>
-                      )}
-                      <div className="min-w-0">
-                        <label className="mb-1.5 block text-xs font-medium text-neutral-600 dark:text-neutral-400">Peso (kg)</label>
-                        <input
-                          type="text"
-                          value={peso}
-                          onChange={(e) => setPeso(e.target.value)}
-                          placeholder="ex.: 0,25"
-                          className={`${inputBase} w-full py-2`}
-                        />
-                      </div>
-                      <div className="min-w-0 sm:col-span-2 lg:col-span-3">
-                        <p className="mb-2 text-xs font-medium text-neutral-600 dark:text-neutral-400">Dimensões do pacote (cm)</p>
-                        <div className="grid grid-cols-3 gap-3">
-                          <div>
-                            <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-500">Compr.</label>
-                            <input type="text" value={comp} onChange={(e) => setComp(e.target.value)} placeholder="—" className={`${inputBase} w-full py-2`} />
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-500">Larg.</label>
-                            <input type="text" value={largura} onChange={(e) => setLargura(e.target.value)} placeholder="—" className={`${inputBase} w-full py-2`} />
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-500">Alt.</label>
-                            <input type="text" value={altura} onChange={(e) => setAltura(e.target.value)} placeholder="—" className={`${inputBase} w-full py-2`} />
+                        <div className="min-w-0">
+                          <label className="mb-1.5 block text-xs font-medium text-neutral-600 dark:text-neutral-400">Peso (kg)</label>
+                          <input
+                            type="text"
+                            value={peso}
+                            onChange={(e) => setPeso(e.target.value)}
+                            placeholder="ex.: 0,25"
+                            className={`${inputBase} w-full py-2`}
+                          />
+                        </div>
+                        <div className="min-w-0 sm:col-span-2 lg:col-span-3">
+                          <p className="mb-2 text-xs font-medium text-neutral-600 dark:text-neutral-400">Dimensões do pacote (cm)</p>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-500">Compr.</label>
+                              <input type="text" value={comp} onChange={(e) => setComp(e.target.value)} placeholder="—" className={`${inputBase} w-full py-2`} />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-500">Larg.</label>
+                              <input type="text" value={largura} onChange={(e) => setLargura(e.target.value)} placeholder="—" className={`${inputBase} w-full py-2`} />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-500">Alt.</label>
+                              <input type="text" value={altura} onChange={(e) => setAltura(e.target.value)} placeholder="—" className={`${inputBase} w-full py-2`} />
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
             )}
-
             {tabAtiva === "midia" && (
               <div className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm p-6 space-y-6">
                 <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Mídia</h2>
@@ -972,9 +1235,31 @@ export default function CriarVariantesPage() {
             )}
 
             {tabAtiva === "info-impostos" && (
-              <div className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm p-6">
-                <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Info. de impostos</h2>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-2">Em breve.</p>
+              <div className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm p-6 space-y-4">
+                <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Info. de impostos e despacho</h2>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                  Neste assistente ainda <strong className="text-neutral-800 dark:text-neutral-200">não</strong> pões NCM, origem, CEST nem o CD de saída — isso fica noutros sítios do painel (já funcionam).
+                </p>
+                <ul className="text-sm text-neutral-600 dark:text-neutral-400 list-disc pl-5 space-y-2 leading-relaxed">
+                  <li>
+                    <strong className="text-neutral-800 dark:text-neutral-200">CD / de onde sai o envio (padrão da empresa):</strong>{" "}
+                    <Link href="/fornecedor/cadastro" className="text-blue-600 dark:text-blue-400 font-medium underline-offset-2 hover:underline">
+                      Cadastro
+                    </Link>
+                    , campo «Despacho / CD padrão». Para uma variante diferente do padrão: em{" "}
+                    <Link href="/fornecedor/produtos" className="text-blue-600 dark:text-blue-400 font-medium underline-offset-2 hover:underline">
+                      Produtos
+                    </Link>{" "}
+                    edita o SKU e usa «Despacho / CD desta variante».
+                  </li>
+                  <li>
+                    <strong className="text-neutral-800 dark:text-neutral-200">Dados fiscais (NCM, origem, CEST, CFOP, pesos):</strong> depois de criares o produto, abre o grupo em{" "}
+                    <Link href="/fornecedor/produtos" className="text-blue-600 dark:text-blue-400 font-medium underline-offset-2 hover:underline">
+                      Produtos
+                    </Link>{" "}
+                    → <strong className="text-neutral-800 dark:text-neutral-200">Editar</strong> → separador <strong className="text-neutral-800 dark:text-neutral-200">Info. de impostos</strong> (formulário completo).
+                  </li>
+                </ul>
               </div>
             )}
 

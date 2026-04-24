@@ -146,13 +146,17 @@ export default function FornecedorDashboardPage() {
       ]);
 
       if (!meRes.ok) {
-        if (meRes.status === 401 || meRes.status === 404) {
+        const j = await meRes.json().catch(() => ({}));
+        if (
+          meRes.status === 401 ||
+          meRes.status === 404 ||
+          (meRes.status === 403 && j?.code === "FORNECEDOR_SEM_VINCULO_ORG_MEMBERS")
+        ) {
           await supabaseBrowser.auth.signOut();
           router.replace("/fornecedor/login");
           return;
         }
-        const j = await meRes.json();
-        throw new Error(j?.error ?? "Erro ao carregar dados.");
+        throw new Error(typeof j?.error === "string" ? j.error : "Erro ao carregar dados.");
       }
       const meJson = await meRes.json();
       setFornecedor(meJson.fornecedor);

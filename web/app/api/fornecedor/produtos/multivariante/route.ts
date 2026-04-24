@@ -6,7 +6,11 @@
  *   estoque_por_variante?: Record<string, number> chaves `corLower|tamUpper` (uma célula por SKU cor×tamanho),
  *   estoque_por_cor?: Record<string, number> chaves cor em minúsculas (mesmo estoque em todos os tamanhos daquela cor),
  *   estoque_por_tamanho?: Record<string, number> (mesmo estoque em todas as cores daquele tamanho) }
+ * Custo por filho (opcional, mesma prioridade que estoque):
+ *   custo_por_variante, custo_por_cor, custo_por_tamanho (R$, 2 decimais) + custo_base global como fallback quando a célula não veio no mapa.
+ *   imagem_url_por_cor?: Record<string, string> — chave cor em minúsculas; URL (http/https) ou data:image/*; aplica-se a todos os SKUs filhos dessa cor.
  * Prioridade por filho: estoque_por_variante → estoque_por_cor → estoque_por_tamanho → estoque_atual.
+ * Prioridade custo: custo_por_variante → custo_por_cor → custo_por_tamanho → custo_base (corpo).
  * Pelo menos cores ou tamanhos deve ter pelo menos um valor.
  */
 import { NextResponse } from "next/server";
@@ -32,7 +36,7 @@ function iniciaisFromNome(nome: string | null | undefined): string {
 const SKU_FIELDS = `
   id, sku, nome_produto, cor, tamanho, status, fornecedor_id, fornecedor_org_id, org_id,
   estoque_atual, estoque_minimo, custo_base, custo_dropcore, peso_kg, categoria,
-  dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, descricao, criado_em
+  dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao, criado_em
 `;
 
 async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: string; org_id: string } | null> {
@@ -140,6 +144,77 @@ export async function POST(req: Request) {
       }
     }
     const usarEstoquePorCor = estoquePorCorMap !== null;
+
+    let custoPorTamanhoMap: Record<string, number> | null = null;
+    if (
+      body?.custo_por_tamanho != null &&
+      typeof body.custo_por_tamanho === "object" &&
+      !Array.isArray(body.custo_por_tamanho)
+    ) {
+      custoPorTamanhoMap = {};
+      for (const [k, v] of Object.entries(body.custo_por_tamanho as Record<string, unknown>)) {
+        const num = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(",", "."));
+        if (Number.isFinite(num) && num >= 0) custoPorTamanhoMap[k.trim().toUpperCase()] = Math.round(num * 100) / 100;
+      }
+    }
+    const usarCustoPorTamanho = custoPorTamanhoMap !== null;
+
+    let custoPorVarianteMap: Record<string, number> | null = null;
+    if (
+      body?.custo_por_variante != null &&
+      typeof body.custo_por_variante === "object" &&
+      !Array.isArray(body.custo_por_variante)
+    ) {
+      custoPorVarianteMap = {};
+      for (const [k, v] of Object.entries(body.custo_por_variante as Record<string, unknown>)) {
+        const num = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(",", "."));
+        if (!Number.isFinite(num) || num < 0) continue;
+        const nk = normalizarChaveEstoqueVarianteApi(k);
+        custoPorVarianteMap[nk] = Math.round(num * 100) / 100;
+      }
+    }
+    const usarCustoPorVariante = custoPorVarianteMap !== null;
+
+    let custoPorCorMap: Record<string, number> | null = null;
+    if (
+      body?.custo_por_cor != null &&
+      typeof body.custo_por_cor === "object" &&
+      !Array.isArray(body.custo_por_cor)
+    ) {
+      custoPorCorMap = {};
+      for (const [k, v] of Object.entries(body.custo_por_cor as Record<string, unknown>)) {
+        const num = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(",", "."));
+        if (!Number.isFinite(num) || num < 0) continue;
+        custoPorCorMap[k.trim().toLowerCase()] = Math.round(num * 100) / 100;
+      }
+    }
+    const usarCustoPorCor = custoPorCorMap !== null;
+
+    let imagemUrlPorCorMap: Record<string, string> | null = null;
+    if (
+      body?.imagem_url_por_cor != null &&
+      typeof body.imagem_url_por_cor === "object" &&
+      !Array.isArray(body.imagem_url_por_cor)
+    ) {
+      imagemUrlPorCorMap = {};
+      const MAX_LEN = 600_000;
+      for (const [k, v] of Object.entries(body.imagem_url_por_cor as Record<string, unknown>)) {
+        const s = typeof v === "string" ? v.trim() : "";
+        if (!s || s.length > MAX_LEN) continue;
+        const ok =
+          s.startsWith("https://") ||
+          s.startsWith("http://") ||
+          s.startsWith("data:image/jpeg") ||
+          s.startsWith("data:image/jpg") ||
+          s.startsWith("data:image/png") ||
+          s.startsWith("data:image/webp") ||
+          s.startsWith("data:image/gif");
+        if (!ok) continue;
+        imagemUrlPorCorMap[k.trim().toLowerCase()] = s;
+      }
+      if (Object.keys(imagemUrlPorCorMap).length === 0) imagemUrlPorCorMap = null;
+    }
+
     const custo_base = body?.custo_base != null ? (typeof body.custo_base === "number" ? body.custo_base : parseFloat(String(body.custo_base).replace(",", "."))) : null;
     const peso_g = body?.peso_kg != null ? (typeof body.peso_kg === "number" ? body.peso_kg : parseFloat(String(body.peso_kg).replace(",", "."))) : null;
     const peso_kg = Number.isFinite(peso_g) ? peso_g / 1000 : null;
@@ -248,12 +323,63 @@ export async function POST(req: Request) {
       return { ...estoqueBase };
     }
 
+    const custoGlobal = Number.isFinite(custo_base) ? Math.round(custo_base * 100) / 100 : null;
+
+    function custoParaVariante(c: { cor: string | null; tamanho: string | null }): number | null {
+      const cor = (c.cor ?? "").trim();
+      const tam = (c.tamanho ?? "").trim();
+
+      if (usarCustoPorVariante && custoPorVarianteMap) {
+        const keyV = chaveEstoqueVariante(cor, tam);
+        if (Object.prototype.hasOwnProperty.call(custoPorVarianteMap, keyV)) {
+          const q = custoPorVarianteMap[keyV];
+          if (q != null && Number.isFinite(q)) return q;
+        }
+        return custoGlobal;
+      }
+      if (usarCustoPorCor && custoPorCorMap && cor) {
+        const k = cor.toLowerCase();
+        if (Object.prototype.hasOwnProperty.call(custoPorCorMap, k)) {
+          const q = custoPorCorMap[k];
+          if (q != null && Number.isFinite(q)) return q;
+        }
+        return custoGlobal;
+      }
+      if (tam && usarCustoPorTamanho && custoPorTamanhoMap) {
+        const k = tam.toUpperCase();
+        if (Object.prototype.hasOwnProperty.call(custoPorTamanhoMap, k)) {
+          const q = custoPorTamanhoMap[k];
+          if (q != null && Number.isFinite(q)) return q;
+        }
+        return custoGlobal;
+      }
+      return custoGlobal;
+    }
+
     const extras: Record<string, unknown> = {
-      custo_base: Number.isFinite(custo_base) ? custo_base : null,
       peso_kg: Number.isFinite(peso_kg) ? peso_kg : null,
     };
     if (marca) extras.marca = marca;
     if (data_lancamento) extras.data_lancamento = data_lancamento;
+
+    const custosFilhosNumericos = combinacoes
+      .map((c) => custoParaVariante(c))
+      .filter((v): v is number => v != null && Number.isFinite(v));
+    const todosCustosIguais =
+      custosFilhosNumericos.length > 0 &&
+      custosFilhosNumericos.every((v) => v === custosFilhosNumericos[0]);
+    const custoPai =
+      custosFilhosNumericos.length === 0
+        ? custoGlobal
+        : todosCustosIguais
+          ? custosFilhosNumericos[0]!
+          : null;
+
+    function imagemUrlParaVariante(corRaw: string | null): string | null {
+      const cor = (corRaw ?? "").trim();
+      if (!cor || !imagemUrlPorCorMap) return null;
+      return imagemUrlPorCorMap[cor.toLowerCase()] ?? null;
+    }
 
     const filhosRows = combinacoes.map((c, i) => ({
       org_id: ctx.org_id,
@@ -265,9 +391,11 @@ export async function POST(req: Request) {
       tamanho: c.tamanho,
       status: "ativo",
       link_fotos: null,
+      imagem_url: imagemUrlParaVariante(c.cor),
       descricao,
       ...dims,
       ...estoqueParaVariante(c),
+      custo_base: custoParaVariante(c),
       ...extras,
     }));
 
@@ -287,6 +415,7 @@ export async function POST(req: Request) {
       ...dims,
       estoque_atual: filhosRows.length > 0 ? somaEstoqueFilhos : estoqueBase.estoque_atual,
       estoque_minimo: estoqueBase.estoque_minimo,
+      custo_base: custoPai,
       ...extras,
     };
 

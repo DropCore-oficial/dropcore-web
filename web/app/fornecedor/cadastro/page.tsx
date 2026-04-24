@@ -12,6 +12,15 @@ function upper(s: string): string {
   return s.toLocaleUpperCase("pt-BR");
 }
 
+/** Resposta mínima do ViaCEP (https://viacep.com.br/). */
+type ViaCepJson = {
+  erro?: boolean;
+  logradouro?: string;
+  bairro?: string;
+  localidade?: string;
+  uf?: string;
+};
+
 function formatCnpjDisplay(digits: string): string {
   const d = digits.slice(0, 14);
   if (d.length <= 2) return d;
@@ -33,8 +42,13 @@ type FormState = {
   endereco_bairro: string;
   endereco_cidade: string;
   endereco_uf: string;
-  /** CD / despacho padrão (texto livre); sede fiscal continua nos campos de endereço acima. */
-  expedicao_padrao_linha: string;
+  expedicao_cep: string;
+  expedicao_logradouro: string;
+  expedicao_numero: string;
+  expedicao_complemento: string;
+  expedicao_bairro: string;
+  expedicao_cidade: string;
+  expedicao_uf: string;
   chave_pix: string;
   nome_banco: string;
   nome_no_banco: string;
@@ -43,6 +57,39 @@ type FormState = {
   tipo_conta: string;
 };
 
+function enderecoDespachoIgualMatriz(f: FormState): boolean {
+  return (
+    f.expedicao_cep === f.endereco_cep &&
+    f.expedicao_logradouro === f.endereco_logradouro &&
+    f.expedicao_numero === f.endereco_numero &&
+    f.expedicao_complemento === f.endereco_complemento &&
+    f.expedicao_bairro === f.endereco_bairro &&
+    f.expedicao_cidade === f.endereco_cidade &&
+    f.expedicao_uf === f.endereco_uf
+  );
+}
+
+function copiarMatrizParaDespacho(f: FormState): Pick<
+  FormState,
+  | "expedicao_cep"
+  | "expedicao_logradouro"
+  | "expedicao_numero"
+  | "expedicao_complemento"
+  | "expedicao_bairro"
+  | "expedicao_cidade"
+  | "expedicao_uf"
+> {
+  return {
+    expedicao_cep: f.endereco_cep,
+    expedicao_logradouro: f.endereco_logradouro,
+    expedicao_numero: f.endereco_numero,
+    expedicao_complemento: f.endereco_complemento,
+    expedicao_bairro: f.endereco_bairro,
+    expedicao_cidade: f.endereco_cidade,
+    expedicao_uf: f.endereco_uf,
+  };
+}
+
 export default function FornecedorCadastroPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -50,6 +97,10 @@ export default function FornecedorCadastroPage() {
   const [loadingCnpj, setLoadingCnpj] = useState(false);
   const [overwriteFromCnpj, setOverwriteFromCnpj] = useState(false);
   const [confirmoRepasseTitularCnpj, setConfirmoRepasseTitularCnpj] = useState(false);
+  /** Quando activo, o endereço de despacho copia o da matriz (sede) em tempo real. */
+  const [envioIgualMatriz, setEnvioIgualMatriz] = useState(false);
+  const [buscandoCepMatriz, setBuscandoCepMatriz] = useState(false);
+  const [buscandoCepDespacho, setBuscandoCepDespacho] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({
@@ -64,7 +115,13 @@ export default function FornecedorCadastroPage() {
     endereco_bairro: "",
     endereco_cidade: "",
     endereco_uf: "",
-    expedicao_padrao_linha: "",
+    expedicao_cep: "",
+    expedicao_logradouro: "",
+    expedicao_numero: "",
+    expedicao_complemento: "",
+    expedicao_bairro: "",
+    expedicao_cidade: "",
+    expedicao_uf: "",
     chave_pix: "",
     nome_banco: "",
     nome_no_banco: "",
@@ -87,18 +144,32 @@ export default function FornecedorCadastroPage() {
         cache: "no-store",
       });
       if (!res.ok) {
-        if (res.status === 401 || res.status === 404) {
+        const j = await res.json().catch(() => ({}));
+        if (
+          res.status === 401 ||
+          res.status === 404 ||
+          (res.status === 403 && j?.code === "FORNECEDOR_SEM_VINCULO_ORG_MEMBERS")
+        ) {
           await supabaseBrowser.auth.signOut();
           router.replace("/fornecedor/login");
           return;
         }
-        const j = await res.json();
-        throw new Error(j?.error ?? "Erro ao carregar dados.");
+        throw new Error(typeof j?.error === "string" ? j.error : "Erro ao carregar dados.");
       }
       const json = await res.json();
       const f = json.fornecedor ?? {};
       const cnpjDigits = normalizeCnpjInput(f.cnpj ?? "");
-      setForm({
+      const legExpLinha = String(f.expedicao_padrao_linha ?? "").trim();
+      const expCep = String(f.expedicao_cep ?? "").replace(/\D/g, "").slice(0, 8);
+      const expLog = upper(String(f.expedicao_logradouro ?? ""));
+      const expNum = upper(String(f.expedicao_numero ?? ""));
+      const expComp = upper(String(f.expedicao_complemento ?? ""));
+      const expBai = upper(String(f.expedicao_bairro ?? ""));
+      const expCid = upper(String(f.expedicao_cidade ?? ""));
+      const expUf = upper(String(f.expedicao_uf ?? "")).replace(/[^A-Z]/g, "").slice(0, 2);
+      const structVazio =
+        !expCep && !expLog && !expNum && !expComp && !expBai && !expCid && !expUf;
+      const nextForm: FormState = {
         nome: upper(String(f.nome ?? "")),
         cnpj: formatCnpjDisplay(cnpjDigits),
         telefone: upper(String(f.telefone ?? "")),
@@ -110,14 +181,22 @@ export default function FornecedorCadastroPage() {
         endereco_bairro: upper(String(f.endereco_bairro ?? "")),
         endereco_cidade: upper(String(f.endereco_cidade ?? "")),
         endereco_uf: upper(String(f.endereco_uf ?? "")).replace(/[^A-Z]/g, "").slice(0, 2),
-        expedicao_padrao_linha: String(f.expedicao_padrao_linha ?? ""),
+        expedicao_cep: expCep,
+        expedicao_logradouro: structVazio && legExpLinha ? legExpLinha : expLog,
+        expedicao_numero: expNum,
+        expedicao_complemento: expComp,
+        expedicao_bairro: expBai,
+        expedicao_cidade: expCid,
+        expedicao_uf: expUf,
         chave_pix: upper(String(f.chave_pix ?? "")),
         nome_banco: upper(String(f.nome_banco ?? "")),
         nome_no_banco: upper(String(f.nome_no_banco ?? "")),
         agencia: upper(String(f.agencia ?? "")),
         conta: upper(String(f.conta ?? "")),
         tipo_conta: f.tipo_conta ?? "",
-      });
+      };
+      setForm(nextForm);
+      setEnvioIgualMatriz(enderecoDespachoIgualMatriz(nextForm));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
@@ -128,6 +207,116 @@ export default function FornecedorCadastroPage() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (!envioIgualMatriz) return;
+    setForm((f) => {
+      const copia = copiarMatrizParaDespacho(f);
+      if (
+        f.expedicao_cep === copia.expedicao_cep &&
+        f.expedicao_logradouro === copia.expedicao_logradouro &&
+        f.expedicao_numero === copia.expedicao_numero &&
+        f.expedicao_complemento === copia.expedicao_complemento &&
+        f.expedicao_bairro === copia.expedicao_bairro &&
+        f.expedicao_cidade === copia.expedicao_cidade &&
+        f.expedicao_uf === copia.expedicao_uf
+      ) {
+        return f;
+      }
+      return { ...f, ...copia };
+    });
+  }, [
+    envioIgualMatriz,
+    form.endereco_cep,
+    form.endereco_logradouro,
+    form.endereco_numero,
+    form.endereco_complemento,
+    form.endereco_bairro,
+    form.endereco_cidade,
+    form.endereco_uf,
+  ]);
+
+  useEffect(() => {
+    const cep = form.endereco_cep.replace(/\D/g, "");
+    if (cep.length !== 8) {
+      if (cep.length === 0) setBuscandoCepMatriz(false);
+      return;
+    }
+    setBuscandoCepMatriz(true);
+    const ac = new AbortController();
+    void fetch(`https://viacep.com.br/ws/${cep}/json/`, { signal: ac.signal })
+      .then((r) => r.json() as Promise<ViaCepJson>)
+      .then((data) => {
+        if (data.erro) {
+          setBuscandoCepMatriz(false);
+          return;
+        }
+        const log = String(data.logradouro ?? "").trim();
+        const bai = String(data.bairro ?? "").trim();
+        const cid = String(data.localidade ?? "").trim();
+        const uf = String(data.uf ?? "")
+          .trim()
+          .toUpperCase()
+          .replace(/[^A-Z]/g, "")
+          .slice(0, 2);
+        setForm((f) => {
+          if (f.endereco_cep.replace(/\D/g, "") !== cep) return f;
+          return {
+            ...f,
+            endereco_logradouro: log ? upper(log) : f.endereco_logradouro,
+            endereco_bairro: bai ? upper(bai) : f.endereco_bairro,
+            endereco_cidade: cid ? upper(cid) : f.endereco_cidade,
+            endereco_uf: uf ? uf : f.endereco_uf,
+          };
+        });
+        setBuscandoCepMatriz(false);
+      })
+      .catch(() => setBuscandoCepMatriz(false));
+    return () => ac.abort();
+  }, [form.endereco_cep]);
+
+  useEffect(() => {
+    if (envioIgualMatriz) {
+      setBuscandoCepDespacho(false);
+      return;
+    }
+    const cep = form.expedicao_cep.replace(/\D/g, "");
+    if (cep.length !== 8) {
+      if (cep.length === 0) setBuscandoCepDespacho(false);
+      return;
+    }
+    setBuscandoCepDespacho(true);
+    const ac = new AbortController();
+    void fetch(`https://viacep.com.br/ws/${cep}/json/`, { signal: ac.signal })
+      .then((r) => r.json() as Promise<ViaCepJson>)
+      .then((data) => {
+        if (data.erro) {
+          setBuscandoCepDespacho(false);
+          return;
+        }
+        const log = String(data.logradouro ?? "").trim();
+        const bai = String(data.bairro ?? "").trim();
+        const cid = String(data.localidade ?? "").trim();
+        const uf = String(data.uf ?? "")
+          .trim()
+          .toUpperCase()
+          .replace(/[^A-Z]/g, "")
+          .slice(0, 2);
+        setForm((f) => {
+          if (f.expedicao_cep.replace(/\D/g, "") !== cep) return f;
+          return {
+            ...f,
+            expedicao_logradouro: log ? upper(log) : f.expedicao_logradouro,
+            expedicao_bairro: bai ? upper(bai) : f.expedicao_bairro,
+            expedicao_cidade: cid ? upper(cid) : f.expedicao_cidade,
+            expedicao_uf: uf ? uf : f.expedicao_uf,
+          };
+        });
+        setBuscandoCepDespacho(false);
+      })
+      .catch(() => setBuscandoCepDespacho(false));
+    return () => ac.abort();
+  }, [form.expedicao_cep, envioIgualMatriz]);
 
   function temDadosRepassePreenchidos(f: FormState): boolean {
     return [f.chave_pix, f.nome_banco, f.nome_no_banco, f.agencia, f.conta, f.tipo_conta].some(
@@ -177,7 +366,13 @@ export default function FornecedorCadastroPage() {
           endereco_bairro: upper(form.endereco_bairro.trim()) || null,
           endereco_cidade: upper(form.endereco_cidade.trim()) || null,
           endereco_uf: upper(form.endereco_uf.trim()).replace(/[^A-Z]/g, "").slice(0, 2) || null,
-          expedicao_padrao_linha: form.expedicao_padrao_linha.trim() || null,
+          expedicao_cep: form.expedicao_cep.replace(/\D/g, "") || null,
+          expedicao_logradouro: upper(form.expedicao_logradouro.trim()) || null,
+          expedicao_numero: upper(form.expedicao_numero.trim()) || null,
+          expedicao_complemento: upper(form.expedicao_complemento.trim()) || null,
+          expedicao_bairro: upper(form.expedicao_bairro.trim()) || null,
+          expedicao_cidade: upper(form.expedicao_cidade.trim()) || null,
+          expedicao_uf: upper(form.expedicao_uf.trim()).replace(/[^A-Z]/g, "").slice(0, 2) || null,
           chave_pix: upper(form.chave_pix.trim()) || null,
           nome_banco: upper(form.nome_banco.trim()) || null,
           nome_no_banco: upper(form.nome_no_banco.trim()) || null,
@@ -425,6 +620,11 @@ export default function FornecedorCadastroPage() {
                       placeholder="00000000"
                       className={inputClass}
                     />
+                    <p className="text-[11px] text-[var(--muted)] mt-1 leading-snug">
+                      {buscandoCepMatriz
+                        ? "A consultar CEP…"
+                        : "Com 8 dígitos, preenche logradouro, bairro, cidade e UF (ViaCEP)."}
+                    </p>
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Logradouro</label>
@@ -489,21 +689,144 @@ export default function FornecedorCadastroPage() {
                     />
                   </div>
                 </div>
-                <div className="mt-3">
-                  <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">
-                    Despacho / CD padrão (opcional)
-                  </label>
-                  <textarea
-                    value={form.expedicao_padrao_linha}
-                    onChange={(e) => setForm((f) => ({ ...f, expedicao_padrao_linha: e.target.value }))}
-                    rows={3}
-                    placeholder="Ex.: Todos os produtos — CD Goiânia GO + endereço completo de saída"
-                    className={`${inputClass} resize-y min-h-[4.5rem]`}
-                  />
-                  <p className="text-[11px] text-[var(--muted)] mt-1 leading-snug">
-                    O bloco «Endereço» acima é a sede/fiscal. Use este campo quando o stock sair sempre do mesmo CD; em
-                    produtos específicos pode haver excepção ao editar o SKU.
+                <div className="mt-5 pt-4 border-t border-neutral-200/80 dark:border-neutral-700/60">
+                  <p className="text-xs font-medium text-[var(--muted)] mb-2">Despacho / CD padrão (opcional)</p>
+                  <p className="text-[11px] text-[var(--muted)] mb-3 leading-snug">
+                    O bloco «Endereço» acima é a <strong className="text-[var(--foreground)]">sede / fiscal</strong>. Aqui
+                    fica o local de <strong className="text-[var(--foreground)]">expedição</strong> por defeito; em
+                    produtos específicos podes definir outro endereço ao editar o SKU.
                   </p>
+                  <label className="flex items-start gap-2.5 mb-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={envioIgualMatriz}
+                      onChange={(e) => {
+                        const on = e.target.checked;
+                        setEnvioIgualMatriz(on);
+                        if (on) {
+                          setForm((f) => ({ ...f, ...copiarMatrizParaDespacho(f) }));
+                        }
+                      }}
+                      className="mt-0.5 h-4 w-4 rounded border-neutral-300 dark:border-neutral-600 text-emerald-600 shrink-0"
+                    />
+                    <span className="text-sm text-neutral-800 dark:text-neutral-200 leading-snug">
+                      Endereço de envio é o mesmo endereço da matriz
+                    </span>
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">CEP</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        disabled={envioIgualMatriz}
+                        value={form.expedicao_cep}
+                        onChange={(e) => {
+                          setEnvioIgualMatriz(false);
+                          setForm((f) => ({
+                            ...f,
+                            expedicao_cep: e.target.value.replace(/\D/g, "").slice(0, 8),
+                          }));
+                        }}
+                        placeholder="00000000"
+                        className={`${inputClass} disabled:opacity-60 disabled:cursor-not-allowed`}
+                      />
+                      {!envioIgualMatriz && (
+                        <p className="text-[11px] text-[var(--muted)] mt-1 leading-snug">
+                          {buscandoCepDespacho
+                            ? "A consultar CEP…"
+                            : "Com 8 dígitos, preenche logradouro, bairro, cidade e UF (ViaCEP)."}
+                        </p>
+                      )}
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Logradouro</label>
+                      <input
+                        type="text"
+                        disabled={envioIgualMatriz}
+                        value={form.expedicao_logradouro}
+                        onChange={(e) => {
+                          setEnvioIgualMatriz(false);
+                          setForm((f) => ({ ...f, expedicao_logradouro: upper(e.target.value) }));
+                        }}
+                        placeholder="Rua / Avenida"
+                        className={`${inputClass} disabled:opacity-60 disabled:cursor-not-allowed`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Número</label>
+                      <input
+                        type="text"
+                        disabled={envioIgualMatriz}
+                        value={form.expedicao_numero}
+                        onChange={(e) => {
+                          setEnvioIgualMatriz(false);
+                          setForm((f) => ({ ...f, expedicao_numero: upper(e.target.value) }));
+                        }}
+                        placeholder="123"
+                        className={`${inputClass} disabled:opacity-60 disabled:cursor-not-allowed`}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Complemento</label>
+                      <input
+                        type="text"
+                        disabled={envioIgualMatriz}
+                        value={form.expedicao_complemento}
+                        onChange={(e) => {
+                          setEnvioIgualMatriz(false);
+                          setForm((f) => ({ ...f, expedicao_complemento: upper(e.target.value) }));
+                        }}
+                        placeholder="Sala, bloco, etc. (opcional)"
+                        className={`${inputClass} disabled:opacity-60 disabled:cursor-not-allowed`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Bairro</label>
+                      <input
+                        type="text"
+                        disabled={envioIgualMatriz}
+                        value={form.expedicao_bairro}
+                        onChange={(e) => {
+                          setEnvioIgualMatriz(false);
+                          setForm((f) => ({ ...f, expedicao_bairro: upper(e.target.value) }));
+                        }}
+                        placeholder="Bairro"
+                        className={`${inputClass} disabled:opacity-60 disabled:cursor-not-allowed`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Cidade</label>
+                      <input
+                        type="text"
+                        disabled={envioIgualMatriz}
+                        value={form.expedicao_cidade}
+                        onChange={(e) => {
+                          setEnvioIgualMatriz(false);
+                          setForm((f) => ({ ...f, expedicao_cidade: upper(e.target.value) }));
+                        }}
+                        placeholder="Cidade"
+                        className={`${inputClass} disabled:opacity-60 disabled:cursor-not-allowed`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">UF</label>
+                      <input
+                        type="text"
+                        disabled={envioIgualMatriz}
+                        value={form.expedicao_uf}
+                        onChange={(e) => {
+                          setEnvioIgualMatriz(false);
+                          setForm((f) => ({
+                            ...f,
+                            expedicao_uf: e.target.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 2),
+                          }));
+                        }}
+                        placeholder="SP"
+                        className={`${inputClass} disabled:opacity-60 disabled:cursor-not-allowed`}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </section>

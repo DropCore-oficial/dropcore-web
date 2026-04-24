@@ -343,12 +343,21 @@ export async function POST(req: Request) {
     // Buscar SKUs e validar estoque
     let valor_fornecedor = 0;
     let valor_dropcore = 0;
-    const skuRows: { id: string; sku: string; estoque_atual: number; estoque_minimo: number | null; nome_produto: string | null; custo_base: number; custo_dropcore: number }[] = [];
+    const skuRows: {
+      id: string;
+      sku: string;
+      estoque_atual: number;
+      estoque_minimo: number | null;
+      nome_produto: string | null;
+      custo_base: number;
+      custo_dropcore: number;
+      expedicao_override_linha: string | null;
+    }[] = [];
 
     for (const item of items) {
       const { data: sku, error: skuErr } = await supabaseAdmin
         .from("skus")
-        .select("id, sku, nome_produto, estoque_atual, estoque_minimo, custo_base, custo_dropcore")
+        .select("id, sku, nome_produto, estoque_atual, estoque_minimo, custo_base, custo_dropcore, expedicao_override_linha")
         .eq("org_id", org_id)
         .eq("fornecedor_id", fornecedor_id)
         .ilike("sku", item.sku)
@@ -379,7 +388,39 @@ export async function POST(req: Request) {
         nome_produto: sku.nome_produto ?? null,
         custo_base: custoBase,
         custo_dropcore: custoDropcore,
+        expedicao_override_linha: (sku as { expedicao_override_linha?: string | null }).expedicao_override_linha ?? null,
       });
+    }
+
+    /** Regra org (modo simples): um CD / linha de despacho por envio — não misturar SKUs com despachos diferentes no mesmo pedido. */
+    if (skuRows.length > 1) {
+      let expedicaoPadrao = "";
+      const { data: fornRow, error: fornExpErr } = await supabaseAdmin
+        .from("fornecedores")
+        .select("expedicao_padrao_linha")
+        .eq("id", fornecedor_id)
+        .maybeSingle();
+      const colMissing =
+        fornExpErr &&
+        (String(fornExpErr.message ?? "").toLowerCase().includes("column") || fornExpErr.code === "42703");
+      if (!fornExpErr && !colMissing) {
+        expedicaoPadrao = String((fornRow as { expedicao_padrao_linha?: string | null })?.expedicao_padrao_linha ?? "").trim();
+      }
+      const linhaDespacho = (row: (typeof skuRows)[0]) => {
+        const ov = String(row.expedicao_override_linha ?? "").trim();
+        return ov || expedicaoPadrao;
+      };
+      const chaves = new Set(skuRows.map((r) => linhaDespacho(r)));
+      if (chaves.size > 1) {
+        return NextResponse.json(
+          {
+            error:
+              "Este pedido mistura CDs ou endereços de despacho diferentes. Separe em envios distintos ou alinhe o despacho nos SKUs (override) e o CD padrão do fornecedor.",
+            code: "DESPACHO_CD_MISTO",
+          },
+          { status: 400 },
+        );
+      }
     }
 
     const valor_total = valor_fornecedor + valor_dropcore;

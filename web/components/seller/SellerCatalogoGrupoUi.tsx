@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SkuInlineSeller } from "@/components/seller/SkuInlineSeller";
 import { formatPesoCatalogo } from "@/lib/formatPesoCatalogo";
 import { skuProntoParaVender, skuReadinessLabelsFalha } from "@/lib/sellerSkuReadiness";
@@ -343,11 +343,24 @@ export function SellerCatalogoItemCard({
     .join(" · ");
   const temLinkFotos = str(item.link_fotos).trim().length > 0;
   const temDescricao = str(item.descricao).trim().length > 0;
-  const [hover, setHover] = useState(false);
+  /** Desktop: hover na área foto + preview lateral (mesmo wrapper para não perder o hover no “vão”). */
+  const [imgHover, setImgHover] = useState(false);
+  /** Mobile: toque na foto abre overlay ampliado. */
+  const [fotoOverlay, setFotoOverlay] = useState(false);
 
+  useEffect(() => {
+    if (!fotoOverlay) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFotoOverlay(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [fotoOverlay]);
+
+  /** Sem overflow-hidden aqui: o preview desktop (absolute left-full) ficaria totalmente cortado. */
   const imgWrap =
     sóVariante
-      ? "w-full sm:w-28 sm:min-h-[120px] shrink-0 overflow-hidden"
+      ? "w-full sm:w-28 sm:min-h-[120px] shrink-0"
       : "h-32 max-h-36 sm:h-auto sm:min-h-[110px] sm:max-h-none";
 
   const preçoLinha =
@@ -373,16 +386,35 @@ export function SellerCatalogoItemCard({
     );
 
   return (
-    <div className="group rounded-2xl border border-neutral-200/75 dark:border-neutral-700/55 bg-white dark:bg-[var(--card)] flex flex-col sm:flex-row gap-0 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_12px_-2px_rgba(0,0,0,0.45)] hover:shadow-lg hover:border-emerald-300/55 dark:hover:border-emerald-700/45 transition-all duration-300 overflow-hidden ring-1 ring-transparent hover:ring-emerald-500/[0.08]">
-      <div className={`relative w-full shrink-0 ${imgWrap}`}>
+    <div className="group rounded-2xl border border-neutral-200/75 dark:border-neutral-700/55 bg-white dark:bg-[var(--card)] flex flex-col sm:flex-row gap-0 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_12px_-2px_rgba(0,0,0,0.45)] hover:shadow-lg hover:border-emerald-300/55 dark:hover:border-emerald-700/45 transition-all duration-300 overflow-visible ring-1 ring-transparent hover:ring-emerald-500/[0.08]">
+      <div
+        className={`relative w-full shrink-0 ${imgWrap} sm:z-30`}
+        onMouseEnter={() => setImgHover(true)}
+        onMouseLeave={() => setImgHover(false)}
+      >
         <div
           className={
             sóVariante
               ? "relative flex w-full aspect-[4/5] min-h-0 items-center justify-center overflow-hidden border-b border-neutral-200/80 bg-neutral-100 px-1 py-1 dark:border-neutral-700/60 dark:bg-neutral-900 sm:aspect-auto sm:absolute sm:inset-0 sm:min-h-[120px] sm:rounded-l-xl sm:border-b-0 sm:bg-neutral-100 sm:px-0 sm:py-0 sm:dark:bg-neutral-800/70"
               : "w-full h-full bg-neutral-100 dark:bg-neutral-800/60 flex items-center justify-center sm:rounded-l-xl overflow-hidden"
           }
-          onMouseEnter={() => setHover(true)}
-          onMouseLeave={() => setHover(false)}
+          onClick={() => {
+            if (imgSrc && typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches) {
+              setFotoOverlay(true);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (!imgSrc) return;
+            if (e.key === "Enter" || e.key === " ") {
+              if (typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches) {
+                e.preventDefault();
+                setFotoOverlay(true);
+              }
+            }
+          }}
+          role={imgSrc ? "button" : undefined}
+          tabIndex={imgSrc ? 0 : undefined}
+          aria-label={imgSrc ? "Ampliar foto do produto" : undefined}
         >
           {imgSrc ? (
             <img
@@ -393,8 +425,8 @@ export function SellerCatalogoItemCard({
               sizes={sóVariante ? "(max-width: 640px) 46vw, 112px" : "(max-width: 640px) 100vw, 320px"}
               className={
                 sóVariante
-                  ? "relative z-0 mx-auto block h-full w-full max-h-full object-contain object-center sm:z-0 sm:h-full sm:w-full sm:max-h-[7.5rem] sm:max-w-none sm:object-contain sm:object-center"
-                  : "h-full w-full min-h-0 object-contain sm:object-contain"
+                  ? "relative z-0 mx-auto block h-full w-full max-h-full object-contain object-center sm:z-0 sm:h-full sm:w-full sm:max-h-[7.5rem] sm:max-w-none sm:object-contain sm:object-center sm:cursor-zoom-in"
+                  : "h-full w-full min-h-0 object-contain sm:object-contain sm:cursor-zoom-in"
               }
             />
           ) : (
@@ -409,9 +441,9 @@ export function SellerCatalogoItemCard({
             </div>
           )}
         </div>
-        {imgSrc && hover && (
+        {imgSrc && imgHover && (
           <div
-            className="hidden sm:block absolute left-full top-0 z-[80] ml-2 rounded-lg overflow-hidden border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-xl pointer-events-none"
+            className="hidden sm:block absolute left-full top-0 z-[80] ml-2 rounded-lg overflow-hidden border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-xl pointer-events-auto"
             style={{ width: "220px" }}
           >
             <img
@@ -422,6 +454,29 @@ export function SellerCatalogoItemCard({
               className="w-full h-auto object-contain block contrast-[1.03]"
               style={{ maxHeight: "280px" }}
             />
+          </div>
+        )}
+        {imgSrc && fotoOverlay && (
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 p-4 sm:hidden"
+            role="presentation"
+            onClick={() => setFotoOverlay(false)}
+          >
+            <img
+              src={imgSrc}
+              alt=""
+              decoding="async"
+              className="max-h-[88vh] max-w-full object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              type="button"
+              className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-lg font-semibold text-neutral-800 shadow-md dark:bg-neutral-900/95 dark:text-neutral-100"
+              aria-label="Fechar"
+              onClick={() => setFotoOverlay(false)}
+            >
+              ×
+            </button>
           </div>
         )}
       </div>

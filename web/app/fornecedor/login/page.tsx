@@ -55,8 +55,13 @@ export default function FornecedorLoginPage() {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
         await supabaseBrowser.auth.signOut();
-        throw new Error("Acesso não autorizado. Use o login do painel administrativo ou do seller.");
+        const msg =
+          typeof body?.error === "string" && body.error.trim()
+            ? body.error
+            : "Não foi possível validar o acesso ao painel do fornecedor.";
+        throw new Error(msg);
       }
       router.replace("/fornecedor/dashboard");
     } catch (e: unknown) {
@@ -122,7 +127,7 @@ export default function FornecedorLoginPage() {
           </div>
 
           {error && (
-            <div className="mt-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="mt-4 rounded-xl border border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/35 px-4 py-3 text-sm text-red-800 dark:text-red-200 leading-relaxed break-words">
               {error}
             </div>
           )}
@@ -156,6 +161,12 @@ export default function FornecedorLoginPage() {
           >
             {esqueciSenha ? "← Voltar ao login" : "Esqueci a senha"}
           </button>
+
+          <p className="mt-5 pt-4 border-t border-[var(--card-border)] text-[11px] leading-relaxed text-[var(--muted)] text-center">
+            <strong className="text-[var(--foreground)]">Primeiro acesso ao painel do armazém?</strong> Usa o link de convite que a organização enviou (registo em{" "}
+            <code className="text-[10px] rounded bg-[var(--background)] px-1 py-0.5 border border-[var(--card-border)]">/fornecedor/register/…</code>
+            ). Só depois disso o e-mail fica autorizado aqui.
+          </p>
         </div>
       </div>
     </div>

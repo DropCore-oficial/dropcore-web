@@ -1,7 +1,9 @@
 "use client";
+/* @refresh reset — evita estado preso (ex.: fornecedor seleccionado) ao gravar com Fast Refresh */
 
-import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { toTitleCase } from "@/lib/formatText";
 import { HelpBubble } from "@/components/HelpBubble";
@@ -102,6 +104,8 @@ export default function SellerCalculadoraPage() {
   const [extras, setExtras] = useState<Extra[]>([]);
   const [fornecedores, setFornecedores] = useState<FornecedorSellerListaRow[]>([]);
   const [fornecedorConectadoId, setFornecedorConectadoId] = useState<string | null>(null);
+  /** null = catálogo ainda não carregado ou erro; true = sem armazém em Produtos (não mostrar selector de fornecedor). */
+  const [semArmazemCatalogo, setSemArmazemCatalogo] = useState<boolean | null>(null);
   const [selectedFornecedorId, setSelectedFornecedorId] = useState("");
   const [produtos, setProdutos] = useState<{ id: string; sku: string; nome_produto: string; custo: number; custo_base: number; custo_dropcore: number }[]>([]);
   const [selectedProdutoId, setSelectedProdutoId] = useState("");
@@ -195,28 +199,56 @@ export default function SellerCalculadoraPage() {
     setHelpOpen(null);
   }, [preset]);
 
-  // Buscar fornecedores — só para seller completo (não assinante só calculadora)
+  // Buscar fornecedores + meta do catálogo (mesma origem que /seller/produtos) — só para seller completo
   useEffect(() => {
     if (calcAccess !== "seller") return;
     let cancelled = false;
     (async () => {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token || cancelled) return;
-      const res = await fetch("/api/seller/fornecedores", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const json = await res.json();
-      if (cancelled || !res.ok) return;
-      setFornecedores(normalizarFornecedoresSellerApi(json.fornecedores));
-      const fid = json.fornecedor_conectado_id as string | null | undefined;
-      setFornecedorConectadoId(fid ? String(fid) : null);
-      /** Não pré-seleccionar: o seller escolhe o armazém na lista; «ligado ao perfil» só indica vínculo gravado em Produtos. */
+      const authH = { Authorization: `Bearer ${session.access_token}` };
+      const [resForn, resCat] = await Promise.all([
+        fetch("/api/seller/fornecedores", { headers: authH }),
+        fetch("/api/seller/catalogo", { headers: authH, cache: "no-store" }),
+      ]);
+      const jsonForn = await resForn.json().catch(() => ({}));
+      const jsonCat = await resCat.json().catch(() => ({}));
+      if (cancelled) return;
+      if (!resForn.ok) return;
+      setFornecedores(normalizarFornecedoresSellerApi(jsonForn.fornecedores));
+      const fidCat = jsonCat?.fornecedor_id as string | null | undefined;
+      const fidCatNorm = typeof fidCat === "string" && fidCat.trim() ? fidCat.trim() : null;
+      const fidForn = jsonForn.fornecedor_conectado_id as string | null | undefined;
+      const fidFornNorm = typeof fidForn === "string" && fidForn.trim() ? fidForn.trim() : null;
+      const semArm =
+        resCat.ok &&
+        (typeof jsonCat?.sem_armazem_ligado === "boolean"
+          ? Boolean(jsonCat.sem_armazem_ligado)
+          : !fidCatNorm);
+      setSemArmazemCatalogo(resCat.ok ? semArm : null);
+      /** Mesmo critério que a página Produtos (GET catálogo); fallback ao GET fornecedores se o catálogo falhar. */
+      setFornecedorConectadoId(resCat.ok ? fidCatNorm : fidFornNorm);
+      /** Não pré-seleccionar pelo vínculo: o seller escolhe o armazém; «ligado ao perfil» = armazém gravado em Produtos. */
       setSelectedFornecedorId("");
+      /** Sem armazém gravado, não manter fornecedor/produto da sessão (ex.: cache ou estado antigo). */
+      if (resCat.ok && semArm) {
+        setSelectedProdutoId("");
+        setProdutos([]);
+        setCustoProduto("");
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, [calcAccess]);
+
+  /** Garante que o DOM do `<select>` não fica com valor antigo quando o catálogo exige armazém. */
+  useLayoutEffect(() => {
+    if (calcAccess !== "seller" || semArmazemCatalogo !== true) return;
+    setSelectedFornecedorId("");
+    setSelectedProdutoId("");
+    setProdutos([]);
+  }, [calcAccess, semArmazemCatalogo]);
 
   function paiKeySkuCal(sku: string): string {
     const s = String(sku ?? "").trim();
@@ -903,16 +935,53 @@ export default function SellerCalculadoraPage() {
           </p>
         </div>
 
+        {!calcOnly && semArmazemCatalogo === true && (
+          <div className="rounded-2xl border border-neutral-200/90 dark:border-neutral-700/70 bg-white dark:bg-neutral-900/70 shadow-sm overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-emerald-500 to-teal-600 sm:hidden" aria-hidden />
+            <div className="flex flex-col sm:flex-row sm:items-stretch">
+              <div
+                className="hidden sm:block w-1 shrink-0 self-stretch min-h-[4.5rem] bg-gradient-to-b from-emerald-500 to-teal-600"
+                aria-hidden
+              />
+              <div className="flex flex-1 flex-col sm:flex-row sm:items-center gap-4 px-4 py-4 sm:px-5 sm:py-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-200/80 dark:ring-emerald-800/50">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z" />
+                    <path d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2" />
+                    <path d="M12 5V3" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 leading-snug">
+                    Armazém ainda não ligado
+                  </p>
+                  <p className="text-xs sm:text-[13px] text-neutral-600 dark:text-neutral-400 leading-relaxed max-w-xl">
+                    Sem vínculo em <strong className="text-neutral-800 dark:text-neutral-200">Produtos</strong>, o catálogo da API não aparece aqui — evita misturar com vitrines de outros armazéns. Usa <strong className="text-neutral-800 dark:text-neutral-200">custo manual</strong> abaixo ou liga o armazém primeiro.
+                  </p>
+                </div>
+                <Link
+                  href="/seller/produtos"
+                  className="shrink-0 inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-colors text-center sm:text-left"
+                >
+                  Ligar em Produtos
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm overflow-visible">
 
-          {!calcOnly && fornecedores.length > 0 && (
+          {!calcOnly && semArmazemCatalogo !== true && fornecedores.length > 0 && (
             <>
               <Row label="Fornecedor">
                 <div className="space-y-2 w-full min-w-0">
                   <select
+                    key={fornecedorConectadoId ?? "sem-vinculo"}
                     value={selectedFornecedorId}
                     onChange={(e) => setSelectedFornecedorId(e.target.value)}
                     className={inputLight}
+                    autoComplete="off"
                   >
                     <option value="">Selecionar fornecedor</option>
                     {fornecedores.map((f) => {

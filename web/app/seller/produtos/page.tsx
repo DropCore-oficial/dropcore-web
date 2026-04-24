@@ -55,7 +55,8 @@ export default function SellerProdutosPage() {
     habilitados_count: number;
     habilitados_max: number | null;
     tabela_ok: boolean;
-  }>({ plano: null, habilitados_count: 0, habilitados_max: null, tabela_ok: true });
+    sem_armazem_ligado: boolean;
+  }>({ plano: null, habilitados_count: 0, habilitados_max: null, tabela_ok: true, sem_armazem_ligado: false });
   const [toggleLoadingId, setToggleLoadingId] = useState<string | null>(null);
   const [fornecedorLigadoId, setFornecedorLigadoId] = useState<string | null>(null);
   const [fornecedoresLista, setFornecedoresLista] = useState<FornecedorSellerListaRow[] | null>(null);
@@ -130,7 +131,7 @@ export default function SellerProdutosPage() {
         }
         const authH = { Authorization: `Bearer ${session.access_token}` };
         const [resCat, resForn] = await Promise.all([
-          fetch(`/api/seller/catalogo`, { headers: authH }),
+          fetch(`/api/seller/catalogo`, { headers: authH, cache: "no-store" }),
           fetch(`/api/seller/fornecedores`, { headers: authH }),
         ]);
         const jsonCat = await resCat.json().catch(() => ({}));
@@ -147,6 +148,8 @@ export default function SellerProdutosPage() {
           habilitados_count: typeof jsonCat.habilitados_count === "number" ? jsonCat.habilitados_count : 0,
           habilitados_max: jsonCat.habilitados_max === null || jsonCat.habilitados_max === undefined ? null : Number(jsonCat.habilitados_max),
           tabela_ok: jsonCat.habilitados_tabela_ok !== false,
+          sem_armazem_ligado:
+            typeof jsonCat.sem_armazem_ligado === "boolean" ? jsonCat.sem_armazem_ligado : !fidNorm,
         });
         if (resForn.ok && jsonForn.ok) {
           setFornecedoresLista(normalizarFornecedoresSellerApi(jsonForn.fornecedores));
@@ -205,9 +208,24 @@ export default function SellerProdutosPage() {
         setVinculoMeta((j2.vinculo ?? null) as VinculoFornecedorMeta | null);
         setFornecedoresLista(normalizarFornecedoresSellerApi(j2.fornecedores));
       }
-      const resCat = await fetch(`/api/seller/catalogo`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const resCat = await fetch(`/api/seller/catalogo`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: "no-store",
+      });
       const jCat = await resCat.json().catch(() => ({}));
-      if (resCat.ok) setItems(normalizarItems(jCat.items));
+      if (resCat.ok) {
+        setItems(normalizarItems(jCat.items));
+        setCatalogMeta((m) => ({
+          ...m,
+          sem_armazem_ligado:
+            typeof jCat.sem_armazem_ligado === "boolean" ? jCat.sem_armazem_ligado : !jCat.fornecedor_id,
+          plano: jCat.seller_plano ?? m.plano,
+          habilitados_count: typeof jCat.habilitados_count === "number" ? jCat.habilitados_count : m.habilitados_count,
+          habilitados_max:
+            jCat.habilitados_max === null || jCat.habilitados_max === undefined ? null : Number(jCat.habilitados_max),
+          tabela_ok: jCat.habilitados_tabela_ok !== false,
+        }));
+      }
       setVinculoAceiteUso(false);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro ao gravar vínculo");
@@ -382,6 +400,37 @@ return (
           </section>
         )}
 
+        {!loading &&
+          !error &&
+          catalogMeta.sem_armazem_ligado &&
+          fornecedoresLista !== null &&
+          fornecedoresLista.length > 0 && (
+            <div
+              className="rounded-2xl border border-neutral-200/90 dark:border-neutral-700/70 bg-white dark:bg-neutral-900/70 shadow-sm overflow-hidden"
+              role="status"
+            >
+              <div className="h-1 w-full bg-gradient-to-r from-emerald-500 to-teal-600" aria-hidden />
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3.5 sm:px-5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-200/80 dark:ring-emerald-800/50">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Catálogo da API — escolhe um armazém</p>
+                  <p className="text-xs sm:text-[13px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                    Com «Nenhum» no selector, <strong className="text-neutral-800 dark:text-neutral-200">não listamos SKUs</strong> da org aqui. Liga o armazém para preços e habilitação ERP. Vitrines só de consulta:{" "}
+                    <Link href="/seller/catalogo" className="font-semibold text-emerald-700 dark:text-emerald-400 underline-offset-2 hover:underline">
+                      Catálogos
+                    </Link>
+                    .
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
         {!loading && !catalogMeta.tabela_ok && (
           <div className="rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/35 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
             A lista de SKUs habilitados para venda ainda não está disponível na base (migração pendente). Executa o script{" "}
@@ -502,7 +551,9 @@ return (
                 ? "Nenhum grupo com pendência neste recorte — os SKUs visíveis passam no checklist (ou a busca não inclui itens pendentes)."
                 : q
                   ? "Nenhum SKU encontrado para essa busca."
-                  : "Catálogo vazio."}
+                  : catalogMeta.sem_armazem_ligado
+                    ? "Liga um armazém na secção acima para carregares os SKUs deste seller."
+                    : "Catálogo vazio."}
             </p>
           </div>
         )}

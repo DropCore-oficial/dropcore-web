@@ -8,6 +8,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { validarCnpjNasApisPublicas } from "@/lib/cnpjValidacaoExterna";
 import { isValidCnpjDigits, normalizeCnpjInput } from "@/lib/fornecedorCadastro";
 import { validarRepasseTitularEmpresa } from "@/lib/repasseTitularCnpj";
+import { buildExpedicaoPadraoLinha, type ExpedicaoEnderecoParts } from "@/lib/expedicaoFornecedorFormat";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,16 @@ const ENDERECO_FIELDS = [
   "endereco_bairro",
   "endereco_cidade",
   "endereco_uf",
+] as const;
+
+const EXPEDICAO_FIELDS = [
+  "expedicao_cep",
+  "expedicao_logradouro",
+  "expedicao_numero",
+  "expedicao_complemento",
+  "expedicao_bairro",
+  "expedicao_cidade",
+  "expedicao_uf",
 ] as const;
 
 export async function PATCH(req: Request) {
@@ -116,6 +127,57 @@ export async function PATCH(req: Request) {
           ? null
           : String(v).trim().slice(0, 4000);
       update.expedicao_padrao_linha = s;
+    }
+
+    for (const f of EXPEDICAO_FIELDS) {
+      if (f in body) {
+        const v = body[f];
+        const s = v === null || v === undefined || String(v).trim() === "" ? null : String(v).trim();
+        if (f === "expedicao_cep" && s) {
+          const d = s.replace(/\D/g, "");
+          if (d.length > 0 && d.length !== 8) {
+            return NextResponse.json({ error: "CEP de despacho inválido." }, { status: 400 });
+          }
+          update[f] = d.length === 8 ? d : null;
+        } else if (f === "expedicao_uf" && s && !/^[A-Za-z]{2}$/.test(s)) {
+          return NextResponse.json({ error: "UF de despacho inválida. Use 2 letras (ex.: SP)." }, { status: 400 });
+        } else {
+          update[f] = f === "expedicao_uf" && s ? s.toUpperCase() : s;
+        }
+      }
+    }
+
+    const expedicaoTouched = EXPEDICAO_FIELDS.some((f) => f in body);
+    if (expedicaoTouched) {
+      const { data: curExp, error: curExpErr } = await supabaseAdmin
+        .from("fornecedores")
+        .select(EXPEDICAO_FIELDS.join(", "))
+        .eq("id", fornecedor_id)
+        .maybeSingle();
+      if (curExpErr) {
+        const colMissing =
+          String(curExpErr.message ?? "").toLowerCase().includes("column") || curExpErr.code === "42703";
+        if (colMissing) {
+          return NextResponse.json(
+            {
+              error:
+                "Colunas de endereço de despacho em falta na base. Executa o script web/scripts/add-expedicao-endereco-estruturado-fornecedor.sql no Supabase.",
+              code: "EXPEDICAO_COLUNAS_SQL",
+            },
+            { status: 503 },
+          );
+        }
+        return NextResponse.json({ error: curExpErr.message }, { status: 500 });
+      }
+      const merged = {} as ExpedicaoEnderecoParts;
+      for (const f of EXPEDICAO_FIELDS) {
+        const key = f as keyof ExpedicaoEnderecoParts;
+        merged[key] =
+          f in update
+            ? ((update as Record<string, string | null>)[f] ?? null)
+            : ((curExp as Record<string, string | null> | null)?.[f] ?? null);
+      }
+      update.expedicao_padrao_linha = buildExpedicaoPadraoLinha(merged);
     }
 
     if (Object.keys(update).length === 0) {
