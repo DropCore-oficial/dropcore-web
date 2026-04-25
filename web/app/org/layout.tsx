@@ -46,7 +46,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   if (checking) {
     return (
       <div className="p-6 text-center text-neutral-400">
-        Verificando permissão…
+        Verificando permissão...
       </div>
     );
   }

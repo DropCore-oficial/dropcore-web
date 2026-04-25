@@ -150,7 +150,7 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
           title={nomeArmazem ? `Vitrine · ${nomeArmazem}` : "Vitrine do armazém"}
           subtitle={
             <>
-              Visualização dos produtos deste fornecedor na tua organização — com <strong>preço</strong> (o que pagas, já com 15% DropCore quando aplicável) e fotos.
+              Visualização dos produtos deste fornecedor na sua organização — com <strong>preço</strong> (o que você paga, já com 15% DropCore quando aplicável) e fotos.
               Para usar na API ERP, vincula o armazém em <Link href="/seller/produtos" className="text-emerald-700 dark:text-emerald-400 font-semibold hover:underline">Produtos</Link>.
             </>
           }
@@ -161,7 +161,7 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onBlur={() => setQ(toTitleCase(q))}
-            placeholder="Nome, SKU, cor ou tamanho…"
+            placeholder="Nome, SKU, cor ou tamanho..."
             className="min-w-0 w-full min-[420px]:flex-1 rounded-2xl bg-white/95 dark:bg-neutral-900/80 border border-neutral-200/80 dark:border-neutral-700/50 px-4 py-3.5 text-neutral-900 dark:text-neutral-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500/50 shadow-sm"
           />
           {q && (
@@ -177,7 +177,7 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
 
         {loading && (
           <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm p-12 text-center text-sm text-neutral-500">
-            A carregar vitrine…
+            A carregar vitrine...
           </div>
         )}
         {error && <div className="rounded-xl border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-4 text-sm text-red-700 dark:text-red-200">{error}</div>}
@@ -289,7 +289,7 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
             <div className="p-4 overflow-auto flex-1">
               {loadingTabela && (
                 <div className="flex items-center gap-2 text-sm text-neutral-500 py-6">
-                  <span className="inline-block w-5 h-5 border-2 border-neutral-300 border-t-blue-500 rounded-full animate-spin" /> Carregando…
+                  <span className="inline-block w-5 h-5 border-2 border-neutral-300 border-t-blue-500 rounded-full animate-spin" /> Carregando...
                 </div>
               )}
               {!loadingTabela && !tabelaMedidasData && <p className="text-sm text-neutral-500">Nenhuma tabela de medidas cadastrada para este grupo.</p>}

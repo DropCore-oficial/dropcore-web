@@ -102,7 +102,7 @@ export default function IntegracoesErpPage() {
       </p>
 
       {loading ? (
-        <div style={{ color: "#737373", fontSize: 14 }}>Carregando…</div>
+        <div style={{ color: "#737373", fontSize: 14 }}>Carregando...</div>
       ) : error ? (
         <div style={{
           padding: 16,
@@ -170,7 +170,7 @@ export default function IntegracoesErpPage() {
             }}>
               <p style={{ color: "#a3a3a3", fontSize: 14, marginBottom: 12 }}>
                 {hasKey
-                  ? `Chave configurada (termina em …${prefix ?? ""})`
+                  ? `Chave configurada (termina em ...${prefix ?? ""})`
                   : "Nenhuma chave configurada"}
               </p>
               <button
@@ -188,7 +188,7 @@ export default function IntegracoesErpPage() {
                   opacity: generating ? 0.6 : 1,
                 }}
               >
-                {generating ? "Gerando…" : hasKey ? "Gerar nova chave" : "Gerar chave API"}
+                {generating ? "Gerando..." : hasKey ? "Gerar nova chave" : "Gerar chave API"}
               </button>
               {hasKey && !newKey && (
                 <p style={{ color: "#737373", fontSize: 12, marginTop: 12 }}>

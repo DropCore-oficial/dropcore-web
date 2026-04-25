@@ -111,7 +111,7 @@ export async function PATCH(
           confirmAdmin,
           {
             mensagemCompromisso:
-              "Este seller está no período mínimo de 3 meses com o armazém. Para trocar ou remover antes, marque «Liberar troca antecipada» e/ou «Confirmo exceção documentada», ou aguarde a data indicada.",
+              "Este seller está no período mínimo de 3 meses com o armazém. Para trocar ou desvincular antes, marque «Liberar troca antecipada» e/ou «Confirmo exceção documentada», ou aguarde a data indicada.",
           }
         );
         if (!vin.ok) {

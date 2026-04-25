@@ -334,7 +334,7 @@ export default function SellerCadastroPage() {
                     disabled={cnpjBuscaLoading}
                     className="shrink-0 rounded-xl border border-emerald-600 bg-emerald-600 px-3 py-2.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
                   >
-                    {cnpjBuscaLoading ? "A consultar…" : "Validar na Receita"}
+                    {cnpjBuscaLoading ? "A consultar..." : "Validar na Receita"}
                   </button>
                 )}
               </div>
@@ -389,7 +389,7 @@ export default function SellerCadastroPage() {
               className="w-full rounded-xl border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-3 py-2.5 text-sm"
               maxLength={9}
             />
-            {cepLoading && <p className="text-[11px] text-emerald-600 mt-1">Buscando endereço…</p>}
+            {cepLoading && <p className="text-[11px] text-emerald-600 mt-1">Buscando endereço...</p>}
           </div>
 
           <div>
@@ -460,7 +460,7 @@ export default function SellerCadastroPage() {
               disabled={saving}
               className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2.5 text-sm disabled:opacity-60"
             >
-              {saving ? "Salvando…" : "Salvar"}
+              {saving ? "Salvando..." : "Salvar"}
             </button>
             {!cadastroPendente && (
               <button

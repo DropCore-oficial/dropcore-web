@@ -124,7 +124,7 @@ export default function AdminDepositosPixPage() {
 
       {error && <div style={{ marginBottom: 16, padding: 12, background: "#fef2f2", color: "#991b1b", borderRadius: 8 }}>{error}</div>}
 
-      {loading && <div>Carregando…</div>}
+      {loading && <div>Carregando...</div>}
       {!loading && list.length === 0 && (
         <div style={{ padding: 24, background: "#f9fafb", borderRadius: 8, color: "#6b7280" }}>
           {filter === "pendente" ? "Nenhum depósito PIX pendente." : "Nenhum registro."}
@@ -165,7 +165,7 @@ export default function AdminDepositosPixPage() {
                   disabled={approvingId === d.id}
                   style={{ ...btnPrimary, opacity: approvingId === d.id ? 0.7 : 1, cursor: approvingId === d.id ? "not-allowed" : "pointer" }}
                 >
-                  {approvingId === d.id ? "Aprovando…" : "Aprovar (valor entrou)"}
+                  {approvingId === d.id ? "Aprovando..." : "Aprovar (valor entrou)"}
                 </button>
               )}
             </div>

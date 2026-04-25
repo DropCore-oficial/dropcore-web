@@ -161,7 +161,7 @@ export async function PATCH(req: Request) {
           return NextResponse.json(
             {
               error:
-                "Colunas de endereço de despacho em falta na base. Executa o script web/scripts/add-expedicao-endereco-estruturado-fornecedor.sql no Supabase.",
+                "Colunas de endereço de despacho faltando na base. Execute o script web/scripts/add-expedicao-endereco-estruturado-fornecedor.sql no Supabase.",
               code: "EXPEDICAO_COLUNAS_SQL",
             },
             { status: 503 },

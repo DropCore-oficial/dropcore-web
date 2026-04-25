@@ -195,7 +195,7 @@ Não encontrada no repositório. Se existir no banco, a mesma lógica se aplica:
 
 ## 6) Catálogo/SKUs — regras de permissão
 
-### 6.1 Quem pode editar, inativar, ativar, apagar
+### 6.1 Quem pode editar, inativar, ativar, excluir
 
 | Ação | Rota | Quem pode | Onde está |
 |------|------|-----------|------------|
@@ -203,7 +203,7 @@ Não encontrada no repositório. Se existir no banco, a mesma lógica se aplica:
 | Editar (PATCH) | catalogo/search/update | owner, admin | getMe() + role_base check 403 |
 | Ativar | catalogo/search/ativar | owner, admin | idem |
 | Inativar | catalogo/search/inativar | owner, admin | idem |
-| Apagar | catalogo/search/delete | owner, admin | idem |
+| Excluir | catalogo/search/delete | owner, admin | idem |
 
 Todas as mutações usam `org_id` de `getMe()`, não do body, e filtram por `.eq("org_id", org_id)`.
 
@@ -292,7 +292,7 @@ Não há rate limiting em endpoints críticos (login, APIs de catálogo, toggle-
 ### 10.2 Riscos críticos adicionais
 
 1. **Rotas /api/org/sku sem autenticação/autorização**  
-   - `GET/POST/DELETE /api/org/sku` (route.ts) e `PATCH /api/org/sku/update`, `POST /api/org/sku/delete`, `PATCH /api/org/sku/inativar` **não verificam token nem org/role**. Qualquer pessoa que conheça a URL pode listar/inserir/apagar/atualizar SKUs.  
+   - `GET/POST/DELETE /api/org/sku` (route.ts) e `PATCH /api/org/sku/update`, `POST /api/org/sku/delete`, `PATCH /api/org/sku/inativar` **não verificam token nem org/role**. Qualquer pessoa que conheça a URL pode listar/inserir/excluir/atualizar SKUs.  
    - **Correção:** Exigir auth (e, onde fizer sentido, checagem org_id + owner/admin) em todas essas rotas, ou desativar/deprecar se não forem usadas.
 
 2. **GET /api/org/sku/search com IDOR**  

@@ -163,7 +163,7 @@ export default function CalculadoraLoginPage() {
               disabled={loading}
               className="mt-5 w-full rounded-xl bg-[var(--accent)] text-white font-semibold py-2.5 text-sm hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? "Enviando…" : "Enviar link de redefinição"}
+              {loading ? "Enviando..." : "Enviar link de redefinição"}
             </button>
           ) : (
             <button
@@ -172,7 +172,7 @@ export default function CalculadoraLoginPage() {
               disabled={loading}
               className="mt-5 w-full rounded-xl bg-[var(--accent)] text-white font-semibold py-2.5 text-sm hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? "Entrando…" : "Entrar na calculadora"}
+              {loading ? "Entrando..." : "Entrar na calculadora"}
             </button>
           )}
 

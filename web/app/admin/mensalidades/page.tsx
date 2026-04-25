@@ -344,7 +344,7 @@ export default function MensalidadesPage() {
     }
     if (
       !window.confirm(
-        "Remover o teste grátis desta entidade? O portal voltará a aplicar bloqueio por mensalidade conforme as regras normais."
+        "Tem certeza que deseja excluir o teste grátis desta entidade? O portal voltará a aplicar bloqueio por mensalidade conforme as regras normais."
       )
     ) {
       return;
@@ -367,8 +367,8 @@ export default function MensalidadesPage() {
         cache: "no-store",
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Erro ao remover teste.");
-      setSuccess("Teste grátis removido.");
+      if (!res.ok) throw new Error(data?.error || "Erro ao excluir teste.");
+      setSuccess("Excluído com sucesso.");
       setTrialModal(false);
       load();
     } catch (e) {
@@ -511,7 +511,7 @@ export default function MensalidadesPage() {
           )}
           <button
             type="button"
-            title="Remove esta linha (mensalidade não paga)"
+            title="Excluir esta linha (mensalidade não paga)"
             onClick={() => excluirMensalidade(r.id)}
             className={
               layout === "card"
@@ -544,7 +544,7 @@ export default function MensalidadesPage() {
             </button>
             <button
               type="button"
-              title="Remove a linha (não paga)"
+              title="Excluir a linha (não paga)"
               onClick={() => excluirMensalidade(r.id)}
               className="w-full min-h-[44px] touch-manipulation rounded-md px-3 text-sm font-semibold text-white"
               style={{ ...btnDangerSolid, padding: "10px 14px" }}
@@ -563,7 +563,7 @@ export default function MensalidadesPage() {
             </button>
             <button
               type="button"
-              title="Remove a linha (não paga)"
+              title="Excluir a linha (não paga)"
               onClick={() => excluirMensalidade(r.id)}
               className={`${tableActionBtnBaseCompact} bg-red-600 text-white shadow-sm hover:brightness-110 active:brightness-95`}
             >
@@ -598,7 +598,7 @@ export default function MensalidadesPage() {
           className="w-full min-h-[44px] touch-manipulation sm:min-h-0 sm:w-auto sm:min-w-0"
           style={{ ...btnPrimary, opacity: gerando ? 0.7 : 1, cursor: gerando ? "not-allowed" : "pointer" }}
         >
-          {gerando ? "Gerando…" : `Gerar mensalidades de ${ciclo}`}
+          {gerando ? "Gerando..." : `Gerar mensalidades de ${ciclo}`}
         </button>
         <button
           type="button"
@@ -610,7 +610,7 @@ export default function MensalidadesPage() {
             cursor: trialLoadingOpts ? "not-allowed" : "pointer",
           }}
         >
-          {trialLoadingOpts ? "Carregando…" : "Teste grátis do portal"}
+          {trialLoadingOpts ? "Carregando..." : "Teste grátis do portal"}
         </button>
       </div>
 
@@ -629,11 +629,11 @@ export default function MensalidadesPage() {
               Teste grátis do portal
             </h2>
             <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
-              Conceda dias extras (somam ao fim do trial atual, se houver) ou remova o teste para o painel voltar a
+              Conceda dias extras (somam ao fim do trial atual, se houver) ou exclua o teste para o painel voltar a
               respeitar bloqueio por mensalidade.
             </p>
             {trialLoadingOpts ? (
-              <p>Carregando entidades…</p>
+              <p>Carregando entidades...</p>
             ) : (
               <>
                 <label className="flex flex-col gap-1.5 mb-3 text-sm w-full">
@@ -708,7 +708,7 @@ export default function MensalidadesPage() {
                     className="w-full min-h-[44px] shrink-0 whitespace-nowrap sm:w-auto hover:brightness-110 active:brightness-95 disabled:opacity-60 disabled:cursor-not-allowed"
                     style={btnDangerSolid}
                   >
-                    {trialBusy === "remove" ? "Removendo…" : "Remover teste grátis"}
+                    {trialBusy === "remove" ? "Excluindo..." : "Excluir teste grátis"}
                   </button>
                   <button
                     type="button"
@@ -725,7 +725,7 @@ export default function MensalidadesPage() {
                       cursor: trialBusy ? "not-allowed" : "pointer",
                     }}
                   >
-                    {trialBusy === "add" ? "Salvando…" : "Adicionar dias"}
+                    {trialBusy === "add" ? "Salvando..." : "Adicionar dias"}
                   </button>
                 </div>
               </>
@@ -818,7 +818,7 @@ export default function MensalidadesPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-neutral-500">Carregando…</p>
+        <p className="text-sm text-neutral-500">Carregando...</p>
       ) : rows.length === 0 ? (
         <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-10 text-center text-sm text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900/50">
           Nenhuma mensalidade encontrada. Clique em &quot;Gerar mensalidades&quot; para criar.

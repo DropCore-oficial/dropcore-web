@@ -225,7 +225,7 @@ export default function OrgMembrosPage() {
   }
 
   async function handleRemoveMember(memberId: string, email: string) {
-    const ok = confirm(`Remover o membro ${email}?`);
+    const ok = confirm(`Tem certeza que deseja excluir o membro ${email}? Essa ação remove o acesso à organização.`);
     if (!ok) return;
 
     setRemoving((prev) => new Set(prev).add(memberId));
@@ -250,11 +250,11 @@ export default function OrgMembrosPage() {
       });
 
       const json = await safeJson(res);
-      if (!res.ok) throw new Error(json?.error || "Erro ao remover membro");
+      if (!res.ok) throw new Error(json?.error || "Erro ao excluir membro");
 
       await load();
     } catch (e: any) {
-      setErr(e?.message || "Erro ao remover membro");
+      setErr(e?.message || "Erro ao excluir membro");
     } finally {
       setRemoving((prev) => {
         const next = new Set(prev);
@@ -369,7 +369,7 @@ export default function OrgMembrosPage() {
                 {loading ? (
                   <tr>
                     <td className="px-5 py-4 text-[var(--muted)]" colSpan={4}>
-                      Buscando membros…
+                      Buscando membros...
                     </td>
                   </tr>
                 ) : data.length === 0 ? (
@@ -472,8 +472,8 @@ export default function OrgMembrosPage() {
                           className="px-3 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 text-xs disabled:opacity-50"
                         >
                           {removing.has(m.user_id)
-                            ? "Removendo..."
-                            : "Remover"}
+                            ? "Excluindo..."
+                            : "Excluir"}
                         </button>
                       </td>
                     </tr>

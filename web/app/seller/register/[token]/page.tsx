@@ -149,7 +149,7 @@ export default function SellerRegisterPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
-        <p className="text-[var(--muted)] text-sm">Validando convite…</p>
+        <p className="text-[var(--muted)] text-sm">Validando convite...</p>
       </div>
     );
   }
@@ -296,7 +296,7 @@ export default function SellerRegisterPage() {
             <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
               <p className="font-medium mb-2">Conta já existe com este e-mail</p>
               <p className="text-amber-800/90 dark:text-amber-200/90 text-xs leading-relaxed mb-3">
-                Confirme o e-mail e a <strong>senha dessa conta</strong> acima e use o botão abaixo para entrar e vincular ao convite do seller <strong>{sellerNome}</strong> (sem criar utilizador novo).
+                Confirme o e-mail e a <strong>senha dessa conta</strong> acima e use o botão abaixo para entrar e vincular ao convite do seller <strong>{sellerNome}</strong> (sem criar usuário novo).
               </p>
               <button
                 type="button"
@@ -304,7 +304,7 @@ export default function SellerRegisterPage() {
                 disabled={sending}
                 className="w-full rounded-xl border border-amber-600 bg-amber-600 text-white font-semibold py-2.5 text-sm hover:opacity-90 transition disabled:opacity-60"
               >
-                {sending ? "A vincular…" : "Entrar e vincular ao convite"}
+                {sending ? "A vincular..." : "Entrar e vincular ao convite"}
               </button>
             </div>
           )}
@@ -314,7 +314,7 @@ export default function SellerRegisterPage() {
             disabled={sending}
             className="mt-5 w-full rounded-xl bg-[var(--accent)] text-white font-semibold py-2.5 text-sm hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {sending ? "Criando conta…" : "Criar conta e entrar"}
+            {sending ? "Criando conta..." : "Criar conta e entrar"}
           </button>
         </div>
       </div>

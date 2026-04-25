@@ -26,7 +26,7 @@ function getOrgId(req: Request) {
 }
 
 const SEED_SKUS_FIXOS = new Set<string>(["DJU999000"]);
-/** Grupos (SKU Pai) ocultos em todos os locais — não apagar, só não exibir */
+/** Grupos (SKU Pai) ocultos em todos os locais — não excluir do banco, só não exibir */
 const PAIS_OCULTOS = new Set<string>(["DJU999000"]);
 
 function isSkuSemente(row: { sku: string; cor: string | null; tamanho: string | null; nome_produto: string | null }) {

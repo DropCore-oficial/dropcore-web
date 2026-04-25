@@ -492,7 +492,7 @@ export default function FornecedorCadastroPage() {
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 border-t-emerald-500 dark:border-t-emerald-500 animate-spin" />
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando…</p>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando...</p>
         </div>
       </div>
     );
@@ -622,7 +622,7 @@ export default function FornecedorCadastroPage() {
                     />
                     <p className="text-[11px] text-[var(--muted)] mt-1 leading-snug">
                       {buscandoCepMatriz
-                        ? "A consultar CEP…"
+                        ? "A consultar CEP..."
                         : "Com 8 dígitos, preenche logradouro, bairro, cidade e UF (ViaCEP)."}
                     </p>
                   </div>
@@ -693,8 +693,8 @@ export default function FornecedorCadastroPage() {
                   <p className="text-xs font-medium text-[var(--muted)] mb-2">Despacho / CD padrão (opcional)</p>
                   <p className="text-[11px] text-[var(--muted)] mb-3 leading-snug">
                     O bloco «Endereço» acima é a <strong className="text-[var(--foreground)]">sede / fiscal</strong>. Aqui
-                    fica o local de <strong className="text-[var(--foreground)]">expedição</strong> por defeito; em
-                    produtos específicos podes definir outro endereço ao editar o SKU.
+                    fica o local de <strong className="text-[var(--foreground)]">expedição</strong> por padrão; em
+                    produtos específicos você pode definir outro endereço ao editar o SKU.
                   </p>
                   <label className="flex items-start gap-2.5 mb-3 cursor-pointer select-none">
                     <input
@@ -734,7 +734,7 @@ export default function FornecedorCadastroPage() {
                       {!envioIgualMatriz && (
                         <p className="text-[11px] text-[var(--muted)] mt-1 leading-snug">
                           {buscandoCepDespacho
-                            ? "A consultar CEP…"
+                            ? "A consultar CEP..."
                             : "Com 8 dígitos, preenche logradouro, bairro, cidade e UF (ViaCEP)."}
                         </p>
                       )}
@@ -927,7 +927,7 @@ export default function FornecedorCadastroPage() {
               disabled={saving}
               className="w-full rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-white font-medium py-3 px-4 text-sm"
             >
-              {saving ? "Salvando…" : "Salvar cadastro"}
+              {saving ? "Salvando..." : "Salvar cadastro"}
             </button>
           </form>
         </div>

@@ -13,7 +13,7 @@ export default function EnviarPedidoPage() {
   }, [router]);
   return (
     <div style={{ padding: 24, textAlign: "center" }}>
-      <p>Redirecionando para Pedidos…</p>
+      <p>Redirecionando para Pedidos...</p>
     </div>
   );
 }

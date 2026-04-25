@@ -93,10 +93,10 @@ export function FotoVariacaoCell({
         headers: { Authorization: `Bearer ${token}` },
       });
       const j = await res.json();
-      if (!res.ok) throw new Error(j?.error ?? "Erro ao apagar.");
+      if (!res.ok) throw new Error(j?.error ?? "Erro ao excluir.");
       onUpdate(null);
     } catch (err) {
-      setErro(err instanceof Error ? err.message : "Erro ao apagar.");
+      setErro(err instanceof Error ? err.message : "Erro ao excluir.");
     } finally {
       setLoading(false);
     }
@@ -231,7 +231,7 @@ export function FotoVariacaoCell({
             stacked ? "text-[11px]" : table ? "whitespace-nowrap text-[11px] leading-tight" : "text-xs"
           }`}
         >
-          Apagar
+          Excluir
         </button>
       )}
     </div>
@@ -258,7 +258,7 @@ export function FotoVariacaoCell({
       {erro && (
         <p className={stacked ? "text-[10px] text-red-500 max-w-[52px] text-center break-words" : "text-[10px] text-red-500"}>{erro}</p>
       )}
-      {loading && <p className="text-[10px] text-neutral-500 text-center">…</p>}
+      {loading && <p className="text-[10px] text-neutral-500 text-center">...</p>}
     </div>
   );
 }

@@ -591,7 +591,7 @@ export default function EditarVariantesPage() {
       });
       const j = (await res.json().catch(() => ({}))) as { error?: string; mensagem?: string };
       if (!res.ok) throw new Error(j?.error ?? "Erro ao excluir.");
-      setSuccessMessage(typeof j?.mensagem === "string" ? j.mensagem : "Variante removida do catálogo.");
+      setSuccessMessage(typeof j?.mensagem === "string" ? j.mensagem : "Variante excluída do catálogo.");
       setTimeout(() => setSuccessMessage(null), 4000);
       if (editando?.id === row.id) setEditando(null);
       await load();
@@ -736,7 +736,7 @@ export default function EditarVariantesPage() {
   if (loading && grupoProdutos.length === 0) {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
-        <p className="text-neutral-600 dark:text-neutral-400 text-sm">Carregando…</p>
+        <p className="text-neutral-600 dark:text-neutral-400 text-sm">Carregando...</p>
       </div>
     );
   }
@@ -801,7 +801,7 @@ export default function EditarVariantesPage() {
                   : "border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-950/40"
               } disabled:opacity-60`}
             >
-              {desativarLoading ? "…" : categoriaAtiva ? "Desativar categoria" : "Ativar categoria"}
+              {desativarLoading ? "..." : categoriaAtiva ? "Desativar categoria" : "Ativar categoria"}
             </button>
           </div>
         </div>
@@ -982,7 +982,7 @@ export default function EditarVariantesPage() {
                     disabled={loadingAddVar}
                     className="rounded-lg bg-blue-600 text-white font-medium px-4 py-2 text-sm hover:bg-blue-700 disabled:opacity-60"
                   >
-                    {loadingAddVar ? "Adicionando…" : `Adicionar ${faltantesAnuncio} variante(s) ao catálogo`}
+                    {loadingAddVar ? "Adicionando..." : `Adicionar ${faltantesAnuncio} variante(s) ao catálogo`}
                   </button>
                   <span className="text-xs text-neutral-500 dark:text-neutral-400">Novos SKUs são criados com os mesmos dados base do produto (nome, dimensões, etc.).</span>
                 </div>
@@ -1103,7 +1103,7 @@ export default function EditarVariantesPage() {
                                     disabled={excluindoId === row.id}
                                     className="rounded-md px-2 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30 touch-manipulation disabled:opacity-50"
                                   >
-                                    {excluindoId === row.id ? "…" : "Excluir"}
+                                    {excluindoId === row.id ? "..." : "Excluir"}
                                   </button>
                                 ) : null}
                               </div>
@@ -1261,7 +1261,7 @@ export default function EditarVariantesPage() {
                                       disabled={excluindoId === row.id}
                                       className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
                                     >
-                                      {excluindoId === row.id ? "…" : "Excluir"}
+                                      {excluindoId === row.id ? "..." : "Excluir"}
                                     </button>
                                   );
                                 })()}
@@ -1316,7 +1316,7 @@ export default function EditarVariantesPage() {
                       : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"
                   }`}
                 >
-                  {loadingBasico ? "Salvando…" : statusAlteracaoEditar === "pendente" ? "Bloqueado (em análise)" : "Salvar"}
+                  {loadingBasico ? "Salvando..." : statusAlteracaoEditar === "pendente" ? "Bloqueado (em análise)" : "Salvar"}
                 </button>
               </form>
             </div>
@@ -1330,7 +1330,7 @@ export default function EditarVariantesPage() {
                 </div>
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400">As fotos por variação ficam na tabela de variantes.</p>
                 {formError && <p className="text-sm text-red-400">{formError}</p>}
-                <button type="submit" disabled={loadingOutros || !dirtyMidia} className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyMidia ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}>{loadingOutros ? "Salvando…" : "Salvar"}</button>
+                <button type="submit" disabled={loadingOutros || !dirtyMidia} className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyMidia ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}>{loadingOutros ? "Salvando..." : "Salvar"}</button>
               </form>
             </div>
           )}
@@ -1355,7 +1355,7 @@ export default function EditarVariantesPage() {
                 <div>
                   <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Origem</label>
                   <select value={editOrigem} onChange={(e) => setEditOrigem(e.target.value)} className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                    <option value="">Selecione…</option>
+                    <option value="">Selecione...</option>
                     <option value="0">0 - Nacional</option>
                     <option value="1">1 - Estrangeira (importação direta)</option>
                     <option value="2">2 - Estrangeira (adquirida no mercado interno)</option>
@@ -1386,7 +1386,7 @@ export default function EditarVariantesPage() {
                   </div>
                 </div>
                 {formError && <p className="text-sm text-red-400">{formError}</p>}
-                <button type="submit" disabled={loadingOutros || !dirtyImpostos} className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyImpostos ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}>{loadingOutros ? "Salvando…" : "Salvar"}</button>
+                <button type="submit" disabled={loadingOutros || !dirtyImpostos} className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyImpostos ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}>{loadingOutros ? "Salvando..." : "Salvar"}</button>
               </form>
             </div>
           )}
@@ -1409,7 +1409,7 @@ export default function EditarVariantesPage() {
                 {tabelaMedidasLoading ? (
                   <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400 py-8">
                     <span className="inline-block w-5 h-5 border-2 border-neutral-300 dark:border-neutral-600 border-t-blue-500 rounded-full animate-spin" />
-                    Carregando tabela…
+                    Carregando tabela...
                   </div>
                 ) : (
                   <form onSubmit={salvarTabelaMedidas} className="space-y-5">
@@ -1485,7 +1485,7 @@ export default function EditarVariantesPage() {
                       {tabelaMedidasSaving ? (
                         <>
                           <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          Salvando…
+                          Salvando...
                         </>
                       ) : (
                         "Enviar para análise"
@@ -1550,7 +1550,7 @@ export default function EditarVariantesPage() {
                   <div>
                     <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Cor</label>
                     <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-2">
-                      Clique numa cor para preencher; depois pode editar no campo (ex.: Verde → Verde militar).
+                      Clique em uma cor para preencher; depois pode editar no campo (ex.: Verde → Verde militar).
                     </p>
                     <div className="flex flex-wrap gap-1.5 mb-2 max-h-28 overflow-y-auto pr-1">
                       {CORES_PREDEFINIDAS.map((cor) => (
@@ -1720,7 +1720,7 @@ export default function EditarVariantesPage() {
                         : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"
                     }`}
                   >
-                    {formLoading ? "Salvando…" : "Salvar"}
+                    {formLoading ? "Salvando..." : "Salvar"}
                   </button>
                 </div>
               </div>

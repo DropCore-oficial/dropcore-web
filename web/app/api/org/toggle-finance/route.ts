@@ -123,7 +123,7 @@ export async function POST(req: Request) {
 
       if ((target as any)?.role_base === "owner") {
         return jsonNoStore(
-          { error: "Não é permitido remover acesso financeiro de um owner." },
+          { error: "Não é permitido revogar o acesso financeiro de um owner." },
           400
         );
       }

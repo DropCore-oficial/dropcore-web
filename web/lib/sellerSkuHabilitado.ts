@@ -5,7 +5,7 @@
 import { PREFIXO_SKU_SISTEMA } from "@/lib/planos";
 
 export const MSG_SKU_NAO_HABILITADO_PLANO_STARTER =
-  "SKU não habilitado no teu plano; ativa no catálogo até 15. Ou faça upgrade para o plano Pro e libere mais limites.";
+  "SKU não habilitado no seu plano; ative no catálogo até 15. Ou faça upgrade para o plano Pro e libere mais limites.";
 
 export const MSG_STARTER_PEDIDO_SEM_SKU =
   "No plano Starter é obrigatório vincular o pedido a um SKU (catálogo habilitado). Ou faça upgrade para o plano Pro e libere mais limites.";
@@ -82,7 +82,7 @@ export async function assertSellerPodeVenderSkus(
       return {
         ok: false,
         error:
-          "Configuração de catálogo por seller incompleta (tabela seller_skus_habilitados). Contacte o suporte DropCore.",
+          "Configuração de catálogo por seller incompleta (tabela seller_skus_habilitados). Entre em contato com o suporte DropCore.",
       };
     }
     return { ok: false, error: msg };
@@ -110,7 +110,7 @@ export async function assertPodeRegistrarHabilitacao(
     return {
       ok: false,
       error:
-        "Escolhe e grava o teu fornecedor (armazém) no catálogo ou na Calculadora antes de marcar SKUs para vender.",
+        "Escolha e salve o seu fornecedor (armazém) no catálogo ou na Calculadora antes de marcar SKUs para vender.",
       status: 400,
     };
   }
@@ -123,9 +123,9 @@ export async function assertPodeRegistrarHabilitacao(
 
   if (skuErr) return { ok: false, error: String(skuErr.message) };
   if (!skuRow) return { ok: false, error: "SKU não encontrado.", status: 404 };
-  if (String(skuRow.org_id) !== params.orgId) return { ok: false, error: "SKU não pertence à tua organização.", status: 403 };
+  if (String(skuRow.org_id) !== params.orgId) return { ok: false, error: "SKU não pertence à sua organização.", status: 403 };
   if (String(skuRow.fornecedor_id ?? "") !== String(params.fornecedorId)) {
-    return { ok: false, error: "SKU não pertence ao fornecedor ligado ao teu perfil.", status: 403 };
+    return { ok: false, error: "SKU não pertence ao fornecedor ligado ao seu perfil.", status: 403 };
   }
   if (String(skuRow.status ?? "").toLowerCase() !== "ativo") {
     return { ok: false, error: "SKU inativo — não pode ser habilitado.", status: 400 };
@@ -146,7 +146,7 @@ export async function assertPodeRegistrarHabilitacao(
   if (count >= MAX_SKUS_HABILITADOS_STARTER) {
     return {
       ok: false,
-      error: `Já tens ${MAX_SKUS_HABILITADOS_STARTER} SKUs habilitados. Remove um no catálogo ou faz upgrade para o plano Pro.`,
+      error: `Você já tem ${MAX_SKUS_HABILITADOS_STARTER} SKUs habilitados. Remova um no catálogo ou faça upgrade para o plano Pro.`,
       status: 403,
     };
   }

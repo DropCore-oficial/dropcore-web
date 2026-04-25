@@ -100,7 +100,7 @@ Se `rowsecurity = false`, considerar ativar RLS e criar policies para defesa em 
 
 1. ~~**Integração ERP → DropCore**~~ — ✅ API POST /api/erp/pedidos criada
 2. **Integração DropCore → ERP** — Push de estoque (Tiny, Bling) quando SKU vende
-3. **Criptografia de credenciais ERP** — Ao guardar token Tiny / OAuth Bling (quando implementar push)
+3. **Criptografia de credenciais ERP** — Ao salvar token Tiny / OAuth Bling (quando implementar push)
 
 ## Pendente
 

@@ -248,7 +248,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 /**
  * DELETE /api/fornecedor/produtos/[id] — remove um SKU do fornecedor.
- * Não permite excluir o SKU pai (…000) se ainda existir outra variante no mesmo bloco.
+ * Não permite excluir o SKU pai (...000) se ainda existir outra variante no mesmo bloco.
  */
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -306,7 +306,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       );
     }
 
-    return NextResponse.json({ ok: true, mensagem: "Variante removida do catálogo." });
+    return NextResponse.json({ ok: true, mensagem: "Variante excluída do catálogo." });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

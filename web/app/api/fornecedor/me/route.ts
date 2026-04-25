@@ -35,7 +35,7 @@ export async function GET(req: Request) {
     /**
      * Não usar `.maybeSingle()` aqui: se existirem **várias** linhas em `org_members` com
      * `fornecedor_id` preenchido (ex.: mais do que uma org, ou dados legados duplicados),
-     * o PostgREST devolve erro e o utilizador ficava bloqueado como «sem vínculo».
+     * o PostgREST devolve erro e o usuário ficava bloqueado como «sem vínculo».
      */
     const { data: membrosForn, error: memErr } = await supabaseAdmin
       .from("org_members")
@@ -57,7 +57,7 @@ export async function GET(req: Request) {
       return NextResponse.json(
         {
           error:
-            "Esta conta não está ligada a nenhum armazém no DropCore. Completa o registo com o link de convite da organização ou pede um novo convite ao admin.",
+            "Esta conta não está ligada a nenhum armazém no DropCore. Conclua o cadastro com o link de convite da organização ou peça um novo convite ao admin.",
           code: "FORNECEDOR_SEM_VINCULO_ORG_MEMBERS",
         },
         { status: 403 },

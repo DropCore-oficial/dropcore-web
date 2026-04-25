@@ -362,7 +362,7 @@ export default function FornecedorDashboardPage() {
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 border-t-emerald-500 dark:border-t-emerald-500 animate-spin" />
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando…</p>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando...</p>
         </div>
       </div>
     );
@@ -617,7 +617,7 @@ export default function FornecedorDashboardPage() {
                     onChange={(e) => { const v = e.target.value; if (v) setChartPeriodo(v); }}
                     className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-0 cursor-pointer focus:ring-2 focus:ring-emerald-500"
                   >
-                    <option value="">Mês…</option>
+                    <option value="">Mês...</option>
                     <option value="month:current">Este mês</option>
                     <option value="month:last">Mês passado</option>
                     {(() => {
@@ -952,7 +952,7 @@ export default function FornecedorDashboardPage() {
               {pixErro && (
                 <p className="text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2">{pixErro}</p>
               )}
-              {pixLoading && <p className="text-sm text-neutral-500">Gerando PIX…</p>}
+              {pixLoading && <p className="text-sm text-neutral-500">Gerando PIX...</p>}
               {!pixLoading && pixQrCode && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">

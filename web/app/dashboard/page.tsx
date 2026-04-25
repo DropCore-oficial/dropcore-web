@@ -553,7 +553,7 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 border-t-emerald-500 dark:border-t-emerald-500 animate-spin" />
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando…</p>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando...</p>
         </div>
       </div>
     );

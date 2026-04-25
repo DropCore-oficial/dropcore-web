@@ -327,7 +327,7 @@ export default function AdminSellersPage() {
         <Button variant="secondary" onClick={() => { setSelectedId(null); setDetail(null); }} className="mb-4">
           ← Voltar à lista
         </Button>
-        {detailLoading && <div>Carregando…</div>}
+        {detailLoading && <div>Carregando...</div>}
         {detail && !detailLoading && (
           <>
             <div className="p-5 border border-[var(--card-border)] rounded-[var(--radius)] bg-[var(--card)] mb-4 shadow-[var(--shadow-card)]">
@@ -382,7 +382,7 @@ export default function AdminSellersPage() {
                   disabled={inviteSending}
                   className="border-[var(--info)] text-[var(--info)]"
                 >
-                  {inviteSending ? "Gerando…" : "🔗 Gerar link de acesso"}
+                  {inviteSending ? "Gerando..." : "🔗 Gerar link de acesso"}
                 </Button>
               </div>
             </div>
@@ -408,7 +408,7 @@ export default function AdminSellersPage() {
                   if (detail.fornecedor_desvinculo_liberado) {
                     return (
                       <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-2 font-medium">
-                        Liberação antecipada ativa — pode trocar ou remover o armazém pelo painel (com registro interno).
+                        Liberação antecipada ativa — pode trocar ou desvincular o armazém pelo painel (com registro interno).
                       </p>
                     );
                   }
@@ -548,7 +548,7 @@ export default function AdminSellersPage() {
               {error && <div className="text-[var(--danger)] text-[13px] mb-3">{error}</div>}
               <div className="flex gap-2">
                 <Button type="button" variant="success" onClick={addCredit} disabled={creditSending || !valorValido}>
-                  {creditSending ? "Salvando…" : "Confirmar"}
+                  {creditSending ? "Salvando..." : "Confirmar"}
                 </Button>
                 <Button variant="secondary" onClick={() => { setModal(null); setCreditValor(""); setPixChave(""); setError(null); }}>
                   Cancelar
@@ -629,7 +629,7 @@ export default function AdminSellersPage() {
               {error && <div className="text-[var(--danger)] text-[13px] mb-3">{error}</div>}
               <div className="flex gap-2">
                 <Button type="button" variant="success" onClick={editSeller} disabled={editSending}>
-                  {editSending ? "Salvando…" : "Salvar"}
+                  {editSending ? "Salvando..." : "Salvar"}
                 </Button>
                 <Button variant="secondary" onClick={() => { setModal(null); setError(null); }}>
                   Cancelar
@@ -642,11 +642,11 @@ export default function AdminSellersPage() {
           <div style={modalOverlay}>
             <div style={modalBox}>
               <h3 className="mb-3 text-lg">Excluir seller?</h3>
-              <p className="text-sm text-[var(--muted)] mb-5">As movimentações serão removidas. Esta ação não pode ser desfeita.</p>
+              <p className="text-sm text-[var(--muted)] mb-5">As movimentações serão excluídas. Essa ação não pode ser desfeita.</p>
               {error && <div className="text-[var(--danger)] text-[13px] mb-3">{error}</div>}
               <div className="flex gap-2">
                 <Button type="button" variant="danger" onClick={deleteSeller} disabled={deleteSending}>
-                  {deleteSending ? "Excluindo…" : "Excluir"}
+                  {deleteSending ? "Excluindo..." : "Excluir"}
                 </Button>
                 <Button variant="secondary" onClick={() => { setDeleteConfirm(false); setError(null); }} disabled={deleteSending}>
                   Cancelar
@@ -692,7 +692,7 @@ export default function AdminSellersPage() {
         </Button>
       </div>
 
-      {loading && <div>Carregando…</div>}
+      {loading && <div>Carregando...</div>}
       {!loading && sellers.length === 0 && !error && <div className="p-6 bg-[var(--background)] rounded-[var(--radius)] text-[var(--muted)]">Nenhum seller cadastrado. Clique em + Novo Seller.</div>}
 
       {!loading && sellers.length > 0 && (
@@ -745,7 +745,7 @@ export default function AdminSellersPage() {
             {error && <div className="text-[var(--danger)] text-[13px] mb-3 shrink-0">{error}</div>}
             <div className="flex gap-2 shrink-0">
               <Button type="button" variant="success" onClick={createSeller} disabled={newSending}>
-                {newSending ? "Salvando…" : "Criar"}
+                {newSending ? "Salvando..." : "Criar"}
               </Button>
               <Button
                 variant="secondary"

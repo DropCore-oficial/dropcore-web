@@ -173,7 +173,7 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
             {loading && itemsFiltrados.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-12">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-500 dark:border-emerald-800 dark:border-t-emerald-400" />
-                <p className="text-xs text-neutral-500">Carregando…</p>
+                <p className="text-xs text-neutral-500">Carregando...</p>
               </div>
             ) : itemsFiltrados.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-12 px-4">

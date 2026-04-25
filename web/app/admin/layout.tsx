@@ -56,7 +56,7 @@ export default function AdminLayout({
   if (checking) {
     return (
       <div style={{ padding: 24, textAlign: "center" }}>
-        Verificando permissão…
+        Verificando permissão...
       </div>
     );
   }

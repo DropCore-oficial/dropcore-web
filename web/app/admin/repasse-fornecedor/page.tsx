@@ -238,7 +238,7 @@ export default function RepasseFornecedorPage() {
           <div className="rounded-2xl border border-sky-200 bg-sky-50/60 dark:bg-sky-950/20 dark:border-sky-900/50 shadow-sm px-4 py-3">
             <p className="text-xs font-semibold text-sky-800 dark:text-sky-300 mb-2">Próximos ciclos (previsão rápida)</p>
             <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mb-2">
-              Próximas 4 segundas: quanto está <span className="font-medium">pronto para fechar</span> no ledger (ENTREGUE / AGUARDANDO_REPASSE). Clique num ciclo abaixo para detalhar.
+              Próximas 4 segundas: quanto está <span className="font-medium">pronto para fechar</span> no ledger (ENTREGUE / AGUARDANDO_REPASSE). Clique em um ciclo abaixo para detalhar.
             </p>
             <div className="rounded-lg border border-sky-200/80 dark:border-sky-900/40 overflow-hidden divide-y divide-sky-100 dark:divide-sky-900/40">
               {futureCycles.map((f) => (
@@ -329,7 +329,7 @@ export default function RepasseFornecedorPage() {
           {/* Resultado */}
           <div className="px-4 py-4">
             {loading ? (
-              <p className="text-sm text-neutral-600 text-center py-4">Carregando…</p>
+              <p className="text-sm text-neutral-600 text-center py-4">Carregando...</p>
             ) : error ? (
               <p className="text-sm text-rose-600 py-2">{error}</p>
             ) : preview && cicloBuscado ? (
@@ -474,7 +474,7 @@ export default function RepasseFornecedorPage() {
                           : "bg-emerald-600 hover:bg-emerald-500 text-white"
                       }`}
                     >
-                      {closing ? "Fechando…" : `Fechar repasse — ${formatCiclo(ciclo)}`}
+                      {closing ? "Fechando..." : `Fechar repasse — ${formatCiclo(ciclo)}`}
                     </button>
                   </>
                 ) : null}

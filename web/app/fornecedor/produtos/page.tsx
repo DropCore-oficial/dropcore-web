@@ -261,7 +261,7 @@ export default function FornecedorProdutosPage() {
     const n = g.pai ? 1 + g.filhos.length : g.filhos.length;
     if (
       !window.confirm(
-        `Pedir à DropCore para excluir "${nome}" (${g.paiKey})?\n\nSerão ${n} SKU(s). Nada é apagado na hora: um admin aprova em Alterações de produtos.`
+        `Pedir à DropCore para excluir "${nome}" (${g.paiKey})?\n\nSerão ${n} SKU(s). Nada é excluído na hora: um admin aprova em Alterações de produtos.`
       )
     ) {
       return;
@@ -339,7 +339,7 @@ export default function FornecedorProdutosPage() {
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 border-t-emerald-500 dark:border-t-emerald-500 animate-spin" />
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando…</p>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando...</p>
         </div>
       </div>
     );
@@ -594,7 +594,7 @@ export default function FornecedorProdutosPage() {
                               : "Pedir exclusão (aprovação DropCore)"
                           }
                         >
-                          {solicitandoExclusao === g.paiKey ? "Enviando…" : "Excluir produto"}
+                          {solicitandoExclusao === g.paiKey ? "Enviando..." : "Excluir produto"}
                         </button>
                       </div>
                     </div>
@@ -964,7 +964,7 @@ export default function FornecedorProdutosPage() {
                   disabled={formLoading}
                   className="flex-1 rounded-lg bg-blue-600 text-white font-semibold px-4 py-2.5 text-sm hover:bg-blue-700 disabled:opacity-60"
                 >
-                  {formLoading ? "Salvando…" : "Salvar"}
+                  {formLoading ? "Salvando..." : "Salvar"}
                 </button>
               </div>
             </form>

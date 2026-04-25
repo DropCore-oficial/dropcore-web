@@ -8,7 +8,7 @@ Você não precisa saber programação. Este documento é o **mapa** do que vamo
 
 - Login e perfis (admin, operacional)
 - Lista de empresas (fornecedores)
-- Catálogo por fornecedor: ver, editar, criar, inativar, apagar SKUs
+- Catálogo por fornecedor: ver, editar, criar, inativar, excluir SKUs
 - Editar grupo (aplicar dados em todos os itens do grupo)
 - Avisos de estoque baixo (dashboard + filtro no catálogo)
 - Exportar e importar catálogo em CSV

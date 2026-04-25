@@ -204,7 +204,7 @@ export default function AdminCalculadoraConvitesPage() {
                 disabled={loading}
                 className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 text-sm shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {loading ? "Gerando link…" : "Gerar link de teste"}
+                {loading ? "Gerando link..." : "Gerar link de teste"}
               </button>
 
               {erro && (
@@ -260,9 +260,9 @@ export default function AdminCalculadoraConvitesPage() {
                 <p className="text-[11px] text-red-600 dark:text-red-400">{copiarErro}</p>
               )}
               <p className="text-[11px] text-[var(--muted)] max-w-xl">
-                O botão verde abre o teu programa de e-mail (Mail, Outlook, Gmail no navegador, etc.) com o texto e o link
+                O botão verde abre o seu programa de e-mail (Mail, Outlook, Gmail no navegador, etc.) com o texto e o link
                 prontos{ultimoConvite.email_alvo?.trim() ? " e o destinatário preenchido" : ""}. O envio não sai dos servidores
-                DropCore — é o teu e-mail que envia.
+                DropCore — é o seu e-mail que envia.
               </p>
             </div>
           </section>
@@ -282,7 +282,7 @@ export default function AdminCalculadoraConvitesPage() {
               disabled={assinantesLoading}
               className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
             >
-              {assinantesLoading ? "Atualizando…" : "Atualizar lista"}
+              {assinantesLoading ? "Atualizando..." : "Atualizar lista"}
             </button>
           </div>
 
@@ -470,8 +470,8 @@ export default function AdminCalculadoraConvitesPage() {
                               disabled={assinantesLoading || !a.email}
                               title={
                                 !a.email
-                                  ? "Sem e-mail na lista — não dá para confirmar a conta."
-                                  : "Apaga o login no Supabase (irreversível). Bloqueado para sellers e membros de org."
+                                  ? "Sem e-mail na lista — não é possível confirmar a conta."
+                                  : "Exclui a conta de login no Supabase (irreversível). Bloqueado para sellers e membros de org."
                               }
                               onClick={() => {
                                 setApagarLoginEmail(a.email ?? "");
@@ -479,7 +479,7 @@ export default function AdminCalculadoraConvitesPage() {
                               }}
                               className="rounded-lg border border-amber-800/80 bg-amber-950 px-2 py-1 text-[10px] text-amber-100 hover:bg-amber-900 disabled:opacity-40 disabled:cursor-not-allowed dark:border-amber-700/80 dark:bg-amber-950/80"
                             >
-                              Apagar login
+                              Excluir login
                             </button>
                           </div>
                         </td>
@@ -502,11 +502,11 @@ export default function AdminCalculadoraConvitesPage() {
         >
           <div className="w-full max-w-md rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-xl p-5 space-y-4">
             <h2 id="apagar-login-titulo" className="text-base font-semibold text-[var(--foreground)]">
-              Apagar conta de login (Auth)
+              Excluir conta de login (Auth)
             </h2>
             <p className="text-xs text-[var(--muted)] leading-relaxed">
-              Remove o utilizador do <strong className="text-[var(--foreground)]">Supabase Auth</strong>. A pessoa deixa de
-              conseguir entrar com este e-mail. <strong className="text-[var(--foreground)]">Não dá para desfazer.</strong>
+              Exclui o usuário do <strong className="text-[var(--foreground)]">Supabase Auth</strong>. A pessoa deixa de
+              conseguir entrar com este e-mail. <strong className="text-[var(--foreground)]">Essa ação não pode ser desfeita.</strong>
               <br />
               <br />
               Não é permitido se for <strong className="text-[var(--foreground)]">seller</strong> ou tiver{" "}
@@ -560,19 +560,19 @@ export default function AdminCalculadoraConvitesPage() {
                       },
                     );
                     const j = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error(j?.error ?? "Erro ao apagar conta.");
+                    if (!res.ok) throw new Error(j?.error ?? "Erro ao excluir conta.");
                     setApagarLoginModal(null);
                     setApagarLoginEmail("");
                     await carregarAssinantes();
                   } catch (e: unknown) {
-                    setAssinantesErro(e instanceof Error ? e.message : "Erro ao apagar conta.");
+                    setAssinantesErro(e instanceof Error ? e.message : "Erro ao excluir conta.");
                   } finally {
                     setApagarLoginSending(false);
                   }
                 }}
                 className="rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
               >
-                {apagarLoginSending ? "Apagando…" : "Apagar definitivamente"}
+                {apagarLoginSending ? "Excluindo..." : "Excluir definitivamente"}
               </button>
             </div>
           </div>

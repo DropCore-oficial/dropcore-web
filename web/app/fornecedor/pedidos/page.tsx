@@ -163,7 +163,7 @@ export default function FornecedorPedidosPage() {
           const parsed = JSON.parse(decodeURIComponent(avisoHdr)) as { omitidos?: string[] };
           if (parsed.omitidos?.length) {
             setAvisoLote(
-              `Alguns pedidos foram omitidos do PDF (sem etiqueta ou download falhou): ${parsed.omitidos.slice(0, 8).join(", ")}${parsed.omitidos.length > 8 ? "…" : ""}.`
+              `Alguns pedidos foram omitidos do PDF (sem etiqueta ou download falhou): ${parsed.omitidos.slice(0, 8).join(", ")}${parsed.omitidos.length > 8 ? "..." : ""}.`
             );
           }
         } catch {
@@ -187,7 +187,7 @@ export default function FornecedorPedidosPage() {
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 border-t-emerald-500 dark:border-t-emerald-500 animate-spin" />
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando…</p>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando...</p>
         </div>
       </div>
     );
@@ -228,7 +228,7 @@ export default function FornecedorPedidosPage() {
             disabled={loading}
             className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:opacity-90 disabled:opacity-50"
           >
-            {loading ? "Carregando…" : "Atualizar"}
+            {loading ? "Carregando..." : "Atualizar"}
           </button>
         </div>
 
@@ -245,7 +245,7 @@ export default function FornecedorPedidosPage() {
               className="rounded-lg border border-emerald-600/40 bg-emerald-600/15 dark:bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-800 dark:text-emerald-200 hover:bg-emerald-600/25 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap"
             >
               {imprimindoLote
-                ? "Gerando PDF…"
+                ? "Gerando PDF..."
                 : `Imprimir etiquetas oficiais (${selecionadosComEtiqueta.length})`}
             </button>
           </div>
@@ -344,7 +344,7 @@ export default function FornecedorPedidosPage() {
                             disabled={postandoId !== null}
                             className="rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
                           >
-                            {postandoId === p.id ? "Marcando…" : "Marcar como postado"}
+                            {postandoId === p.id ? "Marcando..." : "Marcar como postado"}
                           </button>
                         )}
                         {p.status === "aguardando_repasse" && (
@@ -355,7 +355,7 @@ export default function FornecedorPedidosPage() {
                             title="Use se o extrato do seller ainda mostrar «Aguardando envio» após postagem."
                             className="rounded-lg border border-neutral-200 dark:border-neutral-600 bg-[var(--card)] px-2.5 py-1.5 text-[10px] font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-50"
                           >
-                            {postandoId === p.id ? "Sincronizando…" : "Sincronizar extrato seller"}
+                            {postandoId === p.id ? "Sincronizando..." : "Sincronizar extrato seller"}
                           </button>
                         )}
                       </td>

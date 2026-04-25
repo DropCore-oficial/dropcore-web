@@ -145,7 +145,7 @@ function paiKey(sku: unknown): string {
   return s.length >= 3 ? s.slice(0, -3) + "000" : s;
 }
 
-/** Grupos (SKU Pai) ocultos em todos os locais — não apagar, só não exibir */
+/** Grupos (SKU Pai) ocultos em todos os locais — não excluir do sistema, só não exibir */
 const GRUPOS_OCULTOS = new Set<string>(["DJU999000"]);
 function isGrupoOculto(sku: unknown): boolean {
   const key = paiKey(sku).toUpperCase();
@@ -450,7 +450,7 @@ export default function AdminCatalogoPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Apagar este SKU? Esta ação pode ser irreversível.")) return;
+    if (!confirm("Tem certeza que deseja excluir este SKU? Essa ação pode ser irreversível.")) return;
     setActingId(id);
     setError(null);
     try {
@@ -460,7 +460,7 @@ export default function AdminCatalogoPage() {
         body: JSON.stringify({ id }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Erro ao apagar");
+      if (!res.ok) throw new Error(json.error || "Erro ao excluir");
       await buscar("");
     } catch (err: any) {
       setError(err.message);
@@ -517,7 +517,7 @@ export default function AdminCatalogoPage() {
 
   async function handleExcluirGrupo(grupo: { pai: ItemSKU | null; filhos: ItemSKU[] }) {
     const ids = [...(grupo.pai ? [grupo.pai.id] : []), ...grupo.filhos.map((f) => f.id)];
-    if (!confirm(`Apagar o grupo inteiro (${ids.length} SKU(s))? Esta ação pode ser irreversível.`)) return;
+    if (!confirm(`Tem certeza que deseja excluir o grupo inteiro (${ids.length} SKU(s))? Essa ação pode ser irreversível.`)) return;
     setError(null);
     for (const id of ids) {
       try {
@@ -528,7 +528,7 @@ export default function AdminCatalogoPage() {
         });
         if (!res.ok) {
           const json = await res.json();
-          throw new Error(json.error || "Erro ao apagar");
+          throw new Error(json.error || "Erro ao excluir");
         }
       } catch (err: any) {
         setError(err.message);
@@ -1004,7 +1004,7 @@ export default function AdminCatalogoPage() {
                 disabled={actingId !== null}
                 className="u-btn u-btn-danger text-xs py-1 px-2.5"
               >
-                {actingId === item.id ? "..." : "Apagar"}
+                {actingId === item.id ? "..." : "Excluir"}
               </button>
             </div>
           </>
@@ -1255,7 +1255,7 @@ export default function AdminCatalogoPage() {
                   }}
                   className="u-btn u-btn-info text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {importLoading ? "Importando…" : "Confirmar importação"}
+                  {importLoading ? "Importando..." : "Confirmar importação"}
                 </button>
                 <button
                   type="button"
@@ -1486,7 +1486,7 @@ export default function AdminCatalogoPage() {
                         disabled={actingGrupo !== null}
                         className="u-btn u-btn-info disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {actingGrupo === grupo.paiKey ? "Salvando…" : "Salvar no grupo"}
+                        {actingGrupo === grupo.paiKey ? "Salvando..." : "Salvar no grupo"}
                       </button>
                       <button
                         type="button"

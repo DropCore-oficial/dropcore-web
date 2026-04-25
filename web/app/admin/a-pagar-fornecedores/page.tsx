@@ -121,7 +121,7 @@ export default function APagarFornecedoresPage() {
 
       <div style={{ marginBottom: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button type="button" onClick={() => load()} disabled={loading} style={btnSecondary}>
-          {loading ? "Carregando…" : "Atualizar"}
+          {loading ? "Carregando..." : "Atualizar"}
         </button>
         <button type="button" onClick={() => router.push("/admin/repasse-fornecedor")} style={btnSecondary}>
           Repasse ao fornecedor
@@ -132,7 +132,7 @@ export default function APagarFornecedoresPage() {
       </div>
 
       {loading && items.length === 0 ? (
-        <p style={{ color: "var(--muted)" }}>Carregando…</p>
+        <p style={{ color: "var(--muted)" }}>Carregando...</p>
       ) : items.length === 0 ? (
         <p style={{ color: "var(--muted)" }}>Nenhum repasse pendente ou liberado. Feche um ciclo em &quot;Repasse ao fornecedor&quot; para gerar valores aqui.</p>
       ) : (
@@ -166,7 +166,7 @@ export default function APagarFornecedoresPage() {
                           disabled={updatingId !== null}
                           style={{ ...btnPrimary, opacity: updatingId !== null ? 0.7 : 1, fontSize: 13 }}
                         >
-                          {updatingId === r.id ? "…" : "Marcar como pago"}
+                          {updatingId === r.id ? "..." : "Marcar como pago"}
                         </button>
                       )}
                       {r.status === "pago" && <span style={{ color: "#6b7280" }}>Pago</span>}

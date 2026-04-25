@@ -18,7 +18,7 @@ export default function HomeEntry() {
 
   return (
     <div className="min-h-[50vh] flex flex-col items-center justify-center gap-4 px-4 text-center">
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">A abrir o painel…</p>
+      <p className="text-sm text-neutral-600 dark:text-neutral-400">A abrir o painel...</p>
       <Link
         href="/dashboard"
         className="text-sm font-medium text-emerald-600 dark:text-emerald-400 underline underline-offset-2"

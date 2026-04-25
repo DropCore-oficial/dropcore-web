@@ -96,7 +96,7 @@ export default function PlatformPage() {
 
         {loading ? (
           <Card padding="lg" className="p-12 text-center text-sm text-[var(--muted)]">
-            Carregando…
+            Carregando...
           </Card>
         ) : error ? (
           <Alert variant="danger" title="Erro">

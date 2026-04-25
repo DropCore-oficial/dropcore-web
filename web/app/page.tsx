@@ -16,7 +16,7 @@ export default function Home() {
     <Suspense
       fallback={
         <div className="min-h-[40vh] flex items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
-          A carregar…
+          A carregar...
         </div>
       }
     >

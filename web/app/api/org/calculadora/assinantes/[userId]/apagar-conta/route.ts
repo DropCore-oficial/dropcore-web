@@ -1,6 +1,6 @@
 /**
  * POST /api/org/calculadora/assinantes/[userId]/apagar-conta
- * Remove o utilizador do Supabase Auth (login). Irreversível.
+ * Remove o usuário do Supabase Auth (login). Irreversível.
  * Bloqueado se existir seller ou membership em org (evita dados órfãos).
  */
 import { NextResponse } from "next/server";
@@ -44,7 +44,7 @@ export async function POST(req: Request, { params }: Params) {
 
     const { data: authUser, error: authGetErr } = await supabase.auth.admin.getUserById(userId);
     if (authGetErr || !authUser?.user) {
-      return NextResponse.json({ error: "Utilizador não encontrado no Auth." }, { status: 404 });
+      return NextResponse.json({ error: "Usuário não encontrado no Auth." }, { status: 404 });
     }
 
     const authEmail = normEmail(authUser.user.email ?? "");
@@ -60,7 +60,7 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json(
         {
           error:
-            "Este utilizador é seller DropCore. Não pode apagar o login por aqui — trate o offboarding no fluxo de sellers.",
+            "Este usuário é seller DropCore. Não pode excluir a conta de login por aqui — faça o offboarding no fluxo de sellers.",
         },
         { status: 403 },
       );
@@ -71,7 +71,7 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json(
         {
           error:
-            "Este utilizador pertence a uma organização (org_members). Remova-o da org antes de apagar o login.",
+            "Este usuário pertence a uma organização (org_members). Remova-o da org antes de excluir a conta de login.",
         },
         { status: 403 },
       );

@@ -116,7 +116,7 @@ export default function RelatorioEntradaSaidaPage() {
           />
         </label>
         <button type="button" onClick={() => load()} disabled={loading} style={btnSecondary}>
-          {loading ? "Carregando…" : "Atualizar"}
+          {loading ? "Carregando..." : "Atualizar"}
         </button>
         <button type="button" onClick={() => router.push("/dashboard")} style={btnSecondary}>
           Voltar
@@ -124,7 +124,7 @@ export default function RelatorioEntradaSaidaPage() {
       </div>
 
       {loading && !data ? (
-        <p style={{ color: "#6b7280" }}>Carregando…</p>
+        <p style={{ color: "#6b7280" }}>Carregando...</p>
       ) : data ? (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 24 }}>

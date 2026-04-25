@@ -160,7 +160,7 @@
 1. Menu lateral → “Fornecedores”
 2. Seleciona fornecedor → “Importar catálogo”
 3. Upload arquivo (modelo padrão) ou integração Bring/Tiny
-4. Sistema lista SKUs para conferência → botão “Ativar selecionados”
+4. Sistema lista SKUs para revisão → botão “Ativar selecionados”
 5. SKUs ativos aparecem no catálogo geral e na lista do fornecedor
 
 ### c) Pedido: recebido → postado → entregue → validado → debitar saldo → liberar repasse

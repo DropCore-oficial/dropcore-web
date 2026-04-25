@@ -46,7 +46,7 @@ export async function GET(req: Request) {
 
     await syncMensalidadeNotifications(user_id);
 
-    // Pedidos aguardando postagem — buscar IDs para criar notificações em falta
+    // Pedidos aguardando postagem — buscar IDs para criar notificações faltando
     const { data: pedidosParaPostar } = await supabaseAdmin
       .from("pedidos")
       .select("id, valor_fornecedor")

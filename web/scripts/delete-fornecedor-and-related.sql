@@ -1,7 +1,7 @@
 -- =============================================================================
 -- DropCore — Apagar UM fornecedor e dados ligados (dentro da org DropCore)
 --
--- PERIGO: irreversível. Rode primeiro o SELECT de conferência (secção 0).
+-- PERIGO: irreversível. Execute primeiro o SELECT de conferência (seção 0).
 --
 -- Ajuste: nome do fornecedor (ILIKE) e nome da org se não for DropCore.
 -- Se existir mais de um fornecedor a casar com o padrão, o script ABORTA.

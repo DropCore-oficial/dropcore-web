@@ -256,7 +256,7 @@ export default function PedidosPage() {
   if (loading) {
     return (
       <div style={{ padding: 24 }}>
-        <p>Carregando…</p>
+        <p>Carregando...</p>
       </div>
     );
   }
@@ -343,7 +343,7 @@ export default function PedidosPage() {
             {fornecedorId && (
               <div>
                 <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-                  Produto / SKU {skusLoading ? "(carregando…)" : "(opcional)"}
+                  Produto / SKU {skusLoading ? "(carregando...)" : "(opcional)"}
                 </label>
                 <select
                   value={skuId}
@@ -412,7 +412,7 @@ export default function PedidosPage() {
                 alignSelf: "flex-start",
               }}
             >
-              {sending ? "Enviando…" : "Criar pedido e bloquear saldo"}
+              {sending ? "Enviando..." : "Criar pedido e bloquear saldo"}
             </button>
           </div>
         </div>
@@ -501,7 +501,7 @@ export default function PedidosPage() {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {entregandoId === p.id ? "Confirmando…" : "↑ Confirmar envio"}
+                        {entregandoId === p.id ? "Confirmando..." : "↑ Confirmar envio"}
                       </button>
                     )}
                   </td>

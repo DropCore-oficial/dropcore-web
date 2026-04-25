@@ -116,7 +116,7 @@ export default function CalculadoraRegisterPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
-        <p className="text-[var(--muted)] text-sm">Validando convite…</p>
+        <p className="text-[var(--muted)] text-sm">Validando convite...</p>
       </div>
     );
   }
@@ -286,7 +286,7 @@ export default function CalculadoraRegisterPage() {
             disabled={sending}
             className="mt-5 w-full rounded-xl bg-[var(--accent)] text-white font-semibold py-2.5 text-sm hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {sending ? "Ativando…" : "Ativar teste grátis"}
+            {sending ? "Ativando..." : "Ativar teste grátis"}
           </button>
         </div>
       </div>

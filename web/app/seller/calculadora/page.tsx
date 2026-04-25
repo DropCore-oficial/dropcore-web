@@ -104,7 +104,7 @@ export default function SellerCalculadoraPage() {
   const [extras, setExtras] = useState<Extra[]>([]);
   const [fornecedores, setFornecedores] = useState<FornecedorSellerListaRow[]>([]);
   const [fornecedorConectadoId, setFornecedorConectadoId] = useState<string | null>(null);
-  /** null = catálogo ainda não carregado ou erro; true = sem armazém em Produtos (não mostrar selector de fornecedor). */
+  /** null = catálogo ainda não carregado ou erro; true = sem armazém em Produtos (não mostrar seletor de fornecedor). */
   const [semArmazemCatalogo, setSemArmazemCatalogo] = useState<boolean | null>(null);
   const [selectedFornecedorId, setSelectedFornecedorId] = useState("");
   const [produtos, setProdutos] = useState<{ id: string; sku: string; nome_produto: string; custo: number; custo_base: number; custo_dropcore: number }[]>([]);
@@ -162,7 +162,7 @@ export default function SellerCalculadoraPage() {
         setAccessError(
           typeof j?.error === "string"
             ? j.error
-            : "Base de assinatura da calculadora não configurada. Rode create-calculadora-assinantes.sql no Supabase.",
+            : "Base de assinatura da calculadora não configurada. Execute create-calculadora-assinantes.sql no Supabase.",
         );
         setCalcAccess("denied");
         return;
@@ -228,7 +228,7 @@ export default function SellerCalculadoraPage() {
       setSemArmazemCatalogo(resCat.ok ? semArm : null);
       /** Mesmo critério que a página Produtos (GET catálogo); fallback ao GET fornecedores se o catálogo falhar. */
       setFornecedorConectadoId(resCat.ok ? fidCatNorm : fidFornNorm);
-      /** Não pré-seleccionar pelo vínculo: o seller escolhe o armazém; «ligado ao perfil» = armazém gravado em Produtos. */
+      /** Não pré-selecionar pelo vínculo: o seller escolhe o armazém; «ligado ao perfil» = armazém gravado em Produtos. */
       setSelectedFornecedorId("");
       /** Sem armazém gravado, não manter fornecedor/produto da sessão (ex.: cache ou estado antigo). */
       if (resCat.ok && semArm) {
@@ -760,7 +760,7 @@ export default function SellerCalculadoraPage() {
     cupomUnico, cupomMl, cupomShopee, cupomTiktok, cupomShein,
   ]);
 
-  // Recalcula quando qualquer dependência de `calcular` mudar (incl. cupom, margem, operacional…)
+  // Recalcula quando qualquer dependência de `calcular` mudar (incl. cupom, margem, operacional...)
   useEffect(() => {
     calcular();
   }, [calcular]);
@@ -851,7 +851,7 @@ export default function SellerCalculadoraPage() {
   if (calcAccess === "loading") {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center pt-14">
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">Carregando calculadora…</p>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">Carregando calculadora...</p>
       </div>
     );
   }
@@ -956,7 +956,7 @@ export default function SellerCalculadoraPage() {
                     Armazém ainda não ligado
                   </p>
                   <p className="text-xs sm:text-[13px] text-neutral-600 dark:text-neutral-400 leading-relaxed max-w-xl">
-                    Sem vínculo em <strong className="text-neutral-800 dark:text-neutral-200">Produtos</strong>, o catálogo da API não aparece aqui — evita misturar com vitrines de outros armazéns. Usa <strong className="text-neutral-800 dark:text-neutral-200">custo manual</strong> abaixo ou liga o armazém primeiro.
+                    Sem vínculo em <strong className="text-neutral-800 dark:text-neutral-200">Produtos</strong>, o catálogo da API não aparece aqui — evita misturar com vitrines de outros armazéns. Use <strong className="text-neutral-800 dark:text-neutral-200">custo manual</strong> abaixo ou vincule o armazém primeiro.
                   </p>
                 </div>
                 <Link

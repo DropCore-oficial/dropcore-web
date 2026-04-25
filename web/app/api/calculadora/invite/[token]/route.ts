@@ -177,7 +177,7 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json(
         {
           error:
-            "Tabela calculadora_assinantes indisponível. Rode o script create-calculadora-assinantes.sql no Supabase.",
+            "Tabela calculadora_assinantes indisponível. Execute o script create-calculadora-assinantes.sql no Supabase.",
         },
         { status: 503 },
       );

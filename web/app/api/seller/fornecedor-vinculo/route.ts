@@ -32,7 +32,7 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}));
     if (!("fornecedor_id" in body)) {
-      return NextResponse.json({ error: "Envie fornecedor_id (UUID do fornecedor ou null para remover)." }, { status: 400 });
+      return NextResponse.json({ error: "Envie fornecedor_id (UUID do fornecedor ou null para desvincular)." }, { status: 400 });
     }
     const novoForn = uuidNormFornecedor(body.fornecedor_id);
     const aceiteUso = body.aceite_uso_operacional === true;

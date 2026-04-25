@@ -186,7 +186,7 @@ export default function SellerProdutosPage() {
       const cur = fornecedorLigadoId?.trim() || null;
       const body: { fornecedor_id: string | null; aceite_uso_operacional?: boolean } = { fornecedor_id: novo };
       if (novo && novo !== cur) {
-        if (!vinculoAceiteUso) throw new Error("Marca a confirmação de uso operacional para vincular este armazém.");
+        if (!vinculoAceiteUso) throw new Error("Marque a confirmação de uso operacional para vincular este armazém.");
         body.aceite_uso_operacional = true;
       }
       const res = await fetch("/api/seller/fornecedor-vinculo", {
@@ -322,12 +322,12 @@ return (
           title="Produtos"
           subtitle={
             <>
-              Vincula o armazém da organização, vê preços (o que pagas, com 15% DropCore quando aplicável) e escolhe quais SKUs a API ERP pode vender.
+              Vincule o armazém da organização, veja os preços (o que você paga, com 15% DropCore quando aplicável) e escolha quais SKUs a API ERP pode vender.
               <span className="block mt-2 text-sm">
                 <Link href="/seller/catalogo" className="font-semibold text-emerald-700 dark:text-emerald-400 hover:underline">
                   Explorar catálogos (vitrine)
                 </Link>{" "}
-                sem compromisso — depois voltas aqui para ligar o armazém e habilitar os SKUs.
+                sem compromisso — depois volte aqui para ligar o armazém e habilitar os SKUs.
               </span>
             </>
           }
@@ -393,7 +393,7 @@ return (
                   onClick={() => void gravarVinculoFornecedor()}
                   className="w-full sm:w-auto rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold px-5 py-3 touch-manipulation"
                 >
-                  {vinculoSaving ? "A gravar…" : "Gravar armazém"}
+                  {vinculoSaving ? "Salvando..." : "Salvar armazém"}
                 </button>
               </>
             )}
@@ -418,9 +418,9 @@ return (
                   </svg>
                 </div>
                 <div className="min-w-0 flex-1 space-y-1">
-                  <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Catálogo da API — escolhe um armazém</p>
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Catálogo da API — escolha um armazém</p>
                   <p className="text-xs sm:text-[13px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                    Com «Nenhum» no selector, <strong className="text-neutral-800 dark:text-neutral-200">não listamos SKUs</strong> da org aqui. Liga o armazém para preços e habilitação ERP. Vitrines só de consulta:{" "}
+                    Com «Nenhum» no seletor, <strong className="text-neutral-800 dark:text-neutral-200">não listamos SKUs</strong> da org aqui. Vincule o armazém para preços e habilitação ERP. Vitrines só de consulta:{" "}
                     <Link href="/seller/catalogo" className="font-semibold text-emerald-700 dark:text-emerald-400 underline-offset-2 hover:underline">
                       Catálogos
                     </Link>
@@ -433,7 +433,7 @@ return (
 
         {!loading && !catalogMeta.tabela_ok && (
           <div className="rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/35 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
-            A lista de SKUs habilitados para venda ainda não está disponível na base (migração pendente). Executa o script{" "}
+            A lista de SKUs habilitados para venda ainda não está disponível na base (migração pendente). Execute o script{" "}
             <code className="text-xs bg-amber-100/80 dark:bg-amber-900/50 px-1 rounded">web/scripts/create-seller-skus-habilitados.sql</code>{" "}
             no Supabase para ativar o limite de 15 no Starter e a integração ERP alinhada ao catálogo.
           </div>
@@ -441,14 +441,14 @@ return (
 
         {!loading && catalogMeta.tabela_ok && !planoSellerPro && (
           <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50/90 dark:bg-neutral-800/40 px-4 py-3 text-sm text-neutral-800 dark:text-neutral-200">
-            <strong>Plano Starter:</strong> escolhe até 15 SKUs para habilitar para venda (API ERP e pedidos). SKUs com prefixo de sistema não contam nesse limite.
+            <strong>Plano Starter:</strong> escolha até 15 SKUs para habilitar para venda (API ERP e pedidos). SKUs com prefixo de sistema não contam nesse limite.
             {catalogMeta.habilitados_max != null && (
               <span className="block mt-1 text-neutral-600 dark:text-neutral-400">
                 Habilitados agora:{" "}
                 <strong className="text-neutral-900 dark:text-neutral-100">
                   {catalogMeta.habilitados_count}/{catalogMeta.habilitados_max}
                 </strong>
-                . Marca os SKUs que queres vender; a API ERP recusa itens fora desta lista. Para limites maiores, faz upgrade para o plano Pro.
+                . Marque os SKUs que quiser vender; a API ERP recusa itens fora desta lista. Para limites maiores, faça upgrade para o plano Pro.
               </span>
             )}
           </div>
@@ -535,7 +535,7 @@ return (
         {loading && (
           <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm p-16 text-center">
             <span className="inline-block w-10 h-10 border-2 border-neutral-200 dark:border-neutral-700 border-t-emerald-500 rounded-full animate-spin mb-4" />
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">Carregando catálogo…</p>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">Carregando catálogo...</p>
           </div>
         )}
         {error && (
@@ -552,7 +552,7 @@ return (
                 : q
                   ? "Nenhum SKU encontrado para essa busca."
                   : catalogMeta.sem_armazem_ligado
-                    ? "Liga um armazém na secção acima para carregares os SKUs deste seller."
+                    ? "Vincule um armazém na seção acima para carregar os SKUs deste seller."
                     : "Catálogo vazio."}
             </p>
           </div>
@@ -668,7 +668,7 @@ return (
               <button type="button" onClick={() => setModalTabelaGrupoKey(null)} className="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 text-xl leading-none w-8 h-8 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 flex items-center justify-center">×</button>
             </div>
             <div className="p-4 overflow-auto flex-1">
-              {loadingTabela && <div className="flex items-center gap-2 text-sm text-neutral-500 py-6"><span className="inline-block w-5 h-5 border-2 border-neutral-300 border-t-blue-500 rounded-full animate-spin" /> Carregando…</div>}
+              {loadingTabela && <div className="flex items-center gap-2 text-sm text-neutral-500 py-6"><span className="inline-block w-5 h-5 border-2 border-neutral-300 border-t-blue-500 rounded-full animate-spin" /> Carregando...</div>}
               {!loadingTabela && !tabelaMedidasData && <p className="text-sm text-neutral-500">Nenhuma tabela de medidas cadastrada para este grupo.</p>}
               {!loadingTabela && tabelaMedidasData && (() => {
                 const tipo = (tabelaMedidasData.tipo_produto ?? "generico") as TipoProduto;

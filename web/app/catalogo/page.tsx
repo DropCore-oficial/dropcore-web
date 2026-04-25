@@ -316,7 +316,7 @@ export default function CatalogoPage() {
         {/* Estados */}
         {loading && (
           <Card padding="lg" className="p-8 text-center text-sm text-[var(--muted)]">
-            Carregando catálogo…
+            Carregando catálogo...
           </Card>
         )}
         {error && (

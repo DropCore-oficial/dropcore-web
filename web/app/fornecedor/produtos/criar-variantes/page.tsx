@@ -10,7 +10,7 @@ import { toTitleCase } from "@/lib/formatText";
 import { CORES_PREDEFINIDAS, TAMANHOS_PREDEFINIDOS } from "@/lib/fornecedorVariantesUi";
 import { chaveEstoqueVariante } from "@/lib/estoqueVarianteKeys";
 
-/** Ordem estável para listar tamanhos (PP… depois extras). */
+/** Ordem estável para listar tamanhos (PP... depois extras). */
 function ordenarTamanhosLista(tams: string[]): string[] {
   const ordem = new Map(TAMANHOS_PREDEFINIDOS.map((t, i) => [t.toUpperCase(), i]));
   return [...tams].sort((a, b) => {
@@ -45,7 +45,7 @@ const btnSeguir =
 const btnSalvarProduto =
   "inline-flex flex-1 items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-55 dark:shadow-none sm:flex-none sm:px-5 sm:py-2.5";
 
-/** Limite por ficheiro na lista de variações (data URL no JSON). */
+/** Limite por arquivo na lista de variações (data URL no JSON). */
 const MAX_FOTO_COR_BYTES = 900 * 1024;
 
 const LS_RASCUNHO_CRIAR_VARIANTES = "dropcore:fornecedor:criar-variantes:rascunho:v1";
@@ -331,7 +331,7 @@ export default function CriarVariantesPage() {
     });
   }
 
-  function aoEscolherFicheiroFotoCor(cor: string, e: React.ChangeEvent<HTMLInputElement>) {
+  function aoEscolherArquivoFotoCor(cor: string, e: React.ChangeEvent<HTMLInputElement>) {
     setAvisoFoto(null);
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -341,7 +341,7 @@ export default function CriarVariantesPage() {
       return;
     }
     if (file.size > MAX_FOTO_COR_BYTES) {
-      setAvisoFoto("Ficheiro demasiado grande (máx. ~900 KB). Coloque uma URL pública ou comprima a imagem.");
+      setAvisoFoto("Arquivo muito grande (máx. ~900 KB). Use uma URL pública ou comprima a imagem.");
       return;
     }
     const reader = new FileReader();
@@ -490,7 +490,7 @@ export default function CriarVariantesPage() {
     try {
       gravar(payload);
       setBannerRascunho(null);
-      setMsgRascunho("Rascunho guardado neste dispositivo. Ao voltar a esta página, podes continuar de onde paraste.");
+      setMsgRascunho("Rascunho salvo neste dispositivo. Ao voltar a esta página, você pode continuar de onde parou.");
     } catch (e) {
       const isQuota =
         (e instanceof Error && e.name === "QuotaExceededError") ||
@@ -503,13 +503,13 @@ export default function CriarVariantesPage() {
         try {
           gravar({ ...payload, fotoUrlPorCor: fotoSóHttp });
           setMsgRascunho(
-            "Rascunho guardado sem fotos carregadas do disco (limite do navegador). As URLs de imagem foram mantidas."
+            "Rascunho salvo sem fotos carregadas do disco (limite do navegador). As URLs de imagem foram mantidas."
           );
         } catch {
-          setMsgRascunho("Não foi possível guardar o rascunho (armazenamento cheio).");
+          setMsgRascunho("Não foi possível salvar o rascunho (armazenamento cheio).");
         }
       } else {
-        setMsgRascunho("Não foi possível guardar o rascunho.");
+        setMsgRascunho("Não foi possível salvar o rascunho.");
       }
     }
     window.setTimeout(() => setMsgRascunho(null), 9000);
@@ -527,7 +527,7 @@ export default function CriarVariantesPage() {
       /* ignore */
     }
     setMsgRascunho(
-      "Rascunho recuperado. Revisa os dados; usa «Salvar rascunho» de novo se alterares muito o anúncio. «Salvar produto» envia ao servidor."
+      "Rascunho recuperado. Revise os dados; use «Salvar rascunho» de novo se alterar muito o anúncio. «Salvar produto» envia ao servidor."
     );
     window.setTimeout(() => setMsgRascunho(null), 10000);
     window.setTimeout(() => tabsNavRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 100);
@@ -572,7 +572,7 @@ export default function CriarVariantesPage() {
     }
     if (combinacoes.length === 0) {
       setFormError(
-        "Falta escolher variante: marque pelo menos uma cor ou um tamanho na aba «Informações de Variantes» (deslize as abas no telemóvel se não as vir todas)."
+        "Falta escolher variante: marque pelo menos uma cor ou um tamanho na aba «Informações de Variantes» (deslize as abas no celular se não as vir todas)."
       );
       setTabAtiva("info-variantes");
       window.setTimeout(() => {
@@ -740,7 +740,7 @@ export default function CriarVariantesPage() {
               <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-100">
                 <p className="font-medium">Rascunho encontrado neste dispositivo</p>
                 <p className="mt-1 text-xs text-blue-800/90 dark:text-blue-200/90">
-                  Guardado em {new Date(bannerRascunho.savedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}. Podes
+                  Salvo em {new Date(bannerRascunho.savedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}. Você pode
                   continuar o anúncio ou descartar.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -774,7 +774,7 @@ export default function CriarVariantesPage() {
                 <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">
                   <p className="font-medium">Antes de salvar</p>
                   <p className="mt-1 text-sky-800/90 dark:text-sky-200/90">
-                    É obrigatório escolher <strong>pelo menos uma cor ou um tamanho</strong>. Use as abas acima (no telemóvel, deslize para a direita) e abra{" "}
+                    É obrigatório escolher <strong>pelo menos uma cor ou um tamanho</strong>. Use as abas acima (no celular, deslize para a direita) e abra{" "}
                     <strong>Informações de Variantes</strong> para marcar as opções.
                   </p>
                   <button
@@ -1083,7 +1083,7 @@ export default function CriarVariantesPage() {
                                                   type="file"
                                                   accept="image/jpeg,image/png,image/webp,image/gif"
                                                   className="sr-only"
-                                                  onChange={(e) => aoEscolherFicheiroFotoCor(cor, e)}
+                                                  onChange={(e) => aoEscolherArquivoFotoCor(cor, e)}
                                                 />
                                                 {url ? (
                                                   <img src={url} alt="" className="h-full w-full object-cover" />
@@ -1126,7 +1126,7 @@ export default function CriarVariantesPage() {
                                                     return n;
                                                   });
                                                 }}
-                                                placeholder="https://… (opcional)"
+                                                placeholder="https://... (opcional)"
                                                 className={`${inputBase} w-full py-1 text-[11px] md:py-1.5 md:text-xs`}
                                               />
                                               <p className="mt-0.5 truncate text-[11px] font-semibold leading-tight text-neutral-900 dark:text-neutral-100 md:text-xs">
@@ -1241,7 +1241,7 @@ export default function CriarVariantesPage() {
                                                   type="file"
                                                   accept="image/jpeg,image/png,image/webp,image/gif"
                                                   className="sr-only"
-                                                  onChange={(e) => aoEscolherFicheiroFotoCor(cor, e)}
+                                                  onChange={(e) => aoEscolherArquivoFotoCor(cor, e)}
                                                 />
                                                 {url ? (
                                                   <img src={url} alt="" className="h-full w-full object-cover" />
@@ -1283,7 +1283,7 @@ export default function CriarVariantesPage() {
                                                   return n;
                                                 });
                                               }}
-                                              placeholder="https://…"
+                                              placeholder="https://..."
                                               className={`${inputBase} w-full py-1.5 text-xs`}
                                             />
                                             <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">{cor}</span>
@@ -1438,10 +1438,10 @@ export default function CriarVariantesPage() {
                     <Link href="/fornecedor/produtos" className="text-blue-600 dark:text-blue-400 font-medium underline-offset-2 hover:underline">
                       Produtos
                     </Link>{" "}
-                    edita o SKU e usa «Despacho / CD desta variante».
+                    edite o SKU e use «Despacho / CD desta variante».
                   </li>
                   <li>
-                    <strong className="text-neutral-800 dark:text-neutral-200">Dados fiscais (NCM, origem, CEST, CFOP, pesos):</strong> depois de criares o produto, abre o grupo em{" "}
+                    <strong className="text-neutral-800 dark:text-neutral-200">Dados fiscais (NCM, origem, CEST, CFOP, pesos):</strong> depois de criar o produto, abra o grupo em{" "}
                     <Link href="/fornecedor/produtos" className="text-blue-600 dark:text-blue-400 font-medium underline-offset-2 hover:underline">
                       Produtos
                     </Link>{" "}
@@ -1455,7 +1455,7 @@ export default function CriarVariantesPage() {
             <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
               <p className="mb-4 text-xs leading-relaxed text-[var(--muted)] sm:text-[13px]">
                 <strong className="text-[var(--foreground)]">Lembrete:</strong> «Seguir» e as abas só organizam o ecrã.{" "}
-                <strong className="text-[var(--foreground)]">«Salvar rascunho»</strong> guarda o anúncio neste aparelho (local) para continuares mais tarde.{" "}
+                <strong className="text-[var(--foreground)]">«Salvar rascunho»</strong> salva o anúncio neste aparelho (local) para você continuar mais tarde.{" "}
                 <strong className="text-[var(--foreground)]">Só «Salvar produto»</strong> envia ao servidor.
               </p>
 
@@ -1482,7 +1482,7 @@ export default function CriarVariantesPage() {
                     <span className="truncate">Salvar rascunho</span>
                   </button>
                   <button type="submit" disabled={formLoading} className={btnSalvarProduto}>
-                    {formLoading ? "Salvando…" : "Salvar produto"}
+                    {formLoading ? "Salvando..." : "Salvar produto"}
                   </button>
                 </div>
               </div>

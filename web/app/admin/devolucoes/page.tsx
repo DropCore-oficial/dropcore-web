@@ -163,7 +163,7 @@ export default function DevolucoesPage() {
   if (loading && list.length === 0 && listPago.length === 0) {
     return (
       <div style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
-        <p>Carregando bloqueios…</p>
+        <p>Carregando bloqueios...</p>
       </div>
     );
   }
@@ -234,7 +234,7 @@ export default function DevolucoesPage() {
                         disabled={updatingId !== null}
                         style={btnPrimary}
                       >
-                        {updatingId === r.id ? "…" : "Confirmar envio"}
+                        {updatingId === r.id ? "..." : "Confirmar envio"}
                       </button>
                     )}
                     {["BLOQUEADO", "ENTREGUE", "AGUARDANDO_REPASSE"].includes(r.status) && (
@@ -244,7 +244,7 @@ export default function DevolucoesPage() {
                         disabled={updatingId !== null}
                         style={{ ...btnDanger, marginLeft: r.status === "BLOQUEADO" ? 8 : 0 }}
                       >
-                        {updatingId === r.id ? "…" : "Registrar devolução"}
+                        {updatingId === r.id ? "..." : "Registrar devolução"}
                       </button>
                     )}
                     {r.status === "EM_DEVOLUCAO" && (
@@ -254,7 +254,7 @@ export default function DevolucoesPage() {
                         disabled={updatingId !== null}
                         style={btnPrimary}
                       >
-                        {updatingId === r.id ? "…" : "Fornecedor conferiu"}
+                        {updatingId === r.id ? "..." : "Fornecedor conferiu"}
                       </button>
                     )}
                     {r.status === "DEVOLVIDO" && <span style={{ color: "#6b7280" }}>Concluído</span>}
@@ -303,7 +303,7 @@ export default function DevolucoesPage() {
                         disabled={updatingDebitoId !== null}
                         style={{ ...btnDanger, opacity: updatingDebitoId !== null ? 0.7 : 1 }}
                       >
-                        {updatingDebitoId === r.id ? "…" : "Registrar débito (próximo repasse)"}
+                        {updatingDebitoId === r.id ? "..." : "Registrar débito (próximo repasse)"}
                       </button>
                     )}
                   </td>

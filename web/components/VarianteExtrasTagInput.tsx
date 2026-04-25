@@ -44,7 +44,7 @@ export type VarianteExtrasTagInputProps = {
 };
 
 /**
- * Cores/tamanhos extras: tags com Enter ou vírgula; clique na tag para editar; × para remover.
+ * Cores/tamanhos extras: tags com Enter ou vírgula; clique na tag para editar; × para excluir.
  * O valor no pai continua a ser uma string separada por vírgulas (compatível com o restante do fluxo).
  */
 export function VarianteExtrasTagInput({
@@ -194,7 +194,7 @@ export function VarianteExtrasTagInput({
                   e.stopPropagation();
                   removeAt(i);
                 }}
-                aria-label={`Remover ${p}`}
+                aria-label={`Excluir ${p}`}
               >
                 ×
               </button>
@@ -220,7 +220,7 @@ export function VarianteExtrasTagInput({
       {showHint ? (
         <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
           Digite e pressione <kbd className="rounded border border-neutral-300 bg-neutral-100 px-1 dark:border-neutral-600 dark:bg-neutral-800">Enter</kbd> ou{" "}
-          <kbd className="rounded border border-neutral-300 bg-neutral-100 px-1 dark:border-neutral-600 dark:bg-neutral-800">,</kbd> para adicionar. Clique numa tag para editar.
+          <kbd className="rounded border border-neutral-300 bg-neutral-100 px-1 dark:border-neutral-600 dark:bg-neutral-800">,</kbd> para adicionar. Clique em uma tag para editar.
         </p>
       ) : null}
     </div>

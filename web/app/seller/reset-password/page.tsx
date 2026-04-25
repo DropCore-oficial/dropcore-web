@@ -111,7 +111,7 @@ export default function SellerResetPasswordPage() {
   if (!pronto) {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
-        <p className="text-[var(--muted)] text-sm">Carregando…</p>
+        <p className="text-[var(--muted)] text-sm">Carregando...</p>
       </div>
     );
   }
@@ -121,7 +121,7 @@ export default function SellerResetPasswordPage() {
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
         <div className="w-full max-w-sm">
           <div className="rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent)]/10 p-6 text-center shadow-sm">
-            <p className="text-[var(--accent)] text-sm">Senha alterada com sucesso! Redirecionando…</p>
+            <p className="text-[var(--accent)] text-sm">Senha alterada com sucesso! Redirecionando...</p>
           </div>
         </div>
       </div>
@@ -218,7 +218,7 @@ export default function SellerResetPasswordPage() {
             disabled={loading || (pronto && !temSessao)}
             className="mt-5 w-full rounded-xl bg-[var(--accent)] text-white font-semibold py-2.5 text-sm hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {loading ? "Alterando…" : "Alterar senha"}
+            {loading ? "Alterando..." : "Alterar senha"}
           </button>
 
           <button

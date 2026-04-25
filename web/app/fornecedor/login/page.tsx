@@ -142,7 +142,7 @@ export default function FornecedorLoginPage() {
               disabled={loading}
               className="mt-5 w-full rounded-xl bg-[var(--accent)] text-white font-semibold py-2.5 text-sm hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? "Enviando…" : "Enviar link de redefinição"}
+              {loading ? "Enviando..." : "Enviar link de redefinição"}
             </button>
           ) : (
             <button
@@ -150,7 +150,7 @@ export default function FornecedorLoginPage() {
               disabled={loading}
               className="mt-5 w-full rounded-xl bg-[var(--accent)] text-white font-semibold py-2.5 text-sm hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? "Entrando…" : "Entrar"}
+              {loading ? "Entrando..." : "Entrar"}
             </button>
           )}
 
@@ -163,8 +163,8 @@ export default function FornecedorLoginPage() {
           </button>
 
           <p className="mt-5 pt-4 border-t border-[var(--card-border)] text-[11px] leading-relaxed text-[var(--muted)] text-center">
-            <strong className="text-[var(--foreground)]">Primeiro acesso ao painel do armazém?</strong> Usa o link de convite que a organização enviou (registo em{" "}
-            <code className="text-[10px] rounded bg-[var(--background)] px-1 py-0.5 border border-[var(--card-border)]">/fornecedor/register/…</code>
+            <strong className="text-[var(--foreground)]">Primeiro acesso ao painel do armazém?</strong> Use o link de convite que a organização enviou (cadastro em{" "}
+            <code className="text-[10px] rounded bg-[var(--background)] px-1 py-0.5 border border-[var(--card-border)]">/fornecedor/register/...</code>
             ). Só depois disso o e-mail fica autorizado aqui.
           </p>
         </div>

@@ -7,7 +7,7 @@
 /** Limites superiores das faixas de preço (R$). Último = Infinity = "A partir de R$ 200" */
 const FAIXAS_PRECO = [19, 49, 79, 100, 120, 150, 200, Infinity] as const;
 
-/** Limites superiores das faixas de peso (kg). Ordem: até 0,3 → 0,3–0,5 → … → mais de 150 */
+/** Limites superiores das faixas de peso (kg). Ordem: até 0,3 → 0,3–0,5 → ... → mais de 150 */
 const FAIXAS_PESO = [
   0.3, 0.5, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13, 15, 17, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, Infinity,
 ] as const;

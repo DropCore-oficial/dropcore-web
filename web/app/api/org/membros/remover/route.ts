@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     // trava: não remover a si mesmo
     if (me.user.id === memberId) {
       return jsonNoStore(
-        { error: "Você não pode remover a si mesmo da organização." },
+        { error: "Você não pode se excluir da organização." },
         409
       );
     }
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
 
       if ((count || 0) <= 1) {
         return jsonNoStore(
-          { error: "Não é possível remover o último owner da organização." },
+          { error: "Não é possível excluir o último proprietário da organização." },
           409
         );
       }

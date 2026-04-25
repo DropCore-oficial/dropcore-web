@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-/** Resolve o fornecedor_id do utilizador autenticado (Bearer Supabase). */
+/** Resolve o fornecedor_id do usuário autenticado (Bearer Supabase). */
 export async function getFornecedorIdFromBearer(req: Request): Promise<string | null> {
   const auth = req.headers.get("authorization") ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;

@@ -68,7 +68,7 @@ export default function AdminAlteracoesProdutosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
-  /** Em massa: qual operação está a correr (evita mostrar «Rejeitando» durante aprovações). */
+  /** Em massa: qual operação está em execução (evita mostrar «Rejeitando» durante aprovações). */
   const [bulkAction, setBulkAction] = useState<null | "approve" | "reject">(null);
   const actingBulk = bulkAction !== null;
   const [rejeitarId, setRejeitarId] = useState<string | null>(null);
@@ -182,12 +182,12 @@ export default function AdminAlteracoesProdutosPage() {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
         const json = await res.json().catch(() => ({}));
-        if (!res.ok) falhas.push(`${id.slice(0, 8)}…: ${json?.error ?? res.statusText}`);
+        if (!res.ok) falhas.push(`${id.slice(0, 8)}...: ${json?.error ?? res.statusText}`);
         else ok += 1;
       }
       if (falhas.length > 0) {
         setError(
-          `Aprovadas ${ok} de ${ids.length}. Falhas: ${falhas.slice(0, 3).join("; ")}${falhas.length > 3 ? "…" : ""}`
+          `Aprovadas ${ok} de ${ids.length}. Falhas: ${falhas.slice(0, 3).join("; ")}${falhas.length > 3 ? "..." : ""}`
         );
       }
       setSelectedIds(new Set());
@@ -219,12 +219,12 @@ export default function AdminAlteracoesProdutosPage() {
           body: JSON.stringify({ motivo }),
         });
         const json = await res.json().catch(() => ({}));
-        if (!res.ok) falhas.push(`${id.slice(0, 8)}…: ${json?.error ?? res.statusText}`);
+        if (!res.ok) falhas.push(`${id.slice(0, 8)}...: ${json?.error ?? res.statusText}`);
         else ok += 1;
       }
       if (falhas.length > 0) {
         setError(
-          `Rejeitadas ${ok} de ${ids.length}. Falhas: ${falhas.slice(0, 3).join("; ")}${falhas.length > 3 ? "…" : ""}`
+          `Rejeitadas ${ok} de ${ids.length}. Falhas: ${falhas.slice(0, 3).join("; ")}${falhas.length > 3 ? "..." : ""}`
         );
       }
       setSelectedIds(new Set());
@@ -290,7 +290,7 @@ export default function AdminAlteracoesProdutosPage() {
           </div>
         )}
 
-        {loading && <div className="text-sm text-[var(--muted)]">Carregando…</div>}
+        {loading && <div className="text-sm text-[var(--muted)]">Carregando...</div>}
 
         {!loading && list.length === 0 && (
           <div className="p-8 rounded-xl border border-[var(--card-border)] bg-[var(--card)] text-center text-[var(--muted)]">
@@ -352,7 +352,7 @@ export default function AdminAlteracoesProdutosPage() {
                         disabled={selectedIds.size === 0 || actingBulk}
                         className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:disabled:ring-white/15 sm:min-w-[200px] sm:flex-none"
                       >
-                        {bulkAction === "approve" ? "Aprovando…" : `Aprovar selecionadas (${selectedIds.size})`}
+                        {bulkAction === "approve" ? "Aprovando..." : `Aprovar selecionadas (${selectedIds.size})`}
                       </button>
                       <button
                         type="button"
@@ -360,7 +360,7 @@ export default function AdminAlteracoesProdutosPage() {
                         disabled={actingBulk}
                         className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-emerald-600 bg-emerald-50/50 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100/80 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:border-emerald-500/70 dark:bg-emerald-950/25 dark:text-emerald-200 dark:hover:bg-emerald-950/45 dark:disabled:ring-white/15 sm:min-w-[240px] sm:flex-none"
                       >
-                        {bulkAction === "approve" ? "…" : `Aprovar todas (${filtradas.length})`}
+                        {bulkAction === "approve" ? "..." : `Aprovar todas (${filtradas.length})`}
                       </button>
                     </div>
                   </div>
@@ -400,7 +400,7 @@ export default function AdminAlteracoesProdutosPage() {
                         disabled={selectedIds.size === 0 || actingBulk}
                         className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:disabled:ring-white/15 sm:min-w-[200px] sm:flex-none"
                       >
-                        {bulkAction === "reject" ? "Rejeitando…" : `Rejeitar selecionadas (${selectedIds.size})`}
+                        {bulkAction === "reject" ? "Rejeitando..." : `Rejeitar selecionadas (${selectedIds.size})`}
                       </button>
                       <button
                         type="button"
@@ -417,7 +417,7 @@ export default function AdminAlteracoesProdutosPage() {
                         disabled={actingBulk || filtradas.length === 0}
                         className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-red-600 bg-red-50/40 px-4 py-2.5 text-sm font-semibold text-red-800 transition hover:bg-red-100/60 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:border-red-500/80 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50 dark:disabled:ring-white/15 sm:min-w-[240px] sm:flex-none"
                       >
-                        {bulkAction === "reject" ? "…" : `Rejeitar todas (${filtradas.length})`}
+                        {bulkAction === "reject" ? "..." : `Rejeitar todas (${filtradas.length})`}
                       </button>
                     </div>
                   </div>
@@ -472,7 +472,7 @@ export default function AdminAlteracoesProdutosPage() {
                         disabled={actingId === a.id || actingBulk}
                         className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-100 lg:min-h-[46px] lg:w-full"
                       >
-                        {actingId === a.id ? "…" : "Aprovar"}
+                        {actingId === a.id ? "..." : "Aprovar"}
                       </button>
                       <button
                         type="button"
@@ -527,7 +527,7 @@ export default function AdminAlteracoesProdutosPage() {
                           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm text-red-900 dark:border-red-700/70 dark:bg-red-950/70 dark:text-red-50">
                             <p className="font-semibold text-red-950 dark:text-red-100">Pedido de exclusão (DropCore)</p>
                             <p className="mt-1.5 text-xs leading-relaxed text-red-900 dark:text-red-100/95">
-                              O fornecedor pediu para remover o produto inteiro{" "}
+                              O fornecedor pediu para excluir o produto inteiro{" "}
                               <span className="font-mono font-medium">{String(rest.grupo_key)}</span>
                               {typeof rest.nome_produto_exclusao === "string" && rest.nome_produto_exclusao
                                 ? ` — ${rest.nome_produto_exclusao}`

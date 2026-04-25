@@ -149,7 +149,7 @@ export default function AdminEmpresasPage() {
   async function excluirFornecedor(emp: Fornecedor) {
     if (!orgId) return;
     const ok = window.confirm(
-      `Excluir permanentemente "${emp.nome || "esta empresa"}"? Pedidos, SKUs e dados financeiros ligados a este fornecedor serão removidos. Esta ação não pode ser desfeita.`
+      `Excluir permanentemente "${emp.nome || "esta empresa"}"? Pedidos, SKUs e dados financeiros ligados a este fornecedor serão excluídos. Essa ação não pode ser desfeita.`
     );
     if (!ok) return;
     setDeletingId(emp.id);
@@ -231,7 +231,7 @@ export default function AdminEmpresasPage() {
             />
             <div className="flex gap-2">
               <Button variant="success" onClick={adicionarEmpresa} disabled={saving || !novoNome.trim()}>
-                {saving ? "Salvando…" : "Criar"}
+                {saving ? "Salvando..." : "Criar"}
               </Button>
               <Button variant="secondary" onClick={() => { setModalNova(false); setNovoNome(""); setError(null); }} disabled={saving}>
                 Cancelar
@@ -253,7 +253,7 @@ export default function AdminEmpresasPage() {
           </Alert>
         )}
 
-        {loading && <p className="text-sm text-[var(--muted)]">Carregando empresas…</p>}
+        {loading && <p className="text-sm text-[var(--muted)]">Carregando empresas...</p>}
 
         {!loading && empresas.length === 0 && !error && (
           <Card padding="lg" className="text-center text-[var(--muted)]">
@@ -303,7 +303,7 @@ export default function AdminEmpresasPage() {
                     onClick={() => excluirFornecedor(emp)}
                     disabled={deletingId !== null}
                   >
-                    {deletingId === emp.id ? "Excluindo…" : "Excluir"}
+                    {deletingId === emp.id ? "Excluindo..." : "Excluir"}
                   </Button>
                 </div>
               </Card>

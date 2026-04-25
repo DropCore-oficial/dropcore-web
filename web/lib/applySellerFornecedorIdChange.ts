@@ -53,7 +53,7 @@ export function buildSellerFornecedorIdPatch(
         ok: false,
         error:
           opts?.mensagemCompromisso ??
-          "Estás no período mínimo de 3 meses com o armazém atual. Só podes trocar ou remover o vínculo após essa data, salvo liberação antecipada feita pela organização no painel admin.",
+          "Você está no período mínimo de 3 meses com o armazém atual. Só pode trocar ou excluir o vínculo após essa data, salvo liberação antecipada feita pela organização no painel admin.",
         status: 403,
         code: "COMPROMISSO_FORNECEDOR_ATIVO",
         pode_trocar_fornecedor_a_partir_de: min?.toISOString() ?? null,

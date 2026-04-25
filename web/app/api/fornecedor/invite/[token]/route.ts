@@ -4,7 +4,7 @@
  *   Body POST: { email: string, senha: string }
  *
  * Se o e-mail já existir no Auth, tenta login com a senha informada; em caso de sucesso,
- * vincula o utilizador ao fornecedor (convite prova intenção).
+ * vincula o usuário ao fornecedor (convite prova intenção).
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";

@@ -76,7 +76,7 @@ export function FornecedorArmazemDetalheModal({ fornecedorId, onClose }: Props) 
           {loading && (
             <p className="text-sm text-neutral-500 flex items-center gap-2 py-4">
               <span className="inline-block w-5 h-5 border-2 border-neutral-300 border-t-emerald-500 rounded-full animate-spin shrink-0" />
-              A carregar…
+              A carregar...
             </p>
           )}
           {err && <p className="text-sm text-red-600 dark:text-red-400">{err}</p>}

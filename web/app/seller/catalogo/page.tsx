@@ -48,7 +48,7 @@ export default function SellerCatalogoHubPage() {
       <div className="w-full max-w-3xl mx-auto dropcore-px-wide py-6 lg:py-10 space-y-6">
         <SellerPageHeader
           title="Catálogos"
-          subtitle="Explora as vitrines dos armazéns da tua organização (fotos e preços). Quando quiseres vender pela API, vincula o armazém e escolhe os SKUs em Produtos."
+          subtitle="Explore as vitrines dos armazéns da sua organização (fotos e preços). Quando quiser vender pela API, vincule o armazém e escolha os SKUs em Produtos."
         />
 
         <div className="rounded-2xl border border-emerald-200/80 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/25 px-4 py-3.5 text-sm text-emerald-950 dark:text-emerald-100">
@@ -56,10 +56,10 @@ export default function SellerCatalogoHubPage() {
           <Link href="/seller/produtos" className="font-semibold underline-offset-2 hover:underline">
             Abrir Produtos
           </Link>{" "}
-          para ligar o teu seller a um armazém e habilitar até 15 SKUs no plano Starter.
+          para ligar o seu seller a um armazém e habilitar até 15 SKUs no plano Starter.
         </div>
 
-        {loading && <p className="text-sm text-neutral-500">A carregar armazéns…</p>}
+        {loading && <p className="text-sm text-neutral-500">A carregar armazéns...</p>}
         {err && <p className="text-sm text-red-600 dark:text-red-400">{err}</p>}
         {!loading && !err && lista.length === 0 && (
           <p className="text-sm text-neutral-600 dark:text-neutral-400">Ainda não há fornecedores na organização.</p>

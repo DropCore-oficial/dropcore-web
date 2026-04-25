@@ -32,7 +32,7 @@ export function MensalidadeBloqueioGate({
   const router = useRouter();
   const pathname = usePathname();
   const isLoginPage = pathname === `/${context}/login`;
-  /** Registo por convite é público (sem sessão), como o login. */
+  /** Cadastro por convite é público (sem sessão), como o login. */
   const isRegisterPage = pathname.startsWith(`/${context}/register`);
   const isSellerCalculadora = context === "seller" && pathname.startsWith("/seller/calculadora");
   const isSellerCadastro = context === "seller" && pathname.startsWith("/seller/cadastro");
@@ -99,7 +99,7 @@ export function MensalidadeBloqueioGate({
   };
 
   useEffect(() => {
-    // Login, registo por convite, cadastro comercial e calculadora do seller não passam pelo gate de mensalidade
+    // Login, cadastro por convite, cadastro comercial e calculadora do seller não passam pelo gate de mensalidade
     if (isLoginPage || isRegisterPage || isSellerCalculadora || isSellerCadastro) {
       setLoading(false);
       return;
@@ -236,7 +236,7 @@ export function MensalidadeBloqueioGate({
                       {pixErro}
                     </p>
                   )}
-                  {pixLoading && <p className="text-sm text-[var(--muted)]">Gerando PIX…</p>}
+                  {pixLoading && <p className="text-sm text-[var(--muted)]">Gerando PIX...</p>}
                   {!pixLoading && pixQrCode && (
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
@@ -272,7 +272,7 @@ export function MensalidadeBloqueioGate({
                       <p className="text-[11px] text-[var(--muted)]">Após pagar, o acesso será liberado automaticamente.</p>
                     </div>
                   )}
-                  {!pixLoading && !pixQrCode && !pixErro && <p className="text-sm text-[var(--muted)]">Gerando PIX…</p>}
+                  {!pixLoading && !pixQrCode && !pixErro && <p className="text-sm text-[var(--muted)]">Gerando PIX...</p>}
                 </div>
               </div>
             </div>

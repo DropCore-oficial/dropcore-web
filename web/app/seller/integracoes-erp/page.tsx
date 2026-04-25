@@ -326,7 +326,7 @@ export default function SellerIntegracoesErpPage() {
         {loading ? (
           <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm p-12 text-center">
             <span className="inline-block w-8 h-8 border-2 border-neutral-200 dark:border-neutral-700 border-t-emerald-500 rounded-full animate-spin mb-3" />
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">Carregando…</p>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">Carregando...</p>
           </div>
         ) : error ? (
           <div className="rounded-2xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 p-5 text-red-700 dark:text-red-300 text-sm">
@@ -357,7 +357,7 @@ export default function SellerIntegracoesErpPage() {
             ) : (
               <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900/80 shadow-md hover:shadow-lg transition-shadow p-6 mb-6">
                 <p className="text-neutral-600 dark:text-neutral-400 text-sm mb-4">
-                  {hasKey ? `Chave configurada (termina em …${prefix ?? ""})` : "Nenhuma chave configurada"}
+                  {hasKey ? `Chave configurada (termina em ...${prefix ?? ""})` : "Nenhuma chave configurada"}
                 </p>
                 <button
                   type="button"
@@ -365,7 +365,7 @@ export default function SellerIntegracoesErpPage() {
                   disabled={generating}
                   className="rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-5 py-2.5 text-sm font-semibold hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                 >
-                  {generating ? "Gerando…" : hasKey ? "Gerar nova chave" : "Gerar chave API"}
+                  {generating ? "Gerando..." : hasKey ? "Gerar nova chave" : "Gerar chave API"}
                 </button>
                 {hasKey && !newKey && (
                   <p className="text-neutral-500 dark:text-neutral-400 text-xs mt-3">Gerar uma nova chave invalida a anterior.</p>
@@ -413,7 +413,7 @@ export default function SellerIntegracoesErpPage() {
                       disabled={blingSaving}
                       className="shrink-0 rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-5 py-2 text-sm font-semibold disabled:opacity-60"
                     >
-                      {blingSaving ? "Salvando…" : "Salvar"}
+                      {blingSaving ? "Salvando..." : "Salvar"}
                     </button>
                   </div>
                   <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-3">
@@ -480,7 +480,7 @@ export default function SellerIntegracoesErpPage() {
                       disabled={estoqueWebhookSaving}
                       className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 text-sm font-semibold disabled:opacity-60"
                     >
-                      {estoqueWebhookSaving ? "Salvando…" : "Salvar webhook"}
+                      {estoqueWebhookSaving ? "Salvando..." : "Salvar webhook"}
                     </button>
                     {estoqueHasSecret && (
                       <button
@@ -489,7 +489,7 @@ export default function SellerIntegracoesErpPage() {
                         disabled={estoqueWebhookSaving}
                         className="rounded-xl border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 disabled:opacity-60"
                       >
-                        Remover segredo
+                        Excluir segredo
                       </button>
                     )}
                   </div>

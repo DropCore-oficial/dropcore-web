@@ -1,7 +1,7 @@
 /**
  * POST /api/seller/invite/[token]/link
  * Vincula uma conta Supabase Auth já existente ao seller do convite (seller.user_id ainda nulo).
- * Requer Bearer do utilizador; body opcional { email } deve coincidir com o e-mail da sessão.
+ * Requer Bearer do usuário; body opcional { email } deve coincidir com o e-mail da sessão.
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";

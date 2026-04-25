@@ -19,5 +19,5 @@ export default function AuthCallback() {
     });
   }, [router]);
 
-  return <p>Processando autenticação…</p>;
+  return <p>Processando autenticação...</p>;
 }

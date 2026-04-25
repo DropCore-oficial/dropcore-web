@@ -66,8 +66,8 @@ export default function SellerLoginPage() {
         const apiMsg = typeof body?.error === "string" ? body.error : "";
         if (res.status === 404) {
           throw new Error(
-            "Esta conta não está ligada a nenhum seller (pode ter sido removido). " +
-              "Peça à organização um novo convite e use o link de registo, ou apague este e-mail em Auth no Supabase se quiser recomeçar."
+            "Esta conta não está ligada a nenhum seller (pode ter sido excluído). " +
+              "Peça à organização um novo convite e use o link de cadastro, ou exclua este e-mail em Auth no Supabase se quiser recomeçar."
           );
         }
         if (res.status === 403) {
@@ -75,7 +75,7 @@ export default function SellerLoginPage() {
         }
         throw new Error(
           apiMsg ||
-            "Acesso não autorizado neste painel. Se és admin da organização, usa o login em /login."
+            "Acesso não autorizado neste painel. Se você é administrador da organização, use o login em /login."
         );
       }
       router.replace("/seller/dashboard");
@@ -157,7 +157,7 @@ export default function SellerLoginPage() {
               disabled={loading}
               className="mt-5 w-full rounded-xl bg-[var(--accent)] text-white font-semibold py-2.5 text-sm hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? "Enviando…" : "Enviar link de redefinição"}
+              {loading ? "Enviando..." : "Enviar link de redefinição"}
             </button>
           ) : (
             <button
@@ -166,7 +166,7 @@ export default function SellerLoginPage() {
               disabled={loading}
               className="mt-5 w-full rounded-xl bg-[var(--accent)] text-white font-semibold py-2.5 text-sm hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? "Entrando…" : "Entrar"}
+              {loading ? "Entrando..." : "Entrar"}
             </button>
           )}
 

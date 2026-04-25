@@ -237,7 +237,7 @@ export function SellerCatalogoProductInfoBlock({
   const descricao = str(rep.descricao);
   const descricaoLonga = descricao.length > DESCRICAO_PREVIEW;
   const textoDescricao =
-    descricaoExpandida || !descricaoLonga ? descricao : descricao.slice(0, DESCRICAO_PREVIEW) + (descricao.length > DESCRICAO_PREVIEW ? "…" : "");
+    descricaoExpandida || !descricaoLonga ? descricao : descricao.slice(0, DESCRICAO_PREVIEW) + (descricao.length > DESCRICAO_PREVIEW ? "..." : "");
 
   return (
     <div className="rounded-2xl bg-gradient-to-br from-white via-neutral-50/95 to-emerald-50/[0.12] dark:from-neutral-900/95 dark:via-neutral-900/80 dark:to-emerald-950/[0.18] border border-neutral-200/90 dark:border-neutral-700/75 overflow-hidden shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.05]">
@@ -553,7 +553,7 @@ export function SellerCatalogoItemCard({
                         className="h-5 w-5 sm:h-4 sm:w-4 shrink-0 rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500 disabled:opacity-50"
                       />
                     </label>
-                    {habilitarRow.loading && <span className="text-[10px] text-neutral-500 sm:text-right block">A gravar…</span>}
+                    {habilitarRow.loading && <span className="text-[10px] text-neutral-500 sm:text-right block">Salvando...</span>}
                   </>
                 )}
               </div>

@@ -81,7 +81,7 @@ export function BankCombobox({ value, onChange, inputClassName, id: idProp }: Pr
             selectBanco(filtered[highlight]!);
           }
         }}
-        placeholder="Código ou nome do banco…"
+        placeholder="Código ou nome do banco..."
         className={inputClassName}
         aria-autocomplete="list"
         aria-expanded={open}

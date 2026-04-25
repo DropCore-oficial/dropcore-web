@@ -1,5 +1,5 @@
 -- =============================================================================
--- APAGAR UTILIZADOR AUTH POR E-MAIL (para voltar a usar o e-mail num convite)
+-- APAGAR USUÁRIO AUTH POR E-MAIL (para voltar a usar o e-mail num convite)
 -- =============================================================================
 -- AVISO: Remove a CONTA DE LOGIN no Supabase Auth para esse e-mail.
 -- Se for a mesma conta de admin org / fornecedor / calculadora, perde acesso a tudo.
@@ -14,7 +14,7 @@ BEGIN
   SELECT id INTO uid FROM auth.users WHERE lower(email) = lower(target_email) LIMIT 1;
 
   IF uid IS NULL THEN
-    RAISE NOTICE 'Nenhum utilizador em auth.users com o e-mail: %', target_email;
+    RAISE NOTICE 'Nenhum usuário em auth.users com o e-mail: %', target_email;
     RETURN;
   END IF;
 
@@ -27,5 +27,5 @@ BEGIN
 
   DELETE FROM auth.users WHERE id = uid;
 
-  RAISE NOTICE 'Utilizador removido (id: %). Podes criar de novo o convite com o mesmo e-mail.', uid;
+  RAISE NOTICE 'Usuário removido (id: %). Você pode criar de novo o convite com o mesmo e-mail.', uid;
 END $$;
