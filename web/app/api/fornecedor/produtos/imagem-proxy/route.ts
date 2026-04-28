@@ -4,6 +4,7 @@
  * Só aceita URLs do próprio Supabase do projeto.
  */
 import { NextResponse } from "next/server";
+import { isSameProjectSupabaseStorageUrl } from "@/lib/supabaseStorageImageUrl";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "URL obrigatória." }, { status: 400 });
     }
     const decoded = decodeURIComponent(url);
-    if (!SUPABASE_URL || !decoded.startsWith(SUPABASE_URL)) {
+    if (!SUPABASE_URL || !isSameProjectSupabaseStorageUrl(decoded)) {
       return NextResponse.json({ error: "URL não permitida." }, { status: 403 });
     }
     const wParam = searchParams.get("w");

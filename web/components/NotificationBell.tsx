@@ -322,7 +322,7 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                             )}
                             {n.tipo === "estoque_baixo" && (
                               <a
-                                href={context === "seller" ? "/seller/catalogo" : "/fornecedor/produtos?estoqueBaixo=1"}
+                                href={context === "seller" ? "/seller/produtos" : "/fornecedor/produtos?estoqueBaixo=1"}
                                 onClick={(e) => e.stopPropagation()}
                                 className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400 hover:underline"
                               >

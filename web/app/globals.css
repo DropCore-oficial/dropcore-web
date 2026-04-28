@@ -116,7 +116,7 @@ summary {
 
 :root {
   /* Light theme (default) */
-  --background: #F5F6F8;
+  --background: #F5F5F6;
   --foreground: #111827;
   --card: #FFFFFF;
   --card-border: #E5E7EB;
@@ -125,16 +125,16 @@ summary {
 
   /* Cores de ação (iguais em ambos temas) */
   --success: #22C55E;
-  --info: #3B82F6;
+  --info: #6B7280;
   --warning: #F59E0B;
   --danger: #EF4444;
-  --accent: #22C55E;
+  --accent: #6B7280;
 
   /* Bordas e sombras */
   --radius: 8px;
   --radius-sm: 6px;
   --metric-highlight: #22C55E;
-  --metric-info: #3B82F6;
+  --metric-info: #6B7280;
   --table-row-border: rgba(0, 0, 0, 0.05);
   --section-gap: 1.5rem;
   --shadow: 0 1px 3px rgb(0 0 0 / 0.06);
@@ -143,7 +143,7 @@ summary {
 
 /* Background sutil para áreas de app (seller, admin) */
 .app-bg {
-  background: linear-gradient(165deg, #f8fafc 0%, #f1f5f9 30%, #e2e8f0 70%, #cbd5e1 100%);
+  background: linear-gradient(165deg, #f7f7f8 0%, #f4f4f5 35%, #efeff1 70%, #e8e8eb 100%);
   min-height: 100dvh;
   min-height: 100vh;
 }
@@ -194,12 +194,12 @@ html.dark,
   --border-subtle: #1c1c1c;
   --muted: #a0a0a0;
   --success: #22C55E;
-  --info: #3B82F6;
+  --info: #A3A3A3;
   --warning: #F59E0B;
   --danger: #EF4444;
-  --accent: #22C55E;
+  --accent: #A3A3A3;
   --metric-highlight: #22C55E;
-  --metric-info: #3B82F6;
+  --metric-info: #A3A3A3;
   --table-row-border: rgba(255, 255, 255, 0.06);
   --shadow: 0 1px 2px rgb(0 0 0 / 0.5);
   --shadow-card: 0 1px 3px rgb(0 0 0 / 0.4);

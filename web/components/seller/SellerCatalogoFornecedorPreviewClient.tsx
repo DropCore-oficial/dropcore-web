@@ -137,12 +137,8 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
       <div className="w-full max-w-6xl mx-auto dropcore-px-wide py-6 lg:py-8 space-y-5">
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Link href="/seller/catalogo" className="font-medium text-emerald-700 dark:text-emerald-400 hover:underline">
-            ← Catálogos
-          </Link>
-          <span className="text-neutral-300 dark:text-neutral-600">·</span>
-          <Link href="/seller/produtos" className="font-medium text-neutral-600 dark:text-neutral-400 hover:underline">
-            Meus produtos (vincular e habilitar SKUs)
+          <Link href="/seller/produtos" className="font-medium text-emerald-700 dark:text-emerald-400 hover:underline">
+            ← Produtos
           </Link>
         </div>
 
@@ -336,7 +332,7 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
         </div>
       )}
 
-      <SellerNav active="catalogo" />
+      <SellerNav active="produtos" />
     </div>
   );
 }

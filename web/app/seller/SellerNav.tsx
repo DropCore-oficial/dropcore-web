@@ -51,25 +51,14 @@ function IconPlug({ active }: { active: boolean }) {
   );
 }
 
-function IconProdutos({ active }: { active: boolean }) {
-  return (
-    <svg className={`w-5 h-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect width="7" height="7" x="3" y="3" rx="1" />
-      <rect width="7" height="7" x="14" y="3" rx="1" />
-      <rect width="7" height="7" x="14" y="14" rx="1" />
-      <rect width="7" height="7" x="3" y="14" rx="1" />
-    </svg>
-  );
-}
-
-type NavKey = "dashboard" | "catalogo" | "produtos" | "calculadora" | "integracoes";
+type NavKey = "dashboard" | "produtos" | "calculadora" | "integracoes";
 
 export function SellerNav({
   active,
   calcOnly = false,
 }: {
   active: NavKey;
-  /** Só assinatura calculadora: esconde Dashboard, Catálogo e Integrações */
+  /** Só assinatura calculadora: esconde Dashboard e Integrações */
   calcOnly?: boolean;
 }) {
   const router = useRouter();
@@ -155,12 +144,8 @@ export function SellerNav({
               <IconHome active={active === "dashboard"} />
               Dashboard
             </Link>
-            <Link href="/seller/catalogo" className={linkClass("catalogo")}>
-              <IconPackage active={active === "catalogo"} />
-              Catálogo
-            </Link>
             <Link href="/seller/produtos" className={linkClass("produtos")}>
-              <IconProdutos active={active === "produtos"} />
+              <IconPackage active={active === "produtos"} />
               Produtos
             </Link>
             <Link href="/seller/calculadora" className={linkClass("calculadora")}>
@@ -183,17 +168,13 @@ export function SellerNav({
       </nav>
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200/80 dark:border-neutral-800/80 bg-white/[0.98] dark:bg-neutral-950/[0.98] backdrop-blur-xl shadow-[0_-3px_16px_rgba(0,0,0,0.06)] dark:shadow-[0_-3px_16px_rgba(0,0,0,0.45)] pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto grid max-w-3xl grid-cols-5 items-stretch min-h-[50px]">
+        <div className="mx-auto grid max-w-3xl grid-cols-4 items-stretch min-h-[50px]">
           <Link href="/seller/dashboard" className={mobileLinkClass("dashboard")}>
             <IconHome active={active === "dashboard"} />
             <span className="max-w-[4.5rem] text-center text-[9px] sm:text-[10px] font-medium leading-tight tracking-tight">Painel</span>
           </Link>
-          <Link href="/seller/catalogo" className={mobileLinkClass("catalogo")}>
-            <IconPackage active={active === "catalogo"} />
-            <span className="max-w-[4.5rem] text-center text-[9px] sm:text-[10px] font-medium leading-tight tracking-tight">Catálogo</span>
-          </Link>
           <Link href="/seller/produtos" className={mobileLinkClass("produtos")}>
-            <IconProdutos active={active === "produtos"} />
+            <IconPackage active={active === "produtos"} />
             <span className="max-w-[4.5rem] text-center text-[9px] sm:text-[10px] font-medium leading-tight tracking-tight">Produtos</span>
           </Link>
           <Link href="/seller/calculadora" className={mobileLinkClass("calculadora")}>

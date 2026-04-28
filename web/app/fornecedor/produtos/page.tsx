@@ -9,6 +9,7 @@ import { AlteracoesCatalogoInfoBanner } from "@/components/fornecedor/Alteracoes
 import { FotoVariacaoCell } from "@/components/FotoVariacaoCell";
 import { toTitleCase } from "@/lib/formatText";
 import { fornecedorProdutoImagemSrc } from "@/lib/fornecedorProdutoImagemSrc";
+import { getResumoRascunhoCriarVariantes, type ResumoRascunhoCriarVariantes } from "@/lib/fornecedorCriarVariantesRascunho";
 
 const BRL_CUSTO_FORNECEDOR = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -139,6 +140,7 @@ export default function FornecedorProdutosPage() {
     pendentes: string[];
     por_sku: Record<string, { status: "aprovado" | "rejeitado"; motivo_rejeicao?: string; analisado_em: string }>;
   }>({ pendentes: [], por_sku: {} });
+  const [rascunhoCriarVariantes, setRascunhoCriarVariantes] = useState<ResumoRascunhoCriarVariantes | null>(null);
 
   function toggleExpandido(key: string) {
     setExpandido((prev) => {
@@ -152,12 +154,14 @@ export default function FornecedorProdutosPage() {
   async function load() {
     setLoading(true);
     setError(null);
+    setRascunhoCriarVariantes(null);
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) {
         router.replace("/fornecedor/login");
         return;
       }
+      setRascunhoCriarVariantes(await getResumoRascunhoCriarVariantes(session.access_token));
       const headers = { Authorization: `Bearer ${session.access_token}` };
       const res = await fetch("/api/fornecedor/produtos", { headers, cache: "no-store" });
       if (!res.ok) {
@@ -373,6 +377,40 @@ export default function FornecedorProdutosPage() {
               Só estoque baixo
             </label>
             <div className="flex w-full flex-col gap-2 sm:hidden">
+              {rascunhoCriarVariantes && (
+                <Link
+                  href="/fornecedor/produtos/criar-variantes"
+                  className="flex min-h-[3rem] items-center gap-3 rounded-xl border border-neutral-200 bg-[var(--card)] px-3 py-2.5 shadow-sm transition hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900/80 dark:hover:border-neutral-600 dark:hover:bg-neutral-800/80"
+                  title={`${rascunhoCriarVariantes.nomeResumo} — salvo em ${new Date(rascunhoCriarVariantes.savedAt).toLocaleString("pt-BR")}`}
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="16" y1="13" x2="8" y2="13" />
+                      <line x1="16" y1="17" x2="8" y2="17" />
+                    </svg>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Continuar rascunho</span>
+                      {rascunhoCriarVariantes.origem === "local" && (
+                        <span className="rounded-md bg-neutral-200/90 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
+                          Só aparelho
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-neutral-500 dark:text-neutral-400">
+                      {rascunhoCriarVariantes.nomeResumo}
+                      <span className="text-neutral-400 dark:text-neutral-500"> · </span>
+                      {new Date(rascunhoCriarVariantes.savedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                    </span>
+                  </span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-neutral-400" aria-hidden>
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                </Link>
+              )}
               <p className="text-xs text-neutral-500 dark:text-neutral-400">Criar produto</p>
               <Link
                 href="/fornecedor/produtos/criar-unico"
@@ -388,31 +426,68 @@ export default function FornecedorProdutosPage() {
               </Link>
             </div>
             <div className="hidden sm:flex sm:justify-end">
-              <div className="relative group">
-                <button
-                  type="button"
-                  className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-                >
-                  + Criar produto
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </button>
-                <div className="absolute right-0 top-full z-10 mt-1 min-w-[200px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg opacity-0 invisible transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 dark:border-neutral-700 dark:bg-neutral-900">
+              {rascunhoCriarVariantes ? (
+                <div className="inline-flex max-w-full items-stretch overflow-hidden rounded-xl border border-neutral-200 bg-[var(--card)] shadow-sm dark:border-neutral-700 dark:bg-neutral-900/90">
+                  <Link
+                    href="/fornecedor/produtos/criar-variantes"
+                    className="group flex min-h-[2.5rem] max-w-[min(100vw-8rem,17rem)] min-w-0 items-center gap-2.5 border-r border-neutral-200 px-3 py-1.5 text-left transition hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800/80"
+                    title={`${rascunhoCriarVariantes.nomeResumo} — salvo em ${new Date(rascunhoCriarVariantes.savedAt).toLocaleString("pt-BR")}`}
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 transition group-hover:bg-blue-50 group-hover:text-blue-600 dark:bg-neutral-800 dark:text-neutral-400 dark:group-hover:bg-blue-950/40 dark:group-hover:text-blue-300">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="12" y1="17" x2="8" y2="17" />
+                      </svg>
+                    </span>
+                    <span className="min-w-0 flex-1 py-0.5">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">Continuar rascunho</span>
+                        {rascunhoCriarVariantes.origem === "local" && (
+                          <span className="shrink-0 rounded bg-neutral-200/95 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
+                            Local
+                          </span>
+                        )}
+                      </span>
+                      <span className="mt-0.5 block truncate text-[11px] leading-tight text-neutral-500 dark:text-neutral-400">
+                        {rascunhoCriarVariantes.nomeResumo}
+                        <span className="text-neutral-400 dark:text-neutral-500"> · </span>
+                        {new Date(rascunhoCriarVariantes.savedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                      </span>
+                    </span>
+                  </Link>
+                  <div className="flex items-stretch gap-1 p-1 pl-0">
+                    <Link
+                      href="/fornecedor/produtos/criar-unico"
+                      className="flex h-full min-h-[2.5rem] items-center rounded-lg bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                    >
+                      Produto único
+                    </Link>
+                    <Link
+                      href="/fornecedor/produtos/criar-variantes"
+                      className="flex h-full min-h-[2.5rem] items-center rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                    >
+                      Produto multivariantes
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-stretch gap-2">
                   <Link
                     href="/fornecedor/produtos/criar-unico"
-                    className="block w-full px-4 py-2.5 text-left text-sm font-medium text-emerald-800 hover:bg-emerald-50 dark:text-emerald-200 dark:hover:bg-emerald-950"
+                    className="flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
                   >
-                    Criar único produto
+                    Produto único
                   </Link>
                   <Link
                     href="/fornecedor/produtos/criar-variantes"
-                    className="block w-full px-4 py-2.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                    className="flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
                   >
-                    Criar variantes (cor/tamanho)
+                    Produto multivariantes
                   </Link>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

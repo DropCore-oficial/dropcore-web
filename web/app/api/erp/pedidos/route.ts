@@ -18,6 +18,7 @@ import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
 import { resolveLedgerIdForPedido } from "@/lib/resolveLedgerForPedido";
 import { fireErpEstoqueWebhook } from "@/lib/erpEstoqueOutbound";
 import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
+import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -305,6 +306,43 @@ export async function POST(req: Request) {
     const referencia_externa = body?.referencia_externa ? String(body.referencia_externa).trim().slice(0, 100) : null;
     const itemsRaw = Array.isArray(body?.items) ? body.items : [];
 
+    if (referencia_externa) {
+      // TODO: após saneamento/backfill, criar índice único parcial para reforçar
+      // idempotência em nível de banco: (org_id, seller_id, referencia_externa).
+      const { data: pedidoDup, error: pedidoDupErr } = await supabaseAdmin
+        .from("pedidos")
+        .select("id, status, referencia_externa")
+        .eq("org_id", org_id)
+        .eq("seller_id", seller.id)
+        .eq("referencia_externa", referencia_externa)
+        .order("criado_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (pedidoDupErr) {
+        console.error("[erp/pedidos] duplicate-check:", pedidoDupErr.message);
+        return NextResponse.json({ error: "Erro ao validar duplicidade do pedido." }, { status: 500 });
+      }
+
+      if (pedidoDup) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Já existe pedido com esta referência externa.",
+            error_code: "PEDIDO_DUPLICADO",
+            pedido_existente: {
+              pedido_id: pedidoDup.id,
+              status: pedidoDup.status,
+              referencia_externa: pedidoDup.referencia_externa,
+            },
+          },
+          { status: 409 }
+        );
+      }
+    } else {
+      console.warn("[erp/pedidos] referencia_externa ausente; pedido sem proteção de idempotência por referência.");
+    }
+
     // Etiqueta oficial (marketplace/transportadora) - opcional
     const etiqueta_pdf_url = body?.etiqueta_pdf_url ? String(body.etiqueta_pdf_url).trim().slice(0, 2000) : null;
     const etiqueta_pdf_base64 = body?.etiqueta_pdf_base64 ? String(body.etiqueta_pdf_base64).trim().slice(0, 2_000_000) : null;
@@ -459,19 +497,55 @@ export async function POST(req: Request) {
     }
 
     // 1) Debitar estoque
+    const debitoEstoque = await debitarEstoquePedido(
+      items.map((item, i) => ({
+        sku_id: skuRows[i].id,
+        sku: skuRows[i].sku,
+        quantidade: item.quantidade,
+      }))
+    );
+    if (!debitoEstoque.ok) {
+      if (debitoEstoque.error_code === "ESTOQUE_INSUFICIENTE") {
+        return NextResponse.json(
+          {
+            error: debitoEstoque.error_message ?? "Estoque insuficiente para processar o pedido.",
+          },
+          { status: 409 }
+        );
+      }
+      if (debitoEstoque.error_code === "SKU_NOT_FOUND") {
+        return NextResponse.json(
+          {
+            error: debitoEstoque.error_message ?? "SKU não encontrado para débito de estoque.",
+          },
+          { status: 404 }
+        );
+      }
+      if (debitoEstoque.error_code === "ESTOQUE_INPUT_INVALIDO") {
+        return NextResponse.json(
+          {
+            error: debitoEstoque.error_message ?? "Itens inválidos para débito de estoque.",
+          },
+          { status: 400 }
+        );
+      }
+      console.error("[erp/pedidos] estoque debit:", debitoEstoque.error_code, debitoEstoque.error_message, debitoEstoque.detalhes);
+      return NextResponse.json({ error: "Erro ao atualizar estoque." }, { status: 500 });
+    }
+    const estoqueDebitos = debitoEstoque.debitos ?? [];
+    const tryReverterEstoque = async (): Promise<void> => {
+      if (estoqueDebitos.length === 0) return;
+      const rev = await reverterEstoquePedido(estoqueDebitos);
+      if (!rev.ok) {
+        console.error("[erp/pedidos] estoque rollback:", rev.error_code, rev.error_message, rev.detalhes);
+      }
+    };
+
     const produtosAbaixoDoMin: { sku: string; nome?: string }[] = [];
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       const sku = skuRows[i];
       const novoEstoque = sku.estoque_atual - item.quantidade;
-      const { error: updErr } = await supabaseAdmin
-        .from("skus")
-        .update({ estoque_atual: novoEstoque })
-        .eq("id", sku.id);
-      if (updErr) {
-        console.error("[erp/pedidos] estoque debit:", updErr.message);
-        return NextResponse.json({ error: "Erro ao atualizar estoque." }, { status: 500 });
-      }
       if (sku.estoque_minimo != null && novoEstoque < sku.estoque_minimo) {
         produtosAbaixoDoMin.push({ sku: sku.sku, nome: sku.nome_produto ?? undefined });
       }
@@ -503,15 +577,22 @@ export async function POST(req: Request) {
       .single();
 
     if (insertErr) {
-      // Rollback estoque
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const sku = skuRows[i];
-        await supabaseAdmin
-          .from("skus")
-          .update({ estoque_atual: sku.estoque_atual })
-          .eq("id", sku.id);
+      const isUniqueViolation =
+        insertErr.code === "23505" ||
+        String(insertErr.message ?? "").toLowerCase().includes("duplicate key") ||
+        String(insertErr.message ?? "").includes("23505");
+      if (isUniqueViolation) {
+        await tryReverterEstoque();
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Já existe pedido com esta referência externa.",
+            error_code: "PEDIDO_DUPLICADO",
+          },
+          { status: 409 }
+        );
       }
+      await tryReverterEstoque();
       console.error("[erp/pedidos] insert:", insertErr.message);
       return NextResponse.json({ error: "Erro ao criar pedido." }, { status: 500 });
     }
@@ -522,13 +603,19 @@ export async function POST(req: Request) {
       const sku = skuRows[i];
       const precoUnit = sku.custo_base + sku.custo_dropcore;
       const valorItem = precoUnit * item.quantidade;
-      await supabaseAdmin.from("pedido_itens").insert({
+      const { error: pedidoItemErr } = await supabaseAdmin.from("pedido_itens").insert({
         pedido_id: pedido.id,
         sku_id: sku.id,
         quantidade: item.quantidade,
         preco_unitario: precoUnit,
         valor_total: valorItem,
       });
+      if (pedidoItemErr) {
+        await tryReverterEstoque();
+        await supabaseAdmin.from("pedidos").update({ status: "cancelado" }).eq("id", pedido.id);
+        console.error("[erp/pedidos] pedido_itens:", pedidoItemErr.message);
+        return NextResponse.json({ error: "Erro ao criar itens do pedido.", pedido_id: pedido.id }, { status: 500 });
+      }
     }
 
     // 4) Bloquear saldo
@@ -544,15 +631,7 @@ export async function POST(req: Request) {
     if (!blockResult.ok) {
       if (blockResult.code === "SALDO_INSUFICIENTE") {
         await supabaseAdmin.from("pedidos").update({ status: "erro_saldo" }).eq("id", pedido.id);
-        // Rollback estoque
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          const sku = skuRows[i];
-          await supabaseAdmin
-            .from("skus")
-            .update({ estoque_atual: sku.estoque_atual })
-            .eq("id", sku.id);
-        }
+        await tryReverterEstoque();
         return NextResponse.json(
           {
             error: "Saldo insuficiente para este pedido.",
@@ -565,14 +644,7 @@ export async function POST(req: Request) {
         );
       }
       // Outro erro — rollback estoque e marcar cancelado
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const sku = skuRows[i];
-        await supabaseAdmin
-          .from("skus")
-          .update({ estoque_atual: sku.estoque_atual })
-          .eq("id", sku.id);
-      }
+      await tryReverterEstoque();
       await supabaseAdmin.from("pedidos").update({ status: "cancelado" }).eq("id", pedido.id);
       const errorMsg =
         blockResult.code === "SELLER_NAO_ENCONTRADO"

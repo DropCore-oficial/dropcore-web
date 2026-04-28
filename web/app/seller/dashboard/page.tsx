@@ -918,7 +918,7 @@ export default function SellerDashboardPage() {
               <div className="text-center py-10">
                 <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-3">Sem movimentações neste período</p>
                 <button
-                  onClick={() => router.push("/seller/catalogo")}
+                  onClick={() => router.push("/seller/produtos")}
                   className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-sm font-semibold"
                 >
                   Comece a vender
@@ -1081,7 +1081,7 @@ export default function SellerDashboardPage() {
             </div>
             <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">Calculadora</span>
           </button>
-          <button onClick={() => router.push("/seller/catalogo")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left group">
+          <button onClick={() => router.push("/seller/produtos")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left group">
             <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
               <svg className="w-5 h-5 text-neutral-600 dark:text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
@@ -1089,7 +1089,7 @@ export default function SellerDashboardPage() {
                 <line x1="12" y1="22.08" x2="12" y2="12" />
               </svg>
             </div>
-            <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">Catálogo</span>
+            <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">Produtos</span>
           </button>
           <button onClick={() => router.push("/seller/integracoes-erp")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left group relative">
             <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
@@ -1284,7 +1284,7 @@ export default function SellerDashboardPage() {
                   </div>
                   <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Nenhum depósito ainda</p>
                   <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-1">Adicione saldo via PIX para continuar vendendo</p>
-                  <button onClick={() => setModalDeposito(true)} className="mt-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 text-sm font-semibold shadow-lg shadow-emerald-900/20 hover:shadow-emerald-900/30 transition-all">
+                <button onClick={() => setModalDeposito(true)} className="mt-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-sm font-semibold shadow-md shadow-emerald-900/15 hover:shadow-emerald-900/20 transition-all">
                     + Solicitar depósito
                   </button>
                 </div>

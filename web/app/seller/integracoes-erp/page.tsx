@@ -363,7 +363,7 @@ export default function SellerIntegracoesErpPage() {
                   type="button"
                   onClick={gerarChave}
                   disabled={generating}
-                  className="rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-5 py-2.5 text-sm font-semibold hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                  className="rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-4 py-2 text-sm font-semibold hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                 >
                   {generating ? "Gerando..." : hasKey ? "Gerar nova chave" : "Gerar chave API"}
                 </button>
@@ -393,7 +393,7 @@ export default function SellerIntegracoesErpPage() {
                     <button
                       type="button"
                       onClick={copiarWebhookBling}
-                      className="shrink-0 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-xs font-medium text-white"
+                      className="shrink-0 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 text-xs font-medium text-white"
                     >
                       {blingCopied ? "Copiado!" : "Copiar URL"}
                     </button>
@@ -411,7 +411,7 @@ export default function SellerIntegracoesErpPage() {
                       type="button"
                       onClick={salvarBling}
                       disabled={blingSaving}
-                      className="shrink-0 rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-5 py-2 text-sm font-semibold disabled:opacity-60"
+                      className="shrink-0 rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-4 py-2 text-sm font-semibold disabled:opacity-60"
                     >
                       {blingSaving ? "Salvando..." : "Salvar"}
                     </button>
@@ -478,7 +478,7 @@ export default function SellerIntegracoesErpPage() {
                       type="button"
                       onClick={() => void salvarEstoqueWebhook()}
                       disabled={estoqueWebhookSaving}
-                      className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 text-sm font-semibold disabled:opacity-60"
+                      className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm font-semibold disabled:opacity-60"
                     >
                       {estoqueWebhookSaving ? "Salvando..." : "Salvar webhook"}
                     </button>

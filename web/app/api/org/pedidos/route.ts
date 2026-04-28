@@ -1,7 +1,7 @@
 /**
  * GET /api/org/pedidos - Lista pedidos
  * POST /api/org/pedidos - Cria pedido e bloqueia saldo (block-sale integrado)
- * Body POST: { seller_id, fornecedor_id, valor_fornecedor, valor_dropcore, sku_id?, nome_produto? }
+ * Body POST: { seller_id, fornecedor_id, valor_fornecedor, valor_dropcore, sku_id, nome_produto? }
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -13,9 +13,28 @@ import {
   isSellerPlanoPro,
   MSG_STARTER_PEDIDO_SEM_SKU,
 } from "@/lib/sellerSkuHabilitado";
+import { createOrderCore } from "@/lib/order/createOrderCore";
+import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** Erros do `createOrderCore` que devem bloquear a criação do pedido no portal ORG. */
+const CORE_BLOCKING_ERRORS = new Set([
+  "SELLER_NOT_FOUND",
+  "FORNECEDOR_NOT_FOUND",
+  "FORNECEDOR_NOT_LINKED",
+  "FORNECEDOR_MISMATCH",
+  "SELLER_INADIMPLENTE",
+  "FORNECEDOR_INADIMPLENTE",
+  "SKU_NOT_FOUND",
+  "SKU_INACTIVE",
+  "SKU_NOT_ENABLED_STARTER",
+  "ESTOQUE_INSUFICIENTE",
+  "CUSTO_INVALIDO",
+  "LIMITE_PLANO_EXCEDIDO",
+  "PEDIDO_DUPLICADO",
+]);
 
 function toNum(v: unknown): number {
   if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -90,7 +109,10 @@ export async function POST(req: Request) {
     const fornecedor_id = body?.fornecedor_id ?? null;
     const valor_fornecedor = toNum(body?.valor_fornecedor);
     const valor_dropcore = toNum(body?.valor_dropcore);
-    const sku_id = body?.sku_id ? String(body.sku_id) : null;
+    const sku_id =
+      body?.sku_id != null && String(body.sku_id).trim() !== ""
+        ? String(body.sku_id).trim()
+        : null;
     const nome_produto = body?.nome_produto ? String(body.nome_produto).trim() : null;
     const preco_venda = body?.preco_venda ? toNum(body.preco_venda) : null;
 
@@ -104,6 +126,146 @@ export async function POST(req: Request) {
     if (valor_total <= 0) {
       return NextResponse.json({ error: "valor_total deve ser positivo." }, { status: 400 });
     }
+
+    if (sku_id == null) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "SKU é obrigatório para criar pedido pelo painel da organização.",
+          error_code: "SKU_REQUIRED_ORG_ORDER",
+        },
+        { status: 422 }
+      );
+    }
+
+    // TODO: no futuro usar essa referencia_externa para bloqueio de duplicidade (igual ERP).
+    const referenciaExternaGerada = `ORG-${String(org_id).trim()}-${String(seller_id).trim()}-${Date.now()}`;
+
+    // TODO: reforçar com índice único parcial em banco após saneamento/backfill de dados.
+    const { data: pedidoDup, error: pedidoDupErr } = await supabaseAdmin
+      .from("pedidos")
+      .select("id, status, referencia_externa")
+      .eq("org_id", org_id)
+      .eq("seller_id", seller_id)
+      .eq("referencia_externa", referenciaExternaGerada)
+      .order("criado_em", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (pedidoDupErr) {
+      console.error("[pedidos POST] duplicate-check:", pedidoDupErr.message);
+      return NextResponse.json({ ok: false, error: "Erro ao validar duplicidade do pedido." }, { status: 500 });
+    }
+    if (pedidoDup) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Já existe pedido com esta referência externa.",
+          error_code: "PEDIDO_DUPLICADO",
+          pedido_existente: {
+            pedido_id: pedidoDup.id,
+            status: pedidoDup.status,
+            referencia_externa: pedidoDup.referencia_externa,
+          },
+        },
+        { status: 409 }
+      );
+    }
+
+    const coreResult = await createOrderCore({
+      org_id,
+      seller_id,
+      fornecedor_id,
+      origem: "org",
+      itens: [
+        {
+          sku_id,
+          quantidade: 1,
+        },
+      ],
+      pedido_meta: {
+        referencia_externa: referenciaExternaGerada,
+      },
+      opcoes: {
+        validar_estoque: false,
+        baixar_estoque: false,
+        permitir_multiplos_itens: false,
+        validar_valores_por_sku: false,
+      },
+    });
+    if (coreResult.ok === false) {
+      console.warn("[ORDER_CORE_VALIDATION_FAIL]", coreResult);
+      const code = coreResult.error_code;
+      if (code && CORE_BLOCKING_ERRORS.has(code)) {
+        const status =
+          typeof coreResult.http_status_sugerido === "number" ? coreResult.http_status_sugerido : 400;
+        return NextResponse.json(
+          {
+            ok: false,
+            error: coreResult.error_message ?? "Validação do pedido falhou.",
+            error_code: code,
+            detalhes: coreResult.detalhes,
+          },
+          { status }
+        );
+      }
+      const nbStatus =
+        typeof coreResult.http_status_sugerido === "number" ? coreResult.http_status_sugerido : 422;
+      return NextResponse.json(
+        {
+          ok: false,
+          error: coreResult.error_message ?? "Validação do pedido não concluída.",
+          error_code: code ?? "ORDER_CORE_FAILED",
+          detalhes: coreResult.detalhes,
+        },
+        { status: nbStatus }
+      );
+    }
+
+    const valorFornecedorCore = coreResult.valor_fornecedor ?? 0;
+    const valorDropcoreCore = coreResult.valor_dropcore ?? 0;
+    const valorTotalCore = coreResult.valor_total ?? 0;
+    if (valorTotalCore <= 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Valores do pedido inválidos no catálogo.",
+          error_code: "CORE_VALUES_INVALID",
+        },
+        { status: 422 }
+      );
+    }
+
+    const debitoEstoque = await debitarEstoquePedido([
+      {
+        sku_id,
+        quantidade: 1,
+      },
+    ]);
+    if (!debitoEstoque.ok) {
+      const status =
+        debitoEstoque.error_code === "ESTOQUE_INSUFICIENTE"
+          ? 409
+          : debitoEstoque.error_code === "ESTOQUE_INPUT_INVALIDO" || debitoEstoque.error_code === "SKU_NOT_FOUND"
+            ? 400
+            : 500;
+      return NextResponse.json(
+        {
+          ok: false,
+          error: debitoEstoque.error_message ?? "Falha ao debitar estoque.",
+          error_code: debitoEstoque.error_code ?? "ESTOQUE_DEBITO_FAILED",
+          detalhes: debitoEstoque.detalhes,
+        },
+        { status }
+      );
+    }
+    const estoqueDebitos = debitoEstoque.debitos ?? [];
+    const tryReverterEstoque = async (): Promise<void> => {
+      if (estoqueDebitos.length === 0) return;
+      const rev = await reverterEstoquePedido(estoqueDebitos);
+      if (!rev.ok) {
+        console.error("[pedidos POST] falha ao reverter estoque:", rev.error_code, rev.error_message, rev.detalhes);
+      }
+    };
 
     const orgPlano = String(plano ?? "starter").toLowerCase();
 
@@ -226,10 +388,11 @@ export async function POST(req: Request) {
         org_id,
         seller_id,
         fornecedor_id,
-        valor_fornecedor,
-        valor_dropcore,
-        valor_total,
+        valor_fornecedor: valorFornecedorCore,
+        valor_dropcore: valorDropcoreCore,
+        valor_total: valorTotalCore,
         status: "enviado",
+        referencia_externa: referenciaExternaGerada,
         sku_id: sku_id ?? null,
         nome_produto: nome_produto ?? null,
         preco_venda: preco_venda ?? null,
@@ -238,6 +401,21 @@ export async function POST(req: Request) {
       .single();
 
     if (insertErr) {
+      const isUniqueViolation =
+        insertErr.code === "23505" ||
+        String(insertErr.message ?? "").toLowerCase().includes("duplicate key") ||
+        String(insertErr.message ?? "").includes("23505");
+      await tryReverterEstoque();
+      if (isUniqueViolation) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Já existe pedido com esta referência externa.",
+            error_code: "PEDIDO_DUPLICADO",
+          },
+          { status: 409 }
+        );
+      }
       if (insertErr.message?.includes("does not exist") || insertErr.code === "42P01") {
         return NextResponse.json(
           { error: "Tabela pedidos não existe. Execute o script create-pedidos.sql." },
@@ -250,16 +428,20 @@ export async function POST(req: Request) {
 
     // 1b) Salvar item do pedido se SKU informado
     if (sku_id) {
-      await supabaseAdmin.from("pedido_itens").insert({
+      const { error: pedidoItensErr } = await supabaseAdmin.from("pedido_itens").insert({
         pedido_id: pedido.id,
         sku_id,
         nome_produto: nome_produto ?? null,
         quantidade: 1,
-        preco_unitario: valor_total,
-        valor_total,
-      }).then(({ error }) => {
-        if (error) console.error("[pedidos POST] pedido_itens:", error.message);
+        preco_unitario: valorTotalCore,
+        valor_total: valorTotalCore,
       });
+      if (pedidoItensErr) {
+        await tryReverterEstoque();
+        await supabaseAdmin.from("pedidos").update({ status: "cancelado" }).eq("id", pedido.id);
+        console.error("[pedidos POST] pedido_itens:", pedidoItensErr.message);
+        return NextResponse.json({ error: "Erro ao criar itens do pedido.", pedido_id: pedido.id }, { status: 500 });
+      }
     }
 
     // 2) Bloquear saldo (block-sale)
@@ -268,11 +450,12 @@ export async function POST(req: Request) {
       seller_id,
       fornecedor_id,
       pedido_id: pedido.id,
-      valor_fornecedor,
-      valor_dropcore,
+      valor_fornecedor: valorFornecedorCore,
+      valor_dropcore: valorDropcoreCore,
     });
 
     if (!blockResult.ok) {
+      await tryReverterEstoque();
       if (blockResult.code === "SALDO_INSUFICIENTE") {
         await supabaseAdmin.from("pedidos").update({ status: "erro_saldo" }).eq("id", pedido.id);
         return NextResponse.json(
@@ -327,7 +510,9 @@ export async function POST(req: Request) {
       memberUserId = fallback?.user_id ?? null;
     }
     if (memberUserId) {
-      const valorBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor_fornecedor);
+      const valorBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+        valorFornecedorCore
+      );
       await supabaseAdmin.from("notifications").insert({
         user_id: memberUserId,
         tipo: "pedido_para_postar",

@@ -49,7 +49,7 @@ export default function SellerMapeamentoSkuPage() {
               </li>
               <li>
                 Quando o pedido fecha no marketplace, o ERP monta o payload para o DropCore com as linhas já usando esse
-                SKU — o mesmo da tela <Link href="/seller/catalogo" className="text-emerald-600 dark:text-emerald-400 font-medium hover:underline">Catálogo</Link>.
+                SKU — o mesmo da tela <Link href="/seller/produtos" className="text-emerald-600 dark:text-emerald-400 font-medium hover:underline">Produtos</Link>.
               </li>
             </ol>
           </section>
