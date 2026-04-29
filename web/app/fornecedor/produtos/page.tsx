@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { FornecedorNav } from "../FornecedorNav";
@@ -110,6 +110,7 @@ function isEstoqueBaixo(p: Produto): boolean {
 
 export default function FornecedorProdutosPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const filtroEstoqueBaixo = searchParams.get("estoqueBaixo") === "1";
   const [loading, setLoading] = useState(true);
@@ -154,15 +155,16 @@ export default function FornecedorProdutosPage() {
   async function load() {
     setLoading(true);
     setError(null);
-    setRascunhoCriarVariantes(null);
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) {
         router.replace("/fornecedor/login");
         return;
       }
-      setRascunhoCriarVariantes(await getResumoRascunhoCriarVariantes(session.access_token));
-      const headers = { Authorization: `Bearer ${session.access_token}` };
+      const token = session.access_token;
+      const headers = { Authorization: `Bearer ${token}` };
+      const resumo = await getResumoRascunhoCriarVariantes(token);
+      setRascunhoCriarVariantes(resumo);
       const res = await fetch("/api/fornecedor/produtos", { headers, cache: "no-store" });
       if (!res.ok) {
         if (res.status === 401 || res.status === 404) {
@@ -237,8 +239,31 @@ export default function FornecedorProdutosPage() {
   }
 
   useEffect(() => {
+    if (pathname !== "/fornecedor/produtos") return;
     load();
-  }, []);
+  }, [pathname]);
+
+  /** Recarrega só o resumo do rascunho ao voltar à aba (evita chip sumido após salvar em outra guia). */
+  useEffect(() => {
+    if (pathname !== "/fornecedor/produtos") return;
+    function onVis() {
+      if (document.visibilityState !== "visible") return;
+      void (async () => {
+        try {
+          const {
+            data: { session },
+          } = await supabaseBrowser.auth.getSession();
+          const token = session?.access_token;
+          if (!token) return;
+          setRascunhoCriarVariantes(await getResumoRascunhoCriarVariantes(token));
+        } catch {
+          /* ignore */
+        }
+      })();
+    }
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [pathname]);
 
 
   function openEdit(p: Produto) {
@@ -411,18 +436,11 @@ export default function FornecedorProdutosPage() {
                   </svg>
                 </Link>
               )}
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">Criar produto</p>
-              <Link
-                href="/fornecedor/produtos/criar-unico"
-                className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800"
-              >
-                Criar único produto
-              </Link>
               <Link
                 href="/fornecedor/produtos/criar-variantes"
-                className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800"
+                className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800"
               >
-                Criar variantes (cor / tamanho)
+                Criar produto
               </Link>
             </div>
             <div className="hidden sm:flex sm:justify-end">
@@ -459,34 +477,20 @@ export default function FornecedorProdutosPage() {
                   </Link>
                   <div className="flex items-stretch gap-1 p-1 pl-0">
                     <Link
-                      href="/fornecedor/produtos/criar-unico"
+                      href="/fornecedor/produtos/criar-variantes"
                       className="flex h-full min-h-[2.5rem] items-center rounded-lg bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
                     >
-                      Produto único
-                    </Link>
-                    <Link
-                      href="/fornecedor/produtos/criar-variantes"
-                      className="flex h-full min-h-[2.5rem] items-center rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-                    >
-                      Produto multivariantes
+                      Criar produto
                     </Link>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-stretch gap-2">
-                  <Link
-                    href="/fornecedor/produtos/criar-unico"
-                    className="flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
-                  >
-                    Produto único
-                  </Link>
-                  <Link
-                    href="/fornecedor/produtos/criar-variantes"
-                    className="flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-                  >
-                    Produto multivariantes
-                  </Link>
-                </div>
+                <Link
+                  href="/fornecedor/produtos/criar-variantes"
+                  className="flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                >
+                  Criar produto
+                </Link>
               )}
             </div>
           </div>
@@ -528,7 +532,7 @@ export default function FornecedorProdutosPage() {
                 <p className="text-neutral-500 dark:text-neutral-400 text-sm">
                   {filtroEstoqueBaixo ? "Nenhum produto com estoque abaixo do mínimo." : "Nenhum produto cadastrado."}
                 </p>
-                <p className="text-neutral-500 dark:text-neutral-400 text-xs mt-1">Crie um produto único ou com variantes para começar.</p>
+                <p className="text-neutral-500 dark:text-neutral-400 text-xs mt-1">Use Criar produto acima para cadastrar.</p>
               </div>
             ) : (
               grupos.map((g) => {

@@ -38,7 +38,6 @@ function ordenarTamanhosLista(tams: string[]): string[] {
     return a.localeCompare(b, undefined, { numeric: true });
   });
 }
-import { HelpBubble } from "@/components/HelpBubble";
 import { VarianteExtrasTagInput } from "@/components/VarianteExtrasTagInput";
 
 type TabId = CriarVariantesTabId;
@@ -69,16 +68,27 @@ const btnSeguir =
 const btnSalvarProduto =
   "inline-flex flex-1 items-center justify-center rounded-lg bg-[#2563eb] px-3 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] disabled:opacity-55 dark:shadow-none sm:flex-none sm:px-4 sm:py-1.5";
 
+/** Tópicos sugeridos na tabela de medidas. Medidas “extras” (não mapeadas em Medida) vão para `extras` no rascunho. */
 const MEDIDAS_PREDEFINIDAS = [
   "Largura",
   "Comprimento",
   "Ombro",
   "Manga",
+  "Comprimento da manga",
+  "Punho",
+  "Cava",
+  "Bíceps",
+  "Gola",
+  "Busto",
+  "Costas",
   "Cintura",
   "Quadril",
-  "Busto",
-  "Gancho",
+  "Coxa",
+  "Joelho",
+  "Gancho (altura · calça)",
+  "Entrepernas",
   "Barra",
+  "Tornozelo",
 ] as const;
 
 function detectarTipoMedida(categoria: string): "camisa" | "calca" | "vestido" | "geral" {
@@ -119,7 +129,6 @@ function estadoInicialRascunhoVazio(): RascunhoCriarVariantesV1 {
     topicosMedidaSelecionados: [],
     topicosMedidaCustom: "",
     dataLancamento: "",
-    custoCompra: "",
     custoPorTamanho: {},
     custoMatriz: {},
     custoPorCor: {},
@@ -204,8 +213,6 @@ export default function CriarVariantesPage() {
 
   // Info. de Variantes (bulk)
   const [dataLancamento, setDataLancamento] = useState("");
-  /** Único custo em R$ por unidade — grava em `custo_base` (catálogo, seller e pedidos). */
-  const [custoCompra, setCustoCompra] = useState("");
   const [custoPorTamanho, setCustoPorTamanho] = useState<Record<string, string>>({});
   const [custoMatriz, setCustoMatriz] = useState<Record<string, string>>({});
   const [custoPorCor, setCustoPorCor] = useState<Record<string, string>>({});
@@ -229,7 +236,6 @@ export default function CriarVariantesPage() {
   const [msgRascunho, setMsgRascunho] = useState<string | null>(null);
   const [rascunhoSalvando, setRascunhoSalvando] = useState(false);
   const [peso, setPeso] = useState("");
-  const [helpVariantesOpen, setHelpVariantesOpen] = useState<null | "custoUnidade">(null);
   const [comp, setComp] = useState("");
   const [largura, setLargura] = useState("");
   const [altura, setAltura] = useState("");
@@ -358,8 +364,8 @@ export default function CriarVariantesPage() {
       set.add(toTitleCase(part));
     }
     if (set.size === 0) {
-      if (tipoMedida === "camisa") return ["Ombro", "Manga", "Comprimento"];
-      if (tipoMedida === "calca") return ["Cintura", "Quadril", "Comprimento"];
+      if (tipoMedida === "camisa") return ["Ombro", "Comprimento da manga", "Comprimento", "Bíceps"];
+      if (tipoMedida === "calca") return ["Cintura", "Quadril", "Comprimento", "Entrepernas", "Gancho (altura · calça)"];
       if (tipoMedida === "vestido") return ["Busto", "Cintura", "Comprimento"];
       return ["Largura", "Comprimento"];
     }
@@ -729,7 +735,6 @@ export default function CriarVariantesPage() {
       topicosMedidaSelecionados: [...topicosMedidaSelecionados],
       topicosMedidaCustom,
       dataLancamento,
-      custoCompra,
       custoPorTamanho: { ...custoPorTamanho },
       custoMatriz: { ...custoMatriz },
       custoPorCor: { ...custoPorCor },
@@ -802,7 +807,6 @@ export default function CriarVariantesPage() {
     setTopicosMedidaSelecionados(new Set(p.topicosMedidaSelecionados ?? []));
     setTopicosMedidaCustom(p.topicosMedidaCustom ?? "");
     setDataLancamento(p.dataLancamento ?? "");
-    setCustoCompra(p.custoCompra ?? "");
     setCustoPorTamanho({ ...(p.custoPorTamanho ?? {}) });
     setCustoMatriz({ ...(p.custoMatriz ?? {}) });
     setCustoPorCor({ ...(p.custoPorCor ?? {}) });
@@ -1051,7 +1055,6 @@ export default function CriarVariantesPage() {
         largura_cm: largura.trim() ? parseFloat(largura.replace(",", ".")) : undefined,
         altura_cm: altura.trim() ? parseFloat(altura.replace(",", ".")) : undefined,
         peso_kg: peso.trim() ? parseFloat(peso.replace(",", ".")) : undefined,
-        custo_base: custoCompra.trim() ? parseFloat(custoCompra.replace(",", ".")) : undefined,
         data_lancamento: dataLancamento || null,
       };
       if (cores.length > 0 && tamanhos.length > 0) {
@@ -1079,8 +1082,8 @@ export default function CriarVariantesPage() {
         body.estoque_por_cor = por;
       }
 
-      const fallbackCustoNum = custoCompra.trim() ? parseFloat(custoCompra.replace(",", ".")) : NaN;
-      const fallbackCusto = Number.isFinite(fallbackCustoNum) ? Math.round(fallbackCustoNum * 100) / 100 : null;
+      /** Sem custo global: só os valores da tabela / “Aplicar a todos”; células vazias viram 0 no envio. */
+      const fallbackCusto = null;
       if (cores.length > 0 && tamanhos.length > 0) {
         const por: Record<string, number> = {};
         for (const cor of cores) {
@@ -1304,7 +1307,7 @@ export default function CriarVariantesPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          setTopicosMedidaSelecionados(new Set(["Ombro", "Manga", "Comprimento"]));
+                          setTopicosMedidaSelecionados(new Set(["Ombro", "Comprimento da manga", "Comprimento", "Bíceps"]));
                           setTopicosMedidaCustom("");
                         }}
                         className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
@@ -1314,7 +1317,9 @@ export default function CriarVariantesPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          setTopicosMedidaSelecionados(new Set(["Cintura", "Quadril", "Comprimento"]));
+                          setTopicosMedidaSelecionados(
+                            new Set(["Cintura", "Quadril", "Comprimento", "Entrepernas", "Gancho (altura · calça)"]),
+                          );
                           setTopicosMedidaCustom("");
                         }}
                         className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
@@ -2099,26 +2104,6 @@ export default function CriarVariantesPage() {
                           />
                         </div>
                         <div className="min-w-0">
-                          <div className="mb-1.5 flex items-center gap-1.5">
-                            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Custo de referência (R$)</span>
-                            <HelpBubble
-                              open={helpVariantesOpen === "custoUnidade"}
-                              onOpen={() => setHelpVariantesOpen("custoUnidade")}
-                              onClose={() => setHelpVariantesOpen(null)}
-                              ariaLabel="Ajuda: custo de referência"
-                            >
-                              Valor usado nas células de <strong>preço</strong> vazias e no envio à API como fallback.
-                            </HelpBubble>
-                          </div>
-                          <input
-                            type="text"
-                            value={custoCompra}
-                            onChange={(e) => setCustoCompra(e.target.value)}
-                            placeholder="ex.: 30,00"
-                            className={`${inputBase} w-full py-2`}
-                          />
-                        </div>
-                        <div className="min-w-0">
                           <label className="mb-1.5 block text-xs font-medium text-neutral-600 dark:text-neutral-400">Peso (kg)</label>
                           <input
                             type="text"
@@ -2410,7 +2395,12 @@ export default function CriarVariantesPage() {
           <div className="relative z-10 w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-4 shadow-[0_24px_48px_-24px_rgba(15,23,42,0.55)] dark:border-neutral-700 dark:bg-neutral-900">
             <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Tópicos de medida</p>
             <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">Selecione os tópicos que deseja usar na tabela.</p>
-            <div className="mt-3 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-[#edf1f5] bg-white p-2 dark:border-neutral-700 dark:bg-neutral-900/40">
+            <p className="mt-2 rounded-lg bg-neutral-50 px-2.5 py-1.5 text-[10px] leading-relaxed text-neutral-600 dark:bg-neutral-800/80 dark:text-neutral-400">
+              <span className="font-semibold text-neutral-700 dark:text-neutral-300">Gancho (calça): </span>
+              medida da cintura até o entrepernas na frente — a profundidade do gancho da costura. Em camisas, “manga” costuma ser a largura/abertura; use{" "}
+              <span className="font-medium">Comprimento da manga</span> para o comprimento.
+            </p>
+            <div className="mt-3 flex max-h-52 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-[#edf1f5] bg-white p-2 dark:border-neutral-700 dark:bg-neutral-900/40">
               {MEDIDAS_PREDEFINIDAS.map((topico) => (
                 <button
                   key={`modal-${topico}`}
