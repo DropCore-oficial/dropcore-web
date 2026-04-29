@@ -3,8 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
-import { DropCoreLogo } from "@/components/DropCoreLogo";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import {
+  AuthEmailInput,
+  AuthPasswordInput,
+  DropcoreAuthShell,
+  authAlertErrorClass,
+  authAlertSuccessClass,
+  authMutedLinkClass,
+  authPrimaryButtonClass,
+} from "@/components/DropcoreAuthShell";
+import { Button } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 export default function FornecedorLoginPage() {
   const router = useRouter();
@@ -14,7 +23,6 @@ export default function FornecedorLoginPage() {
   const [loading, setLoading] = useState(false);
   const [esqueciSenha, setEsqueciSenha] = useState(false);
   const [resetEnviado, setResetEnviado] = useState(false);
-  const [mostrarSenha, setMostrarSenha] = useState(false);
 
   async function solicitarReset() {
     setError(null);
@@ -50,7 +58,9 @@ export default function FornecedorLoginPage() {
       });
       if (loginErr) throw new Error("E-mail ou senha incorretos.");
 
-      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
       const res = await fetch("/api/fornecedor/me", {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
@@ -72,103 +82,49 @@ export default function FornecedorLoginPage() {
   }
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-[var(--background)] flex items-center justify-center dropcore-p-auth">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center">
-          <DropCoreLogo variant="horizontal" href={null} className="mb-2" />
-          <p className="text-[var(--muted)] text-sm">Acesso do fornecedor</p>
-          <ThemeToggle className="mt-2" />
-        </div>
+    <DropcoreAuthShell
+      eyebrow="Acesso"
+      heading="Fornecedor"
+      headingClassName="text-[1.45rem] sm:text-[1.6rem]"
+    >
+      <div className="space-y-3">
+        <AuthEmailInput value={email} onChange={setEmail} onEnter={entrar} id="fornecedor-login-email" />
+        <AuthPasswordInput value={senha} onChange={setSenha} onEnter={entrar} id="fornecedor-login-senha" />
 
-        <div className="rounded-[var(--radius)] border border-[var(--border-subtle)] bg-[var(--card)] shadow-[var(--shadow-card)] p-6">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs text-[var(--muted)] mb-1.5">E-mail</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && entrar()}
-                placeholder="seu@email.com"
-                className="w-full rounded-xl bg-[var(--background)] border border-[var(--card-border)] text-[var(--foreground)] placeholder-[var(--muted)] px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/50"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-[var(--muted)] mb-1.5">Senha</label>
-              <div className="relative">
-                <input
-                  type={mostrarSenha ? "text" : "password"}
-                  value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && entrar()}
-                  placeholder="••••••"
-                  className="w-full rounded-xl bg-[var(--background)] border border-[var(--card-border)] text-[var(--foreground)] placeholder-[var(--muted)] px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/50"
-                />
-                <button
-                  type="button"
-                  onClick={() => setMostrarSenha(!mostrarSenha)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--foreground)] p-0.5"
-                  title={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
-                >
-                  {mostrarSenha ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
-                    </svg>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
+        {error ? <div className={authAlertErrorClass}>{error}</div> : null}
 
-          {error && (
-            <div className="mt-4 rounded-xl border border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/35 px-4 py-3 text-sm text-red-800 dark:text-red-200 leading-relaxed break-words">
-              {error}
-            </div>
-          )}
-
-          {resetEnviado ? (
-            <div className="mt-4 rounded-xl border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-4 py-3 text-sm text-[var(--accent)]">
-              E-mail enviado! Verifique sua caixa de entrada e o spam.
-            </div>
-          ) : esqueciSenha ? (
-            <button
-              onClick={solicitarReset}
-              disabled={loading}
-              className="mt-5 w-full rounded-xl bg-[var(--accent)] text-white font-semibold py-2.5 text-sm hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {loading ? "Enviando..." : "Enviar link de redefinição"}
-            </button>
-          ) : (
-            <button
-              onClick={entrar}
-              disabled={loading}
-              className="mt-5 w-full rounded-xl bg-[var(--accent)] text-white font-semibold py-2.5 text-sm hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {loading ? "Entrando..." : "Entrar"}
-            </button>
-          )}
-
-          <button
+        {resetEnviado ? (
+          <div className={authAlertSuccessClass}>E-mail enviado! Verifique sua caixa de entrada e o spam.</div>
+        ) : esqueciSenha ? (
+          <Button
             type="button"
-            onClick={() => { setEsqueciSenha(!esqueciSenha); setResetEnviado(false); setError(null); }}
-            className="mt-3 w-full text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+            onClick={solicitarReset}
+            disabled={loading}
+            variant="primary"
+            size="lg"
+            className={authPrimaryButtonClass}
           >
-            {esqueciSenha ? "← Voltar ao login" : "Esqueci a senha"}
-          </button>
+            {loading ? "Enviando..." : "Enviar link de redefinição"}
+          </Button>
+        ) : (
+          <Button type="button" onClick={entrar} disabled={loading} variant="primary" size="lg" className={authPrimaryButtonClass}>
+            {loading ? "Entrando..." : "Entrar"}
+          </Button>
+        )}
 
-          <p className="mt-5 pt-4 border-t border-[var(--card-border)] text-[11px] leading-relaxed text-[var(--muted)] text-center">
-            <strong className="text-[var(--foreground)]">Primeiro acesso ao painel do armazém?</strong> Use o link de convite que a organização enviou (cadastro em{" "}
-            <code className="text-[10px] rounded bg-[var(--background)] px-1 py-0.5 border border-[var(--card-border)]">/fornecedor/register/...</code>
-            ). Só depois disso o e-mail fica autorizado aqui.
-          </p>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setEsqueciSenha(!esqueciSenha);
+            setResetEnviado(false);
+            setError(null);
+          }}
+          className={cn(authMutedLinkClass, "mt-0.5 block w-full")}
+        >
+          {esqueciSenha ? "← Voltar ao login" : "Esqueci a senha"}
+        </button>
+
       </div>
-    </div>
+    </DropcoreAuthShell>
   );
 }

@@ -31,7 +31,7 @@ export function Input({
       <input
         id={inputId}
         className={cn(
-          "w-full rounded-[var(--radius-sm)] border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-[var(--foreground)] placeholder-[var(--muted)] outline-none focus:ring-1 focus:ring-[var(--accent)]/50 transition-colors",
+          "w-full rounded-[var(--radius-sm)] border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-[var(--foreground)] placeholder-[var(--muted)] outline-none focus:ring-1 focus:ring-emerald-500/50 transition-colors",
           inputClassName
         )}
         {...props}

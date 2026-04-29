@@ -12,7 +12,8 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variantStyles: Record<ButtonVariant, string> = {
-  primary: "bg-[var(--accent)] hover:opacity-90 text-white border-0",
+  primary:
+    "bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-sm hover:opacity-[0.97]",
   success: "bg-[var(--success)] hover:opacity-90 text-white border-0",
   danger: "bg-[var(--danger)] hover:opacity-90 text-white border-0",
   info: "bg-[var(--info)] hover:opacity-90 text-white border-0",
