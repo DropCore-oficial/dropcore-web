@@ -119,8 +119,8 @@ function BadgeStatus({ status }: { status: string }) {
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border ${
         ativo
-          ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300"
-          : "bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-900 text-red-700 dark:text-red-300"
+          ? "bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300"
+          : "bg-red-100 dark:bg-red-950/40 border-red-300 dark:border-red-900 text-red-700 dark:text-red-300"
       }`}
     >
       {ativo ? "Ativo" : "Inativo"}
@@ -135,7 +135,7 @@ function BadgeEstoque({ atual, minimo }: { atual: number | null; minimo: number 
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border ${
         baixo
-          ? "bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
+          ? "bg-amber-100 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
           : "bg-neutral-100 dark:bg-neutral-800/60 border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400"
       }`}
     >
@@ -156,8 +156,8 @@ function BadgeReadiness({ item }: { item: SellerCatalogoItem }) {
       title={title}
       className={`inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-[11px] font-semibold border cursor-help whitespace-normal text-left ${
         ok
-          ? "bg-emerald-50 dark:bg-emerald-950/35 border-emerald-400/80 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200"
-          : "bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200"
+          ? "bg-emerald-100 dark:bg-emerald-950/35 border-emerald-400/80 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200"
+          : "bg-amber-100 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200"
       }`}
     >
       {ok ? "Pronto para vender" : `Faltam ${falhas.length} ${falhas.length === 1 ? "item" : "itens"}`}
@@ -327,7 +327,7 @@ export function SellerCatalogoProductInfoBlock({
               className={
                 saas
                   ? "inline-flex h-10 w-full sm:w-auto items-center justify-center gap-2 rounded-lg border border-[#2A2F3A] bg-[#0F1115] px-4 text-sm font-medium text-white hover:border-[#22C55E]/50 transition touch-manipulation shrink-0"
-                  : "inline-flex items-center justify-center gap-2 font-semibold text-neutral-800 dark:text-neutral-100 border border-neutral-300/90 dark:border-neutral-600 rounded-xl px-4 py-2.5 sm:rounded-xl hover:border-emerald-400/80 dark:hover:border-emerald-600 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/25 transition touch-manipulation min-h-[44px] sm:min-h-0 w-full sm:w-auto shrink-0 bg-white/90 dark:bg-neutral-950/40 shadow-sm"
+                  : "inline-flex items-center justify-center gap-2 font-semibold text-neutral-800 dark:text-neutral-100 border border-neutral-300/90 dark:border-neutral-600 rounded-xl px-4 py-2.5 sm:rounded-xl hover:border-emerald-400/80 dark:hover:border-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-950/25 transition touch-manipulation min-h-[44px] sm:min-h-0 w-full sm:w-auto shrink-0 bg-white/90 dark:bg-neutral-950/40 shadow-sm"
               }
             >
               <svg
@@ -796,7 +796,7 @@ export function SellerCatalogoItemCard({
                   <p className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-snug">SKU de sistema: dispensa lista de habilitados no Starter.</p>
                 ) : (
                   <>
-                    <label className="flex items-center justify-between gap-3 cursor-pointer select-none touch-manipulation rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50/95 dark:bg-neutral-800/55 px-3 py-2.5 sm:justify-end sm:gap-2 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
+                    <label className="flex items-center justify-between gap-3 cursor-pointer select-none touch-manipulation rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800/55 px-3 py-2.5 sm:justify-end sm:gap-2 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
                       <span className="text-xs font-medium text-neutral-800 dark:text-neutral-200 pr-1 min-w-0">Habilitar venda</span>
                       <input
                         type="checkbox"

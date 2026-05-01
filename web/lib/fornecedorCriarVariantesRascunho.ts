@@ -131,6 +131,16 @@ export type RascunhoCriarVariantesV1 = {
   cfop?: string;
   unidadeComercial?: string;
   cdSaida?: string;
+  /** Partes do local de saída (CD) — exibidas no formulário; `cdSaida` continua sendo a linha formatada. */
+  cdSaidaCep?: string;
+  cdSaidaLogradouro?: string;
+  cdSaidaNumero?: string;
+  cdSaidaComplemento?: string;
+  cdSaidaBairro?: string;
+  cdSaidaCidade?: string;
+  cdSaidaUf?: string;
+  /** Quando true, o endereço de saída espelha o «despacho padrão» do cadastro do fornecedor. */
+  cdUsarDespachoCadastro?: boolean;
   produto?: {
     infoBasica: {
       nomeProduto: string;
@@ -169,6 +179,61 @@ function ts(iso: string): number {
 export function rascunhoNomeExibicao(d: RascunhoCriarVariantesV1): string {
   const n = (d.nomeProduto || d.produto?.infoBasica?.nomeProduto || "").trim();
   return n;
+}
+
+function campoSemDataUrl(s: string | undefined): string | undefined {
+  if (s == null || s === "") return s;
+  return s.startsWith("data:") ? "" : s;
+}
+
+/**
+ * Remove `data:` (base64) do JSON antes de guardar no `localStorage` — o limite do navegador é baixo
+ * e o rascunho duplica fotos em `fotoUrlPorCor` e em `produto.variacoes[].imagem`.
+ * A API continua a receber o payload completo no PUT.
+ */
+export function rascunhoLeveParaEspelhoLocal(d: RascunhoCriarVariantesV1): RascunhoCriarVariantesV1 {
+  const fotoUrlPorCor: Record<string, string> = {};
+  for (const [k, v] of Object.entries(d.fotoUrlPorCor ?? {})) {
+    if (typeof v !== "string" || v.startsWith("data:")) continue;
+    fotoUrlPorCor[k] = v;
+  }
+
+  const variacoes = (d.produto?.variacoes ?? []).map((row) => ({
+    ...row,
+    imagem: row.imagem?.startsWith("data:") ? "" : row.imagem ?? "",
+  }));
+
+  const mid = d.produto?.midia;
+  const midiaLeve = mid
+    ? {
+        ...mid,
+        principal: campoSemDataUrl(mid.principal),
+        frente: campoSemDataUrl(mid.frente),
+        costas: campoSemDataUrl(mid.costas),
+        detalhe: campoSemDataUrl(mid.detalhe),
+        lifestyle: campoSemDataUrl(mid.lifestyle),
+      }
+    : mid;
+
+  const produto =
+    d.produto != null
+      ? {
+          ...d.produto,
+          variacoes,
+          midia: midiaLeve ?? d.produto.midia,
+        }
+      : d.produto;
+
+  return {
+    ...d,
+    fotoUrlPorCor,
+    midiaPrincipal: campoSemDataUrl(d.midiaPrincipal),
+    midiaFrente: campoSemDataUrl(d.midiaFrente),
+    midiaCostas: campoSemDataUrl(d.midiaCostas),
+    midiaDetalhe: campoSemDataUrl(d.midiaDetalhe),
+    midiaLifestyle: campoSemDataUrl(d.midiaLifestyle),
+    produto,
+  };
 }
 
 function mapaTemValorString(rec: Record<string, string> | undefined): boolean {

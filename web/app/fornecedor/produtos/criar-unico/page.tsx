@@ -115,8 +115,8 @@ export default function CriarUnicoPage() {
                       onClick={() => setAddCor(addCor === cor ? "" : cor)}
                       className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${
                         addCor === cor
-                          ? "border-blue-500 dark:border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
-                          : "border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                          ? "border-blue-500 dark:border-blue-500 bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
+                          : "border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                       }`}
                     >
                       {cor}

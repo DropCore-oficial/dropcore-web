@@ -40,6 +40,9 @@ type Produto = {
   peso_liquido_kg?: number | null;
   peso_bruto_kg?: number | null;
   criado_em: string;
+  marca?: string | null;
+  data_lancamento?: string | null;
+  expedicao_override_linha?: string | null;
 };
 
 function paiKey(sku: string): string {
@@ -774,18 +777,18 @@ export default function EditarVariantesPage() {
             <h1 className="text-sm sm:text-base font-semibold text-neutral-900 dark:text-neutral-100 min-w-0 flex-1 basis-full sm:basis-auto flex flex-wrap items-center gap-2">
               <span className="break-words">Produtos do Armazém / Editar Variantes</span>
               {statusAlteracaoEditar === "pendente" && (
-                <span className="shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300" title="Alteração aguardando aprovação do admin">
+                <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border bg-blue-100 text-blue-800 border-blue-200" title="Alteração aguardando aprovação do admin">
                   Em análise
                 </span>
               )}
               {statusAlteracaoEditar === "aprovado" && (
-                <span className="shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-950/40 text-green-800 dark:text-green-300">
+                <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border bg-green-100 text-green-700 border-green-200">
                   Aprovado
                 </span>
               )}
               {statusAlteracaoEditar === "rejeitado" && (
-                <span className="shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-red-100 dark:bg-red-950/40 text-red-800 dark:text-red-300" title={motivoRejeicaoEditar ? `Motivo: ${motivoRejeicaoEditar}` : undefined}>
-                  Recusado
+                <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border bg-red-100 text-red-600 border-red-200" title={motivoRejeicaoEditar ? `Motivo: ${motivoRejeicaoEditar}` : undefined}>
+                  Reprovado
                 </span>
               )}
             </h1>
@@ -797,8 +800,8 @@ export default function EditarVariantesPage() {
               disabled={desativarLoading}
               className={`flex-1 sm:flex-none rounded-lg px-3 sm:px-4 py-2 text-sm font-medium transition touch-manipulation ${
                 categoriaAtiva
-                  ? "border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40"
-                  : "border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-950/40"
+                  ? "border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/40"
+                  : "border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-950/40"
               } disabled:opacity-60`}
             >
               {desativarLoading ? "..." : categoriaAtiva ? "Desativar categoria" : "Ativar categoria"}
@@ -813,7 +816,7 @@ export default function EditarVariantesPage() {
 
       {error && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
-          <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-800 dark:text-red-300">
+          <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-100 dark:bg-red-950/30 p-3 text-sm text-red-800 dark:text-red-300">
             {error}
             <button onClick={load} className="ml-2 underline">Tentar novamente</button>
           </div>
@@ -821,7 +824,7 @@ export default function EditarVariantesPage() {
       )}
       {successMessage && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
-          <div className="rounded-lg border border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-950/30 p-3 text-sm text-green-800 dark:text-green-300">
+          <div className="rounded-lg border border-green-300 dark:border-green-800 bg-green-100 dark:bg-green-950/30 p-3 text-sm text-green-800 dark:text-green-300">
             {successMessage}
           </div>
         </div>
@@ -829,7 +832,7 @@ export default function EditarVariantesPage() {
 
       {statusAlteracaoEditar === "pendente" && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
-          <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-200">
+          <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-100 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-200">
             <strong>Alteração em análise.</strong> O admin ainda não aprovou. O <strong>seller e o ERP</strong> seguem com os dados <strong>já aprovados</strong> até essa análise fechar. Você pode <strong>ajustar e salvar de novo</strong> — a última versão enviada é a que o DropCore analisa em Alterações de produtos.
           </div>
         </div>
@@ -858,7 +861,7 @@ export default function EditarVariantesPage() {
                     {CORES_PREDEFINIDAS.map((cor) => (
                       <div
                         key={cor}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                       >
                         <input
                           id={`edit-pref-cor-${cor}`}
@@ -901,7 +904,7 @@ export default function EditarVariantesPage() {
                     {TAMANHOS_PREDEFINIDOS.map((tam) => (
                       <div
                         key={tam}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                       >
                         <input
                           id={`edit-pref-tam-${tam}`}
@@ -938,13 +941,13 @@ export default function EditarVariantesPage() {
               </div>
               {combinacoesAnuncio.length > 0 && (
                 <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
-                  <div className="px-3 py-2 bg-neutral-50 dark:bg-neutral-800/50 text-xs font-medium text-neutral-600 dark:text-neutral-400">
+                  <div className="px-3 py-2 bg-neutral-100 dark:bg-neutral-800/50 text-xs font-medium text-neutral-600 dark:text-neutral-400">
                     Lista de combinações ({combinacoesAnuncio.length}) · {faltantesAnuncio > 0 ? `${faltantesAnuncio} nova(s)` : "todas já no catálogo"}
                   </div>
                   <div className="max-h-64 overflow-y-auto min-w-0">
                     <table className="w-full min-w-0 text-sm table-fixed">
                       <thead>
-                        <tr className="bg-neutral-50 dark:bg-neutral-800/50 text-left border-b border-neutral-100 dark:border-neutral-700">
+                        <tr className="bg-neutral-100 dark:bg-neutral-800/50 text-left border-b border-neutral-100 dark:border-neutral-700">
                           <th className="px-3 py-2 font-medium">Cor</th>
                           <th className="px-3 py-2 font-medium">Tamanho</th>
                           <th className="px-3 py-2 font-medium">Situação</th>
@@ -956,7 +959,7 @@ export default function EditarVariantesPage() {
                           const tamN = c.tamanho.trim() ? c.tamanho.trim().toUpperCase() : null;
                           const jaCad = paresExistentesGrupo.has(pairKeyRow(corN, tamN));
                           return (
-                            <tr key={i} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50">
+                            <tr key={i} className="hover:bg-neutral-100 dark:hover:bg-neutral-800/50">
                               <td className="px-3 py-2 text-neutral-700 dark:text-neutral-300">{c.cor || "—"}</td>
                               <td className="px-3 py-2 text-neutral-700 dark:text-neutral-300">{c.tamanho || "—"}</td>
                               <td className="px-3 py-2">
@@ -989,7 +992,7 @@ export default function EditarVariantesPage() {
               )}
             </div>
             <div className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/50 space-y-3">
+              <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-800/50 space-y-3">
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">Tabela por SKU: dimensões, preço e estoque. Use <strong>Editar</strong> na linha para cor/tamanho (como no anúncio) ou Editar em massa abaixo.</p>
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
                   O envio vai para <strong>análise</strong>; a tabela passa a mostrar o que você enviou até o admin aprovar no catálogo oficial.
@@ -1026,7 +1029,7 @@ export default function EditarVariantesPage() {
                 </div>
               </div>
               <>
-                <div className="lg:hidden divide-y divide-neutral-100 dark:divide-neutral-800 min-w-0 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/20">
+                <div className="lg:hidden divide-y divide-neutral-100 dark:divide-neutral-800 min-w-0 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900/20">
                   {grupoProdutos.map((row) => {
                     const lf = getLinkFotos(row, produtos) || row.link_fotos;
                     const pk = grupoKey.trim().toUpperCase();
@@ -1041,6 +1044,7 @@ export default function EditarVariantesPage() {
                             skuId={row.id}
                             imagemUrl={row.imagem_url ?? null}
                             fallbackImagemUrl={ehPai && !row.imagem_url ? imagemUrlFallbackPai : null}
+                            linkFotosUrl={lf}
                             onUpdate={async (url) => {
                               setProdutos((prev) =>
                                 prev.map((p) => (p.id === row.id ? { ...p, imagem_url: url } : p))
@@ -1092,7 +1096,7 @@ export default function EditarVariantesPage() {
                                 <button
                                   type="button"
                                   onClick={() => openEdit(row)}
-                                  className="rounded-md px-2 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 touch-manipulation"
+                                  className="rounded-md px-2 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-950/40 touch-manipulation"
                                 >
                                   Editar
                                 </button>
@@ -1101,7 +1105,7 @@ export default function EditarVariantesPage() {
                                     type="button"
                                     onClick={() => handleExcluirVariante(row)}
                                     disabled={excluindoId === row.id}
-                                    className="rounded-md px-2 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30 touch-manipulation disabled:opacity-50"
+                                    className="rounded-md px-2 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-950/30 touch-manipulation disabled:opacity-50"
                                   >
                                     {excluindoId === row.id ? "..." : "Excluir"}
                                   </button>
@@ -1145,7 +1149,7 @@ export default function EditarVariantesPage() {
                 <div className="hidden min-w-0 overflow-x-auto border-t border-neutral-100 dark:border-neutral-800 lg:block">
                   <table className="w-full min-w-[720px] table-fixed text-sm">
                     <thead>
-                      <tr className="border-b border-neutral-100 bg-neutral-50 text-left text-xs text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-400">
+                      <tr className="border-b border-neutral-100 bg-neutral-100 text-left text-xs text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-400">
                         <th className="w-[5.5rem] px-2 py-2 font-medium align-middle lg:px-3">Foto</th>
                         <th className="w-[16%] px-2 py-2 font-medium align-middle lg:px-3">Cor</th>
                         <th className="w-[8%] px-2 py-2 font-medium lg:px-3">Tam.</th>
@@ -1166,13 +1170,14 @@ export default function EditarVariantesPage() {
                         const pkTable = grupoKey.trim().toUpperCase();
                         const ehPaiRow = row.sku.trim().toUpperCase() === pkTable;
                         return (
-                          <tr key={row.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50">
+                          <tr key={row.id} className="hover:bg-neutral-100 dark:hover:bg-neutral-800/50">
                             <td className="px-2 py-2 align-middle lg:px-3">
                               <FotoVariacaoCell
                                 variant="table"
                                 skuId={row.id}
                                 imagemUrl={row.imagem_url ?? null}
                                 fallbackImagemUrl={ehPaiRow && !row.imagem_url ? imagemUrlFallbackPai : null}
+                                linkFotosUrl={lf}
                                 onUpdate={async (url) => {
                                   setProdutos((prev) =>
                                     prev.map((p) => (p.id === row.id ? { ...p, imagem_url: url } : p))
@@ -1413,7 +1418,7 @@ export default function EditarVariantesPage() {
                   </div>
                 ) : (
                   <form onSubmit={salvarTabelaMedidas} className="space-y-5">
-                    <div className="overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-inner bg-neutral-50/50 dark:bg-neutral-900/50">
+                    <div className="overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-inner bg-neutral-100 dark:bg-neutral-900/50">
                       <table className="w-full text-sm border-collapse">
                         <thead>
                           <tr className="bg-neutral-100 dark:bg-neutral-800/80">
@@ -1435,10 +1440,10 @@ export default function EditarVariantesPage() {
                             <tr
                               key={tam}
                               className={`border-b border-neutral-200/80 dark:border-neutral-700/80 last:border-b-0 ${
-                                rowIndex % 2 === 0 ? "bg-white dark:bg-[var(--card)]" : "bg-neutral-50/70 dark:bg-neutral-800/30"
-                              } hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors`}
+                                rowIndex % 2 === 0 ? "bg-white dark:bg-[var(--card)]" : "bg-neutral-100 dark:bg-neutral-800/30"
+                              } hover:bg-blue-100 dark:hover:bg-blue-950/20 transition-colors`}
                             >
-                              <td className="px-4 py-2.5 font-medium text-neutral-800 dark:text-neutral-200 border-r border-neutral-200 dark:border-neutral-700 bg-neutral-50/80 dark:bg-neutral-800/50">
+                              <td className="px-4 py-2.5 font-medium text-neutral-800 dark:text-neutral-200 border-r border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800/50">
                                 {tam}
                               </td>
                               {colunasTabelaMedidas.map((col) => (
@@ -1468,7 +1473,7 @@ export default function EditarVariantesPage() {
                       </table>
                     </div>
                     {tamanhosOrdenados.length === 0 && (
-                      <div className="rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                      <div className="rounded-xl bg-amber-100 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
                         Adicione tamanhos nas variantes do produto para preencher as linhas aqui.
                       </div>
                     )}
@@ -1508,8 +1513,8 @@ export default function EditarVariantesPage() {
                 onClick={() => setTabAtiva(tab.id)}
                 className={`block w-full text-left px-4 py-2.5 text-sm transition ${
                   tabAtiva === tab.id
-                    ? "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-medium border-l-2 border-blue-600 dark:border-blue-500"
-                    : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-100"
+                    ? "bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-medium border-l-2 border-blue-600 dark:border-blue-500"
+                    : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-100"
                 }`}
               >
                 {tab.label}
@@ -1560,8 +1565,8 @@ export default function EditarVariantesPage() {
                           onClick={() => setEditCor((prev) => (prev.trim().toLowerCase() === cor.toLowerCase() ? "" : cor))}
                           className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors shrink-0 ${
                             editCor.trim().toLowerCase() === cor.toLowerCase()
-                              ? "border-blue-500 dark:border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
-                              : "border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                              ? "border-blue-500 dark:border-blue-500 bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
+                              : "border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                           }`}
                         >
                           {cor}
@@ -1589,8 +1594,8 @@ export default function EditarVariantesPage() {
                           }
                           className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${
                             editTamanho.trim().toUpperCase() === tam.toUpperCase()
-                              ? "border-blue-500 dark:border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
-                              : "border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                              ? "border-blue-500 dark:border-blue-500 bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
+                              : "border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                           }`}
                         >
                           {tam}
@@ -1698,7 +1703,7 @@ export default function EditarVariantesPage() {
                 </div>
                 {formError && <p className="text-sm text-red-400">{formError}</p>}
               </div>
-              <div className="shrink-0 flex flex-col sm:flex-row sm:items-center gap-2 px-5 py-4 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50/90 dark:bg-neutral-950/50">
+              <div className="shrink-0 flex flex-col sm:flex-row sm:items-center gap-2 px-5 py-4 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-950/50">
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400 flex-1 sm:order-first">
                   {dirtyModal ? "Salvar envia para análise do admin." : "Altere algum campo para habilitar Salvar."}
                 </p>

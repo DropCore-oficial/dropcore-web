@@ -50,16 +50,35 @@ const LABEL: Record<string, string> = {
   origem: "Origem",
   cest: "CEST",
   cfop: "CFOP",
+  detalhes_produto_json: "Detalhes do formulário",
 };
 
 function formatValor(k: string, v: unknown): string {
   if (v == null || v === "") return "—";
+  if (k === "detalhes_produto_json") {
+    if (typeof v === "object" && v != null) return "Atualizado";
+    return "—";
+  }
   if (k === "custo_base" || k === "custo_dropcore" || k === "peso_kg") {
     const n = typeof v === "number" ? v : parseFloat(String(v));
     if (Number.isFinite(n) && (k === "custo_base" || k === "custo_dropcore")) return BRL.format(n);
     return String(v);
   }
   return String(v);
+}
+
+function normalizarComparacaoCampo(k: string, v: unknown): unknown {
+  if (v == null) return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string") {
+    const s = v.trim();
+    if (!s) return null;
+    if (["nome_produto", "categoria", "cor", "tamanho", "dimensoes_pacote", "descricao"].includes(k)) {
+      return toTitleCase(s);
+    }
+    return s;
+  }
+  return v;
 }
 
 export default function AdminAlteracoesProdutosPage() {
@@ -278,14 +297,14 @@ export default function AdminAlteracoesProdutosPage() {
           <button
             type="button"
             onClick={() => router.push("/admin/empresas")}
-            className="shrink-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5 text-sm font-medium text-[var(--muted)] shadow-sm transition-colors hover:border-neutral-300 hover:bg-neutral-50 hover:text-[var(--foreground)] dark:hover:border-neutral-600 dark:hover:bg-neutral-800/90 dark:hover:text-neutral-100"
+            className="shrink-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5 text-sm font-medium text-[var(--muted)] shadow-sm transition-colors hover:border-neutral-300 hover:bg-neutral-100 hover:text-[var(--foreground)] dark:hover:border-neutral-600 dark:hover:bg-neutral-800/90 dark:hover:text-neutral-100"
           >
             ← Voltar às Empresas
           </button>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-300 text-sm">
+          <div className="mb-6 p-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-100 dark:bg-red-950/30 text-red-800 dark:text-red-300 text-sm">
             {error}
           </div>
         )}
@@ -324,7 +343,7 @@ export default function AdminAlteracoesProdutosPage() {
                     type="button"
                     onClick={selecionarTodasDoFornecedor}
                     disabled={actingBulk}
-                    className="rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-medium text-[var(--foreground)] hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-100 dark:hover:bg-neutral-800/80"
+                    className="rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-medium text-[var(--foreground)] hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-100 dark:hover:bg-neutral-800/80"
                   >
                     Selecionar todas
                   </button>
@@ -358,7 +377,7 @@ export default function AdminAlteracoesProdutosPage() {
                         type="button"
                         onClick={() => void aprovarEmMassa(filtradas.map((x) => x.id))}
                         disabled={actingBulk}
-                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-emerald-600 bg-emerald-50/50 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100/80 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:border-emerald-500/70 dark:bg-emerald-950/25 dark:text-emerald-200 dark:hover:bg-emerald-950/45 dark:disabled:ring-white/15 sm:min-w-[240px] sm:flex-none"
+                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-emerald-600 bg-emerald-100 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100/80 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:border-emerald-500/70 dark:bg-emerald-950/25 dark:text-emerald-200 dark:hover:bg-emerald-950/45 dark:disabled:ring-white/15 sm:min-w-[240px] sm:flex-none"
                       >
                         {bulkAction === "approve" ? "..." : `Aprovar todas (${filtradas.length})`}
                       </button>
@@ -415,7 +434,7 @@ export default function AdminAlteracoesProdutosPage() {
                           void rejeitarEmMassa(filtradas.map((x) => x.id));
                         }}
                         disabled={actingBulk || filtradas.length === 0}
-                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-red-600 bg-red-50/40 px-4 py-2.5 text-sm font-semibold text-red-800 transition hover:bg-red-100/60 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:border-red-500/80 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50 dark:disabled:ring-white/15 sm:min-w-[240px] sm:flex-none"
+                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-red-600 bg-red-100 px-4 py-2.5 text-sm font-semibold text-red-800 transition hover:bg-red-100/60 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:border-red-500/80 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50 dark:disabled:ring-white/15 sm:min-w-[240px] sm:flex-none"
                       >
                         {bulkAction === "reject" ? "..." : `Rejeitar todas (${filtradas.length})`}
                       </button>
@@ -478,7 +497,7 @@ export default function AdminAlteracoesProdutosPage() {
                         type="button"
                         onClick={() => setRejeitarId(a.id)}
                         disabled={actingId === a.id || actingBulk}
-                        className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border-2 border-red-600 bg-red-50/60 px-5 py-2.5 text-sm font-semibold text-red-800 transition hover:bg-red-100/80 disabled:cursor-not-allowed disabled:opacity-100 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50 lg:min-h-[46px] lg:w-full"
+                        className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border-2 border-red-600 bg-red-100 px-5 py-2.5 text-sm font-semibold text-red-800 transition hover:bg-red-100/80 disabled:cursor-not-allowed disabled:opacity-100 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50 lg:min-h-[46px] lg:w-full"
                       >
                         Rejeitar
                       </button>
@@ -514,17 +533,22 @@ export default function AdminAlteracoesProdutosPage() {
                   )}
                 </div>
 
-                <div className="border-t border-[var(--card-border)] bg-neutral-50/50 px-4 py-4 dark:bg-neutral-950/80 sm:px-5 lg:px-6 lg:py-5">
+                <div className="border-t border-[var(--card-border)] bg-neutral-100 px-4 py-4 dark:bg-neutral-950/80 sm:px-5 lg:px-6 lg:py-5">
                   {(() => {
                     const { tabela_medidas: tm, ...rest } = a.dados_propostos as Record<string, unknown> & { tabela_medidas?: { tipo_produto?: string; medidas?: Record<string, Record<string, number>> } };
                     const isExclusaoGrupo =
                       rest._solicitacao_dropcore === "exclusao_grupo" && typeof rest.grupo_key === "string";
                     const chavesInternas = new Set(["_solicitacao_dropcore", "grupo_key", "nome_produto_exclusao"]);
-                    const entries = Object.entries(rest).filter(([k]) => !chavesInternas.has(k));
+                    const entries = Object.entries(rest)
+                      .filter(([k]) => !chavesInternas.has(k))
+                      .filter(([k, v]) => {
+                        const atualBruto = a.sku && (k in a.sku) ? (a.sku as Record<string, unknown>)[k] : null;
+                        return normalizarComparacaoCampo(k, atualBruto) !== normalizarComparacaoCampo(k, v);
+                      });
                     return (
                       <>
                         {isExclusaoGrupo && (
-                          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm text-red-900 dark:border-red-700/70 dark:bg-red-950/70 dark:text-red-50">
+                          <div className="mb-4 rounded-xl border border-red-200 bg-red-100 px-4 py-3.5 text-sm text-red-900 dark:border-red-700/70 dark:bg-red-950/70 dark:text-red-50">
                             <p className="font-semibold text-red-950 dark:text-red-100">Pedido de exclusão (DropCore)</p>
                             <p className="mt-1.5 text-xs leading-relaxed text-red-900 dark:text-red-100/95">
                               O fornecedor pediu para excluir o produto inteiro{" "}

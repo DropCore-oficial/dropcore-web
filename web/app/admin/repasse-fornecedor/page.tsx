@@ -235,7 +235,7 @@ export default function RepasseFornecedorPage() {
         </div>
 
         {futureCycles.length > 0 && (
-          <div className="rounded-2xl border border-sky-200 bg-sky-50/60 dark:bg-sky-950/20 dark:border-sky-900/50 shadow-sm px-4 py-3">
+          <div className="rounded-2xl border border-sky-200 bg-sky-100 dark:bg-sky-950/20 dark:border-sky-900/50 shadow-sm px-4 py-3">
             <p className="text-xs font-semibold text-sky-800 dark:text-sky-300 mb-2">Próximos ciclos (previsão rápida)</p>
             <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mb-2">
               Próximas 4 segundas: quanto está <span className="font-medium">pronto para fechar</span> no ledger (ENTREGUE / AGUARDANDO_REPASSE). Clique em um ciclo abaixo para detalhar.
@@ -286,7 +286,7 @@ export default function RepasseFornecedorPage() {
                       onClick={() => selectCiclo(s)}
                       className={`rounded-xl border px-3 py-1.5 text-xs transition-colors ${
                         ciclo === s
-                          ? "border-emerald-300 bg-emerald-50 text-emerald-700 font-semibold"
+                          ? "border-emerald-300 bg-emerald-100 text-emerald-700 font-semibold"
                           : "border-neutral-300 text-neutral-600 hover:border-neutral-500 hover:text-neutral-900"
                       }`}
                     >
@@ -304,7 +304,7 @@ export default function RepasseFornecedorPage() {
                       onClick={() => selectCiclo(s)}
                       className={`rounded-xl border px-3 py-1.5 text-xs transition-colors ${
                         ciclo === s
-                          ? "border-blue-300 bg-blue-50 text-blue-700 font-semibold"
+                          ? "border-blue-300 bg-blue-100 text-blue-700 font-semibold"
                           : "border-neutral-200 text-neutral-600 hover:border-neutral-300 hover:text-neutral-700"
                       }`}
                     >
@@ -337,7 +337,7 @@ export default function RepasseFornecedorPage() {
 
                 {/* Status do ciclo */}
                 {preview.ja_fechado && (
-                  <div className="rounded-xl border border-yellow-300 bg-yellow-50 px-3 py-2.5 text-xs text-yellow-800">
+                  <div className="rounded-xl border border-yellow-300 bg-yellow-100 px-3 py-2.5 text-xs text-yellow-800">
                     {preview.entries_count > 0
                       ? <>Ciclo já fechado em {formatDate(preview.fechado_em ?? "")}. Há <strong>{preview.entries_count} novo(s) pedido(s)</strong> que ainda não foram repassados.</>
                       : <>Ciclo fechado em {formatDate(preview.fechado_em ?? "")}. Não há novos pedidos para repassar.</>
@@ -454,7 +454,7 @@ export default function RepasseFornecedorPage() {
                       </p>
                     )}
                     {(preview.fornecedores_cadastro_pendente?.length ?? 0) > 0 && (
-                      <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      <div className="rounded-xl border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-800">
                         <p className="font-semibold mb-1">Cadastro pendente bloqueia fechamento</p>
                         <p>
                           Fornecedores pendentes: {preview.fornecedores_cadastro_pendente!.slice(0, 5).join(", ")}
@@ -487,8 +487,8 @@ export default function RepasseFornecedorPage() {
         {message && (
           <div className={`rounded-2xl border px-4 py-3 text-sm ${
             message.type === "ok"
-              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-              : "border-rose-300 bg-rose-50 text-rose-700"
+              ? "border-emerald-300 bg-emerald-100 text-emerald-700"
+              : "border-rose-300 bg-rose-100 text-rose-700"
           }`}>
             {message.text}
           </div>

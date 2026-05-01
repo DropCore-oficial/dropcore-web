@@ -10,6 +10,7 @@ import { toTitleCase } from "@/lib/formatText";
 import { normalizeSellerDocDigits } from "@/lib/sellerDocumento";
 import { isValidCnpjDigits, normalizeCnpjInput } from "@/lib/fornecedorCadastro";
 import { empresaCnpjParaEnderecoLinha, type EmpresaCnpjPayload } from "@/lib/cnpjBrasilConsulta";
+import { cepParaConsultaViaCep } from "@/lib/cepViaCep";
 
 function formatarCNPJouCPF(val: string, tipo: "CNPJ" | "CPF"): string {
   const dig = val.replace(/\D/g, "");
@@ -122,14 +123,14 @@ export default function SellerCadastroPage() {
   }, []);
 
   useEffect(() => {
-    const cepLimpo = form.cep.replace(/\D/g, "");
-    if (cepLimpo.length !== 8) {
-      if (cepLimpo.length === 0) setCepLoading(false);
+    const cepConsulta = cepParaConsultaViaCep(form.cep);
+    if (!cepConsulta) {
+      if (form.cep.replace(/\D/g, "").length === 0) setCepLoading(false);
       return;
     }
     setCepLoading(true);
     const ac = new AbortController();
-    fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`, { signal: ac.signal })
+    fetch(`https://viacep.com.br/ws/${cepConsulta}/json/`, { signal: ac.signal })
       .then((r) => r.json())
       .then((data) => {
         if (data.erro) {
@@ -277,12 +278,12 @@ export default function SellerCadastroPage() {
         />
 
         {error && (
-          <div className="mb-4 rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/30 px-4 py-3 text-sm text-red-700 dark:text-red-200">
+          <div className="mb-4 rounded-xl border border-red-300 bg-red-100 dark:bg-red-950/30 px-4 py-3 text-sm text-red-700 dark:text-red-200">
             {error}
           </div>
         )}
         {okMsg && (
-          <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/25 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-100">
+          <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-100 dark:bg-emerald-950/25 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-100">
             {okMsg}
           </div>
         )}

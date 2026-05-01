@@ -62,7 +62,7 @@ export function FornecedorArmazemDetalheModal({ fornecedorId, onClose }: Props) 
         className="bg-white dark:bg-[var(--card)] rounded-2xl border border-neutral-200 dark:border-[var(--card-border)] shadow-2xl max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200 dark:border-[var(--card-border)] bg-neutral-50/80 dark:bg-neutral-800/50">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200 dark:border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-800/50">
           <h3 className="font-semibold text-neutral-900 dark:text-neutral-100 text-sm sm:text-base">Dados cadastrais do armazém</h3>
           <button
             type="button"
@@ -83,7 +83,7 @@ export function FornecedorArmazemDetalheModal({ fornecedorId, onClose }: Props) 
           {!loading && payload && (
             <>
               {payload.aviso_uso ? (
-                <p className="text-[11px] sm:text-xs text-amber-900 dark:text-amber-100/95 leading-relaxed rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/90 dark:bg-amber-950/40 px-3 py-2">
+                <p className="text-[11px] sm:text-xs text-amber-900 dark:text-amber-100/95 leading-relaxed rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-100 dark:bg-amber-950/40 px-3 py-2">
                   {payload.aviso_uso}
                 </p>
               ) : null}

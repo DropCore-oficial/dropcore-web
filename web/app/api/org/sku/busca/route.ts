@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { OrgAuthError, requireOrgStaffForOrgId } from "@/lib/apiOrgAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,6 +49,8 @@ export async function GET(req: Request) {
         { status: 400 }
       );
     }
+
+    await requireOrgStaffForOrgId(req, org_id);
 
     const { paisTable, filhosTable } = await resolveTables();
 
@@ -106,10 +109,11 @@ export async function GET(req: Request) {
       pais: pais || [],
       filhos: filhos || [],
     });
-  } catch (err: any) {
-    return NextResponse.json(
-      { ok: false, error: err?.message || "Erro desconhecido" },
-      { status: 500 }
-    );
+  } catch (err: unknown) {
+    if (err instanceof OrgAuthError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: err.statusCode });
+    }
+    const msg = err instanceof Error ? err.message : "Erro desconhecido";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }

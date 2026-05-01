@@ -1,67 +1,10 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
 import { deleteFornecedorCascade } from "@/lib/fornecedorDeleteCascade";
+import { OrgAuthError, orgErrorHttpStatus, requireAdminForOrgId } from "@/lib/apiOrgAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const getUrl = () => process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const getAnonKey = () => process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const getServiceKey = () => process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-function getBearerToken(req: Request): string | null {
-  const auth = req.headers.get("authorization") || "";
-  return auth.startsWith("Bearer ") ? auth.slice(7) : null;
-}
-
-async function requireOwnerOrAdmin(req: Request) {
-  const url = getUrl();
-  const anonKey = getAnonKey();
-  const serviceKey = getServiceKey();
-  if (!url || !anonKey || !serviceKey) throw new Error("Configuração Supabase ausente");
-
-  let user: { id: string } | null = null;
-  const bearerToken = getBearerToken(req);
-  if (bearerToken) {
-    const supabaseAnon = createClient(url, anonKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    const { data: u, error } = await supabaseAnon.auth.getUser(bearerToken);
-    if (!error && u?.user) user = u.user;
-  }
-  if (!user) {
-    const cookieStore = await cookies();
-    const supabaseAuth = createServerClient(url, anonKey, {
-      cookies: { get(name) { return cookieStore.get(name)?.value; } },
-    });
-    const { data: sessionData, error: authErr } = await supabaseAuth.auth.getSession();
-    if (!authErr && sessionData?.session?.user) user = sessionData.session.user;
-  }
-  if (!user) throw new Error("Não autenticado");
-
-  const { searchParams } = new URL(req.url);
-  const orgId = (searchParams.get("orgId") || "").trim();
-  if (!orgId) throw new Error("orgId é obrigatório");
-
-  const supabaseAdmin = createClient(url, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  const { data: member, error: memErr } = await supabaseAdmin
-    .from("org_members")
-    .select("role_base")
-    .eq("org_id", orgId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (memErr || !member || !["owner", "admin"].includes(member?.role_base ?? "")) {
-    throw new Error("Sem permissão");
-  }
-
-  return { supabaseAdmin, orgId };
-}
 
 /**
  * PATCH /api/org/fornecedores/[id]?orgId=...
@@ -69,7 +12,14 @@ async function requireOwnerOrAdmin(req: Request) {
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { supabaseAdmin, orgId } = await requireOwnerOrAdmin(req);
+    const { searchParams } = new URL(req.url);
+    const orgId = (searchParams.get("orgId") || "").trim();
+    if (!orgId) {
+      return NextResponse.json({ error: "orgId é obrigatório" }, { status: 400 });
+    }
+
+    await requireAdminForOrgId(req, orgId);
+
     const { id } = await params;
     if (!id) return NextResponse.json({ error: "id é obrigatório" }, { status: 400 });
 
@@ -92,23 +42,31 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     return NextResponse.json({ ok: true, id: data.id, premium: data.premium });
   } catch (e: unknown) {
+    if (e instanceof OrgAuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.statusCode });
+    }
     const msg = e instanceof Error ? e.message : "Erro inesperado";
-    const status = msg === "Não autenticado" ? 401 : msg === "Sem permissão" ? 403 : msg === "orgId é obrigatório" ? 400 : 500;
-    return NextResponse.json({ error: msg }, { status });
+    return NextResponse.json({ error: msg }, { status: orgErrorHttpStatus(e) });
   }
 }
 
 /**
  * DELETE /api/org/fornecedores/[id]?orgId=...
- * Remove fornecedor e dados ligados (pedidos, ledger, SKUs, convites, etc.).
  */
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { supabaseAdmin: sb, orgId } = await requireOwnerOrAdmin(req);
+    const { searchParams } = new URL(req.url);
+    const orgId = (searchParams.get("orgId") || "").trim();
+    if (!orgId) {
+      return NextResponse.json({ error: "orgId é obrigatório" }, { status: 400 });
+    }
+
+    await requireAdminForOrgId(req, orgId);
+
     const { id } = await params;
     if (!id) return NextResponse.json({ error: "id é obrigatório" }, { status: 400 });
 
-    const result = await deleteFornecedorCascade(sb, orgId, id);
+    const result = await deleteFornecedorCascade(supabaseAdmin, orgId, id);
     if (!result.ok) {
       const status = result.message.includes("não encontrado") ? 404 : 400;
       return NextResponse.json({ error: result.message }, { status });
@@ -116,9 +74,10 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
+    if (e instanceof OrgAuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.statusCode });
+    }
     const msg = e instanceof Error ? e.message : "Erro inesperado";
-    const status = msg === "Não autenticado" ? 401 : msg === "Sem permissão" ? 403 : msg === "orgId é obrigatório" ? 400 : 500;
-    return NextResponse.json({ error: msg }, { status });
+    return NextResponse.json({ error: msg }, { status: orgErrorHttpStatus(e) });
   }
 }
-

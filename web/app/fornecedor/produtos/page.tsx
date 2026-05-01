@@ -10,6 +10,7 @@ import { FotoVariacaoCell } from "@/components/FotoVariacaoCell";
 import { toTitleCase } from "@/lib/formatText";
 import { fornecedorProdutoImagemSrc } from "@/lib/fornecedorProdutoImagemSrc";
 import { getResumoRascunhoCriarVariantes, type ResumoRascunhoCriarVariantes } from "@/lib/fornecedorCriarVariantesRascunho";
+import { ProdutoResumoListaGrupo } from "@/components/fornecedor/ProdutoResumoListaGrupo";
 
 const BRL_CUSTO_FORNECEDOR = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -37,9 +38,20 @@ type Produto = {
   comprimento_cm: number | null;
   largura_cm: number | null;
   altura_cm: number | null;
+  dimensoes_pacote?: string | null;
+  categoria?: string | null;
+  marca?: string | null;
+  data_lancamento?: string | null;
+  ncm?: string | null;
+  origem?: string | null;
+  cest?: string | null;
+  cfop?: string | null;
+  peso_liquido_kg?: number | null;
+  peso_bruto_kg?: number | null;
   criado_em: string;
   /** Despacho deste SKU quando difere do CD padrão do fornecedor (texto livre). */
   expedicao_override_linha?: string | null;
+  detalhes_produto_json?: Record<string, unknown> | null;
 };
 
 /** Agrupa SKUs por produto (paiKey: XXX001000 = pai, XXX001001+ = filhos; XXX = iniciais do fornecedor) */
@@ -81,25 +93,117 @@ function CorCelulaProduto({ cor }: { cor: string | null }) {
 }
 
 type GrupoProduto = { paiKey: string; pai: Produto | null; filhos: Produto[] };
+type GrupoPorCor = { key: string; corLabel: string; itens: Produto[] };
 
 /** Primeira variante (menor SKU) que já tem `imagem_url`. */
 function primeiraImagemUrlEntreFilhos(filhos: Produto[]): string | null {
-  const comFoto = filhos.filter((f) => f.imagem_url);
+  const comFoto = filhos.filter((f) => (f.imagem_url ?? "").trim().length > 0);
   if (comFoto.length === 0) return null;
   comFoto.sort((a, b) => a.sku.localeCompare(b.sku));
   return comFoto[0].imagem_url ?? null;
 }
 
-/** Capa do grupo: foto do pai ou, se vazia, da primeira variante com imagem. */
-function imagemCapaGrupo(g: GrupoProduto): string | null {
-  if (g.pai?.imagem_url) return g.pai.imagem_url;
-  return primeiraImagemUrlEntreFilhos(g.filhos);
+/**
+ * URLs a tentar como miniatura (várias falham: proxy, formato, URL sem extensão).
+ * Ordem: pai → variantes (SKU) → link principal do pai.
+ */
+function candidatosMiniaturaGrupo(g: GrupoProduto): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const add = (u: string | null | undefined) => {
+    const s = (u ?? "").trim();
+    if (!s || seen.has(s)) return;
+    seen.add(s);
+    out.push(s);
+  };
+  add(g.pai?.imagem_url);
+  const filhos = [...g.filhos].sort((a, b) => a.sku.localeCompare(b.sku));
+  for (const f of filhos) add(f.imagem_url);
+  add(g.pai?.link_fotos);
+  return out;
+}
+
+function MiniaturaListaGrupo({
+  g,
+  todosProdutos,
+}: {
+  g: GrupoProduto;
+  todosProdutos: Produto[];
+}) {
+  const representante = g.pai ?? g.filhos[0];
+  const lfLink =
+    representante ? getLinkFotos(representante, todosProdutos) || representante.link_fotos : null;
+
+  const fotoSig = [
+    g.pai?.imagem_url ?? "",
+    g.pai?.link_fotos ?? "",
+    ...g.filhos.map((f) => `${f.id}:${f.imagem_url ?? ""}`),
+  ].join("|");
+
+  const candidatos = useMemo(() => candidatosMiniaturaGrupo(g), [g.paiKey, fotoSig]);
+
+  const [failIdx, setFailIdx] = useState(0);
+
+  useEffect(() => {
+    setFailIdx(0);
+  }, [g.paiKey, fotoSig]);
+
+  if (failIdx >= candidatos.length) {
+    if (lfLink) {
+      return (
+        <a
+          href={lfLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="flex h-full w-full items-center justify-center bg-neutral-200 text-lg text-neutral-500 hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-600"
+          title="Abrir link da foto"
+        >
+          📷
+        </a>
+      );
+    }
+    return <span className="text-lg text-neutral-400 dark:text-neutral-500">—</span>;
+  }
+
+  const src = candidatos[failIdx];
+  return (
+    <img
+      src={fornecedorProdutoImagemSrc(src)}
+      alt=""
+      className="h-full w-full object-cover"
+      onError={() => setFailIdx((i) => i + 1)}
+    />
+  );
 }
 
 function fallbackImagemSkuPai(row: Produto, g: GrupoProduto): string | null {
   if (row.sku !== g.paiKey) return null;
   if (row.imagem_url) return null;
   return primeiraImagemUrlEntreFilhos(g.filhos);
+}
+
+function agruparVariantesPorCor(rows: Produto[]): GrupoPorCor[] {
+  const porCor = new Map<string, GrupoPorCor>();
+  const ordenadas = [...rows].sort((a, b) => a.sku.localeCompare(b.sku));
+  for (const row of ordenadas) {
+    const cor = (row.cor ?? "").trim();
+    const corLabel = cor || "Sem cor";
+    const key = cor.toLowerCase() || "__sem_cor__";
+    const atual = porCor.get(key);
+    if (atual) {
+      atual.itens.push(row);
+    } else {
+      porCor.set(key, { key, corLabel, itens: [row] });
+    }
+  }
+  return Array.from(porCor.values()).sort((a, b) => {
+    const skuA = a.itens[0]?.sku ?? "";
+    const skuB = b.itens[0]?.sku ?? "";
+    const bySku = skuA.localeCompare(skuB, "pt-BR", { numeric: true });
+    if (bySku !== 0) return bySku;
+    return a.corLabel.localeCompare(b.corLabel, "pt-BR");
+  });
 }
 
 function isEstoqueBaixo(p: Produto): boolean {
@@ -135,6 +239,8 @@ export default function FornecedorProdutosPage() {
   const [editCusto, setEditCusto] = useState("");
   const [editExpedicao, setEditExpedicao] = useState("");
   const [expandido, setExpandido] = useState<Set<string>>(new Set());
+  const [modoListaVariantes, setModoListaVariantes] = useState<"agrupado-cor" | "sku">("agrupado-cor");
+  const [mostrarFotosVariantes, setMostrarFotosVariantes] = useState<boolean>(true);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [solicitandoExclusao, setSolicitandoExclusao] = useState<string | null>(null);
   const [alteracoesStatus, setAlteracoesStatus] = useState<{
@@ -142,6 +248,12 @@ export default function FornecedorProdutosPage() {
     por_sku: Record<string, { status: "aprovado" | "rejeitado"; motivo_rejeicao?: string; analisado_em: string }>;
   }>({ pendentes: [], por_sku: {} });
   const [rascunhoCriarVariantes, setRascunhoCriarVariantes] = useState<ResumoRascunhoCriarVariantes | null>(null);
+
+  function fecharMenusAcoesAbertos() {
+    if (typeof document === "undefined") return;
+    const menus = document.querySelectorAll("details[data-menu-acoes][open]");
+    menus.forEach((el) => el.removeAttribute("open"));
+  }
 
   function toggleExpandido(key: string) {
     setExpandido((prev) => {
@@ -243,6 +355,23 @@ export default function FornecedorProdutosPage() {
     load();
   }, [pathname]);
 
+  useEffect(() => {
+    function onPointerDown(e: PointerEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("[data-menu-acoes]")) return;
+      fecharMenusAcoesAbertos();
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") fecharMenusAcoesAbertos();
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+
   /** Recarrega só o resumo do rascunho ao voltar à aba (evita chip sumido após salvar em outra guia). */
   useEffect(() => {
     if (pathname !== "/fornecedor/produtos") return;
@@ -267,21 +396,8 @@ export default function FornecedorProdutosPage() {
 
 
   function openEdit(p: Produto) {
-    setEditando(p);
-    setEditNome(p.nome_produto ?? "");
-    setEditCor(p.cor ?? "");
-    setEditTamanho(p.tamanho ?? "");
-    setEditLinkFotos(p.link_fotos ?? "");
-    setEditDescricao(p.descricao ?? "");
-    setEditComp(p.comprimento_cm != null ? String(p.comprimento_cm) : "");
-    setEditLarg(p.largura_cm != null ? String(p.largura_cm) : "");
-    setEditAlt(p.altura_cm != null ? String(p.altura_cm) : "");
-    setEditPeso(p.peso_kg != null ? String(p.peso_kg) : "");
-    setEditEstoque(p.estoque_atual != null ? String(p.estoque_atual) : "");
-    setEditCusto(p.custo_base != null ? String(p.custo_base) : "");
-    setEditExpedicao(p.expedicao_override_linha ?? "");
-    setModal("edit");
-    setFormError(null);
+    const grupo = paiKey(p.sku);
+    router.push(`/fornecedor/produtos/criar-variantes?editar=${encodeURIComponent(grupo)}`);
   }
 
   async function handleSolicitarExclusaoGrupo(g: GrupoProduto) {
@@ -376,7 +492,7 @@ export default function FornecedorProdutosPage() {
 
   return (
     <div className="min-h-screen min-w-0 max-w-[100%] overflow-x-hidden bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="mx-auto w-full min-w-0 max-w-4xl space-y-6 py-5 dropcore-px-content lg:max-w-5xl">
+      <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 py-5 dropcore-px-content">
         {/* Header + filtros (desktop: título à esquerda, ações à direita) */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
           <div className="min-w-0 space-y-1">
@@ -389,7 +505,7 @@ export default function FornecedorProdutosPage() {
               </svg>
               Voltar
             </Link>
-            <h1 className="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Meus produtos</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-neutral-100">Meus produtos</h1>
           </div>
           <div className="flex w-full min-w-0 flex-col gap-3 sm:w-auto sm:items-end sm:pt-0.5">
             <label className="flex w-full cursor-pointer items-center gap-2 text-sm text-[var(--muted)] sm:w-auto sm:justify-end">
@@ -405,7 +521,7 @@ export default function FornecedorProdutosPage() {
               {rascunhoCriarVariantes && (
                 <Link
                   href="/fornecedor/produtos/criar-variantes"
-                  className="flex min-h-[3rem] items-center gap-3 rounded-xl border border-neutral-200 bg-[var(--card)] px-3 py-2.5 shadow-sm transition hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900/80 dark:hover:border-neutral-600 dark:hover:bg-neutral-800/80"
+                  className="flex min-h-[3rem] items-center gap-3 rounded-xl border border-neutral-200 bg-[var(--card)] px-3 py-2.5 shadow-sm transition hover:border-neutral-300 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600 dark:hover:bg-neutral-800"
                   title={`${rascunhoCriarVariantes.nomeResumo} — salvo em ${new Date(rascunhoCriarVariantes.savedAt).toLocaleString("pt-BR")}`}
                 >
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
@@ -420,7 +536,7 @@ export default function FornecedorProdutosPage() {
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Continuar rascunho</span>
                       {rascunhoCriarVariantes.origem === "local" && (
-                        <span className="rounded-md bg-neutral-200/90 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
+                        <span className="rounded-md bg-neutral-200 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
                           Só aparelho
                         </span>
                       )}
@@ -438,20 +554,20 @@ export default function FornecedorProdutosPage() {
               )}
               <Link
                 href="/fornecedor/produtos/criar-variantes"
-                className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800"
+                className="flex h-9 w-full items-center justify-center rounded-md bg-blue-600 px-3 text-center text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 active:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500 dark:active:bg-blue-700"
               >
                 Criar produto
               </Link>
             </div>
             <div className="hidden sm:flex sm:justify-end">
               {rascunhoCriarVariantes ? (
-                <div className="inline-flex max-w-full items-stretch overflow-hidden rounded-xl border border-neutral-200 bg-[var(--card)] shadow-sm dark:border-neutral-700 dark:bg-neutral-900/90">
+                <div className="inline-flex max-w-full items-stretch overflow-hidden rounded-xl border border-neutral-200 bg-[var(--card)] shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
                   <Link
                     href="/fornecedor/produtos/criar-variantes"
-                    className="group flex min-h-[2.5rem] max-w-[min(100vw-8rem,17rem)] min-w-0 items-center gap-2.5 border-r border-neutral-200 px-3 py-1.5 text-left transition hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800/80"
+                    className="group flex min-h-[2.5rem] max-w-[min(100vw-8rem,17rem)] min-w-0 items-center gap-2.5 border-r border-neutral-200 px-3 py-1.5 text-left transition hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
                     title={`${rascunhoCriarVariantes.nomeResumo} — salvo em ${new Date(rascunhoCriarVariantes.savedAt).toLocaleString("pt-BR")}`}
                   >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 transition group-hover:bg-blue-50 group-hover:text-blue-600 dark:bg-neutral-800 dark:text-neutral-400 dark:group-hover:bg-blue-950/40 dark:group-hover:text-blue-300">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 transition group-hover:bg-blue-100 group-hover:text-blue-600 dark:bg-neutral-800 dark:text-neutral-400 dark:group-hover:bg-blue-900 dark:group-hover:text-blue-300">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                         <polyline points="14 2 14 8 20 8" />
@@ -463,7 +579,7 @@ export default function FornecedorProdutosPage() {
                       <span className="flex items-center gap-2">
                         <span className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">Continuar rascunho</span>
                         {rascunhoCriarVariantes.origem === "local" && (
-                          <span className="shrink-0 rounded bg-neutral-200/95 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
+                          <span className="shrink-0 rounded bg-neutral-200 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
                             Local
                           </span>
                         )}
@@ -478,7 +594,7 @@ export default function FornecedorProdutosPage() {
                   <div className="flex items-stretch gap-1 p-1 pl-0">
                     <Link
                       href="/fornecedor/produtos/criar-variantes"
-                      className="flex h-full min-h-[2.5rem] items-center rounded-lg bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                      className="flex h-8 items-center rounded-md bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 active:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500"
                     >
                       Criar produto
                     </Link>
@@ -487,7 +603,7 @@ export default function FornecedorProdutosPage() {
               ) : (
                 <Link
                   href="/fornecedor/produtos/criar-variantes"
-                  className="flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                  className="flex h-8 items-center rounded-md bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 active:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500"
                 >
                   Criar produto
                 </Link>
@@ -497,14 +613,14 @@ export default function FornecedorProdutosPage() {
         </div>
 
         {error && (
-          <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-4 text-sm text-red-800 dark:text-red-300">
+          <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-100 dark:bg-red-950 p-4 text-sm text-red-800 dark:text-red-300">
             {error}
             <button onClick={load} className="ml-2 underline">Tentar novamente</button>
           </div>
         )}
 
         {successMessage && (
-          <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-4 text-sm text-emerald-800 dark:text-emerald-300">
+          <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-100 dark:bg-emerald-950 p-4 text-sm text-emerald-800 dark:text-emerald-300">
             {successMessage}
           </div>
         )}
@@ -512,7 +628,7 @@ export default function FornecedorProdutosPage() {
         <AlteracoesCatalogoInfoBanner />
 
         {formError && modal === "none" && (
-          <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-4 text-sm text-red-800 dark:text-red-300 flex items-start justify-between gap-3">
+          <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-100 dark:bg-red-950 p-4 text-sm text-red-800 dark:text-red-300 flex items-start justify-between gap-3">
             <span>{formError}</span>
             <button type="button" onClick={() => setFormError(null)} className="shrink-0 text-red-700 dark:text-red-400 underline text-xs">
               Fechar
@@ -521,10 +637,10 @@ export default function FornecedorProdutosPage() {
         )}
 
         {/* Lista — mobile: cartões; desktop largo: tabela */}
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm overflow-hidden min-w-0">
+        <div className="min-w-0 overflow-visible rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
           <div className="px-3 py-3 sm:px-4 border-b border-neutral-200 dark:border-neutral-800">
-            <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">Produtos do armazém</h2>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Gerencie seus produtos e links de fotos</p>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-neutral-100">Produtos do armazém</h2>
+            <p className="mt-0.5 text-sm text-gray-500 dark:text-neutral-400">Gerencie seus produtos e links de fotos</p>
           </div>
           <div className="divide-y divide-neutral-100 dark:divide-neutral-800 min-w-0">
             {grupos.length === 0 ? (
@@ -539,15 +655,17 @@ export default function FornecedorProdutosPage() {
                 const representante = g.pai ?? g.filhos[0];
                 const exp = expandido.has(g.paiKey);
                 const linhas = [...(g.pai ? [g.pai] : []), ...g.filhos];
+                const baseVariantes = g.filhos.length > 0 ? g.filhos : linhas;
+                const gruposCor = agruparVariantesPorCor(baseVariantes);
                 const todosInativos = linhas.every((p) => (p.status || "").toLowerCase() !== "ativo");
                 return (
                   <div key={g.paiKey} className="bg-white dark:bg-transparent">
                     {/* Cabeçalho do produto — mobile: coluna; sm+: linha */}
                     <div
-                      className="flex cursor-pointer flex-col gap-3 px-3 py-3 sm:flex-row sm:flex-nowrap sm:items-center sm:gap-4 sm:px-4 sm:py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 min-w-0"
+                      className="flex min-w-0 cursor-pointer flex-col gap-3 px-3 py-3 sm:flex-row sm:flex-nowrap sm:items-center sm:gap-4 sm:px-4 sm:py-3 hover:bg-gray-100 dark:hover:bg-neutral-800"
                       onClick={() => toggleExpandido(g.paiKey)}
                     >
-                      <div className="flex min-w-0 flex-1 items-start gap-3 overflow-hidden sm:min-w-[0]">
+                      <div className="flex min-w-0 flex-1 items-start gap-3 overflow-visible sm:min-w-[0]">
                         <button
                           type="button"
                           className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-400 p-0.5 -ml-1 shrink-0 mt-0.5"
@@ -567,59 +685,84 @@ export default function FornecedorProdutosPage() {
                           </svg>
                         </button>
                         <div className="w-12 h-12 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 flex items-center justify-center shrink-0 overflow-hidden">
-                          {(() => {
-                            const capa = imagemCapaGrupo(g);
-                            const lf = getLinkFotos(representante!, produtos);
-                            if (capa) {
-                              return (
-                                <img
-                                  src={fornecedorProdutoImagemSrc(capa)}
-                                  alt=""
-                                  className="h-full w-full object-cover"
-                                />
-                              );
-                            }
-                            if (lf) {
-                              return (
-                                <a
-                                  href={lf}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="flex h-full w-full items-center justify-center bg-neutral-200 text-lg text-neutral-500 hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-600"
-                                >
-                                  📷
-                                </a>
-                              );
-                            }
-                            return <span className="text-lg text-neutral-400 dark:text-neutral-500">—</span>;
-                          })()}
+                          <MiniaturaListaGrupo g={g} todosProdutos={produtos} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <span className="min-w-0 break-words">{representante?.nome_produto}</span>
-                            {todosInativos && (
-                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300">
-                                Inativo
-                              </span>
-                            )}
-                            {statusAlteracaoGrupo(g) === "pendente" && (
-                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300" title="Alteração aguardando aprovação do admin">
-                                Em análise
-                              </span>
-                            )}
-                            {statusAlteracaoGrupo(g) === "aprovado" && (
-                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 dark:bg-green-950/40 text-green-800 dark:text-green-300">
-                                Aprovado
-                              </span>
-                            )}
-                            {statusAlteracaoGrupo(g) === "rejeitado" && (
-                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 dark:bg-red-950/40 text-red-800 dark:text-red-300" title={motivoRejeicaoGrupo(g) ? `Motivo: ${motivoRejeicaoGrupo(g)}` : undefined}>
-                                Recusado
-                              </span>
-                            )}
-                          </p>
-                          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 break-words">
+                          <div className="flex min-w-0 items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-semibold text-gray-900 dark:text-neutral-100">
+                                <span className="min-w-0 break-words">{representante?.nome_produto}</span>
+                                {todosInativos && (
+                                  <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border bg-yellow-100 text-yellow-700 border-yellow-200">
+                                    Inativo
+                                  </span>
+                                )}
+                                {statusAlteracaoGrupo(g) === "pendente" && (
+                                  <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border bg-blue-100 text-blue-800 border-blue-200" title="Alteração aguardando aprovação do admin">
+                                    Em análise
+                                  </span>
+                                )}
+                                {statusAlteracaoGrupo(g) === "aprovado" && (
+                                  <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border bg-green-100 text-green-700 border-green-200">
+                                    Aprovado
+                                  </span>
+                                )}
+                                {statusAlteracaoGrupo(g) === "rejeitado" && (
+                                  <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border bg-red-100 text-red-600 border-red-200" title={motivoRejeicaoGrupo(g) ? `Motivo: ${motivoRejeicaoGrupo(g)}` : undefined}>
+                                    Reprovado
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                            <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <details data-menu-acoes className="group relative open:z-40">
+                                <summary
+                                  aria-label="Ações do produto"
+                                  className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md text-base font-semibold text-gray-700 transition hover:bg-gray-100 [&::-webkit-details-marker]:hidden dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                >
+                                  ⋯
+                                </summary>
+                                <div className="absolute right-0 z-20 mt-1.5 min-w-[10rem] rounded-lg border border-gray-200 bg-white p-1 shadow-md dark:border-neutral-700 dark:bg-neutral-900">
+                                  <Link
+                                    href={`/fornecedor/produtos/criar-variantes?editar=${encodeURIComponent(g.paiKey)}`}
+                                    className="block rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                  >
+                                    Editar
+                                  </Link>
+                                  <Link
+                                    href={`/fornecedor/produtos/criar-variantes?editar=${encodeURIComponent(g.paiKey)}#midia`}
+                                    className="block rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                  >
+                                    Trocar foto
+                                  </Link>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (solicitandoExclusao === g.paiKey) return;
+                                      if (statusAlteracaoGrupo(g) === "pendente") {
+                                        setFormError(
+                                          "Não é possível pedir exclusão enquanto houver alterações em análise neste produto. Aguarde a análise da DropCore."
+                                        );
+                                        return;
+                                      }
+                                      void handleSolicitarExclusaoGrupo(g);
+                                    }}
+                                    disabled={solicitandoExclusao === g.paiKey}
+                                    className="block w-full rounded-md px-3 py-2 text-left text-sm text-red-600 hover:bg-red-100 disabled:cursor-wait disabled:opacity-80"
+                                    title={
+                                      statusAlteracaoGrupo(g) === "pendente"
+                                        ? "Há alterações em análise neste produto"
+                                        : "Pedir exclusão (aprovação DropCore)"
+                                    }
+                                  >
+                                    {solicitandoExclusao === g.paiKey ? "Enviando..." : "Excluir"}
+                                  </button>
+                                </div>
+                              </details>
+                            </div>
+                          </div>
+                          <p className="mt-0.5 break-words text-sm text-gray-500 dark:text-neutral-400">
                             <span className="font-mono text-neutral-600 dark:text-neutral-500 break-all">{g.paiKey}</span>
                             {linhas.length > 0 && (
                               <span> · Variantes ({linhas.length})</span>
@@ -634,7 +777,7 @@ export default function FornecedorProdutosPage() {
                             const max = Math.max(...custos);
                             const txt = min === max ? fmtCustoBaseFornecedor(min) : `${fmtCustoBaseFornecedor(min)} a ${fmtCustoBaseFornecedor(max)}`;
                             return (
-                              <p className="text-xs text-neutral-600 dark:text-neutral-300 mt-1">
+                              <p className="mt-1 text-sm text-gray-500 dark:text-neutral-300">
                                 Custo: <span className="font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">{txt}</span>
                                 <span className="text-neutral-400 dark:text-neutral-500"> / un.</span>
                               </p>
@@ -642,56 +785,235 @@ export default function FornecedorProdutosPage() {
                           })()}
                         </div>
                       </div>
-                      <div
-                        className="relative z-10 flex w-full min-w-0 flex-col gap-2 border-t border-neutral-100 pt-3 dark:border-neutral-800 sm:w-auto sm:shrink-0 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-end sm:gap-2 sm:border-t-0 sm:pt-0"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Link
-                          href={`/fornecedor/produtos/editar/${encodeURIComponent(g.paiKey)}`}
-                          className="flex w-full items-center justify-center rounded-lg bg-neutral-900 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-neutral-800 active:bg-black sm:inline-flex sm:h-9 sm:w-auto sm:min-w-0 sm:whitespace-nowrap sm:rounded-md sm:px-3 sm:py-0 sm:text-xs dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white dark:active:bg-neutral-200 touch-manipulation"
-                        >
-                          Editar variantes
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (solicitandoExclusao === g.paiKey) return;
-                            if (statusAlteracaoGrupo(g) === "pendente") {
-                              setFormError(
-                                "Não é possível pedir exclusão enquanto houver alterações em análise neste produto. Aguarde a análise da DropCore."
-                              );
-                              return;
-                            }
-                            void handleSolicitarExclusaoGrupo(g);
-                          }}
-                          disabled={solicitandoExclusao === g.paiKey}
-                          className="flex w-full items-center justify-center rounded-lg bg-red-700 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-red-800 active:bg-red-900 disabled:cursor-wait disabled:opacity-80 sm:inline-flex sm:h-9 sm:w-auto sm:min-w-0 sm:whitespace-nowrap sm:rounded-md sm:px-3 sm:py-0 sm:text-xs touch-manipulation"
-                          title={
-                            statusAlteracaoGrupo(g) === "pendente"
-                              ? "Há alterações em análise neste produto"
-                              : "Pedir exclusão (aprovação DropCore)"
-                          }
-                        >
-                          {solicitandoExclusao === g.paiKey ? "Enviando..." : "Excluir produto"}
-                        </button>
-                      </div>
                     </div>
 
                     {/* Variantes: cartões (sem scroll horizontal) até lg; tabela a partir de lg */}
                     {exp && linhas.length > 0 && (
                       <>
-                      <div className="border-t border-neutral-100 dark:border-neutral-800 lg:hidden divide-y divide-neutral-100 dark:divide-neutral-800 min-w-0 bg-neutral-50/40 dark:bg-neutral-900/20">
+                      <div className="border-t border-gray-200 bg-white px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-900 sm:px-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="inline-flex rounded-xl border border-gray-200 bg-gray-100 p-0.5 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setModoListaVariantes("agrupado-cor");
+                            }}
+                            className={`h-8 min-w-[8.5rem] rounded-lg px-3 text-[13px] font-medium transition ${
+                              modoListaVariantes === "agrupado-cor"
+                                ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+                                : "text-gray-600 hover:bg-white hover:text-gray-800 dark:text-neutral-400 dark:hover:bg-neutral-900 dark:hover:text-neutral-200"
+                            }`}
+                          >
+                            Agrupado por cor
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setModoListaVariantes("sku");
+                            }}
+                            className={`h-8 min-w-[8.5rem] rounded-lg px-3 text-[13px] font-medium transition ${
+                              modoListaVariantes === "sku"
+                                ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+                                : "text-gray-600 hover:bg-white hover:text-gray-800 dark:text-neutral-400 dark:hover:bg-neutral-900 dark:hover:text-neutral-200"
+                            }`}
+                          >
+                            Detalhado por SKU
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMostrarFotosVariantes((v) => !v);
+                          }}
+                          className="inline-flex h-8 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 text-[13px] font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                        >
+                          {mostrarFotosVariantes ? "Ocultar fotos" : "Mostrar fotos"}
+                        </button>
+                        </div>
+                      </div>
+                      {!mostrarFotosVariantes ? (
+                        <div className="border-t border-gray-200 bg-gray-100 px-3 py-4 text-sm text-gray-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 sm:px-4">
+                          Variantes ocultas nesta visualização.
+                        </div>
+                      ) : null}
+                      {mostrarFotosVariantes && modoListaVariantes === "agrupado-cor" && (
+                        <>
+                          <div className="min-w-0 border-t border-gray-200 bg-gray-100 p-2 dark:border-neutral-800 dark:bg-neutral-900 sm:p-3">
+                            <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-3">
+                            {gruposCor.map((gc) => {
+                              const rowCor = gc.itens[0];
+                              if (!rowCor) return null;
+                              const lfCor = getLinkFotos(rowCor, produtos) || rowCor.link_fotos;
+                              const fallbackCor =
+                                gc.itens
+                                  .map((p) => (p.imagem_url ?? "").trim())
+                                  .find((u) => u.length > 0) ?? null;
+                              const custos = gc.itens
+                                .map((p) => p.custo_base)
+                                .filter((c): c is number => c != null && Number.isFinite(c) && c > 0);
+                              const custoTxt =
+                                custos.length === 0
+                                  ? "—"
+                                  : Math.min(...custos) === Math.max(...custos)
+                                    ? fmtCustoBaseFornecedor(custos[0])
+                                    : `${fmtCustoBaseFornecedor(Math.min(...custos))} a ${fmtCustoBaseFornecedor(Math.max(...custos))}`;
+                              const ordemTamanho: Record<string, number> = {
+                                XXPP: 0,
+                                XPP: 1,
+                                PP: 2,
+                                P: 3,
+                                M: 4,
+                                G: 5,
+                                GG: 6,
+                                XG: 7,
+                                XGG: 8,
+                                EXG: 9,
+                                EXGG: 10,
+                                U: 11,
+                                UN: 11,
+                                UNICO: 11,
+                                "ÚNICO": 11,
+                              };
+                              const itensOrdenados = [...gc.itens].sort((a, b) => {
+                                const ta = (a.tamanho ?? "").trim().toUpperCase();
+                                const tb = (b.tamanho ?? "").trim().toUpperCase();
+                                const oa = ordemTamanho[ta] ?? 999;
+                                const ob = ordemTamanho[tb] ?? 999;
+                                if (oa !== ob) return oa - ob;
+                                return ta.localeCompare(tb, "pt-BR", { numeric: true });
+                              });
+                              const estoqueTotal = itensOrdenados.reduce((acc, p) => acc + (p.estoque_atual ?? 0), 0);
+                              return (
+                                <div
+                                  key={`m-${gc.key}`}
+                                  className="min-w-0 rounded-xl border border-gray-200 bg-white px-2.5 py-2.5 shadow-sm transition-colors hover:border-gray-300 dark:border-neutral-700 dark:bg-neutral-900 sm:px-4 sm:py-3"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <div className="flex min-w-0 items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                                        <p className="text-sm font-semibold leading-snug text-neutral-900 dark:text-neutral-100">
+                                          {gc.corLabel}
+                                        </p>
+                                        <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-neutral-800 dark:text-neutral-300">
+                                          {gc.itens.length} SKU(s)
+                                        </span>
+                                        <span className="text-sm font-medium text-gray-700 dark:text-neutral-300">
+                                          Preço {custoTxt}
+                                        </span>
+                                        <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-neutral-800 dark:text-neutral-300">
+                                          Total: {estoqueTotal}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="flex shrink-0 items-center gap-2">
+                                      {lfCor ? (
+                                        <a
+                                          href={lfCor}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex h-7 items-center rounded-md border border-gray-300 bg-white px-2.5 text-[11px] font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                        >
+                                          Ver fotos
+                                        </a>
+                                      ) : null}
+                                      <button
+                                        type="button"
+                                        onClick={() => openEdit(rowCor)}
+                                        className="inline-flex h-7 shrink-0 items-center rounded-md border border-gray-300 bg-white px-3 text-[11px] font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800 touch-manipulation"
+                                      >
+                                        Editar
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-2 grid min-w-0 grid-cols-[auto_1fr] items-start gap-3">
+                                    {mostrarFotosVariantes ? (
+                                      <FotoVariacaoCell
+                                        variant="stacked"
+                                        skuId={rowCor.id}
+                                        imagemUrl={rowCor.imagem_url ?? null}
+                                        fallbackImagemUrl={fallbackCor || fallbackImagemSkuPai(rowCor, g)}
+                                        linkFotosUrl={lfCor}
+                                        onUpdate={async (url) => {
+                                          setProdutos((prev) =>
+                                            prev.map((p) => (p.id === rowCor.id ? { ...p, imagem_url: url } : p))
+                                          );
+                                          const mesmaCor = linhas.filter((p) => (p.cor ?? "") === (rowCor.cor ?? ""));
+                                          const primeiroDaCor = mesmaCor.sort((a, b) => a.sku.localeCompare(b.sku))[0];
+                                          if (primeiroDaCor?.id === rowCor.id && url) {
+                                            const sibs = mesmaCor.filter((p) => p.id !== rowCor.id);
+                                            if (sibs.length > 0) {
+                                              const { data } = await supabaseBrowser.auth.getSession();
+                                              const token = data.session?.access_token;
+                                              if (token) {
+                                                await Promise.all(
+                                                  sibs.map((p) =>
+                                                    fetch(`/api/fornecedor/produtos/${p.id}`, {
+                                                      method: "PATCH",
+                                                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                                      body: JSON.stringify({ imagem_url: url }),
+                                                    })
+                                                  )
+                                                );
+                                                setProdutos((prev) =>
+                                                  prev.map((p) => (sibs.some((s) => s.id === p.id) ? { ...p, imagem_url: url } : p))
+                                                );
+                                              }
+                                            }
+                                          }
+                                        }}
+                                        getToken={async () => {
+                                          const { data } = await supabaseBrowser.auth.getSession();
+                                          return data.session?.access_token ?? null;
+                                        }}
+                                      />
+                                    ) : (
+                                      <div className="h-24 w-24 shrink-0 rounded-lg border border-dashed border-gray-300 bg-gray-100 dark:border-neutral-700 dark:bg-neutral-800" />
+                                    )}
+                                    <div className="min-w-0">
+                                        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-neutral-700 dark:bg-neutral-900">
+                                        <div className="grid grid-cols-[5.25rem_minmax(0,1fr)_5rem] border-b border-gray-200 bg-gray-100 px-2 py-1 text-[11px] font-semibold text-gray-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400">
+                                          <span>Numeração</span>
+                                          <span>SKU</span>
+                                          <span className="text-right">Qtd.</span>
+                                        </div>
+                                        {itensOrdenados.map((p, idx) => (
+                                          <div key={p.id} className={`grid grid-cols-[5.25rem_minmax(0,1fr)_5rem] items-center border-b border-gray-100 px-2 py-1 text-xs last:border-b-0 dark:border-neutral-800 ${idx % 2 === 1 ? "bg-gray-100 dark:bg-neutral-800/60" : ""}`}>
+                                            <span className="font-semibold text-gray-700 dark:text-neutral-300">{(p.tamanho ?? "—").toUpperCase()}</span>
+                                            <span className="truncate font-mono text-gray-600 dark:text-neutral-400">{p.sku}</span>
+                                            <span className={`text-right font-semibold tabular-nums ${(p.estoque_atual ?? 0) <= 0 ? "text-red-500" : "text-gray-700 dark:text-neutral-300"}`}>
+                                              {p.estoque_atual != null ? p.estoque_atual : "—"}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      {mostrarFotosVariantes && modoListaVariantes === "sku" && (
+                        <>
+                      <div className="min-w-0 border-t border-gray-200 bg-gray-100 p-2 dark:border-neutral-800 dark:bg-neutral-900 lg:hidden">
                         {linhas.map((row) => {
                           const lf = getLinkFotos(row, produtos) || row.link_fotos;
                           return (
-                            <div key={row.id} className="px-2.5 py-2 min-w-0" onClick={(e) => e.stopPropagation()}>
+                            <div key={row.id} className="mb-2 min-w-0 rounded-xl border border-gray-200 bg-white px-2.5 py-2 dark:border-neutral-700 dark:bg-neutral-900" onClick={(e) => e.stopPropagation()}>
                               <div className="flex gap-2.5 min-w-0 items-start">
                                 <FotoVariacaoCell
-                                  variant="stacked"
+                                  variant="table"
                                   skuId={row.id}
                                   imagemUrl={row.imagem_url ?? null}
                                   fallbackImagemUrl={fallbackImagemSkuPai(row, g)}
+                                  linkFotosUrl={lf}
                                   onUpdate={async (url) => {
                                       setProdutos((prev) =>
                                         prev.map((p) => (p.id === row.id ? { ...p, imagem_url: url } : p))
@@ -728,31 +1050,31 @@ export default function FornecedorProdutosPage() {
                                 <div className="min-w-0 flex-1 pt-0.5">
                                   <div className="flex items-start justify-between gap-2 min-w-0">
                                     <div className="min-w-0 flex-1">
-                                      <p className="text-sm font-medium leading-snug text-neutral-900 dark:text-neutral-100">
+                                      <p className="text-sm font-medium leading-snug text-gray-900 dark:text-neutral-100">
                                         <CorCelulaProduto cor={row.cor} />
-                                        <span className="text-neutral-400 dark:text-neutral-500 mx-1">·</span>
-                                        <span className="text-neutral-600 dark:text-neutral-400 font-normal">{row.tamanho || "—"}</span>
+                                        <span className="mx-1 text-neutral-400 dark:text-neutral-500">·</span>
+                                        <span className="font-normal text-gray-500 dark:text-neutral-400">{row.tamanho || "—"}</span>
                                       </p>
-                                      <p className="font-mono text-[10px] text-neutral-500 dark:text-neutral-500 break-all leading-tight mt-0.5">{row.sku}</p>
+                                      <p className="mt-0.5 break-all font-mono text-xs leading-tight text-gray-500 dark:text-neutral-500">{row.sku}</p>
                                     </div>
                                     <button
                                       type="button"
                                       onClick={() => openEdit(row)}
-                                      className="shrink-0 rounded-md px-2 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-950 active:bg-blue-200 dark:active:bg-blue-900 touch-manipulation -mr-1"
+                                      className="shrink-0 rounded-md border border-gray-300 px-2 py-1.5 text-[11px] font-medium text-gray-700 transition hover:bg-gray-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800 touch-manipulation -mr-1"
                                     >
                                       Editar
                                     </button>
                                   </div>
-                                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+                                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-500 dark:text-neutral-400">
                                     <span>
                                       Custo{" "}
-                                      <span className="tabular-nums font-medium text-neutral-800 dark:text-neutral-200">
+                                      <span className="tabular-nums font-medium text-gray-800 dark:text-neutral-200">
                                         {fmtCustoBaseFornecedor(row.custo_base)}
                                       </span>
                                     </span>
                                     <span>
                                       Estoque{" "}
-                                      <span className="tabular-nums font-medium text-neutral-800 dark:text-neutral-200">
+                                      <span className={`tabular-nums font-medium ${(row.estoque_atual ?? 0) <= 0 ? "text-red-500" : "text-gray-800 dark:text-neutral-200"}`}>
                                         {row.estoque_atual != null ? row.estoque_atual : "—"}
                                       </span>
                                     </span>
@@ -776,14 +1098,20 @@ export default function FornecedorProdutosPage() {
                       <div className="hidden lg:block min-w-0 overflow-x-auto border-t border-neutral-100 dark:border-neutral-800">
                         <table className="w-full min-w-[700px] table-fixed text-sm">
                           <thead>
-                            <tr className="bg-neutral-50 text-left text-xs text-neutral-600 dark:bg-neutral-800/80 dark:text-neutral-400">
-                              <th className="w-[4.25rem] px-2 py-2 font-medium lg:px-3">Foto</th>
+                            <tr className="bg-neutral-100 text-left text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+                              <th className="w-[4.25rem] px-2 py-2 font-medium lg:px-3">
+                                <span className="block">Foto</span>
+                                <span className="block text-[10px] font-normal text-neutral-400 dark:text-neutral-500">SKU</span>
+                              </th>
                               <th className="w-[18%] px-2 py-2 font-medium lg:px-3">Cor</th>
                               <th className="w-[7%] px-2 py-2 font-medium lg:px-3">Tam.</th>
                               <th className="w-[20%] px-2 py-2 font-medium lg:px-3">SKU</th>
                               <th className="w-[10%] px-2 py-2 text-right font-medium lg:px-3">Custo</th>
                               <th className="w-[6%] px-2 py-2 text-right font-medium lg:px-3">Est.</th>
-                              <th className="w-[9%] px-2 py-2 font-medium lg:px-3">Fotos</th>
+                              <th className="w-[9%] px-2 py-2 font-medium lg:px-3">
+                                <span className="block">Fotos</span>
+                                <span className="block text-[10px] font-normal text-neutral-400 dark:text-neutral-500">Álbum</span>
+                              </th>
                               <th className="w-[4.5rem] px-2 py-2 text-right font-medium lg:pl-3 lg:pr-4">Ações</th>
                             </tr>
                           </thead>
@@ -791,12 +1119,13 @@ export default function FornecedorProdutosPage() {
                             {linhas.map((row) => {
                               const lf = getLinkFotos(row, produtos) || row.link_fotos;
                               return (
-                                <tr key={row.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50">
+                                <tr key={row.id} className="hover:bg-neutral-100 dark:hover:bg-neutral-800">
                                   <td className="px-2 py-1.5 align-top lg:px-3">
                                     <FotoVariacaoCell
                                       skuId={row.id}
                                       imagemUrl={row.imagem_url ?? null}
                                       fallbackImagemUrl={fallbackImagemSkuPai(row, g)}
+                                      linkFotosUrl={lf}
                                       onUpdate={async (url) => {
                                         setProdutos((prev) =>
                                           prev.map((p) => (p.id === row.id ? { ...p, imagem_url: url } : p))
@@ -860,7 +1189,7 @@ export default function FornecedorProdutosPage() {
                                     <button
                                       type="button"
                                       onClick={(e) => { e.stopPropagation(); openEdit(row); }}
-                                      className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/50 dark:hover:text-blue-300"
+                                      className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900 dark:hover:text-blue-300"
                                     >
                                       Editar
                                     </button>
@@ -871,6 +1200,25 @@ export default function FornecedorProdutosPage() {
                           </tbody>
                         </table>
                       </div>
+                      </>
+                    )}
+                      {representante ? (
+                        <>
+                          <div className="border-t border-gray-200 bg-gray-100 px-3 py-2 dark:border-neutral-800 dark:bg-neutral-900 sm:px-4">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-neutral-400">
+                              Resumo do cadastro
+                            </p>
+                          </div>
+                          <ProdutoResumoListaGrupo
+                            grupoKey={g.paiKey}
+                            pai={g.pai}
+                            filhosVariantes={g.filhos}
+                            representante={representante}
+                            linkAlbum={getLinkFotos(representante, produtos) || representante.link_fotos}
+                            editHref={`/fornecedor/produtos/criar-variantes?editar=${encodeURIComponent(g.paiKey)}`}
+                          />
+                        </>
+                      ) : null}
                       </>
                     )}
                   </div>

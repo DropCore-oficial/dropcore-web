@@ -332,7 +332,7 @@ export default function FornecedorPedidosPage() {
                           <button
                             type="button"
                             onClick={() => router.push(`/fornecedor/pedidos/${p.id}/etiqueta`)}
-                            className="rounded-lg border border-neutral-200 dark:border-neutral-600 bg-[var(--card)] px-2.5 py-1.5 text-[10px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                            className="rounded-lg border border-neutral-200 dark:border-neutral-600 bg-[var(--card)] px-2.5 py-1.5 text-[10px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                             title="Imprimir etiqueta de separação para a embalagem"
                           >
                             Imprimir etiqueta
@@ -353,7 +353,7 @@ export default function FornecedorPedidosPage() {
                             onClick={() => marcarPostado(p.id)}
                             disabled={postandoId !== null}
                             title="Use se o extrato do seller ainda mostrar «Aguardando envio» após postagem."
-                            className="rounded-lg border border-neutral-200 dark:border-neutral-600 bg-[var(--card)] px-2.5 py-1.5 text-[10px] font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-50"
+                            className="rounded-lg border border-neutral-200 dark:border-neutral-600 bg-[var(--card)] px-2.5 py-1.5 text-[10px] font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
                           >
                             {postandoId === p.id ? "Sincronizando..." : "Sincronizar extrato seller"}
                           </button>

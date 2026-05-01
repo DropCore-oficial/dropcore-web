@@ -111,8 +111,8 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
         }}
         className={`group relative flex h-9 w-9 items-center justify-center rounded-xl border transition-all duration-200 ${
           open
-            ? "border-emerald-400/60 dark:border-emerald-600/60 bg-emerald-50/80 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 shadow-sm"
-            : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900/80 text-neutral-500 dark:text-neutral-400 hover:border-emerald-300/50 dark:hover:border-emerald-700/50 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30 hover:text-emerald-600 dark:hover:text-emerald-400"
+            ? "border-emerald-400 dark:border-emerald-600 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 shadow-sm"
+            : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900 hover:text-emerald-600 dark:hover:text-emerald-400"
         }`}
         title="Notificações"
       >
@@ -145,12 +145,12 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
             onClick={() => setOpen(false)}
           />
           <div
-            className="fixed left-3 right-3 top-[max(5.5rem,env(safe-area-inset-top)+4rem)] z-[100] max-h-[min(70vh,calc(100dvh-7rem))] w-auto overflow-hidden rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 shadow-xl shadow-neutral-900/10 dark:shadow-black/20 backdrop-blur-sm animate-in fade-in-0 zoom-in-95 duration-200 md:absolute md:inset-x-auto md:left-auto md:right-0 md:top-full md:mt-2 md:max-h-72 md:w-80 md:translate-x-0"
+            className="fixed left-3 right-3 top-[max(5.5rem,env(safe-area-inset-top)+4rem)] z-[100] max-h-[min(70vh,calc(100dvh-7rem))] w-auto overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl shadow-neutral-900/10 dark:shadow-black/20 animate-in fade-in-0 zoom-in-95 duration-200 md:absolute md:inset-x-auto md:left-auto md:right-0 md:top-full md:mt-2 md:max-h-72 md:w-80 md:translate-x-0"
           >
-          <div className="border-b border-neutral-100 dark:border-neutral-800 bg-gradient-to-r from-emerald-50/80 to-transparent dark:from-emerald-950/30 dark:to-transparent px-4 py-3">
+          <div className="border-b border-neutral-100 dark:border-neutral-800 bg-emerald-100 dark:bg-emerald-950 px-4 py-3">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
                     <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
                     <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
@@ -162,7 +162,7 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                 <button
                   type="button"
                   onClick={() => fetchNotifs(true)}
-                  className="rounded-lg px-2 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/30 transition-colors"
+                  className="rounded-lg px-2 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-colors"
                 >
                   Marcar todas
                 </button>
@@ -187,7 +187,7 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                 <p className="text-xs text-neutral-400 dark:text-neutral-500 text-center">Você receberá alertas de depósitos e outras atividades aqui</p>
               </div>
             ) : (
-              <div className="divide-y divide-neutral-100 dark:divide-neutral-800/80">
+              <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
                 {itemsFiltrados.map((n) => {
                   const isExpanded = expandedId === n.id;
                   const isDeposito = n.tipo === "deposito_aprovado" || n.tipo === "deposito_entrou";
@@ -206,13 +206,13 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                           setExpandedId(isExpanded ? null : n.id);
                         }
                       }}
-                      className={`flex w-full cursor-pointer gap-3 px-4 py-3 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 active:bg-neutral-100 dark:active:bg-neutral-800 ${
-                        !n.lido ? "bg-emerald-50/40 dark:bg-emerald-950/20" : ""
+                      className={`flex w-full cursor-pointer gap-3 px-4 py-3 text-left transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 active:bg-neutral-100 dark:active:bg-neutral-800 ${
+                        !n.lido ? "bg-emerald-100 dark:bg-emerald-950" : ""
                       }`}
                     >
                       <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
                         !n.lido
-                          ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400"
+                          ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400"
                           : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-500"
                       }`}>
                         {isDeposito ? (

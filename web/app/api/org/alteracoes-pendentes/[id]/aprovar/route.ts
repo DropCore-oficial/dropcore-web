@@ -133,6 +133,12 @@ export async function POST(
         } else clean[k] = null;
       }
     }
+    if ("detalhes_produto_json" in dados) {
+      const v = dados.detalhes_produto_json;
+      if (v == null || (typeof v === "object" && !Array.isArray(v))) {
+        clean.detalhes_produto_json = v ?? null;
+      }
+    }
 
     if (Object.keys(clean).length > 0) {
       const { data: skuAtual, error: updErr } = await supabaseAdmin

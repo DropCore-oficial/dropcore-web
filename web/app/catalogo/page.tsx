@@ -187,7 +187,22 @@ export default function CatalogoPage() {
       if (!session?.access_token) { router.replace("/login"); return; }
       const res = await fetch("/api/org/me", { headers: { Authorization: `Bearer ${session.access_token}` } });
       const json = await res.json();
-      if (!res.ok || !json?.org_id) { setError(json?.error || "Erro ao carregar organização."); return; }
+      if (!res.ok) {
+        setError(json?.error || "Erro ao carregar organização.");
+        return;
+      }
+      if (json.fornecedor_id) {
+        router.replace("/fornecedor/dashboard");
+        return;
+      }
+      if (json.seller_id) {
+        router.replace("/seller/dashboard");
+        return;
+      }
+      if (!json?.org_id) {
+        setError("Organização não encontrada para este usuário.");
+        return;
+      }
       setOrgId(json.org_id);
     })();
   }, [router]);

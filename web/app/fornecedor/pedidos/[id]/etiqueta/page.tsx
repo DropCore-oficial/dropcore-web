@@ -139,7 +139,7 @@ export default function FornecedorPedidoEtiquetaPage() {
                           if (!finalUrl) return;
                           window.open(finalUrl, "_blank", "noopener,noreferrer");
                         }}
-                        className="rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50/70 dark:bg-sky-950/20 px-3 py-1.5 text-sm font-semibold text-sky-800 dark:text-sky-300 hover:bg-sky-100/70 dark:hover:bg-sky-950/35"
+                        className="rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-100 dark:bg-sky-950/20 px-3 py-1.5 text-sm font-semibold text-sky-800 dark:text-sky-300 hover:bg-sky-100/70 dark:hover:bg-sky-950/35"
                         title="Abrir etiqueta oficial do marketplace/transportadora"
                       >
                         Abrir etiqueta oficial
@@ -147,14 +147,14 @@ export default function FornecedorPedidoEtiquetaPage() {
                     )}
                 <button
                   onClick={() => window.print()}
-                  className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                  className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                   type="button"
                 >
                   Imprimir
                 </button>
                 <button
                   onClick={() => router.back()}
-                  className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-[var(--card)] px-3 py-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                  className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-[var(--card)] px-3 py-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                   type="button"
                 >
                   Voltar

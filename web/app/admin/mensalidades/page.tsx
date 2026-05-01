@@ -462,7 +462,7 @@ export default function MensalidadesPage() {
   /** Versão mais estreita (só tabela, 2 botões) para caber na coluna sem estourar o card. */
   const tableActionBtnBaseCompact =
     "box-border inline-flex h-8 min-h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md border-0 px-2 text-xs font-semibold leading-none tracking-normal touch-manipulation transition-[filter]";
-  const tableActionBtnOutlineInadimplenteCompact = `${tableActionBtnBaseCompact} border border-red-300 bg-red-50 text-red-900 shadow-sm hover:bg-red-100 dark:border-red-800 dark:bg-red-950/50 dark:text-red-100 dark:hover:bg-red-950/70`;
+  const tableActionBtnOutlineInadimplenteCompact = `${tableActionBtnBaseCompact} border border-red-300 bg-red-100 text-red-900 shadow-sm hover:bg-red-100 dark:border-red-800 dark:bg-red-950/50 dark:text-red-100 dark:hover:bg-red-950/70`;
 
   const pendentes = rows.filter((r) => statusExibicaoAdmin(r) === "pendente");
   const totalPendente = pendentes.reduce((s, r) => s + r.valor, 0);
@@ -736,7 +736,7 @@ export default function MensalidadesPage() {
 
       {error && (
         <div
-          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-100"
+          className="rounded-xl border border-red-200 bg-red-100 px-4 py-3 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-100"
           role="alert"
         >
           {error}
@@ -744,14 +744,14 @@ export default function MensalidadesPage() {
       )}
       {success && (
         <div
-          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100"
+          className="rounded-xl border border-emerald-200 bg-emerald-100 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100"
           role="status"
         >
           {success}
         </div>
       )}
 
-      <div className="rounded-xl border border-neutral-200 bg-neutral-50/90 p-4 sm:p-5 dark:border-neutral-700 dark:bg-neutral-900/40">
+      <div className="rounded-xl border border-neutral-200 bg-neutral-100 p-4 sm:p-5 dark:border-neutral-700 dark:bg-neutral-900/40">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:items-start lg:gap-x-6 lg:gap-y-4">
           <div className="sm:col-span-2 lg:col-span-5">
             <div className="grid grid-cols-1 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-3 sm:gap-y-2">
@@ -820,7 +820,7 @@ export default function MensalidadesPage() {
       {loading ? (
         <p className="text-sm text-neutral-500">Carregando...</p>
       ) : rows.length === 0 ? (
-        <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-10 text-center text-sm text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900/50">
+        <div className="rounded-xl border border-neutral-200 bg-neutral-100 px-4 py-10 text-center text-sm text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900/50">
           Nenhuma mensalidade encontrada. Clique em &quot;Gerar mensalidades&quot; para criar.
         </div>
       ) : (
@@ -834,7 +834,7 @@ export default function MensalidadesPage() {
                 }}
                 className={`rounded-xl border p-4 shadow-sm ${
                   destaqueId === r.id
-                    ? "border-green-500 bg-green-50/90 dark:bg-green-950/30 ring-2 ring-green-500/40"
+                    ? "border-green-500 bg-green-100 dark:bg-green-950/30 ring-2 ring-green-500/40"
                     : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900/40"
                 }`}
               >

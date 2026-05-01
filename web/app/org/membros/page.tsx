@@ -54,13 +54,13 @@ async function safeJson(res: Response) {
   }
 }
 
-const DEFAULT_ORG_ID = "68a53d8e-8542-480d-b07f-4be371367362";
-
 export default function OrgMembrosPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const orgId = searchParams.get("orgId") || DEFAULT_ORG_ID;
+  const orgIdParam = searchParams.get("orgId");
 
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [viewerRole, setViewerRole] = useState<"owner" | "admin" | "operacional" | null>(null);
   const [data, setData] = useState<Member[]>([]);
   const [plano, setPlano] = useState<string | null>(null);
   const [err, setErr] = useState<string>("");
@@ -101,27 +101,44 @@ export default function OrgMembrosPage() {
         return;
       }
 
-      const [res, meRes] = await Promise.all([
-        fetch(`/api/org/membros?orgId=${encodeURIComponent(orgId)}`, {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-        }),
-        fetch("/api/org/me", {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-        }),
-      ]);
+      const meRes = await fetch("/api/org/me", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const meJson = await safeJson(meRes);
+      if (!meRes.ok || !meJson?.org_id) {
+        throw new Error(meJson?.error || "Sua sessão não está ligada a uma organização.");
+      }
+
+      const resolvedOrgId = String(meJson.org_id);
+      if (orgIdParam && orgIdParam !== resolvedOrgId) {
+        setErr("O parâmetro orgId da URL não corresponde à sua organização. Usando a organização da sua sessão.");
+        router.replace("/org/membros");
+      }
+
+      setOrgId(resolvedOrgId);
+      const rb = meJson?.role_base;
+      if (rb === "owner" || rb === "admin" || rb === "operacional") {
+        setViewerRole(rb);
+      } else {
+        setViewerRole(null);
+      }
+
+      if (meJson?.plano) setPlano(String(meJson.plano));
+
+      const res = await fetch(`/api/org/membros?orgId=${encodeURIComponent(resolvedOrgId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
 
       const json = await safeJson(res);
       if (!res.ok) throw new Error(json?.error || "Erro ao carregar membros");
 
       setData(json?.data || []);
-
-      const meJson = await safeJson(meRes);
-      if (meRes.ok && meJson?.plano) setPlano(String(meJson.plano));
     } catch (e: any) {
       setErr(e?.message || "Erro desconhecido");
       setData([]);
+      setOrgId(null);
     } finally {
       setLoading(false);
     }
@@ -130,7 +147,7 @@ export default function OrgMembrosPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId]);
+  }, [orgIdParam]);
 
   async function handleToggleFinance(targetUserId: string, currentValue: boolean) {
     const newValue = !currentValue;
@@ -308,6 +325,17 @@ export default function OrgMembrosPage() {
               Sair
             </button>
           </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-[var(--card-border)] bg-[var(--card)]/60 px-4 py-3 text-sm text-[var(--muted)] leading-relaxed">
+          Aqui você gerencia apenas a{" "}
+          <span className="text-[var(--foreground)] font-medium">
+            equipe administrativa da organização no DropCore
+          </span>{" "}
+          (papéis owner, admin e operacional). Contas de fornecedor e de seller não entram nesta
+          lista — cada perfil tem o próprio login:{" "}
+          <span className="font-mono text-[var(--foreground)]/90">/fornecedor/login</span> e{" "}
+          <span className="font-mono text-[var(--foreground)]/90">/seller/login</span>.
         </div>
 
         {err ? (

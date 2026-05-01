@@ -121,14 +121,14 @@ const tipoLabel: Record<string, { label: string }> = {
 };
 
 const statusLabel: Record<string, { label: string; cor: string }> = {
-  BLOQUEADO:         { label: "Aguardando envio",  cor: "text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700" },
-  ENTREGUE:          { label: "Entregue",           cor: "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border-blue-300 dark:border-blue-700" },
-  AGUARDANDO_REPASSE:{ label: "Pedido postado",     cor: "text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 border-sky-300 dark:border-sky-700" },
-  EM_DEVOLUCAO:      { label: "Em devolução",       cor: "text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/40 border-orange-300 dark:border-orange-700" },
-  DEVOLVIDO:         { label: "Devolvido",          cor: "text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40 border-violet-300 dark:border-violet-700" },
-  PAGO:              { label: "Concluído",          cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700" },
+  BLOQUEADO:         { label: "Aguardando envio",  cor: "text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700" },
+  ENTREGUE:          { label: "Entregue",           cor: "text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-950/40 border-blue-300 dark:border-blue-700" },
+  AGUARDANDO_REPASSE:{ label: "Pedido postado",     cor: "text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/40 border-sky-300 dark:border-sky-700" },
+  EM_DEVOLUCAO:      { label: "Em devolução",       cor: "text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-950/40 border-orange-300 dark:border-orange-700" },
+  DEVOLVIDO:         { label: "Devolvido",          cor: "text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-950/40 border-violet-300 dark:border-violet-700" },
+  PAGO:              { label: "Concluído",          cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700" },
   CANCELADO:         { label: "Cancelado",          cor: "text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700" },
-  LIBERADO:          { label: "Disponível",         cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700" },
+  LIBERADO:          { label: "Disponível",         cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700" },
 };
 
 const isPositivo = (tipo: string) => tipo === "CREDITO" || tipo === "DEVOLUCAO";
@@ -702,7 +702,7 @@ export default function SellerDashboardPage() {
             )}
             <ThemeToggle className="hidden md:inline-flex min-h-[40px] min-w-[40px] items-center justify-center touch-manipulation" />
             <NotificationBell context="seller" />
-            <button type="button" onClick={sair} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 min-h-[40px] sm:min-h-0 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 touch-manipulation">
+            <button type="button" onClick={sair} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 min-h-[40px] sm:min-h-0 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 touch-manipulation">
               Sair
             </button>
           </div>
@@ -713,8 +713,8 @@ export default function SellerDashboardPage() {
             role="note"
             className={`rounded-xl border p-4 text-sm shadow-sm ${
               vinculoFornecedor.liberado_antecipado
-                ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30"
-                : "border-sky-300 bg-sky-50 dark:border-sky-800 dark:bg-sky-950/25"
+                ? "border-amber-300 bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30"
+                : "border-sky-300 bg-sky-100 dark:border-sky-800 dark:bg-sky-950/25"
             }`}
           >
             <p className={`font-semibold ${vinculoFornecedor.liberado_antecipado ? "text-amber-900 dark:text-amber-200" : "text-sky-900 dark:text-sky-200"}`}>
@@ -743,7 +743,7 @@ export default function SellerDashboardPage() {
         {vinculoFornecedor?.ativo && !vinculoFornecedor.dentro_compromisso && !vinculoFornecedor.liberado_antecipado && (
           <div
             role="note"
-            className="rounded-xl border border-emerald-200 bg-emerald-50/90 p-4 text-sm shadow-sm dark:border-emerald-800 dark:bg-emerald-950/25"
+            className="rounded-xl border border-emerald-200 bg-emerald-100 p-4 text-sm shadow-sm dark:border-emerald-800 dark:bg-emerald-950/25"
           >
             <p className="font-semibold text-emerald-900 dark:text-emerald-200">Armazém vinculado — troca liberada</p>
             <p className="mt-1 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
@@ -767,8 +767,8 @@ export default function SellerDashboardPage() {
             role="status"
             className={`rounded-xl border p-4 shadow-sm ${
               saldoAlerta.nivel === "critico"
-                ? "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/35"
-                : "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30"
+                ? "border-red-300 bg-red-100 dark:border-red-800 dark:bg-red-950/35"
+                : "border-amber-300 bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30"
             }`}
           >
             <p className={`text-sm font-semibold ${saldoAlerta.nivel === "critico" ? "text-red-900 dark:text-red-200" : "text-amber-900 dark:text-amber-200"}`}>
@@ -827,7 +827,7 @@ export default function SellerDashboardPage() {
               <button
                 type="button"
                 onClick={() => { setFiltroTipo("pedidos"); setFiltroStatus(""); setTab("extrato"); setMovimentacoesAberto(true); extratoRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                className="rounded-lg bg-[var(--card)] border border-[var(--card-border)] px-3 py-2 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                className="rounded-lg bg-[var(--card)] border border-[var(--card-border)] px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
               >
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">Pedidos (mês)</p>
                 <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{kpis?.pedidos_mes ?? 0}</p>
@@ -835,7 +835,7 @@ export default function SellerDashboardPage() {
               <button
                 type="button"
                 onClick={() => { setFiltroTipo("pedidos"); setFiltroStatus(""); setTab("extrato"); setMovimentacoesAberto(true); extratoRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                className="rounded-lg bg-[var(--card)] border border-[var(--card-border)] px-3 py-2 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                className="rounded-lg bg-[var(--card)] border border-[var(--card-border)] px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
               >
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">Volume (mês)</p>
                 <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(kpis?.total_mes ?? 0)}</p>
@@ -1063,7 +1063,7 @@ export default function SellerDashboardPage() {
 
         {/* 3. Atalhos — linha horizontal */}
         <section className="grid grid-cols-3 gap-2">
-          <button onClick={() => router.push("/seller/calculadora")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left group">
+          <button onClick={() => router.push("/seller/calculadora")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-left group">
             <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
               <svg className="w-5 h-5 text-neutral-600 dark:text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="4" y="2" width="16" height="20" rx="2" />
@@ -1081,7 +1081,7 @@ export default function SellerDashboardPage() {
             </div>
             <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">Calculadora</span>
           </button>
-          <button onClick={() => router.push("/seller/produtos")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left group">
+          <button onClick={() => router.push("/seller/produtos")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-left group">
             <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
               <svg className="w-5 h-5 text-neutral-600 dark:text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
@@ -1091,7 +1091,7 @@ export default function SellerDashboardPage() {
             </div>
             <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">Produtos</span>
           </button>
-          <button onClick={() => router.push("/seller/integracoes-erp")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left group relative">
+          <button onClick={() => router.push("/seller/integracoes-erp")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-left group relative">
             <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
               <svg className="w-5 h-5 text-neutral-600 dark:text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 22v-5" />
@@ -1114,7 +1114,7 @@ export default function SellerDashboardPage() {
           <button
             type="button"
             onClick={() => { setTab("extrato"); setFiltroStatus(emDevolucaoCount > 0 ? "EM_DEVOLUCAO" : "DEVOLVIDO"); setMovimentacoesAberto(true); extratoRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-            className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 flex items-center gap-3 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800"
+            className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 flex items-center gap-3 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
             <div className="w-9 h-9 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0 text-neutral-600 dark:text-neutral-300">
               <IconDevolucao className="w-5 h-5" />
@@ -1219,7 +1219,7 @@ export default function SellerDashboardPage() {
                   {(filtroStatus || filtroTipo) && (
                     <button
                       onClick={() => { setFiltroStatus(""); setFiltroTipo(""); }}
-                      className="mt-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 px-4 py-2 text-sm font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+                      className="mt-4 rounded-lg bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 px-4 py-2 text-sm font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
                     >
                       Ver todas
                     </button>
@@ -1235,7 +1235,7 @@ export default function SellerDashboardPage() {
                         const info = tipoLabel[e.tipo] ?? { label: e.tipo };
                         const st = statusLabel[e.status];
                         return (
-                          <div key={e.id} className="flex items-center gap-4 px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 last:border-0 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors">
+                          <div key={e.id} className="flex items-center gap-4 px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 last:border-0 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors">
                               <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                                 isPositivo(e.tipo) ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400" :
                                 isNegativo(e.tipo) ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400" :
@@ -1294,8 +1294,8 @@ export default function SellerDashboardPage() {
                     <div
                       key={d.id}
                       ref={(el) => { depositoRefs.current[d.id] = el; }}
-                      className={`flex items-center gap-4 px-4 py-4 border-b border-neutral-100 dark:border-neutral-800 last:border-0 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors ${
-                        destaqueId === d.id ? "ring-2 ring-emerald-500 ring-inset bg-emerald-50/50 dark:bg-emerald-950/20" : ""
+                      className={`flex items-center gap-4 px-4 py-4 border-b border-neutral-100 dark:border-neutral-800 last:border-0 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors ${
+                        destaqueId === d.id ? "ring-2 ring-emerald-500 ring-inset bg-emerald-100 dark:bg-emerald-950/20" : ""
                       }`}
                     >
                       <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0 text-emerald-600 dark:text-emerald-400">
@@ -1360,7 +1360,7 @@ export default function SellerDashboardPage() {
                     {depositoCopiaCola && (
                       <div className="space-y-2">
                         <p className="text-xs text-neutral-500 dark:text-neutral-400">Código PIX (copia e cola):</p>
-                        <div className="rounded-xl border border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-xs font-mono text-neutral-600 dark:text-neutral-400 break-all max-h-20 overflow-y-auto">
+                        <div className="rounded-xl border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-xs font-mono text-neutral-600 dark:text-neutral-400 break-all max-h-20 overflow-y-auto">
                           {depositoCopiaCola}
                         </div>
                         <button
@@ -1413,7 +1413,7 @@ export default function SellerDashboardPage() {
                   </div>
 
                   {depositoErro && (
-                    <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{depositoErro}</p>
+                    <p className="text-xs text-red-700 bg-red-100 border border-red-200 rounded-xl px-3 py-2">{depositoErro}</p>
                   )}
 
                   <div className="flex gap-2 pt-1">
@@ -1449,7 +1449,7 @@ export default function SellerDashboardPage() {
                   Valor: <strong className="text-neutral-900 dark:text-neutral-100">{BRL.format(modalPixMensalidade.valor)}</strong>
                 </p>
                 {pixErro && (
-                  <p className="text-xs text-red-700 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2">{pixErro}</p>
+                  <p className="text-xs text-red-700 bg-red-100 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2">{pixErro}</p>
                 )}
                 {pixLoading && <p className="text-sm text-neutral-500">Gerando PIX...</p>}
                 {!pixLoading && pixQrCode && (
@@ -1471,7 +1471,7 @@ export default function SellerDashboardPage() {
                     {pixCopiaCola && (
                       <div className="space-y-2">
                         <p className="text-xs text-neutral-500 dark:text-neutral-400">Código PIX (copia e cola):</p>
-                        <div className="rounded-xl border border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-xs font-mono text-left break-all max-h-20 overflow-y-auto">
+                        <div className="rounded-xl border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-xs font-mono text-left break-all max-h-20 overflow-y-auto">
                           {pixCopiaCola}
                         </div>
                         <button
@@ -1515,7 +1515,7 @@ export default function SellerDashboardPage() {
               </p>
             </div>
             {planoEscolhaErro && (
-              <p className="text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl px-3 py-2">
+              <p className="text-sm text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl px-3 py-2">
                 {planoEscolhaErro}
               </p>
             )}
@@ -1524,7 +1524,7 @@ export default function SellerDashboardPage() {
                 type="button"
                 disabled={planoSaving !== ""}
                 onClick={() => void escolherPlano("starter")}
-                className="rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-neutral-50/80 dark:bg-neutral-800/50 px-4 py-4 text-left hover:border-emerald-500/60 transition-colors disabled:opacity-50"
+                className="rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800/50 px-4 py-4 text-left hover:border-emerald-500/60 transition-colors disabled:opacity-50"
               >
                 <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Starter</p>
                 <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums mt-1">{BRL.format(precoStarterMensal)}<span className="text-xs font-normal text-neutral-500">/mês</span></p>
@@ -1539,7 +1539,7 @@ export default function SellerDashboardPage() {
                 type="button"
                 disabled={planoSaving !== ""}
                 onClick={() => void escolherPlano("pro")}
-                className="rounded-xl border-2 border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-950/25 px-4 py-4 text-left hover:border-emerald-500 transition-colors disabled:opacity-50"
+                className="rounded-xl border-2 border-emerald-500/40 bg-emerald-100 dark:bg-emerald-950/25 px-4 py-4 text-left hover:border-emerald-500 transition-colors disabled:opacity-50"
               >
                 <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Pro</p>
                 <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums mt-1">{BRL.format(precoProMensal)}<span className="text-xs font-normal text-neutral-500">/mês</span></p>

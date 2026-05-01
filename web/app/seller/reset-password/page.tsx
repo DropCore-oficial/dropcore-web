@@ -92,7 +92,7 @@ export default function SellerResetPasswordPage() {
             <DropCoreLogo variant="horizontal" href={null} className="mb-2" />
             <p className="text-[var(--muted)] text-sm">Redefinir senha</p>
           </div>
-          <div className="rounded-2xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-6 shadow-sm">
+          <div className="rounded-2xl border border-amber-300 dark:border-amber-700 bg-amber-100 dark:bg-amber-950/40 p-6 shadow-sm">
             <p className="text-amber-800 dark:text-amber-200 text-sm mb-4">
               O link de redefinição expirou ou é inválido. Solicite um novo link.
             </p>
@@ -203,7 +203,7 @@ export default function SellerResetPasswordPage() {
           </div>
 
           {error && (
-            <div className="mt-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="mt-4 rounded-xl border border-red-300 bg-red-100 px-4 py-3 text-sm text-red-700">
               {error}
             </div>
           )}

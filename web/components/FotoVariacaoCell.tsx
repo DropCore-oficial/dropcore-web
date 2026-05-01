@@ -1,13 +1,18 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { fornecedorProdutoImagemSrc } from "@/lib/fornecedorProdutoImagemSrc";
+import { fornecedorProdutoImagemSrc, linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
 
 type Props = {
   skuId: string;
   imagemUrl: string | null;
   /** Miniatura só para exibição quando o SKU não tem `imagem_url` (ex.: pai espelhando a 1ª variante). Upload/apagar usam só `imagemUrl`. */
   fallbackImagemUrl?: string | null;
+  /**
+   * `link_fotos` do SKU ou herdado do pai — só vira miniatura quando `linkFotosComoSrcMiniatura` reconhece URL de imagem direta / Supabase.
+   * Upload continua a gravar só em `imagem_url`.
+   */
+  linkFotosUrl?: string | null;
   onUpdate: (novaUrl: string | null) => void;
   getToken: () => Promise<string | null>;
   /** `stacked`: miniatura em cima e ações em baixo — melhor em listas estreitas (mobile). */
@@ -21,6 +26,7 @@ export function FotoVariacaoCell({
   skuId,
   imagemUrl,
   fallbackImagemUrl = null,
+  linkFotosUrl = null,
   onUpdate,
   getToken,
   variant = "row",
@@ -28,18 +34,23 @@ export function FotoVariacaoCell({
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<PreviewMode>("off");
+  const [hoverPreviewPos, setHoverPreviewPos] = useState<{ left: number; top: number } | null>(null);
   const [imgErro, setImgErro] = useState(false);
   const [previewImgErro, setPreviewImgErro] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastPointerTypeRef = useRef<string>("mouse");
 
-  const urlExibicao = imagemUrl || fallbackImagemUrl || null;
+  const linkFotosMiniatura =
+    typeof linkFotosUrl === "string" && linkFotosUrl.trim() !== ""
+      ? linkFotosComoSrcMiniatura(linkFotosUrl)
+      : null;
+  const urlExibicao = imagemUrl || fallbackImagemUrl || linkFotosMiniatura || null;
   const temImagemSalva = Boolean(imagemUrl);
 
   useEffect(() => {
     setImgErro(false);
     setPreviewImgErro(false);
-  }, [imagemUrl, fallbackImagemUrl]);
+  }, [imagemUrl, fallbackImagemUrl, linkFotosUrl]);
 
   useEffect(() => {
     if (previewMode !== "fixo") return;
@@ -108,9 +119,25 @@ export function FotoVariacaoCell({
 
   const stacked = variant === "stacked";
   const table = variant === "table";
-  const box = stacked ? "w-11 h-11" : table ? "w-9 h-9" : "w-10 h-10";
-  const imgPx = stacked ? 44 : table ? 36 : 40;
+  const box = stacked ? "h-24 w-24 sm:h-24 sm:w-24 lg:h-20 lg:w-20" : table ? "w-12 h-12" : "w-12 h-12";
+  const imgPx = stacked ? 96 : table ? 48 : 48;
   const iconSz = stacked ? 18 : table ? 16 : 20;
+  const hoverPreviewW = stacked ? 340 : table ? 240 : 260;
+  const hoverPreviewH = stacked ? 400 : 320;
+
+  function abrirPreviewHoverPorAnchor(el: HTMLElement) {
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const gap = 12;
+    let left = r.right + gap;
+    if (left + hoverPreviewW > vw - 8) left = r.left - hoverPreviewW - gap;
+    left = Math.max(8, Math.min(left, vw - hoverPreviewW - 8));
+    let top = r.top + r.height / 2 - hoverPreviewH / 2;
+    top = Math.max(8, Math.min(top, vh - hoverPreviewH - 8));
+    setHoverPreviewPos({ left, top });
+    setPreviewMode("hover");
+  }
 
   const previewImgBlock = srcImagem ? (
     !previewImgErro ? (
@@ -133,10 +160,13 @@ export function FotoVariacaoCell({
           lastPointerTypeRef.current = e.pointerType;
         }}
         onPointerEnter={(e) => {
-          if (e.pointerType === "mouse") setPreviewMode("hover");
+          if (e.pointerType === "mouse") abrirPreviewHoverPorAnchor(e.currentTarget);
         }}
         onPointerLeave={(e) => {
-          if (e.pointerType === "mouse") setPreviewMode("off");
+          if (e.pointerType === "mouse") {
+            setPreviewMode("off");
+            setHoverPreviewPos(null);
+          }
         }}
         onClick={() => {
           if (lastPointerTypeRef.current !== "mouse") {
@@ -154,19 +184,17 @@ export function FotoVariacaoCell({
           onError={() => setImgErro(true)}
         />
       </button>
-      {previewMode === "hover" && srcImagem && (
+      {previewMode === "hover" && srcImagem && hoverPreviewPos && (
         <div
-          className={`absolute z-[80] rounded-lg overflow-hidden border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-xl pointer-events-none ${
-            stacked ? "left-1/2 -translate-x-1/2 bottom-full mb-2" : table ? "left-full top-1/2 -translate-y-1/2 ml-2" : "left-full top-0 ml-2"
-          }`}
-          style={{ width: stacked ? "min(220px, 70vw)" : table ? "min(200px, 40vw)" : "220px" }}
+          className="fixed z-[120] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl pointer-events-none dark:border-neutral-600 dark:bg-neutral-900"
+          style={{ width: `${hoverPreviewW}px`, left: `${hoverPreviewPos.left}px`, top: `${hoverPreviewPos.top}px` }}
         >
           {!previewImgErro ? (
             <img
               src={srcImagem}
               alt="Preview"
               className="w-full h-auto object-contain block"
-              style={{ maxHeight: "280px" }}
+              style={{ maxHeight: `${hoverPreviewH}px` }}
               onError={() => setPreviewImgErro(true)}
             />
           ) : (
@@ -190,7 +218,7 @@ export function FotoVariacaoCell({
     </div>
   ) : (
     <div
-      className={`shrink-0 ${box} rounded border border-dashed border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-800/50 flex items-center justify-center`}
+      className={`shrink-0 ${box} rounded border border-dashed border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800/50 flex items-center justify-center`}
     >
       <svg xmlns="http://www.w3.org/2000/svg" width={iconSz} height={iconSz} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-neutral-400 dark:text-neutral-500">
         <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -216,8 +244,12 @@ export function FotoVariacaoCell({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={loading}
-        className={`text-left text-blue-600 hover:text-blue-700 disabled:opacity-50 dark:text-blue-400 dark:hover:text-blue-300 touch-manipulation ${
-          stacked ? "text-[11px] font-medium" : table ? "whitespace-nowrap text-[11px] font-medium leading-tight" : "text-xs"
+        className={`text-left disabled:opacity-50 touch-manipulation ${
+          stacked
+            ? "inline-flex h-7 w-full items-center justify-center rounded-lg border border-blue-200 bg-blue-100 px-2.5 text-[11px] font-semibold text-blue-700 shadow-sm hover:bg-blue-200 lg:h-6 lg:rounded-md lg:border-0 lg:bg-transparent lg:px-0 lg:font-medium lg:text-blue-600 lg:shadow-none lg:hover:bg-transparent lg:hover:text-blue-700"
+            : table
+              ? "whitespace-nowrap text-[11px] font-medium leading-tight text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              : "text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
         }`}
       >
         {mostraThumb ? "Trocar" : "Enviar"}
@@ -227,8 +259,12 @@ export function FotoVariacaoCell({
           type="button"
           onClick={handleDelete}
           disabled={loading}
-          className={`text-left text-red-600 hover:text-red-700 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300 ${
-            stacked ? "text-[11px]" : table ? "whitespace-nowrap text-[11px] leading-tight" : "text-xs"
+          className={`text-left disabled:opacity-50 ${
+            stacked
+              ? "inline-flex h-7 w-full items-center justify-center rounded-lg border border-red-200 bg-red-100 px-2.5 text-[11px] font-semibold text-red-700 shadow-sm hover:bg-red-200 lg:h-6 lg:rounded-md lg:border-0 lg:bg-transparent lg:px-0 lg:font-medium lg:text-red-600 lg:shadow-none lg:hover:bg-transparent lg:hover:text-red-700"
+              : table
+                ? "whitespace-nowrap text-[11px] leading-tight text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                : "text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
           }`}
         >
           Excluir
@@ -240,7 +276,7 @@ export function FotoVariacaoCell({
   return (
     <div className={`relative flex flex-col gap-0.5 ${table ? "min-w-0" : ""}`}>
       {stacked ? (
-        <div className="flex w-[52px] shrink-0 flex-col items-center gap-1">
+        <div className="flex w-[112px] shrink-0 flex-col items-center gap-1 sm:w-[112px] lg:w-[92px]">
           {thumbBlock}
           {actions}
         </div>
@@ -256,7 +292,7 @@ export function FotoVariacaoCell({
         </div>
       )}
       {erro && (
-        <p className={stacked ? "text-[10px] text-red-500 max-w-[52px] text-center break-words" : "text-[10px] text-red-500"}>{erro}</p>
+        <p className={stacked ? "max-w-[112px] break-words text-center text-[10px] text-red-500 lg:max-w-[92px]" : "text-[10px] text-red-500"}>{erro}</p>
       )}
       {loading && <p className="text-[10px] text-neutral-500 text-center">...</p>}
     </div>

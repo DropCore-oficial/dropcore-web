@@ -23,7 +23,7 @@ const inputLight =
 const inputPerdas =
   "w-full rounded-xl bg-neutral-900 dark:bg-neutral-950 border border-neutral-900 dark:border-neutral-700 px-3 py-2.5 text-white text-base md:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-neutral-500/40 placeholder-neutral-300";
 const btnSecondaryClass =
-  "rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-2.5 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors";
+  "rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-2.5 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors";
 const unitBadge =
   "inline-flex items-center justify-center w-[52px] h-[42px] rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-700 dark:text-neutral-200 shrink-0 select-none";
 const perdaToggleClass =
@@ -1048,7 +1048,7 @@ export default function SellerCalculadoraPage() {
               onChange={(e) => setEmbFul(sanitizeNumInput(e.target.value))} placeholder="0,00" className={inputLight} />
           </Row>
 
-          <div className="px-4 py-2.5 border-b border-neutral-200/70 dark:border-neutral-700/60 bg-neutral-50 dark:bg-neutral-900/50">
+          <div className="px-4 py-2.5 border-b border-neutral-200/70 dark:border-neutral-700/60 bg-neutral-100 dark:bg-neutral-900/50">
             <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-widest">
               Operacional por marketplace (R$)
               {preset && preset !== "todos" && (
@@ -1137,7 +1137,7 @@ export default function SellerCalculadoraPage() {
           )}
 
           {isModoTodos && (
-            <div className="px-4 py-3.5 border-b border-neutral-200/70 dark:border-neutral-700/60 bg-neutral-50/50 dark:bg-neutral-900/30">
+            <div className="px-4 py-3.5 border-b border-neutral-200/70 dark:border-neutral-700/60 bg-neutral-100 dark:bg-neutral-900/30">
               <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm p-4 space-y-3 overflow-visible">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 pr-1">Cupom por canal (%)</p>
@@ -1169,7 +1169,7 @@ export default function SellerCalculadoraPage() {
                   ).map(([nome, val, setVal]) => (
                     <div
                       key={nome}
-                      className="rounded-lg border border-neutral-200/80 dark:border-neutral-700/70 bg-neutral-50/80 dark:bg-neutral-800/40 px-3 py-2.5"
+                      className="rounded-lg border border-neutral-200/80 dark:border-neutral-700/70 bg-neutral-100 dark:bg-neutral-800/40 px-3 py-2.5"
                     >
                       <p className="text-xs font-medium text-neutral-800 dark:text-neutral-200 mb-2">{nome}</p>
                       <div className="flex gap-2 items-center">
@@ -1354,7 +1354,7 @@ export default function SellerCalculadoraPage() {
             <button
               type="button"
               onClick={limpar}
-              className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 px-4 py-3.5 sm:py-2.5 text-base sm:text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors shrink-0 touch-manipulation min-h-[48px] sm:min-h-0 min-w-[5.5rem]"
+              className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 px-4 py-3.5 sm:py-2.5 text-base sm:text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors shrink-0 touch-manipulation min-h-[48px] sm:min-h-0 min-w-[5.5rem]"
             >
               Limpar
             </button>
@@ -1386,7 +1386,7 @@ export default function SellerCalculadoraPage() {
             </div>
             <div className="p-4 space-y-4">
               {!calcOnly && abaixoMinimo && (
-                <div className="rounded-xl border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-3 text-sm text-red-800 dark:text-red-200">
+                <div className="rounded-xl border border-red-300 dark:border-red-900 bg-red-100 dark:bg-red-950/40 p-3 text-sm text-red-800 dark:text-red-200">
                   ⚠️ Margem abaixo do mínimo! Você está vendendo com menos de {MARGEM_MINIMA}% de lucro.
                 </div>
               )}
@@ -1538,7 +1538,7 @@ export default function SellerCalculadoraPage() {
                   </thead>
                   <tbody>
                     {resultado.porMarketplace.map((mp) => (
-                        <tr key={mp.nome} className="border-t border-neutral-200/60 dark:border-neutral-700/60 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors">
+                        <tr key={mp.nome} className="border-t border-neutral-200/60 dark:border-neutral-700/60 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors">
                           <td className="px-3 py-2.5 text-neutral-900 dark:text-neutral-100 font-medium align-top">
                             {mp.nome}
                             {badgeSeuCanal(mp.nome) && (

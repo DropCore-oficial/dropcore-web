@@ -70,19 +70,19 @@ export function SellerNav({
 
   const linkClass = (key: NavKey) =>
     `flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ${
-      active === key ? activeClass + " hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20" : inactiveClass + " border-transparent hover:bg-neutral-100/80 dark:hover:bg-neutral-800/50"
+      active === key ? activeClass + " hover:bg-emerald-100 dark:hover:bg-emerald-900" : inactiveClass + " border-transparent hover:bg-neutral-100 dark:hover:bg-neutral-800"
     }`;
 
   const mobileLinkClass = (key: NavKey) =>
     `flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 overflow-visible px-1 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ${
-      active === key ? activeClass + " bg-emerald-50/30 dark:bg-emerald-950/20" : inactiveClass + " border-transparent active:bg-neutral-100 dark:active:bg-neutral-800/50"
+      active === key ? activeClass + " bg-emerald-100 dark:bg-emerald-900" : inactiveClass + " border-transparent active:bg-neutral-100 dark:active:bg-neutral-800"
     }`;
 
   if (calcOnly) {
     return (
       <>
         <MobileAppBar logoHref="/seller/calculadora" />
-        <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/98 dark:bg-neutral-950/98 backdrop-blur-xl shadow-sm">
+        <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-sm">
           <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 flex items-center gap-8">
             <DropCoreLogo variant="horizontal" href="/seller/calculadora" className="shrink-0" />
             <div className="flex items-center gap-0.5">
@@ -101,7 +101,7 @@ export function SellerNav({
             <ThemeToggle />
           </div>
         </nav>
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200/80 dark:border-neutral-800/80 bg-white/[0.98] dark:bg-neutral-950/[0.98] backdrop-blur-xl shadow-[0_-4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.45)] pb-[env(safe-area-inset-bottom)]">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.45)] pb-[env(safe-area-inset-bottom)]">
           <div className="max-w-lg mx-auto grid grid-cols-3 items-stretch min-h-[52px]">
             <Link
               href="/seller/calculadora"
@@ -113,7 +113,7 @@ export function SellerNav({
             <button
               type="button"
               onClick={() => void sairCalculadoraNav()}
-              className="flex flex-col items-center justify-center gap-0.5 py-2 px-1 min-h-[52px] touch-manipulation text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 active:bg-neutral-100/80 dark:active:bg-neutral-800/50 transition-colors border-l border-r border-neutral-200/60 dark:border-neutral-800/80"
+              className="flex flex-col items-center justify-center gap-0.5 py-2 px-1 min-h-[52px] touch-manipulation text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 active:bg-neutral-100 dark:active:bg-neutral-800 transition-colors border-l border-r border-neutral-200 dark:border-neutral-800"
               aria-label="Sair da calculadora"
             >
               <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -136,7 +136,7 @@ export function SellerNav({
   return (
     <>
       <MobileAppBar logoHref="/seller/dashboard" />
-      <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/98 dark:bg-neutral-950/98 backdrop-blur-xl shadow-sm">
+      <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-sm">
         <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 flex items-center gap-8">
           <DropCoreLogo variant="horizontal" href="/seller/dashboard" className="shrink-0" />
           <div className="flex items-center gap-0.5">
@@ -167,7 +167,7 @@ export function SellerNav({
         </div>
       </nav>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200/80 dark:border-neutral-800/80 bg-white/[0.98] dark:bg-neutral-950/[0.98] backdrop-blur-xl shadow-[0_-3px_16px_rgba(0,0,0,0.06)] dark:shadow-[0_-3px_16px_rgba(0,0,0,0.45)] pb-[env(safe-area-inset-bottom)]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-[0_-3px_16px_rgba(0,0,0,0.06)] dark:shadow-[0_-3px_16px_rgba(0,0,0,0.45)] pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid max-w-3xl grid-cols-4 items-stretch min-h-[50px]">
           <Link href="/seller/dashboard" className={mobileLinkClass("dashboard")}>
             <IconHome active={active === "dashboard"} />

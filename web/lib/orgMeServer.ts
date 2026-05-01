@@ -8,6 +8,9 @@ export type OrgMeSuccess = {
   ok: true;
   user_id: string;
   org_id: string | null;
+  fornecedor_id: string | null;
+  /** Presente quando existe linha em `sellers` com este `user_id` (painel seller). */
+  seller_id: string | null;
   role_base: "owner" | "admin" | "operacional" | null;
   pode_ver_dinheiro: boolean | null;
   plano: string;
@@ -48,22 +51,51 @@ export async function resolveOrgMe(req: Request): Promise<OrgMeSuccess | OrgMeFa
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const { data: member, error: mErr } = await sbAdmin
+    const { data: sellerRow } = await sbAdmin.from("sellers").select("id").eq("user_id", user.id).maybeSingle();
+    const seller_id = sellerRow?.id ?? null;
+
+    /**
+     * Importante: um mesmo `user_id` pode ter **várias** linhas em `org_members` (legado, convites,
+     * ou papel admin + vínculo de armazém). `.limit(1)` sem critério fazia o PostgREST devolver só
+     * uma linha arbitrária — se fosse a linha sem `fornecedor_id`, o fornecedor era tratado como
+     * admin e enxergava o `/dashboard`. Alinhado a GET /api/fornecedor/me: qualquer linha com
+     * `fornecedor_id` preenchido identifica o usuário como fornecedor.
+     */
+    const { data: rows, error: mErr } = await sbAdmin
       .from("org_members")
-      .select("org_id, role_base, pode_ver_dinheiro")
+      .select("org_id, fornecedor_id, role_base, pode_ver_dinheiro")
       .eq("user_id", user.id)
-      .limit(1)
-      .maybeSingle();
+      .order("org_id", { ascending: true });
 
     if (mErr) {
       return { ok: false, error: mErr.message, httpStatus: 500 };
     }
+
+    if (!rows?.length) {
+      return {
+        ok: true,
+        user_id: user.id,
+        org_id: null,
+        fornecedor_id: null,
+        seller_id,
+        role_base: null,
+        pode_ver_dinheiro: null,
+        plano: "starter",
+      };
+    }
+
+    const fornecedor_id =
+      rows.map((r) => r.fornecedor_id).find((id) => id != null && String(id).length > 0) ?? null;
+
+    const member = rows[0];
 
     if (!member?.org_id) {
       return {
         ok: true,
         user_id: user.id,
         org_id: null,
+        fornecedor_id,
+        seller_id,
         role_base: null,
         pode_ver_dinheiro: null,
         plano: "starter",
@@ -78,6 +110,8 @@ export async function resolveOrgMe(req: Request): Promise<OrgMeSuccess | OrgMeFa
       ok: true,
       user_id: user.id,
       org_id: member.org_id,
+      fornecedor_id,
+      seller_id,
       role_base: roleBase,
       pode_ver_dinheiro: member.pode_ver_dinheiro ?? null,
       plano: org?.plano ?? "starter",

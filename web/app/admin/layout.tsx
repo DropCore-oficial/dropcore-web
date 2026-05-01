@@ -35,14 +35,29 @@ export default function AdminLayout({
       const json = await res.json();
 
       if (cancelled) return;
-      if (!res.ok || !json?.org_id) {
+      if (!res.ok) {
+        router.replace("/login");
+        return;
+      }
+
+      if (json.fornecedor_id) {
+        router.replace("/fornecedor/dashboard");
+        return;
+      }
+
+      if (json.seller_id) {
+        router.replace("/seller/dashboard");
+        return;
+      }
+
+      if (!json?.org_id) {
         router.replace("/login");
         return;
       }
 
       const role = json.role_base;
       if (role !== "owner" && role !== "admin") {
-        router.replace("/dashboard");
+        router.replace("/login");
         return;
       }
 

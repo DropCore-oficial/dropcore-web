@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { requireAdmin } from "@/lib/apiOrgAuth";
+import { OrgAuthError, requireAdmin } from "@/lib/apiOrgAuth";
 import { marcarInadimplentes, contarInadimplentes, reverterInadimplentesDuranteTrial } from "@/lib/inadimplencia";
 import { resumoMensalidadePortal } from "@/lib/mensalidadeResumoPortal";
 import { portalTrialDays } from "@/lib/portalTrial";
@@ -356,8 +356,19 @@ export async function GET(req: Request) {
       }),
     });
   } catch (e: unknown) {
+    if (e instanceof OrgAuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.statusCode });
+    }
     const msg = e instanceof Error ? e.message : "Erro inesperado";
-    const status = msg === "Unauthorized" || msg === "Usuário sem organização." ? 401 : msg === "Sem permissão." ? 403 : 500;
+    const status =
+      msg === "Unauthorized" ||
+      msg === "Usuário sem organização." ||
+      msg === "Token inválido ou expirado." ||
+      msg === "Sem token (Authorization)."
+        ? 401
+        : msg === "Sem permissão."
+          ? 403
+          : 500;
     return NextResponse.json({ error: msg }, { status });
   }
 }

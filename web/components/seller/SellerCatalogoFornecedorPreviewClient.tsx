@@ -164,7 +164,7 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
             <button
               type="button"
               onClick={() => setQ("")}
-              className="rounded-2xl border border-neutral-200 dark:border-neutral-700 px-4 py-3 text-sm text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 font-medium touch-manipulation shrink-0"
+              className="rounded-2xl border border-neutral-200 dark:border-neutral-700 px-4 py-3 text-sm text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 font-medium touch-manipulation shrink-0"
             >
               Limpar
             </button>
@@ -176,7 +176,7 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
             A carregar vitrine...
           </div>
         )}
-        {error && <div className="rounded-xl border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-4 text-sm text-red-700 dark:text-red-200">{error}</div>}
+        {error && <div className="rounded-xl border border-red-300 dark:border-red-900 bg-red-100 dark:bg-red-950/40 p-4 text-sm text-red-700 dark:text-red-200">{error}</div>}
         {!loading && !error && items.length > 0 && (
           <p className="text-sm text-neutral-500 dark:text-neutral-400">
             {totalSkus} SKU{totalSkus !== 1 ? "s" : ""} · {grupos.length} grupo{grupos.length !== 1 ? "s" : ""}
@@ -214,7 +214,7 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
                 <button
                   type="button"
                   onClick={() => toggleGrupo(grupo.paiKey)}
-                  className="w-full flex items-center justify-between px-4 sm:px-5 py-3.5 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition border-l-4 border-l-transparent hover:border-l-emerald-500"
+                  className="w-full flex items-center justify-between px-4 sm:px-5 py-3.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition border-l-4 border-l-transparent hover:border-l-emerald-500"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="font-mono text-xs font-bold text-white bg-neutral-600 dark:bg-neutral-500 rounded-lg px-2.5 py-1 shrink-0">{grupo.paiKey}</span>
@@ -270,7 +270,7 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
             className="bg-white dark:bg-[var(--card)] rounded-2xl border border-neutral-200 dark:border-[var(--card-border)] shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200 dark:border-[var(--card-border)] bg-neutral-50/80 dark:bg-neutral-800/50">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200 dark:border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-800/50">
               <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">
                 Tabela de medidas · <span className="font-mono text-neutral-600 dark:text-neutral-400">{modalTabelaGrupoKey}</span>
               </h3>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { FornecedorNav } from "../../FornecedorNav";
@@ -26,7 +26,237 @@ import {
   parseLocalCriarVariantesDraft,
   fetchServerCriarVariantesDraft,
   mergeCriarVariantesDrafts,
+  rascunhoLeveParaEspelhoLocal,
 } from "@/lib/fornecedorCriarVariantesRascunho";
+import { buildExpedicaoPadraoLinha } from "@/lib/expedicaoFornecedorFormat";
+import { cepParaConsultaViaCep } from "@/lib/cepViaCep";
+
+function upperBr(s: string): string {
+  return s.toLocaleUpperCase("pt-BR");
+}
+
+/** Resposta mínima do ViaCEP (https://viacep.com.br/). */
+type ViaCepJson = {
+  erro?: boolean;
+  logradouro?: string;
+  bairro?: string;
+  localidade?: string;
+  uf?: string;
+};
+
+type PartesEnderecoCd = {
+  cep: string;
+  logradouro: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+};
+
+type ProdutoExistenteEdicao = {
+  id: string;
+  sku: string;
+  nome_produto: string;
+  cor: string | null;
+  tamanho: string | null;
+  estoque_atual: number | null;
+  custo_base: number | null;
+  peso_kg: number | null;
+  categoria?: string | null;
+  marca?: string | null;
+  descricao?: string | null;
+  data_lancamento?: string | null;
+  link_fotos?: string | null;
+  imagem_url?: string | null;
+  ncm?: string | null;
+  origem?: string | null;
+  cest?: string | null;
+  cfop?: string | null;
+  comprimento_cm?: number | null;
+  largura_cm?: number | null;
+  altura_cm?: number | null;
+  expedicao_override_linha?: string | null;
+  detalhes_produto_json?: Record<string, unknown> | null;
+};
+
+function grupoKeyFromSku(sku: string): string {
+  const s = (sku || "").trim().toUpperCase();
+  const m = s.match(/^([A-Z]+)(\d{3})(\d{3})$/);
+  if (!m) return s;
+  return `${m[1]}${m[2]}000`;
+}
+
+function slaFromExpedicaoLinha(raw: string | null | undefined): "" | "24h" | "48h" | "72h" {
+  const s = String(raw ?? "").toLowerCase();
+  if (s.includes("24h")) return "24h";
+  if (s.includes("48h")) return "48h";
+  if (s.includes("72h")) return "72h";
+  return "";
+}
+
+function numToStr(v: number | null | undefined): string {
+  return v == null || !Number.isFinite(v) ? "" : String(v);
+}
+
+function asObj(v: unknown): Record<string, unknown> | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  return v as Record<string, unknown>;
+}
+
+function pairKeyFromValues(cor: string | null | undefined, tamanho: string | null | undefined): string {
+  return `${String(cor ?? "").trim().toLowerCase()}|${String(tamanho ?? "").trim().toUpperCase()}`;
+}
+
+function montarRascunhoEdicao(
+  grupoKey: string,
+  rows: ProdutoExistenteEdicao[]
+): RascunhoCriarVariantesV1 | null {
+  const pk = grupoKey.trim().toUpperCase();
+  if (!pk) return null;
+  const grupoRows = rows
+    .filter((r) => grupoKeyFromSku(r.sku) === pk)
+    .sort((a, b) => a.sku.localeCompare(b.sku));
+  if (grupoRows.length === 0) return null;
+
+  const pai = grupoRows.find((r) => r.sku.trim().toUpperCase() === pk) ?? grupoRows[0];
+  const detalhes = asObj(pai.detalhes_produto_json);
+  const infoBasica = asObj(detalhes?.infoBasica);
+  const caracteristicas = asObj(detalhes?.caracteristicas);
+  const qualidade = asObj(detalhes?.qualidade);
+  const guiado = asObj(detalhes?.guiado);
+  const logistica = asObj(detalhes?.logistica);
+  const midia = asObj(detalhes?.midia);
+  const variantesBase = grupoRows.filter((r) => r.sku.trim().toUpperCase() !== pk);
+  const variantes = variantesBase.length > 0 ? variantesBase : grupoRows;
+
+  const coresSelecionadas = new Set<string>();
+  const tamanhosSelecionados = new Set<string>();
+  const custoMatriz: Record<string, string> = {};
+  const estoqueMatriz: Record<string, string> = {};
+  const fotoUrlPorCor: Record<string, string> = {};
+
+  for (const v of variantes) {
+    const cor = toTitleCase(String(v.cor ?? "").trim());
+    const tamanho = String(v.tamanho ?? "").trim().toUpperCase();
+    if (cor) coresSelecionadas.add(cor);
+    if (tamanho) tamanhosSelecionados.add(tamanho);
+    const key = chaveEstoqueVariante(cor, tamanho);
+
+    if (v.custo_base != null && Number.isFinite(v.custo_base)) {
+      custoMatriz[key] = String(v.custo_base);
+    }
+    if (v.estoque_atual != null && Number.isFinite(v.estoque_atual)) {
+      estoqueMatriz[key] = String(v.estoque_atual);
+    }
+    if (cor && !fotoUrlPorCor[cor.toLowerCase()]) {
+      const foto = String(v.imagem_url ?? "").trim();
+      if (foto) fotoUrlPorCor[cor.toLowerCase()] = foto;
+    }
+  }
+
+  const tamanhosOrdenados = ordenarTamanhosLista(Array.from(tamanhosSelecionados));
+  const medidasBase: Medida[] =
+    tamanhosOrdenados.length > 0
+      ? tamanhosOrdenados.map((tamanho) => ({ tamanho }))
+      : [{ tamanho: "" }];
+
+  return {
+    v: 1,
+    savedAt: new Date().toISOString(),
+    tabAtiva: "info-basica",
+    nomeProduto: String(pai.nome_produto ?? "").trim(),
+    descricao: String(pai.descricao ?? "").trim(),
+    categoria: String(pai.categoria ?? "").trim(),
+    marca: String(pai.marca ?? "").trim(),
+    modelo: typeof infoBasica?.modelo === "string" ? infoBasica.modelo : "",
+    tecido: typeof caracteristicas?.tecido === "string" ? caracteristicas.tecido : "",
+    composicao: typeof caracteristicas?.composicao === "string" ? caracteristicas.composicao : "",
+    caimento: typeof caracteristicas?.caimento === "string" ? (caracteristicas.caimento as "" | "slim" | "regular" | "oversized") : "",
+    elasticidade: typeof caracteristicas?.elasticidade === "string" ? (caracteristicas.elasticidade as "" | "baixa" | "media" | "alta") : "",
+    transparencia: typeof caracteristicas?.transparencia === "string" ? (caracteristicas.transparencia as "" | "nao" | "leve" | "alta") : "",
+    amassa: typeof caracteristicas?.amassa === "boolean" ? caracteristicas.amassa : null,
+    clima: typeof caracteristicas?.clima === "string" ? (caracteristicas.clima as "" | "calor" | "frio" | "ambos") : "",
+    ocasioesUso: Array.isArray(caracteristicas?.ocasioes) ? caracteristicas.ocasioes.filter((x): x is string => typeof x === "string") : [],
+    posicionamento: typeof caracteristicas?.posicionamento === "string" ? (caracteristicas.posicionamento as "" | "basico" | "intermediario" | "premium") : "",
+    coresSelecionadas: Array.from(coresSelecionadas),
+    corCustom: "",
+    tamanhosSelecionados: Array.from(tamanhosSelecionados),
+    tamanhoCustom: "",
+    medidas: medidasBase,
+    topicosMedidaSelecionados: ["Comprimento"],
+    topicosMedidaCustom: "",
+    dataLancamento: String(pai.data_lancamento ?? "").slice(0, 10),
+    custoPorTamanho: {},
+    custoMatriz,
+    custoPorCor: {},
+    estoquePorTamanho: {},
+    estoqueMatriz,
+    estoquePorCor: {},
+    fotoUrlPorCor,
+    massaCusto: "",
+    massaEstoque: "",
+    peso: numToStr(pai.peso_kg),
+    comp: numToStr(pai.comprimento_cm),
+    largura: numToStr(pai.largura_cm),
+    altura: numToStr(pai.altura_cm),
+    linkFotos: String(pai.link_fotos ?? "").trim(),
+    linkVideo: typeof midia?.video === "string" ? midia.video : "",
+    midiaPrincipal: typeof midia?.principal === "string" ? midia.principal : "",
+    midiaFrente: typeof midia?.frente === "string" ? midia.frente : "",
+    midiaCostas: typeof midia?.costas === "string" ? midia.costas : "",
+    midiaDetalhe: typeof midia?.detalhe === "string" ? midia.detalhe : "",
+    midiaLifestyle: typeof midia?.lifestyle === "string" ? midia.lifestyle : "",
+    naoDesbota: typeof qualidade?.naoDesbota === "boolean" ? qualidade.naoDesbota : null,
+    encolhe: typeof qualidade?.encolhe === "boolean" ? qualidade.encolhe : null,
+    costuraReforcada: typeof qualidade?.costuraReforcada === "boolean" ? qualidade.costuraReforcada : null,
+    obsQualidade: typeof qualidade?.observacoes === "string" ? qualidade.observacoes : "",
+    diferencial: typeof guiado?.diferencial === "string" ? guiado.diferencial : "",
+    indicacao: typeof guiado?.indicacao === "string" ? guiado.indicacao : "",
+    observacoesSeller: typeof guiado?.observacoesSeller === "string" ? guiado.observacoesSeller : "",
+    slaEnvio:
+      typeof logistica?.slaEnvio === "string"
+        ? (logistica.slaEnvio as "" | "24h" | "48h" | "72h")
+        : slaFromExpedicaoLinha(pai.expedicao_override_linha),
+    ncm: String(pai.ncm ?? "").trim(),
+    cest: String(pai.cest ?? "").trim(),
+    origemProduto: String(pai.origem ?? "").trim(),
+    cfop: String(pai.cfop ?? "").trim(),
+    unidadeComercial: typeof logistica?.unidadeComercial === "string" ? logistica.unidadeComercial : "UN",
+    cdSaida: typeof logistica?.cdSaida === "string" ? logistica.cdSaida : String(pai.expedicao_override_linha ?? "").trim(),
+    produto: {
+      infoBasica: {
+        nomeProduto: String(pai.nome_produto ?? "").trim(),
+        categoria: String(pai.categoria ?? "").trim() || undefined,
+        marca: String(pai.marca ?? "").trim() || undefined,
+        modelo: undefined,
+      },
+      caracteristicas: {},
+      medidas: medidasBase,
+      variacoes: variantes.map((v) => ({
+        sku: v.sku,
+        cor: toTitleCase(String(v.cor ?? "").trim()),
+        tamanho: String(v.tamanho ?? "").trim().toUpperCase(),
+        estoque: v.estoque_atual ?? undefined,
+        custo: v.custo_base ?? undefined,
+        peso: v.peso_kg ?? undefined,
+        imagem: String(v.imagem_url ?? "").trim() || undefined,
+      })),
+      qualidade: {},
+      midia: {},
+      guiado: {},
+      logistica: {
+        slaEnvio: slaFromExpedicaoLinha(pai.expedicao_override_linha) || undefined,
+        ncm: String(pai.ncm ?? "").trim() || undefined,
+        cest: String(pai.cest ?? "").trim() || undefined,
+        origemProduto: String(pai.origem ?? "").trim() || undefined,
+        cfop: String(pai.cfop ?? "").trim() || undefined,
+        unidadeComercial: "UN",
+        cdSaida: String(pai.expedicao_override_linha ?? "").trim() || undefined,
+      },
+    },
+  };
+}
 
 /** Ordem estável para listar tamanhos (PP... depois extras). */
 function ordenarTamanhosLista(tams: string[]): string[] {
@@ -54,15 +284,98 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "logistica", label: "Fiscal e despacho" },
 ];
 
+/** Preenchimento rápido — NCM/CEST/CFOP usuais em vestuário nacional (conferir com seu contador). CD de saída não vem no modelo. */
+const PRESETS_FISCAL_DESPACHO: {
+  id: string;
+  label: string;
+  ncm: string;
+  cest: string;
+  origemProduto: string;
+  cfop: string;
+  unidadeComercial: string;
+  slaEnvio: "24h" | "48h" | "72h";
+}[] = [
+  {
+    id: "camiseta",
+    label: "Camiseta / camisa",
+    ncm: "6105.20.00",
+    cest: "28.038.00",
+    origemProduto: "Nacional",
+    cfop: "5102",
+    unidadeComercial: "UN",
+    slaEnvio: "24h",
+  },
+  {
+    id: "calca",
+    label: "Calça / bermuda",
+    ncm: "6103.42.00",
+    cest: "28.038.00",
+    origemProduto: "Nacional",
+    cfop: "5102",
+    unidadeComercial: "UN",
+    slaEnvio: "24h",
+  },
+  {
+    id: "vestido",
+    label: "Vestido / saia",
+    ncm: "6104.43.00",
+    cest: "28.038.00",
+    origemProduto: "Nacional",
+    cfop: "5102",
+    unidadeComercial: "UN",
+    slaEnvio: "48h",
+  },
+  {
+    id: "jaqueta",
+    label: "Jaqueta / blusa frio",
+    ncm: "6101.20.00",
+    cest: "28.038.00",
+    origemProduto: "Nacional",
+    cfop: "5102",
+    unidadeComercial: "UN",
+    slaEnvio: "48h",
+  },
+  {
+    id: "acessorio",
+    label: "Acessório têxtil",
+    ncm: "6117.80.00",
+    cest: "28.038.00",
+    origemProduto: "Nacional",
+    cfop: "5102",
+    unidadeComercial: "UN",
+    slaEnvio: "24h",
+  },
+];
+
+const btnPillFiscalExtra =
+  "rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700";
+
+/** Origem da mercadoria — atalhos comuns (o campo continua livre para outro texto). */
+const ATALHOS_ORIGEM_PRODUTO: { id: string; label: string; valor: string }[] = [
+  { id: "nac", label: "Nacional", valor: "Nacional" },
+  { id: "imp-d", label: "Imp. direta", valor: "Importação direta" },
+  { id: "imp-mi", label: "Mercado int.", valor: "Importado - mercado interno" },
+];
+
+/** Unidade comercial — atalhos típicos em vestuário. */
+const ATALHOS_UNIDADE_COMERCIAL: { id: string; label: string; valor: string }[] = [
+  { id: "un", label: "UN", valor: "UN" },
+  { id: "kg", label: "KG", valor: "KG" },
+  { id: "cx", label: "CX", valor: "CX" },
+  { id: "pct", label: "PCT", valor: "PCT" },
+];
+
 const inputBase = "w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-300 bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500";
 const inputDelicado =
   "w-full rounded-lg border border-[#e5e9ef] bg-white px-3 py-2 text-[13px] text-[#1f2937] placeholder:text-[#9aa3af] shadow-[inset_0_1px_1px_rgba(15,23,42,0.03)] transition focus:outline-none focus:border-[#b8c6db] focus:ring-2 focus:ring-[#dbe8ff] dark:border-[#394353] dark:bg-[#161c25] dark:text-[#e5e7eb] dark:placeholder:text-[#8b95a5] dark:focus:border-[#5d7fb4] dark:focus:ring-[#1e3355]";
+const btnAtalhoNumeroCd =
+  "rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700";
 
 /** Alinhado ao resto do formulário (ex.: py-2.5 dos inputs e CTAs sky/azul). */
 const btnRascunho =
-  "inline-flex items-center justify-center rounded-lg border border-[#d9dee5] bg-white px-3 py-2 text-[13px] font-medium text-neutral-700 shadow-[0_1px_0_rgba(15,23,42,0.04)] transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800 sm:px-3.5 sm:py-1.5";
+  "inline-flex items-center justify-center rounded-lg border border-[#d9dee5] bg-white px-3 py-2 text-[13px] font-medium text-neutral-700 shadow-[0_1px_0_rgba(15,23,42,0.04)] transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-45 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800 sm:px-3.5 sm:py-1.5";
 const btnPassoSec =
-  "inline-flex flex-1 items-center justify-center rounded-lg border border-[#d9dee5] bg-[var(--card)] px-3 py-2 text-[13px] font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-neutral-600 dark:bg-neutral-900/80 dark:text-neutral-200 dark:hover:bg-neutral-800 sm:flex-none sm:min-w-[7.5rem] sm:px-3.5 sm:py-1.5";
+  "inline-flex flex-1 items-center justify-center rounded-lg border border-[#d9dee5] bg-[var(--card)] px-3 py-2 text-[13px] font-medium text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-neutral-600 dark:bg-neutral-900/80 dark:text-neutral-200 dark:hover:bg-neutral-800 sm:flex-none sm:min-w-[7.5rem] sm:px-3.5 sm:py-1.5";
 const btnSeguir =
   "inline-flex flex-1 items-center justify-center rounded-lg border border-neutral-300 bg-white px-3 py-2 text-[13px] font-semibold text-neutral-800 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800 sm:flex-none sm:min-w-[7.5rem] sm:px-3.5 sm:py-1.5";
 const btnSalvarProduto =
@@ -72,7 +385,7 @@ const btnSalvarProduto =
 const MEDIDAS_PREDEFINIDAS = [
   "Largura",
   "Comprimento",
-  "Ombro",
+  "Ombros",
   "Manga",
   "Comprimento da manga",
   "Punho",
@@ -163,6 +476,14 @@ function estadoInicialRascunhoVazio(): RascunhoCriarVariantesV1 {
     cfop: "",
     unidadeComercial: "",
     cdSaida: "",
+    cdSaidaCep: "",
+    cdSaidaLogradouro: "",
+    cdSaidaNumero: "",
+    cdSaidaComplemento: "",
+    cdSaidaBairro: "",
+    cdSaidaCidade: "",
+    cdSaidaUf: "",
+    cdUsarDespachoCadastro: false,
     produto: {
       infoBasica: { nomeProduto: "" },
       caracteristicas: {},
@@ -178,10 +499,14 @@ function estadoInicialRascunhoVazio(): RascunhoCriarVariantesV1 {
 
 export default function CriarVariantesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const grupoEdicao = (searchParams.get("editar") ?? "").trim().toUpperCase();
+  const modoEdicao = grupoEdicao.length > 0;
   const tabsNavRef = useRef<HTMLDivElement | null>(null);
   const [tabAtiva, setTabAtiva] = useState<TabId>("info-basica");
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [carregandoEdicao, setCarregandoEdicao] = useState(false);
 
   // Info. Básica
   const [nomeProduto, setNomeProduto] = useState("");
@@ -233,7 +558,8 @@ export default function CriarVariantesPage() {
     savedAt: string;
     origem: "servidor" | "local";
   } | null>(null);
-  const [msgRascunho, setMsgRascunho] = useState<string | null>(null);
+  /** `sucesso` = verde; `aviso` = âmbar (salvo só local / falha na nuvem — não é “tudo certo”). */
+  const [msgRascunho, setMsgRascunho] = useState<{ text: string; tipo: "sucesso" | "aviso" } | null>(null);
   const [rascunhoSalvando, setRascunhoSalvando] = useState(false);
   const [peso, setPeso] = useState("");
   const [comp, setComp] = useState("");
@@ -267,8 +593,38 @@ export default function CriarVariantesPage() {
   const [origemProduto, setOrigemProduto] = useState("");
   const [cfop, setCfop] = useState("");
   const [unidadeComercial, setUnidadeComercial] = useState("");
-  const [cdSaida, setCdSaida] = useState("");
+  const [cdCep, setCdCep] = useState("");
+  const [cdLogradouro, setCdLogradouro] = useState("");
+  const [cdNumero, setCdNumero] = useState("");
+  const [cdComplemento, setCdComplemento] = useState("");
+  const [cdBairro, setCdBairro] = useState("");
+  const [cdCidade, setCdCidade] = useState("");
+  const [cdUf, setCdUf] = useState("");
+  const [cdUsarDespachoCadastro, setCdUsarDespachoCadastro] = useState(false);
+  const [perfilExpedicao, setPerfilExpedicao] = useState<PartesEnderecoCd | null>(null);
+  const [buscandoCepCd, setBuscandoCepCd] = useState(false);
   const [pickerCampo, setPickerCampo] = useState<null | "caimento" | "elasticidade" | "transparencia" | "clima" | "posicionamento">(null);
+  const cdCepRef = useRef("");
+  cdCepRef.current = cdCep;
+
+  const cdLinhaFormatada = useMemo(() => {
+    const linha =
+      buildExpedicaoPadraoLinha({
+        expedicao_cep: cdCep,
+        expedicao_logradouro: cdLogradouro,
+        expedicao_numero: cdNumero,
+        expedicao_complemento: cdComplemento,
+        expedicao_bairro: cdBairro,
+        expedicao_cidade: cdCidade,
+        expedicao_uf: cdUf,
+      }) ?? "";
+    return linha.trim();
+  }, [cdCep, cdLogradouro, cdNumero, cdComplemento, cdBairro, cdCidade, cdUf]);
+
+  const perfilExpedicaoPreenchido = useMemo(() => {
+    if (!perfilExpedicao) return false;
+    return Object.values(perfilExpedicao).some((v) => String(v ?? "").trim().length > 0);
+  }, [perfilExpedicao]);
 
   const coresFinais = useMemo(() => {
     const set = new Set(coresSelecionadas);
@@ -315,6 +671,15 @@ export default function CriarVariantesPage() {
   function parseNum(s: string): number | undefined {
     const n = Number.parseFloat(String(s).replace(",", "."));
     return Number.isFinite(n) ? n : undefined;
+  }
+
+  function aplicarPresetFiscal(p: (typeof PRESETS_FISCAL_DESPACHO)[number]) {
+    setNcm(p.ncm);
+    setCest(p.cest);
+    setOrigemProduto(p.origemProduto);
+    setCfop(p.cfop);
+    setUnidadeComercial(p.unidadeComercial);
+    setSlaEnvio(p.slaEnvio);
   }
 
   function skuAutomatico(cor: string, tamanho: string, idx: number): string {
@@ -364,7 +729,7 @@ export default function CriarVariantesPage() {
       set.add(toTitleCase(part));
     }
     if (set.size === 0) {
-      if (tipoMedida === "camisa") return ["Ombro", "Comprimento da manga", "Comprimento", "Bíceps"];
+      if (tipoMedida === "camisa") return ["Ombros", "Comprimento da manga", "Comprimento", "Bíceps"];
       if (tipoMedida === "calca") return ["Cintura", "Quadril", "Comprimento", "Entrepernas", "Gancho (altura · calça)"];
       if (tipoMedida === "vestido") return ["Busto", "Cintura", "Comprimento"];
       return ["Largura", "Comprimento"];
@@ -376,7 +741,7 @@ export default function CriarVariantesPage() {
     const norm = topico.toLowerCase();
     if (norm === "largura") return "largura";
     if (norm === "comprimento") return "comprimento";
-    if (norm === "ombro") return "ombro";
+    if (norm === "ombro" || norm === "ombros") return "ombro";
     if (norm === "manga") return "manga";
     if (norm === "cintura") return "cintura";
     if (norm === "quadril") return "quadril";
@@ -706,7 +1071,7 @@ export default function CriarVariantesPage() {
       origemProduto: origemProduto.trim() || undefined,
       cfop: cfop.trim() || undefined,
       unidadeComercial: unidadeComercial.trim() || undefined,
-      cdSaida: cdSaida.trim() || undefined,
+      cdSaida: cdLinhaFormatada || undefined,
     };
 
     return {
@@ -768,7 +1133,7 @@ export default function CriarVariantesPage() {
       origemProduto,
       cfop,
       unidadeComercial,
-      cdSaida,
+      cdSaida: cdLinhaFormatada,
       produto: {
         infoBasica,
         caracteristicas,
@@ -840,11 +1205,57 @@ export default function CriarVariantesPage() {
     setOrigemProduto(p.origemProduto ?? p.produto?.logistica?.origemProduto ?? "");
     setCfop(p.cfop ?? p.produto?.logistica?.cfop ?? "");
     setUnidadeComercial(p.unidadeComercial ?? p.produto?.logistica?.unidadeComercial ?? "");
-    setCdSaida(p.cdSaida ?? p.produto?.logistica?.cdSaida ?? "");
+
+    const usarCadastro = p.cdUsarDespachoCadastro ?? false;
+    setCdUsarDespachoCadastro(usarCadastro);
+
+    const temPartesSalvas =
+      String(p.cdSaidaCep ?? "").trim() ||
+      String(p.cdSaidaLogradouro ?? "").trim() ||
+      String(p.cdSaidaNumero ?? "").trim() ||
+      String(p.cdSaidaComplemento ?? "").trim() ||
+      String(p.cdSaidaBairro ?? "").trim() ||
+      String(p.cdSaidaCidade ?? "").trim() ||
+      String(p.cdSaidaUf ?? "").trim();
+
+    if (!usarCadastro) {
+      if (temPartesSalvas) {
+        setCdCep(String(p.cdSaidaCep ?? "").replace(/\D/g, "").slice(0, 8));
+        setCdLogradouro(upperBr(String(p.cdSaidaLogradouro ?? "")));
+        setCdNumero(upperBr(String(p.cdSaidaNumero ?? "")));
+        setCdComplemento(upperBr(String(p.cdSaidaComplemento ?? "")));
+        setCdBairro(upperBr(String(p.cdSaidaBairro ?? "")));
+        setCdCidade(upperBr(String(p.cdSaidaCidade ?? "")));
+        setCdUf(String(p.cdSaidaUf ?? "")
+          .trim()
+          .toUpperCase()
+          .replace(/[^A-Z]/g, "")
+          .slice(0, 2));
+      } else {
+        const legado = (p.cdSaida ?? p.produto?.logistica?.cdSaida ?? "").trim();
+        setCdCep("");
+        setCdNumero("");
+        setCdComplemento("");
+        setCdBairro("");
+        setCdCidade("");
+        setCdUf("");
+        setCdLogradouro(legado ? upperBr(legado) : "");
+      }
+    } else {
+      setCdCep("");
+      setCdLogradouro("");
+      setCdNumero("");
+      setCdComplemento("");
+      setCdBairro("");
+      setCdCidade("");
+      setCdUf("");
+    }
   }
 
+  /** Sempre remove base64 (`data:`) antes do localStorage — quota baixa; nuvem recebe payload completo no PUT. */
   function gravarRascunhoLocal(data: RascunhoCriarVariantesV1) {
-    localStorage.setItem(LS_RASCUNHO_CRIAR_VARIANTES, JSON.stringify(data));
+    const leve = rascunhoLeveParaEspelhoLocal(data);
+    localStorage.setItem(LS_RASCUNHO_CRIAR_VARIANTES, JSON.stringify(leve));
   }
 
   async function salvarRascunho() {
@@ -868,16 +1279,20 @@ export default function CriarVariantesPage() {
           }
           try {
             gravarRascunhoLocal({ ...data, fotoUrlPorCor: fotoSóHttp });
-            setMsgRascunho(
-              "Rascunho salvo neste aparelho sem fotos em base64 (limite). As URLs https das imagens foram mantidas. Salve de novo para tentar enviar à conta."
-            );
+            setMsgRascunho({
+              tipo: "aviso",
+              text: "Rascunho salvo neste aparelho sem fotos em base64 (limite). As URLs https das imagens foram mantidas. Salve de novo para tentar enviar à conta.",
+            });
             return true;
           } catch {
-            setMsgRascunho("Não foi possível salvar o rascunho (armazenamento cheio neste aparelho).");
+            setMsgRascunho({
+              tipo: "aviso",
+              text: "Não foi possível salvar o rascunho (armazenamento cheio neste aparelho).",
+            });
             return false;
           }
         }
-        setMsgRascunho("Não foi possível salvar o rascunho neste aparelho.");
+        setMsgRascunho({ tipo: "aviso", text: "Não foi possível salvar o rascunho neste aparelho." });
         return false;
       }
     };
@@ -922,24 +1337,51 @@ export default function CriarVariantesPage() {
       if (!res.ok) {
         if (res.status === 503 && String(j?.error ?? "").includes("create-fornecedor-produto-rascunhos")) {
           if (tentarQuotaLocal(payload)) {
-            setMsgRascunho(
-              "Rascunho salvo só neste aparelho: a tabela na nuvem ainda não foi criada. Peça à equipe para executar o script SQL em web/scripts/create-fornecedor-produto-rascunhos.sql no Supabase."
-            );
+            setMsgRascunho({
+              tipo: "aviso",
+              text: "Rascunho salvo só neste aparelho: a tabela na nuvem ainda não foi criada. Peça à equipe para executar o script SQL em web/scripts/create-fornecedor-produto-rascunhos.sql no Supabase.",
+            });
           }
           return;
         }
-        throw new Error(typeof j?.error === "string" ? j.error : "Erro ao salvar rascunho na conta.");
+        if (tentarQuotaLocal(payload)) {
+          let detalhe = "O servidor não conseguiu salvar o rascunho na nuvem neste momento.";
+          if (res.status === 401) {
+            detalhe = "Sessão expirada ou sem permissão. Atualize a página ou entre de novo.";
+          } else if (res.status === 413) {
+            detalhe = "Rascunho maior que o limite permitido para salvar na conta.";
+          } else if (typeof j?.error === "string" && j.error.trim()) {
+            detalhe = j.error.trim();
+          } else if (res.status >= 500) {
+            detalhe = "Erro no servidor ao gravar o rascunho.";
+          }
+          setMsgRascunho({
+            tipo: "aviso",
+            text: `${detalhe} Seus dados foram salvos só neste aparelho. Tente «Salvar rascunho» de novo.`,
+          });
+        }
+        return;
       }
 
-      gravarRascunhoLocal(corpo);
-      setMsgRascunho(
-        usouSóUrlsFotos
-          ? "Rascunho salvo na sua conta sem fotos em base64 (tamanho). URLs https foram mantidas."
-          : "Rascunho salvo na sua conta. Você pode continuar em outro aparelho ou mais tarde nesta página."
-      );
+      const textoSucessoNuvem = usouSóUrlsFotos
+        ? "Rascunho salvo na sua conta sem fotos em base64 (tamanho). URLs https foram mantidas."
+        : "Rascunho salvo na sua conta. Você pode continuar em outro aparelho ou mais tarde nesta página.";
+
+      try {
+        gravarRascunhoLocal(corpo);
+        setMsgRascunho({ tipo: "sucesso", text: textoSucessoNuvem });
+      } catch {
+        setMsgRascunho({
+          tipo: "sucesso",
+          text: `${textoSucessoNuvem} Na conta está tudo certo. Este navegador não guardou cópia offline (ainda muito grande ou armazenamento cheio).`,
+        });
+      }
     } catch {
       if (tentarQuotaLocal(payload)) {
-        setMsgRascunho("Sem conexão ou servidor indisponível. Rascunho salvo só neste aparelho — tente «Salvar rascunho» de novo quando estiver online.");
+        setMsgRascunho({
+          tipo: "aviso",
+          text: "Não foi possível enviar o rascunho à nuvem (rede ou servidor inacessível). Rascunho salvo só neste aparelho — tente «Salvar rascunho» de novo.",
+        });
       }
     } finally {
       setRascunhoSalvando(false);
@@ -972,6 +1414,7 @@ export default function CriarVariantesPage() {
   }
 
   useEffect(() => {
+    if (modoEdicao) return;
     let cancelled = false;
     void (async () => {
       const {
@@ -998,7 +1441,146 @@ export default function CriarVariantesPage() {
     return () => {
       cancelled = true;
     };
+  }, [modoEdicao]);
+
+  useEffect(() => {
+    if (!modoEdicao) return;
+    let cancelled = false;
+    setCarregandoEdicao(true);
+    setFormError(null);
+    setAvisoRascunhoCarregado(null);
+    setMsgRascunho(null);
+    void (async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabaseBrowser.auth.getSession();
+        const token = session?.access_token;
+        if (!token) {
+          router.replace("/fornecedor/login");
+          return;
+        }
+        const res = await fetch("/api/fornecedor/produtos", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        const j = await res.json().catch(() => []);
+        if (!res.ok) {
+          throw new Error((j as { error?: string })?.error ?? "Erro ao carregar produto para edição.");
+        }
+        const payload = montarRascunhoEdicao(grupoEdicao, Array.isArray(j) ? (j as ProdutoExistenteEdicao[]) : []);
+        if (!payload) {
+          throw new Error("Produto não encontrado para edição.");
+        }
+        if (cancelled) return;
+        aplicarPayloadRascunho(payload);
+      } catch (e: unknown) {
+        if (cancelled) return;
+        setFormError(e instanceof Error ? e.message : "Erro ao preparar edição.");
+      } finally {
+        if (!cancelled) setCarregandoEdicao(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [modoEdicao, grupoEdicao, router]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabaseBrowser.auth.getSession();
+        const token = session?.access_token;
+        if (!token || cancelled) return;
+        const res = await fetch("/api/fornecedor/me", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        if (!res.ok || cancelled) return;
+        const json = (await res.json().catch(() => ({}))) as { fornecedor?: Record<string, unknown> };
+        const f = json.fornecedor ?? {};
+        const legExpLinha = String(f.expedicao_padrao_linha ?? "").trim();
+        const expCep = String(f.expedicao_cep ?? "").replace(/\D/g, "").slice(0, 8);
+        const expLog = upperBr(String(f.expedicao_logradouro ?? ""));
+        const expNum = upperBr(String(f.expedicao_numero ?? ""));
+        const expComp = upperBr(String(f.expedicao_complemento ?? ""));
+        const expBai = upperBr(String(f.expedicao_bairro ?? ""));
+        const expCid = upperBr(String(f.expedicao_cidade ?? ""));
+        const expUf = upperBr(String(f.expedicao_uf ?? ""))
+          .replace(/[^A-Z]/g, "")
+          .slice(0, 2);
+        const structVazio = !expCep && !expLog && !expNum && !expComp && !expBai && !expCid && !expUf;
+        const perfil: PartesEnderecoCd = {
+          cep: expCep,
+          logradouro: structVazio && legExpLinha ? upperBr(legExpLinha) : expLog,
+          numero: expNum,
+          complemento: expComp,
+          bairro: expBai,
+          cidade: expCid,
+          uf: expUf,
+        };
+        if (!cancelled) setPerfilExpedicao(perfil);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  useEffect(() => {
+    if (!cdUsarDespachoCadastro || !perfilExpedicao) return;
+    setCdCep(perfilExpedicao.cep);
+    setCdLogradouro(perfilExpedicao.logradouro);
+    setCdNumero(perfilExpedicao.numero);
+    setCdComplemento(perfilExpedicao.complemento);
+    setCdBairro(perfilExpedicao.bairro);
+    setCdCidade(perfilExpedicao.cidade);
+    setCdUf(perfilExpedicao.uf);
+  }, [cdUsarDespachoCadastro, perfilExpedicao]);
+
+  useEffect(() => {
+    if (cdUsarDespachoCadastro) {
+      setBuscandoCepCd(false);
+      return;
+    }
+    const cepConsulta = cepParaConsultaViaCep(cdCep);
+    if (!cepConsulta) {
+      if (cdCep.replace(/\D/g, "").length === 0) setBuscandoCepCd(false);
+      return;
+    }
+    setBuscandoCepCd(true);
+    const ac = new AbortController();
+    void fetch(`https://viacep.com.br/ws/${cepConsulta}/json/`, { signal: ac.signal })
+      .then((r) => r.json() as Promise<ViaCepJson>)
+      .then((data) => {
+        if (cepParaConsultaViaCep(cdCepRef.current) !== cepConsulta) return;
+        if (data.erro) {
+          setBuscandoCepCd(false);
+          return;
+        }
+        const log = String(data.logradouro ?? "").trim();
+        const bai = String(data.bairro ?? "").trim();
+        const cid = String(data.localidade ?? "").trim();
+        const uf = String(data.uf ?? "")
+          .trim()
+          .toUpperCase()
+          .replace(/[^A-Z]/g, "")
+          .slice(0, 2);
+        setCdCep(cepConsulta);
+        setCdLogradouro((prev) => (log ? upperBr(log) : prev));
+        setCdBairro((prev) => (bai ? upperBr(bai) : prev));
+        setCdCidade((prev) => (cid ? upperBr(cid) : prev));
+        setCdUf((prev) => (uf ? uf : prev));
+        setBuscandoCepCd(false);
+      })
+      .catch(() => setBuscandoCepCd(false));
+    return () => ac.abort();
+  }, [cdCep, cdUsarDespachoCadastro]);
 
   const indiceTab = TABS.findIndex((t) => t.id === tabAtiva);
 
@@ -1044,6 +1626,68 @@ export default function CriarVariantesPage() {
       const cores = coresFinais;
       const tamanhos = tamanhosFinais;
       const descricaoGuiada = [diferencial, indicacao, observacoesSeller].filter((t) => t.trim()).join(" | ");
+      const detalhesProdutoJson: Record<string, unknown> = {
+        infoBasica: {
+          nomeProduto: nomeProduto.trim() || null,
+          categoria: categoria.trim() || null,
+          marca: marca.trim() || null,
+          modelo: modelo.trim() || null,
+          descricao: descricao.trim() || null,
+          dataLancamento: dataLancamento || null,
+        },
+        caracteristicas: {
+          tecido: tecido.trim() || null,
+          composicao: composicao.trim() || null,
+          caimento: caimento || null,
+          elasticidade: elasticidade || null,
+          transparencia: transparencia || null,
+          amassa,
+          clima: clima || null,
+          ocasioes: ocasioesUsoLista,
+          posicionamento: posicionamento || null,
+        },
+        qualidade: {
+          naoDesbota,
+          encolhe,
+          costuraReforcada,
+          observacoes: obsQualidade.trim() || null,
+        },
+        midia: {
+          linkFotos: linkFotos.trim() || null,
+          video: linkVideo.trim() || null,
+          principal: midiaPrincipal.trim() || null,
+          frente: midiaFrente.trim() || null,
+          costas: midiaCostas.trim() || null,
+          detalhe: midiaDetalhe.trim() || null,
+          lifestyle: midiaLifestyle.trim() || null,
+        },
+        guiado: {
+          diferencial: diferencial.trim() || null,
+          indicacao: indicacao.trim() || null,
+          observacoesSeller: observacoesSeller.trim() || null,
+        },
+        logistica: {
+          slaEnvio: slaEnvio || null,
+          ncm: ncm.trim() || null,
+          cest: cest.trim() || null,
+          origemProduto: origemProduto.trim() || null,
+          cfop: cfop.trim() || null,
+          unidadeComercial: unidadeComercial.trim() || null,
+          cdSaida: cdLinhaFormatada || null,
+          cdUsarDespachoCadastro,
+          cdSaidaCep: cdCep || null,
+          cdSaidaLogradouro: cdLogradouro.trim() || null,
+          cdSaidaNumero: cdNumero.trim() || null,
+          cdSaidaComplemento: cdComplemento.trim() || null,
+          cdSaidaBairro: cdBairro.trim() || null,
+          cdSaidaCidade: cdCidade.trim() || null,
+          cdSaidaUf: cdUf.trim() || null,
+        },
+        medidas: {
+          topicosSelecionados: [...topicosMedidaSelecionados],
+          topicosCustom: topicosMedidaCustom.trim() || null,
+        },
+      };
       const body: Record<string, unknown> = {
         nome_produto: nomeProduto.trim(),
         cores,
@@ -1056,6 +1700,7 @@ export default function CriarVariantesPage() {
         altura_cm: altura.trim() ? parseFloat(altura.replace(",", ".")) : undefined,
         peso_kg: peso.trim() ? parseFloat(peso.replace(",", ".")) : undefined,
         data_lancamento: dataLancamento || null,
+        detalhes_produto_json: detalhesProdutoJson,
       };
       if (cores.length > 0 && tamanhos.length > 0) {
         const por: Record<string, number> = {};
@@ -1119,16 +1764,132 @@ export default function CriarVariantesPage() {
         if (Object.keys(img).length > 0) body.imagem_url_por_cor = img;
       }
 
-      const res = await fetch("/api/fornecedor/produtos/multivariante", {
-        method: "POST",
-        headers: {
+      if (modoEdicao) {
+        const headers = {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify(body),
-      });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j?.error ?? "Erro ao criar variantes.");
+        };
+
+        const addRes = await fetch("/api/fornecedor/produtos/grupo-adicionar-variantes", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            grupoKey: grupoEdicao,
+            cores,
+            tamanhos,
+          }),
+        });
+        const addJson = await addRes.json().catch(() => ({}));
+        if (!addRes.ok) {
+          throw new Error(addJson?.error ?? "Erro ao sincronizar variantes do grupo.");
+        }
+
+        const listRes = await fetch("/api/fornecedor/produtos", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" });
+        const listJson = await listRes.json().catch(() => []);
+        if (!listRes.ok) {
+          throw new Error((listJson as { error?: string })?.error ?? "Erro ao carregar produtos para editar.");
+        }
+        const rows = (Array.isArray(listJson) ? listJson : []) as ProdutoExistenteEdicao[];
+        const grupoRows = rows
+          .filter((r) => grupoKeyFromSku(r.sku) === grupoEdicao)
+          .sort((a, b) => a.sku.localeCompare(b.sku));
+        if (grupoRows.length === 0) {
+          throw new Error("Grupo não encontrado para edição.");
+        }
+
+        const pai = grupoRows.find((r) => r.sku.trim().toUpperCase() === grupoEdicao) ?? null;
+        const variantes = grupoRows.filter((r) => r.sku.trim().toUpperCase() !== grupoEdicao);
+        const mapVariante = new Map<string, ProdutoExistenteEdicao>();
+        for (const row of variantes) {
+          mapVariante.set(pairKeyFromValues(row.cor, row.tamanho), row);
+        }
+
+        const descricaoGuiada = [diferencial, indicacao, observacoesSeller].filter((t) => t.trim()).join(" | ");
+        const patchPai: Record<string, unknown> = {
+          nome_produto: nomeProduto.trim(),
+          categoria: categoria.trim() || null,
+          descricao: descricaoGuiada || descricao.trim() || null,
+          comprimento_cm: comp.trim() ? parseFloat(comp.replace(",", ".")) : null,
+          largura_cm: largura.trim() ? parseFloat(largura.replace(",", ".")) : null,
+          altura_cm: altura.trim() ? parseFloat(altura.replace(",", ".")) : null,
+          peso_kg: peso.trim() ? parseFloat(peso.replace(",", ".")) : null,
+          link_fotos: (midiaPrincipal || linkFotos).trim() || null,
+          ncm: ncm.trim() || null,
+          origem: origemProduto.trim() || null,
+          cest: cest.trim() || null,
+          cfop: cfop.trim() || null,
+          expedicao_override_linha: cdLinhaFormatada || null,
+          detalhes_produto_json: detalhesProdutoJson,
+        };
+
+        const reqs: Promise<Response>[] = [];
+        if (pai?.id) {
+          reqs.push(
+            fetch(`/api/fornecedor/produtos/${pai.id}`, {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify(patchPai),
+            })
+          );
+        }
+
+        for (const combo of combinacoes) {
+          const corNorm = combo.cor ? toTitleCase(combo.cor) : "";
+          const tamNorm = combo.tamanho ? combo.tamanho.toUpperCase() : "";
+          const row = mapVariante.get(pairKeyFromValues(corNorm, tamNorm));
+          if (!row?.id) continue;
+          const keyMatriz = chaveEstoqueVariante(corNorm, tamNorm);
+          const estoqueAtual =
+            cores.length > 0 && tamanhos.length > 0
+              ? parseQty(estoqueMatriz[keyMatriz] ?? "")
+              : tamanhos.length > 0
+                ? parseQty(estoquePorTamanho[tamNorm] ?? "")
+                : parseQty(estoquePorCor[corNorm.trim().toLowerCase()] ?? "");
+          const custoAtual =
+            cores.length > 0 && tamanhos.length > 0
+              ? parseMoney(custoMatriz[keyMatriz] ?? "")
+              : tamanhos.length > 0
+                ? parseMoney(custoPorTamanho[tamNorm] ?? "")
+                : parseMoney(custoPorCor[corNorm.trim().toLowerCase()] ?? "");
+          const imgCorStr = (fotoUrlPorCor[corNorm.trim().toLowerCase()] ?? "").trim();
+          const imgCor = imgCorStr || null;
+
+          const patchVariante: Record<string, unknown> = {};
+          if ((row.cor ?? "") !== (corNorm || null)) patchVariante.cor = corNorm || null;
+          if ((row.tamanho ?? "") !== (tamNorm || null)) patchVariante.tamanho = tamNorm || null;
+          if (estoqueAtual != null && estoqueAtual !== row.estoque_atual) patchVariante.estoque_atual = estoqueAtual;
+          if (custoAtual != null && custoAtual !== row.custo_base) patchVariante.custo_base = custoAtual;
+          if (imgCor !== (row.imagem_url ?? null)) patchVariante.imagem_url = imgCor;
+          if (Object.keys(patchVariante).length === 0) continue;
+
+          reqs.push(
+            fetch(`/api/fornecedor/produtos/${row.id}`, {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify(patchVariante),
+            })
+          );
+        }
+
+        const results = await Promise.all(reqs);
+        for (const r of results) {
+          if (!r.ok) {
+            const j = await r.json().catch(() => ({}));
+            throw new Error(j?.error ?? "Erro ao salvar alterações do produto.");
+          }
+        }
+      } else {
+        const res = await fetch("/api/fornecedor/produtos/multivariante", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify(body),
+        });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j?.error ?? "Erro ao criar variantes.");
+      }
       try {
         await fetch("/api/fornecedor/produtos/rascunho", {
           method: "DELETE",
@@ -1144,7 +1905,7 @@ export default function CriarVariantesPage() {
       }
       router.push("/fornecedor/produtos");
     } catch (e: unknown) {
-      setFormError(e instanceof Error ? e.message : "Erro ao criar variantes.");
+      setFormError(e instanceof Error ? e.message : modoEdicao ? "Erro ao editar produto." : "Erro ao criar variantes.");
     } finally {
       setFormLoading(false);
     }
@@ -1169,7 +1930,7 @@ export default function CriarVariantesPage() {
               <span className="text-sm font-medium">Voltar</span>
             </Link>
             <h1 className="min-w-0 truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100 sm:text-base">
-              Criar variantes
+              {modoEdicao ? "Editar produto" : "Criar variantes"}
             </h1>
           </div>
           <div />
@@ -1181,8 +1942,15 @@ export default function CriarVariantesPage() {
         <div className="min-w-0 flex-1 order-2 md:order-1">
           <form id="form-criar-variantes" onSubmit={handleSubmit} className="space-y-6">
             {formError && (
-              <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-800 dark:text-red-300">
+              <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-100 dark:bg-red-950/30 p-3 text-sm text-red-800 dark:text-red-300">
                 {formError}
+              </div>
+            )}
+            {modoEdicao && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800 dark:border-blue-900/70 dark:bg-blue-950/30 dark:text-blue-200">
+                {carregandoEdicao
+                  ? `Carregando dados do produto ${grupoEdicao}...`
+                  : `Editando o grupo ${grupoEdicao} no formulário completo.`}
               </div>
             )}
 
@@ -1204,7 +1972,7 @@ export default function CriarVariantesPage() {
                     <input value={composicao} onChange={(e) => setComposicao(e.target.value)} className={inputDelicado} placeholder="Ex.: 96% poliéster, 4% elastano" />
                   </div>
                 </div>
-                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-[#313844] dark:bg-[#1d232c]">
+                <div className="rounded-xl border border-neutral-200 bg-neutral-100 p-3 dark:border-[#313844] dark:bg-[#1d232c]">
                   <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                     <div>
                       <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">Caimento</label>
@@ -1307,10 +2075,10 @@ export default function CriarVariantesPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          setTopicosMedidaSelecionados(new Set(["Ombro", "Comprimento da manga", "Comprimento", "Bíceps"]));
+                          setTopicosMedidaSelecionados(new Set(["Ombros", "Comprimento da manga", "Comprimento", "Bíceps"]));
                           setTopicosMedidaCustom("");
                         }}
-                        className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                        className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
                       >
                         Camisa
                       </button>
@@ -1322,7 +2090,7 @@ export default function CriarVariantesPage() {
                           );
                           setTopicosMedidaCustom("");
                         }}
-                        className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                        className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
                       >
                         Calça
                       </button>
@@ -1332,7 +2100,7 @@ export default function CriarVariantesPage() {
                           setTopicosMedidaSelecionados(new Set(["Busto", "Cintura", "Comprimento"]));
                           setTopicosMedidaCustom("");
                         }}
-                        className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                        className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
                       >
                         Vestido
                       </button>
@@ -1342,7 +2110,7 @@ export default function CriarVariantesPage() {
                           setTopicosMedidaSelecionados(new Set());
                           setTopicosMedidaCustom("");
                         }}
-                        className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                        className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
                       >
                         Personalizado
                       </button>
@@ -1377,7 +2145,7 @@ export default function CriarVariantesPage() {
                   {medidas.map((m, idx) => (
                     <div
                       key={`medida-desktop-${idx}`}
-                      className="grid gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-2 dark:border-neutral-700 dark:bg-neutral-900/40"
+                      className="grid gap-2 rounded-lg border border-neutral-200 bg-neutral-100 p-2 dark:border-neutral-700 dark:bg-neutral-900/40"
                       style={{
                         gridTemplateColumns: `minmax(140px,1fr) repeat(${Math.max(topicosMedidaFinais.length, 1)}, minmax(110px,1fr)) auto`,
                         minWidth: `${220 + Math.max(topicosMedidaFinais.length, 1) * 130}px`,
@@ -1393,19 +2161,19 @@ export default function CriarVariantesPage() {
                           className={inputDelicado}
                         />
                       ))}
-                      <button type="button" onClick={() => setMedidas((prev) => prev.filter((_, i) => i !== idx))} className="rounded-lg border border-red-200 bg-red-50 px-2 text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/20">
+                      <button type="button" onClick={() => setMedidas((prev) => prev.filter((_, i) => i !== idx))} className="rounded-lg border border-red-200 bg-red-100 px-2 text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/20">
                         Remover
                       </button>
                     </div>
                   ))}
                   </div>
                 </div>
-                <div className="md:hidden overflow-x-auto rounded-lg border border-neutral-200 bg-neutral-50 p-2 pr-1 dark:border-neutral-700 dark:bg-neutral-900/30">
+                <div className="md:hidden overflow-x-auto rounded-lg border border-neutral-200 bg-neutral-100 p-2 pr-1 dark:border-neutral-700 dark:bg-neutral-900/30">
                   <div className="flex min-w-max flex-col gap-2.5">
                     {medidas.map((m, idx) => (
                       <div
                         key={`medida-mobile-${idx}`}
-                        className="grid gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-2 dark:border-neutral-700 dark:bg-neutral-900/40"
+                        className="grid gap-2 rounded-lg border border-neutral-200 bg-neutral-100 p-2 dark:border-neutral-700 dark:bg-neutral-900/40"
                         style={{
                           gridTemplateColumns: `minmax(140px,1fr) repeat(${Math.max(topicosMedidaFinais.length, 1)}, minmax(110px,1fr)) auto`,
                           minWidth: `${220 + Math.max(topicosMedidaFinais.length, 1) * 130}px`,
@@ -1421,7 +2189,7 @@ export default function CriarVariantesPage() {
                             className={inputDelicado}
                           />
                         ))}
-                        <button type="button" onClick={() => setMedidas((prev) => prev.filter((_, i) => i !== idx))} className="rounded-lg border border-red-200 bg-red-50 px-2 text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/20">
+                        <button type="button" onClick={() => setMedidas((prev) => prev.filter((_, i) => i !== idx))} className="rounded-lg border border-red-200 bg-red-100 px-2 text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/20">
                           Remover
                         </button>
                       </div>
@@ -1432,7 +2200,7 @@ export default function CriarVariantesPage() {
             )}
 
             {avisoRascunhoCarregado && (
-              <div className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm text-neutral-700 sm:flex-row sm:items-center sm:justify-between dark:border-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-200">
+              <div className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-neutral-100 px-3 py-2.5 text-sm text-neutral-700 sm:flex-row sm:items-center sm:justify-between dark:border-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-200">
                 <p className="min-w-0 text-xs sm:text-sm">
                   <span className="font-semibold">Rascunho carregado</span>
                   {" · "}
@@ -1453,15 +2221,22 @@ export default function CriarVariantesPage() {
             )}
 
             {msgRascunho && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
-                {msgRascunho}
+              <div
+                className={
+                  msgRascunho.tipo === "sucesso"
+                    ? "rounded-lg border border-emerald-200 bg-emerald-100 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100"
+                    : "rounded-lg border border-amber-200 bg-amber-100 p-3 text-sm text-amber-950 dark:border-amber-800/80 dark:bg-amber-950/35 dark:text-amber-100"
+                }
+                role="status"
+              >
+                {msgRascunho.text}
               </div>
             )}
 
             {tabAtiva === "info-basica" && (
               <div className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm p-6">
                 <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Informações básicas</h2>
-                <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900/40 dark:text-neutral-200">
+                <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-100 p-3 text-sm text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900/40 dark:text-neutral-200">
                   <p className="font-medium">Antes de salvar</p>
                   <p className="mt-1 text-neutral-600 dark:text-neutral-300">
                     É obrigatório escolher <strong>pelo menos uma cor ou um tamanho</strong>. Use as abas acima (no celular, deslize para a direita) e abra{" "}
@@ -1551,7 +2326,7 @@ export default function CriarVariantesPage() {
                 </div>
 
                 <div className="space-y-3.5">
-                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-700 dark:bg-neutral-900/40">
+                  <div className="rounded-lg border border-neutral-200 bg-neutral-100 p-3 dark:border-neutral-700 dark:bg-neutral-900/40">
                     <div className="mb-2 flex items-center justify-between">
                       <p className="text-[12px] font-medium text-neutral-700 dark:text-neutral-300">Cores</p>
                       <span className="text-[10px] text-neutral-500 dark:text-neutral-400">{coresFinais.length} selecionada(s)</span>
@@ -1587,7 +2362,7 @@ export default function CriarVariantesPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-700 dark:bg-neutral-900/40">
+                  <div className="rounded-lg border border-neutral-200 bg-neutral-100 p-3 dark:border-neutral-700 dark:bg-neutral-900/40">
                     <div className="mb-2 flex items-center justify-between">
                       <p className="text-[12px] font-medium text-neutral-700 dark:text-neutral-300">Tamanhos</p>
                       <span className="text-[10px] text-neutral-500 dark:text-neutral-400">{tamanhosFinais.length} selecionado(s)</span>
@@ -1648,7 +2423,7 @@ export default function CriarVariantesPage() {
                           setTabAtiva("variacoes");
                           window.setTimeout(() => tabsNavRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
                         }}
-                        className="rounded-lg border border-neutral-300 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                        className="rounded-lg border border-neutral-300 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
                       >
                         Ajustar cores / tamanhos
                       </button>
@@ -1668,7 +2443,7 @@ export default function CriarVariantesPage() {
                       <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-200 mb-2">Prévia das variações geradas automaticamente (SKU + cor + tamanho)</p>
                       <div className="max-h-44 overflow-auto rounded-lg border border-neutral-200 dark:border-neutral-700">
                         <table className="w-full text-xs">
-                          <thead className="bg-neutral-50 dark:bg-neutral-900">
+                          <thead className="bg-neutral-100 dark:bg-neutral-900">
                             <tr>
                               <th className="px-2 py-1.5 text-left">SKU</th>
                               <th className="px-2 py-1.5 text-left">Cor</th>
@@ -1695,7 +2470,7 @@ export default function CriarVariantesPage() {
                         </table>
                       </div>
                     </div>
-                    <div className="border-b border-neutral-200 bg-neutral-50 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-900/50 sm:px-5">
+                    <div className="border-b border-neutral-200 bg-neutral-100 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-900/50 sm:px-5">
                       <p className="mb-2 text-xs font-semibold text-neutral-800 dark:text-neutral-200">Preencher em massa</p>
                       <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:items-end">
                         <div className="min-w-0 sm:max-w-[11rem] sm:flex-1">
@@ -1753,7 +2528,7 @@ export default function CriarVariantesPage() {
                         return (
                           <div key={`mobile-${k}`} className="rounded-lg border border-[#e8ecf2] bg-white p-3 dark:border-neutral-700 dark:bg-neutral-900/40">
                             <div className="flex items-start gap-2.5">
-                              <label className="relative flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-neutral-300 bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800">
+                              <label className="relative flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-neutral-300 bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800">
                                 <input
                                   type="file"
                                   accept="image/jpeg,image/png,image/webp,image/gif"
@@ -1808,7 +2583,7 @@ export default function CriarVariantesPage() {
                     <div className="dropcore-scroll-x -mx-4 hidden max-h-[min(52dvh,24rem)] min-w-0 overflow-y-auto border-t border-neutral-100 dark:border-neutral-800 sm:mx-0 sm:max-h-[min(60vh,28rem)] md:block">
                       <table className="w-full min-w-[30rem] border-collapse text-xs md:min-w-[44rem] md:text-sm">
                         <thead className="sticky top-0 z-20 shadow-sm">
-                          <tr className="border-b border-neutral-200 bg-neutral-50 text-left text-xs font-medium text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400">
+                          <tr className="border-b border-neutral-200 bg-neutral-100 text-left text-xs font-medium text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400">
                             <th className="min-w-[11.25rem] px-2 py-2 pl-4 md:w-[12.5rem] md:min-w-[12rem] md:px-3 md:py-3 md:pl-4">Cor / foto</th>
                             <th className="whitespace-nowrap px-2 py-2 md:px-3 md:py-3">Tamanho</th>
                             <th className="min-w-[7.5rem] px-2 py-2 md:min-w-[9rem] md:px-3 md:py-3">
@@ -1836,7 +2611,7 @@ export default function CriarVariantesPage() {
                                       <td
                                         className={`align-top border-r border-neutral-100 px-1.5 py-1.5 pl-2 dark:border-neutral-800 max-md:min-w-0 md:px-3 md:py-2 md:pl-4 ${
                                           idx === 0
-                                            ? "bg-neutral-50/95 dark:bg-neutral-900/50"
+                                            ? "bg-neutral-100 dark:bg-neutral-900/50"
                                             : "align-middle bg-white py-1 dark:bg-neutral-900/25"
                                         }`}
                                       >
@@ -1908,7 +2683,7 @@ export default function CriarVariantesPage() {
                                             {url ? (
                                               <img src={url} alt="" className="h-7 w-7 shrink-0 rounded border border-neutral-200 object-cover dark:border-neutral-600 md:h-8 md:w-8" />
                                             ) : (
-                                              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-dashed border-neutral-200 bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800 md:h-8 md:w-8">
+                                              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-dashed border-neutral-200 bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800 md:h-8 md:w-8">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-neutral-400">
                                                   <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                                                   <circle cx="12" cy="13" r="3" />
@@ -2001,7 +2776,7 @@ export default function CriarVariantesPage() {
                                         return (
                                           <div className="flex w-full max-w-full flex-col gap-2 md:w-[11.25rem]">
                                             <div className="flex items-start gap-2">
-                                              <label className="relative flex h-14 w-14 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-neutral-300 bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-800">
+                                              <label className="relative flex h-14 w-14 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-neutral-300 bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800">
                                                 <input
                                                   id={`foto-cor-${ck}`}
                                                   type="file"
@@ -2091,7 +2866,7 @@ export default function CriarVariantesPage() {
                       </table>
                     </div>
 
-                    <div className="space-y-4 border-t border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-900/40 sm:p-5">
+                    <div className="space-y-4 border-t border-neutral-200 bg-neutral-100 p-4 dark:border-neutral-700 dark:bg-neutral-900/40 sm:p-5">
                       <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">Outros dados (iguais para todas)</p>
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         <div className="min-w-0">
@@ -2145,7 +2920,7 @@ export default function CriarVariantesPage() {
                     { label: "Encolhe após lavagem?", value: encolhe, setter: setEncolhe },
                     { label: "Costura reforçada?", value: costuraReforcada, setter: setCosturaReforcada },
                   ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900/40">
+                    <div key={item.label} className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-100 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900/40">
                       <p className="text-[12px] text-neutral-700 dark:text-neutral-300">{item.label}</p>
                       <div className="flex gap-1.5">
                         <button type="button" onClick={() => item.setter(true)} className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition ${item.value === true ? "border-neutral-300 bg-neutral-100 text-neutral-700 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200" : "border-neutral-200 bg-white text-neutral-600 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"}`}>Sim</button>
@@ -2196,7 +2971,7 @@ export default function CriarVariantesPage() {
                       placeholder="URL do vídeo"
                       className={`${inputDelicado} flex-1`}
                     />
-                    <button type="button" className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2.5 text-sm text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+                    <button type="button" className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2.5 text-sm text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
                       Visitar
                     </button>
                   </div>
@@ -2229,6 +3004,24 @@ export default function CriarVariantesPage() {
             {tabAtiva === "logistica" && (
               <div className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm p-5 sm:p-5.5 space-y-4">
                 <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Fiscal e despacho</h2>
+                <div className="space-y-2">
+                  <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">Modelo rápido (um clique)</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {PRESETS_FISCAL_DESPACHO.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => aplicarPresetFiscal(p)}
+                        className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                    NCM, CEST e CFOP são referências comuns para vestuário nacional — confira sempre com a sua contabilidade. O local de saída fica no bloco «Despacho / CD padrão» abaixo.
+                  </p>
+                </div>
                 <div className="grid gap-2.5 sm:grid-cols-2">
                   <div>
                     <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">NCM</label>
@@ -2239,7 +3032,19 @@ export default function CriarVariantesPage() {
                     <input value={cest} onChange={(e) => setCest(e.target.value)} placeholder="Ex.: 28.038.00" className={inputDelicado} />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">Origem do produto</label>
+                    <label className="mb-1 block text-xs text-neutral-600 dark:text-neutral-400">Origem do produto</label>
+                    <div className="mb-1.5 flex flex-wrap gap-1">
+                      {ATALHOS_ORIGEM_PRODUTO.map((a) => (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => setOrigemProduto(a.valor)}
+                          className={btnPillFiscalExtra}
+                        >
+                          {a.label}
+                        </button>
+                      ))}
+                    </div>
                     <input value={origemProduto} onChange={(e) => setOrigemProduto(e.target.value)} placeholder="Ex.: Nacional" className={inputDelicado} />
                   </div>
                   <div>
@@ -2247,7 +3052,19 @@ export default function CriarVariantesPage() {
                     <input value={cfop} onChange={(e) => setCfop(e.target.value)} placeholder="Ex.: 5102" className={inputDelicado} />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">Unidade comercial</label>
+                    <label className="mb-1 block text-xs text-neutral-600 dark:text-neutral-400">Unidade comercial</label>
+                    <div className="mb-1.5 flex flex-wrap gap-1">
+                      {ATALHOS_UNIDADE_COMERCIAL.map((a) => (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => setUnidadeComercial(a.valor)}
+                          className={btnPillFiscalExtra}
+                        >
+                          {a.label}
+                        </button>
+                      ))}
+                    </div>
                     <input value={unidadeComercial} onChange={(e) => setUnidadeComercial(e.target.value)} placeholder="Ex.: UN" className={inputDelicado} />
                   </div>
                   <div>
@@ -2259,10 +3076,177 @@ export default function CriarVariantesPage() {
                       <option value="72h">72h</option>
                     </select>
                   </div>
-                  <div className="sm:col-span-2">
-                    <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">Local / CD de saída</label>
-                    <input value={cdSaida} onChange={(e) => setCdSaida(e.target.value)} placeholder="Ex.: CD São Paulo" className={inputDelicado} />
+                </div>
+
+                <div className="space-y-3 border-t border-neutral-200/80 pt-4 dark:border-neutral-700/60">
+                  <p className="text-xs font-medium text-neutral-800 dark:text-neutral-200">Despacho / CD padrão (opcional)</p>
+                  <p className="text-[11px] leading-snug text-neutral-500 dark:text-neutral-400">
+                    Aqui fica o local de <strong className="text-neutral-800 dark:text-neutral-200">expedição</strong> deste produto (CD ou endereço de retirada). Se no{" "}
+                    <Link href="/fornecedor/cadastro" className="font-medium text-neutral-900 underline-offset-2 hover:underline dark:text-neutral-100">
+                      cadastro
+                    </Link>{" "}
+                    você já informou um <strong className="text-neutral-800 dark:text-neutral-200">despacho / CD padrão</strong>, pode reutilizar com um clique. Com{" "}
+                    <strong className="text-neutral-800 dark:text-neutral-200">8 dígitos no CEP</strong> (ou 7 se faltar o zero no início), logradouro, bairro, cidade e UF preenchem automaticamente (ViaCEP).
+                  </p>
+                  <label className="flex cursor-pointer select-none items-start gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={cdUsarDespachoCadastro}
+                      onChange={(e) => setCdUsarDespachoCadastro(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 text-emerald-600 dark:border-neutral-600"
+                    />
+                    <span className="text-sm leading-snug text-neutral-800 dark:text-neutral-200">
+                      Usar o endereço de despacho do meu cadastro (despacho / CD padrão)
+                    </span>
+                  </label>
+                  {cdUsarDespachoCadastro && !perfilExpedicaoPreenchido && (
+                    <p className="text-[11px] leading-snug text-amber-800 dark:text-amber-200/90">
+                      Não há despacho cadastrado ainda. Preencha o bloco «Despacho / CD padrão» em{" "}
+                      <Link href="/fornecedor/cadastro" className="font-medium underline-offset-2 hover:underline">
+                        Cadastro
+                      </Link>{" "}
+                      ou informe o endereço abaixo (desmarque a opção acima).
+                    </p>
+                  )}
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">CEP</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="postal-code"
+                        disabled={cdUsarDespachoCadastro}
+                        value={cdCep}
+                        onChange={(e) => {
+                          setCdUsarDespachoCadastro(false);
+                          setCdCep(e.target.value.replace(/\D/g, "").slice(0, 8));
+                        }}
+                        placeholder="00000000"
+                        className={`${inputDelicado} disabled:cursor-not-allowed disabled:opacity-60`}
+                      />
+                      {!cdUsarDespachoCadastro && (
+                        <p className="mt-1 text-[11px] leading-snug text-neutral-500 dark:text-neutral-400">
+                          {buscandoCepCd ? "A consultar CEP…" : "Com 8 dígitos (ou 7 se faltar o zero no início), preenche logradouro, bairro, cidade e UF (ViaCEP)."}
+                        </p>
+                      )}
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">Logradouro</label>
+                      <input
+                        type="text"
+                        disabled={cdUsarDespachoCadastro}
+                        value={cdLogradouro}
+                        onChange={(e) => {
+                          setCdUsarDespachoCadastro(false);
+                          setCdLogradouro(upperBr(e.target.value));
+                        }}
+                        placeholder="RUA / AVENIDA"
+                        className={`${inputDelicado} disabled:cursor-not-allowed disabled:opacity-60`}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-neutral-600 dark:text-neutral-400">Número</label>
+                      <div className="mb-1.5 flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          disabled={cdUsarDespachoCadastro}
+                          onClick={() => {
+                            setCdUsarDespachoCadastro(false);
+                            setCdNumero("S/N");
+                          }}
+                          className={btnAtalhoNumeroCd}
+                        >
+                          S/N
+                        </button>
+                        <button
+                          type="button"
+                          disabled={cdUsarDespachoCadastro}
+                          onClick={() => {
+                            setCdUsarDespachoCadastro(false);
+                            setCdNumero("SEM NUMERO");
+                          }}
+                          className={btnAtalhoNumeroCd}
+                        >
+                          Sem número
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        disabled={cdUsarDespachoCadastro}
+                        value={cdNumero}
+                        onChange={(e) => {
+                          setCdUsarDespachoCadastro(false);
+                          setCdNumero(upperBr(e.target.value));
+                        }}
+                        placeholder="Ex.: 123, S/N"
+                        className={`${inputDelicado} disabled:cursor-not-allowed disabled:opacity-60`}
+                      />
+                      <p className="mt-1 text-[10px] leading-snug text-neutral-500 dark:text-neutral-400">
+                        Sem número na fachada? Use os atalhos ou digite.
+                      </p>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">Complemento</label>
+                      <input
+                        type="text"
+                        disabled={cdUsarDespachoCadastro}
+                        value={cdComplemento}
+                        onChange={(e) => {
+                          setCdUsarDespachoCadastro(false);
+                          setCdComplemento(upperBr(e.target.value));
+                        }}
+                        placeholder="SALA, BLOCO, ETC. (OPCIONAL)"
+                        className={`${inputDelicado} disabled:cursor-not-allowed disabled:opacity-60`}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">Bairro</label>
+                      <input
+                        type="text"
+                        disabled={cdUsarDespachoCadastro}
+                        value={cdBairro}
+                        onChange={(e) => {
+                          setCdUsarDespachoCadastro(false);
+                          setCdBairro(upperBr(e.target.value));
+                        }}
+                        placeholder="BAIRRO"
+                        className={`${inputDelicado} disabled:cursor-not-allowed disabled:opacity-60`}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">Cidade</label>
+                      <input
+                        type="text"
+                        disabled={cdUsarDespachoCadastro}
+                        value={cdCidade}
+                        onChange={(e) => {
+                          setCdUsarDespachoCadastro(false);
+                          setCdCidade(upperBr(e.target.value));
+                        }}
+                        placeholder="CIDADE"
+                        className={`${inputDelicado} disabled:cursor-not-allowed disabled:opacity-60`}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">UF</label>
+                      <input
+                        type="text"
+                        disabled={cdUsarDespachoCadastro}
+                        value={cdUf}
+                        onChange={(e) => {
+                          setCdUsarDespachoCadastro(false);
+                          setCdUf(e.target.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 2));
+                        }}
+                        placeholder="SP"
+                        className={`${inputDelicado} disabled:cursor-not-allowed disabled:opacity-60`}
+                      />
+                    </div>
                   </div>
+                  {cdLinhaFormatada ? (
+                    <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                      <span className="font-medium text-neutral-700 dark:text-neutral-300">Resumo gravado no rascunho:</span> {cdLinhaFormatada}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             )}
@@ -2307,7 +3291,7 @@ export default function CriarVariantesPage() {
                     <span className="truncate">{rascunhoSalvando ? "Salvando..." : "Salvar rascunho"}</span>
                   </button>
                   <button type="submit" disabled={formLoading} className={`${btnSalvarProduto} min-w-[10rem]`}>
-                    {formLoading ? "Salvando..." : "Salvar produto"}
+                    {formLoading ? "Salvando..." : modoEdicao ? "Salvar alterações" : "Salvar produto"}
                   </button>
                 </div>
 
@@ -2331,7 +3315,7 @@ export default function CriarVariantesPage() {
                 className={`shrink-0 whitespace-nowrap px-3.5 py-2 text-left text-[13px] transition md:block md:w-full ${
                   tabAtiva === tab.id
                     ? "border-b-2 border-neutral-300 bg-neutral-100 font-medium text-neutral-800 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 md:border-b-0 md:border-l-2"
-                    : "border-b-2 border-transparent text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 md:border-b-0 md:border-l-2 md:border-transparent"
+                    : "border-b-2 border-transparent text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 md:border-b-0 md:border-l-2 md:border-transparent"
                 }`}
               >
                 {tab.label}
@@ -2351,7 +3335,7 @@ export default function CriarVariantesPage() {
             {rascunhoSalvando ? "Salvando..." : "Salvar rascunho"}
           </button>
           <button type="submit" form="form-criar-variantes" disabled={formLoading} className={`${btnSalvarProduto} min-h-[38px] flex-1`}>
-            {formLoading ? "Salvando..." : "Salvar produto"}
+            {formLoading ? "Salvando..." : modoEdicao ? "Salvar alterações" : "Salvar produto"}
           </button>
         </div>
       </div>
@@ -2380,7 +3364,7 @@ export default function CriarVariantesPage() {
                     if (pickerCampo === "posicionamento") setPosicionamento(o.value as "basico" | "intermediario" | "premium");
                     setPickerCampo(null);
                   }}
-                  className="flex w-full items-center justify-between rounded-lg border border-neutral-200 px-3 py-2.5 text-left text-sm text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                  className="flex w-full items-center justify-between rounded-lg border border-neutral-200 px-3 py-2.5 text-left text-sm text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
                 >
                   <span>{o.label}</span>
                 </button>
@@ -2395,7 +3379,7 @@ export default function CriarVariantesPage() {
           <div className="relative z-10 w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-4 shadow-[0_24px_48px_-24px_rgba(15,23,42,0.55)] dark:border-neutral-700 dark:bg-neutral-900">
             <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Tópicos de medida</p>
             <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">Selecione os tópicos que deseja usar na tabela.</p>
-            <p className="mt-2 rounded-lg bg-neutral-50 px-2.5 py-1.5 text-[10px] leading-relaxed text-neutral-600 dark:bg-neutral-800/80 dark:text-neutral-400">
+            <p className="mt-2 rounded-lg bg-neutral-100 px-2.5 py-1.5 text-[10px] leading-relaxed text-neutral-600 dark:bg-neutral-800/80 dark:text-neutral-400">
               <span className="font-semibold text-neutral-700 dark:text-neutral-300">Gancho (calça): </span>
               medida da cintura até o entrepernas na frente — a profundidade do gancho da costura. Em camisas, “manga” costuma ser a largura/abertura; use{" "}
               <span className="font-medium">Comprimento da manga</span> para o comprimento.

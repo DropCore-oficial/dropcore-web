@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { OrgAuthError, requireAdminForOrgId } from "@/lib/apiOrgAuth";
 
 const uuidRegex =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function jsonNoStore(body: any, status = 200) {
+function jsonNoStore(body: unknown, status = 200) {
   return NextResponse.json(body, {
     status,
     headers: { "Cache-Control": "no-store" },
@@ -13,13 +14,9 @@ function jsonNoStore(body: any, status = 200) {
 
 export async function POST(req: Request) {
   try {
-    const auth = req.headers.get("authorization") || "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-    if (!token) return jsonNoStore({ error: "Unauthorized" }, 401);
-
     const body = await req.json().catch(() => null);
     const orgId = body?.orgId as string | undefined;
-    const memberId = body?.memberId as string | undefined; // user_id do membro
+    const memberId = body?.memberId as string | undefined;
 
     if (!orgId || !uuidRegex.test(orgId))
       return jsonNoStore({ error: "orgId inválido" }, 400);
@@ -28,55 +25,35 @@ export async function POST(req: Request) {
       return jsonNoStore({ error: "memberId inválido" }, 400);
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    if (!url || !anon) {
-      return jsonNoStore(
-        {
-          error:
-            "Env NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY ausentes",
-        },
-        500
-      );
+    if (!url || !service) {
+      return jsonNoStore({ error: "Env SUPABASE_SERVICE_ROLE_KEY ausente" }, 500);
     }
-    if (!service) return jsonNoStore({ error: "Env SUPABASE_SERVICE_ROLE_KEY ausente" }, 500);
 
-    // 1) valida token e pega usuário logado
-    const userClient = createClient(url, anon, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
+    const { user_id: actorId } = await requireAdminForOrgId(req, orgId);
 
-    const { data: me, error: meErr } = await userClient.auth.getUser();
-    if (meErr || !me?.user) return jsonNoStore({ error: "Unauthorized" }, 401);
-
-    // trava: não remover a si mesmo
-    if (me.user.id === memberId) {
+    if (actorId === memberId) {
       return jsonNoStore(
         { error: "Você não pode se excluir da organização." },
         409
       );
     }
 
-    // 2) admin client
     const adminClient = createClient(url, service, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // 3) valida se quem está removendo é owner/admin
     const { data: myMembership, error: myErr } = await adminClient
       .from("org_members")
       .select("role_base")
       .eq("org_id", orgId)
-      .eq("user_id", me.user.id)
+      .eq("user_id", actorId)
       .maybeSingle();
 
     if (myErr) return jsonNoStore({ error: myErr.message }, 500);
 
-    const myRole = (myMembership as any)?.role_base;
-    const podeGerenciar = myRole === "owner" || myRole === "admin";
-    if (!podeGerenciar) return jsonNoStore({ error: "Forbidden" }, 403);
+    const myRole = (myMembership as { role_base?: string })?.role_base;
 
-    // 4) pega papel do alvo (pra proteger último owner)
     const { data: target, error: tErr } = await adminClient
       .from("org_members")
       .select("id, role_base")
@@ -87,9 +64,18 @@ export async function POST(req: Request) {
     if (tErr) return jsonNoStore({ error: tErr.message }, 500);
     if (!target?.id) return jsonNoStore({ error: "Membro não encontrado na organização" }, 404);
 
-    const targetRole = (target as any).role_base as string;
+    const targetRole = String((target as { role_base?: string }).role_base ?? "");
 
-    // trava: não remover o último owner
+    if (myRole === "admin" && (targetRole === "owner" || targetRole === "admin")) {
+      return jsonNoStore(
+        {
+          error:
+            "Apenas o proprietário (owner) pode remover administradores ou outros proprietários.",
+        },
+        403
+      );
+    }
+
     if (targetRole === "owner") {
       const { count, error: cErr } = await adminClient
         .from("org_members")
@@ -107,7 +93,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // 5) remove
     const { error: delErr } = await adminClient
       .from("org_members")
       .delete()
@@ -117,7 +102,11 @@ export async function POST(req: Request) {
     if (delErr) return jsonNoStore({ error: delErr.message }, 500);
 
     return jsonNoStore({ ok: true }, 200);
-  } catch (e: any) {
-    return jsonNoStore({ error: e?.message || "Erro interno" }, 500);
+  } catch (e: unknown) {
+    if (e instanceof OrgAuthError) {
+      return jsonNoStore({ error: e.message }, e.statusCode);
+    }
+    const msg = e instanceof Error ? e.message : "Erro interno";
+    return jsonNoStore({ error: msg }, 500);
   }
 }

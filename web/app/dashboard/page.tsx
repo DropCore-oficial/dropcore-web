@@ -13,6 +13,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 type MeResponse = {
   user_id: string;
   org_id: string;
+  fornecedor_id?: string | null;
+  seller_id?: string | null;
   role_base: "owner" | "admin" | "operacional" | string;
   pode_ver_dinheiro: boolean;
 };
@@ -364,6 +366,20 @@ export default function DashboardPage() {
       }
       if (!token) throw new Error("Sem sessão. Faça login novamente.");
 
+      // Regra dura: conta de fornecedor nunca permanece no dashboard admin.
+      try {
+        const forneRaw = await fetch("/api/fornecedor/me", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        if (forneRaw.ok) {
+          router.replace("/fornecedor/dashboard");
+          return;
+        }
+      } catch {
+        // se falhar rede aqui, segue fluxo padrão e trata no restante da carga
+      }
+
       let meRes: { ok: boolean; json: unknown };
       try {
         const raw = await fetch("/api/org/me", {
@@ -380,6 +396,16 @@ export default function DashboardPage() {
       if (!meRes.ok) throw new Error(meRes.json && typeof meRes.json === "object" && "error" in meRes.json ? String(meRes.json.error) : "Erro ao carregar perfil");
       const m = meRes.json as MeResponse;
       setMe(m);
+
+      if (m.fornecedor_id) {
+        router.replace("/fornecedor/dashboard");
+        return;
+      }
+
+      if (m.seller_id) {
+        router.replace("/seller/dashboard");
+        return;
+      }
 
       if (m.role_base === "owner" || m.role_base === "admin") {
         let statsRes: { ok: boolean; json: Stats & { plano?: string } };
@@ -416,10 +442,19 @@ export default function DashboardPage() {
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Bloqueia acesso ao dashboard para quem não é owner/admin
+  // Bloqueia acesso ao dashboard para fornecedor ou não-admin.
   useEffect(() => {
     if (loading) return;
     if (!me) return;
+    const isFornecedor = Boolean(me.fornecedor_id);
+    if (isFornecedor) {
+      router.replace("/fornecedor/dashboard");
+      return;
+    }
+    if (me.seller_id) {
+      router.replace("/seller/dashboard");
+      return;
+    }
     if (me.role_base !== "owner" && me.role_base !== "admin") {
       router.replace("/login");
     }
@@ -539,7 +574,7 @@ export default function DashboardPage() {
   const alertaBgMap: Record<string, string> = {
     amber: "border-[var(--card-border)] bg-[var(--card)]",
     blue: "border-[var(--card-border)] bg-[var(--card)]",
-    red: "border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30",
+    red: "border-red-200 dark:border-red-900/50 bg-red-100 dark:bg-red-950/30",
   };
 
   const alertaBtnMap: Record<string, string> = {
@@ -593,7 +628,7 @@ export default function DashboardPage() {
           <DropCoreLogo variant="horizontal" href="/dashboard" className="shrink-0" />
           <Link
             href="/dashboard"
-            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium border-b-2 -mb-px text-emerald-600 dark:text-emerald-400 border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition-colors"
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium border-b-2 -mb-px text-emerald-600 dark:text-emerald-400 border-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-950/20 transition-colors"
           >
             <svg className="w-5 h-5 shrink-0 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -640,10 +675,10 @@ export default function DashboardPage() {
             <div className={isAdmin ? "hidden md:block" : ""}>
               <NotificationBell context="admin" />
             </div>
-            <button type="button" onClick={load} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 min-h-[40px] sm:min-h-0 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 touch-manipulation">
+            <button type="button" onClick={load} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 min-h-[40px] sm:min-h-0 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 touch-manipulation">
               Atualizar
             </button>
-            <button type="button" onClick={sair} className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-[var(--card)] px-3 py-2 min-h-[40px] sm:min-h-0 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 touch-manipulation">
+            <button type="button" onClick={sair} className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-[var(--card)] px-3 py-2 min-h-[40px] sm:min-h-0 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 touch-manipulation">
               Sair
             </button>
           </div>
@@ -657,7 +692,7 @@ export default function DashboardPage() {
           const deveAlertar = repasseFuturosValor > 0 || repasseFuturosPedidos > 0;
 
           const cls = deveAlertar
-            ? "rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/20 shadow-sm overflow-hidden"
+            ? "rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-100 dark:bg-amber-950/20 shadow-sm overflow-hidden"
             : "rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden";
 
           const tituloCls = deveAlertar ? "text-amber-800 dark:text-amber-300" : "text-neutral-600 dark:text-neutral-400";
@@ -715,7 +750,7 @@ export default function DashboardPage() {
                 Novos sellers e fornecedores ganham {stats.portal_trial_days ?? 7} dias de teste ao aceitar o convite (como a calculadora). &quot;Pagando&quot; = sem mensalidade inadimplente; &quot;Não pagou&quot; = bloqueio até regularizar.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="rounded-lg border border-[var(--card-border)] bg-neutral-50/80 dark:bg-neutral-900/40 p-3">
+                <div className="rounded-lg border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900/40 p-3">
                   <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Sellers</p>
                   <ul className="text-sm space-y-1.5 text-neutral-800 dark:text-neutral-200">
                     <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Em teste grátis</span><span className="font-semibold tabular-nums">{stats.mensalidade_portal.sellers.em_teste}</span></li>
@@ -723,7 +758,7 @@ export default function DashboardPage() {
                     <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Não pagou (inadimplente)</span><span className="font-semibold tabular-nums text-red-600 dark:text-red-400">{stats.mensalidade_portal.sellers.inadimplentes}</span></li>
                   </ul>
                 </div>
-                <div className="rounded-lg border border-[var(--card-border)] bg-neutral-50/80 dark:bg-neutral-900/40 p-3">
+                <div className="rounded-lg border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900/40 p-3">
                   <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Fornecedores</p>
                   <ul className="text-sm space-y-1.5 text-neutral-800 dark:text-neutral-200">
                     <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Em teste grátis</span><span className="font-semibold tabular-nums">{stats.mensalidade_portal.fornecedores.em_teste}</span></li>
@@ -751,7 +786,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => router.push("/admin/pedidos")}
-                  className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-50 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 >
                   <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/90 font-medium">Aguard. envio</p>
                   <p className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400 leading-tight mt-0.5">
@@ -761,7 +796,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => router.push("/admin/repasse-fornecedor")}
-                  className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-50 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 >
                   <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/90 font-medium">A repassar</p>
                   <p className="text-lg font-bold tabular-nums text-neutral-900 dark:text-neutral-100 leading-tight mt-0.5">
@@ -771,7 +806,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => router.push("/admin/pedidos")}
-                  className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-50 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 >
                   <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/90 font-medium">Pedidos hoje</p>
                   <p className="text-lg font-bold text-neutral-900 dark:text-neutral-100 tabular-nums leading-tight mt-0.5">{stats.pedidos_hoje ?? 0}</p>
@@ -779,7 +814,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => router.push("/admin/empresas")}
-                  className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-50 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 >
                   <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/90 font-medium">Entrada mês</p>
                   <p className="text-lg font-bold text-neutral-900 dark:text-neutral-100 tabular-nums leading-tight mt-0.5">{BRL.format(stats.entrada_mes ?? 0)}</p>
@@ -789,7 +824,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => router.push("/admin/repasse-fornecedor")}
-                  className="mt-3 w-full rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50/70 dark:bg-sky-950/20 px-3 py-2.5 text-left hover:bg-sky-100/70 dark:hover:bg-sky-950/35 transition-colors"
+                  className="mt-3 w-full rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-100 dark:bg-sky-950/20 px-3 py-2.5 text-left hover:bg-sky-100/70 dark:hover:bg-sky-950/35 transition-colors"
                 >
                   <p className="text-[11px] text-sky-800 dark:text-sky-300 font-semibold">Repasse futuro (próximo ciclo)</p>
                   <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 mt-0.5">
@@ -810,7 +845,7 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={() => router.push("/admin/catalogo?estoqueBaixo=1")}
-            className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 flex items-center gap-3 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800"
+            className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 flex items-center gap-3 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
             <div className="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0 text-emerald-700 dark:text-emerald-400">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -856,7 +891,7 @@ export default function DashboardPage() {
         {me?.role_base === "owner" && (
           <button
             onClick={() => router.push("/platform")}
-            className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-4 flex items-center gap-3 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800"
+            className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-4 flex items-center gap-3 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
             <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0 text-emerald-700 dark:text-emerald-400">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -990,7 +1025,7 @@ export default function DashboardPage() {
                 <button
                   key={item.rota}
                   onClick={() => router.push(item.rota)}
-                  className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left group"
+                  className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-left group"
                 >
                   <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
                     <AdminNavIcon id={item.icon} />

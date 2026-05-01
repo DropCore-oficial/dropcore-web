@@ -14,8 +14,29 @@ const SKU_FIELDS = `
   estoque_atual, estoque_minimo, custo_base, custo_dropcore, peso_kg, categoria,
   dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao,
   ncm, origem, cest, cfop, peso_liquido_kg, peso_bruto_kg, criado_em,
-  expedicao_override_linha
+  expedicao_override_linha, detalhes_produto_json
 `;
+
+function valorNormalizadoComparacao(k: string, v: unknown): unknown {
+  if (v == null) return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string") {
+    const s = v.trim();
+    if (!s) return null;
+    if (["nome_produto", "categoria", "cor", "tamanho", "dimensoes_pacote", "descricao"].includes(k)) {
+      return toTitleCase(s);
+    }
+    return s;
+  }
+  if (typeof v === "object" && !Array.isArray(v)) {
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return null;
+    }
+  }
+  return v;
+}
 
 /** SKU pai do bloco multivariante (ex.: DJU001001 → DJU001000). */
 function skuPaiDoBloco(sku: string): string {
@@ -95,6 +116,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       "peso_liquido_kg",
       "peso_bruto_kg",
       "expedicao_override_linha",
+      "detalhes_produto_json",
     ] as const;
 
     const clean: Record<string, unknown> = {};
@@ -128,6 +150,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           const n = parseFloat(v.replace(",", "."));
           clean[k] = Number.isFinite(n) ? n : null;
         } else clean[k] = null;
+      } else if (k === "detalhes_produto_json" && (v == null || (typeof v === "object" && !Array.isArray(v)))) {
+        clean[k] = v ?? null;
       }
     }
 
@@ -153,17 +177,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
     }
 
-    const dadosPropostos: Record<string, unknown> = { ...clean };
-    if (tabelaMedidas) dadosPropostos.tabela_medidas = tabelaMedidas;
-
-    if (Object.keys(dadosPropostos).length === 0) {
-      return NextResponse.json({ error: "Nenhum campo editável enviado." }, { status: 400 });
-    }
-
     // Verificar se o SKU existe e pertence ao fornecedor
     const { data: sku, error: skuErr } = await supabaseAdmin
       .from("skus")
-      .select("id, sku, nome_produto")
+      .select(
+        "id, sku, nome_produto, cor, tamanho, descricao, imagem_url, peso_kg, estoque_atual, custo_base, custo_dropcore, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, ncm, origem, cest, cfop, peso_liquido_kg, peso_bruto_kg, expedicao_override_linha, detalhes_produto_json"
+      )
       .eq("id", skuId)
       .eq("org_id", ctx.org_id)
       .eq("fornecedor_id", ctx.fornecedor_id)
@@ -171,6 +190,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     if (skuErr || !sku) {
       return NextResponse.json({ error: "Produto não encontrado ou não pertence a você." }, { status: 404 });
+    }
+
+    // Só persiste campos realmente alterados (evita pendências "falsas" com valor igual).
+    const dadosPropostos: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(clean)) {
+      const atual = (sku as Record<string, unknown>)[k];
+      const atualNorm = valorNormalizadoComparacao(k, atual);
+      const propostoNorm = valorNormalizadoComparacao(k, v);
+      if (atualNorm !== propostoNorm) {
+        dadosPropostos[k] = v;
+      }
+    }
+    if (tabelaMedidas) dadosPropostos.tabela_medidas = tabelaMedidas;
+
+    if (Object.keys(dadosPropostos).length === 0) {
+      return NextResponse.json({
+        ok: true,
+        mensagem: "Nenhuma alteração detectada.",
+      });
     }
 
     // Se já existe pendência: mescla em dados_propostos (fornecedor pode corrigir antes do admin analisar)

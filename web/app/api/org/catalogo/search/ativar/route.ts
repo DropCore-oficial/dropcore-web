@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { assertPodeAtivarMaisSkus } from "@/lib/planos";
+import { orgErrorHttpStatus, requireAdmin } from "@/lib/apiOrgAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,28 +13,9 @@ function supabaseService() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-async function getMe(req: Request) {
-  const headers: Record<string, string> = {
-    cookie: req.headers.get("cookie") || "",
-  };
-  const auth = req.headers.get("authorization");
-  if (auth) headers["Authorization"] = auth;
-
-  const r = await fetch(new URL("/api/org/me", req.url), {
-    headers,
-    cache: "no-store",
-  });
-  const j = await r.json();
-  if (!r.ok || !j?.ok) throw new Error(j?.error || "Unauthorized");
-  return j as { org_id: string; role_base: "owner" | "admin" | "operacional"; plano?: string };
-}
-
 export async function PATCH(req: Request) {
   try {
-    const { org_id, role_base, plano } = await getMe(req);
-    if (role_base !== "owner" && role_base !== "admin") {
-      return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
-    }
+    const { org_id, plano } = await requireAdmin(req);
 
     const body = await req.json();
     const id = body?.id;
@@ -66,7 +48,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
-    const status = msg === "Unauthorized" || msg === "Token inválido ou expirado." ? 401 : 500;
+    const status = orgErrorHttpStatus(e);
     return NextResponse.json({ error: msg }, { status });
   }
 }

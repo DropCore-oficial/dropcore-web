@@ -507,7 +507,7 @@ export default function SellerProdutosPage() {
                   className={`min-h-[40px] rounded-full border px-4 py-2 text-sm font-medium transition ${
                     filtroStatus === f.key
                       ? f.key === "pendencias"
-                        ? "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100"
+                        ? "border-amber-300 bg-amber-100 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100"
                         : "border-[#008060] bg-[#e3f1ed] text-[#0c3d2a] dark:border-[#008060] dark:bg-[#008060]/20 dark:text-[#a3e5c1]"
                       : "border-[#e3e5e8] bg-[#fafbfb] text-[#5c5f62] hover:bg-[#f6f6f7] dark:border-[#2e3240] dark:bg-[#14171c] dark:text-[#8c9196] dark:hover:bg-[#252a32]"
                   } disabled:cursor-not-allowed disabled:opacity-45`}
@@ -542,7 +542,7 @@ export default function SellerProdutosPage() {
                   API ligada
                 </span>
               ) : (
-                <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
                   Pendente
                 </span>
               )}
@@ -686,7 +686,7 @@ export default function SellerProdutosPage() {
             </div>
           )}
           {error && (
-            <div className="rounded-2xl border border-red-200/90 bg-red-50/95 p-4 text-sm font-medium text-red-900 shadow-sm dark:border-red-900/45 dark:bg-red-950/45 dark:text-red-200">
+            <div className="rounded-2xl border border-red-200/90 bg-red-100 p-4 text-sm font-medium text-red-900 shadow-sm dark:border-red-900/45 dark:bg-red-950/45 dark:text-red-200">
               {error}
             </div>
           )}

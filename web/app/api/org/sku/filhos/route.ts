@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { OrgAuthError, requireOrgStaffForOrgId } from "@/lib/apiOrgAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,16 +14,6 @@ function supabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   return createClient(url, key, { auth: { persistSession: false } });
-}
-
-function getOrgId(req: Request) {
-  const h = req.headers.get("x-org-id");
-  if (h) return h;
-
-  const env = process.env.DROPCORE_DEFAULT_ORG_ID;
-  if (env) return env;
-
-  throw new Error("Org não definida. Configure DROPCORE_DEFAULT_ORG_ID ou envie header x-org-id.");
 }
 
 const SEED_SKUS_FIXOS = new Set<string>(["DJU999000"]);
@@ -42,8 +33,15 @@ function isSkuSemente(row: { sku: string; cor: string | null; tamanho: string | 
 
 export async function GET(req: Request) {
   try {
-    const org_id = getOrgId(req);
     const { searchParams } = new URL(req.url);
+    const org_id = (searchParams.get("org_id") || "").trim();
+    if (!org_id) {
+      return NextResponse.json(
+        { error: "org_id é obrigatório (query). Ex.: ?org_id=UUID&pai=DJU100000" },
+        { status: 400 }
+      );
+    }
+    await requireOrgStaffForOrgId(req, org_id);
     const pai = String(searchParams.get("pai") || "").trim().toUpperCase();
 
     if (!pai.match(/^[A-Z]+\d{6}$/) || !pai.endsWith("000")) {
@@ -76,7 +74,11 @@ export async function GET(req: Request) {
     });
 
     return NextResponse.json(rows);
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "Erro ao listar filhos" }, { status: 400 });
+  } catch (e: unknown) {
+    if (e instanceof OrgAuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.statusCode });
+    }
+    const msg = e instanceof Error ? e.message : "Erro ao listar filhos";
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

@@ -14,6 +14,8 @@ export async function GET(req: Request) {
       ok: true,
       user_id: r.user_id,
       org_id: r.org_id,
+      fornecedor_id: r.fornecedor_id,
+      seller_id: r.seller_id,
       role_base: r.role_base,
       pode_ver_dinheiro: r.pode_ver_dinheiro,
       plano: r.plano,

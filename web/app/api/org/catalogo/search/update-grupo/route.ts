@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { toTitleCase } from "@/lib/formatText";
+import { orgErrorHttpStatus, requireAdmin } from "@/lib/apiOrgAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,22 +13,6 @@ function supabaseService() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-async function getMe(req: Request) {
-  const headers: Record<string, string> = {
-    cookie: req.headers.get("cookie") || "",
-  };
-  const auth = req.headers.get("authorization");
-  if (auth) headers["Authorization"] = auth;
-
-  const r = await fetch(new URL("/api/org/me", req.url), {
-    headers,
-    cache: "no-store",
-  });
-  const j = await r.json();
-  if (!r.ok || !j?.ok) throw new Error(j?.error || "Unauthorized");
-  return j as { org_id: string; role_base: "owner" | "admin" | "operacional" };
-}
-
 /** Campos permitidos para edição em massa (aplicados ao pai e todos os filhos) */
 const ALLOWED_KEYS = [
   "categoria", "dimensoes_pacote", "nome_produto",
@@ -37,10 +22,7 @@ const ALLOWED_KEYS = [
 
 export async function PATCH(req: Request) {
   try {
-    const { org_id, role_base } = await getMe(req);
-    if (role_base !== "owner" && role_base !== "admin") {
-      return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
-    }
+    const { org_id } = await requireAdmin(req);
 
     const { skuPai, patch } = await req.json();
     const pai = typeof skuPai === "string" ? skuPai.trim().toUpperCase() : "";
@@ -101,7 +83,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ ok: true, updated: rows.length });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
-    const status = msg === "Unauthorized" || msg === "Usuário sem organização." ? 401 : msg === "Sem permissão." ? 403 : 500;
+    const status = orgErrorHttpStatus(e);
     return NextResponse.json({ error: msg }, { status });
   }
 }

@@ -208,7 +208,7 @@ export default function AdminCalculadoraConvitesPage() {
               </button>
 
               {erro && (
-                <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">
+                <div className="rounded-xl border border-red-300 bg-red-100 px-3 py-2 text-xs text-red-700">
                   {erro}
                 </div>
               )}
@@ -287,7 +287,7 @@ export default function AdminCalculadoraConvitesPage() {
           </div>
 
           {assinantesErro && (
-            <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <div className="rounded-xl border border-red-300 bg-red-100 px-3 py-2 text-xs text-red-700">
               {assinantesErro}
             </div>
           )}
@@ -318,8 +318,8 @@ export default function AdminCalculadoraConvitesPage() {
                     const status = a.ativo && !a.expirado ? "Ativo" : "Expirado";
                     const statusClass =
                       a.ativo && !a.expirado
-                        ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                        : "text-neutral-600 bg-neutral-50 border-neutral-200";
+                        ? "text-emerald-700 bg-emerald-100 border-emerald-200"
+                        : "text-neutral-600 bg-neutral-100 border-neutral-200";
                     return (
                       <tr key={a.id} className="align-middle">
                         <td className="px-2 py-1.5">
@@ -394,7 +394,7 @@ export default function AdminCalculadoraConvitesPage() {
                                   setAssinantesErro(e instanceof Error ? e.message : "Erro ao prorrogar plano pago.");
                                 }
                               }}
-                              className="rounded-lg border border-emerald-500/40 bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                              className="rounded-lg border border-emerald-500/40 bg-emerald-100 px-2 py-1 text-[10px] text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
                             >
                               +30 dias
                             </button>
@@ -423,7 +423,7 @@ export default function AdminCalculadoraConvitesPage() {
                                   setAssinantesErro(e instanceof Error ? e.message : "Erro ao desativar acesso.");
                                 }
                               }}
-                              className="rounded-lg border border-red-300 bg-red-50 px-2 py-1 text-[10px] text-red-600 hover:bg-red-100 disabled:opacity-50"
+                              className="rounded-lg border border-red-300 bg-red-100 px-2 py-1 text-[10px] text-red-600 hover:bg-red-100 disabled:opacity-50"
                             >
                               Desativar
                             </button>

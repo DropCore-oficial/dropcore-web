@@ -101,7 +101,7 @@ export function BankCombobox({ value, onChange, inputClassName, id: idProp }: Pr
                 type="button"
                 className={`flex w-full gap-2 px-3 py-2.5 text-left text-sm transition-colors ${
                   i === highlight
-                    ? "bg-emerald-50 dark:bg-emerald-950/40 text-[var(--foreground)]"
+                    ? "bg-emerald-100 dark:bg-emerald-950/40 text-[var(--foreground)]"
                     : "text-[var(--foreground)] hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 }`}
                 onMouseEnter={() => setHighlight(i)}

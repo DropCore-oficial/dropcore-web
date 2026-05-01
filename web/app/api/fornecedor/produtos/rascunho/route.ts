@@ -5,7 +5,7 @@
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { supabaseAdmin, supabaseServiceRoleConfigured } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -100,6 +100,16 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Não autenticado como fornecedor." }, { status: 401 });
     }
 
+    if (!supabaseServiceRoleConfigured) {
+      return NextResponse.json(
+        {
+          error:
+            "Servidor sem SUPABASE_SERVICE_ROLE_KEY. Em localhost crie web/.env.local com a chave service_role (Supabase → Settings → API). Sem ela o app não grava rascunhos na nuvem.",
+        },
+        { status: 503 }
+      );
+    }
+
     let payload: unknown;
     try {
       payload = await req.json();
@@ -144,6 +154,9 @@ export async function PUT(req: Request) {
     );
 
     if (error) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("[fornecedor/produtos/rascunho PUT] upsert:", error.code, error.message, error.details);
+      }
       if (isMissingRascunhosTable(error)) {
         return NextResponse.json(
           {

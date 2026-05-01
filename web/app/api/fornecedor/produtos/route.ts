@@ -23,8 +23,9 @@ const SKU_FIELDS = `
   id, sku, nome_produto, cor, tamanho, status, fornecedor_id, fornecedor_org_id, org_id,
   estoque_atual, estoque_minimo, custo_base, custo_dropcore, peso_kg, categoria,
   dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao,
+  marca, data_lancamento,
   ncm, origem, cest, cfop, peso_liquido_kg, peso_bruto_kg, criado_em,
-  expedicao_override_linha
+  expedicao_override_linha, detalhes_produto_json
 `;
 
 /** Campos de `skus` que podem vir em `dados_propostos` (alteração pendente) — exibe o valor enviado na lista. */
@@ -45,6 +46,8 @@ const CAMPOS_PROPOSTOS_SKU = new Set([
   "largura_cm",
   "altura_cm",
   "link_fotos",
+  "marca",
+  "data_lancamento",
   "ncm",
   "origem",
   "cest",
@@ -52,6 +55,7 @@ const CAMPOS_PROPOSTOS_SKU = new Set([
   "peso_liquido_kg",
   "peso_bruto_kg",
   "expedicao_override_linha",
+  "detalhes_produto_json",
 ]);
 
 function aplicarPropostosPendentes<T extends Record<string, unknown>>(

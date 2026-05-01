@@ -6,7 +6,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 /** Mesmas classes que `FornecedorNav` / `SellerNav` (mobile) — borda superior + estado ativo emerald */
 const activeClass =
-  "text-emerald-600 dark:text-emerald-400 border-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/20";
+  "text-emerald-600 dark:text-emerald-400 border-emerald-500 bg-emerald-100 dark:bg-emerald-950/20";
 const inactiveClass =
   "text-neutral-500 dark:text-neutral-400 border-transparent hover:text-neutral-900 dark:hover:text-neutral-100 active:bg-neutral-100 dark:active:bg-neutral-800/50";
 

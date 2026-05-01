@@ -19,6 +19,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { toTitleCase } from "@/lib/formatText";
 import { assertPodeAtivarMaisSkus } from "@/lib/planos";
 import { chaveEstoqueVariante, normalizarChaveEstoqueVarianteApi } from "@/lib/estoqueVarianteKeys";
+import { linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,7 +37,8 @@ function iniciaisFromNome(nome: string | null | undefined): string {
 const SKU_FIELDS = `
   id, sku, nome_produto, cor, tamanho, status, fornecedor_id, fornecedor_org_id, org_id,
   estoque_atual, estoque_minimo, custo_base, custo_dropcore, peso_kg, categoria,
-  dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao, criado_em
+  dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao, criado_em,
+  detalhes_produto_json
 `;
 
 async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: string; org_id: string } | null> {
@@ -79,6 +81,11 @@ function parseList(v: unknown): string[] {
   return [];
 }
 
+function jsonObjectOrNull(v: unknown): Record<string, unknown> | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  return v as Record<string, unknown>;
+}
+
 export async function POST(req: Request) {
   try {
     const ctx = await getFornecedorFromToken(req);
@@ -93,6 +100,7 @@ export async function POST(req: Request) {
     const link_fotos = typeof body?.link_fotos === "string" ? body.link_fotos.trim() || null : null;
     const descricao = typeof body?.descricao === "string" ? (body.descricao.trim() ? toTitleCase(body.descricao.trim()) : null) : null;
     const marca = typeof body?.marca === "string" ? (body.marca.trim() ? toTitleCase(body.marca.trim()) : null) : null;
+    const detalhes_produto_json = jsonObjectOrNull(body?.detalhes_produto_json ?? body?.detalhes_produto);
     const comprimento_cm = body?.comprimento_cm != null ? parseFloat(String(body.comprimento_cm).replace(",", ".")) : null;
     const largura_cm = body?.largura_cm != null ? parseFloat(String(body.largura_cm).replace(",", ".")) : null;
     const altura_cm = body?.altura_cm != null ? parseFloat(String(body.altura_cm).replace(",", ".")) : null;
@@ -356,11 +364,13 @@ export async function POST(req: Request) {
       return custoGlobal;
     }
 
-    const extras: Record<string, unknown> = {
+    const extrasBase: Record<string, unknown> = {
       peso_kg: Number.isFinite(peso_kg) ? peso_kg : null,
     };
-    if (marca) extras.marca = marca;
-    if (data_lancamento) extras.data_lancamento = data_lancamento;
+    if (marca) extrasBase.marca = marca;
+    if (data_lancamento) extrasBase.data_lancamento = data_lancamento;
+    const extrasPai: Record<string, unknown> = { ...extrasBase };
+    if (detalhes_produto_json) extrasPai.detalhes_produto_json = detalhes_produto_json;
 
     const custosFilhosNumericos = combinacoes
       .map((c) => custoParaVariante(c))
@@ -396,10 +406,16 @@ export async function POST(req: Request) {
       ...dims,
       ...estoqueParaVariante(c),
       custo_base: custoParaVariante(c),
-      ...extras,
+      ...extrasBase,
     }));
 
     const somaEstoqueFilhos = filhosRows.reduce((acc, row) => acc + (row.estoque_atual ?? 0), 0);
+
+    /** Miniatura na lista: mesma lógica da UI — foto principal (`link_fotos`) ou primeira variante com imagem por cor. */
+    const imagemUrlPai =
+      linkFotosComoSrcMiniatura(link_fotos) ??
+      filhosRows.map((r) => r.imagem_url as string | null).find((u) => u && String(u).trim()) ??
+      null;
 
     const paiRow = {
       org_id: ctx.org_id,
@@ -411,12 +427,13 @@ export async function POST(req: Request) {
       tamanho: null,
       status: "ativo",
       link_fotos,
+      imagem_url: imagemUrlPai,
       descricao,
       ...dims,
       estoque_atual: filhosRows.length > 0 ? somaEstoqueFilhos : estoqueBase.estoque_atual,
       estoque_minimo: estoqueBase.estoque_minimo,
       custo_base: custoPai,
-      ...extras,
+      ...extrasPai,
     };
 
     const toInsert = [paiRow, ...filhosRows];

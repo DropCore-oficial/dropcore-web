@@ -6,17 +6,24 @@ export function AlteracoesCatalogoInfoBanner() {
     <div
       role="region"
       aria-label="Como funcionam alterações e o catálogo do seller"
-      className="rounded-xl border border-blue-200 bg-blue-50/95 p-4 text-sm shadow-sm dark:border-blue-900/55 dark:bg-blue-950/25"
+      className="rounded-xl border border-gray-200 bg-white p-4 text-sm shadow-sm transition-all duration-200 hover:shadow-md dark:border-neutral-700 dark:bg-neutral-900"
     >
-      <p className="font-semibold text-blue-950 dark:text-blue-200">Catálogo do seller e alterações</p>
-      <p className="mt-1.5 text-xs leading-relaxed text-neutral-800 dark:text-neutral-300">
-        Quando você altera <strong>dados do cadastro</strong> (nome, descrição, preço, estoque pelos fluxos que enviam para análise, medidas, NCM, link de fotos no formulário, etc.), o envio vai para a{" "}
-        <strong>análise da DropCore</strong>. O <strong>catálogo que o seller vê</strong> e os <strong>pedidos via ERP</strong> continuam usando a{" "}
-        <strong>última versão já aprovada</strong> até o admin publicar em <strong>Alterações de produtos</strong> — aqui na lista você pode ainda ver valores antigos até a aprovação.
-      </p>
-      <p className="mt-2 text-xs leading-relaxed text-neutral-800 dark:text-neutral-300">
-        <strong>Fotos:</strong> envio pela miniatura (<strong>Enviar</strong> / <strong>Trocar</strong>) costuma atualizar a imagem do SKU <strong>na hora</strong> (rota de upload), fora dessa fila de texto.
-      </p>
+      <div className="mb-2 flex items-center gap-2">
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-gray-100 text-gray-600 dark:bg-neutral-800 dark:text-neutral-300">i</span>
+        <p className="text-base font-semibold text-gray-900 dark:text-neutral-100">Catálogo do seller e alterações</p>
+      </div>
+      <div className="mt-1.5 space-y-2 text-sm leading-relaxed text-gray-500 dark:text-neutral-300">
+        <p>
+          <strong>Dados cadastrais</strong> (nome, descrição, preço, estoque via fluxos com análise, medidas, NCM e link de fotos no formulário) entram em{" "}
+          <strong>análise da DropCore</strong>.
+        </p>
+        <p>
+          O seller e os pedidos ERP seguem com a <strong>última versão aprovada</strong> até a publicação em <strong>Alterações de produtos</strong>.
+        </p>
+        <p>
+          <strong>Miniatura de SKU</strong> (Enviar/Trocar) costuma atualizar na hora pela rota de upload.
+        </p>
+      </div>
     </div>
   );
 }

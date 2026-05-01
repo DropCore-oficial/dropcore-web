@@ -69,9 +69,9 @@ function subtituloBannerMensalidade(
 }
 
 const statusLabel: Record<string, { label: string; cor: string }> = {
-  pendente: { label: "Pendente", cor: "text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700" },
-  liberado: { label: "Liberado", cor: "text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 border-sky-300 dark:border-sky-700" },
-  pago: { label: "Pago", cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700" },
+  pendente: { label: "Pendente", cor: "text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700" },
+  liberado: { label: "Liberado", cor: "text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/40 border-sky-300 dark:border-sky-700" },
+  pago: { label: "Pago", cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700" },
 };
 
 export default function FornecedorDashboardPage() {
@@ -429,7 +429,7 @@ export default function FornecedorDashboardPage() {
         {fornecedor && fornecedor.cadastro_minimo_completo === false && (
           <Link
             href="/fornecedor/cadastro"
-            className="group flex gap-4 rounded-2xl border border-sky-200/90 dark:border-sky-800/80 bg-sky-50/95 dark:bg-sky-950/35 px-4 py-4 shadow-sm hover:border-sky-300 dark:hover:border-sky-700 hover:shadow-md transition-all"
+            className="group flex gap-4 rounded-2xl border border-sky-200/90 dark:border-sky-800/80 bg-sky-100 dark:bg-sky-950/35 px-4 py-4 shadow-sm hover:border-sky-300 dark:hover:border-sky-700 hover:shadow-md transition-all"
           >
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-500 text-white shadow-sm">
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -454,7 +454,7 @@ export default function FornecedorDashboardPage() {
 
         {/* 1b. Repasses futuros — alerta no início */}
         {repasseFuturos.length > 0 && (
-          <section className="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/20 shadow-sm overflow-hidden">
+          <section className="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-100 dark:bg-amber-950/20 shadow-sm overflow-hidden">
             <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">Repasses futuros</p>
@@ -493,7 +493,7 @@ export default function FornecedorDashboardPage() {
               <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Valores liberados e pendentes conforme regras da organização</p>
             </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 sm:p-4 pt-0 border-t border-[var(--card-border)]/80 bg-neutral-50/50 dark:bg-neutral-900/30">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 sm:p-4 pt-0 border-t border-[var(--card-border)]/80 bg-neutral-100 dark:bg-neutral-900/30">
             <Link
               href="/fornecedor/pedidos?status=enviado"
               className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm text-left active:scale-[0.99]"
@@ -518,7 +518,7 @@ export default function FornecedorDashboardPage() {
               href="/fornecedor/produtos?estoqueBaixo=1"
               className={`group rounded-xl border px-3.5 py-3.5 min-h-[5.25rem] transition-all hover:shadow-sm text-left active:scale-[0.99] ${
                 (stats?.estoque_baixo ?? 0) > 0
-                  ? "border-amber-300/80 dark:border-amber-700/80 bg-amber-50/50 dark:bg-amber-950/20"
+                  ? "border-amber-300/80 dark:border-amber-700/80 bg-amber-100 dark:bg-amber-950/20"
                   : "border-[var(--card-border)] bg-[var(--card)] hover:border-emerald-300 dark:hover:border-emerald-700"
               }`}
             >
@@ -830,7 +830,7 @@ export default function FornecedorDashboardPage() {
         {stats && (stats.estoque_baixo ?? 0) > 0 && (
           <Link
             href="/fornecedor/produtos?estoqueBaixo=1"
-            className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 flex items-center gap-3 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800"
+            className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 flex items-center gap-3 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
             <div className="w-9 h-9 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0 text-neutral-600 dark:text-neutral-300">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -877,7 +877,7 @@ export default function FornecedorDashboardPage() {
           {repasseAberto && (
             <div className="p-3">
               {repasseFuturos.length > 0 && (
-                <div className="mb-3 rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50/70 dark:bg-sky-950/20 p-3">
+                <div className="mb-3 rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-100 dark:bg-sky-950/20 p-3">
                   <p className="text-xs font-semibold text-sky-800 dark:text-sky-300 mb-2">Previsão de próximos repasses</p>
                   <div className="space-y-1.5">
                     {repasseFuturos.map((f) => (
@@ -912,7 +912,7 @@ export default function FornecedorDashboardPage() {
                     return (
                       <div
                         key={r.id}
-                        className="flex items-center gap-4 px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 last:border-0 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
+                        className="flex items-center gap-4 px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 last:border-0 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors"
                       >
                         <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400">
                           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -950,7 +950,7 @@ export default function FornecedorDashboardPage() {
                 Valor: <strong className="text-neutral-900 dark:text-neutral-100">{BRL.format(modalPixMensalidade.valor)}</strong>
               </p>
               {pixErro && (
-                <p className="text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2">{pixErro}</p>
+                <p className="text-xs text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2">{pixErro}</p>
               )}
               {pixLoading && <p className="text-sm text-neutral-500">Gerando PIX...</p>}
               {!pixLoading && pixQrCode && (
@@ -972,7 +972,7 @@ export default function FornecedorDashboardPage() {
                   {pixCopiaCola && (
                     <div className="space-y-2">
                       <p className="text-xs text-neutral-500 dark:text-neutral-400">Código PIX (copia e cola):</p>
-                      <div className="rounded-xl border border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-xs font-mono text-left break-all max-h-20 overflow-y-auto">
+                      <div className="rounded-xl border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-xs font-mono text-left break-all max-h-20 overflow-y-auto">
                         {pixCopiaCola}
                       </div>
                       <button

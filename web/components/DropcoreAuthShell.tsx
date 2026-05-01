@@ -38,10 +38,16 @@ export const authCardClass = cn(
 );
 
 export const authAlertErrorClass =
-  "mt-4 rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm leading-relaxed text-red-800 break-words dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200";
+  "mt-4 rounded-lg border border-red-200 bg-red-100 px-3.5 py-3 text-sm leading-relaxed text-red-800 break-words dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200";
+
+/** Aviso “porta errada” (seller/fornecedor no /login) — discreto, não compete com o botão Entrar. */
+export const authPortalHintClass = cn(
+  "mt-4 rounded-lg border border-neutral-200/90 border-l-[3px] border-l-amber-400 bg-neutral-50/90",
+  "px-3.5 py-3.5 dark:border-neutral-700 dark:border-l-amber-500 dark:bg-neutral-900/40",
+);
 
 export const authAlertSuccessClass =
-  "mt-4 rounded-lg border border-emerald-200 bg-emerald-50/90 px-3.5 py-3 text-sm text-emerald-800 dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-200";
+  "mt-4 rounded-lg border border-emerald-200 bg-emerald-100 px-3.5 py-3 text-sm text-emerald-800 dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-200";
 
 /** Link secundário (esqueci senha, rodapé). */
 export const authMutedLinkClass =
@@ -73,7 +79,7 @@ export function DropcoreAuthShell({ eyebrow, heading, description, headingClassN
           <div className="border-b border-neutral-100 px-6 pb-3 pt-5 text-center dark:border-neutral-800 sm:px-7 sm:pb-4 sm:pt-6">
             <div className="flex items-center justify-between">
               <DropCoreLogo variant="horizontal" href={null} className="shrink-0" />
-              <ThemeToggle className="min-h-[34px] min-w-[34px] inline-flex touch-manipulation items-center justify-center rounded-md border border-neutral-200 bg-neutral-50/80 text-neutral-600 transition hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700" />
+              <ThemeToggle className="min-h-[34px] min-w-[34px] inline-flex touch-manipulation items-center justify-center rounded-md border border-neutral-200 bg-neutral-100 text-neutral-600 transition hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700" />
             </div>
             <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-400">
               {eyebrow}

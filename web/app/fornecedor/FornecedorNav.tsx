@@ -50,17 +50,17 @@ export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "
 
   const linkClass = (key: "dashboard" | "produtos" | "pedidos" | "cadastro") =>
     `flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ${
-      active === key ? activeClass + " hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20" : inactiveClass + " border-transparent hover:bg-neutral-100/80 dark:hover:bg-neutral-800/50"
+      active === key ? activeClass + " hover:bg-emerald-100 dark:hover:bg-emerald-900" : inactiveClass + " border-transparent hover:bg-neutral-100 dark:hover:bg-neutral-800"
     }`;
 
   const mobileLinkClass = (key: "dashboard" | "produtos" | "pedidos" | "cadastro") =>
     `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 overflow-visible px-1.5 py-2.5 transition-all duration-200 border-t-2 touch-manipulation relative ${
-      active === key ? activeClass + " bg-emerald-50/30 dark:bg-emerald-950/20" : inactiveClass + " border-transparent active:bg-neutral-100 dark:active:bg-neutral-800/50"
+      active === key ? activeClass + " bg-emerald-100 dark:bg-emerald-900" : inactiveClass + " border-transparent active:bg-neutral-100 dark:active:bg-neutral-800"
     }`;
 
   return (
     <>
-      <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/98 dark:bg-neutral-950/98 backdrop-blur-xl shadow-sm">
+      <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-sm">
         <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 flex items-center gap-8">
           <DropCoreLogo variant="horizontal" href="/fornecedor/dashboard" className="shrink-0" />
           <div className="flex items-center gap-0.5">
@@ -101,7 +101,7 @@ export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "
 
       <MobileAppBar logoHref="/fornecedor/dashboard" />
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200/80 dark:border-neutral-800/80 bg-white/[0.98] dark:bg-neutral-950/[0.98] backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.5)] pb-[env(safe-area-inset-bottom)]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.5)] pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid max-w-3xl grid-cols-4 items-stretch min-h-[56px]">
           <Link href="/fornecedor/dashboard" className={mobileLinkClass("dashboard")}>
             <IconHome active={active === "dashboard"} />

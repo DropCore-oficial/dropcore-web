@@ -157,7 +157,7 @@ export default function SellerRegisterPage() {
   if (tokenError) {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
-        <div className="rounded-2xl border border-red-300 bg-red-50 p-8 max-w-sm w-full text-center shadow-sm">
+        <div className="rounded-2xl border border-red-300 bg-red-100 p-8 max-w-sm w-full text-center shadow-sm">
           <div className="text-red-700 font-semibold text-lg mb-2">Convite inválido</div>
           <div className="text-red-600 text-sm">{tokenError}</div>
         </div>
@@ -287,13 +287,13 @@ export default function SellerRegisterPage() {
           </div>
 
           {formError && (
-            <div className="mt-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="mt-4 rounded-xl border border-red-300 bg-red-100 px-4 py-3 text-sm text-red-700">
               {formError}
             </div>
           )}
 
           {needsLink && (
-            <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+            <div className="mt-4 rounded-xl border border-amber-300 bg-amber-100 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
               <p className="font-medium mb-2">Conta já existe com este e-mail</p>
               <p className="text-amber-800/90 dark:text-amber-200/90 text-xs leading-relaxed mb-3">
                 Confirme o e-mail e a <strong>senha dessa conta</strong> acima e use o botão abaixo para entrar e vincular ao convite do seller <strong>{sellerNome}</strong> (sem criar usuário novo).

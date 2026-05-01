@@ -329,13 +329,13 @@ export default function SellerIntegracoesErpPage() {
             <p className="text-sm text-neutral-600 dark:text-neutral-400">Carregando...</p>
           </div>
         ) : error ? (
-          <div className="rounded-2xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 p-5 text-red-700 dark:text-red-300 text-sm">
+          <div className="rounded-2xl border border-red-200 dark:border-red-900 bg-red-100 dark:bg-red-950/30 p-5 text-red-700 dark:text-red-300 text-sm">
             {error}
           </div>
         ) : (
           <>
             {newKey ? (
-              <div className="rounded-2xl border border-emerald-200/90 dark:border-emerald-800/60 bg-emerald-50/90 dark:bg-emerald-950/40 shadow-md p-6 mb-6">
+              <div className="rounded-2xl border border-emerald-200/90 dark:border-emerald-800/60 bg-emerald-100 dark:bg-emerald-950/40 shadow-md p-6 mb-6">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
                     <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
@@ -387,7 +387,7 @@ export default function SellerIntegracoesErpPage() {
                 <>
                   <label className="block text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-1">URL do webhook (no Bling)</label>
                   <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                    <code className="flex-1 text-xs break-all rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/60 px-3 py-2 text-neutral-900 dark:text-neutral-100">
+                    <code className="flex-1 text-xs break-all rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800/60 px-3 py-2 text-neutral-900 dark:text-neutral-100">
                       {blingWebhookUrl || (typeof window !== "undefined" ? `${window.location.origin}/api/webhooks/bling` : "/api/webhooks/bling")}
                     </code>
                     <button
@@ -503,7 +503,7 @@ export default function SellerIntegracoesErpPage() {
                 <button
                   type="button"
                   onClick={() => { void loadDiagnostics(); void loadBling(); void loadEstoqueWebhook(); }}
-                  className="rounded-lg border border-neutral-300 dark:border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                  className="rounded-lg border border-neutral-300 dark:border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 >
                   {diagLoading ? "Atualizando..." : "Atualizar status"}
                 </button>
@@ -534,7 +534,7 @@ export default function SellerIntegracoesErpPage() {
                 </div>
               </div>
 
-              <div className={`rounded-xl border px-4 py-3 mb-6 ${diag?.integracao_pronta ? "border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/20" : "border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/20"}`}>
+              <div className={`rounded-xl border px-4 py-3 mb-6 ${diag?.integracao_pronta ? "border-emerald-200 dark:border-emerald-800 bg-emerald-100 dark:bg-emerald-950/20" : "border-amber-200 dark:border-amber-800 bg-amber-100 dark:bg-amber-950/20"}`}>
                 <p className={`text-sm font-medium ${diag?.integracao_pronta ? "text-emerald-800 dark:text-emerald-200" : "text-amber-800 dark:text-amber-200"}`}>
                   {diag?.integracao_pronta ? "Integração pronta para uso" : "Integração incompleta"}
                 </p>

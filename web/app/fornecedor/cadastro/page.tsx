@@ -7,6 +7,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { FornecedorNav } from "../FornecedorNav";
 import { BankCombobox } from "@/components/fornecedor/BankCombobox";
 import { isValidCnpjDigits, normalizeCnpjInput } from "@/lib/fornecedorCadastro";
+import { cepParaConsultaViaCep } from "@/lib/cepViaCep";
 
 function upper(s: string): string {
   return s.toLocaleUpperCase("pt-BR");
@@ -237,14 +238,14 @@ export default function FornecedorCadastroPage() {
   ]);
 
   useEffect(() => {
-    const cep = form.endereco_cep.replace(/\D/g, "");
-    if (cep.length !== 8) {
-      if (cep.length === 0) setBuscandoCepMatriz(false);
+    const cepConsulta = cepParaConsultaViaCep(form.endereco_cep);
+    if (!cepConsulta) {
+      if (form.endereco_cep.replace(/\D/g, "").length === 0) setBuscandoCepMatriz(false);
       return;
     }
     setBuscandoCepMatriz(true);
     const ac = new AbortController();
-    void fetch(`https://viacep.com.br/ws/${cep}/json/`, { signal: ac.signal })
+    void fetch(`https://viacep.com.br/ws/${cepConsulta}/json/`, { signal: ac.signal })
       .then((r) => r.json() as Promise<ViaCepJson>)
       .then((data) => {
         if (data.erro) {
@@ -260,9 +261,10 @@ export default function FornecedorCadastroPage() {
           .replace(/[^A-Z]/g, "")
           .slice(0, 2);
         setForm((f) => {
-          if (f.endereco_cep.replace(/\D/g, "") !== cep) return f;
+          if (cepParaConsultaViaCep(f.endereco_cep) !== cepConsulta) return f;
           return {
             ...f,
+            endereco_cep: cepConsulta,
             endereco_logradouro: log ? upper(log) : f.endereco_logradouro,
             endereco_bairro: bai ? upper(bai) : f.endereco_bairro,
             endereco_cidade: cid ? upper(cid) : f.endereco_cidade,
@@ -280,14 +282,14 @@ export default function FornecedorCadastroPage() {
       setBuscandoCepDespacho(false);
       return;
     }
-    const cep = form.expedicao_cep.replace(/\D/g, "");
-    if (cep.length !== 8) {
-      if (cep.length === 0) setBuscandoCepDespacho(false);
+    const cepConsulta = cepParaConsultaViaCep(form.expedicao_cep);
+    if (!cepConsulta) {
+      if (form.expedicao_cep.replace(/\D/g, "").length === 0) setBuscandoCepDespacho(false);
       return;
     }
     setBuscandoCepDespacho(true);
     const ac = new AbortController();
-    void fetch(`https://viacep.com.br/ws/${cep}/json/`, { signal: ac.signal })
+    void fetch(`https://viacep.com.br/ws/${cepConsulta}/json/`, { signal: ac.signal })
       .then((r) => r.json() as Promise<ViaCepJson>)
       .then((data) => {
         if (data.erro) {
@@ -303,9 +305,10 @@ export default function FornecedorCadastroPage() {
           .replace(/[^A-Z]/g, "")
           .slice(0, 2);
         setForm((f) => {
-          if (f.expedicao_cep.replace(/\D/g, "") !== cep) return f;
+          if (cepParaConsultaViaCep(f.expedicao_cep) !== cepConsulta) return f;
           return {
             ...f,
+            expedicao_cep: cepConsulta,
             expedicao_logradouro: log ? upper(log) : f.expedicao_logradouro,
             expedicao_bairro: bai ? upper(bai) : f.expedicao_bairro,
             expedicao_cidade: cid ? upper(cid) : f.expedicao_cidade,
@@ -500,6 +503,8 @@ export default function FornecedorCadastroPage() {
 
   const inputClass =
     "w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2.5 text-sm uppercase text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]";
+  const btnAtalhoNumero =
+    "rounded-full border border-neutral-200 bg-white px-2.5 py-0.5 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700";
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
@@ -514,7 +519,7 @@ export default function FornecedorCadastroPage() {
           <button
             type="button"
             onClick={sair}
-            className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+            className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
             Sair
           </button>
@@ -527,12 +532,12 @@ export default function FornecedorCadastroPage() {
           </p>
 
           {error && (
-            <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-4 py-3 text-sm text-red-700 dark:text-red-300 mb-4">
+            <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-100 dark:bg-red-950/30 px-4 py-3 text-sm text-red-700 dark:text-red-300 mb-4">
               {error}
             </div>
           )}
           {okMsg && (
-            <div className="rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 mb-4">
+            <div className="rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-100 dark:bg-emerald-950/30 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 mb-4">
               {okMsg}
             </div>
           )}
@@ -570,7 +575,7 @@ export default function FornecedorCadastroPage() {
                     type="button"
                     onClick={buscarDadosCnpj}
                     disabled={loadingCnpj}
-                    className="shrink-0 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-60"
+                    className="shrink-0 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-60"
                   >
                     {loadingCnpj ? "Buscando..." : "Buscar CNPJ"}
                   </button>
@@ -623,7 +628,7 @@ export default function FornecedorCadastroPage() {
                     <p className="text-[11px] text-[var(--muted)] mt-1 leading-snug">
                       {buscandoCepMatriz
                         ? "A consultar CEP..."
-                        : "Com 8 dígitos, preenche logradouro, bairro, cidade e UF (ViaCEP)."}
+                        : "Com 8 dígitos (ou 7 se faltar o zero no início), preenche logradouro, bairro, cidade e UF (ViaCEP)."}
                     </p>
                   </div>
                   <div className="sm:col-span-2">
@@ -637,14 +642,31 @@ export default function FornecedorCadastroPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Número</label>
+                    <label className="block text-xs font-medium text-[var(--muted)] mb-1">Número</label>
+                    <div className="mb-1.5 flex flex-wrap gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, endereco_numero: "S/N" }))}
+                        className={btnAtalhoNumero}
+                      >
+                        S/N
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, endereco_numero: "SEM NUMERO" }))}
+                        className={btnAtalhoNumero}
+                      >
+                        Sem número
+                      </button>
+                    </div>
                     <input
                       type="text"
                       value={form.endereco_numero}
                       onChange={(e) => setForm((f) => ({ ...f, endereco_numero: upper(e.target.value) }))}
-                      placeholder="123"
+                      placeholder="Ex.: 123, S/N"
                       className={inputClass}
                     />
+                    <p className="mt-1 text-[10px] leading-snug text-[var(--muted)]">Sem número na fachada? Use os atalhos ou digite.</p>
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Complemento</label>
@@ -735,7 +757,7 @@ export default function FornecedorCadastroPage() {
                         <p className="text-[11px] text-[var(--muted)] mt-1 leading-snug">
                           {buscandoCepDespacho
                             ? "A consultar CEP..."
-                            : "Com 8 dígitos, preenche logradouro, bairro, cidade e UF (ViaCEP)."}
+                            : "Com 8 dígitos (ou 7 se faltar o zero no início), preenche logradouro, bairro, cidade e UF (ViaCEP)."}
                         </p>
                       )}
                     </div>
@@ -754,7 +776,31 @@ export default function FornecedorCadastroPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Número</label>
+                      <label className="block text-xs font-medium text-[var(--muted)] mb-1">Número</label>
+                      <div className="mb-1.5 flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          disabled={envioIgualMatriz}
+                          onClick={() => {
+                            setEnvioIgualMatriz(false);
+                            setForm((f) => ({ ...f, expedicao_numero: "S/N" }));
+                          }}
+                          className={btnAtalhoNumero}
+                        >
+                          S/N
+                        </button>
+                        <button
+                          type="button"
+                          disabled={envioIgualMatriz}
+                          onClick={() => {
+                            setEnvioIgualMatriz(false);
+                            setForm((f) => ({ ...f, expedicao_numero: "SEM NUMERO" }));
+                          }}
+                          className={btnAtalhoNumero}
+                        >
+                          Sem número
+                        </button>
+                      </div>
                       <input
                         type="text"
                         disabled={envioIgualMatriz}
@@ -763,9 +809,10 @@ export default function FornecedorCadastroPage() {
                           setEnvioIgualMatriz(false);
                           setForm((f) => ({ ...f, expedicao_numero: upper(e.target.value) }));
                         }}
-                        placeholder="123"
+                        placeholder="Ex.: 123, S/N"
                         className={`${inputClass} disabled:opacity-60 disabled:cursor-not-allowed`}
                       />
+                      <p className="mt-1 text-[10px] leading-snug text-[var(--muted)]">Sem número na fachada? Use os atalhos ou digite.</p>
                     </div>
                     <div className="sm:col-span-2">
                       <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Complemento</label>
@@ -906,7 +953,7 @@ export default function FornecedorCadastroPage() {
                 </select>
               </div>
               {temDadosRepassePreenchidos(form) && (
-                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-amber-200/80 bg-amber-50/50 px-3 py-3 text-xs text-neutral-800 dark:border-amber-800/60 dark:bg-amber-950/20 dark:text-neutral-200">
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-amber-200/80 bg-amber-100 px-3 py-3 text-xs text-neutral-800 dark:border-amber-800/60 dark:bg-amber-950/20 dark:text-neutral-200">
                   <input
                     type="checkbox"
                     className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300"
