@@ -40,6 +40,21 @@ export async function getMe(req: Request): Promise<Me> {
    * Linha com papel “admin” + fornecedor_id continua bloqueada aqui.
    */
   if (r.fornecedor_id || r.seller_id) {
+    let path: string | undefined;
+    try {
+      path = new URL(req.url).pathname;
+    } catch {
+      path = undefined;
+    }
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        event: "org_api.portal_blocked",
+        user_id: r.user_id,
+        path,
+        portal: { fornecedor: !!r.fornecedor_id, seller: !!r.seller_id },
+      })
+    );
     throw new Error("Sem permissão.");
   }
   if (!r.org_id) {

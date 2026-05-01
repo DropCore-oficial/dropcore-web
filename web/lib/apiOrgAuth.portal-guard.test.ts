@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /** Evita carregar `supabaseAdmin` (exige env no import). */
 vi.mock("@/lib/supabaseAdmin", () => ({
@@ -35,8 +35,15 @@ function staffOwner(): OrgMeSuccess {
 }
 
 describe("getMe — portal não acessa APIs de equipe (/api/org/*)", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn<typeof console, "warn">>;
+
   beforeEach(() => {
     vi.mocked(resolveOrgMe).mockReset();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
   });
 
   it("bloqueia seller (seller_id) mesmo sem linha em org_members", async () => {
@@ -52,6 +59,13 @@ describe("getMe — portal não acessa APIs de equipe (/api/org/*)", () => {
     });
 
     await expect(getMe(req())).rejects.toThrow("Sem permissão.");
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(warnSpy.mock.calls[0][0])) as {
+      event: string;
+      portal: { fornecedor: boolean; seller: boolean };
+    };
+    expect(payload.event).toBe("org_api.portal_blocked");
+    expect(payload.portal).toEqual({ fornecedor: false, seller: true });
   });
 
   it("bloqueia fornecedor (fornecedor_id)", async () => {
@@ -67,6 +81,13 @@ describe("getMe — portal não acessa APIs de equipe (/api/org/*)", () => {
     });
 
     await expect(getMe(req())).rejects.toThrow("Sem permissão.");
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(warnSpy.mock.calls[0][0])) as {
+      event: string;
+      portal: { fornecedor: boolean; seller: boolean };
+    };
+    expect(payload.event).toBe("org_api.portal_blocked");
+    expect(payload.portal).toEqual({ fornecedor: true, seller: false });
   });
 
   it("permite equipe (owner) sem vínculo de portal", async () => {
@@ -75,12 +96,20 @@ describe("getMe — portal não acessa APIs de equipe (/api/org/*)", () => {
     const me = await getMe(req());
     expect(me.org_id).toBe("org-1");
     expect(me.role_base).toBe("owner");
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });
 
 describe("requireAdmin — mesmo caminho das rotas sensíveis", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn<typeof console, "warn">>;
+
   beforeEach(() => {
     vi.mocked(resolveOrgMe).mockReset();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
   });
 
   it("seller não passa (bloqueado em getMe)", async () => {
@@ -96,6 +125,8 @@ describe("requireAdmin — mesmo caminho das rotas sensíveis", () => {
     });
 
     await expect(requireAdmin(req())).rejects.toThrow("Sem permissão.");
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(warnSpy.mock.calls[0][0])).event).toBe("org_api.portal_blocked");
   });
 
   it("owner passa", async () => {
@@ -103,5 +134,6 @@ describe("requireAdmin — mesmo caminho das rotas sensíveis", () => {
 
     const me = await requireAdmin(req());
     expect(me.role_base).toBe("owner");
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });
