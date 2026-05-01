@@ -59,9 +59,13 @@
 
 ---
 
-## 3. Rotas `/api/org` **sem** import de `@/lib/apiOrgAuth` (padrão próprio)
+## 3. Rotas `/api/org` com padrão próprio (notas históricas — v1)
 
-Estas implementam auth “na mão” (Bearer/cookies + `org_members` ou `getMe` local). **Revisar em mudanças futuras** para unificar com `apiOrgAuth` quando possível.
+**Atualização:** em **§7** está o resultado da varredura atual no Git (`grep` / `find`). Várias rotas que antes apareciam aqui **já importam** `@/lib/apiOrgAuth` (ex.: `bootstrap`, `toggle-finance`, catálogo).
+
+O texto abaixo descreve **comportamentos** ainda válidos; não assume mais que estas URLs estejam “sem” import.
+
+Estas implementam ou implementavam auth “na mão” (Bearer/cookies + `org_members` ou `getMe` local). **Revisar em mudanças futuras** para unificar com `apiOrgAuth` quando possível.
 
 | Rota | Comportamento resumido |
 |------|-------------------------|
@@ -120,3 +124,28 @@ Os detalhes por rota estão nas seções 1–5; não duplicamos aqui os ~120 cam
 ---
 
 **Fim da v1.** Próxima revisão sugerida após grandes mudanças em `org_members`, convites ou novas rotas financeiras.
+
+---
+
+## 7. Revisão mecânica — import `@/lib/apiOrgAuth` (org)
+
+**Data:** 2026-05-01
+
+Objetivo: garantir que **nenhum** `route.ts` em `app/api/org/**` fique “só com Bearer” sem passar pelos helpers centrais, exceto os casos intencionais abaixo.
+
+**Comando (no diretório `web/`):**
+
+```bash
+comm -23 <(find app/api/org -name 'route.ts' | sort) <(grep -rl 'apiOrgAuth' app/api/org --include='route.ts' | sort)
+```
+
+**Resultado no repositório:** `63` arquivos `route.ts` em `app/api/org`. **Apenas 2** **não** referenciam `apiOrgAuth`:
+
+| Rota | Motivo (intencional) |
+|------|----------------------|
+| `app/api/org/me/route.ts` | Usa **`resolveOrgMe`** direto — é o endpoint de **perfil** (inclui `fornecedor_id` / `seller_id`); não passa por `getMe` de propósito. |
+| `app/api/org/membros/admin/set-password/route.ts` | **Não** é auth de usuário: exige header **`x-admin-secret`** = `ADMIN_RESET_SECRET` + service role (operação server-side / suporte). Tratar como **ESPECIAL** (rotação do segredo, não expor em cliente). |
+
+**Conclusão:** não há rota `org` adicional “fora do padrão” além dessas duas. Novas rotas em `app/api/org` devem importar `@/lib/apiOrgAuth` (ou reutilizar `resolveOrgMe` só quando o contrato for explicitamente o mesmo do `GET /api/org/me`).
+
+**Próximo passo de produto (fora deste inventário):** revisão humana de **IDOR** (cada `orgId` / `id` de URL alinhado ao `org_id` do membro) e, em paralelo, **RLS** no Postgres como camada extra.
