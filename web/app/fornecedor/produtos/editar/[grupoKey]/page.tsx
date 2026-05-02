@@ -12,6 +12,13 @@ import { toTitleCase } from "@/lib/formatText";
 import { CORES_PREDEFINIDAS, TAMANHOS_PREDEFINIDOS } from "@/lib/fornecedorVariantesUi";
 import { VarianteExtrasTagInput } from "@/components/VarianteExtrasTagInput";
 import { inferirTipo, getColunasTabelaMedidas } from "@/lib/tipoProduto";
+import {
+  AMBER_PREMIUM_LINK,
+  AMBER_PREMIUM_SURFACE_TRANSPARENT,
+  AMBER_PREMIUM_TEXT_BODY,
+  AMBER_PREMIUM_TEXT_PRIMARY,
+} from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 type Produto = {
   id: string;
@@ -832,7 +839,7 @@ export default function EditarVariantesPage() {
 
       {statusAlteracaoEditar === "pendente" && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
-          <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-100 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-200">
+          <div className={cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY, "rounded-lg p-4 text-sm")}>
             <strong>Alteração em análise.</strong> O admin ainda não aprovou. O <strong>seller e o ERP</strong> seguem com os dados <strong>já aprovados</strong> até essa análise fechar. Você pode <strong>ajustar e salvar de novo</strong> — a última versão enviada é a que o DropCore analisa em Alterações de produtos.
           </div>
         </div>
@@ -966,7 +973,7 @@ export default function EditarVariantesPage() {
                                 {jaCad ? (
                                   <span className="text-emerald-600 dark:text-emerald-400 text-xs font-medium">Já cadastrada</span>
                                 ) : (
-                                  <span className="text-amber-600 dark:text-amber-400 text-xs font-medium">Nova — será criada ao adicionar</span>
+                                  <span className={cn("text-xs font-medium", AMBER_PREMIUM_LINK)}>Nova — será criada ao adicionar</span>
                                 )}
                               </td>
                             </tr>
@@ -983,7 +990,7 @@ export default function EditarVariantesPage() {
                     type="button"
                     onClick={handleAdicionarVariantesFaltantes}
                     disabled={loadingAddVar}
-                    className="rounded-lg bg-blue-600 text-white font-medium px-4 py-2 text-sm hover:bg-blue-700 disabled:opacity-60"
+                    className="rounded-lg bg-[var(--primary-blue)] text-white font-medium px-4 py-2 text-sm hover:bg-[var(--primary-blue-hover)] disabled:opacity-60"
                   >
                     {loadingAddVar ? "Adicionando..." : `Adicionar ${faltantesAnuncio} variante(s) ao catálogo`}
                   </button>
@@ -1024,7 +1031,7 @@ export default function EditarVariantesPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <button type="button" onClick={handleMassa} disabled={loadingMassa} className="rounded-lg bg-blue-600 text-white font-medium px-4 py-2 text-sm hover:bg-blue-700 disabled:opacity-60">Editar em massa</button>
+                  <button type="button" onClick={handleMassa} disabled={loadingMassa} className="rounded-lg bg-[var(--primary-blue)] text-white font-medium px-4 py-2 text-sm hover:bg-[var(--primary-blue-hover)] disabled:opacity-60">Editar em massa</button>
                   {formError && <p className="text-sm text-red-400">{formError}</p>}
                 </div>
               </div>
@@ -1317,7 +1324,7 @@ export default function EditarVariantesPage() {
                   disabled={loadingBasico || !dirtyBasico || statusAlteracaoEditar === "pendente"}
                   className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${
                     dirtyBasico && statusAlteracaoEditar !== "pendente"
-                      ? "bg-blue-600 text-white hover:bg-blue-700"
+                      ? "bg-[var(--primary-blue)] text-white hover:bg-[var(--primary-blue-hover)]"
                       : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"
                   }`}
                 >
@@ -1335,7 +1342,7 @@ export default function EditarVariantesPage() {
                 </div>
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400">As fotos por variação ficam na tabela de variantes.</p>
                 {formError && <p className="text-sm text-red-400">{formError}</p>}
-                <button type="submit" disabled={loadingOutros || !dirtyMidia} className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyMidia ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}>{loadingOutros ? "Salvando..." : "Salvar"}</button>
+                <button type="submit" disabled={loadingOutros || !dirtyMidia} className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyMidia ? "bg-[var(--primary-blue)] text-white hover:bg-[var(--primary-blue-hover)]" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}>{loadingOutros ? "Salvando..." : "Salvar"}</button>
               </form>
             </div>
           )}
@@ -1391,7 +1398,7 @@ export default function EditarVariantesPage() {
                   </div>
                 </div>
                 {formError && <p className="text-sm text-red-400">{formError}</p>}
-                <button type="submit" disabled={loadingOutros || !dirtyImpostos} className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyImpostos ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}>{loadingOutros ? "Salvando..." : "Salvar"}</button>
+                <button type="submit" disabled={loadingOutros || !dirtyImpostos} className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyImpostos ? "bg-[var(--primary-blue)] text-white hover:bg-[var(--primary-blue-hover)]" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}>{loadingOutros ? "Salvando..." : "Salvar"}</button>
               </form>
             </div>
           )}
@@ -1473,7 +1480,7 @@ export default function EditarVariantesPage() {
                       </table>
                     </div>
                     {tamanhosOrdenados.length === 0 && (
-                      <div className="rounded-xl bg-amber-100 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                      <div className={cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_BODY, "rounded-xl px-4 py-3 text-sm")}>
                         Adicione tamanhos nas variantes do produto para preencher as linhas aqui.
                       </div>
                     )}
@@ -1483,7 +1490,7 @@ export default function EditarVariantesPage() {
                       disabled={tabelaMedidasSaving || tamanhosOrdenados.length === 0}
                       className={`inline-flex items-center gap-2 rounded-xl font-semibold px-5 py-3 text-sm transition-all disabled:opacity-60 ${
                         tamanhosOrdenados.length > 0
-                          ? "bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg"
+                          ? "bg-[var(--primary-blue)] text-white hover:bg-[var(--primary-blue-hover)] shadow-md hover:shadow-lg"
                           : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"
                       }`}
                     >
@@ -1513,7 +1520,7 @@ export default function EditarVariantesPage() {
                 onClick={() => setTabAtiva(tab.id)}
                 className={`block w-full text-left px-4 py-2.5 text-sm transition ${
                   tabAtiva === tab.id
-                    ? "bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-medium border-l-2 border-blue-600 dark:border-blue-500"
+                    ? "bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-medium border-l-2 border-[var(--primary-blue)] dark:border-[var(--primary-blue)]"
                     : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-100"
                 }`}
               >
@@ -1721,7 +1728,7 @@ export default function EditarVariantesPage() {
                     title={!dirtyModal ? "Nenhuma alteração nesta variante" : undefined}
                     className={`flex-1 sm:flex-initial rounded-lg font-semibold px-4 py-2.5 text-sm min-w-[7rem] disabled:opacity-60 ${
                       dirtyModal
-                        ? "bg-blue-600 text-white hover:bg-blue-700"
+                        ? "bg-[var(--primary-blue)] text-white hover:bg-[var(--primary-blue-hover)]"
                         : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"
                     }`}
                   >

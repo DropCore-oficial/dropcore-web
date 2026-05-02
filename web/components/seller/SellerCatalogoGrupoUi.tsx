@@ -4,6 +4,25 @@ import { useEffect, useState } from "react";
 import { SkuInlineSeller } from "@/components/seller/SkuInlineSeller";
 import { formatPesoCatalogo } from "@/lib/formatPesoCatalogo";
 import { skuProntoParaVender, skuReadinessLabelsFalha } from "@/lib/sellerSkuReadiness";
+import {
+  AMBER_PREMIUM_SHELL,
+  AMBER_PREMIUM_TEXT_BODY,
+  AMBER_PREMIUM_TEXT_PRIMARY,
+  AMBER_PREMIUM_TEXT_SOFT,
+} from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
+
+const BADGE_AMBER_PREMIUM = cn(
+  AMBER_PREMIUM_SHELL,
+  AMBER_PREMIUM_TEXT_PRIMARY,
+  "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+);
+/** readiness não ok — mantém padding maior */
+const BADGE_READINESS_PENDENTE = cn(
+  AMBER_PREMIUM_SHELL,
+  AMBER_PREMIUM_TEXT_PRIMARY,
+  "inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-[11px] font-semibold cursor-help whitespace-normal text-left"
+);
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -119,7 +138,7 @@ function BadgeStatus({ status }: { status: string }) {
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border ${
         ativo
-          ? "bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300"
+          ? "bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-900 text-emerald-700 dark:text-emerald-300"
           : "bg-red-100 dark:bg-red-950/40 border-red-300 dark:border-red-900 text-red-700 dark:text-red-300"
       }`}
     >
@@ -133,11 +152,11 @@ function BadgeEstoque({ atual, minimo }: { atual: number | null; minimo: number 
   const baixo = minimo != null && atual <= minimo;
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border ${
+      className={
         baixo
-          ? "bg-amber-100 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
-          : "bg-neutral-100 dark:bg-neutral-800/60 border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400"
-      }`}
+          ? BADGE_AMBER_PREMIUM
+          : "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border bg-neutral-100 dark:bg-neutral-800/60 border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400"
+      }
     >
       Estoque: {atual}
       {minimo != null ? ` / mín ${minimo}` : ""}
@@ -154,11 +173,11 @@ function BadgeReadiness({ item }: { item: SellerCatalogoItem }) {
   return (
     <span
       title={title}
-      className={`inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-[11px] font-semibold border cursor-help whitespace-normal text-left ${
+      className={
         ok
-          ? "bg-emerald-100 dark:bg-emerald-950/35 border-emerald-400/80 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200"
-          : "bg-amber-100 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200"
-      }`}
+          ? "inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-[11px] font-semibold border cursor-help whitespace-normal text-left bg-emerald-100 dark:bg-emerald-950/35 border-emerald-400/80 dark:border-emerald-700 text-emerald-900 dark:text-emerald-300"
+          : BADGE_READINESS_PENDENTE
+      }
     >
       {ok ? "Pronto para vender" : `Faltam ${falhas.length} ${falhas.length === 1 ? "item" : "itens"}`}
     </span>
@@ -267,7 +286,7 @@ export function SellerCatalogoProductInfoBlock({
           <p
             className={
               saas
-                ? "text-xs font-semibold uppercase tracking-[0.12em] text-[#22C55E]/90 mb-3"
+                ? "text-xs font-semibold uppercase tracking-[0.12em] text-emerald-500/90 mb-3"
                 : "text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700/85 dark:text-emerald-400/90 mb-3"
             }
           >
@@ -304,7 +323,7 @@ export function SellerCatalogoProductInfoBlock({
                 onClick={onToggleDescricao}
                 className={
                   saas
-                    ? "mt-2 text-xs font-semibold text-[#22C55E] hover:underline"
+                    ? "mt-2 text-xs font-semibold text-emerald-500 hover:underline"
                     : "mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline"
                 }
               >
@@ -326,12 +345,12 @@ export function SellerCatalogoProductInfoBlock({
               onClick={onOpenMedidas}
               className={
                 saas
-                  ? "inline-flex h-10 w-full sm:w-auto items-center justify-center gap-2 rounded-lg border border-[#2A2F3A] bg-[#0F1115] px-4 text-sm font-medium text-white hover:border-[#22C55E]/50 transition touch-manipulation shrink-0"
+                  ? "inline-flex h-10 w-full sm:w-auto items-center justify-center gap-2 rounded-lg border border-[#2A2F3A] bg-[#0F1115] px-4 text-sm font-medium text-white hover:border-emerald-500/50 transition touch-manipulation shrink-0"
                   : "inline-flex items-center justify-center gap-2 font-semibold text-neutral-800 dark:text-neutral-100 border border-neutral-300/90 dark:border-neutral-600 rounded-xl px-4 py-2.5 sm:rounded-xl hover:border-emerald-400/80 dark:hover:border-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-950/25 transition touch-manipulation min-h-[44px] sm:min-h-0 w-full sm:w-auto shrink-0 bg-white/90 dark:bg-neutral-950/40 shadow-sm"
               }
             >
               <svg
-                className={saas ? "w-4 h-4 text-[#22C55E] shrink-0" : "w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0"}
+                className={saas ? "w-4 h-4 text-emerald-500 shrink-0" : "w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0"}
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -388,7 +407,7 @@ export function SellerCatalogoProductInfoBlock({
               rel="noopener noreferrer"
               className={
                 saas
-                  ? "text-sm font-medium text-[#22C55E] hover:underline min-h-[44px] sm:min-h-0 inline-flex items-center py-1"
+                  ? "text-sm font-medium text-emerald-500 hover:underline min-h-[44px] sm:min-h-0 inline-flex items-center py-1"
                   : "text-emerald-700 dark:text-emerald-400 hover:underline font-semibold min-h-[44px] sm:min-h-0 inline-flex items-center py-1"
               }
             >
@@ -465,7 +484,7 @@ export function SellerCatalogoItemCard({
           </span>
         </div>
       ) : (
-        <p className="text-sm text-amber-400/95 leading-snug">Preço ainda não informado — o fornecedor precisa cadastrar custo no produto.</p>
+        <p className={cn("text-sm leading-snug", AMBER_PREMIUM_TEXT_PRIMARY)}>Preço ainda não informado — o fornecedor precisa cadastrar custo no produto.</p>
       );
 
     return (
@@ -503,7 +522,7 @@ export function SellerCatalogoItemCard({
             ) : (
               <div className="flex flex-col items-center justify-center px-1 text-center text-[11px] text-zinc-500">
                 {temLinkFotos ? (
-                  <a href={item.link_fotos!} target="_blank" rel="noopener noreferrer" className="text-[#22C55E] hover:underline">
+                  <a href={item.link_fotos!} target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:underline">
                     Fotos
                   </a>
                 ) : (
@@ -557,7 +576,7 @@ export function SellerCatalogoItemCard({
               <span
                 className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
                   ativo
-                    ? "border-emerald-500/35 bg-emerald-500/10 text-[#22C55E]"
+                    ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-500"
                     : "border-red-500/35 bg-red-500/10 text-red-300"
                 }`}
               >
@@ -567,7 +586,7 @@ export function SellerCatalogoItemCard({
                 <span
                   className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
                     item.estoque_minimo != null && item.estoque_atual <= item.estoque_minimo
-                      ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
+                      ? cn(AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY)
                       : "border-[#2A2F3A] bg-[#0F1115] text-zinc-400"
                   }`}
                 >
@@ -579,7 +598,7 @@ export function SellerCatalogoItemCard({
             <div className="min-w-0">
               <BadgeReadiness item={item} />
               {!pronto && (
-                <details className="mt-2 text-xs text-amber-300/95">
+                <details className={cn("mt-2 text-xs", AMBER_PREMIUM_TEXT_PRIMARY)}>
                   <summary className="cursor-pointer select-none font-medium">Ver pendências</summary>
                   <p className="mt-1 leading-snug" title={`Pendências: ${pendencias.join("; ")}`}>
                     {pendencias.slice(0, 2).join(" · ")}
@@ -603,7 +622,7 @@ export function SellerCatalogoItemCard({
                         onChange={() => {
                           void habilitarRow.onToggle();
                         }}
-                        className="h-5 w-5 shrink-0 rounded border-[#2A2F3A] text-[#22C55E] focus:ring-[#22C55E]/40 focus:ring-offset-0 disabled:opacity-50"
+                        className="h-5 w-5 shrink-0 rounded border-[#2A2F3A] text-emerald-500 focus:ring-emerald-500/40 focus:ring-offset-0 disabled:opacity-50"
                       />
                     </label>
                     {habilitarRow.loading && <span className="block text-xs text-zinc-500">Salvando...</span>}
@@ -639,7 +658,7 @@ export function SellerCatalogoItemCard({
         </span>
       </div>
     ) : (
-      <p className={`text-amber-800 dark:text-amber-200/95 ${sóVariante ? "text-[10px] mt-0.5 leading-snug" : "text-xs mt-1 leading-snug"}`}>
+      <p className={cn(AMBER_PREMIUM_TEXT_BODY, sóVariante ? "text-[10px] mt-0.5 leading-snug" : "text-xs mt-1 leading-snug")}>
         Preço ainda não informado — o fornecedor precisa cadastrar custo no produto.
       </p>
     );
@@ -781,7 +800,7 @@ export function SellerCatalogoItemCard({
             <div className="w-full sm:max-w-[14rem] sm:text-right">
               <BadgeReadiness item={item} />
               {!pronto && (
-                <details className="mt-1 text-[10px] text-amber-700 dark:text-amber-300">
+                <details className={cn("mt-1 text-[10px]", AMBER_PREMIUM_TEXT_SOFT)}>
                   <summary className="cursor-pointer select-none font-medium sm:text-right">Ver pendências</summary>
                   <p className="mt-1 leading-snug" title={`Pendências: ${pendencias.join("; ")}`}>
                     {pendencias.slice(0, 2).join(" · ")}

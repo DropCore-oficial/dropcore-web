@@ -13,6 +13,7 @@ import {
   authPrimaryButtonClass,
 } from "@/components/DropcoreAuthShell";
 import { Button } from "@/components/ui";
+import { AMBER_PREMIUM_LINK } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
 
 type OrgMeJson = {
@@ -57,10 +58,7 @@ function AvisoPortaErrada({
   return (
     <div className={authPortalHintClass} role="alert">
       <div className="flex gap-3">
-        <div
-          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-amber-600 dark:text-amber-400"
-          aria-hidden
-        >
+        <div className={cn("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md", AMBER_PREMIUM_LINK)} aria-hidden>
           <IconInfoPortal className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1 space-y-2">
@@ -75,7 +73,7 @@ function AvisoPortaErrada({
               href={href}
               className={cn(
                 "inline-flex items-center gap-1 text-[13px] font-semibold text-emerald-700",
-                "underline decoration-emerald-700/30 underline-offset-2 transition hover:text-emerald-800 hover:decoration-emerald-700",
+                "underline decoration-emerald-700/30 underline-offset-2 transition hover:text-emerald-900 hover:decoration-emerald-700",
                 "dark:text-emerald-400 dark:decoration-emerald-400/30 dark:hover:text-emerald-300",
               )}
             >

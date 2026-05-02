@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { cn } from "@/lib/utils";
 
 export const PLAN_LIMITS_REFRESH_EVENT = "plan-limits-refresh";
 
@@ -46,16 +48,27 @@ export function PlanLimitsBadge() {
 
   return (
     <span
-      className={`inline-flex items-center gap-3 rounded-full px-3 py-1 text-[11px] font-medium border ${
+      className={cn(
+        "inline-flex items-center gap-3 rounded-full px-3 py-1 text-[11px] font-medium",
         alerta
-          ? "border-[var(--warning)]/50 bg-[var(--warning)]/10 text-[var(--foreground)]"
-          : "border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)]"
-      }`}
+          ? cn(AMBER_PREMIUM_SHELL, "text-neutral-800 dark:text-neutral-100")
+          : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)]"
+      )}
       title={alerta ? "Próximo do limite do plano Starter. Faça upgrade para Pro." : undefined}
     >
-      <span>Vendas: <strong className={alerta && vendasProximo ? "text-[var(--warning)]" : "text-[var(--foreground)]"}>{limits.vendas_mes}/{limits.vendas_limite}</strong></span>
+      <span>
+        Vendas:{" "}
+        <strong className={alerta && vendasProximo ? AMBER_PREMIUM_TEXT_PRIMARY : "text-[var(--foreground)]"}>
+          {limits.vendas_mes}/{limits.vendas_limite}
+        </strong>
+      </span>
       <span className="text-[var(--muted)]">|</span>
-      <span>Produtos: <strong className={alerta && produtosProximo ? "text-[var(--warning)]" : "text-[var(--foreground)]"}>{limits.produto_cor_count}/{limits.produto_cor_limite}</strong></span>
+      <span>
+        Produtos:{" "}
+        <strong className={alerta && produtosProximo ? AMBER_PREMIUM_TEXT_PRIMARY : "text-[var(--foreground)]"}>
+          {limits.produto_cor_count}/{limits.produto_cor_limite}
+        </strong>
+      </span>
     </span>
   );
 }

@@ -5,7 +5,9 @@ import { useRouter, usePathname } from "next/navigation";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { cn } from "@/lib/utils";
 
 type Mensalidade = {
   id: string;
@@ -246,7 +248,9 @@ export function MensalidadeBloqueioGate({
                       {pixRestanteSec !== null && (
                         <div
                           className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium ${
-                            pixRestanteSec <= 60 ? "bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-200" : "bg-neutral-100 dark:bg-neutral-800 text-[var(--muted)]"
+                            pixRestanteSec <= 60
+                              ? cn(AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY)
+                              : "bg-neutral-100 dark:bg-neutral-800 text-[var(--muted)]"
                           }`}
                         >
                           <span className={pixRestanteSec <= 60 ? "animate-pulse" : ""}>⏱</span> Válido por{" "}

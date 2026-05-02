@@ -5,6 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { FornecedorNav } from "../FornecedorNav";
+import { AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
+import { cn } from "@/lib/utils";
+
+const FORN_PEDIDO_STATUS_ENVIADO = cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY);
 
 type Pedido = {
   id: string;
@@ -205,9 +210,9 @@ export default function FornecedorPedidosPage() {
         )}
 
         {avisoLote && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+          <AmberPremiumCallout title="Aviso" className="items-start rounded-xl px-4 py-3 text-sm">
             {avisoLote}
-          </div>
+          </AmberPremiumCallout>
         )}
 
         <div className="flex gap-3 flex-wrap">
@@ -242,7 +247,7 @@ export default function FornecedorPedidosPage() {
               type="button"
               onClick={imprimirEtiquetasOficiaisEmLote}
               disabled={imprimindoLote || selecionadosComEtiqueta.length === 0}
-              className="rounded-lg border border-emerald-600/40 bg-emerald-600/15 dark:bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-800 dark:text-emerald-200 hover:bg-emerald-600/25 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap"
+              className="rounded-lg border border-emerald-600/40 bg-emerald-600/15 dark:bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-900 dark:text-emerald-300 hover:bg-emerald-600/25 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap"
             >
               {imprimindoLote
                 ? "Gerando PDF..."
@@ -318,9 +323,10 @@ export default function FornecedorPedidosPage() {
                       <td className="px-4 py-3">
                         <span
                           className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                            p.status === "enviado" ? "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300"
+                            p.status === "enviado"
+                              ? FORN_PEDIDO_STATUS_ENVIADO
                             : p.status === "aguardando_repasse" ? "bg-sky-100 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300"
-                            : p.status === "entregue" ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300"
+                            : p.status === "entregue" ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300"
                             : "bg-neutral-100 dark:bg-neutral-800 text-[var(--muted)]"
                           }`}
                         >

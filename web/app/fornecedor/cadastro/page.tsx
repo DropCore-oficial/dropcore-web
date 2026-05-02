@@ -8,6 +8,12 @@ import { FornecedorNav } from "../FornecedorNav";
 import { BankCombobox } from "@/components/fornecedor/BankCombobox";
 import { isValidCnpjDigits, normalizeCnpjInput } from "@/lib/fornecedorCadastro";
 import { cepParaConsultaViaCep } from "@/lib/cepViaCep";
+import {
+  AMBER_PREMIUM_SURFACE_TRANSPARENT,
+  AMBER_PREMIUM_TEXT_PRIMARY,
+  AMBER_PREMIUM_TEXT_SECONDARY,
+} from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 function upper(s: string): string {
   return s.toLocaleUpperCase("pt-BR");
@@ -537,7 +543,7 @@ export default function FornecedorCadastroPage() {
             </div>
           )}
           {okMsg && (
-            <div className="rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-100 dark:bg-emerald-950/30 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 mb-4">
+            <div className="rounded-lg border border-emerald-300 dark:border-emerald-900 bg-emerald-100 dark:bg-emerald-950/30 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 mb-4">
               {okMsg}
             </div>
           )}
@@ -953,17 +959,23 @@ export default function FornecedorCadastroPage() {
                 </select>
               </div>
               {temDadosRepassePreenchidos(form) && (
-                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-amber-200/80 bg-amber-100 px-3 py-3 text-xs text-neutral-800 dark:border-amber-800/60 dark:bg-amber-950/20 dark:text-neutral-200">
+                <label
+                  className={cn(
+                    AMBER_PREMIUM_SURFACE_TRANSPARENT,
+                    "flex cursor-pointer items-start gap-3 rounded-lg px-3 py-3 text-xs leading-relaxed"
+                  )}
+                >
                   <input
                     type="checkbox"
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300"
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 dark:border-neutral-500 dark:bg-neutral-800"
                     checked={confirmoRepasseTitularCnpj}
                     onChange={(e) => setConfirmoRepasseTitularCnpj(e.target.checked)}
                   />
-                  <span>
-                    Declaro que a chave PIX e/ou a conta informadas são da <strong>empresa cadastrada acima</strong>{" "}
-                    (mesmo CNPJ e titular igual à razão social). Entendo que dados inconsistentes serão rejeitados e
-                    que a DropCore pode solicitar comprovante.
+                  <span className={AMBER_PREMIUM_TEXT_SECONDARY}>
+                    Declaro que a chave PIX e/ou a conta informadas são da{" "}
+                    <strong className={cn("font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>empresa cadastrada acima</strong>{" "}
+                    (mesmo CNPJ e titular igual à razão social). Entendo que dados inconsistentes serão rejeitados e que a
+                    DropCore pode solicitar comprovante.
                   </span>
                 </label>
               )}

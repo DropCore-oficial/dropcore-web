@@ -130,6 +130,10 @@ summary {
   --danger: #EF4444;
   --accent: #6B7280;
 
+  /* Azul de ação primária (CTAs; tom Fluent ~#0078D4) — igual em light/dark */
+  --primary-blue: #0078d4;
+  --primary-blue-hover: #106ebe;
+
   /* Bordas e sombras */
   --radius: 8px;
   --radius-sm: 6px;

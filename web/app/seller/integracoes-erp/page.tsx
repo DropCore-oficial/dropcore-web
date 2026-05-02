@@ -6,6 +6,12 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
 import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
+import {
+  AMBER_PREMIUM_TEXT_PRIMARY,
+  AMBER_PREMIUM_TEXT_SOFT,
+} from "@/lib/amberPremium";
+import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
+import { cn } from "@/lib/utils";
 
 export default function SellerIntegracoesErpPage() {
   const router = useRouter();
@@ -335,7 +341,7 @@ export default function SellerIntegracoesErpPage() {
         ) : (
           <>
             {newKey ? (
-              <div className="rounded-2xl border border-emerald-200/90 dark:border-emerald-800/60 bg-emerald-100 dark:bg-emerald-950/40 shadow-md p-6 mb-6">
+              <div className="rounded-2xl border border-emerald-300/90 dark:border-emerald-900/60 bg-emerald-100 dark:bg-emerald-950/40 shadow-md p-6 mb-6">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
                     <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
@@ -343,7 +349,7 @@ export default function SellerIntegracoesErpPage() {
                   <p className="text-emerald-700 dark:text-emerald-300 font-semibold text-sm">Chave gerada com sucesso</p>
                 </div>
                 <p className="text-emerald-600 dark:text-emerald-400 text-xs mb-4">Guarde em local seguro. Ela não será exibida novamente.</p>
-                <div className="flex items-center gap-2 p-4 bg-white dark:bg-neutral-900/60 rounded-xl border border-emerald-200/60 dark:border-emerald-800/50 font-mono text-xs break-all">
+                <div className="flex items-center gap-2 p-4 bg-white dark:bg-neutral-900/60 rounded-xl border border-emerald-300/60 dark:border-emerald-900/50 font-mono text-xs break-all">
                   <code className="flex-1 text-neutral-900 dark:text-neutral-100">{newKey}</code>
                   <button
                     type="button"
@@ -373,14 +379,14 @@ export default function SellerIntegracoesErpPage() {
               </div>
             )}
 
-            <div className="rounded-2xl border border-emerald-200/70 dark:border-emerald-800/50 bg-white dark:bg-neutral-900/80 shadow-md p-6 mb-6">
+            <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900/80 shadow-md transition-shadow hover:shadow-lg p-6 mb-6">
               <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-1">Bling</h2>
               <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-4">
                 Conecte sua conta: use o app DropCore no Bling Developers, cole a URL do webhook abaixo e informe aqui o{" "}
                 <strong>companyId</strong> da sua empresa (vem no payload e nos dados da empresa na API).
               </p>
               {blingUnavailable ? (
-                <p className="text-sm text-amber-700 dark:text-amber-300">
+                <p className={cn("text-sm", AMBER_PREMIUM_TEXT_SOFT)}>
                   Tabelas Bling não encontradas. Execute o script <code className="text-xs">add-seller-bling.sql</code> no Supabase.
                 </p>
               ) : (
@@ -411,7 +417,7 @@ export default function SellerIntegracoesErpPage() {
                       type="button"
                       onClick={salvarBling}
                       disabled={blingSaving}
-                      className="shrink-0 rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                      className="shrink-0 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                     >
                       {blingSaving ? "Salvando..." : "Salvar"}
                     </button>
@@ -440,7 +446,7 @@ export default function SellerIntegracoesErpPage() {
               )}
             </div>
 
-            <div className="rounded-2xl border border-blue-200/70 dark:border-blue-900/45 bg-white dark:bg-neutral-900/80 shadow-md p-6 mb-6">
+            <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900/80 shadow-md transition-shadow hover:shadow-lg p-6 mb-6">
               <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-1">Estoque → seu ERP (webhook)</h2>
               <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-4 leading-relaxed">
                 Depois que o <strong>POST /api/erp/pedidos</strong> é aceito (estoque já debitado no DropCore), enviamos um <strong>POST</strong> para a URL abaixo com o JSON do evento{" "}
@@ -449,7 +455,7 @@ export default function SellerIntegracoesErpPage() {
                 <code className="text-[10px] bg-neutral-100 dark:bg-neutral-800 px-1 rounded">X-DropCore-Signature</code> (HMAC-SHA256 hex do corpo).
               </p>
               {estoqueWebhookColsMissing ? (
-                <p className="text-sm text-amber-700 dark:text-amber-300">
+                <p className={cn("text-sm", AMBER_PREMIUM_TEXT_SOFT)}>
                   Colunas não encontradas. Execute <code className="text-xs">add-seller-erp-estoque-webhook.sql</code> no Supabase.
                 </p>
               ) : (
@@ -463,7 +469,7 @@ export default function SellerIntegracoesErpPage() {
                     className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 mb-3"
                   />
                   <label className="block text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-1">
-                    Segredo (opcional) {estoqueHasSecret ? <span className="text-emerald-600 dark:text-emerald-400">· já salvo</span> : null}
+                    Segredo (opcional) {estoqueHasSecret ? <span className="text-amber-700 dark:text-amber-300">· já salvo</span> : null}
                   </label>
                   <input
                     type="password"
@@ -478,7 +484,7 @@ export default function SellerIntegracoesErpPage() {
                       type="button"
                       onClick={() => void salvarEstoqueWebhook()}
                       disabled={estoqueWebhookSaving}
-                      className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                      className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm font-semibold shadow-sm ring-1 ring-emerald-500/35 hover:ring-emerald-400/45 disabled:opacity-60"
                     >
                       {estoqueWebhookSaving ? "Salvando..." : "Salvar webhook"}
                     </button>
@@ -512,15 +518,25 @@ export default function SellerIntegracoesErpPage() {
               <div className="grid sm:grid-cols-2 gap-3 mb-5">
                 <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 p-3">
                   <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Chave API</p>
-                  <p className={`mt-1 text-sm font-medium ${diag?.has_key ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}>
-                    {diag?.has_key ? `Configurada (..${diag?.key_prefix ?? prefix ?? ""})` : "Pendente"}
-                  </p>
+                  <div className="mt-1">
+                    {diag?.has_key ? (
+                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                        {`Configurada (..${diag?.key_prefix ?? prefix ?? ""})`}
+                      </p>
+                    ) : (
+                      <p className={cn("text-sm font-medium", AMBER_PREMIUM_TEXT_PRIMARY)}>Pendente</p>
+                    )}
+                  </div>
                 </div>
                 <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 p-3">
                   <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Vínculo com fornecedor</p>
-                  <p className={`mt-1 text-sm font-medium ${diag?.fornecedor_vinculado ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}>
-                    {diag?.fornecedor_vinculado ? "OK" : "Pendente"}
-                  </p>
+                  <div className="mt-1">
+                    {diag?.fornecedor_vinculado ? (
+                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">OK</p>
+                    ) : (
+                      <p className={cn("text-sm font-medium", AMBER_PREMIUM_TEXT_PRIMARY)}>Pendente</p>
+                    )}
+                  </div>
                 </div>
                 <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 p-3 sm:col-span-2">
                   <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Webhook estoque → ERP</p>
@@ -534,21 +550,49 @@ export default function SellerIntegracoesErpPage() {
                 </div>
               </div>
 
-              <div className={`rounded-xl border px-4 py-3 mb-6 ${diag?.integracao_pronta ? "border-emerald-200 dark:border-emerald-800 bg-emerald-100 dark:bg-emerald-950/20" : "border-amber-200 dark:border-amber-800 bg-amber-100 dark:bg-amber-950/20"}`}>
-                <p className={`text-sm font-medium ${diag?.integracao_pronta ? "text-emerald-800 dark:text-emerald-200" : "text-amber-800 dark:text-amber-200"}`}>
-                  {diag?.integracao_pronta ? "Integração pronta para uso" : "Integração incompleta"}
-                </p>
-                <p className="text-xs mt-1 text-neutral-600 dark:text-neutral-300">
-                  {diag?.mode === "com_webhook_estoque"
-                    ? "Modo: após cada pedido aceito, o DropCore também POSTa o estoque atualizado para o seu webhook (além da API)."
-                    : "Modo: pedidos só pela API (X-API-Key). Webhook de estoque opcional na seção anterior. Intervalo recomendado: 1 a 2 minutos."}
-                </p>
-              </div>
+              {diag?.integracao_pronta ? (
+                <div className="mb-6 rounded-xl border border-emerald-300 bg-emerald-100 px-4 py-3 dark:border-emerald-900 dark:bg-emerald-950/20">
+                  <p className="text-sm font-medium text-emerald-900 dark:text-emerald-300">Integração pronta para uso</p>
+                  <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">
+                    {diag?.mode === "com_webhook_estoque"
+                      ? "Modo: após cada pedido aceito, o DropCore também POSTa o estoque atualizado para o seu webhook (além da API)."
+                      : "Modo: pedidos só pela API (X-API-Key). Webhook de estoque opcional na seção anterior. Intervalo recomendado: 1 a 2 minutos."}
+                  </p>
+                </div>
+              ) : (
+                <AmberPremiumCallout title="Integração incompleta" className="mb-6 items-start rounded-xl px-4 py-3">
+                  {diag?.mode === "com_webhook_estoque" ? (
+                    <>
+                      Modo: após cada pedido aceito, o DropCore também{" "}
+                      <span className={cn("font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>POSTa</span>
+                      {" o estoque atualizado para o seu "}
+                      <span className={cn("font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>webhook</span>
+                      {" (além da "}
+                      <span className={cn("font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>API</span>
+                      {")."}
+                    </>
+                  ) : (
+                    <>
+                      Modo: pedidos só pela{" "}
+                      <span className={cn("font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>API</span>
+                      {" ("}
+                      <span className={cn("font-mono text-[11px] font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>
+                        X-API-Key
+                      </span>
+                      {"). "}
+                      <span className={cn("font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>Webhook</span>
+                      {" de estoque opcional na seção anterior. Intervalo recomendado: "}
+                      <span className={cn("font-semibold tabular-nums", AMBER_PREMIUM_TEXT_PRIMARY)}>1 a 2 minutos</span>
+                      {"."}
+                    </>
+                  )}
+                </AmberPremiumCallout>
+              )}
 
               <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 px-4 py-3 mb-6">
                 <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Proteção anti-abuso (rate limit)</p>
                 {diag?.rate_limit_unavailable ? (
-                  <p className="text-xs mt-1 text-amber-700 dark:text-amber-300">
+                  <p className={cn("text-xs mt-1", AMBER_PREMIUM_TEXT_SOFT)}>
                     Controle de rate limit indisponível. Execute o script `add-api-rate-limits.sql`.
                   </p>
                 ) : (
@@ -605,7 +649,7 @@ export default function SellerIntegracoesErpPage() {
             <div className="mt-6 rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900/80 shadow-md p-6">
               <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Últimos eventos ERP</h2>
               {diag?.eventos_unavailable ? (
-                <p className="text-sm text-amber-700 dark:text-amber-300">
+                <p className={cn("text-sm", AMBER_PREMIUM_TEXT_SOFT)}>
                   Log de eventos indisponível. Execute o script `add-erp-events-and-pedido-timeline.sql` no Supabase.
                 </p>
               ) : (diag?.eventos?.length ?? 0) === 0 ? (

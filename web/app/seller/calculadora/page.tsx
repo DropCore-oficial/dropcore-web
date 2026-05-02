@@ -11,6 +11,13 @@ import { SellerNav } from "../SellerNav";
 import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
 import { normalizarFornecedoresSellerApi, type FornecedorSellerListaRow } from "@/lib/mapFornecedorSellerPublico";
 import { mascararSkuListagem } from "@/lib/sellerCatalogoPrivacidade";
+import {
+  AMBER_PREMIUM_LINK,
+  AMBER_PREMIUM_TEXT_BODY,
+  AMBER_PREMIUM_TEXT_PRIMARY,
+  AMBER_PREMIUM_TEXT_SOFT,
+} from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const MARGEM_MINIMA = 5;
 
@@ -891,14 +898,14 @@ export default function SellerCalculadoraPage() {
         />
         {calcOnly && calcValidoAte && (
           <div
-            className="rounded-xl border border-neutral-200 dark:border-neutral-700/80 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400 bg-white dark:bg-neutral-900/60 px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm leading-snug flex gap-2.5 items-start text-emerald-800 dark:text-emerald-300 shadow-sm dark:shadow-none"
+            className="rounded-xl border border-neutral-200 dark:border-neutral-700/80 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400 bg-white dark:bg-neutral-900/60 px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm leading-snug flex gap-2.5 items-start text-emerald-900 dark:text-emerald-300 shadow-sm dark:shadow-none"
             role="status"
           >
             <span className="text-lg leading-none shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" aria-hidden>
               ✓
             </span>
             <span>
-              <strong className="font-semibold text-emerald-900 dark:text-emerald-200">Teste da calculadora:</strong>{" "}
+              <strong className="font-semibold text-emerald-900 dark:text-emerald-300">Teste da calculadora:</strong>{" "}
               <span className="text-emerald-700 dark:text-emerald-400/95">
                 válido até{" "}
                 {new Date(calcValidoAte).toLocaleString("pt-BR", {
@@ -917,13 +924,13 @@ export default function SellerCalculadoraPage() {
           <div className="block rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm px-5 py-4 flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                <span className="text-amber-700 dark:text-amber-300">Regra:</span> margem mínima de {MARGEM_MINIMA}%
+                <span className={AMBER_PREMIUM_TEXT_SOFT}>Regra:</span> margem mínima de {MARGEM_MINIMA}%
               </p>
               <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">
                 O preço mínimo deve garantir pelo menos {MARGEM_MINIMA}% de margem de lucro.
               </p>
             </div>
-            <span className="shrink-0 text-3xl leading-none text-amber-500 dark:text-amber-400">
+            <span className={cn("shrink-0 text-3xl leading-none", AMBER_PREMIUM_TEXT_PRIMARY)}>
               ⚠️
             </span>
           </div>
@@ -944,7 +951,7 @@ export default function SellerCalculadoraPage() {
                 aria-hidden
               />
               <div className="flex flex-1 flex-col sm:flex-row sm:items-center gap-4 px-4 py-4 sm:px-5 sm:py-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-200/80 dark:ring-emerald-800/50">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-300/80 dark:ring-emerald-900/50">
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                     <path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z" />
                     <path d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2" />
@@ -1129,7 +1136,7 @@ export default function SellerCalculadoraPage() {
                 </div>
               </div>
               {isModoTodos && (
-                <p className="text-[11px] leading-snug text-orange-600 dark:text-orange-400 font-medium mt-2">
+                <p className={cn("text-[11px] leading-snug font-medium mt-2", AMBER_PREMIUM_TEXT_SOFT)}>
                   Só entra nas linhas Mercado Livre do comparativo — TikTok, Shopee e Shein não usam.
                 </p>
               )}
@@ -1281,7 +1288,7 @@ export default function SellerCalculadoraPage() {
                 </div>
               </div>
               {isModoTodos && (
-                <p className="text-[11px] leading-snug text-orange-600 dark:text-orange-400 font-medium mt-2">
+                <p className={cn("text-[11px] leading-snug font-medium mt-2", AMBER_PREMIUM_TEXT_SOFT)}>
                   No comparativo, as linhas Shein ignoram ADS/TACOS (vale ML, TikTok e Shopee).
                 </p>
               )}
@@ -1403,7 +1410,7 @@ export default function SellerCalculadoraPage() {
                       key={v.key}
                       className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5 space-y-2"
                     >
-                      <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 uppercase tracking-wide">{v.label}</p>
+                      <p className={cn("text-xs font-semibold uppercase tracking-wide", AMBER_PREMIUM_TEXT_BODY)}>{v.label}</p>
                       <div className="flex justify-between items-center gap-2 text-sm">
                         <span className="text-neutral-500 shrink-0">Preço</span>
                         <span className="font-bold tabular-nums text-neutral-900 dark:text-neutral-100 text-right">
@@ -1542,7 +1549,7 @@ export default function SellerCalculadoraPage() {
                           <td className="px-3 py-2.5 text-neutral-900 dark:text-neutral-100 font-medium align-top">
                             {mp.nome}
                             {badgeSeuCanal(mp.nome) && (
-                              <span className="block text-[10px] uppercase text-amber-600 dark:text-amber-400 mt-0.5">seu canal</span>
+                              <span className={cn("block text-[10px] uppercase mt-0.5", AMBER_PREMIUM_LINK)}>seu canal</span>
                             )}
                           </td>
                           <td className="px-3 py-2.5 text-right font-semibold text-neutral-900 dark:text-neutral-100 tabular-nums align-top">

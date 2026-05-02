@@ -8,6 +8,8 @@ import { Button, PageLayout } from "@/components/ui";
 import { toTitleCase } from "@/lib/formatText";
 import { MESES_MINIMOS_COM_FORNECEDOR, dataMinimaTrocaFornecedor, podeTrocarFornecedorAgora } from "@/lib/sellerFornecedorVinculo";
 import { sellerCadastroPendente } from "@/lib/sellerDocumento";
+import { AMBER_PREMIUM_LINK, AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 type Seller = {
   id: string;
@@ -336,7 +338,7 @@ export default function AdminSellersPage() {
                 Documento: {detail.documento || "—"} · Plano: {detail.plano || "—"} · Status: {detail.status}
               </div>
               {sellerCadastroPendente(detail.documento, detail.plano) && (
-                <p className="text-[12px] text-amber-800 dark:text-amber-300 mt-2 leading-relaxed">
+                <p className={cn("text-[12px] mt-2 leading-relaxed", AMBER_PREMIUM_TEXT_SOFT)}>
                   O seller ainda não concluiu dados comerciais, CNPJ/CPF, endereço ou escolha de plano no painel. Gere o convite para ele acessar e preencher em Cadastro.
                 </p>
               )}
@@ -407,7 +409,7 @@ export default function AdminSellersPage() {
                   const min = dataMinimaTrocaFornecedor(detail.fornecedor_vinculado_em ?? null);
                   if (detail.fornecedor_desvinculo_liberado) {
                     return (
-                      <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-2 font-medium">
+                      <p className={cn("text-[11px] mt-2 font-medium", AMBER_PREMIUM_TEXT_SOFT)}>
                         Liberação antecipada ativa — pode trocar ou desvincular o armazém pelo painel (com registro interno).
                       </p>
                     );
@@ -421,7 +423,7 @@ export default function AdminSellersPage() {
                     );
                   }
                   return (
-                    <p className="text-[11px] text-emerald-800 dark:text-emerald-300 mt-2">
+                    <p className="text-[11px] text-emerald-900 dark:text-emerald-300 mt-2">
                       Período mínimo já cumprido — pode alterar o armazém vinculado.
                     </p>
                   );
@@ -708,7 +710,7 @@ export default function AdminSellersPage() {
                 {s.documento && `${s.documento} · `}
                 Saldo: {formatMoney(s.saldo_atual)} · Status: {s.status}
                 {sellerCadastroPendente(s.documento, s.plano) && (
-                  <span className="text-amber-700 dark:text-amber-400"> · Cadastro / plano pendente</span>
+                  <span className={cn(AMBER_PREMIUM_LINK)}> · Cadastro / plano pendente</span>
                 )}
               </div>
             </div>

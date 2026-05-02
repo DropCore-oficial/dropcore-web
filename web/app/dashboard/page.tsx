@@ -9,6 +9,13 @@ import { MobileAppBar } from "@/components/MobileAppBar";
 import { AdminMobileBottomNav } from "@/components/AdminMobileBottomNav";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import {
+  AMBER_PREMIUM_SHELL,
+  AMBER_PREMIUM_SURFACE,
+  AMBER_PREMIUM_TEXT_PRIMARY,
+  AMBER_PREMIUM_TEXT_SOFT,
+} from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 type MeResponse = {
   user_id: string;
@@ -142,7 +149,7 @@ function VendasPorDiaChartBlock({
           <div className="grid min-w-0" style={{ ...gridCols, ...gapStyle }}>
             {series.map((d) => (
               <div key={`v-${d.dia}`} className="min-w-0 px-0.5 text-center">
-                <span className="block truncate text-[9px] font-semibold tabular-nums text-emerald-800 dark:text-emerald-200/95 sm:text-[10px]">
+                <span className="block truncate text-[9px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-300 sm:text-[10px]">
                   {formatChartBarValue(d.total)}
                 </span>
                 {d.count > 0 && (
@@ -184,7 +191,7 @@ function VendasPorDiaChartBlock({
                     onMouseLeave={() => setChartTooltipHover(null)}
                   >
                     <div
-                      className="mx-auto w-full max-w-[3.25rem] rounded-t-[6px] bg-gradient-to-b from-emerald-400 to-emerald-600 shadow-sm ring-1 ring-emerald-600/25 transition group-hover:from-emerald-300 group-hover:to-emerald-500 dark:from-emerald-500 dark:to-emerald-700 dark:ring-emerald-500/30"
+                      className="mx-auto w-full max-w-[3.25rem] rounded-t-[6px] bg-gradient-to-b from-emerald-400 to-emerald-600 shadow-sm ring-1 ring-emerald-600/25 transition group-hover:opacity-90 dark:from-emerald-500 dark:to-emerald-600 dark:ring-emerald-500/30"
                       style={{ height: `${barH}px` }}
                     />
                     {chartTooltipHover?.dia === d.dia && (
@@ -329,7 +336,7 @@ function AdminNavIcon({ id }: { id: string }) {
 function secoesBadgeClass(tone: "amber" | "sky" | "violet") {
   switch (tone) {
     case "amber":
-      return "bg-amber-100 dark:bg-amber-950/35 text-amber-900 dark:text-amber-300 border border-amber-200/90 dark:border-amber-800/60";
+      return cn(AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY);
     case "sky":
       return "bg-sky-100 dark:bg-sky-950/35 text-sky-900 dark:text-sky-300 border border-sky-200/90 dark:border-sky-800/60";
     case "violet":
@@ -578,8 +585,8 @@ export default function DashboardPage() {
   };
 
   const alertaBtnMap: Record<string, string> = {
-    amber: "bg-emerald-600 hover:bg-emerald-700 text-white",
-    blue: "bg-emerald-600 hover:bg-emerald-700 text-white",
+    amber: "bg-emerald-600 hover:opacity-90 text-white",
+    blue: "bg-emerald-600 hover:opacity-90 text-white",
     red: "bg-red-600 hover:bg-red-700 text-white",
   };
 
@@ -587,7 +594,7 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 border-t-emerald-500 dark:border-t-emerald-500 animate-spin" />
+          <div className="w-10 h-10 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 border-t-emerald-600 dark:border-t-emerald-500 animate-spin" />
           <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando...</p>
         </div>
       </div>
@@ -628,9 +635,9 @@ export default function DashboardPage() {
           <DropCoreLogo variant="horizontal" href="/dashboard" className="shrink-0" />
           <Link
             href="/dashboard"
-            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium border-b-2 -mb-px text-emerald-600 dark:text-emerald-400 border-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-950/20 transition-colors"
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium border-b-2 -mb-px text-emerald-600 dark:text-emerald-400 border-emerald-600 hover:bg-emerald-600/10 dark:hover:bg-emerald-500/15 transition-colors"
           >
-            <svg className="w-5 h-5 shrink-0 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <svg className="w-5 h-5 shrink-0 text-emerald-600 dark:text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
               <polyline points="9 22 9 12 15 12 15 22" />
             </svg>
@@ -644,7 +651,7 @@ export default function DashboardPage() {
         {/* 1. Header — igual ao seller/fornecedor */}
         <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 min-w-0">
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center text-base font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600/10 dark:bg-emerald-600/15 flex items-center justify-center text-base font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">
               {roleInitial}
             </div>
             <div>
@@ -653,7 +660,7 @@ export default function DashboardPage() {
                 <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 truncate">{roleLabel}</h1>
                 {stats?.plano && (
                   <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
-                    isPro ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                    isPro ? "bg-emerald-600/10 dark:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
                   }`}>
                     {stats.plano.toUpperCase()}
                   </span>
@@ -692,10 +699,10 @@ export default function DashboardPage() {
           const deveAlertar = repasseFuturosValor > 0 || repasseFuturosPedidos > 0;
 
           const cls = deveAlertar
-            ? "rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-100 dark:bg-amber-950/20 shadow-sm overflow-hidden"
+            ? cn(AMBER_PREMIUM_SURFACE, "rounded-xl shadow-sm overflow-hidden")
             : "rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden";
 
-          const tituloCls = deveAlertar ? "text-amber-800 dark:text-amber-300" : "text-neutral-600 dark:text-neutral-400";
+          const tituloCls = deveAlertar ? AMBER_PREMIUM_TEXT_SOFT : "text-neutral-600 dark:text-neutral-400";
 
           return (
             <section className={cls}>
@@ -788,7 +795,7 @@ export default function DashboardPage() {
                   onClick={() => router.push("/admin/pedidos")}
                   className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 >
-                  <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/90 font-medium">Aguard. envio</p>
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium">Aguard. envio</p>
                   <p className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400 leading-tight mt-0.5">
                     {stats.pedidos_aguardando_envio ?? 0}
                   </p>
@@ -798,7 +805,7 @@ export default function DashboardPage() {
                   onClick={() => router.push("/admin/repasse-fornecedor")}
                   className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 >
-                  <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/90 font-medium">A repassar</p>
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium">A repassar</p>
                   <p className="text-lg font-bold tabular-nums text-neutral-900 dark:text-neutral-100 leading-tight mt-0.5">
                     {stats.repasses_pendentes ?? 0}
                   </p>
@@ -808,7 +815,7 @@ export default function DashboardPage() {
                   onClick={() => router.push("/admin/pedidos")}
                   className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 >
-                  <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/90 font-medium">Pedidos hoje</p>
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium">Pedidos hoje</p>
                   <p className="text-lg font-bold text-neutral-900 dark:text-neutral-100 tabular-nums leading-tight mt-0.5">{stats.pedidos_hoje ?? 0}</p>
                 </button>
                 <button
@@ -816,7 +823,7 @@ export default function DashboardPage() {
                   onClick={() => router.push("/admin/empresas")}
                   className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 >
-                  <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/90 font-medium">Entrada mês</p>
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium">Entrada mês</p>
                   <p className="text-lg font-bold text-neutral-900 dark:text-neutral-100 tabular-nums leading-tight mt-0.5">{BRL.format(stats.entrada_mes ?? 0)}</p>
                 </button>
               </div>
@@ -847,7 +854,7 @@ export default function DashboardPage() {
             onClick={() => router.push("/admin/catalogo?estoqueBaixo=1")}
             className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 flex items-center gap-3 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
-            <div className="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0 text-emerald-700 dark:text-emerald-400">
+            <div className="w-9 h-9 rounded-lg bg-emerald-600/10 dark:bg-emerald-600/15 flex items-center justify-center shrink-0 text-emerald-700 dark:text-emerald-400">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 9v4" />
                 <path d="M10.363 3.591 2.257 18.028a1.5 1.5 0 0 0 1.274 2.257h16.938a1.5 1.5 0 0 0 1.274-2.257L13.637 3.59a1.5 1.5 0 0 0-2.274 0z" />
@@ -860,7 +867,7 @@ export default function DashboardPage() {
               </p>
               <p className="text-xs text-neutral-500 dark:text-neutral-400">Clique para ver catálogo e repor estoque</p>
             </div>
-            <svg className="w-5 h-5 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg>
+            <svg className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg>
           </button>
         )}
 
@@ -893,7 +900,7 @@ export default function DashboardPage() {
             onClick={() => router.push("/platform")}
             className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-4 flex items-center gap-3 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0 text-emerald-700 dark:text-emerald-400">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600/10 dark:bg-emerald-600/15 flex items-center justify-center shrink-0 text-emerald-700 dark:text-emerald-400">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                 <polyline points="9 22 9 12 15 12 15 22" />
@@ -902,11 +909,11 @@ export default function DashboardPage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-0.5">
                 <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Painel da Plataforma</p>
-                <span className="rounded-full bg-emerald-600 dark:bg-emerald-500 px-2 py-0.5 text-[10px] font-bold text-white">OWNER</span>
+                <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">OWNER</span>
               </div>
               <p className="text-xs text-neutral-500 dark:text-neutral-400">Receita total, todas as orgs, MRR — visível só para você</p>
             </div>
-            <svg className="w-5 h-5 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg>
+            <svg className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg>
           </button>
         )}
 
@@ -916,8 +923,8 @@ export default function DashboardPage() {
             <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
               <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 bg-[var(--card)]">
                 <div className="flex items-center gap-2">
-                  <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Analytics</p>
-                  <span className="rounded-full bg-emerald-600 dark:bg-emerald-500 px-2.5 py-0.5 text-[10px] font-bold text-white">PRO · 30 dias</span>
+                  <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Analytics</p>
+                  <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-bold text-white">PRO · 30 dias</span>
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 divide-x divide-y sm:divide-y-0 divide-neutral-100 dark:divide-neutral-800">

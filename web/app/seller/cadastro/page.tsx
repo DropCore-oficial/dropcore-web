@@ -283,7 +283,7 @@ export default function SellerCadastroPage() {
           </div>
         )}
         {okMsg && (
-          <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-100 dark:bg-emerald-950/25 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-100">
+          <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-100 dark:bg-emerald-950/25 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100">
             {okMsg}
           </div>
         )}

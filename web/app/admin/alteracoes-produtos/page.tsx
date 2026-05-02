@@ -377,7 +377,7 @@ export default function AdminAlteracoesProdutosPage() {
                         type="button"
                         onClick={() => void aprovarEmMassa(filtradas.map((x) => x.id))}
                         disabled={actingBulk}
-                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-emerald-600 bg-emerald-100 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100/80 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:border-emerald-500/70 dark:bg-emerald-950/25 dark:text-emerald-200 dark:hover:bg-emerald-950/45 dark:disabled:ring-white/15 sm:min-w-[240px] sm:flex-none"
+                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-emerald-600 bg-emerald-100 px-4 py-2.5 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100/80 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:border-emerald-500/70 dark:bg-emerald-950/25 dark:text-emerald-300 dark:hover:bg-emerald-950/45 dark:disabled:ring-white/15 sm:min-w-[240px] sm:flex-none"
                       >
                         {bulkAction === "approve" ? "..." : `Aprovar todas (${filtradas.length})`}
                       </button>

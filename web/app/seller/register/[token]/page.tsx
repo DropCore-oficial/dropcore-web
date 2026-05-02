@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_BODY, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 export default function SellerRegisterPage() {
   const { token } = useParams<{ token: string }>();
@@ -293,16 +295,16 @@ export default function SellerRegisterPage() {
           )}
 
           {needsLink && (
-            <div className="mt-4 rounded-xl border border-amber-300 bg-amber-100 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+            <div className={cn(AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY, "mt-4 rounded-xl px-4 py-3 text-sm")}>
               <p className="font-medium mb-2">Conta já existe com este e-mail</p>
-              <p className="text-amber-800/90 dark:text-amber-200/90 text-xs leading-relaxed mb-3">
+              <p className={cn("text-xs leading-relaxed mb-3", AMBER_PREMIUM_TEXT_BODY)}>
                 Confirme o e-mail e a <strong>senha dessa conta</strong> acima e use o botão abaixo para entrar e vincular ao convite do seller <strong>{sellerNome}</strong> (sem criar usuário novo).
               </p>
               <button
                 type="button"
                 onClick={() => void vincularContaExistente()}
                 disabled={sending}
-                className="w-full rounded-xl border border-amber-600 bg-amber-600 text-white font-semibold py-2.5 text-sm hover:opacity-90 transition disabled:opacity-60"
+                className="w-full rounded-xl border border-[#006e52] bg-[#008060] text-white font-semibold py-2.5 text-sm shadow-sm transition hover:bg-[#006e52] disabled:opacity-60"
               >
                 {sending ? "A vincular..." : "Entrar e vincular ao convite"}
               </button>

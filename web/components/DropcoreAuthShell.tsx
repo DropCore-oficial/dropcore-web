@@ -43,11 +43,11 @@ export const authAlertErrorClass =
 /** Aviso “porta errada” (seller/fornecedor no /login) — discreto, não compete com o botão Entrar. */
 export const authPortalHintClass = cn(
   "mt-4 rounded-lg border border-neutral-200/90 border-l-[3px] border-l-amber-400 bg-neutral-50/90",
-  "px-3.5 py-3.5 dark:border-neutral-700 dark:border-l-amber-500 dark:bg-neutral-900/40",
+  "ring-1 ring-amber-600/10 px-3.5 py-3.5 dark:border-neutral-700 dark:border-l-amber-400 dark:bg-neutral-900 dark:ring-amber-400/35",
 );
 
 export const authAlertSuccessClass =
-  "mt-4 rounded-lg border border-emerald-200 bg-emerald-100 px-3.5 py-3 text-sm text-emerald-800 dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-200";
+  "mt-4 rounded-lg border border-emerald-300 bg-emerald-100 px-3.5 py-3 text-sm text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300";
 
 /** Link secundário (esqueci senha, rodapé). */
 export const authMutedLinkClass =

@@ -28,7 +28,7 @@ export function SellerPageHeader({
       : "text-xl sm:text-2xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight leading-snug";
   const accentClass =
     surface === "hero"
-      ? "h-1 w-12 sm:w-14 rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-300/80 shrink-0 self-center shadow-sm shadow-emerald-500/25"
+      ? "h-1 w-12 sm:w-14 rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/80 shrink-0 self-center shadow-sm shadow-emerald-500/25"
       : "h-1 w-10 sm:w-12 rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 shrink-0 self-center";
   const subtitleClass =
     surface === "hero"

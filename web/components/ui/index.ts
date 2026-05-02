@@ -2,6 +2,7 @@ export { Card } from "./Card";
 export { Button } from "./Button";
 export { Badge } from "./Badge";
 export { Alert } from "./Alert";
+export { AmberPremiumCallout } from "./AmberPremiumCallout";
 export { SectionHeader } from "./SectionHeader";
 export { Input } from "./Input";
 export { PageLayout } from "./PageLayout";

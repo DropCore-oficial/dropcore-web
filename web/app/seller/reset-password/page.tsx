@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_BODY, AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 export default function SellerResetPasswordPage() {
   const router = useRouter();
@@ -92,8 +94,8 @@ export default function SellerResetPasswordPage() {
             <DropCoreLogo variant="horizontal" href={null} className="mb-2" />
             <p className="text-[var(--muted)] text-sm">Redefinir senha</p>
           </div>
-          <div className="rounded-2xl border border-amber-300 dark:border-amber-700 bg-amber-100 dark:bg-amber-950/40 p-6 shadow-sm">
-            <p className="text-amber-800 dark:text-amber-200 text-sm mb-4">
+          <div className={cn(AMBER_PREMIUM_SURFACE, "rounded-2xl p-6 shadow-sm")}>
+            <p className={cn("text-sm mb-4", AMBER_PREMIUM_TEXT_BODY)}>
               O link de redefinição expirou ou é inválido. Solicite um novo link.
             </p>
             <button
@@ -209,7 +211,7 @@ export default function SellerResetPasswordPage() {
           )}
 
           {!temSessao && pronto && (
-            <p className="mt-3 text-amber-700 text-xs">
+            <p className={cn("mt-3 text-xs", AMBER_PREMIUM_TEXT_SOFT)}>
               Acesse esta página clicando no link do e-mail. Se o link expirou, solicite um novo.
             </p>
           )}

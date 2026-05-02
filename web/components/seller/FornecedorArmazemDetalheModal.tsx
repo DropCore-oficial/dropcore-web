@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { cn } from "@/lib/utils";
 
 function str(v: unknown): string {
   if (v == null) return "";
@@ -83,7 +85,7 @@ export function FornecedorArmazemDetalheModal({ fornecedorId, onClose }: Props) 
           {!loading && payload && (
             <>
               {payload.aviso_uso ? (
-                <p className="text-[11px] sm:text-xs text-amber-900 dark:text-amber-100/95 leading-relaxed rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-100 dark:bg-amber-950/40 px-3 py-2">
+                <p className={cn(AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY, "text-[11px] sm:text-xs leading-relaxed rounded-lg px-3 py-2")}>
                   {payload.aviso_uso}
                 </p>
               ) : null}

@@ -227,7 +227,7 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
                         e.stopPropagation();
                         void abrirTabelaMedidas(grupo.paiKey);
                       }}
-                      className="text-xs font-medium text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg px-2 py-1"
+                      className="text-xs font-medium text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-900 rounded-lg px-2 py-1"
                     >
                       Medidas
                     </button>

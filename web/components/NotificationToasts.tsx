@@ -65,7 +65,7 @@ export function NotificationToasts() {
       {toasts.map((n) => (
         <div
           key={n.id}
-          className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-100 dark:bg-emerald-950/80 dark:bg-opacity-95 px-4 py-3 shadow-lg animate-in slide-in-from-right-5"
+          className="rounded-xl border border-emerald-300 dark:border-emerald-900 bg-emerald-100 dark:bg-emerald-950/80 dark:bg-opacity-95 px-4 py-3 shadow-lg animate-in slide-in-from-right-5"
         >
           <p className="font-semibold text-emerald-900 dark:text-emerald-100 text-sm">{n.titulo}</p>
           {n.mensagem && <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">{n.mensagem}</p>}

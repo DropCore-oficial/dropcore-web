@@ -199,7 +199,7 @@ export default function CriarUnicoPage() {
               <Link href="/fornecedor/produtos" className="flex-1 rounded-lg border border-neutral-300 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-100 text-center">
                 Cancelar
               </Link>
-              <button type="submit" disabled={formLoading} className="flex-1 rounded-lg bg-blue-600 text-white font-semibold px-4 py-2.5 text-sm hover:bg-blue-700 disabled:opacity-60">
+              <button type="submit" disabled={formLoading} className="flex-1 rounded-lg bg-[var(--primary-blue)] text-white font-semibold px-4 py-2.5 text-sm hover:bg-[var(--primary-blue-hover)] disabled:opacity-60">
                 {formLoading ? "Salvando..." : "Adicionar"}
               </button>
             </div>

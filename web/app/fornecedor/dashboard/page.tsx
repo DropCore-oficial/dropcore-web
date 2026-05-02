@@ -8,6 +8,14 @@ import { FornecedorNav } from "../FornecedorNav";
 import { NotificationBell } from "@/components/NotificationBell";
 import { NotificationToasts } from "@/components/NotificationToasts";
 import { IconArrowRight, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
+import { AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
+import { cn } from "@/lib/utils";
+
+const FORNECEDOR_BADGE_PENDENTE = cn(
+  AMBER_PREMIUM_SURFACE_TRANSPARENT,
+  AMBER_PREMIUM_TEXT_PRIMARY
+);
 
 type FornecedorData = {
   id: string;
@@ -69,7 +77,7 @@ function subtituloBannerMensalidade(
 }
 
 const statusLabel: Record<string, { label: string; cor: string }> = {
-  pendente: { label: "Pendente", cor: "text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700" },
+  pendente: { label: "Pendente", cor: FORNECEDOR_BADGE_PENDENTE },
   liberado: { label: "Liberado", cor: "text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/40 border-sky-300 dark:border-sky-700" },
   pago: { label: "Pago", cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700" },
 };
@@ -406,7 +414,11 @@ export default function FornecedorDashboardPage() {
               {(stats?.pedidos_aguardando_postagem ?? 0) > 0 && (
                 <Link
                   href="/fornecedor/pedidos?status=enviado"
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500/15 dark:bg-amber-500/20 border border-amber-400/40 dark:border-amber-600/40 px-3 py-2 text-xs font-semibold text-amber-900 dark:text-amber-200 touch-manipulation hover:bg-amber-500/25 transition-colors"
+                  className={cn(
+                    AMBER_PREMIUM_SURFACE_TRANSPARENT,
+                    AMBER_PREMIUM_TEXT_PRIMARY,
+                    "inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold touch-manipulation transition-colors hover:opacity-95 dark:hover:border-amber-300/70"
+                  )}
                 >
                   <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-md bg-amber-500 text-white text-[10px] font-bold tabular-nums">
                     {stats?.pedidos_aguardando_postagem ?? 0}
@@ -454,20 +466,10 @@ export default function FornecedorDashboardPage() {
 
         {/* 1b. Repasses futuros — alerta no início */}
         {repasseFuturos.length > 0 && (
-          <section className="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-100 dark:bg-amber-950/20 shadow-sm overflow-hidden">
-            <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">Repasses futuros</p>
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 mt-0.5 tabular-nums">
-                  {BRL.format(totalRepasseFuturo)} previstos
-                </p>
-                {proxRepasseFuturo && (
-                  <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-1">
-                    Próximo: {formatDate(proxRepasseFuturo.ciclo_repasse)} · {proxRepasseFuturo.pedidos} pedido
-                    {proxRepasseFuturo.pedidos !== 1 ? "s" : ""}
-                  </p>
-                )}
-              </div>
+          <AmberPremiumCallout
+            title="Repasses futuros"
+            className="rounded-2xl shadow-sm overflow-hidden items-start px-4 py-4 sm:px-5"
+            action={
               <button
                 type="button"
                 onClick={() => {
@@ -478,8 +480,18 @@ export default function FornecedorDashboardPage() {
               >
                 Ver repasses →
               </button>
-            </div>
-          </section>
+            }
+          >
+            <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">
+              {BRL.format(totalRepasseFuturo)} previstos
+            </p>
+            {proxRepasseFuturo && (
+              <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-1">
+                Próximo: {formatDate(proxRepasseFuturo.ciclo_repasse)} · {proxRepasseFuturo.pedidos} pedido
+                {proxRepasseFuturo.pedidos !== 1 ? "s" : ""}
+              </p>
+            )}
+          </AmberPremiumCallout>
         )}
 
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
@@ -518,7 +530,7 @@ export default function FornecedorDashboardPage() {
               href="/fornecedor/produtos?estoqueBaixo=1"
               className={`group rounded-xl border px-3.5 py-3.5 min-h-[5.25rem] transition-all hover:shadow-sm text-left active:scale-[0.99] ${
                 (stats?.estoque_baixo ?? 0) > 0
-                  ? "border-amber-300/80 dark:border-amber-700/80 bg-amber-100 dark:bg-amber-950/20"
+                  ? AMBER_PREMIUM_SURFACE_TRANSPARENT
                   : "border-[var(--card-border)] bg-[var(--card)] hover:border-emerald-300 dark:hover:border-emerald-700"
               }`}
             >
@@ -961,7 +973,13 @@ export default function FornecedorDashboardPage() {
                   </div>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">Escaneie o QR Code ou copie o código PIX. Após pagar, aguarde a confirmação automática.</p>
                   {pixRestanteSec !== null && (
-                    <div className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium ${pixRestanteSec <= 60 ? "bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-200" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"}`}>
+                    <div
+                      className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium ${
+                        pixRestanteSec <= 60
+                          ? cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY)
+                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                      }`}
+                    >
                       <IconClock className={`w-4 h-4 shrink-0 ${pixRestanteSec <= 60 ? "animate-pulse" : ""}`} />
                       Válido por {Math.floor(pixRestanteSec / 60)}:{(pixRestanteSec % 60).toString().padStart(2, "0")}
                     </div>

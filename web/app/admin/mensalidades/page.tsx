@@ -744,7 +744,7 @@ export default function MensalidadesPage() {
       )}
       {success && (
         <div
-          className="rounded-xl border border-emerald-200 bg-emerald-100 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100"
+          className="rounded-xl border border-emerald-300 bg-emerald-100 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100"
           role="status"
         >
           {success}

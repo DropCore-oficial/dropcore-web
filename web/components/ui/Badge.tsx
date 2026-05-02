@@ -1,5 +1,17 @@
 "use client";
 
+import {
+  AMBER_PREMIUM_SHELL,
+  AMBER_PREMIUM_TEXT_PRIMARY,
+} from "@/lib/amberPremium";
+import {
+  DANGER_PREMIUM_SHELL,
+  DANGER_PREMIUM_TEXT_PRIMARY,
+  INFO_PREMIUM_SHELL,
+  INFO_PREMIUM_TEXT_PRIMARY,
+  SUCCESS_PREMIUM_SHELL,
+  SUCCESS_PREMIUM_TEXT_PRIMARY,
+} from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
 
 export type BadgeVariant = "success" | "danger" | "warning" | "info" | "neutral";
@@ -11,14 +23,10 @@ export type BadgeProps = {
 };
 
 const variantStyles: Record<BadgeVariant, string> = {
-  success:
-    "bg-[var(--success)]/15 text-[var(--success)] border border-[var(--success)]/30",
-  danger:
-    "bg-[var(--danger)]/15 text-[var(--danger)] border border-[var(--danger)]/30",
-  warning:
-    "bg-[var(--warning)]/15 text-[var(--warning)] border border-[var(--warning)]/30",
-  info:
-    "bg-[var(--info)]/15 text-[var(--info)] border border-[var(--info)]/30",
+  success: cn(SUCCESS_PREMIUM_SHELL, SUCCESS_PREMIUM_TEXT_PRIMARY),
+  danger: cn(DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY),
+  warning: cn(AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY),
+  info: cn(INFO_PREMIUM_SHELL, INFO_PREMIUM_TEXT_PRIMARY),
   neutral:
     "bg-[var(--card)] text-[var(--foreground)] border border-[var(--card-border)]",
 };

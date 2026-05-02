@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { AMBER_PREMIUM_LINK } from "@/lib/amberPremium";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { cn } from "@/lib/utils";
 
 type Notif = {
   id: string;
@@ -172,7 +174,7 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
           <div className="max-h-72 overflow-y-auto">
             {loading && itemsFiltrados.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-12">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-500 dark:border-emerald-800 dark:border-t-emerald-400" />
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-500 dark:border-emerald-900 dark:border-t-emerald-400" />
                 <p className="text-xs text-neutral-500">Carregando...</p>
               </div>
             ) : itemsFiltrados.length === 0 ? (
@@ -297,7 +299,7 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                               <a
                                 href="/admin/mensalidades"
                                 onClick={(e) => e.stopPropagation()}
-                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400 hover:underline"
+                                className={cn("mt-2 inline-flex items-center gap-1 text-xs font-medium hover:underline", AMBER_PREMIUM_LINK)}
                               >
                                 Ver mensalidades →
                               </a>
@@ -306,7 +308,7 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                               <a
                                 href={context === "fornecedor" ? "/fornecedor/dashboard?pagar=1" : context === "seller" ? "/seller/dashboard?pagar=1" : "/admin/mensalidades"}
                                 onClick={(e) => e.stopPropagation()}
-                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400 hover:underline"
+                                className={cn("mt-2 inline-flex items-center gap-1 text-xs font-medium hover:underline", AMBER_PREMIUM_LINK)}
                               >
                                 {context === "admin" ? "Ver mensalidades →" : "Pagar agora →"}
                               </a>
@@ -315,7 +317,7 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                               <a
                                 href="/seller/dashboard"
                                 onClick={(e) => e.stopPropagation()}
-                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400 hover:underline"
+                                className={cn("mt-2 inline-flex items-center gap-1 text-xs font-medium hover:underline", AMBER_PREMIUM_LINK)}
                               >
                                 Depositar PIX →
                               </a>
@@ -324,7 +326,7 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                               <a
                                 href={context === "seller" ? "/seller/produtos" : "/fornecedor/produtos?estoqueBaixo=1"}
                                 onClick={(e) => e.stopPropagation()}
-                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400 hover:underline"
+                                className={cn("mt-2 inline-flex items-center gap-1 text-xs font-medium hover:underline", AMBER_PREMIUM_LINK)}
                               >
                                 {context === "seller" ? "Ver catálogo →" : "Ver produtos →"}
                               </a>

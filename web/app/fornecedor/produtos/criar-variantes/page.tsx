@@ -30,6 +30,13 @@ import {
 } from "@/lib/fornecedorCriarVariantesRascunho";
 import { buildExpedicaoPadraoLinha } from "@/lib/expedicaoFornecedorFormat";
 import { cepParaConsultaViaCep } from "@/lib/cepViaCep";
+import {
+  AMBER_PREMIUM_SURFACE_TRANSPARENT,
+  AMBER_PREMIUM_TEXT_BODY,
+  AMBER_PREMIUM_TEXT_PRIMARY,
+  AMBER_PREMIUM_TEXT_SOFT,
+} from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 function upperBr(s: string): string {
   return s.toLocaleUpperCase("pt-BR");
@@ -2224,8 +2231,8 @@ export default function CriarVariantesPage() {
               <div
                 className={
                   msgRascunho.tipo === "sucesso"
-                    ? "rounded-lg border border-emerald-200 bg-emerald-100 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100"
-                    : "rounded-lg border border-amber-200 bg-amber-100 p-3 text-sm text-amber-950 dark:border-amber-800/80 dark:bg-amber-950/35 dark:text-amber-100"
+                    ? "rounded-lg border border-emerald-300 bg-emerald-100 p-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100"
+                    : cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY, "rounded-lg p-3 text-sm")
                 }
                 role="status"
               >
@@ -2513,7 +2520,7 @@ export default function CriarVariantesPage() {
                         </button>
                       </div>
                       {avisoFoto && (
-                        <p className="mt-2 text-xs text-amber-700 dark:text-amber-300" role="status">
+                        <p className={cn("mt-2 text-xs", AMBER_PREMIUM_TEXT_SOFT)} role="status">
                           {avisoFoto}
                         </p>
                       )}
@@ -3100,7 +3107,7 @@ export default function CriarVariantesPage() {
                     </span>
                   </label>
                   {cdUsarDespachoCadastro && !perfilExpedicaoPreenchido && (
-                    <p className="text-[11px] leading-snug text-amber-800 dark:text-amber-200/90">
+                    <p className={cn("text-[11px] leading-snug", AMBER_PREMIUM_TEXT_BODY)}>
                       Não há despacho cadastrado ainda. Preencha o bloco «Despacho / CD padrão» em{" "}
                       <Link href="/fornecedor/cadastro" className="font-medium underline-offset-2 hover:underline">
                         Cadastro

@@ -17,6 +17,8 @@ import {
 import { catalogoV2UrlImagem } from "./catalogoV2Imagem";
 import { CatalogoV2VariacaoRow } from "./CatalogoV2VariacaoRow";
 import { skuProntoParaVender } from "@/lib/sellerSkuReadiness";
+import { AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 type GrupoView = { paiKey: string; pai: SellerCatalogoItem | null; filhos: SellerCatalogoItem[] };
 
@@ -183,7 +185,13 @@ export function CatalogoV2ProdutoCard({
   const badge = useMemo(() => {
     if (sg === "pendencias") {
       return (
-        <span className="inline-flex max-w-full rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900 ring-1 ring-amber-200/80 dark:bg-amber-950/35 dark:text-amber-100 dark:ring-amber-800/50">
+        <span
+          className={cn(
+            AMBER_PREMIUM_SURFACE_TRANSPARENT,
+            AMBER_PREMIUM_TEXT_PRIMARY,
+            "inline-flex max-w-full rounded-full px-2 py-0.5 text-[11px] font-medium"
+          )}
+        >
           Com pendência
         </span>
       );

@@ -9,6 +9,14 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { IconTipoExtrato, IconDevolucao, IconArrowRight, IconPlus, IconClipboard, IconDeposito, IconChevronDown, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
 import { planoSellerDefinido } from "@/lib/sellerDocumento";
+import {
+  AMBER_PREMIUM_SHELL,
+  AMBER_PREMIUM_SURFACE,
+  AMBER_PREMIUM_TEXT_PRIMARY,
+} from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
+
+const SELLER_LEDGER_BADGE_AMBER = cn(AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY);
 
 type SellerData = {
   id: string;
@@ -121,10 +129,10 @@ const tipoLabel: Record<string, { label: string }> = {
 };
 
 const statusLabel: Record<string, { label: string; cor: string }> = {
-  BLOQUEADO:         { label: "Aguardando envio",  cor: "text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700" },
+  BLOQUEADO:         { label: "Aguardando envio",  cor: SELLER_LEDGER_BADGE_AMBER },
   ENTREGUE:          { label: "Entregue",           cor: "text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-950/40 border-blue-300 dark:border-blue-700" },
   AGUARDANDO_REPASSE:{ label: "Pedido postado",     cor: "text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/40 border-sky-300 dark:border-sky-700" },
-  EM_DEVOLUCAO:      { label: "Em devolução",       cor: "text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-950/40 border-orange-300 dark:border-orange-700" },
+  EM_DEVOLUCAO:      { label: "Em devolução",       cor: "text-rose-800 dark:text-rose-200 bg-rose-100 dark:bg-rose-950/45 border-rose-300/90 dark:border-rose-800/80" },
   DEVOLVIDO:         { label: "Devolvido",          cor: "text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-950/40 border-violet-300 dark:border-violet-700" },
   PAGO:              { label: "Concluído",          cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700" },
   CANCELADO:         { label: "Cancelado",          cor: "text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700" },
@@ -677,7 +685,7 @@ export default function SellerDashboardPage() {
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 truncate">{seller?.nome}</h1>
                 {!planoOk ? (
-                  <span className="rounded-md px-2 py-0.5 text-[10px] font-semibold bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-200">
+                  <span className={cn(SELLER_LEDGER_BADGE_AMBER, "rounded-md px-2 py-0.5 text-[10px] font-semibold")}>
                     Plano pendente
                   </span>
                 ) : (
@@ -713,11 +721,11 @@ export default function SellerDashboardPage() {
             role="note"
             className={`rounded-xl border p-4 text-sm shadow-sm ${
               vinculoFornecedor.liberado_antecipado
-                ? "border-amber-300 bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30"
+                ? cn(AMBER_PREMIUM_SURFACE)
                 : "border-sky-300 bg-sky-100 dark:border-sky-800 dark:bg-sky-950/25"
             }`}
           >
-            <p className={`font-semibold ${vinculoFornecedor.liberado_antecipado ? "text-amber-900 dark:text-amber-200" : "text-sky-900 dark:text-sky-200"}`}>
+            <p className={`font-semibold ${vinculoFornecedor.liberado_antecipado ? AMBER_PREMIUM_TEXT_PRIMARY : "text-sky-900 dark:text-sky-200"}`}>
               {vinculoFornecedor.liberado_antecipado ? "Troca de armazém liberada pela DropCore" : "Compromisso mínimo com o armazém"}
             </p>
             <p className="mt-1 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
@@ -743,9 +751,9 @@ export default function SellerDashboardPage() {
         {vinculoFornecedor?.ativo && !vinculoFornecedor.dentro_compromisso && !vinculoFornecedor.liberado_antecipado && (
           <div
             role="note"
-            className="rounded-xl border border-emerald-200 bg-emerald-100 p-4 text-sm shadow-sm dark:border-emerald-800 dark:bg-emerald-950/25"
+            className="rounded-xl border border-emerald-300 bg-emerald-100 p-4 text-sm shadow-sm dark:border-emerald-900 dark:bg-emerald-950/25"
           >
-            <p className="font-semibold text-emerald-900 dark:text-emerald-200">Armazém vinculado — troca liberada</p>
+            <p className="font-semibold text-emerald-900 dark:text-emerald-300">Armazém vinculado — troca liberada</p>
             <p className="mt-1 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
               {vinculoFornecedor.pode_trocar_a_partir_de ? (
                 <>
@@ -768,10 +776,10 @@ export default function SellerDashboardPage() {
             className={`rounded-xl border p-4 shadow-sm ${
               saldoAlerta.nivel === "critico"
                 ? "border-red-300 bg-red-100 dark:border-red-800 dark:bg-red-950/35"
-                : "border-amber-300 bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30"
+                : cn(AMBER_PREMIUM_SURFACE)
             }`}
           >
-            <p className={`text-sm font-semibold ${saldoAlerta.nivel === "critico" ? "text-red-900 dark:text-red-200" : "text-amber-900 dark:text-amber-200"}`}>
+            <p className={`text-sm font-semibold ${saldoAlerta.nivel === "critico" ? "text-red-900 dark:text-red-200" : AMBER_PREMIUM_TEXT_PRIMARY}`}>
               {saldoAlerta.nivel === "critico" ? "Saldo crítico para novos pedidos" : "Saldo baixo — antecipe um depósito"}
             </p>
             <p className="mt-1 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
@@ -795,7 +803,7 @@ export default function SellerDashboardPage() {
               type="button"
               onClick={() => setModalDeposito(true)}
               className={`mt-3 rounded-lg px-4 py-2 text-sm font-semibold text-white ${
-                saldoAlerta.nivel === "critico" ? "bg-red-700 hover:bg-red-800" : "bg-amber-700 hover:bg-amber-800"
+                saldoAlerta.nivel === "critico" ? "bg-red-700 hover:bg-red-800" : "bg-emerald-600 hover:bg-emerald-700"
               }`}
             >
               Depositar PIX
@@ -1314,7 +1322,7 @@ export default function SellerDashboardPage() {
                           d.status === "aprovado"
                             ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300"
                             : d.status === "pendente"
-                              ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300"
+                              ? SELLER_LEDGER_BADGE_AMBER
                               : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
                         }`}>
                           {d.status === "aprovado" ? "Aprovado" : d.status === "pendente" ? "Pendente" : d.status}
@@ -1349,7 +1357,13 @@ export default function SellerDashboardPage() {
                     </div>
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">Escaneie o QR Code ou copie o código PIX. O saldo será creditado automaticamente após o pagamento.</p>
                     {depositoRestanteSec !== null && (
-                      <div className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium ${depositoRestanteSec <= 60 ? "bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-200" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"}`}>
+                      <div
+                        className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium ${
+                          depositoRestanteSec <= 60
+                            ? cn(AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY)
+                            : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                        }`}
+                      >
                         <IconClock className={`w-4 h-4 shrink-0 ${depositoRestanteSec <= 60 ? "animate-pulse" : ""}`} />
                         Válido por {Math.floor(depositoRestanteSec / 60)}:{(depositoRestanteSec % 60).toString().padStart(2, "0")}
                       </div>
@@ -1460,7 +1474,13 @@ export default function SellerDashboardPage() {
                     </div>
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">Escaneie o QR Code ou copie o código PIX. Após pagar, aguarde a confirmação automática.</p>
                     {pixRestanteSec !== null && (
-                      <div className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium ${pixRestanteSec <= 60 ? "bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-200" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"}`}>
+                      <div
+                        className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium ${
+                          pixRestanteSec <= 60
+                            ? cn(AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY)
+                            : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                        }`}
+                      >
                         <IconClock className={`w-4 h-4 shrink-0 ${pixRestanteSec <= 60 ? "animate-pulse" : ""}`} />
                         Válido por {Math.floor(pixRestanteSec / 60)}:{(pixRestanteSec % 60).toString().padStart(2, "0")}
                       </div>

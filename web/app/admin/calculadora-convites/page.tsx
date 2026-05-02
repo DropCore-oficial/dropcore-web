@@ -6,6 +6,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { apiGet, apiPost } from "@/lib/api";
 import Link from "next/link";
+import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 type Invite = {
   id: string;
@@ -318,7 +320,7 @@ export default function AdminCalculadoraConvitesPage() {
                     const status = a.ativo && !a.expirado ? "Ativo" : "Expirado";
                     const statusClass =
                       a.ativo && !a.expirado
-                        ? "text-emerald-700 bg-emerald-100 border-emerald-200"
+                        ? "text-emerald-700 bg-emerald-100 border-emerald-300"
                         : "text-neutral-600 bg-neutral-100 border-neutral-200";
                     return (
                       <tr key={a.id} className="align-middle">
@@ -477,7 +479,11 @@ export default function AdminCalculadoraConvitesPage() {
                                 setApagarLoginEmail(a.email ?? "");
                                 setApagarLoginModal({ userId: a.user_id, emailHint: a.email ?? "" });
                               }}
-                              className="rounded-lg border border-amber-800/80 bg-amber-950 px-2 py-1 text-[10px] text-amber-100 hover:bg-amber-900 disabled:opacity-40 disabled:cursor-not-allowed dark:border-amber-700/80 dark:bg-amber-950/80"
+                              className={cn(
+                                AMBER_PREMIUM_SHELL,
+                                AMBER_PREMIUM_TEXT_PRIMARY,
+                                "rounded-lg px-2 py-1 text-[10px] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                              )}
                             >
                               Excluir login
                             </button>

@@ -11,6 +11,8 @@ import { toTitleCase } from "@/lib/formatText";
 import { fornecedorProdutoImagemSrc } from "@/lib/fornecedorProdutoImagemSrc";
 import { getResumoRascunhoCriarVariantes, type ResumoRascunhoCriarVariantes } from "@/lib/fornecedorCriarVariantesRascunho";
 import { ProdutoResumoListaGrupo } from "@/components/fornecedor/ProdutoResumoListaGrupo";
+import { AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 const BRL_CUSTO_FORNECEDOR = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -554,7 +556,7 @@ export default function FornecedorProdutosPage() {
               )}
               <Link
                 href="/fornecedor/produtos/criar-variantes"
-                className="flex h-9 w-full items-center justify-center rounded-md bg-blue-600 px-3 text-center text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 active:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500 dark:active:bg-blue-700"
+                className="flex h-9 w-full items-center justify-center rounded-md bg-[var(--primary-blue)] px-3 text-center text-xs font-semibold text-white shadow-sm transition hover:bg-[var(--primary-blue-hover)] active:brightness-[0.92]"
               >
                 Criar produto
               </Link>
@@ -594,7 +596,7 @@ export default function FornecedorProdutosPage() {
                   <div className="flex items-stretch gap-1 p-1 pl-0">
                     <Link
                       href="/fornecedor/produtos/criar-variantes"
-                      className="flex h-8 items-center rounded-md bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 active:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500"
+                      className="flex h-8 items-center rounded-md bg-[var(--primary-blue)] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[var(--primary-blue-hover)] active:brightness-[0.92]"
                     >
                       Criar produto
                     </Link>
@@ -603,7 +605,7 @@ export default function FornecedorProdutosPage() {
               ) : (
                 <Link
                   href="/fornecedor/produtos/criar-variantes"
-                  className="flex h-8 items-center rounded-md bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 active:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500"
+                  className="flex h-8 items-center rounded-md bg-[var(--primary-blue)] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[var(--primary-blue-hover)] active:brightness-[0.92]"
                 >
                   Criar produto
                 </Link>
@@ -620,7 +622,7 @@ export default function FornecedorProdutosPage() {
         )}
 
         {successMessage && (
-          <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-100 dark:bg-emerald-950 p-4 text-sm text-emerald-800 dark:text-emerald-300">
+          <div className="rounded-xl border border-emerald-300 dark:border-emerald-900 bg-emerald-100 dark:bg-emerald-950 p-4 text-sm text-emerald-900 dark:text-emerald-300">
             {successMessage}
           </div>
         )}
@@ -693,22 +695,34 @@ export default function FornecedorProdutosPage() {
                               <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-semibold text-gray-900 dark:text-neutral-100">
                                 <span className="min-w-0 break-words">{representante?.nome_produto}</span>
                                 {todosInativos && (
-                                  <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border bg-yellow-100 text-yellow-700 border-yellow-200">
+                                  <span
+                                    className={cn(
+                                      AMBER_PREMIUM_SURFACE_TRANSPARENT,
+                                      AMBER_PREMIUM_TEXT_PRIMARY,
+                                      "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
+                                    )}
+                                  >
                                     Inativo
                                   </span>
                                 )}
                                 {statusAlteracaoGrupo(g) === "pendente" && (
-                                  <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border bg-blue-100 text-blue-800 border-blue-200" title="Alteração aguardando aprovação do admin">
+                                  <span
+                                    className="shrink-0 rounded-full border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200"
+                                    title="Alteração aguardando aprovação do admin"
+                                  >
                                     Em análise
                                   </span>
                                 )}
                                 {statusAlteracaoGrupo(g) === "aprovado" && (
-                                  <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border bg-green-100 text-green-700 border-green-200">
+                                  <span className="shrink-0 rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
                                     Aprovado
                                   </span>
                                 )}
                                 {statusAlteracaoGrupo(g) === "rejeitado" && (
-                                  <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border bg-red-100 text-red-600 border-red-200" title={motivoRejeicaoGrupo(g) ? `Motivo: ${motivoRejeicaoGrupo(g)}` : undefined}>
+                                  <span
+                                    className="shrink-0 rounded-full border border-red-200 bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+                                    title={motivoRejeicaoGrupo(g) ? `Motivo: ${motivoRejeicaoGrupo(g)}` : undefined}
+                                  >
                                     Reprovado
                                   </span>
                                 )}
@@ -801,7 +815,7 @@ export default function FornecedorProdutosPage() {
                             }}
                             className={`h-8 min-w-[8.5rem] rounded-lg px-3 text-[13px] font-medium transition ${
                               modoListaVariantes === "agrupado-cor"
-                                ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+                                ? "bg-[var(--primary-blue)] text-white shadow-sm hover:bg-[var(--primary-blue-hover)]"
                                 : "text-gray-600 hover:bg-white hover:text-gray-800 dark:text-neutral-400 dark:hover:bg-neutral-900 dark:hover:text-neutral-200"
                             }`}
                           >
@@ -815,7 +829,7 @@ export default function FornecedorProdutosPage() {
                             }}
                             className={`h-8 min-w-[8.5rem] rounded-lg px-3 text-[13px] font-medium transition ${
                               modoListaVariantes === "sku"
-                                ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+                                ? "bg-[var(--primary-blue)] text-white shadow-sm hover:bg-[var(--primary-blue-hover)]"
                                 : "text-gray-600 hover:bg-white hover:text-gray-800 dark:text-neutral-400 dark:hover:bg-neutral-900 dark:hover:text-neutral-200"
                             }`}
                           >
@@ -1389,7 +1403,7 @@ export default function FornecedorProdutosPage() {
                 <button
                   type="submit"
                   disabled={formLoading}
-                  className="flex-1 rounded-lg bg-blue-600 text-white font-semibold px-4 py-2.5 text-sm hover:bg-blue-700 disabled:opacity-60"
+                  className="flex-1 rounded-lg bg-[var(--primary-blue)] text-white font-semibold px-4 py-2.5 text-sm hover:bg-[var(--primary-blue-hover)] disabled:opacity-60"
                 >
                   {formLoading ? "Salvando..." : "Salvar"}
                 </button>

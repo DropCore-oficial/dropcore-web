@@ -21,6 +21,12 @@ import { getColunasTabelaMedidas, type TipoProduto } from "@/lib/tipoProduto";
 import { CatalogoV2ResumoTopo } from "@/components/seller/catalogo/v2/CatalogoV2ResumoTopo";
 import { CatalogoV2ProdutoCard } from "@/components/seller/catalogo/v2/CatalogoV2ProdutoCard";
 import { linhasGrupo, type GrupoCatalogoV2 } from "@/components/seller/catalogo/v2/aggregates";
+import {
+  AMBER_PREMIUM_SURFACE_TRANSPARENT,
+  AMBER_PREMIUM_TEXT_PRIMARY,
+  AMBER_PREMIUM_TEXT_SOFT,
+} from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 type VinculoFornecedorMeta = {
   fornecedor_id: string | null;
@@ -507,7 +513,7 @@ export default function SellerProdutosPage() {
                   className={`min-h-[40px] rounded-full border px-4 py-2 text-sm font-medium transition ${
                     filtroStatus === f.key
                       ? f.key === "pendencias"
-                        ? "border-amber-300 bg-amber-100 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100"
+                        ? cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY)
                         : "border-[#008060] bg-[#e3f1ed] text-[#0c3d2a] dark:border-[#008060] dark:bg-[#008060]/20 dark:text-[#a3e5c1]"
                       : "border-[#e3e5e8] bg-[#fafbfb] text-[#5c5f62] hover:bg-[#f6f6f7] dark:border-[#2e3240] dark:bg-[#14171c] dark:text-[#8c9196] dark:hover:bg-[#252a32]"
                   } disabled:cursor-not-allowed disabled:opacity-45`}
@@ -542,7 +548,13 @@ export default function SellerProdutosPage() {
                   API ligada
                 </span>
               ) : (
-                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                <span
+                  className={cn(
+                    AMBER_PREMIUM_SURFACE_TRANSPARENT,
+                    AMBER_PREMIUM_TEXT_PRIMARY,
+                    "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                  )}
+                >
                   Pendente
                 </span>
               )}
@@ -564,7 +576,7 @@ export default function SellerProdutosPage() {
             Configurar armazém e vínculo
           </summary>
           <div className="space-y-4 border-t border-[#e3e5e8] px-3 pb-4 pt-3 dark:border-[#2e3240] sm:px-3.5">
-          {fornecedoresLoadErr && <p className="text-sm text-warning">{fornecedoresLoadErr}</p>}
+          {fornecedoresLoadErr && <p className={cn("text-sm", AMBER_PREMIUM_TEXT_SOFT)}>{fornecedoresLoadErr}</p>}
           {fornecedoresLista?.length === 0 ? (
             <p className="text-sm text-muted">Não há fornecedores na organização.</p>
           ) : (
@@ -669,7 +681,7 @@ export default function SellerProdutosPage() {
           )}
 
         {!loading && !catalogMeta.tabela_ok && (
-          <div className="mt-6 rounded-2xl border border-warning/35 bg-warning/10 px-5 py-4 text-sm text-foreground md:px-6">
+          <div className={cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY, "mt-6 rounded-2xl px-5 py-4 text-sm md:px-6")}>
             A lista de SKUs habilitados para venda ainda não está disponível na base (migração pendente). Execute o script{" "}
             <code className="rounded border border-card-border bg-card px-1.5 py-0.5 font-mono text-xs">web/scripts/create-seller-skus-habilitados.sql</code> no
             Supabase para ativar o limite de 15 no Starter e a integração ERP alinhada ao catálogo.

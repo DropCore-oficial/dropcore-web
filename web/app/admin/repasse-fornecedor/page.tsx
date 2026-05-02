@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { PlanLimitsBadge } from "@/components/PlanLimitsBadge";
+import { AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY, AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 type PreviewItem = {
   fornecedor_id: string;
@@ -337,7 +339,7 @@ export default function RepasseFornecedorPage() {
 
                 {/* Status do ciclo */}
                 {preview.ja_fechado && (
-                  <div className="rounded-xl border border-yellow-300 bg-yellow-100 px-3 py-2.5 text-xs text-yellow-800">
+                  <div className={cn(AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY, "rounded-xl px-3 py-2.5 text-xs")}>
                     {preview.entries_count > 0
                       ? <>Ciclo já fechado em {formatDate(preview.fechado_em ?? "")}. Há <strong>{preview.entries_count} novo(s) pedido(s)</strong> que ainda não foram repassados.</>
                       : <>Ciclo fechado em {formatDate(preview.fechado_em ?? "")}. Não há novos pedidos para repassar.</>
@@ -449,12 +451,12 @@ export default function RepasseFornecedorPage() {
                     </div>
 
                     {preview.debitos_count > 0 && (
-                      <p className="text-xs text-yellow-700">
+                      <p className={cn("text-xs", AMBER_PREMIUM_TEXT_SOFT)}>
                         ⚠ {preview.debitos_count} débito(s) de devolução serão descontados neste repasse.
                       </p>
                     )}
                     {(preview.fornecedores_cadastro_pendente?.length ?? 0) > 0 && (
-                      <div className="rounded-xl border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-800">
+                      <div className={cn(AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY, "rounded-xl px-3 py-2 text-xs")}>
                         <p className="font-semibold mb-1">Cadastro pendente bloqueia fechamento</p>
                         <p>
                           Fornecedores pendentes: {preview.fornecedores_cadastro_pendente!.slice(0, 5).join(", ")}

@@ -3,7 +3,14 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  AMBER_PREMIUM_DOT,
+  AMBER_PREMIUM_SURFACE_TRANSPARENT,
+  AMBER_PREMIUM_TEXT_PRIMARY,
+  AMBER_PREMIUM_TEXT_SECONDARY,
+} from "@/lib/amberPremium";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { cn } from "@/lib/utils";
 
 /** Campos usados no resumo da lista — alinhar com GET /api/fornecedor/produtos */
 export type ProdutoResumoLista = {
@@ -86,16 +93,16 @@ type StatusVariant = "aprovado" | "pendente" | "erro" | "opcional" | "analise";
 function StatusBadge({ text, variant }: { text: string; variant: StatusVariant }) {
   const cls =
     variant === "aprovado"
-      ? "bg-green-100 text-green-700 border-green-200"
+      ? "bg-emerald-50 text-emerald-900 ring-1 ring-emerald-600/10 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-500/45"
       : variant === "pendente"
-        ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+        ? cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY)
         : variant === "erro"
-          ? "bg-red-100 text-red-600 border-red-200"
+          ? "bg-rose-50 text-rose-800 ring-1 ring-rose-600/15 dark:bg-rose-950 dark:text-rose-200 dark:ring-rose-500/45"
           : variant === "analise"
-            ? "bg-blue-100 text-blue-800 border-blue-200"
-            : "bg-slate-100 text-slate-600 border-slate-200";
+            ? "bg-sky-50 text-sky-900 ring-1 ring-sky-600/15 dark:bg-sky-950 dark:text-sky-200 dark:ring-sky-500/45"
+            : "bg-neutral-100 text-neutral-600 ring-1 ring-black/5 dark:bg-neutral-800 dark:text-neutral-200 dark:ring-neutral-500/40";
   return (
-    <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-medium border ${cls}`}>
+    <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-tight ${cls}`}>
       {text}
     </span>
   );
@@ -112,17 +119,15 @@ function FieldRow({
   ok: boolean;
   optional?: boolean;
 }) {
-  const statusText = optional ? "Opcional" : ok ? "Completo" : "Pendente";
-  const icon = optional ? "➖" : ok ? "✔️" : "⚠️";
+  const variant: StatusVariant = optional ? "opcional" : ok ? "aprovado" : "pendente";
+  const badgeText = optional ? "Opcional" : ok ? "Completo" : "Pendente";
   return (
-    <div className="flex items-start justify-between gap-3 py-2">
-      <div className="min-w-0 flex-1">
-        <p className="text-sm text-gray-500 dark:text-neutral-400">{label}</p>
-        <div className="mt-0.5 break-words text-sm font-medium leading-snug text-gray-800 dark:text-neutral-100">{value}</div>
-        <p className="mt-1 text-sm text-gray-500 dark:text-neutral-400">
-          {icon} {statusText}
-        </p>
+    <div className="flex items-start justify-between gap-3 border-b border-neutral-100 py-3.5 last:border-b-0 dark:border-neutral-800/80">
+      <div className="min-w-0 flex-1 pr-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{label}</p>
+        <div className="mt-1.5 break-words text-sm font-medium leading-snug text-neutral-900 dark:text-neutral-100">{value}</div>
       </div>
+      <StatusBadge text={badgeText} variant={variant} />
     </div>
   );
 }
@@ -137,10 +142,10 @@ function MiniCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all duration-200 hover:shadow-md dark:border-neutral-700 dark:bg-neutral-900">
-      <h4 className="text-base font-semibold text-gray-900 dark:text-neutral-100">{title}</h4>
-      {subtitle ? <p className="mt-0.5 text-sm text-gray-500 dark:text-neutral-400">{subtitle}</p> : null}
-      <div className="mt-3 divide-y divide-neutral-100 dark:divide-neutral-800">{children}</div>
+    <section className="rounded-2xl border border-neutral-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_rgba(15,23,42,0.06)] transition-shadow duration-200 hover:shadow-[0_2px_8px_rgba(15,23,42,0.06),0_12px_24px_rgba(15,23,42,0.06)] dark:border-neutral-700/80 dark:bg-neutral-900 dark:shadow-none dark:hover:border-neutral-600">
+      <h4 className="text-[15px] font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">{title}</h4>
+      {subtitle ? <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{subtitle}</p> : null}
+      <div className="mt-1">{children}</div>
     </section>
   );
 }
@@ -158,24 +163,32 @@ function KpiCard({
 }) {
   const toneClass =
     tone === "success"
-      ? "text-green-700 dark:text-green-300"
+      ? "text-emerald-700 dark:text-emerald-300"
       : tone === "warning"
-        ? "text-yellow-700 dark:text-yellow-300"
+        ? AMBER_PREMIUM_TEXT_PRIMARY
         : "text-neutral-900 dark:text-neutral-100";
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm transition-all duration-200 hover:shadow-md dark:border-neutral-700 dark:bg-neutral-900">
-      <p className="text-sm text-gray-500 dark:text-neutral-400">{label}</p>
-      <p className={`mt-1 text-lg font-semibold tabular-nums ${toneClass}`}>{value}</p>
-      {status ? <p className="mt-1 text-sm text-gray-500 dark:text-neutral-400">{status}</p> : null}
+    <div className="rounded-2xl border border-neutral-200/90 bg-white p-4 shadow-sm ring-1 ring-black/[0.03] transition-all duration-200 hover:ring-black/[0.06] dark:border-neutral-700 dark:bg-neutral-900 dark:ring-white/5 dark:hover:ring-white/10">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{label}</p>
+      <p className={`mt-2 text-xl font-semibold tabular-nums tracking-tight ${toneClass}`}>{value}</p>
+      {status ? (
+        <p
+          className={`mt-1.5 text-xs leading-snug ${
+            tone === "warning" ? AMBER_PREMIUM_TEXT_SECONDARY : "text-neutral-500 dark:text-neutral-400"
+          }`}
+        >
+          {status}
+        </p>
+      ) : null}
     </div>
   );
 }
 
 function ProgressBar({ value }: { value: number }) {
   return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-neutral-800">
+    <div className="h-2.5 w-full overflow-hidden rounded-full bg-neutral-200/90 ring-1 ring-inset ring-black/5 dark:bg-neutral-800 dark:ring-white/5">
       <div
-        className="h-full rounded-full bg-blue-500 transition-all duration-300"
+        className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-emerald-500 to-sky-600 transition-all duration-500 ease-out dark:from-emerald-500 dark:via-teal-500 dark:to-sky-500"
         style={{ width: `${value}%` }}
       />
     </div>
@@ -184,6 +197,19 @@ function ProgressBar({ value }: { value: number }) {
 
 function GradeBadge({ value }: { value: number }) {
   const variant: StatusVariant = value >= 85 ? "aprovado" : value >= 70 ? "analise" : "pendente";
+  if (variant === "pendente") {
+    return (
+      <span
+        className={`inline-flex max-w-full items-center gap-1 rounded-full px-3.5 py-2 text-xs leading-snug shadow-none ${AMBER_PREMIUM_SURFACE_TRANSPARENT}`}
+      >
+        <span className={cn("shrink-0 font-semibold tabular-nums", AMBER_PREMIUM_TEXT_PRIMARY)}>{value}%</span>
+        <span className={cn("shrink-0 font-normal", AMBER_PREMIUM_DOT)} aria-hidden>
+          ·
+        </span>
+        <span className={cn("min-w-0 font-normal", AMBER_PREMIUM_TEXT_SECONDARY)}>concluído</span>
+      </span>
+    );
+  }
   return <StatusBadge text={`${value}% concluído`} variant={variant} />;
 }
 
@@ -196,7 +222,7 @@ type AcaoPrioritaria = {
 function SummaryShell({ children }: { children: ReactNode }) {
   return (
     <div
-      className="border-t border-neutral-200 bg-white px-3 py-4 dark:border-neutral-800 dark:bg-neutral-900 sm:px-4"
+      className="border-t border-neutral-200/90 bg-gradient-to-b from-neutral-50/90 to-neutral-50/30 px-3 py-5 dark:border-neutral-800 dark:from-neutral-950 dark:to-neutral-950 sm:px-5"
       onClick={(e) => e.stopPropagation()}
     >
       {children}
@@ -349,66 +375,99 @@ export function ProdutoResumoListaGrupo({
 
   return (
     <SummaryShell>
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 sm:p-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] ring-1 ring-black/[0.03] dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-none dark:ring-white/5 sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <p className="text-sm text-gray-500 dark:text-neutral-400">Resumo do cadastro</p>
-            <h3 className="mt-1 text-base font-semibold text-gray-900 dark:text-neutral-100">
-              Qualidade dos dados do produto · Premium v2
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Resumo do cadastro</p>
+            <h3 className="mt-1.5 text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+              Qualidade dos dados do produto
             </h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-neutral-300">
-              Visual premium para revisão rápida. <strong>Foto</strong> é por SKU; <strong>Ver</strong> abre o álbum/link principal.
+            <p className="mt-1.5 text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+              <strong className="font-medium text-neutral-700 dark:text-neutral-300">Foto</strong> é por SKU; abra o link na coluna de álbum para ver o catálogo completo.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
             <GradeBadge value={score} />
             <Link
               href={editHref}
-              className="inline-flex h-8 items-center justify-center rounded-md bg-blue-600 px-3.5 text-[13px] font-medium text-white shadow-sm transition hover:bg-blue-700"
+              className="inline-flex h-9 items-center justify-center rounded-lg bg-neutral-900 px-4 text-[13px] font-semibold text-white shadow-sm transition hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:ring-offset-2 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 dark:focus:ring-offset-neutral-900"
             >
               Completar dados
             </Link>
           </div>
         </div>
-        <div className="mt-4 space-y-2">
-          <div className="flex items-center justify-between text-sm text-gray-500 dark:text-neutral-300">
-            <span>Completude geral</span>
-            <span className="tabular-nums font-semibold">{score}%</span>
+        <div className="mt-5 space-y-2.5">
+          <div className="flex items-center justify-between text-sm text-neutral-600 dark:text-neutral-300">
+            <span className="font-medium">Completude geral</span>
+            <span className="tabular-nums text-sm font-semibold text-neutral-900 dark:text-neutral-100">{score}%</span>
           </div>
           <ProgressBar value={score} />
         </div>
 
-        <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/70 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">Próximas ações prioritárias</p>
+        <div className="mt-5 rounded-2xl border border-neutral-200 bg-white p-4 ring-1 ring-black/[0.04] dark:border-neutral-700 dark:bg-neutral-900 dark:ring-white/[0.06]">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Próximas ações prioritárias</p>
             <Link
               href={editHref}
-              className="inline-flex h-7 items-center justify-center rounded-md bg-blue-600 px-3 text-xs font-medium text-white transition hover:bg-blue-700"
+              className="inline-flex h-8 shrink-0 items-center justify-center self-start rounded-lg bg-sky-600 px-3.5 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 sm:self-auto"
             >
               Resolver agora
             </Link>
           </div>
           {acoesPrioritarias.length > 0 ? (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {acoesPrioritarias.map((acao) => (
-                <span
-                  key={acao.id}
-                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
-                    acao.impacto === "alto"
-                      ? "border-amber-200 bg-amber-100 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-                      : "border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-neutral-900 dark:text-slate-200"
-                  }`}
-                >
-                  {acao.impacto === "alto" ? "Alta prioridade" : "Melhoria"} · {acao.titulo}
-                </span>
-              ))}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {acoesPrioritarias.map((acao) => {
+                const shell =
+                  acao.impacto === "alto"
+                    ? AMBER_PREMIUM_SURFACE_TRANSPARENT
+                    : "border border-stone-200/90 bg-stone-50 ring-1 ring-stone-900/[0.06] dark:border-white/10 dark:bg-neutral-700 dark:ring-white/[0.08]";
+                return (
+                  <span
+                    key={acao.id}
+                    className={cn(
+                      "inline-flex max-w-full items-center gap-1 rounded-full px-3.5 py-2 text-xs leading-snug",
+                      acao.impacto === "alto" ? "shadow-none" : "shadow-sm dark:shadow-none",
+                      shell
+                    )}
+                  >
+                    <span
+                      className={
+                        acao.impacto === "alto"
+                          ? cn("shrink-0 font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)
+                          : "shrink-0 font-semibold text-neutral-900 dark:text-neutral-100"
+                      }
+                    >
+                      {acao.impacto === "alto" ? "Alta prioridade" : "Melhoria"}
+                    </span>
+                    <span
+                      className={cn(
+                        "shrink-0 font-normal",
+                        acao.impacto === "alto" ? AMBER_PREMIUM_DOT : "text-neutral-400 dark:text-neutral-500"
+                      )}
+                      aria-hidden
+                    >
+                      ·
+                    </span>
+                    <span
+                      className={cn(
+                        "min-w-0 font-normal",
+                        acao.impacto === "alto" ? AMBER_PREMIUM_TEXT_SECONDARY : "text-neutral-700 dark:text-neutral-300"
+                      )}
+                    >
+                      {acao.titulo}
+                    </span>
+                  </span>
+                );
+              })}
             </div>
           ) : (
-            <p className="mt-2 text-xs text-blue-800 dark:text-blue-300">Produto bem preenchido. Faça apenas ajustes finos antes de publicar.</p>
+            <p className="mt-2 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+              Produto bem preenchido. Faça apenas ajustes finos antes de publicar.
+            </p>
           )}
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <KpiCard
             label="Miniaturas SKU"
             value={statsVar.total === 0 ? "—" : `${statsVar.comFoto}/${statsVar.total}`}
@@ -434,12 +493,12 @@ export function ProdutoResumoListaGrupo({
             tone={medidasOk ? "success" : "warning"}
           />
         </div>
-        <div className="mt-3 flex items-center justify-between border-t border-gray-200 pt-3 dark:border-neutral-700">
-          <p className="text-sm text-gray-500 dark:text-neutral-400">Diagnóstico completo</p>
+        <div className="mt-5 flex items-center justify-between border-t border-neutral-200/90 pt-4 dark:border-neutral-800">
+          <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Diagnóstico completo</p>
           <button
             type="button"
             onClick={() => setMostrarDetalhes((v) => !v)}
-            className="inline-flex h-8 items-center rounded-xl border border-gray-300 bg-white px-4 text-[13px] font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+            className="inline-flex h-9 items-center rounded-lg border border-neutral-200 bg-white px-4 text-[13px] font-semibold text-neutral-800 shadow-sm transition hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:ring-offset-2 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800 dark:focus:ring-offset-neutral-900"
           >
             {mostrarDetalhes ? "Ocultar detalhes" : "Ver detalhes"}
           </button>
@@ -448,7 +507,7 @@ export function ProdutoResumoListaGrupo({
 
       {mostrarDetalhes && (
         <>
-          <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
+          <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
             <MiniCard title="Identificação" subtitle="Conteúdo comercial">
               <FieldRow label="Nome" ok={filled(base.nome_produto)} value={filled(base.nome_produto) ? trunc(base.nome_produto, 90) : "Pendente"} />
               <FieldRow label="Categoria" ok={filled(base.categoria)} value={filled(base.categoria) ? String(base.categoria) : "Pendente"} />
@@ -469,7 +528,12 @@ export function ProdutoResumoListaGrupo({
                 ok={albumOk}
                 value={
                   albumOk ? (
-                    <a href={linkAlbum!} target="_blank" rel="noopener noreferrer" className="break-all text-blue-600 underline underline-offset-2 dark:text-blue-400">
+                    <a
+                      href={linkAlbum!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="break-all font-medium text-sky-700 underline decoration-sky-700/25 underline-offset-2 transition hover:text-sky-900 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:text-sky-300"
+                    >
                       Abrir link
                     </a>
                   ) : (

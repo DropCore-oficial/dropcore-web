@@ -1,4 +1,10 @@
 import type { ReactNode } from "react";
+import {
+  AMBER_PREMIUM_SURFACE_TRANSPARENT,
+  AMBER_PREMIUM_TEXT_PRIMARY,
+  AMBER_PREMIUM_TEXT_SOFT,
+} from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 type Props = {
   totalProdutos: number;
@@ -15,11 +21,13 @@ const b = "border-[#dfe3e8] dark:border-[#2e3240]";
 const label = "text-[11px] font-medium uppercase tracking-wide text-[#6d7175] dark:text-[#8c9196]";
 const value = "text-lg font-semibold tabular-nums leading-tight text-[#202223] dark:text-[#e3e5e8]";
 
-function IconBox({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "success" }) {
+function IconBox({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "success" | "pending" }) {
   const shell =
     tone === "success"
       ? "bg-[#e3f1ed] text-[#008060] dark:bg-[#008060]/20 dark:text-[#6fd4b0]"
-      : "bg-[#e8eaed]/80 text-[#5c5f62] dark:bg-[#2e3240] dark:text-[#8c9196]";
+      : tone === "pending"
+        ? cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, "border-0", AMBER_PREMIUM_TEXT_PRIMARY)
+        : "bg-[#e8eaed]/80 text-[#5c5f62] dark:bg-[#2e3240] dark:text-[#8c9196]";
   return (
     <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${shell} [&_svg]:h-3.5 [&_svg]:w-3.5`}>
       {children}
@@ -55,9 +63,9 @@ function MetricStrip({
           )}
         </p>
       </div>
-      <div className="bg-[#f5f3ea] px-3 py-2.5 dark:bg-[#3a3427]/40">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-[#7d6e4b] dark:text-[#d8caa9]/90">Pendências</p>
-        <p className="text-lg font-semibold tabular-nums text-[#50442b] dark:text-[#eadfca]">{skusComPendencia}</p>
+      <div className="bg-white px-3 py-2.5 dark:bg-[#1a1d24]">
+        <p className={cn("text-[11px] font-medium uppercase tracking-wide", AMBER_PREMIUM_TEXT_SOFT)}>Pendências</p>
+        <p className={cn("text-lg font-semibold tabular-nums", AMBER_PREMIUM_TEXT_PRIMARY)}>{skusComPendencia}</p>
       </div>
     </div>
   );
@@ -71,7 +79,6 @@ function MetricStripScroll({
   habilitadosMax,
 }: Props) {
   const cell = `shrink-0 rounded-lg border ${b} bg-white px-2.5 py-2 shadow-sm dark:bg-[#1a1d24]`;
-  const cellPend = `shrink-0 rounded-lg border border-[#d7ccb4] bg-[#f5f3ea] px-2.5 py-2 shadow-sm dark:border-[#7c6b4d]/60 dark:bg-[#3a3427]/35`;
   return (
     <div className={`flex w-max max-w-none flex-nowrap gap-2`}>
       <div className={`min-w-[5rem] ${cell}`}>
@@ -91,9 +98,9 @@ function MetricStripScroll({
           )}
         </p>
       </div>
-      <div className={`min-w-[5.25rem] ${cellPend}`}>
-        <p className="text-[10px] font-medium uppercase tracking-wide text-[#7d6e4b] dark:text-[#d8caa9]/90">Pendências</p>
-        <p className="text-base font-semibold tabular-nums text-[#50442b] dark:text-[#eadfca]">{skusComPendencia}</p>
+      <div className={`min-w-[5.25rem] ${cell}`}>
+        <p className={cn("text-[10px] font-medium uppercase tracking-wide", AMBER_PREMIUM_TEXT_SOFT)}>Pendências</p>
+        <p className={cn("text-base font-semibold tabular-nums", AMBER_PREMIUM_TEXT_PRIMARY)}>{skusComPendencia}</p>
       </div>
     </div>
   );
@@ -174,16 +181,16 @@ export function CatalogoV2ResumoTopo({
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-2.5 rounded-lg border border-[#d7ccb4] bg-[#f5f3ea] px-3 py-2.5 dark:border-[#7c6b4d]/60 dark:bg-[#3a3427]/35 sm:gap-3 sm:px-4 sm:py-3">
-        <IconBox>
+      <div className={cn("flex items-center gap-2.5 rounded-lg border-0 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3", AMBER_PREMIUM_SURFACE_TRANSPARENT)}>
+        <IconBox tone="pending">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
             <circle cx="12" cy="12" r="10" />
             <path d="M12 8v4M12 16h.01" />
           </svg>
         </IconBox>
         <div className="min-w-0">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-[#7d6e4b] dark:text-[#d8caa9]/90">Pendências</p>
-          <p className="text-lg font-semibold tabular-nums text-[#50442b] dark:text-[#eadfca] sm:text-xl">{skusComPendencia}</p>
+          <p className={cn("text-[11px] font-medium uppercase tracking-wide", AMBER_PREMIUM_TEXT_SOFT)}>Pendências</p>
+          <p className={cn("text-lg font-semibold tabular-nums sm:text-xl", AMBER_PREMIUM_TEXT_PRIMARY)}>{skusComPendencia}</p>
         </div>
       </div>
     </div>
