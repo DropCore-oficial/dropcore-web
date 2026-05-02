@@ -255,7 +255,7 @@ function VendasPorDiaChartBlock({
 
 /** Ícones dos atalhos — neutro (P&B); cor só nos badges */
 function AdminNavIcon({ id }: { id: string }) {
-  const common = "w-5 h-5 text-neutral-600 dark:text-neutral-400";
+  const common = "w-5 h-5 text-emerald-700 dark:text-emerald-400";
   switch (id) {
     case "pedidos":
       return (
@@ -476,6 +476,13 @@ export default function DashboardPage() {
   const roleLabel = me?.role_base === "owner" ? "Proprietário" : me?.role_base === "admin" ? "Admin" : me?.role_base ?? "—";
   const roleInitial = roleLabel.charAt(0).toUpperCase();
   const isPro = stats?.plano === "pro";
+  const dataHojeFmt = new Date().toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  const painelContextoLabel =
+    me?.role_base === "owner" ? "Painel do proprietário" : "Painel da organização";
 
   // ── Alertas urgentes ─────────────────────────────────────────────────────────
   const alertas: { id: string; cor: string; texto: string; sub?: string; acao: string; rota: string }[] = [];
@@ -647,47 +654,67 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 space-y-4">
-        {/* 1. Header — igual ao seller/fornecedor */}
-        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 min-w-0">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600/10 dark:bg-emerald-600/15 flex items-center justify-center text-base font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">
-              {roleInitial}
-            </div>
-            <div>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">Olá,</p>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 truncate">{roleLabel}</h1>
-                {stats?.plano && (
-                  <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
-                    isPro ? "bg-emerald-600/10 dark:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
-                  }`}>
-                    {stats.plano.toUpperCase()}
-                  </span>
-                )}
+      <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 md:py-7 space-y-5 md:space-y-6">
+        {/* 1. Header — mesmo ritmo visual do fornecedor (card + gradiente) */}
+        <header className="rounded-2xl border border-[var(--card-border)] bg-gradient-to-br from-[var(--card)] via-[var(--card)] to-emerald-50/40 dark:to-emerald-950/20 p-4 sm:p-5 shadow-sm overflow-visible">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center text-lg font-bold shadow-md shadow-emerald-500/25 shrink-0">
+                {roleInitial}
+              </div>
+              <div className="min-w-0 pt-0.5">
+                <p className="text-xs font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90">
+                  {painelContextoLabel}
+                </p>
+                <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                  <h1 className="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-neutral-50 tracking-tight">
+                    {roleLabel}
+                  </h1>
+                  {stats?.plano && (
+                    <span
+                      className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
+                        isPro
+                          ? "bg-emerald-600/15 dark:bg-emerald-600/25 text-emerald-800 dark:text-emerald-300"
+                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                      }`}
+                    >
+                      {stats.plano.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1 capitalize">{dataHojeFmt}</p>
                 {stats?.plan_limits && (
-                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                    Vendas {stats.plan_limits.vendas_mes}/{stats.plan_limits.vendas_limite} · Produtos {stats.plan_limits.produto_cor_count}/{stats.plan_limits.produto_cor_limite}
-                  </span>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1.5">
+                    Vendas {stats.plan_limits.vendas_mes}/{stats.plan_limits.vendas_limite} · Produtos{" "}
+                    {stats.plan_limits.produto_cor_count}/{stats.plan_limits.produto_cor_limite}
+                  </p>
                 )}
               </div>
             </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end sm:shrink-0">
-            {!isAdmin && (
-              <div className="md:hidden">
-                <ThemeToggle className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center touch-manipulation" />
+            <div className="flex w-full flex-wrap items-center justify-end gap-2 border-t border-neutral-200/70 pt-3 dark:border-neutral-700/60 sm:w-auto sm:border-0 sm:pt-0 sm:shrink-0">
+              {!isAdmin && (
+                <div className="md:hidden">
+                  <ThemeToggle className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center touch-manipulation" />
+                </div>
+              )}
+              <div className={isAdmin ? "hidden md:block" : ""}>
+                <NotificationBell context="admin" />
               </div>
-            )}
-            <div className={isAdmin ? "hidden md:block" : ""}>
-              <NotificationBell context="admin" />
+              <button
+                type="button"
+                onClick={load}
+                className="rounded-xl border border-[var(--card-border)] bg-[var(--background)]/80 px-3 py-2 min-h-[40px] text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 touch-manipulation transition-colors"
+              >
+                Atualizar
+              </button>
+              <button
+                type="button"
+                onClick={sair}
+                className="rounded-xl border border-[var(--card-border)] bg-[var(--background)]/80 px-3 py-2 min-h-[40px] text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 touch-manipulation transition-colors"
+              >
+                Sair
+              </button>
             </div>
-            <button type="button" onClick={load} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 min-h-[40px] sm:min-h-0 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 touch-manipulation">
-              Atualizar
-            </button>
-            <button type="button" onClick={sair} className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-[var(--card)] px-3 py-2 min-h-[40px] sm:min-h-0 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 touch-manipulation">
-              Sair
-            </button>
           </div>
         </header>
 
@@ -699,8 +726,8 @@ export default function DashboardPage() {
           const deveAlertar = repasseFuturosValor > 0 || repasseFuturosPedidos > 0;
 
           const cls = deveAlertar
-            ? cn(AMBER_PREMIUM_SURFACE, "rounded-xl shadow-sm overflow-hidden")
-            : "rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden";
+            ? cn(AMBER_PREMIUM_SURFACE, "rounded-2xl shadow-sm overflow-hidden")
+            : "rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden";
 
           const tituloCls = deveAlertar ? AMBER_PREMIUM_TEXT_SOFT : "text-neutral-600 dark:text-neutral-400";
 
@@ -741,7 +768,7 @@ export default function DashboardPage() {
 
         {/* Mensalidades: quem está em teste grátis, em dia ou inadimplente */}
         {isAdmin && stats?.mensalidade_portal && (
-          <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
+          <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
             <div className="p-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
                 <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Mensalidades DropCore</p>
@@ -780,70 +807,79 @@ export default function DashboardPage() {
 
         {/* 2. Visão geral — card principal como seller/fornecedor */}
         {isAdmin && stats && (
-          <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
-            <div className="p-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-0.5">Saldo em conta</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(stats.saldo_sellers_total ?? 0)}</p>
-                  <p className="text-[11px] text-emerald-600/90 dark:text-emerald-400/90 mt-0.5 font-medium">{stats.sellers_ativos ?? 0} sellers</p>
-                </div>
+          <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
+            <div className="relative p-4 sm:p-5">
+              <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-emerald-500 to-emerald-600 opacity-90" aria-hidden />
+              <div className="pl-4 sm:pl-5">
+                <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Saldo em conta</p>
+                <p className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
+                  {BRL.format(stats.saldo_sellers_total ?? 0)}
+                </p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                  {stats.sellers_ativos ?? 0} sellers ativos
+                </p>
               </div>
-              <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 sm:p-4 pt-0 border-t border-[var(--card-border)]/80 bg-neutral-100 dark:bg-neutral-900/30">
                 <button
                   type="button"
                   onClick={() => router.push("/admin/pedidos")}
-                  className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
                 >
-                  <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium">Aguard. envio</p>
-                  <p className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400 leading-tight mt-0.5">
+                  <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Aguard. envio</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                     {stats.pedidos_aguardando_envio ?? 0}
                   </p>
                 </button>
                 <button
                   type="button"
                   onClick={() => router.push("/admin/repasse-fornecedor")}
-                  className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
                 >
-                  <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium">A repassar</p>
-                  <p className="text-lg font-bold tabular-nums text-neutral-900 dark:text-neutral-100 leading-tight mt-0.5">
+                  <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">A repassar</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                     {stats.repasses_pendentes ?? 0}
                   </p>
                 </button>
                 <button
                   type="button"
                   onClick={() => router.push("/admin/pedidos")}
-                  className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
                 >
-                  <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium">Pedidos hoje</p>
-                  <p className="text-lg font-bold text-neutral-900 dark:text-neutral-100 tabular-nums leading-tight mt-0.5">{stats.pedidos_hoje ?? 0}</p>
+                  <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Pedidos hoje</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                    {stats.pedidos_hoje ?? 0}
+                  </p>
                 </button>
                 <button
                   type="button"
                   onClick={() => router.push("/admin/empresas")}
-                  className="rounded-lg px-3 py-2.5 text-left border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
                 >
-                  <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium">Entrada mês</p>
-                  <p className="text-lg font-bold text-neutral-900 dark:text-neutral-100 tabular-nums leading-tight mt-0.5">{BRL.format(stats.entrada_mes ?? 0)}</p>
-                </button>
-              </div>
-              {(stats.repasse_ledger_pronto_proximo_ciclo ?? 0) > 0 && (
-                <button
-                  type="button"
-                  onClick={() => router.push("/admin/repasse-fornecedor")}
-                  className="mt-3 w-full rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-100 dark:bg-sky-950/20 px-3 py-2.5 text-left hover:bg-sky-100/70 dark:hover:bg-sky-950/35 transition-colors"
-                >
-                  <p className="text-[11px] text-sky-800 dark:text-sky-300 font-semibold">Repasse futuro (próximo ciclo)</p>
-                  <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 mt-0.5">
-                    {(stats.repasse_ledger_pronto_proximo_ciclo ?? 0)} pedido{(stats.repasse_ledger_pronto_proximo_ciclo ?? 0) !== 1 ? "s" : ""} em {formatDateBR(stats.repasse_proximo_ciclo)}
+                  <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Entrada mês</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                    {BRL.format(stats.entrada_mes ?? 0)}
                   </p>
                 </button>
-              )}
-              <div className="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-800 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                <span className="text-xs text-neutral-500 dark:text-neutral-400">Receita DropCore (acumulado)</span>
-                <span className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{BRL.format(stats.receita_dropcore ?? 0)}</span>
               </div>
-            </div>
+              <div className="space-y-3 px-3 pb-3 sm:px-4 sm:pb-4">
+                {(stats.repasse_ledger_pronto_proximo_ciclo ?? 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => router.push("/admin/repasse-fornecedor")}
+                    className="w-full rounded-xl border border-sky-200 dark:border-sky-900/60 bg-sky-100 dark:bg-sky-950/20 px-3 py-2.5 text-left hover:bg-sky-100/70 dark:hover:bg-sky-950/35 transition-colors"
+                  >
+                    <p className="text-[11px] text-sky-800 dark:text-sky-300 font-semibold">Repasse futuro (próximo ciclo)</p>
+                    <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 mt-0.5">
+                      {(stats.repasse_ledger_pronto_proximo_ciclo ?? 0)} pedido{(stats.repasse_ledger_pronto_proximo_ciclo ?? 0) !== 1 ? "s" : ""} em {formatDateBR(stats.repasse_proximo_ciclo)}
+                    </p>
+                  </button>
+                )}
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-100/60 dark:bg-neutral-800/40 px-3.5 py-3 sm:px-4">
+                  <span className="text-xs font-medium text-neutral-600 dark:text-neutral-300">Receita DropCore (acumulado)</span>
+                  <span className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{BRL.format(stats.receita_dropcore ?? 0)}</span>
+                </div>
+              </div>
           </section>
         )}
 
@@ -852,7 +888,7 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={() => router.push("/admin/catalogo?estoqueBaixo=1")}
-            className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 flex items-center gap-3 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="w-full rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 flex items-center gap-3 text-left shadow-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
             <div className="w-9 h-9 rounded-lg bg-emerald-600/10 dark:bg-emerald-600/15 flex items-center justify-center shrink-0 text-emerald-700 dark:text-emerald-400">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -877,7 +913,7 @@ export default function DashboardPage() {
             {alertas.map((a) => (
               <div
                 key={a.id}
-                className={`rounded-xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${alertaBgMap[a.cor] ?? alertaBgMap.amber}`}
+                className={`rounded-2xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm ${alertaBgMap[a.cor] ?? alertaBgMap.amber}`}
               >
                 <div>
                   <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{a.texto}</p>
@@ -898,9 +934,9 @@ export default function DashboardPage() {
         {me?.role_base === "owner" && (
           <button
             onClick={() => router.push("/platform")}
-            className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-4 flex items-center gap-3 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="w-full rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-4 flex items-center gap-3 text-left shadow-sm hover:border-emerald-200/80 dark:hover:border-emerald-800/50 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20 transition-colors"
           >
-            <div className="w-10 h-10 rounded-xl bg-emerald-600/10 dark:bg-emerald-600/15 flex items-center justify-center shrink-0 text-emerald-700 dark:text-emerald-400">
+            <div className="w-11 h-11 rounded-xl bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center shrink-0 text-emerald-700 dark:text-emerald-400">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                 <polyline points="9 22 9 12 15 12 15 22" />
@@ -920,7 +956,7 @@ export default function DashboardPage() {
         {/* Analytics Pro — card estilo seller/fornecedor */}
         {isAdmin && stats?.plano === "pro" && proData && (
           <>
-            <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
+            <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
               <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 bg-[var(--card)]">
                 <div className="flex items-center gap-2">
                   <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Analytics</p>
@@ -947,8 +983,8 @@ export default function DashboardPage() {
               </div>
             </section>
 
-            <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-visible">
-              <div className="grid grid-cols-2 divide-x divide-neutral-100 dark:divide-neutral-800 border-b border-neutral-100 dark:border-neutral-800 overflow-hidden rounded-t-xl">
+            <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-visible">
+              <div className="grid grid-cols-2 divide-x divide-neutral-100 dark:divide-neutral-800 border-b border-neutral-100 dark:border-neutral-800 overflow-hidden rounded-t-2xl">
                 <div className="px-4 py-4 bg-[var(--card)]">
                   <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-0.5">Receita confirmada (PAGO)</p>
                   <p className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{BRL.format(proData.receita_pago)}</p>
@@ -998,7 +1034,7 @@ export default function DashboardPage() {
                   )}
                 </div>
               </div>
-              <div className="border-t border-neutral-100 dark:border-neutral-800 px-4 py-4 pb-6 bg-[var(--card)] overflow-visible rounded-b-xl">
+              <div className="border-t border-neutral-100 dark:border-neutral-800 px-4 py-4 pb-6 bg-[var(--card)] overflow-visible rounded-b-2xl">
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-0.5 font-medium">Vendas por dia</p>
                 <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-3">
                   Período: últimos {proData.vendas_por_dia.length} dias
@@ -1014,7 +1050,7 @@ export default function DashboardPage() {
         )}
 
         {isAdmin && stats && stats.plano !== "pro" && (
-          <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden p-6 text-center">
+          <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden p-6 text-center">
             <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Analytics avançado</p>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Margem, ticket médio, top sellers e gráficos disponíveis no <span className="text-emerald-600 dark:text-emerald-400 font-medium">Plano Pro</span>.</p>
           </section>
@@ -1022,24 +1058,28 @@ export default function DashboardPage() {
 
         {/* Seções — atalhos (visual alinhado seller/fornecedor) */}
         {isAdmin && (
-          <section className="space-y-3">
-            <div>
-              <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Seções</h2>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Atalhos para cada área da operação</p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <section aria-label="Atalhos">
+            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2 px-0.5">
+              Seções
+            </p>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-3 px-0.5 -mt-1">
+              Atalhos para cada área da operação
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {navItens.map((item) => (
                 <button
                   key={item.rota}
                   onClick={() => router.push(item.rota)}
-                  className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-left group"
+                  className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md group"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950/50">
                     <AdminNavIcon id={item.icon} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">{item.title}</p>
+                      <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                        {item.title}
+                      </p>
                       {item.badge && item.badgeTone && (
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0 ${secoesBadgeClass(item.badgeTone)}`}>
                           {item.badge}

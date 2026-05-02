@@ -1,0 +1,10 @@
+---
+description: Padrão semântico premium (sucesso, erro, info) centralizado em semanticPremium.ts
+alwaysApply: true
+---
+
+# Tokens `SUCCESS_*`, `DANGER_*`, `INFO_*`
+
+- **Fonte única:** superfícies e hierarquia de texto para **sucesso**, **perigo** e **informação** ficam em `web/lib/semanticPremium.ts`, alinhadas às variáveis `--success`, `--danger`, `--info` em `web/app/globals.css`.
+- **Não** espalhar combinações ad hoc de `border-[var(--success)]` / `bg-[var(--danger)]/…` em páginas para o mesmo papel — preferir `SUCCESS_PREMIUM_SHELL`, `DANGER_PREMIUM_SURFACE_TRANSPARENT`, etc., ou componentes `Alert` / `Badge` já ligados a esses tokens.
+- **Âmbar** continua exclusivamente em `web/lib/amberPremium.ts`.

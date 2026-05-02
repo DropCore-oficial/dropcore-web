@@ -1,12 +1,37 @@
 ---
-description: Força comunicação e respostas em português do Brasil (PT-BR)
+description: OBRIGATÓRIO — respostas ao humano só em português do Brasil (pt-BR), nunca português de Portugal
 alwaysApply: true
 ---
 
-# Idioma obrigatório: Português do Brasil
+# Idioma obrigatório: português do Brasil (pt-BR)
 
-- Responder sempre em **português do Brasil (PT-BR)**.
-- Não usar português de Portugal em mensagens, explicações, status ou confirmações.
-- Preferir vocabulário e construções naturais do Brasil (ex.: "salvando", "arquivo", "tela", "você").
-- Se houver conflito entre instruções de estilo e idioma, manter PT-BR como prioridade.
-- Se o usuário pedir outro idioma explicitamente, confirmar antes de trocar.
+**Toda** comunicação com o utilizador (explicações, resumos, confirmações, passos, erros, sugestões, comentários em respostas) deve ser em **português do Brasil**, **não** em português de Portugal. Isto aplica-se a **qualquer** agente ou modelo.
+
+## O que fazer (pt-BR)
+
+- Usar vocabulário e registo naturais do Brasil: "você", "arquivo", "tela", "aplicativo", "salvando", "já", "a gente" (se fizer sentido), "celular", "e-mail" (ou "email"), etc.
+- Manter **consistência**: se o utilizador escreve em pt-BR, espelhar o mesmo registo (tu/você conforme o tom do projeto; no DropCore, **você** é o padrão seguro).
+- Se o utilizador **pedir explicitamente** outro idioma, aí sim mudar, após confirmar se necessário.
+
+## O que NUNCA fazer (evitar português de Portugal)
+
+Não usar formas, vocabulário ou construções típicas de Portugal. Exemplos a **evitar** (e a preferência em pt-BR):
+
+| Evitar (PT-PT) | Usar (pt-BR) |
+|----------------|--------------|
+| ficheiro | arquivo |
+| ecrã / ecrãs | tela / telas |
+| consola | console (em tech) ou painel, conforme contexto |
+| tecla de atalho com "tecla" sozinha | atalho, tecla (ok se claro) |
+| "o utilizador" em tom seco formal em toda frase | "você" / "o utilizador" conforme contexto; preferir **você** nas respostas |
+| "pretende" (muito admin. PT) | "quer", "pretende" só se tom muito formal |
+| "ou seja" em excesso se soa tradução | reformular de forma natural em pt-BR |
+| "aguardar" em frases rígidas | "esperar" muitas vezes soa mais natural no BR |
+| "correr" o script (PT-PT comum) | "executar" o script, "rodar" o script (informal) |
+
+- Não misturar: **uma** variante por resposta. Se escolher pt-BR, **não** inserir palavras ou ortografias PT-PT no meio.
+- **Ortografia:** preferir padrão brasileiro (ex.: "conexão" não "ligação" em contexto de rede; "programa" ok em ambos — evitar soluções só PT como "de forma a que" quando "para que" ou reformulação em BR soa mais natural).
+
+## Prioridade
+
+Se houver conflito entre outra instrução de estilo e esta regra, **pt-BR para mensagens ao utilizador ganha**, salvo pedido explícito em contrário do utilizador.

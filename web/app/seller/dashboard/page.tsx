@@ -496,6 +496,11 @@ export default function SellerDashboardPage() {
   const planoOk = planoSellerDefinido(seller?.plano);
   const precoStarterMensal = planoPrecos?.starter ?? 97.9;
   const precoProMensal = planoPrecos?.pro ?? 97.9;
+  const dataHojeFmt = new Date().toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
 
   const extratoFiltrado = (() => {
     let list = extrato;
@@ -673,53 +678,72 @@ export default function SellerDashboardPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 space-y-4">
-        {/* 1. Header */}
-        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 min-w-0">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center text-base font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">
-              {seller?.nome?.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">Olá,</p>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 truncate">{seller?.nome}</h1>
-                {!planoOk ? (
-                  <span className={cn(SELLER_LEDGER_BADGE_AMBER, "rounded-md px-2 py-0.5 text-[10px] font-semibold")}>
-                    Plano pendente
-                  </span>
-                ) : (
-                  <span
-                    className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
-                      isPro
-                        ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300"
-                        : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
-                    }`}
-                  >
-                    {isPro ? "PRO" : "STARTER"}
-                  </span>
-                )}
+      <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 md:py-7 space-y-5 md:space-y-6">
+        {/* 1. Header — alinhado ao fornecedor / owner */}
+        <header className="rounded-2xl border border-[var(--card-border)] bg-gradient-to-br from-[var(--card)] via-[var(--card)] to-emerald-50/40 dark:to-emerald-950/20 p-4 sm:p-5 shadow-sm overflow-visible">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center text-lg font-bold shadow-md shadow-emerald-500/25 shrink-0">
+                {seller?.nome?.charAt(0).toUpperCase() ?? "S"}
+              </div>
+              <div className="min-w-0 pt-0.5">
+                <p className="text-xs font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90">
+                  Painel do seller
+                </p>
+                <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                  <h1 className="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-neutral-50 tracking-tight truncate">
+                    {seller?.nome ?? "Seller"}
+                  </h1>
+                  {!planoOk ? (
+                    <span className={cn(SELLER_LEDGER_BADGE_AMBER, "rounded-md px-2 py-0.5 text-[10px] font-semibold")}>
+                      Plano pendente
+                    </span>
+                  ) : (
+                    <span
+                      className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
+                        isPro
+                          ? "bg-emerald-600/15 dark:bg-emerald-600/25 text-emerald-800 dark:text-emerald-300"
+                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                      }`}
+                    >
+                      {isPro ? "PRO" : "STARTER"}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1 capitalize">{dataHojeFmt}</p>
               </div>
             </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end sm:shrink-0">
-            {pendentesCount > 0 && (
-              <button type="button" onClick={() => { setTab("depositos"); setMovimentacoesAberto(true); extratoRef.current?.scrollIntoView({ behavior: "smooth" }); }} className="rounded-lg bg-[var(--card)] border border-[var(--card-border)] px-2.5 py-2 min-h-[40px] sm:min-h-0 text-xs font-medium text-neutral-700 dark:text-neutral-300 touch-manipulation">
-                {pendentesCount} PIX pendente{pendentesCount !== 1 ? "s" : ""}
+            <div className="flex w-full flex-wrap items-center justify-end gap-2 border-t border-neutral-200/70 pt-3 dark:border-neutral-700/60 sm:w-auto sm:border-0 sm:pt-0 sm:shrink-0">
+              {pendentesCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTab("depositos");
+                    setMovimentacoesAberto(true);
+                    extratoRef.current?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className="rounded-xl bg-[var(--card)] border border-[var(--card-border)] px-3 py-2 min-h-[40px] text-xs font-semibold text-neutral-700 dark:text-neutral-300 touch-manipulation hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                >
+                  {pendentesCount} PIX pendente{pendentesCount !== 1 ? "s" : ""}
+                </button>
+              )}
+              <ThemeToggle className="hidden md:inline-flex min-h-[40px] min-w-[40px] items-center justify-center touch-manipulation" />
+              <NotificationBell context="seller" />
+              <button
+                type="button"
+                onClick={sair}
+                className="rounded-xl border border-[var(--card-border)] bg-[var(--background)]/80 px-3 py-2 min-h-[40px] text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 touch-manipulation transition-colors"
+              >
+                Sair
               </button>
-            )}
-            <ThemeToggle className="hidden md:inline-flex min-h-[40px] min-w-[40px] items-center justify-center touch-manipulation" />
-            <NotificationBell context="seller" />
-            <button type="button" onClick={sair} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 min-h-[40px] sm:min-h-0 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 touch-manipulation">
-              Sair
-            </button>
+            </div>
           </div>
         </header>
 
         {vinculoFornecedor?.ativo && (vinculoFornecedor.dentro_compromisso || vinculoFornecedor.liberado_antecipado) && (
           <div
             role="note"
-            className={`rounded-xl border p-4 text-sm shadow-sm ${
+            className={`rounded-2xl border p-4 text-sm shadow-sm ${
               vinculoFornecedor.liberado_antecipado
                 ? cn(AMBER_PREMIUM_SURFACE)
                 : "border-sky-300 bg-sky-100 dark:border-sky-800 dark:bg-sky-950/25"
@@ -751,7 +775,7 @@ export default function SellerDashboardPage() {
         {vinculoFornecedor?.ativo && !vinculoFornecedor.dentro_compromisso && !vinculoFornecedor.liberado_antecipado && (
           <div
             role="note"
-            className="rounded-xl border border-emerald-300 bg-emerald-100 p-4 text-sm shadow-sm dark:border-emerald-900 dark:bg-emerald-950/25"
+            className="rounded-2xl border border-emerald-300 bg-emerald-100 p-4 text-sm shadow-sm dark:border-emerald-900 dark:bg-emerald-950/25"
           >
             <p className="font-semibold text-emerald-900 dark:text-emerald-300">Armazém vinculado — troca liberada</p>
             <p className="mt-1 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
@@ -773,7 +797,7 @@ export default function SellerDashboardPage() {
         {saldoAlerta && saldoAlerta.nivel !== "ok" && (
           <div
             role="status"
-            className={`rounded-xl border p-4 shadow-sm ${
+            className={`rounded-2xl border p-4 shadow-sm ${
               saldoAlerta.nivel === "critico"
                 ? "border-red-300 bg-red-100 dark:border-red-800 dark:bg-red-950/35"
                 : cn(AMBER_PREMIUM_SURFACE)
@@ -811,52 +835,64 @@ export default function SellerDashboardPage() {
           </div>
         )}
 
-        {/* 2. Resumo financeiro */}
-        <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
-          <div className="p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-0.5">Saldo total</p>
-                <p className="text-2xl sm:text-3xl font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(seller?.saldo_atual ?? 0)}</p>
+        {/* 2. Resumo financeiro — hero + grid como fornecedor */}
+        <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
+          <div className="relative p-4 sm:p-5">
+            <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-emerald-500 to-emerald-600 opacity-90" aria-hidden />
+            <div className="pl-4 sm:pl-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Saldo total</p>
+                <p className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
+                  {BRL.format(seller?.saldo_atual ?? 0)}
+                </p>
               </div>
-              <button onClick={() => setModalDeposito(true)} className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm font-semibold shrink-0">
+              <button
+                type="button"
+                onClick={() => setModalDeposito(true)}
+                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 text-sm font-semibold shrink-0 shadow-sm shadow-emerald-600/20 transition-colors"
+              >
                 + Depositar PIX
               </button>
             </div>
-            <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="rounded-lg bg-[var(--card)] border border-[var(--card-border)] px-3 py-2">
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">Disponível</p>
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(seller?.saldo_disponivel ?? 0)}</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 sm:p-4 pt-0 border-t border-[var(--card-border)]/80 bg-neutral-100 dark:bg-neutral-900/30">
+              <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem]">
+                <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Disponível</p>
+                <p className="mt-1 text-xl font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(seller?.saldo_disponivel ?? 0)}</p>
               </div>
-              <div className="rounded-lg bg-[var(--card)] border border-[var(--card-border)] px-3 py-2">
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">Bloqueado</p>
-                <p className="text-sm font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">{BRL.format(seller?.saldo_bloqueado ?? 0)}</p>
+              <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem]">
+                <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Bloqueado</p>
+                <p className="mt-1 text-xl font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(seller?.saldo_bloqueado ?? 0)}</p>
               </div>
               <button
                 type="button"
                 onClick={() => { setFiltroTipo("pedidos"); setFiltroStatus(""); setTab("extrato"); setMovimentacoesAberto(true); extratoRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                className="rounded-lg bg-[var(--card)] border border-[var(--card-border)] px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
               >
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">Pedidos (mês)</p>
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{kpis?.pedidos_mes ?? 0}</p>
+                <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Pedidos (mês)</p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                  {kpis?.pedidos_mes ?? 0}
+                </p>
               </button>
               <button
                 type="button"
                 onClick={() => { setFiltroTipo("pedidos"); setFiltroStatus(""); setTab("extrato"); setMovimentacoesAberto(true); extratoRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                className="rounded-lg bg-[var(--card)] border border-[var(--card-border)] px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
               >
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">Volume (mês)</p>
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(kpis?.total_mes ?? 0)}</p>
+                <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Volume (mês)</p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                  {BRL.format(kpis?.total_mes ?? 0)}
+                </p>
               </button>
             </div>
             {aLiberar > 0 && (
-              <div className="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
-                <span className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">A liberar (aguardando repasse)</span>
-                <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(aLiberar)}</span>
+              <div className="mx-3 sm:mx-4 mt-3 flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-100/60 dark:bg-neutral-800/40 px-3.5 py-3">
+                <span className="text-xs font-medium text-neutral-600 dark:text-neutral-300">A liberar (aguardando repasse)</span>
+                <span className="text-base font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(aLiberar)}</span>
               </div>
             )}
             {mensalidades.length > 0 && (
-              <div className="mt-3 pt-3 border-t flex flex-col gap-2 rounded-lg px-3 py-2.5 bg-neutral-100/60 dark:bg-neutral-800/40 border border-[var(--card-border)] sm:flex-row sm:items-center sm:justify-between">
+              <div className="mx-3 mb-3 mt-3 sm:mx-4 sm:mb-4 flex flex-col gap-2 rounded-xl border border-[var(--card-border)] px-3.5 py-3 bg-neutral-100/60 dark:bg-neutral-800/40 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 space-y-1">
                   <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">Mensalidade pendente</p>
                   <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
@@ -872,20 +908,22 @@ export default function SellerDashboardPage() {
                   <button
                     type="button"
                     onClick={() => abrirPixMensalidade(mensalidades[0])}
-                    className="shrink-0 rounded-lg bg-neutral-900 dark:bg-neutral-100 hover:opacity-90 text-white dark:text-neutral-900 px-3 py-1.5 text-xs font-medium"
+                    className="shrink-0 rounded-xl bg-neutral-900 dark:bg-neutral-100 hover:opacity-90 text-white dark:text-neutral-900 px-4 py-2 text-sm font-semibold"
                   >
                     Pagar {BRL.format(mensalidades[0].valor)}
                   </button>
                 ) : null}
               </div>
             )}
-          </div>
         </section>
 
         {/* 2a. Gráfico — volume por dia (hoje sempre fixo à direita) */}
-        <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
+        <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Volume de pedidos · Hoje fixo</p>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Volume de pedidos</p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Hoje fixo à direita do gráfico</p>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               {([7, 14, 30, 60, 90, 120] as const).map((n) => (
                 <button
@@ -949,7 +987,7 @@ export default function SellerDashboardPage() {
                         onMouseLeave={() => setChartTooltipHover(null)}
                       >
                         <div
-                          className="w-full rounded-t bg-emerald-500 hover:bg-emerald-600 transition-colors cursor-default"
+                          className="w-full rounded-t bg-emerald-600 hover:bg-emerald-700 transition-colors cursor-default"
                           style={{ height: `${barH}px` }}
                           title={`${periodLabel}: ${BRL.format(d.valor)}${count ? ` · ${count} pedidos` : ""}`}
                         />
@@ -1003,11 +1041,11 @@ export default function SellerDashboardPage() {
 
         {/* 2b. Analytics Pro — desempenho detalhado */}
         {isPro && analytics30d && (
-          <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
+          <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
             <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 bg-[var(--card)]">
               <div className="flex items-center gap-2">
-                <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Desempenho</p>
-                <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-[10px] font-bold text-neutral-700 dark:text-neutral-300">PRO · 30 dias</span>
+                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Desempenho</p>
+                <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-bold text-white">PRO · 30 dias</span>
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 divide-x divide-y sm:divide-y-0 divide-neutral-100 dark:divide-neutral-800">
@@ -1059,7 +1097,7 @@ export default function SellerDashboardPage() {
                     const principal = analytics30d!.temDadosVenda ? val.receita : val.custo;
                     const max = Math.max(...(analytics30d!.vendasPorDia as [string, { receita: number; custo: number }][]).map(([, v]) => analytics30d!.temDadosVenda ? v.receita : v.custo), 1);
                     return (
-                      <div key={dia} title={`${dia}: ${BRL.format(principal)}`} className="flex-1 min-w-0 bg-emerald-500 hover:bg-emerald-600 rounded-t" style={{ height: `${Math.max((principal / max) * 100, principal > 0 ? 4 : 2)}%` }} />
+                      <div key={dia} title={`${dia}: ${BRL.format(principal)}`} className="flex-1 min-w-0 bg-emerald-600 hover:bg-emerald-700 rounded-t" style={{ height: `${Math.max((principal / max) * 100, principal > 0 ? 4 : 2)}%` }} />
                     );
                   })}
                 </div>
@@ -1069,11 +1107,15 @@ export default function SellerDashboardPage() {
           </section>
         )}
 
-        {/* 3. Atalhos — linha horizontal */}
-        <section className="grid grid-cols-3 gap-2">
-          <button onClick={() => router.push("/seller/calculadora")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-left group">
-            <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5 text-neutral-600 dark:text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {/* 3. Atalhos — mesmo padrão “Acesso rápido” do fornecedor */}
+        <section aria-label="Atalhos">
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2 px-0.5">
+            Acesso rápido
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <button onClick={() => router.push("/seller/calculadora")} className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md group">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="4" y="2" width="16" height="20" rx="2" />
                 <line x1="7" y1="6" x2="17" y2="6" />
                 <line x1="8" y1="10" x2="9" y2="10" />
@@ -1087,34 +1129,35 @@ export default function SellerDashboardPage() {
                 <line x1="15" y1="18" x2="16" y2="18" />
               </svg>
             </div>
-            <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">Calculadora</span>
+            <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Calculadora</span>
           </button>
-          <button onClick={() => router.push("/seller/produtos")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-left group">
-            <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5 text-neutral-600 dark:text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <button onClick={() => router.push("/seller/produtos")} className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md group">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
                 <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
                 <line x1="12" y1="22.08" x2="12" y2="12" />
               </svg>
             </div>
-            <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">Produtos</span>
+            <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Produtos</span>
           </button>
-          <button onClick={() => router.push("/seller/integracoes-erp")} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-left group relative">
-            <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5 text-neutral-600 dark:text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <button onClick={() => router.push("/seller/integracoes-erp")} className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md group relative">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 22v-5" />
                 <path d="M9 8V2" />
                 <path d="M15 8V2" />
                 <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
               </svg>
             </div>
-            <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">Integrações</span>
+            <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Integrações</span>
             {erpConectado === true && (
-              <span className="absolute top-2 right-2 rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-[10px] font-semibold text-neutral-600 dark:text-neutral-400">
+              <span className="absolute top-2 right-2 rounded-full bg-emerald-100 dark:bg-emerald-950/50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 dark:text-emerald-300">
                 Conectado
               </span>
             )}
           </button>
+          </div>
         </section>
 
         {/* 4. Alerta devoluções (se houver) */}
@@ -1122,9 +1165,9 @@ export default function SellerDashboardPage() {
           <button
             type="button"
             onClick={() => { setTab("extrato"); setFiltroStatus(emDevolucaoCount > 0 ? "EM_DEVOLUCAO" : "DEVOLVIDO"); setMovimentacoesAberto(true); extratoRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-            className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 flex items-center gap-3 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="w-full rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 flex items-center gap-3 text-left shadow-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
-            <div className="w-9 h-9 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0 text-neutral-600 dark:text-neutral-300">
+            <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center shrink-0 text-emerald-700 dark:text-emerald-400">
               <IconDevolucao className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
@@ -1133,12 +1176,12 @@ export default function SellerDashboardPage() {
               </p>
               <p className="text-xs text-neutral-500 dark:text-neutral-400">Clique para ver no extrato</p>
             </div>
-            <IconArrowRight className="w-5 h-5 text-neutral-400 shrink-0" />
+            <IconArrowRight className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
           </button>
         )}
 
         {/* 5. Extrato / Depósitos — recolhível */}
-        <section ref={extratoRef} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
+        <section ref={extratoRef} className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
           {/* Cabeçalho com tabs e botão recolher */}
           <div className="flex items-center justify-between gap-3 border-b border-neutral-200 dark:border-neutral-700 bg-[var(--card)] px-3">
             <div className="flex items-center gap-1">

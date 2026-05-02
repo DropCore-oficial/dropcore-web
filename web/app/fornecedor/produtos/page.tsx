@@ -556,7 +556,7 @@ export default function FornecedorProdutosPage() {
               )}
               <Link
                 href="/fornecedor/produtos/criar-variantes"
-                className="flex h-9 w-full items-center justify-center rounded-md bg-[var(--primary-blue)] px-3 text-center text-xs font-semibold text-white shadow-sm transition hover:bg-[var(--primary-blue-hover)] active:brightness-[0.92]"
+                className="flex h-9 w-full items-center justify-center rounded-md bg-emerald-600 px-3 text-center text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:brightness-[0.92] shadow-emerald-600/20"
               >
                 Criar produto
               </Link>
@@ -569,7 +569,7 @@ export default function FornecedorProdutosPage() {
                     className="group flex min-h-[2.5rem] max-w-[min(100vw-8rem,17rem)] min-w-0 items-center gap-2.5 border-r border-neutral-200 px-3 py-1.5 text-left transition hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
                     title={`${rascunhoCriarVariantes.nomeResumo} — salvo em ${new Date(rascunhoCriarVariantes.savedAt).toLocaleString("pt-BR")}`}
                   >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 transition group-hover:bg-blue-100 group-hover:text-blue-600 dark:bg-neutral-800 dark:text-neutral-400 dark:group-hover:bg-blue-900 dark:group-hover:text-blue-300">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 transition group-hover:bg-emerald-100 group-hover:text-emerald-700 dark:bg-neutral-800 dark:text-neutral-400 dark:group-hover:bg-emerald-950/50 dark:group-hover:text-emerald-400">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                         <polyline points="14 2 14 8 20 8" />
@@ -596,7 +596,7 @@ export default function FornecedorProdutosPage() {
                   <div className="flex items-stretch gap-1 p-1 pl-0">
                     <Link
                       href="/fornecedor/produtos/criar-variantes"
-                      className="flex h-8 items-center rounded-md bg-[var(--primary-blue)] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[var(--primary-blue-hover)] active:brightness-[0.92]"
+                      className="flex h-8 items-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:brightness-[0.92] shadow-emerald-600/20"
                     >
                       Criar produto
                     </Link>
@@ -605,7 +605,7 @@ export default function FornecedorProdutosPage() {
               ) : (
                 <Link
                   href="/fornecedor/produtos/criar-variantes"
-                  className="flex h-8 items-center rounded-md bg-[var(--primary-blue)] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[var(--primary-blue-hover)] active:brightness-[0.92]"
+                  className="flex h-8 items-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:brightness-[0.92] shadow-emerald-600/20"
                 >
                   Criar produto
                 </Link>
@@ -707,7 +707,11 @@ export default function FornecedorProdutosPage() {
                                 )}
                                 {statusAlteracaoGrupo(g) === "pendente" && (
                                   <span
-                                    className="shrink-0 rounded-full border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200"
+                                    className={cn(
+                                      AMBER_PREMIUM_SURFACE_TRANSPARENT,
+                                      AMBER_PREMIUM_TEXT_PRIMARY,
+                                      "shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium"
+                                    )}
                                     title="Alteração aguardando aprovação do admin"
                                   >
                                     Em análise
@@ -815,7 +819,7 @@ export default function FornecedorProdutosPage() {
                             }}
                             className={`h-8 min-w-[8.5rem] rounded-lg px-3 text-[13px] font-medium transition ${
                               modoListaVariantes === "agrupado-cor"
-                                ? "bg-[var(--primary-blue)] text-white shadow-sm hover:bg-[var(--primary-blue-hover)]"
+                                ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
                                 : "text-gray-600 hover:bg-white hover:text-gray-800 dark:text-neutral-400 dark:hover:bg-neutral-900 dark:hover:text-neutral-200"
                             }`}
                           >
@@ -829,7 +833,7 @@ export default function FornecedorProdutosPage() {
                             }}
                             className={`h-8 min-w-[8.5rem] rounded-lg px-3 text-[13px] font-medium transition ${
                               modoListaVariantes === "sku"
-                                ? "bg-[var(--primary-blue)] text-white shadow-sm hover:bg-[var(--primary-blue-hover)]"
+                                ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
                                 : "text-gray-600 hover:bg-white hover:text-gray-800 dark:text-neutral-400 dark:hover:bg-neutral-900 dark:hover:text-neutral-200"
                             }`}
                           >
@@ -1097,7 +1101,7 @@ export default function FornecedorProdutosPage() {
                                         href={lf}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="font-medium text-blue-600 dark:text-blue-400 underline underline-offset-2 break-all"
+                                        className="font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 underline underline-offset-2 break-all"
                                       >
                                         Link fotos
                                       </a>
@@ -1191,7 +1195,7 @@ export default function FornecedorProdutosPage() {
                                         href={lf}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs break-all line-clamp-2 block"
+                                        className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 text-xs break-all line-clamp-2 block"
                                       >
                                         Ver
                                       </a>
@@ -1203,7 +1207,7 @@ export default function FornecedorProdutosPage() {
                                     <button
                                       type="button"
                                       onClick={(e) => { e.stopPropagation(); openEdit(row); }}
-                                      className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900 dark:hover:text-blue-300"
+                                      className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-100 dark:text-emerald-400 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-300"
                                     >
                                       Editar
                                     </button>
@@ -1266,7 +1270,7 @@ export default function FornecedorProdutosPage() {
                   onChange={(e) => setEditNome(e.target.value)}
                   onBlur={() => setEditNome(toTitleCase(editNome))}
                   placeholder="Ex: Camiseta Básica"
-                  className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   required
                 />
               </div>
@@ -1279,7 +1283,7 @@ export default function FornecedorProdutosPage() {
                     onChange={(e) => setEditCor(e.target.value)}
                     onBlur={() => setEditCor(toTitleCase(editCor))}
                     placeholder="Ex: Preto"
-                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>
                 <div>
@@ -1290,7 +1294,7 @@ export default function FornecedorProdutosPage() {
                     onChange={(e) => setEditTamanho(e.target.value)}
                     onBlur={() => setEditTamanho(editTamanho.trim().toUpperCase())}
                     placeholder="Ex: M"
-                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>
               </div>
@@ -1302,7 +1306,7 @@ export default function FornecedorProdutosPage() {
                   onBlur={() => setEditDescricao(toTitleCase(editDescricao))}
                   placeholder="Descrição do produto"
                   rows={2}
-                  className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
+                  className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none"
                 />
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -1313,7 +1317,7 @@ export default function FornecedorProdutosPage() {
                     value={editComp}
                     onChange={(e) => setEditComp(e.target.value)}
                     placeholder="—"
-                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>
                 <div>
@@ -1323,7 +1327,7 @@ export default function FornecedorProdutosPage() {
                     value={editLarg}
                     onChange={(e) => setEditLarg(e.target.value)}
                     placeholder="—"
-                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>
                 <div>
@@ -1333,13 +1337,13 @@ export default function FornecedorProdutosPage() {
                     value={editAlt}
                     onChange={(e) => setEditAlt(e.target.value)}
                     placeholder="—"
-                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>
               </div>
               <div>
                 <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Peso (kg)</label>
-                <input type="text" inputMode="decimal" value={editPeso} onChange={(e) => setEditPeso(e.target.value)} placeholder="—" className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                <input type="text" inputMode="decimal" value={editPeso} onChange={(e) => setEditPeso(e.target.value)} placeholder="—" className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1350,7 +1354,7 @@ export default function FornecedorProdutosPage() {
                     value={editCusto}
                     onChange={(e) => setEditCusto(e.target.value)}
                     placeholder="0"
-                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>
                 <div>
@@ -1361,7 +1365,7 @@ export default function FornecedorProdutosPage() {
                     value={editEstoque}
                     onChange={(e) => setEditEstoque(e.target.value)}
                     placeholder="0"
-                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>
               </div>
@@ -1372,7 +1376,7 @@ export default function FornecedorProdutosPage() {
                   value={editLinkFotos}
                   onChange={(e) => setEditLinkFotos(e.target.value)}
                   placeholder="https://drive.google.com/... ou link do Dropbox, etc."
-                  className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 />
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">Cada variante pode ter seu próprio link de fotos</p>
               </div>
@@ -1385,7 +1389,7 @@ export default function FornecedorProdutosPage() {
                   onChange={(e) => setEditExpedicao(e.target.value)}
                   rows={3}
                   placeholder="Só preencha se for diferente do CD padrão no cadastro da empresa. Ex.: CD Santa Catarina + endereço completo."
-                  className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-y min-h-[4rem]"
+                  className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-y min-h-[4rem]"
                 />
                 <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1 leading-snug">
                   Alterações seguem para análise da DropCore como os outros campos.
@@ -1403,7 +1407,7 @@ export default function FornecedorProdutosPage() {
                 <button
                   type="submit"
                   disabled={formLoading}
-                  className="flex-1 rounded-lg bg-[var(--primary-blue)] text-white font-semibold px-4 py-2.5 text-sm hover:bg-[var(--primary-blue-hover)] disabled:opacity-60"
+                  className="flex-1 rounded-lg bg-emerald-600 text-white font-semibold px-4 py-2.5 text-sm hover:bg-emerald-700 disabled:opacity-60 shadow-sm shadow-emerald-600/20"
                 >
                   {formLoading ? "Salvando..." : "Salvar"}
                 </button>

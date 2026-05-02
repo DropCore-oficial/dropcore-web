@@ -1,0 +1,15 @@
+---
+description: Padrão âmbar premium — moldura transparente (claro + escuro) centralizado em amberPremium.ts
+alwaysApply: true
+---
+
+# `AMBER_PREMIUM_SURFACE_TRANSPARENT`
+
+- **Fonte única:** todas as classes de borda / fundo transparente para tema **claro** e **escuro** ficam **somente** em `web/lib/amberPremium.ts`, no export `AMBER_PREMIUM_SURFACE_TRANSPARENT`.
+- **Não** duplicar `border-*` light/dark em páginas ou componentes para esse padrão — usar `cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, …)` ou `Alert variant="warning"` / `AmberPremiumCallout`.
+- Ao ajustar contraste em um tema, **alterar o token** para os dois lados (`border …` + `dark:border …`) na mesma string, mantendo coerência com `AMBER_PREMIUM_TEXT_PRIMARY` no claro e âmbar legível no escuro.
+
+Valores atuais (referência; conferir no ficheiro):
+
+- Claro: moldura alinhada ao tom do título — `border-amber-900/*`, fundo transparente.
+- Escuro: `dark:border-amber-400/*`, `dark:bg-transparent`.

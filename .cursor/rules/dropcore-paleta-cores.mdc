@@ -1,0 +1,40 @@
+---
+description: Paleta DropCore travada — verde UI só escala emerald documentada; logo isolado; âmbar para alertas; opacidades em lista fechada
+alwaysApply: true
+---
+
+# Paleta de cores DropCore (obrigatório)
+
+## Verde da marca (UI)
+
+- **Fonte única dos HEX:** `web/lib/dropcorePalette.ts` (`EMERALD_SCALE`) + Supabase `dropcore_design_tokens`.
+- **Steps permitidos (exaustivo):** `50`, `100`, `300`, `400`, `500`, `600`, `700`, `900`, `950` → só classes `emerald-{step}` com esse `step`. **Proibido** `emerald-200`, `emerald-800` e qualquer outro step.
+- **Opacidade no mesmo token:** só os sufixos listados em `ALLOWED_EMERALD_OPACITIES` em `dropcorePalette.ts` (de `/5` a `/95`, escala fechada — **não** usar `/…` com outros números, ex. `/37` ou `/43`).
+- **Proibido** para substituir verde UI: `green-*`, `lime-*`, `teal-*`, HEX arbitrários (`text-[#…]` verde) exceto onde a regra permitir documentação.
+- **Variáveis CSS:** devem resolver para um step de `EMERALD_SCALE` ou `LOGO_GREEN_HEX` conforme o papel.
+
+## Logo (exclusivo)
+
+- **`#22C55E`** — só `LOGO_GREEN_HEX` / `DropCoreLogo.tsx`. **Não** usar em badges, links nem KPIs (substituir por `emerald-*` conforme contraste).
+
+## Azul de ação primária (CTAs / links de sistema)
+
+- **Fonte única dos HEX:** `web/lib/dropcorePalette.ts` (`PRIMARY_ACTION_BLUE_HEX`, `PRIMARY_ACTION_BLUE_HOVER_HEX`) + Supabase `tokens.ui_blue.primaria_acao` + vars `--primary-blue` / `--primary-blue-hover` em `globals.css`.
+- **Uso:** botões e estados que hoje usariam Tailwind `blue-600`/`blue-700` de marca (ex. “Criar produto”), não misturar com a escala emerald de positivo/sucesso.
+
+## Alertas e atenção
+
+- **Âmbar:** `web/lib/amberPremium.ts` (`Alert` warning, callouts). **Não** usar emerald para esse papel.
+
+## Sucesso / erro / info
+
+- `web/lib/semanticPremium.ts` + vars em `globals.css` — não confundir com a escala emerald de produto.
+
+## Novas cores
+
+- Só após atualizar `dropcorePalette.ts`, JSON em `dropcore_design_tokens`, `ALLOWED_EMERALD_OPACITIES` se necessário, e esta regra (para azul CTA: também `ui_blue` e vars em `globals.css`).
+
+## O que nunca fazer
+
+- Novos tons de verde UI fora de `EMERALD_SCALE`.
+- Opacidades “inventadas” fora da lista em `dropcorePalette.ts`.
