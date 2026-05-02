@@ -784,12 +784,19 @@ export default function EditarVariantesPage() {
             <h1 className="text-sm sm:text-base font-semibold text-neutral-900 dark:text-neutral-100 min-w-0 flex-1 basis-full sm:basis-auto flex flex-wrap items-center gap-2">
               <span className="break-words">Produtos do Armazém / Editar Variantes</span>
               {statusAlteracaoEditar === "pendente" && (
-                <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border bg-blue-100 text-blue-800 border-blue-200" title="Alteração aguardando aprovação do admin">
+                <span
+                  className={cn(
+                    AMBER_PREMIUM_SURFACE_TRANSPARENT,
+                    AMBER_PREMIUM_TEXT_PRIMARY,
+                    "shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium"
+                  )}
+                  title="Alteração aguardando aprovação do admin"
+                >
                   Em análise
                 </span>
               )}
               {statusAlteracaoEditar === "aprovado" && (
-                <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border bg-green-100 text-green-700 border-green-200">
+                <span className="shrink-0 rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
                   Aprovado
                 </span>
               )}
@@ -831,7 +838,7 @@ export default function EditarVariantesPage() {
       )}
       {successMessage && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
-          <div className="rounded-lg border border-green-300 dark:border-green-800 bg-green-100 dark:bg-green-950/30 p-3 text-sm text-green-800 dark:text-green-300">
+          <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
             {successMessage}
           </div>
         </div>

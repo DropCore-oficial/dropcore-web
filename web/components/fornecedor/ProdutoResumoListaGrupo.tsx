@@ -8,6 +8,7 @@ import {
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
   AMBER_PREMIUM_TEXT_PRIMARY,
   AMBER_PREMIUM_TEXT_SECONDARY,
+  amberPremiumWarningMainTextClass,
 } from "@/lib/amberPremium";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { cn } from "@/lib/utils";
@@ -165,7 +166,7 @@ function KpiCard({
     tone === "success"
       ? "text-emerald-700 dark:text-emerald-300"
       : tone === "warning"
-        ? AMBER_PREMIUM_TEXT_PRIMARY
+        ? amberPremiumWarningMainTextClass(value)
         : "text-neutral-900 dark:text-neutral-100";
   return (
     <div className="rounded-2xl border border-neutral-200/90 bg-white p-4 shadow-sm ring-1 ring-black/[0.03] transition-all duration-200 hover:ring-black/[0.06] dark:border-neutral-700 dark:bg-neutral-900 dark:ring-white/5 dark:hover:ring-white/10">
@@ -188,7 +189,7 @@ function ProgressBar({ value }: { value: number }) {
   return (
     <div className="h-2.5 w-full overflow-hidden rounded-full bg-neutral-200/90 ring-1 ring-inset ring-black/5 dark:bg-neutral-800 dark:ring-white/5">
       <div
-        className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-emerald-500 to-sky-600 transition-all duration-500 ease-out dark:from-emerald-500 dark:via-teal-500 dark:to-sky-500"
+        className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-emerald-500 to-[var(--primary-blue)] transition-all duration-500 ease-out dark:from-emerald-500 dark:via-emerald-500 dark:to-[var(--primary-blue)]"
         style={{ width: `${value}%` }}
       />
     </div>
@@ -202,7 +203,9 @@ function GradeBadge({ value }: { value: number }) {
       <span
         className={`inline-flex max-w-full items-center gap-1 rounded-full px-3.5 py-2 text-xs leading-snug shadow-none ${AMBER_PREMIUM_SURFACE_TRANSPARENT}`}
       >
-        <span className={cn("shrink-0 font-semibold tabular-nums", AMBER_PREMIUM_TEXT_PRIMARY)}>{value}%</span>
+        <span className={cn("shrink-0 font-semibold tabular-nums", amberPremiumWarningMainTextClass(`${value}%`))}>
+          {value}%
+        </span>
         <span className={cn("shrink-0 font-normal", AMBER_PREMIUM_DOT)} aria-hidden>
           ·
         </span>
@@ -409,7 +412,7 @@ export function ProdutoResumoListaGrupo({
             <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Próximas ações prioritárias</p>
             <Link
               href={editHref}
-              className="inline-flex h-8 shrink-0 items-center justify-center self-start rounded-lg bg-sky-600 px-3.5 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 sm:self-auto"
+              className="inline-flex h-8 shrink-0 items-center justify-center self-start rounded-lg bg-[var(--primary-blue)] px-3.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[var(--primary-blue-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)] focus:ring-offset-2 dark:focus:ring-offset-neutral-900 sm:self-auto"
             >
               Resolver agora
             </Link>
@@ -532,7 +535,7 @@ export function ProdutoResumoListaGrupo({
                       href={linkAlbum!}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="break-all font-medium text-sky-700 underline decoration-sky-700/25 underline-offset-2 transition hover:text-sky-900 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:text-sky-300"
+                      className="break-all font-medium text-[var(--primary-blue)] underline decoration-[var(--primary-blue)]/25 underline-offset-2 transition hover:text-[var(--primary-blue-hover)] dark:text-[var(--primary-blue)] dark:decoration-[var(--primary-blue)]/30 dark:hover:text-[var(--primary-blue-hover)]"
                     >
                       Abrir link
                     </a>

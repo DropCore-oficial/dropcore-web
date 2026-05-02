@@ -25,16 +25,28 @@ alwaysApply: true
 ## Alertas e atenção
 
 - **Âmbar:** `web/lib/amberPremium.ts` (`Alert` warning, callouts). **Não** usar emerald para esse papel.
+- **Hierarquia de texto (âmbar):** títulos e ênfases fortes → `AMBER_PREMIUM_TEXT_PRIMARY`; corpo em caixas → `AMBER_PREMIUM_TEXT_BODY` / `AMBER_PREMIUM_TEXT_SOFT` conforme contraste; legendas → `AMBER_PREMIUM_TEXT_SECONDARY`.
+- **KPI / valor principal em aviso:** usar `amberPremiumWarningMainTextClass(value)` — contadores (`4/36`), “Não”, “—” etc. em `AMBER_PREMIUM_TEXT_SOFT`; o literal **Pendente** (trim) em `AMBER_PREMIUM_TEXT_PRIMARY`. Subtítulo do cartão em `AMBER_PREMIUM_TEXT_SECONDARY`. **Não** duplicar a lógica em páginas; importar a função de `amberPremium.ts`.
 
 ## Sucesso / erro / info
 
 - `web/lib/semanticPremium.ts` + vars em `globals.css` — não confundir com a escala emerald de produto.
 
+## Erro / perigo (vermelho de sistema)
+
+- **HEX base:** `web/lib/dropcorePalette.ts` (`DANGER_HEX`) + Supabase `tokens.ui_danger.base` + var **`--danger`** em `globals.css` (**`#EF4444`** — equivalente Tailwind `red-500`).
+- **Steps `red-*` permitidos** (além de `var(--danger)` onde aplicável): **`DANGER_UI_RED_STEPS`** em `dropcorePalette.ts` — **`300`, `400`, `500`, `600`, `950`**. **Proibido** inventar outro tom vermelho/rosa (`rose-*`, `pink-*`, HEX soltos) para o mesmo papel.
+- **Componentes:** superfícies e texto via `DANGER_PREMIUM_*` em `semanticPremium.ts` (`SHELL`, `SURFACE`, `SURFACE_TRANSPARENT`, `TEXT_*`). **Não** introduzir `#991b1b`, `#dc2626` nem `rose-*` para o mesmo papel de erro/perigo — preferir `var(--danger)` e o kit.
+- **`rose-*`:** reservado só a **gráficos / variação** se ainda existir legado; estados de pedido, alertas e CTAs destrutivos usam **`DANGER_PREMIUM_*`**.
+- **Alerta “Saldo crítico” (seller dashboard):** fonte única **`web/lib/dangerSellerSaldoCriticoUi.ts`** — espelha `tokens.ui_danger.seller_dashboard_saldo_critico` no Supabase. **Claro:** borda `border-[var(--danger)]/55`, sombra `shadow-sm shadow-red-500/10`, barra `from-[var(--danger)] to-red-600`, ícone `border-[var(--danger)]/35` + `bg-[var(--danger)]/10`, título/ícone `text-[var(--danger)]`, CTA `bg-[var(--danger)]` + `hover:opacity-90`. **Escuro:** `dark:border-red-400/55`, `dark:shadow-none`, barra `dark:from-red-400 dark:to-red-500`, ícone/título `dark:text-red-300`, moldura ícone `dark:border-red-400/55` + fundo transparente, corpo `text-neutral-600` / `dark:text-neutral-300`, CTA `dark:bg-red-500` / `dark:hover:bg-red-400` + `dark:shadow-sm dark:shadow-red-950/50` + anel interno branco `/20`. **Não** duplicar classes noutros ficheiros; importar os exports do módulo.
+- **Botão perigo genérico (resto do app):** `bg-[var(--danger)]` + `hover:opacity-90` (igual `Button` danger), salvo padrões já travados (ex.: saldo crítico seller acima).
+
 ## Novas cores
 
-- Só após atualizar `dropcorePalette.ts`, JSON em `dropcore_design_tokens`, `ALLOWED_EMERALD_OPACITIES` se necessário, e esta regra (para azul CTA: também `ui_blue` e vars em `globals.css`).
+- Só após atualizar `dropcorePalette.ts`, JSON em `dropcore_design_tokens`, `ALLOWED_EMERALD_OPACITIES` se necessário, e esta regra (para azul CTA: também `ui_blue` e vars em `globals.css`; para perigo: também `ui_danger` e `--danger`).
 
 ## O que nunca fazer
 
 - Novos tons de verde UI fora de `EMERALD_SCALE`.
 - Opacidades “inventadas” fora da lista em `dropcorePalette.ts`.
+- Novos HEX de erro fora de `DANGER_HEX` / `--danger` sem atualizar BD e esta regra.

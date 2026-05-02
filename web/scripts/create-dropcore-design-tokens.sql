@@ -9,12 +9,12 @@ CREATE TABLE IF NOT EXISTS public.dropcore_design_tokens (
 );
 
 COMMENT ON TABLE public.dropcore_design_tokens IS
-  'Tokens de cor da marca: verde UI = escala emerald; verde #22C55E só no componente DropCoreLogo; alertas = âmbar; azul CTA = #0078D4 em globals.css / dropcorePalette.ts';
+  'Tokens de cor da marca: verde UI = escala emerald; verde #22C55E só no DropCoreLogo; alertas = âmbar; azul CTA = #0078D4; perigo = #EF4444 (--danger) em globals.css / dropcorePalette.ts / semanticPremium.ts';
 
 INSERT INTO public.dropcore_design_tokens (id, descricao, tokens)
 VALUES (
   'v1',
-  'DropCore — verdes sistema + logo + âmbar + azul CTA',
+  'DropCore — verdes sistema + logo + âmbar + azul CTA + perigo',
   '{
     "versao": 1,
     "logo": {
@@ -42,7 +42,11 @@ VALUES (
       "familia": "amber_premium",
       "fonte_codigo": "web/lib/amberPremium.ts",
       "componentes": ["Alert variant=warning", "AmberPremiumCallout"],
-      "nota": "Avisos e pendências — não misturar com a escala emerald de ação/positivo."
+      "nota": "Avisos e pendências — não misturar com a escala emerald de ação/positivo.",
+      "hierarquia_texto_kpi_aviso": {
+        "funcao": "amberPremiumWarningMainTextClass(value)",
+        "regra": "Valor principal em cartão/KPI no tom warning: SOFT para métricas e estados genéricos; PRIMARY só para o texto literal Pendente (após trim). Subtítulo: AMBER_PREMIUM_TEXT_SECONDARY."
+      }
     },
     "ui_blue": {
       "primaria_acao": {
@@ -51,6 +55,39 @@ VALUES (
         "css_vars": ["--primary-blue", "--primary-blue-hover"],
         "fonte_codigo": "web/lib/dropcorePalette.ts (PRIMARY_ACTION_BLUE_HEX)",
         "nota": "CTAs azuis e focos que substituem o Tailwind blue-600; não confundir com emerald de produto."
+      }
+    },
+    "ui_danger": {
+      "base": {
+        "hex": "#EF4444",
+        "tailwind_approx": "red-500",
+        "css_var": "--danger",
+        "fonte_codigo": "web/lib/dropcorePalette.ts (DANGER_HEX), web/lib/semanticPremium.ts (DANGER_PREMIUM_*)",
+        "nota": "Erro, perigo, valores negativos de KPI quando o papel é alerta — superfícies com opacidade sobre var(--danger); texto via DANGER_PREMIUM_TEXT_*; não espalhar #991b1b nem rose-* para o mesmo papel."
+      },
+      "tailwind_red_steps_ui": ["300", "400", "500", "600", "950"],
+      "seller_dashboard_saldo_critico": {
+        "fonte_codigo": "web/lib/dangerSellerSaldoCriticoUi.ts",
+        "sem_rosa_rose": true,
+        "claro": {
+          "cartao": "border-[var(--danger)]/55 bg-transparent shadow-sm shadow-red-500/10",
+          "barra_lateral": "from-[var(--danger)] to-red-600 opacity-95",
+          "icone_moldura": "border-[var(--danger)]/35 bg-[var(--danger)]/10",
+          "icone_traco": "text-[var(--danger)]",
+          "titulo": "text-[var(--danger)]",
+          "cta": "bg-[var(--danger)] hover:opacity-90"
+        },
+        "escuro": {
+          "cartao": "dark:border-red-400/55 dark:bg-transparent dark:shadow-none",
+          "barra_lateral": "dark:from-red-400 dark:to-red-500 dark:opacity-100",
+          "icone_moldura": "dark:border-red-400/55 dark:bg-transparent",
+          "icone_traco": "dark:text-red-300",
+          "titulo": "dark:text-red-300",
+          "corpo": "text-neutral-600 dark:text-neutral-300",
+          "cta": "dark:bg-red-500 dark:hover:bg-red-400 dark:shadow-sm dark:shadow-red-950/50 dark:ring-inset dark:ring-white/20"
+        },
+        "opacidades_var_danger": ["/55", "/35", "/10"],
+        "opacidades_red_tailwind": ["/55", "/50", "/10"]
       }
     }
   }'::jsonb

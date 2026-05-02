@@ -32,16 +32,18 @@ export const SUCCESS_PREMIUM_TEXT_BODY = "text-green-900/90 dark:text-green-200"
 
 /* ─── Erro / perigo ────────────────────────────────────────────────────────── */
 
+/** Escuro: fundo de cartão opaco + borda/anel visíveis (igual ideia do âmbar) — evita “marrom” sobre #000. */
 export const DANGER_PREMIUM_SHELL =
-  "border border-[var(--danger)]/30 bg-[var(--danger)]/15 ring-1 ring-[var(--danger)]/10 dark:border-[var(--danger)]/40 dark:bg-[var(--danger)]/12 dark:ring-[var(--danger)]/15";
+  "border border-[var(--danger)]/30 bg-[var(--danger)]/15 ring-1 ring-[var(--danger)]/10 dark:border-[var(--danger)]/50 dark:bg-neutral-900 dark:ring-[var(--danger)]/30";
 
 export const DANGER_PREMIUM_SURFACE =
-  "border border-[var(--danger)]/25 bg-[var(--danger)]/10 ring-1 ring-[var(--danger)]/12 dark:border-[var(--danger)]/35 dark:bg-[var(--danger)]/12 dark:ring-[var(--danger)]/18";
+  "border border-[var(--danger)]/25 bg-[var(--danger)]/10 ring-1 ring-[var(--danger)]/12 dark:border-[var(--danger)]/40 dark:bg-neutral-900 dark:ring-[var(--danger)]/25";
 
+/** Moldura sem preenchimento — mesmo papel que `AMBER_PREMIUM_SURFACE_TRANSPARENT` (claro + escuro). */
 export const DANGER_PREMIUM_SURFACE_TRANSPARENT =
-  "border border-[var(--danger)]/40 bg-transparent dark:border-[var(--danger)]/45 dark:bg-transparent";
+  "border border-[var(--danger)]/40 bg-transparent dark:border-red-400/40 dark:bg-transparent";
 
-export const DANGER_PREMIUM_TEXT_PRIMARY = "text-red-900 dark:text-red-300";
+export const DANGER_PREMIUM_TEXT_PRIMARY = "text-red-900 dark:text-red-200";
 export const DANGER_PREMIUM_TEXT_SOFT = "text-red-800 dark:text-red-400";
 export const DANGER_PREMIUM_TEXT_BODY = "text-red-900/90 dark:text-red-200";
 

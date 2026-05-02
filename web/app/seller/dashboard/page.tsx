@@ -14,9 +14,26 @@ import {
   AMBER_PREMIUM_SURFACE,
   AMBER_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/amberPremium";
+import {
+  SELLER_SALDO_CRITICO_ACCENT_BAR,
+  SELLER_SALDO_CRITICO_BODY,
+  SELLER_SALDO_CRITICO_BUTTON,
+  SELLER_SALDO_CRITICO_CARD_SURFACE,
+  SELLER_SALDO_CRITICO_ICON_STROKE,
+  SELLER_SALDO_CRITICO_ICON_WRAP,
+  SELLER_SALDO_CRITICO_INNER_PAD,
+  SELLER_SALDO_CRITICO_TITLE,
+} from "@/lib/dangerSellerSaldoCriticoUi";
+import {
+  DANGER_PREMIUM_SHELL,
+  DANGER_PREMIUM_SURFACE_TRANSPARENT,
+  DANGER_PREMIUM_TEXT_PRIMARY,
+  DANGER_PREMIUM_TEXT_SOFT,
+} from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
 
 const SELLER_LEDGER_BADGE_AMBER = cn(AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY);
+const SELLER_LEDGER_BADGE_DANGER = cn(DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY);
 
 type SellerData = {
   id: string;
@@ -132,7 +149,7 @@ const statusLabel: Record<string, { label: string; cor: string }> = {
   BLOQUEADO:         { label: "Aguardando envio",  cor: SELLER_LEDGER_BADGE_AMBER },
   ENTREGUE:          { label: "Entregue",           cor: "text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-950/40 border-blue-300 dark:border-blue-700" },
   AGUARDANDO_REPASSE:{ label: "Pedido postado",     cor: "text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/40 border-sky-300 dark:border-sky-700" },
-  EM_DEVOLUCAO:      { label: "Em devolução",       cor: "text-rose-800 dark:text-rose-200 bg-rose-100 dark:bg-rose-950/45 border-rose-300/90 dark:border-rose-800/80" },
+  EM_DEVOLUCAO:      { label: "Em devolução",       cor: SELLER_LEDGER_BADGE_DANGER },
   DEVOLVIDO:         { label: "Devolvido",          cor: "text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-950/40 border-violet-300 dark:border-violet-700" },
   PAGO:              { label: "Concluído",          cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700" },
   CANCELADO:         { label: "Cancelado",          cor: "text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700" },
@@ -662,11 +679,20 @@ export default function SellerDashboardPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center p-4">
-        <div className="rounded-2xl border border-red-200/80 dark:border-red-900/50 bg-white dark:bg-neutral-900/80 shadow-lg p-8 max-w-md w-full text-center">
-          <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/50 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-6 h-6 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+        <div
+          className={cn(
+            "rounded-2xl bg-white dark:bg-neutral-900/80 shadow-lg p-8 max-w-md w-full text-center",
+            DANGER_PREMIUM_SURFACE_TRANSPARENT
+          )}
+        >
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--danger)]/15 dark:bg-[var(--danger)]/20">
+            <svg className="h-6 w-6 text-[var(--danger)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
           </div>
-          <p className="text-red-700 dark:text-red-300 font-semibold mb-2">Ocorreu um erro</p>
+          <p className={cn("mb-2 font-semibold", DANGER_PREMIUM_TEXT_PRIMARY)}>Ocorreu um erro</p>
           <p className="text-neutral-600 dark:text-neutral-400 text-sm mb-6">{error}</p>
           <button onClick={load} className="rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity">
             Tentar novamente
@@ -797,16 +823,46 @@ export default function SellerDashboardPage() {
         {saldoAlerta && saldoAlerta.nivel !== "ok" && (
           <div
             role="status"
-            className={`rounded-2xl border p-4 shadow-sm ${
-              saldoAlerta.nivel === "critico"
-                ? "border-red-300 bg-red-100 dark:border-red-800 dark:bg-red-950/35"
-                : cn(AMBER_PREMIUM_SURFACE)
-            }`}
+            className={cn(
+              "rounded-2xl p-4 sm:p-5",
+              saldoAlerta.nivel === "critico" ? SELLER_SALDO_CRITICO_CARD_SURFACE : cn(AMBER_PREMIUM_SURFACE, "shadow-sm")
+            )}
           >
-            <p className={`text-sm font-semibold ${saldoAlerta.nivel === "critico" ? "text-red-900 dark:text-red-200" : AMBER_PREMIUM_TEXT_PRIMARY}`}>
-              {saldoAlerta.nivel === "critico" ? "Saldo crítico para novos pedidos" : "Saldo baixo — antecipe um depósito"}
-            </p>
-            <p className="mt-1 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
+            {saldoAlerta.nivel === "critico" && (
+              <div className={SELLER_SALDO_CRITICO_ACCENT_BAR} aria-hidden />
+            )}
+            <div className={saldoAlerta.nivel === "critico" ? SELLER_SALDO_CRITICO_INNER_PAD : undefined}>
+            {saldoAlerta.nivel === "critico" ? (
+              <div className="flex gap-3">
+                <span className={SELLER_SALDO_CRITICO_ICON_WRAP}>
+                  <svg
+                    className={SELLER_SALDO_CRITICO_ICON_STROKE}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className={SELLER_SALDO_CRITICO_TITLE}>Saldo crítico para novos pedidos</p>
+                </div>
+              </div>
+            ) : (
+              <p className={cn("text-sm font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>Saldo baixo — antecipe um depósito</p>
+            )}
+            <p
+              className={cn(
+                "mt-1 text-xs leading-relaxed text-neutral-700 dark:text-neutral-300",
+                saldoAlerta.nivel === "critico" && SELLER_SALDO_CRITICO_BODY
+              )}
+            >
               Disponível: <span className="font-semibold tabular-nums">{BRL.format(saldoAlerta.saldo_disponivel)}</span>
               {saldoAlerta.custo_medio_pedido != null && saldoAlerta.pedidos_estimados != null ? (
                 <>
@@ -826,12 +882,15 @@ export default function SellerDashboardPage() {
             <button
               type="button"
               onClick={() => setModalDeposito(true)}
-              className={`mt-3 rounded-lg px-4 py-2 text-sm font-semibold text-white ${
-                saldoAlerta.nivel === "critico" ? "bg-red-700 hover:bg-red-800" : "bg-emerald-600 hover:bg-emerald-700"
-              }`}
+              className={cn(
+                saldoAlerta.nivel === "critico"
+                  ? SELLER_SALDO_CRITICO_BUTTON
+                  : "mt-3 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors bg-emerald-600 hover:bg-emerald-700"
+              )}
             >
               Depositar PIX
             </button>
+            </div>
           </div>
         )}
 
@@ -1061,7 +1120,14 @@ export default function SellerDashboardPage() {
                   </div>
                   <div className="px-4 py-3">
                     <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Lucro</p>
-                    <p className={`text-sm font-bold tabular-nums ${analytics30d.lucroTotal >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"}`}>{BRL.format(analytics30d.lucroTotal)}</p>
+                    <p
+                      className={cn(
+                        "text-sm font-bold tabular-nums",
+                        analytics30d.lucroTotal >= 0 ? "text-emerald-600 dark:text-emerald-400" : DANGER_PREMIUM_TEXT_SOFT
+                      )}
+                    >
+                      {BRL.format(analytics30d.lucroTotal)}
+                    </p>
                   </div>
                   <div className="px-4 py-3">
                     <p className="text-[11px] text-neutral-500 dark:text-neutral-400">{analytics30d.margemMedia != null ? "Margem" : "Ticket médio"}</p>
@@ -1302,7 +1368,13 @@ export default function SellerDashboardPage() {
                                 {e.preco_venda != null && e.custo != null && e.preco_venda > 0 && (
                                   <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
                                     Venda {BRL.format(e.preco_venda)} · Margem{" "}
-                                    <span className={e.preco_venda - e.custo >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"}>
+                                    <span
+                                      className={
+                                        e.preco_venda - e.custo >= 0
+                                          ? "text-emerald-600 dark:text-emerald-400"
+                                          : DANGER_PREMIUM_TEXT_SOFT
+                                      }
+                                    >
                                       {((e.preco_venda - e.custo) / e.preco_venda * 100).toFixed(0)}%
                                     </span>
                                   </p>
@@ -1470,7 +1542,9 @@ export default function SellerDashboardPage() {
                   </div>
 
                   {depositoErro && (
-                    <p className="text-xs text-red-700 bg-red-100 border border-red-200 rounded-xl px-3 py-2">{depositoErro}</p>
+                    <p className={cn("text-xs rounded-xl px-3 py-2", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>
+                      {depositoErro}
+                    </p>
                   )}
 
                   <div className="flex gap-2 pt-1">
@@ -1506,7 +1580,7 @@ export default function SellerDashboardPage() {
                   Valor: <strong className="text-neutral-900 dark:text-neutral-100">{BRL.format(modalPixMensalidade.valor)}</strong>
                 </p>
                 {pixErro && (
-                  <p className="text-xs text-red-700 bg-red-100 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2">{pixErro}</p>
+                  <p className={cn("text-xs rounded-xl px-3 py-2", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>{pixErro}</p>
                 )}
                 {pixLoading && <p className="text-sm text-neutral-500">Gerando PIX...</p>}
                 {!pixLoading && pixQrCode && (
@@ -1578,7 +1652,7 @@ export default function SellerDashboardPage() {
               </p>
             </div>
             {planoEscolhaErro && (
-              <p className="text-sm text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl px-3 py-2">
+              <p className={cn("text-sm rounded-xl px-3 py-2", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>
                 {planoEscolhaErro}
               </p>
             )}

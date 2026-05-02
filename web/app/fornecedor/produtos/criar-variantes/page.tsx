@@ -1954,7 +1954,7 @@ export default function CriarVariantesPage() {
               </div>
             )}
             {modoEdicao && (
-              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800 dark:border-blue-900/70 dark:bg-blue-950/30 dark:text-blue-200">
+              <div className="rounded-lg border border-neutral-200/90 bg-neutral-50 p-3 text-xs text-neutral-700 dark:border-neutral-600 dark:bg-neutral-800/70 dark:text-neutral-200">
                 {carregandoEdicao
                   ? `Carregando dados do produto ${grupoEdicao}...`
                   : `Editando o grupo ${grupoEdicao} no formulário completo.`}

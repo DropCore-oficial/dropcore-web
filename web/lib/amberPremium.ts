@@ -9,6 +9,9 @@
  *    Cartões preenchidos continuam com `AMBER_PREMIUM_SURFACE`.
  *    **Prefira** `AmberPremiumCallout` ou `<Alert variant="warning">` — é o padrão salvo no UI kit.
  * 2. **Chip / pílula** (badges inline, contadores): `AMBER_PREMIUM_SHELL` — não troca o callout.
+ * 3. **KPI / valor principal em aviso** (cartões compactos, contadores “pendente”): ver
+ *    `amberPremiumWarningMainTextClass` — métricas e placeholders mais suaves; destaque
+ *    explícito “Pendente” no tom máximo (`AMBER_PREMIUM_TEXT_PRIMARY`).
  *
  * Claro: creme + borda âmbar. Escuro: superfície opaca + anel âmbar.
  */
@@ -39,3 +42,13 @@ export const AMBER_PREMIUM_TEXT_SOFT = "text-amber-700 dark:text-amber-300";
 export const AMBER_PREMIUM_TEXT_SECONDARY = "text-stone-600 dark:text-neutral-300";
 export const AMBER_PREMIUM_DOT = "text-amber-800/45 dark:text-neutral-500";
 export const AMBER_PREMIUM_LINK = "text-amber-600 dark:text-amber-400";
+
+/**
+ * Texto principal em **cartão/KPI no tom warning** (atenção, incompleto).
+ * Evita `PRIMARY` em todo número — fica pesado; contadores e “Não”/“—” usam `SOFT`.
+ * Mantém **`Pendente`** (após trim) em `AMBER_PREMIUM_TEXT_PRIMARY` como ênfase semântica.
+ * Subtítulo do cartão: preferir `AMBER_PREMIUM_TEXT_SECONDARY`.
+ */
+export function amberPremiumWarningMainTextClass(value: string): string {
+  return value.trim() === "Pendente" ? AMBER_PREMIUM_TEXT_PRIMARY : AMBER_PREMIUM_TEXT_SOFT;
+}
