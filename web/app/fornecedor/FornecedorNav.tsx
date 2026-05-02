@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { MobileAppBar } from "@/components/MobileAppBar";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 const activeClass = "text-emerald-600 dark:text-emerald-400 border-emerald-500";
 const inactiveClass = "text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 border-transparent";
@@ -45,8 +46,14 @@ function IconCreditCard({ active }: { active: boolean }) {
 }
 
 export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "pedidos" | "cadastro" }) {
+  const router = useRouter();
   const pathname = usePathname();
   const showMobileFloatingBell = pathname !== "/fornecedor/dashboard";
+
+  async function sair() {
+    await supabaseBrowser.auth.signOut();
+    router.replace("/fornecedor/login");
+  }
 
   const linkClass = (key: "dashboard" | "produtos" | "pedidos" | "cadastro") =>
     `flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ${
@@ -58,37 +65,41 @@ export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "
       active === key ? activeClass + " bg-emerald-100 dark:bg-emerald-900" : inactiveClass + " border-transparent active:bg-neutral-100 dark:active:bg-neutral-800"
     }`;
 
+  const actionsClass =
+    "rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors";
+
   return (
     <>
       <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-sm">
-        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 flex items-center gap-8">
-          <DropCoreLogo variant="horizontal" href="/fornecedor/dashboard" className="shrink-0" />
-          <div className="flex items-center gap-0.5">
-            <Link href="/fornecedor/dashboard" className={linkClass("dashboard")}>
-              <IconHome active={active === "dashboard"} />
-              Dashboard
-            </Link>
-            <Link href="/fornecedor/produtos" className={linkClass("produtos")}>
-              <IconPackage active={active === "produtos"} />
-              Produtos
-            </Link>
-            <Link href="/fornecedor/pedidos" className={linkClass("pedidos")}>
-              <IconTruck active={active === "pedidos"} />
-              Pedidos
-            </Link>
-            <Link href="/fornecedor/cadastro" className={linkClass("cadastro")}>
-              <IconCreditCard active={active === "cadastro"} />
-              Cadastro
-            </Link>
+        <div className="dropcore-shell-4xl flex items-center justify-between gap-2 sm:gap-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <DropCoreLogo variant="horizontal" href="/fornecedor/dashboard" className="shrink-0" />
+            <div className="flex min-w-0 items-center justify-start gap-0 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <Link href="/fornecedor/dashboard" className={linkClass("dashboard")}>
+                <IconHome active={active === "dashboard"} />
+                Dashboard
+              </Link>
+              <Link href="/fornecedor/produtos" className={linkClass("produtos")}>
+                <IconPackage active={active === "produtos"} />
+                Produtos
+              </Link>
+              <Link href="/fornecedor/pedidos" className={linkClass("pedidos")}>
+                <IconTruck active={active === "pedidos"} />
+                Pedidos
+              </Link>
+              <Link href="/fornecedor/cadastro" className={linkClass("cadastro")}>
+                <IconCreditCard active={active === "cadastro"} />
+                Cadastro
+              </Link>
+            </div>
           </div>
-          <Link
-            href="/fornecedor/dashboard"
-            className="ml-auto rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100"
-          >
-            Início
-          </Link>
-          <NotificationBell context="fornecedor" />
-          <ThemeToggle />
+          <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+            <NotificationBell context="fornecedor" />
+            <ThemeToggle className="shrink-0" />
+            <button type="button" onClick={() => void sair()} className={actionsClass}>
+              Sair
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -99,10 +110,24 @@ export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "
         </div>
       )}
 
-      <MobileAppBar logoHref="/fornecedor/dashboard" />
+      <MobileAppBar
+        logoHref="/fornecedor/dashboard"
+        end={
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => void sair()}
+              className="rounded-lg border border-neutral-200 px-2.5 py-1.5 text-[11px] font-semibold text-neutral-600 transition-colors hover:border-red-200 hover:text-red-600 dark:border-neutral-600 dark:text-neutral-300 dark:hover:border-red-900/60 dark:hover:text-red-400"
+            >
+              Sair
+            </button>
+            <ThemeToggle className="shrink-0 rounded-lg p-2 min-h-[40px] min-w-[40px] inline-flex items-center justify-center" />
+          </div>
+        }
+      />
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.5)] pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto grid max-w-3xl grid-cols-4 items-stretch min-h-[56px]">
+        <div className="mx-auto grid w-full max-w-4xl grid-cols-4 items-stretch min-h-[56px]">
           <Link href="/fornecedor/dashboard" className={mobileLinkClass("dashboard")}>
             <IconHome active={active === "dashboard"} />
             <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Dashboard</span>

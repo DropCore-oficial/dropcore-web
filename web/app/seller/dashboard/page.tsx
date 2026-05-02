@@ -704,7 +704,7 @@ export default function SellerDashboardPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 md:py-7 space-y-5 md:space-y-6">
+      <div className="dropcore-shell-4xl py-5 md:py-7 space-y-5 md:space-y-6">
         {/* 1. Header — alinhado ao fornecedor / owner */}
         <header className="rounded-2xl border border-[var(--card-border)] bg-gradient-to-br from-[var(--card)] via-[var(--card)] to-emerald-50/40 dark:to-emerald-950/20 p-4 sm:p-5 shadow-sm overflow-visible">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">

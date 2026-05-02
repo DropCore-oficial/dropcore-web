@@ -110,6 +110,8 @@ export default function FornecedorCadastroPage() {
   const [buscandoCepDespacho, setBuscandoCepDespacho] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
   const [form, setForm] = useState<FormState>({
     nome: "",
     cnpj: "",
@@ -204,6 +206,8 @@ export default function FornecedorCadastroPage() {
       };
       setForm(nextForm);
       setEnvioIgualMatriz(enderecoDespachoIgualMatriz(nextForm));
+      const lu = f.logo_url;
+      setLogoUrl(typeof lu === "string" && lu.length > 0 ? lu : null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
@@ -331,6 +335,69 @@ export default function FornecedorCadastroPage() {
     return [f.chave_pix, f.nome_banco, f.nome_no_banco, f.agencia, f.conta, f.tipo_conta].some(
       (s) => String(s ?? "").trim().length > 0
     );
+  }
+
+  async function uploadLogo(file: File) {
+    setLogoUploading(true);
+    setError(null);
+    setOkMsg(null);
+    try {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/fornecedor/login");
+        return;
+      }
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/fornecedor/logo", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: fd,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof json?.error === "string" ? json.error : "Erro ao enviar logo.");
+      }
+      if (typeof json.logo_url === "string" && json.logo_url.length > 0) {
+        setLogoUrl(json.logo_url);
+      }
+      setOkMsg("Logo atualizada.");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao enviar logo.");
+    } finally {
+      setLogoUploading(false);
+    }
+  }
+
+  async function removeLogo() {
+    setLogoUploading(true);
+    setError(null);
+    setOkMsg(null);
+    try {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/fornecedor/login");
+        return;
+      }
+      const res = await fetch("/api/fornecedor/logo", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof json?.error === "string" ? json.error : "Erro ao remover logo.");
+      }
+      setLogoUrl(null);
+      setOkMsg("Logo removida.");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao remover logo.");
+    } finally {
+      setLogoUploading(false);
+    }
   }
 
   async function salvar(e: React.FormEvent) {
@@ -486,11 +553,6 @@ export default function FornecedorCadastroPage() {
     }
   }
 
-  async function sair() {
-    await supabaseBrowser.auth.signOut();
-    router.replace("/fornecedor/login");
-  }
-
   function onCnpjChange(raw: string) {
     const digits = normalizeCnpjInput(raw).slice(0, 14);
     setForm((f) => ({ ...f, cnpj: formatCnpjDisplay(digits) }));
@@ -513,22 +575,15 @@ export default function FornecedorCadastroPage() {
     "rounded-full border border-neutral-200 bg-white px-2.5 py-0.5 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700";
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 space-y-6">
-        <div className="flex items-center justify-between gap-3">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+      <div className="dropcore-shell-4xl py-5 space-y-6">
+        <div>
           <Link
             href="/fornecedor/dashboard"
-            className="text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white flex items-center gap-1"
+            className="text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white inline-flex items-center gap-1"
           >
             ← Voltar ao dashboard
           </Link>
-          <button
-            type="button"
-            onClick={sair}
-            className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-          >
-            Sair
-          </button>
         </div>
 
         <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-5 shadow-sm overflow-visible">
@@ -553,6 +608,60 @@ export default function FornecedorCadastroPage() {
               <h2 className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 border-b border-neutral-200 dark:border-neutral-700 pb-2">
                 Empresa e contato
               </h2>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50/80 dark:bg-neutral-950/40 p-4">
+                <div className="shrink-0">
+                  {logoUrl ? (
+                    <img
+                      src={logoUrl}
+                      alt=""
+                      className="h-24 w-24 rounded-2xl border border-neutral-200 bg-white object-contain p-1 dark:border-neutral-600"
+                    />
+                  ) : (
+                    <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-white px-2 text-center text-[11px] text-neutral-400 dark:border-neutral-600 dark:bg-neutral-900">
+                      Sem logo
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div>
+                    <p className="text-xs font-medium text-[var(--muted)]">Logo da empresa</p>
+                    <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+                      PNG, JPG, WebP ou GIF até 2 MB. Aparece no painel ao lado do nome.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label
+                      className={cn(
+                        "inline-flex cursor-pointer items-center rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800",
+                        logoUploading && "pointer-events-none opacity-60",
+                      )}
+                    >
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="sr-only"
+                        disabled={logoUploading}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          e.target.value = "";
+                          if (f) void uploadLogo(f);
+                        }}
+                      />
+                      {logoUploading ? "Enviando…" : "Enviar imagem"}
+                    </label>
+                    {logoUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => void removeLogo()}
+                        disabled={logoUploading}
+                        className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-100 disabled:opacity-60 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                      >
+                        Remover
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Nome / razão social</label>
                 <input
@@ -981,13 +1090,15 @@ export default function FornecedorCadastroPage() {
               )}
             </section>
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="w-full rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-white font-medium py-3 px-4 text-sm"
-            >
-              {saving ? "Salvando..." : "Salvar cadastro"}
-            </button>
+            <div className="flex justify-end pt-1">
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex min-h-10 items-center justify-center rounded-xl bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+              >
+                {saving ? "Salvando..." : "Salvar cadastro"}
+              </button>
+            </div>
           </form>
         </div>
       </div>

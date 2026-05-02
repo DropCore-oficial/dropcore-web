@@ -114,7 +114,7 @@ export default function FornecedorPedidoEtiquetaPage() {
         }
       `}</style>
 
-      <div className="w-full max-w-3xl mx-auto px-4 sm:px-5 py-5">
+      <div className="dropcore-shell-4xl py-5">
         {!shouldRender && (
           <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm p-5 text-center">
             {loading ? "Carregando etiqueta..." : error ?? "Erro."}

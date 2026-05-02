@@ -201,7 +201,7 @@ function GradeBadge({ value }: { value: number }) {
   if (variant === "pendente") {
     return (
       <span
-        className={`inline-flex max-w-full items-center gap-1 rounded-full px-3.5 py-2 text-xs leading-snug shadow-none ${AMBER_PREMIUM_SURFACE_TRANSPARENT}`}
+        className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3.5 py-2 text-xs leading-snug shadow-none ${AMBER_PREMIUM_SURFACE_TRANSPARENT}`}
       >
         <span className={cn("shrink-0 font-semibold tabular-nums", amberPremiumWarningMainTextClass(`${value}%`))}>
           {value}%
@@ -225,7 +225,7 @@ type AcaoPrioritaria = {
 function SummaryShell({ children }: { children: ReactNode }) {
   return (
     <div
-      className="border-t border-neutral-200/90 bg-gradient-to-b from-neutral-50/90 to-neutral-50/30 px-3 py-5 dark:border-neutral-800 dark:from-neutral-950 dark:to-neutral-950 sm:px-5"
+      className="border-t border-neutral-200/90 bg-transparent px-3 py-5 dark:border-neutral-800 sm:px-5"
       onClick={(e) => e.stopPropagation()}
     >
       {children}
@@ -379,7 +379,7 @@ export function ProdutoResumoListaGrupo({
   return (
     <SummaryShell>
       <div className="rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] ring-1 ring-black/[0.03] dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-none dark:ring-white/5 sm:p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Resumo do cadastro</p>
             <h3 className="mt-1.5 text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
@@ -389,11 +389,11 @@ export function ProdutoResumoListaGrupo({
               <strong className="font-medium text-neutral-700 dark:text-neutral-300">Foto</strong> é por SKU; abra o link na coluna de álbum para ver o catálogo completo.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex shrink-0 flex-nowrap items-center gap-2.5">
             <GradeBadge value={score} />
             <Link
               href={editHref}
-              className="inline-flex h-9 items-center justify-center rounded-lg bg-neutral-900 px-4 text-[13px] font-semibold text-white shadow-sm transition hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:ring-offset-2 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 dark:focus:ring-offset-neutral-900"
+              className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-neutral-900 px-4 text-[13px] font-semibold text-white shadow-sm transition hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:ring-offset-2 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 dark:focus:ring-offset-neutral-900"
             >
               Completar dados
             </Link>
@@ -418,17 +418,19 @@ export function ProdutoResumoListaGrupo({
             </Link>
           </div>
           {acoesPrioritarias.length > 0 ? (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 flex min-w-0 flex-nowrap gap-2">
               {acoesPrioritarias.map((acao) => {
                 const shell =
                   acao.impacto === "alto"
                     ? AMBER_PREMIUM_SURFACE_TRANSPARENT
                     : "border border-stone-200/90 bg-stone-50 ring-1 ring-stone-900/[0.06] dark:border-white/10 dark:bg-neutral-700 dark:ring-white/[0.08]";
+                const prefix = acao.impacto === "alto" ? "Alta prioridade" : "Melhoria";
                 return (
                   <span
                     key={acao.id}
+                    title={`${prefix} · ${acao.titulo}`}
                     className={cn(
-                      "inline-flex max-w-full items-center gap-1 rounded-full px-3.5 py-2 text-xs leading-snug",
+                      "flex min-h-9 min-w-0 flex-1 basis-0 items-center gap-x-1 overflow-hidden rounded-xl px-2.5 py-2 text-xs leading-tight",
                       acao.impacto === "alto" ? "shadow-none" : "shadow-sm dark:shadow-none",
                       shell
                     )}
@@ -440,7 +442,7 @@ export function ProdutoResumoListaGrupo({
                           : "shrink-0 font-semibold text-neutral-900 dark:text-neutral-100"
                       }
                     >
-                      {acao.impacto === "alto" ? "Alta prioridade" : "Melhoria"}
+                      {prefix}
                     </span>
                     <span
                       className={cn(
@@ -453,7 +455,7 @@ export function ProdutoResumoListaGrupo({
                     </span>
                     <span
                       className={cn(
-                        "min-w-0 font-normal",
+                        "min-w-0 flex-1 truncate font-normal",
                         acao.impacto === "alto" ? AMBER_PREMIUM_TEXT_SECONDARY : "text-neutral-700 dark:text-neutral-300"
                       )}
                     >

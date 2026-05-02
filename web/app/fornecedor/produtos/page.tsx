@@ -493,8 +493,8 @@ export default function FornecedorProdutosPage() {
   }
 
   return (
-    <div className="min-h-screen min-w-0 max-w-[100%] overflow-x-hidden bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 py-5 dropcore-px-content">
+    <div className="min-h-screen min-w-0 max-w-[100%] overflow-x-hidden bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+      <div className="dropcore-shell-4xl space-y-6 py-5">
         {/* Header + filtros (desktop: título à esquerda, ações à direita) */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
           <div className="min-w-0 space-y-1">
@@ -810,7 +810,7 @@ export default function FornecedorProdutosPage() {
                       <>
                       <div className="border-t border-gray-200 bg-white px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-900 sm:px-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="inline-flex rounded-xl border border-gray-200 bg-gray-100 p-0.5 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
+                        <div className="inline-flex rounded-xl border border-neutral-200 bg-white p-0.5 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -853,13 +853,13 @@ export default function FornecedorProdutosPage() {
                         </div>
                       </div>
                       {!mostrarFotosVariantes ? (
-                        <div className="border-t border-gray-200 bg-gray-100 px-3 py-4 text-sm text-gray-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 sm:px-4">
+                        <div className="border-t border-gray-200 bg-white px-3 py-4 text-sm text-gray-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 sm:px-4">
                           Variantes ocultas nesta visualização.
                         </div>
                       ) : null}
                       {mostrarFotosVariantes && modoListaVariantes === "agrupado-cor" && (
                         <>
-                          <div className="min-w-0 border-t border-gray-200 bg-gray-100 p-2 dark:border-neutral-800 dark:bg-neutral-900 sm:p-3">
+                          <div className="min-w-0 border-t border-gray-200 bg-white p-2 dark:border-neutral-800 dark:bg-neutral-900 sm:p-3">
                             <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-3">
                             {gruposCor.map((gc) => {
                               const rowCor = gc.itens[0];
@@ -916,13 +916,13 @@ export default function FornecedorProdutosPage() {
                                         <p className="text-sm font-semibold leading-snug text-neutral-900 dark:text-neutral-100">
                                           {gc.corLabel}
                                         </p>
-                                        <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-neutral-800 dark:text-neutral-300">
+                                        <span className="inline-flex rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
                                           {gc.itens.length} SKU(s)
                                         </span>
                                         <span className="text-sm font-medium text-gray-700 dark:text-neutral-300">
                                           Preço {custoTxt}
                                         </span>
-                                        <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-neutral-800 dark:text-neutral-300">
+                                        <span className="inline-flex rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
                                           Total: {estoqueTotal}
                                         </span>
                                       </div>
@@ -990,17 +990,17 @@ export default function FornecedorProdutosPage() {
                                         }}
                                       />
                                     ) : (
-                                      <div className="h-24 w-24 shrink-0 rounded-lg border border-dashed border-gray-300 bg-gray-100 dark:border-neutral-700 dark:bg-neutral-800" />
+                                      <div className="h-24 w-24 shrink-0 rounded-lg border border-dashed border-neutral-200 bg-white dark:border-neutral-600 dark:bg-neutral-900" />
                                     )}
                                     <div className="min-w-0">
                                         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-neutral-700 dark:bg-neutral-900">
-                                        <div className="grid grid-cols-[5.25rem_minmax(0,1fr)_5rem] border-b border-gray-200 bg-gray-100 px-2 py-1 text-[11px] font-semibold text-gray-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400">
+                                        <div className="grid grid-cols-[5.25rem_minmax(0,1fr)_5rem] border-b border-neutral-200 bg-neutral-50/80 px-2 py-1 text-[11px] font-semibold text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800/40 dark:text-neutral-400">
                                           <span>Numeração</span>
                                           <span>SKU</span>
                                           <span className="text-right">Qtd.</span>
                                         </div>
                                         {itensOrdenados.map((p, idx) => (
-                                          <div key={p.id} className={`grid grid-cols-[5.25rem_minmax(0,1fr)_5rem] items-center border-b border-gray-100 px-2 py-1 text-xs last:border-b-0 dark:border-neutral-800 ${idx % 2 === 1 ? "bg-gray-100 dark:bg-neutral-800/60" : ""}`}>
+                                          <div key={p.id} className={`grid grid-cols-[5.25rem_minmax(0,1fr)_5rem] items-center border-b border-neutral-100 px-2 py-1 text-xs last:border-b-0 dark:border-neutral-800 ${idx % 2 === 1 ? "bg-neutral-50/50 dark:bg-neutral-800/25" : ""}`}>
                                             <span className="font-semibold text-gray-700 dark:text-neutral-300">{(p.tamanho ?? "—").toUpperCase()}</span>
                                             <span className="truncate font-mono text-gray-600 dark:text-neutral-400">{p.sku}</span>
                                             <span className={`text-right font-semibold tabular-nums ${(p.estoque_atual ?? 0) <= 0 ? "text-red-500" : "text-gray-700 dark:text-neutral-300"}`}>
@@ -1020,7 +1020,7 @@ export default function FornecedorProdutosPage() {
                       )}
                       {mostrarFotosVariantes && modoListaVariantes === "sku" && (
                         <>
-                      <div className="min-w-0 border-t border-gray-200 bg-gray-100 p-2 dark:border-neutral-800 dark:bg-neutral-900 lg:hidden">
+                      <div className="min-w-0 border-t border-gray-200 bg-white p-2 dark:border-neutral-800 dark:bg-neutral-900 lg:hidden">
                         {linhas.map((row) => {
                           const lf = getLinkFotos(row, produtos) || row.link_fotos;
                           return (
@@ -1116,7 +1116,7 @@ export default function FornecedorProdutosPage() {
                       <div className="hidden lg:block min-w-0 overflow-x-auto border-t border-neutral-100 dark:border-neutral-800">
                         <table className="w-full min-w-[700px] table-fixed text-sm">
                           <thead>
-                            <tr className="bg-neutral-100 text-left text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+                            <tr className="bg-neutral-50/90 text-left text-xs text-neutral-600 dark:bg-neutral-800/50 dark:text-neutral-400">
                               <th className="w-[4.25rem] px-2 py-2 font-medium lg:px-3">
                                 <span className="block">Foto</span>
                                 <span className="block text-[10px] font-normal text-neutral-400 dark:text-neutral-500">SKU</span>
@@ -1222,8 +1222,8 @@ export default function FornecedorProdutosPage() {
                     )}
                       {representante ? (
                         <>
-                          <div className="border-t border-gray-200 bg-gray-100 px-3 py-2 dark:border-neutral-800 dark:bg-neutral-900 sm:px-4">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-neutral-400">
+                          <div className="border-t border-gray-200 bg-white px-3 py-2 dark:border-neutral-800 dark:bg-neutral-900 sm:px-4">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                               Resumo do cadastro
                             </p>
                           </div>

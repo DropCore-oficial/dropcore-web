@@ -38,6 +38,27 @@ html {
   }
 }
 
+/*
+ * Coluna padrão dos portais (fornecedor, seller, etc.): largura máx. 56rem (Tailwind max-w-4xl)
+ * + padding lateral igual a .dropcore-px-content. Manter em sync com .dropcore-px-content acima.
+ * Equivale a: mx-auto w-full min-w-0 max-w-4xl dropcore-px-content
+ */
+.dropcore-shell-4xl {
+  width: 100%;
+  min-width: 0;
+  max-width: 56rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+@media (min-width: 640px) {
+  .dropcore-shell-4xl {
+    padding-left: max(1.25rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
+  }
+}
+
 /* Catálogo seller / integrações — px-4 sm:px-6 lg:px-8 + safe area */
 .dropcore-px-wide {
   padding-left: max(1rem, env(safe-area-inset-left, 0px));

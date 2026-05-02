@@ -173,7 +173,7 @@ export function FotoVariacaoCell({
             setPreviewMode((m) => (m === "fixo" ? "off" : "fixo"));
           }
         }}
-        className={`shrink-0 ${box} rounded border border-neutral-200 dark:border-neutral-600 overflow-hidden bg-neutral-100 dark:bg-neutral-800 p-0 block focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer touch-manipulation`}
+        className={`shrink-0 ${box} rounded border border-neutral-200 dark:border-neutral-600 overflow-hidden bg-white dark:bg-neutral-900 p-0 block focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer touch-manipulation`}
       >
         <img
           src={srcImagem}
@@ -218,7 +218,7 @@ export function FotoVariacaoCell({
     </div>
   ) : (
     <div
-      className={`shrink-0 ${box} rounded border border-dashed border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800/50 flex items-center justify-center`}
+      className={`shrink-0 ${box} rounded border border-dashed border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 flex items-center justify-center`}
     >
       <svg xmlns="http://www.w3.org/2000/svg" width={iconSz} height={iconSz} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-neutral-400 dark:text-neutral-500">
         <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />

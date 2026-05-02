@@ -64,29 +64,44 @@ export async function GET(req: Request) {
       );
     }
 
-    const selExpedicaoCols =
+    const selExpedicaoBase =
       "id, nome, org_id, status, trial_valido_ate, cnpj, telefone, email_comercial, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, expedicao_padrao_linha, expedicao_cep, expedicao_logradouro, expedicao_numero, expedicao_complemento, expedicao_bairro, expedicao_cidade, expedicao_uf, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta";
-    const selSemExpedicaoCols =
+    const selSemExpedicaoBase =
       "id, nome, org_id, status, trial_valido_ate, cnpj, telefone, email_comercial, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, expedicao_padrao_linha, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta";
+
+    function isMissingColumn(err: { message?: string; code?: string } | null): boolean {
+      return !!(err && (String(err.message ?? "").toLowerCase().includes("column") || err.code === "42703"));
+    }
+
+    /** Tenta com logo_url; se colunas antigas faltarem, recua para selects sem logo ou sem expedicao_* detalhados. */
+    const selectAttempts = [
+      `${selExpedicaoBase}, logo_url`,
+      `${selSemExpedicaoBase}, logo_url`,
+      selExpedicaoBase,
+      selSemExpedicaoBase,
+    ];
 
     let forn: Record<string, unknown> | null = null;
     let fornErr: { message?: string; code?: string } | null = null;
-    {
-      const r = await supabaseAdmin.from("fornecedores").select(selExpedicaoCols).eq("id", member.fornecedor_id).maybeSingle();
-      forn = r.data as Record<string, unknown> | null;
-      fornErr = r.error;
-      const colMissing =
-        fornErr &&
-        (String(fornErr.message ?? "").toLowerCase().includes("column") || fornErr.code === "42703");
-      if (fornErr && colMissing) {
-        const r2 = await supabaseAdmin.from("fornecedores").select(selSemExpedicaoCols).eq("id", member.fornecedor_id).maybeSingle();
-        forn = r2.data as Record<string, unknown> | null;
-        fornErr = r2.error;
+    for (const cols of selectAttempts) {
+      const r = await supabaseAdmin.from("fornecedores").select(cols).eq("id", member.fornecedor_id).maybeSingle();
+      if (!r.error) {
+        forn = r.data as Record<string, unknown> | null;
+        fornErr = null;
+        break;
       }
+      if (!isMissingColumn(r.error)) {
+        fornErr = r.error;
+        break;
+      }
+      fornErr = r.error;
     }
 
     if (fornErr || !forn) {
-      return NextResponse.json({ error: "Fornecedor não encontrado." }, { status: 404 });
+      return NextResponse.json(
+        { error: fornErr?.message ? String(fornErr.message) : "Fornecedor não encontrado." },
+        { status: 404 },
+      );
     }
 
     const frow = forn as typeof forn & {
@@ -172,6 +187,7 @@ export async function GET(req: Request) {
         agencia: cadastro.agencia,
         conta: cadastro.conta,
         tipo_conta: cadastro.tipo_conta,
+        logo_url: (forn as { logo_url?: string | null }).logo_url ?? null,
         cadastro_minimo_completo: cadastroMinimoCompleto(cadastro as FornecedorCadastroFields),
         trial_valido_ate: frow.trial_valido_ate ?? null,
         trial_ativo: isPortalTrialAtivo(frow.trial_valido_ate),

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 /** Evita carregar `supabaseAdmin` (exige env no import). */
 vi.mock("@/lib/supabaseAdmin", () => ({
@@ -35,7 +35,7 @@ function staffOwner(): OrgMeSuccess {
 }
 
 describe("getMe — portal não acessa APIs de equipe (/api/org/*)", () => {
-  let warnSpy: ReturnType<typeof vi.spyOn<typeof console, "warn">>;
+  let warnSpy: MockInstance;
 
   beforeEach(() => {
     vi.mocked(resolveOrgMe).mockReset();
@@ -101,7 +101,7 @@ describe("getMe — portal não acessa APIs de equipe (/api/org/*)", () => {
 });
 
 describe("requireAdmin — mesmo caminho das rotas sensíveis", () => {
-  let warnSpy: ReturnType<typeof vi.spyOn<typeof console, "warn">>;
+  let warnSpy: MockInstance;
 
   beforeEach(() => {
     vi.mocked(resolveOrgMe).mockReset();

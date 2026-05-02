@@ -1919,13 +1919,13 @@ export default function CriarVariantesPage() {
   }
 
   return (
-    <div className="min-h-screen min-w-0 bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(7.5rem+env(safe-area-inset-bottom,0px))] md:pb-16">
+    <div className="min-h-screen min-w-0 bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(7.5rem+env(safe-area-inset-bottom,0px))] md:pb-16">
       {/*
         Barra do formulário: sticky só no mobile (abaixo do MobileAppBar).
         No desktop, fixed + sticky empilhados costumam causar “travamento”/cliques estranhos no topo — aqui fica estática; use «Salvar» no fim do formulário.
       */}
-      <div className="sticky top-[calc(3rem+env(safe-area-inset-top,0px))] z-20 border-b border-[var(--card-border)] bg-[var(--card)] shadow-sm md:static md:top-auto md:z-auto md:shadow-none">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top,0px))] z-20 border-b border-[var(--card-border)] bg-[var(--card)] shadow-sm md:static md:top-auto md:z-auto md:shadow-none">
+        <div className="dropcore-shell-4xl flex items-center justify-between gap-3 py-3">
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <Link
               href="/fornecedor/produtos"
@@ -1944,7 +1944,7 @@ export default function CriarVariantesPage() {
         </div>
       </div>
 
-      <div className="mx-auto flex min-w-0 max-w-5xl flex-col gap-4 overflow-x-hidden px-4 py-4 sm:px-6 md:flex-row md:gap-6">
+      <div className="dropcore-shell-4xl flex flex-col gap-4 overflow-x-hidden py-4 md:flex-row md:gap-6">
         {/* Conteúdo principal */}
         <div className="min-w-0 flex-1 order-2 md:order-1">
           <form id="form-criar-variantes" onSubmit={handleSubmit} className="space-y-6">
@@ -3332,7 +3332,7 @@ export default function CriarVariantesPage() {
         </aside>
       </div>
       <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] z-30 border-t border-[#e5e7eb] bg-white/95 px-4 py-2.5 shadow-[0_-6px_18px_-14px_rgba(15,23,42,0.35)] backdrop-blur md:hidden dark:border-neutral-700 dark:bg-[#0f141b]/95">
-        <div className="mx-auto flex w-full max-w-5xl gap-2">
+        <div className="dropcore-shell-4xl flex w-full gap-2">
           <button
             type="button"
             onClick={() => void salvarRascunho()}

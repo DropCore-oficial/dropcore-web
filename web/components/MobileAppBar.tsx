@@ -12,7 +12,7 @@ type MobileAppBarProps = {
 
 /**
  * Barra fixa no topo só em mobile (`md:hidden`), com logo DropCore horizontal completo + tema.
- * Use em conjunto com `pt-[calc(3rem+env(safe-area-inset-top,0px))]` no container da página.
+ * Use em conjunto com `pt-[calc(3.5rem+env(safe-area-inset-top,0px))]` no container da página (altura h-14).
  */
 export function MobileAppBar({ logoHref, end, className = "" }: MobileAppBarProps) {
   return (
@@ -20,10 +20,9 @@ export function MobileAppBar({ logoHref, end, className = "" }: MobileAppBarProp
       className={`md:hidden fixed left-0 right-0 top-0 z-40 overflow-visible border-b border-neutral-200/80 bg-white/[0.98] backdrop-blur-xl dark:border-neutral-800/80 dark:bg-neutral-950/[0.98] ${className}`}
     >
       <div className="pt-[env(safe-area-inset-top,0px)]">
-        <div className="mx-auto flex h-12 min-h-12 max-w-4xl items-center justify-between gap-2 px-3 min-w-0">
+        <div className="dropcore-shell-4xl flex h-14 min-h-14 items-center justify-between gap-2">
           <DropCoreLogo
             variant="horizontal"
-            compact
             href={logoHref}
             className="min-w-0 shrink-0 overflow-visible py-0.5"
           />

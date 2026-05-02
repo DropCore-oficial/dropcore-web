@@ -72,7 +72,7 @@ export default function CriarUnicoPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
+      <div className="dropcore-shell-4xl py-6">
         <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-4 mb-6">
           <DropCoreLogo variant="horizontal" href="/fornecedor/dashboard" />
           <ThemeToggle />

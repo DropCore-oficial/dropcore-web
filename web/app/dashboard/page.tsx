@@ -654,7 +654,7 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 md:py-7 space-y-5 md:space-y-6">
+      <div className="dropcore-shell-4xl py-5 md:py-7 space-y-5 md:space-y-6">
         {/* 1. Header — mesmo ritmo visual do fornecedor (card + gradiente) */}
         <header className="rounded-2xl border border-[var(--card-border)] bg-gradient-to-br from-[var(--card)] via-[var(--card)] to-emerald-50/40 dark:to-emerald-950/20 p-4 sm:p-5 shadow-sm overflow-visible">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">

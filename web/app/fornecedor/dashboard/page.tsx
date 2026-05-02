@@ -23,6 +23,7 @@ type FornecedorData = {
   org_id: string;
   status: string;
   cadastro_minimo_completo?: boolean;
+  logo_url?: string | null;
 };
 
 type RepasseItem = {
@@ -279,11 +280,6 @@ export default function FornecedorDashboardPage() {
     }
   }, [repasseItems.length, totalAReceber]);
 
-  async function sair() {
-    await supabaseBrowser.auth.signOut();
-    router.replace("/fornecedor/login");
-  }
-
   async function abrirPixMensalidade(m: Mensalidade) {
     setModalPixMensalidade(m);
     setPixLoading(true);
@@ -394,20 +390,28 @@ export default function FornecedorDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="w-full max-w-4xl mx-auto dropcore-px-content py-5 md:py-7 space-y-5 md:space-y-6">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+      <div className="dropcore-shell-4xl py-5 md:py-7 space-y-5 md:space-y-6">
         <header className="rounded-2xl border border-[var(--card-border)] bg-gradient-to-br from-[var(--card)] via-[var(--card)] to-emerald-50/40 dark:to-emerald-950/20 p-4 sm:p-5 shadow-sm overflow-visible">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="flex items-start gap-3 min-w-0 flex-1">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center text-lg font-bold shadow-md shadow-emerald-500/25 shrink-0">
-                {fornecedor?.nome?.charAt(0).toUpperCase() ?? "F"}
-              </div>
+              {fornecedor?.logo_url ? (
+                <img
+                  src={fornecedor.logo_url}
+                  alt=""
+                  className="w-14 h-14 rounded-2xl object-contain bg-white border border-emerald-200/80 dark:border-emerald-800/60 p-1 shadow-md shadow-emerald-500/15 shrink-0"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center text-xl font-bold shadow-md shadow-emerald-500/25 shrink-0">
+                  {fornecedor?.nome?.charAt(0).toUpperCase() ?? "F"}
+                </div>
+              )}
               <div className="min-w-0 pt-0.5">
-                <p className="text-xs font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90">Painel do fornecedor</p>
-                <h1 className="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-neutral-50 tracking-tight truncate">
+                <p className="text-sm font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90">Painel do fornecedor</p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 dark:text-neutral-50 tracking-tight truncate">
                   {fornecedor?.nome ?? "Fornecedor"}
                 </h1>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1 capitalize">{dataHojeFmt}</p>
+                <p className="text-base text-neutral-500 dark:text-neutral-400 mt-1 capitalize">{dataHojeFmt}</p>
               </div>
             </div>
             <div className="flex w-full flex-wrap items-center justify-end gap-2 border-t border-neutral-200/70 pt-3 dark:border-neutral-700/60 sm:w-auto sm:border-0 sm:pt-0 sm:shrink-0">
@@ -427,13 +431,6 @@ export default function FornecedorDashboardPage() {
                 </Link>
               )}
               <NotificationBell context="fornecedor" className="md:hidden" />
-              <button
-                type="button"
-                onClick={sair}
-                className="rounded-xl border border-[var(--card-border)] bg-[var(--background)]/80 px-3 py-2 min-h-[40px] text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 touch-manipulation transition-colors"
-              >
-                Sair
-              </button>
             </div>
           </div>
         </header>
@@ -505,7 +502,7 @@ export default function FornecedorDashboardPage() {
               <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Valores liberados e pendentes conforme regras da organização</p>
             </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 sm:p-4 pt-0 border-t border-[var(--card-border)]/80 bg-neutral-100 dark:bg-neutral-900/30">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 border-t border-[var(--card-border)]/80 bg-[var(--card)] p-3 pt-0 sm:p-4 sm:pt-0">
             <Link
               href="/fornecedor/pedidos?status=enviado"
               className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm text-left active:scale-[0.99]"
@@ -551,7 +548,7 @@ export default function FornecedorDashboardPage() {
           </div>
 
           {mensalidades.length > 0 && (
-            <div className="mx-3 mb-3 sm:mx-4 sm:mb-4 flex flex-col gap-3 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-100/60 dark:bg-neutral-800/40 px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+            <div className="mx-3 mb-3 sm:mx-4 sm:mb-4 flex flex-col gap-3 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-4 dark:border-neutral-700">
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Mensalidade pendente</p>
                 <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">

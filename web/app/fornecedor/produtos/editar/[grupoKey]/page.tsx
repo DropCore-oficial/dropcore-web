@@ -754,7 +754,7 @@ export default function EditarVariantesPage() {
   if (!grupoKey || grupoProdutos.length === 0) {
     return (
       <div className="min-h-screen bg-[var(--background)] p-4">
-        <div className="max-w-2xl mx-auto text-center py-12">
+        <div className="dropcore-shell-4xl text-center py-12">
           <p className="text-neutral-600 dark:text-neutral-400 text-sm">Produto não encontrado.</p>
           <Link href="/fornecedor/produtos" className="text-blue-600 dark:text-blue-400 hover:underline text-sm mt-2 inline-block">
             Voltar aos produtos
@@ -768,7 +768,7 @@ export default function EditarVariantesPage() {
     <div className="min-h-screen min-w-0 max-w-[100%] overflow-x-hidden bg-[var(--background)] text-[var(--foreground)]">
       {/* Header */}
       <div className="bg-[var(--card)] border-b border-[var(--card-border)] sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-3 sm:px-6 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 min-w-0">
+        <div className="dropcore-shell-4xl py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
             <DropCoreLogo variant="horizontal" href="/fornecedor/dashboard" className="shrink-0" />
             <ThemeToggle className="shrink-0" />
@@ -824,12 +824,12 @@ export default function EditarVariantesPage() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-3 sm:px-6 mt-3">
+      <div className="dropcore-shell-4xl mt-3">
         <AlteracoesCatalogoInfoBanner />
       </div>
 
       {error && (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
+        <div className="dropcore-shell-4xl mt-4">
           <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-100 dark:bg-red-950/30 p-3 text-sm text-red-800 dark:text-red-300">
             {error}
             <button onClick={load} className="ml-2 underline">Tentar novamente</button>
@@ -837,7 +837,7 @@ export default function EditarVariantesPage() {
         </div>
       )}
       {successMessage && (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
+        <div className="dropcore-shell-4xl mt-4">
           <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
             {successMessage}
           </div>
@@ -845,14 +845,14 @@ export default function EditarVariantesPage() {
       )}
 
       {statusAlteracaoEditar === "pendente" && (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
+        <div className="dropcore-shell-4xl mt-4">
           <div className={cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY, "rounded-lg p-4 text-sm")}>
             <strong>Alteração em análise.</strong> O admin ainda não aprovou. O <strong>seller e o ERP</strong> seguem com os dados <strong>já aprovados</strong> até essa análise fechar. Você pode <strong>ajustar e salvar de novo</strong> — a última versão enviada é a que o DropCore analisa em Alterações de produtos.
           </div>
         </div>
       )}
 
-      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 flex flex-col lg:flex-row gap-6 min-w-0">
+      <div className="dropcore-shell-4xl py-4 flex flex-col lg:flex-row gap-6">
         {/* Área principal */}
         <div className="flex-1 min-w-0 order-2 lg:order-1">
           {tabAtiva === "info-variantes" && (
