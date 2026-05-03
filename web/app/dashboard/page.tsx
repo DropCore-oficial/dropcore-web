@@ -5,10 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
+import { AppBarEndDesktopAuth, AppBarEndMobileAuth } from "@/components/AppBarEndAuth";
 import { MobileAppBar } from "@/components/MobileAppBar";
 import { AdminMobileBottomNav } from "@/components/AdminMobileBottomNav";
-import { NotificationBell } from "@/components/NotificationBell";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   AMBER_PREMIUM_SHELL,
   AMBER_PREMIUM_SURFACE,
@@ -628,51 +627,58 @@ export default function DashboardPage() {
 
   return (
     <div
-      className={`min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 ${
+      className={`min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 ${
         isAdmin
           ? "pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
           : "pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] md:pb-8"
       }`}
     >
-      <MobileAppBar logoHref="/dashboard" end={isAdmin ? <></> : undefined} />
+      <MobileAppBar
+        logoHref="/dashboard"
+        end={<AppBarEndMobileAuth context="admin" onLogout={sair} />}
+      />
 
-      {/* Barra superior — logo DropCore + atalho ativo (como seller) */}
+      {/* Barra superior desktop — mesmo trio que o fornecedor (sino + tema + Sair) */}
       <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/98 dark:bg-neutral-950/98 backdrop-blur-xl shadow-sm">
-        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 flex items-center gap-6">
-          <DropCoreLogo variant="horizontal" href="/dashboard" className="shrink-0" />
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium border-b-2 -mb-px text-emerald-600 dark:text-emerald-400 border-emerald-600 hover:bg-emerald-600/10 dark:hover:bg-emerald-500/15 transition-colors"
-          >
-            <svg className="w-5 h-5 shrink-0 text-emerald-600 dark:text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
-            Dashboard
-          </Link>
-          <ThemeToggle className="ml-auto" />
+        <div className="max-w-4xl mx-auto flex w-full min-w-0 items-center justify-between gap-4 px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-6">
+            <DropCoreLogo variant="horizontal" href="/dashboard" className="shrink-0" />
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium border-b-2 -mb-px text-emerald-600 dark:text-emerald-400 border-emerald-600 hover:bg-emerald-600/10 dark:hover:bg-emerald-500/15 transition-colors"
+            >
+              <svg className="w-5 h-5 shrink-0 text-emerald-600 dark:text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+              Dashboard
+            </Link>
+          </div>
+          <AppBarEndDesktopAuth context="admin" onLogout={sair} />
         </div>
       </nav>
 
       <div className="dropcore-shell-4xl py-5 md:py-7 space-y-5 md:space-y-6">
-        {/* 1. Header — mesmo ritmo visual do fornecedor (card + gradiente) */}
-        <header className="rounded-2xl border border-[var(--card-border)] bg-gradient-to-br from-[var(--card)] via-[var(--card)] to-emerald-50/40 dark:to-emerald-950/20 p-4 sm:p-5 shadow-sm overflow-visible">
+        {/* 1. Header — mesmo cartão do painel fornecedor (mobile/desktop) */}
+        <header className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 sm:p-5 shadow-sm overflow-visible">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-            <div className="flex items-start gap-3 min-w-0 flex-1">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center text-lg font-bold shadow-md shadow-emerald-500/25 shrink-0">
-                {roleInitial}
+            <div className="flex min-w-0 flex-1 items-stretch gap-3">
+              <div className="flex shrink-0 items-center">
+                <div className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-2xl font-bold text-white shadow-md shadow-emerald-500/25 sm:h-[5.5rem] sm:w-[5.5rem]">
+                  {roleInitial}
+                </div>
               </div>
-              <div className="min-w-0 pt-0.5">
-                <p className="text-xs font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90">
+              <div className="min-w-0 flex flex-1 flex-col justify-center gap-0.5 pt-0.5">
+                <p className="text-sm font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90 leading-snug">
                   {painelContextoLabel}
                 </p>
-                <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                  <h1 className="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-neutral-50 tracking-tight">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-bold leading-tight tracking-tight text-[var(--foreground)] sm:text-3xl truncate">
                     {roleLabel}
                   </h1>
                   {stats?.plano && (
                     <span
-                      className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
+                      className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold ${
                         isPro
                           ? "bg-emerald-600/15 dark:bg-emerald-600/25 text-emerald-800 dark:text-emerald-300"
                           : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
@@ -682,37 +688,22 @@ export default function DashboardPage() {
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1 capitalize">{dataHojeFmt}</p>
+                <p className="text-base leading-snug text-[var(--muted)] capitalize">{dataHojeFmt}</p>
                 {stats?.plan_limits && (
-                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1.5">
+                  <p className="mt-1.5 text-[11px] text-[var(--muted)]">
                     Vendas {stats.plan_limits.vendas_mes}/{stats.plan_limits.vendas_limite} · Produtos{" "}
                     {stats.plan_limits.produto_cor_count}/{stats.plan_limits.produto_cor_limite}
                   </p>
                 )}
               </div>
             </div>
-            <div className="flex w-full flex-wrap items-center justify-end gap-2 border-t border-neutral-200/70 pt-3 dark:border-neutral-700/60 sm:w-auto sm:border-0 sm:pt-0 sm:shrink-0">
-              {!isAdmin && (
-                <div className="md:hidden">
-                  <ThemeToggle className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center touch-manipulation" />
-                </div>
-              )}
-              <div className={isAdmin ? "hidden md:block" : ""}>
-                <NotificationBell context="admin" />
-              </div>
+            <div className="flex w-full flex-wrap items-center justify-end gap-2 border-t border-[var(--card-border)] pt-3 sm:w-auto sm:border-0 sm:pt-0 sm:shrink-0">
               <button
                 type="button"
                 onClick={load}
-                className="rounded-xl border border-[var(--card-border)] bg-[var(--background)]/80 px-3 py-2 min-h-[40px] text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 touch-manipulation transition-colors"
+                className="min-h-10 rounded-xl border border-[var(--card-border)] bg-[var(--background)]/80 px-3 py-2 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 touch-manipulation transition-colors"
               >
                 Atualizar
-              </button>
-              <button
-                type="button"
-                onClick={sair}
-                className="rounded-xl border border-[var(--card-border)] bg-[var(--background)]/80 px-3 py-2 min-h-[40px] text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 touch-manipulation transition-colors"
-              >
-                Sair
               </button>
             </div>
           </div>
@@ -1095,14 +1086,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {isAdmin && (
-        <>
-          <div className="pointer-events-auto md:hidden fixed right-3 z-[110] bottom-[calc(4rem+env(safe-area-inset-bottom,0px))]">
-            <NotificationBell context="admin" />
-          </div>
-          <AdminMobileBottomNav />
-        </>
-      )}
+      {isAdmin && <AdminMobileBottomNav />}
     </div>
   );
 }

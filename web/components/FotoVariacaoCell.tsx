@@ -119,8 +119,9 @@ export function FotoVariacaoCell({
 
   const stacked = variant === "stacked";
   const table = variant === "table";
-  const box = stacked ? "h-24 w-24 sm:h-24 sm:w-24 lg:h-20 lg:w-20" : table ? "w-12 h-12" : "w-12 h-12";
-  const imgPx = stacked ? 96 : table ? 48 : 48;
+  /* Empilhado: mesma densidade do desktop (lg) em todos os breakpoints — mais espaço para a tabela no mobile */
+  const box = stacked ? "h-20 w-20" : table ? "w-12 h-12" : "w-12 h-12";
+  const imgPx = stacked ? 80 : table ? 48 : 48;
   const iconSz = stacked ? 18 : table ? 16 : 20;
   const hoverPreviewW = stacked ? 340 : table ? 240 : 260;
   const hoverPreviewH = stacked ? 400 : 320;
@@ -148,7 +149,7 @@ export function FotoVariacaoCell({
         onError={() => setPreviewImgErro(true)}
       />
     ) : (
-      <div className="flex items-center justify-center py-8 px-4 text-neutral-400 text-xs">Imagem não carregou</div>
+      <div className="flex items-center justify-center py-8 px-4 text-[var(--muted)] text-xs">Imagem não carregou</div>
     )
   ) : null;
 
@@ -173,7 +174,7 @@ export function FotoVariacaoCell({
             setPreviewMode((m) => (m === "fixo" ? "off" : "fixo"));
           }
         }}
-        className={`shrink-0 ${box} rounded border border-neutral-200 dark:border-neutral-600 overflow-hidden bg-white dark:bg-neutral-900 p-0 block focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer touch-manipulation`}
+        className={`shrink-0 ${box} rounded border border-[var(--card-border)] overflow-hidden bg-[var(--card)] p-0 block focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)] cursor-pointer touch-manipulation`}
       >
         <img
           src={srcImagem}
@@ -186,7 +187,7 @@ export function FotoVariacaoCell({
       </button>
       {previewMode === "hover" && srcImagem && hoverPreviewPos && (
         <div
-          className="fixed z-[120] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl pointer-events-none dark:border-neutral-600 dark:bg-neutral-900"
+          className="fixed z-[120] overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card)] shadow-xl pointer-events-none"
           style={{ width: `${hoverPreviewW}px`, left: `${hoverPreviewPos.left}px`, top: `${hoverPreviewPos.top}px` }}
         >
           {!previewImgErro ? (
@@ -198,7 +199,7 @@ export function FotoVariacaoCell({
               onError={() => setPreviewImgErro(true)}
             />
           ) : (
-            <div className="flex items-center justify-center py-8 px-4 text-neutral-400 text-xs">Imagem não carregou</div>
+            <div className="flex items-center justify-center py-8 px-4 text-[var(--muted)] text-xs">Imagem não carregou</div>
           )}
         </div>
       )}
@@ -206,11 +207,11 @@ export function FotoVariacaoCell({
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true" aria-label="Visualização da foto">
           <button
             type="button"
-            className="absolute inset-0 cursor-default border-0 bg-black/55 p-0"
+            className="absolute inset-0 cursor-default border-0 bg-[color-mix(in_srgb,var(--foreground)_45%,transparent)] p-0"
             aria-label="Fechar"
             onClick={() => setPreviewMode("off")}
           />
-          <div className="relative z-[110] w-full max-w-lg rounded-xl border border-neutral-200 bg-white p-2 shadow-2xl dark:border-neutral-600 dark:bg-neutral-900">
+          <div className="relative z-[110] w-full max-w-lg rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-2 shadow-2xl">
             {previewImgBlock}
           </div>
         </div>
@@ -218,9 +219,9 @@ export function FotoVariacaoCell({
     </div>
   ) : (
     <div
-      className={`shrink-0 ${box} rounded border border-dashed border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 flex items-center justify-center`}
+      className={`shrink-0 ${box} rounded border border-dashed border-[var(--card-border)] bg-[var(--card)] flex items-center justify-center`}
     >
-      <svg xmlns="http://www.w3.org/2000/svg" width={iconSz} height={iconSz} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-neutral-400 dark:text-neutral-500">
+      <svg xmlns="http://www.w3.org/2000/svg" width={iconSz} height={iconSz} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted)]">
         <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
         <circle cx="8.5" cy="8.5" r="1.5" />
         <path d="M21 15l-5-5L5 21" />
@@ -246,10 +247,10 @@ export function FotoVariacaoCell({
         disabled={loading}
         className={`text-left disabled:opacity-50 touch-manipulation ${
           stacked
-            ? "inline-flex h-7 w-full items-center justify-center rounded-lg border border-blue-200 bg-blue-100 px-2.5 text-[11px] font-semibold text-blue-700 shadow-sm hover:bg-blue-200 lg:h-6 lg:rounded-md lg:border-0 lg:bg-transparent lg:px-0 lg:font-medium lg:text-blue-600 lg:shadow-none lg:hover:bg-transparent lg:hover:text-blue-700"
+            ? "inline-flex h-auto min-h-0 w-full items-center justify-center border-0 bg-transparent px-0 py-0.5 text-[11px] font-medium text-[var(--primary-blue)] shadow-none hover:underline hover:underline-offset-2 disabled:hover:no-underline"
             : table
-              ? "whitespace-nowrap text-[11px] font-medium leading-tight text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-              : "text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              ? "whitespace-nowrap text-[11px] font-medium leading-tight text-[var(--primary-blue)] hover:text-[var(--primary-blue-hover)]"
+              : "text-xs text-[var(--primary-blue)] hover:text-[var(--primary-blue-hover)]"
         }`}
       >
         {mostraThumb ? "Trocar" : "Enviar"}
@@ -261,10 +262,10 @@ export function FotoVariacaoCell({
           disabled={loading}
           className={`text-left disabled:opacity-50 ${
             stacked
-              ? "inline-flex h-7 w-full items-center justify-center rounded-lg border border-red-200 bg-red-100 px-2.5 text-[11px] font-semibold text-red-700 shadow-sm hover:bg-red-200 lg:h-6 lg:rounded-md lg:border-0 lg:bg-transparent lg:px-0 lg:font-medium lg:text-red-600 lg:shadow-none lg:hover:bg-transparent lg:hover:text-red-700"
+              ? "inline-flex h-auto min-h-0 w-full items-center justify-center border-0 bg-transparent px-0 py-0.5 text-[11px] font-medium text-[var(--danger)] shadow-none hover:underline hover:underline-offset-2 disabled:hover:no-underline"
               : table
-                ? "whitespace-nowrap text-[11px] leading-tight text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                : "text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                ? "whitespace-nowrap text-[11px] leading-tight text-[var(--danger)] hover:opacity-90"
+                : "text-xs text-[var(--danger)] hover:opacity-90"
           }`}
         >
           Excluir
@@ -276,7 +277,7 @@ export function FotoVariacaoCell({
   return (
     <div className={`relative flex flex-col gap-0.5 ${table ? "min-w-0" : ""}`}>
       {stacked ? (
-        <div className="flex w-[112px] shrink-0 flex-col items-center gap-1 sm:w-[112px] lg:w-[92px]">
+        <div className="flex w-[92px] shrink-0 flex-col items-center gap-1">
           {thumbBlock}
           {actions}
         </div>
@@ -292,9 +293,9 @@ export function FotoVariacaoCell({
         </div>
       )}
       {erro && (
-        <p className={stacked ? "max-w-[112px] break-words text-center text-[10px] text-red-500 lg:max-w-[92px]" : "text-[10px] text-red-500"}>{erro}</p>
+        <p className={stacked ? "max-w-[92px] break-words text-center text-[10px] text-[var(--danger)]" : "text-[10px] text-[var(--danger)]"}>{erro}</p>
       )}
-      {loading && <p className="text-[10px] text-neutral-500 text-center">...</p>}
+      {loading && <p className="text-[10px] text-[var(--muted)] text-center">...</p>}
     </div>
   );
 }

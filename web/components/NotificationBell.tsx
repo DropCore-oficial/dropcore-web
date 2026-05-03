@@ -111,10 +111,10 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
           setOpen((o) => !o);
           if (open) fetchNotifs(true);
         }}
-        className={`group relative flex h-9 w-9 items-center justify-center rounded-xl border transition-all duration-200 ${
+        className={`group relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all duration-200 ${
           open
             ? "border-emerald-400 dark:border-emerald-600 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 shadow-sm"
-            : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900 hover:text-emerald-600 dark:hover:text-emerald-400"
+            : "border-[var(--chrome-border)] bg-[var(--card)] text-[var(--chrome-icon)] shadow-none hover:border-emerald-300/80 dark:hover:border-emerald-700/80 hover:bg-emerald-100/80 dark:hover:bg-emerald-900 hover:text-emerald-600 dark:hover:text-emerald-400"
         }`}
         title="Notificações"
       >
@@ -132,7 +132,7 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
           <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white ring-2 ring-white dark:ring-neutral-900 shadow-sm">
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white ring-2 ring-[var(--card)] shadow-sm">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -143,15 +143,15 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
           <button
             type="button"
             aria-label="Fechar notificações"
-            className="fixed inset-0 z-[90] bg-black/30 backdrop-blur-[1px] md:hidden"
+            className="fixed inset-0 z-[90] bg-[color-mix(in_srgb,var(--foreground)_25%,transparent)] backdrop-blur-[1px] md:hidden"
             onClick={() => setOpen(false)}
           />
           <div
-            className="fixed left-3 right-3 top-[max(5.5rem,env(safe-area-inset-top)+4rem)] z-[100] max-h-[min(70vh,calc(100dvh-7rem))] w-auto overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl shadow-neutral-900/10 dark:shadow-black/20 animate-in fade-in-0 zoom-in-95 duration-200 md:absolute md:inset-x-auto md:left-auto md:right-0 md:top-full md:mt-2 md:max-h-72 md:w-80 md:translate-x-0"
+            className="fixed left-3 right-3 top-[max(5.5rem,env(safe-area-inset-top)+4rem)] z-[100] max-h-[min(70vh,calc(100dvh-7rem))] w-auto overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] shadow-xl shadow-[color-mix(in_srgb,var(--foreground)_12%,transparent)] animate-in fade-in-0 zoom-in-95 duration-200 md:absolute md:inset-x-auto md:left-auto md:right-0 md:top-full md:mt-2 md:max-h-72 md:w-80 md:translate-x-0"
           >
-          <div className="border-b border-neutral-100 dark:border-neutral-800 bg-emerald-100 dark:bg-emerald-950 px-4 py-3">
+          <div className="border-b border-[var(--card-border)] bg-emerald-100 dark:bg-emerald-950 px-4 py-3">
             <div className="flex items-center justify-between">
-              <span className="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              <span className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
                 <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
                     <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
@@ -175,21 +175,21 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
             {loading && itemsFiltrados.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-12">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-500 dark:border-emerald-900 dark:border-t-emerald-400" />
-                <p className="text-xs text-neutral-500">Carregando...</p>
+                <p className="text-xs text-[var(--muted)]">Carregando...</p>
               </div>
             ) : itemsFiltrados.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-12 px-4">
-                <div className="rounded-full bg-neutral-100 dark:bg-neutral-800 p-3">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-8 w-8 text-neutral-400">
+                <div className="rounded-full bg-[var(--surface-subtle)] p-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-8 w-8 text-[var(--muted)]">
                     <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
                     <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
                   </svg>
                 </div>
-                <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Nenhuma notificação</p>
-                <p className="text-xs text-neutral-400 dark:text-neutral-500 text-center">Você receberá alertas de depósitos e outras atividades aqui</p>
+                <p className="text-sm font-medium text-[var(--foreground)]">Nenhuma notificação</p>
+                <p className="text-xs text-[var(--muted)] text-center">Você receberá alertas de depósitos e outras atividades aqui</p>
               </div>
             ) : (
-              <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <div className="divide-y divide-[var(--card-border)]">
                 {itemsFiltrados.map((n) => {
                   const isExpanded = expandedId === n.id;
                   const isDeposito = n.tipo === "deposito_aprovado" || n.tipo === "deposito_entrou";
@@ -208,14 +208,14 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                           setExpandedId(isExpanded ? null : n.id);
                         }
                       }}
-                      className={`flex w-full cursor-pointer gap-3 px-4 py-3 text-left transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 active:bg-neutral-100 dark:active:bg-neutral-800 ${
+                      className={`flex w-full cursor-pointer gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)] ${
                         !n.lido ? "bg-emerald-100 dark:bg-emerald-950" : ""
                       }`}
                     >
                       <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
                         !n.lido
                           ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400"
-                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-500"
+                          : "bg-[var(--surface-subtle)] text-[var(--muted)]"
                       }`}>
                         {isDeposito ? (
                           <span className="text-sm">💰</span>
@@ -230,13 +230,13 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{n.titulo}</p>
+                        <p className="text-sm font-medium text-[var(--foreground)]">{n.titulo}</p>
                         {n.mensagem && (
-                          <p className={`mt-0.5 text-xs text-neutral-600 dark:text-neutral-400 ${isExpanded ? "" : "line-clamp-2"}`}>
+                          <p className={`mt-0.5 text-xs text-[var(--muted)] ${isExpanded ? "" : "line-clamp-2"}`}>
                             {n.mensagem}
                           </p>
                         )}
-                        <p className="mt-1.5 text-[10px] font-medium text-neutral-400 dark:text-neutral-500">
+                        <p className="mt-1.5 text-[10px] font-medium text-[var(--muted)]">
                           {new Date(n.criado_em).toLocaleString("pt-BR", {
                             day: "2-digit",
                             month: "short",

@@ -405,7 +405,7 @@ export default function SellerProdutosPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#f6f6f7] text-[#202223] dark:bg-[#0F1115] dark:text-[#e3e5e8] pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+    <div className="min-h-screen bg-[#f6f6f7] text-[#202223] dark:bg-[#0F1115] dark:text-[#e3e5e8] pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
       <div className="mx-auto w-full max-w-[1040px] px-3 py-3 dropcore-px-wide sm:px-4 md:py-4">
         <div className="overflow-hidden rounded-xl border border-[#dfe3e8] bg-white shadow-[0_1px_0_rgba(0,0,0,0.03)] dark:border-[#2e3240] dark:bg-[#1a1d24] dark:shadow-none sm:px-4 sm:py-4">
           <div className="px-3 py-3 sm:px-0 sm:pt-1">

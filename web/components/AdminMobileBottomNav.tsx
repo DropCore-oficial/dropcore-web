@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ThemeToggle } from "@/components/ThemeToggle";
 
 /** Mesmas classes que `FornecedorNav` / `SellerNav` (mobile) — borda superior + estado ativo emerald */
 const activeClass =
   "text-emerald-600 dark:text-emerald-400 border-emerald-500 bg-emerald-100 dark:bg-emerald-950/20";
 const inactiveClass =
-  "text-neutral-500 dark:text-neutral-400 border-transparent hover:text-neutral-900 dark:hover:text-neutral-100 active:bg-neutral-100 dark:active:bg-neutral-800/50";
+  "text-[var(--muted)] border-transparent hover:text-[var(--foreground)] active:bg-[var(--surface-hover)]";
 
 function IconHome({ active }: { active: boolean }) {
   return (
@@ -101,10 +100,10 @@ export function AdminMobileBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-[100] border-t border-neutral-200/80 bg-white/[0.98] pb-[env(safe-area-inset-bottom)] dark:border-neutral-800/80 dark:bg-neutral-950/[0.98] md:hidden backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.5)]"
+      className="fixed bottom-0 left-0 right-0 z-[100] border-t border-[var(--card-border)] bg-[var(--background)] pb-[env(safe-area-inset-bottom)] md:hidden backdrop-blur-xl shadow-[var(--shadow-chrome-up)] text-[var(--foreground)]"
       aria-label="Navegação admin"
     >
-      <div className="mx-auto grid min-h-[56px] max-w-3xl grid-cols-5 items-stretch">
+      <div className="mx-auto grid min-h-[56px] max-w-3xl grid-cols-4 items-stretch">
         {items.map((item) => {
           const active = item.match(pathname);
           const icon =
@@ -132,12 +131,6 @@ export function AdminMobileBottomNav() {
             </Link>
           );
         })}
-        <div className="flex min-w-0 flex-col items-center justify-center gap-0.5 border-l border-neutral-200/60 py-1.5 touch-manipulation dark:border-neutral-800/80">
-          <ThemeToggle className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white p-1.5 dark:border-neutral-700 dark:bg-neutral-900" />
-          <span className="max-w-[4.5rem] text-center text-[10px] font-medium leading-tight text-neutral-500 dark:text-neutral-400">
-            Tema
-          </span>
-        </div>
       </div>
     </nav>
   );

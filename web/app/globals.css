@@ -143,6 +143,9 @@ summary {
   --card-border: #E5E7EB;
   --border-subtle: rgba(0, 0, 0, 0.06);
   --muted: #6B7280;
+  /* Barra: sino, tema, Sair — mesmo peso dos links inativos da nav (`text-[var(--muted)]`) */
+  --chrome-icon: var(--muted);
+  --chrome-border: var(--card-border);
 
   /* Cores de ação (iguais em ambos temas) */
   --success: #22C55E;
@@ -164,6 +167,10 @@ summary {
   --section-gap: 1.5rem;
   --shadow: 0 1px 3px rgb(0 0 0 / 0.06);
   --shadow-card: 0 1px 3px rgb(0 0 0 / 0.08);
+  /* Hover / superfícies secundárias — sempre derivados do par tema claro */
+  --surface-hover: color-mix(in srgb, var(--foreground) 6%, var(--background));
+  --surface-subtle: color-mix(in srgb, var(--muted) 12%, var(--background));
+  --shadow-chrome-up: 0 -4px 20px rgb(0 0 0 / 0.07);
 
   color-scheme: light;
 }
@@ -222,6 +229,8 @@ html.dark,
   --card-border: #1c1c1c;
   --border-subtle: #1c1c1c;
   --muted: #a0a0a0;
+  --chrome-icon: var(--muted);
+  --chrome-border: var(--card-border);
   --success: #22C55E;
   --info: #A3A3A3;
   --warning: #F59E0B;
@@ -233,6 +242,9 @@ html.dark,
   --shadow: 0 1px 2px rgb(0 0 0 / 0.5);
   --shadow-card: 0 1px 3px rgb(0 0 0 / 0.4);
   --section-gap: 1.5rem;
+  --surface-hover: color-mix(in srgb, var(--foreground) 9%, var(--card));
+  --surface-subtle: color-mix(in srgb, var(--foreground) 7%, var(--card));
+  --shadow-chrome-up: 0 -4px 24px rgb(0 0 0 / 0.55);
 }
 html.dark {
   background: #000 !important;

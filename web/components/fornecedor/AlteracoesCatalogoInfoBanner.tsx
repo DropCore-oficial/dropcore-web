@@ -6,13 +6,15 @@ export function AlteracoesCatalogoInfoBanner() {
     <div
       role="region"
       aria-label="Como funcionam alterações e o catálogo do seller"
-      className="rounded-xl border border-gray-200 bg-white p-4 text-sm shadow-sm transition-all duration-200 hover:shadow-md dark:border-neutral-700 dark:bg-neutral-900"
+      className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 sm:p-5 text-sm text-[var(--foreground)] shadow-sm transition-all duration-200 hover:shadow-md"
     >
       <div className="mb-2 flex items-center gap-2">
-        <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-gray-100 text-gray-600 dark:bg-neutral-800 dark:text-neutral-300">i</span>
-        <p className="text-base font-semibold text-gray-900 dark:text-neutral-100">Catálogo do seller e alterações</p>
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-[var(--muted)]/15 text-[var(--muted)]">
+          i
+        </span>
+        <p className="text-base font-semibold text-[var(--foreground)]">Catálogo do seller e alterações</p>
       </div>
-      <div className="mt-1.5 space-y-2 text-sm leading-relaxed text-gray-500 dark:text-neutral-300">
+      <div className="mt-1.5 space-y-2 text-sm leading-relaxed text-[var(--muted)] [&_strong]:text-[var(--foreground)]">
         <p>
           <strong>Dados cadastrais</strong> (nome, descrição, preço, estoque via fluxos com análise, medidas, NCM e link de fotos no formulário) entram em{" "}
           <strong>análise da DropCore</strong>.

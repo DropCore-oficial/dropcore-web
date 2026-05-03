@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AppBarEndDesktopAuth, AppBarEndMobileAuth } from "@/components/AppBarEndAuth";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { MobileAppBar } from "@/components/MobileAppBar";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 const activeClass = "text-emerald-600 dark:text-emerald-400 border-emerald-500";
-const inactiveClass = "text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 border-transparent";
+const inactiveDesktop =
+  "text-[var(--muted)] hover:text-[var(--foreground)] border-transparent hover:bg-[var(--surface-hover)]";
+const inactiveMobile =
+  "text-[var(--muted)] active:text-[var(--foreground)] border-transparent active:bg-[var(--surface-hover)]";
 
 function IconHome({ active }: { active: boolean }) {
   return (
@@ -63,6 +66,11 @@ export function SellerNav({
 }) {
   const router = useRouter();
 
+  async function sair() {
+    await supabaseBrowser.auth.signOut();
+    router.replace("/seller/login");
+  }
+
   async function sairCalculadoraNav() {
     await supabaseBrowser.auth.signOut();
     router.replace("/calculadora/login");
@@ -70,39 +78,37 @@ export function SellerNav({
 
   const linkClass = (key: NavKey) =>
     `flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ${
-      active === key ? activeClass + " hover:bg-emerald-100 dark:hover:bg-emerald-900" : inactiveClass + " border-transparent hover:bg-neutral-100 dark:hover:bg-neutral-800"
+      active === key ? activeClass + " hover:bg-emerald-100 dark:hover:bg-emerald-900" : inactiveDesktop
     }`;
 
   const mobileLinkClass = (key: NavKey) =>
     `flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 overflow-visible px-1 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ${
-      active === key ? activeClass + " bg-emerald-100 dark:bg-emerald-900" : inactiveClass + " border-transparent active:bg-neutral-100 dark:active:bg-neutral-800"
+      active === key ? activeClass + " bg-emerald-100 dark:bg-emerald-900" : inactiveMobile
     }`;
 
   if (calcOnly) {
     return (
       <>
-        <MobileAppBar logoHref="/seller/calculadora" />
-        <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-sm">
-          <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 flex items-center gap-8">
-            <DropCoreLogo variant="horizontal" href="/seller/calculadora" className="shrink-0" />
-            <div className="flex items-center gap-0.5">
-              <Link href="/seller/calculadora" className={linkClass("calculadora")}>
-                <IconCalculator active={active === "calculadora"} />
-                Calculadora
-              </Link>
+        <MobileAppBar
+          logoHref="/seller/calculadora"
+          end={<AppBarEndMobileAuth context="seller" onLogout={sairCalculadoraNav} logoutLabel="Sair" />}
+        />
+        <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
+          <div className="max-w-4xl mx-auto flex w-full min-w-0 items-center justify-between gap-4 px-4 sm:px-6">
+            <div className="flex min-w-0 items-center gap-8">
+              <DropCoreLogo variant="horizontal" href="/seller/calculadora" className="shrink-0" />
+              <div className="flex items-center gap-0.5">
+                <Link href="/seller/calculadora" className={linkClass("calculadora")}>
+                  <IconCalculator active={active === "calculadora"} />
+                  Calculadora
+                </Link>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => void sairCalculadoraNav()}
-              className="ml-auto rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100"
-            >
-              Sair
-            </button>
-            <ThemeToggle />
+            <AppBarEndDesktopAuth context="seller" onLogout={sairCalculadoraNav} />
           </div>
         </nav>
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.45)] pb-[env(safe-area-inset-bottom)]">
-          <div className="max-w-lg mx-auto grid grid-cols-3 items-stretch min-h-[52px]">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
+          <div className="max-w-lg mx-auto grid grid-cols-2 items-stretch min-h-[52px]">
             <Link
               href="/seller/calculadora"
               className={`${mobileLinkClass("calculadora")} border-t-0 border-b-0 py-2 touch-manipulation min-h-[52px]`}
@@ -113,7 +119,7 @@ export function SellerNav({
             <button
               type="button"
               onClick={() => void sairCalculadoraNav()}
-              className="flex flex-col items-center justify-center gap-0.5 py-2 px-1 min-h-[52px] touch-manipulation text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 active:bg-neutral-100 dark:active:bg-neutral-800 transition-colors border-l border-r border-neutral-200 dark:border-neutral-800"
+              className="flex flex-col items-center justify-center gap-0.5 border-l border-[var(--card-border)] py-2 px-1 min-h-[52px] touch-manipulation text-[var(--muted)] hover:text-[var(--foreground)] active:bg-[var(--surface-hover)] transition-colors"
               aria-label="Sair da calculadora"
             >
               <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -123,10 +129,6 @@ export function SellerNav({
               </svg>
               <span className="text-[10px] font-medium leading-tight">Sair</span>
             </button>
-            <div className="flex flex-col items-center justify-center gap-0.5 min-h-[52px] py-1.5 touch-manipulation">
-              <ThemeToggle className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center shrink-0" />
-              <span className="text-[10px] font-medium leading-tight text-neutral-500 dark:text-neutral-400">Tema</span>
-            </div>
           </div>
         </nav>
       </>
@@ -135,39 +137,38 @@ export function SellerNav({
 
   return (
     <>
-      <MobileAppBar logoHref="/seller/dashboard" />
-      <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-sm">
-        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 flex items-center gap-8">
-          <DropCoreLogo variant="horizontal" href="/seller/dashboard" className="shrink-0" />
-          <div className="flex items-center gap-0.5">
-            <Link href="/seller/dashboard" className={linkClass("dashboard")}>
-              <IconHome active={active === "dashboard"} />
-              Dashboard
-            </Link>
-            <Link href="/seller/produtos" className={linkClass("produtos")}>
-              <IconPackage active={active === "produtos"} />
-              Produtos
-            </Link>
-            <Link href="/seller/calculadora" className={linkClass("calculadora")}>
-              <IconCalculator active={active === "calculadora"} />
-              Calculadora
-            </Link>
-            <Link href="/seller/integracoes-erp" className={linkClass("integracoes")}>
-              <IconPlug active={active === "integracoes"} />
-              Integrações
-            </Link>
+      <MobileAppBar
+        logoHref="/seller/dashboard"
+        end={<AppBarEndMobileAuth context="seller" onLogout={sair} />}
+      />
+      <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
+        <div className="max-w-4xl mx-auto flex w-full min-w-0 items-center justify-between gap-4 px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-6">
+            <DropCoreLogo variant="horizontal" href="/seller/dashboard" className="shrink-0" />
+            <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <Link href="/seller/dashboard" className={linkClass("dashboard")}>
+                <IconHome active={active === "dashboard"} />
+                Dashboard
+              </Link>
+              <Link href="/seller/produtos" className={linkClass("produtos")}>
+                <IconPackage active={active === "produtos"} />
+                Produtos
+              </Link>
+              <Link href="/seller/calculadora" className={linkClass("calculadora")}>
+                <IconCalculator active={active === "calculadora"} />
+                Calculadora
+              </Link>
+              <Link href="/seller/integracoes-erp" className={linkClass("integracoes")}>
+                <IconPlug active={active === "integracoes"} />
+                Integrações
+              </Link>
+            </div>
           </div>
-          <Link
-            href="/seller/dashboard"
-            className="ml-auto rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100"
-          >
-            Início
-          </Link>
-          <ThemeToggle />
+          <AppBarEndDesktopAuth context="seller" onLogout={sair} />
         </div>
       </nav>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-[0_-3px_16px_rgba(0,0,0,0.06)] dark:shadow-[0_-3px_16px_rgba(0,0,0,0.45)] pb-[env(safe-area-inset-bottom)]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid max-w-3xl grid-cols-4 items-stretch min-h-[50px]">
           <Link href="/seller/dashboard" className={mobileLinkClass("dashboard")}>
             <IconHome active={active === "dashboard"} />

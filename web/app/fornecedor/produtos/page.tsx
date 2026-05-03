@@ -85,7 +85,7 @@ function CorCelulaProduto({ cor }: { cor: string | null }) {
       {parts.map((p, i) => (
         <span
           key={`${i}-${p}`}
-          className="inline-flex max-w-full rounded-md bg-neutral-100 px-1.5 py-0.5 text-[11px] font-medium text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
+          className="inline-flex max-w-full rounded-md bg-[var(--muted)]/15 px-1.5 py-0.5 text-[11px] font-medium text-[var(--foreground)]"
         >
           {p}
         </span>
@@ -158,14 +158,14 @@ function MiniaturaListaGrupo({
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="flex h-full w-full items-center justify-center bg-neutral-200 text-lg text-neutral-500 hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-600"
+          className="flex h-full w-full items-center justify-center bg-[var(--muted)]/20 text-lg text-[var(--muted)] hover:bg-[var(--muted)]/30"
           title="Abrir link da foto"
         >
           📷
         </a>
       );
     }
-    return <span className="text-lg text-neutral-400 dark:text-neutral-500">—</span>;
+    return <span className="text-lg text-[var(--muted)]">—</span>;
   }
 
   const src = candidatos[failIdx];
@@ -485,29 +485,33 @@ export default function FornecedorProdutosPage() {
     return (
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 border-t-emerald-500 dark:border-t-emerald-500 animate-spin" />
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando...</p>
+          <div className="h-10 w-10 animate-spin rounded-xl border-2 border-[var(--card-border)] border-t-neutral-500 dark:border-t-neutral-400" />
+          <p className="text-sm font-medium text-[var(--muted)]">Carregando...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen min-w-0 max-w-[100%] overflow-x-hidden bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="dropcore-shell-4xl space-y-6 py-5">
-        {/* Header + filtros (desktop: título à esquerda, ações à direita) */}
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+      <div className="dropcore-shell-4xl py-5 md:py-7 space-y-5 md:space-y-6">
+        {/* Header + filtros — mesmo bloco de cartão que o dashboard do fornecedor */}
+        <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
           <div className="min-w-0 space-y-1">
             <Link
               href="/fornecedor/dashboard"
-              className="inline-flex items-center gap-2.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white"
+              className="inline-flex items-center gap-2.5 text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
               Voltar
             </Link>
-            <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-neutral-100">Meus produtos</h1>
+            <p className="text-sm font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90 leading-snug">
+              Catálogo
+            </p>
+            <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">Meus produtos</h1>
           </div>
           <div className="flex w-full min-w-0 flex-col gap-3 sm:w-auto sm:items-end sm:pt-0.5">
             <label className="flex w-full cursor-pointer items-center gap-2 text-sm text-[var(--muted)] sm:w-auto sm:justify-end">
@@ -515,7 +519,7 @@ export default function FornecedorProdutosPage() {
                 type="checkbox"
                 checked={filtroEstoqueBaixo}
                 onChange={(e) => router.push(e.target.checked ? "/fornecedor/produtos?estoqueBaixo=1" : "/fornecedor/produtos")}
-                className="rounded border-[var(--card-border)]"
+                className="rounded border-[var(--card-border)] bg-[var(--background)] text-emerald-600 focus:ring-emerald-500/40 dark:bg-[var(--surface-subtle)]"
               />
               Só estoque baixo
             </label>
@@ -523,10 +527,10 @@ export default function FornecedorProdutosPage() {
               {rascunhoCriarVariantes && (
                 <Link
                   href="/fornecedor/produtos/criar-variantes"
-                  className="flex min-h-[3rem] items-center gap-3 rounded-xl border border-neutral-200 bg-[var(--card)] px-3 py-2.5 shadow-sm transition hover:border-neutral-300 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600 dark:hover:bg-neutral-800"
+                  className="flex min-h-[3rem] items-center gap-3 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 shadow-sm transition hover:bg-[var(--muted)]/10"
                   title={`${rascunhoCriarVariantes.nomeResumo} — salvo em ${new Date(rascunhoCriarVariantes.savedAt).toLocaleString("pt-BR")}`}
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--muted)]/12 text-[var(--muted)]">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                       <polyline points="14 2 14 8 20 8" />
@@ -536,20 +540,20 @@ export default function FornecedorProdutosPage() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Continuar rascunho</span>
+                      <span className="text-sm font-semibold text-[var(--foreground)]">Continuar rascunho</span>
                       {rascunhoCriarVariantes.origem === "local" && (
-                        <span className="rounded-md bg-neutral-200 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
+                        <span className="rounded-md bg-[var(--muted)]/20 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
                           Só aparelho
                         </span>
                       )}
                     </span>
-                    <span className="mt-0.5 block truncate text-xs text-neutral-500 dark:text-neutral-400">
+                    <span className="mt-0.5 block truncate text-xs text-[var(--muted)]">
                       {rascunhoCriarVariantes.nomeResumo}
-                      <span className="text-neutral-400 dark:text-neutral-500"> · </span>
+                      <span className="text-[var(--muted)]"> · </span>
                       {new Date(rascunhoCriarVariantes.savedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
                     </span>
                   </span>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-neutral-400" aria-hidden>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--muted)]" aria-hidden>
                     <path d="M9 18l6-6-6-6" />
                   </svg>
                 </Link>
@@ -563,13 +567,13 @@ export default function FornecedorProdutosPage() {
             </div>
             <div className="hidden sm:flex sm:justify-end">
               {rascunhoCriarVariantes ? (
-                <div className="inline-flex max-w-full items-stretch overflow-hidden rounded-xl border border-neutral-200 bg-[var(--card)] shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
+                <div className="inline-flex max-w-full items-stretch overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
                   <Link
                     href="/fornecedor/produtos/criar-variantes"
-                    className="group flex min-h-[2.5rem] max-w-[min(100vw-8rem,17rem)] min-w-0 items-center gap-2.5 border-r border-neutral-200 px-3 py-1.5 text-left transition hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                    className="group flex min-h-[2.5rem] max-w-[min(100vw-8rem,17rem)] min-w-0 items-center gap-2.5 border-r border-[var(--card-border)] px-3 py-1.5 text-left transition hover:bg-[var(--muted)]/10"
                     title={`${rascunhoCriarVariantes.nomeResumo} — salvo em ${new Date(rascunhoCriarVariantes.savedAt).toLocaleString("pt-BR")}`}
                   >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 transition group-hover:bg-emerald-100 group-hover:text-emerald-700 dark:bg-neutral-800 dark:text-neutral-400 dark:group-hover:bg-emerald-950/50 dark:group-hover:text-emerald-400">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--muted)]/12 text-[var(--muted)] transition group-hover:bg-emerald-100 group-hover:text-emerald-700 dark:group-hover:bg-emerald-950/50 dark:group-hover:text-emerald-400">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                         <polyline points="14 2 14 8 20 8" />
@@ -579,16 +583,16 @@ export default function FornecedorProdutosPage() {
                     </span>
                     <span className="min-w-0 flex-1 py-0.5">
                       <span className="flex items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">Continuar rascunho</span>
+                        <span className="truncate text-sm font-semibold text-[var(--foreground)]">Continuar rascunho</span>
                         {rascunhoCriarVariantes.origem === "local" && (
-                          <span className="shrink-0 rounded bg-neutral-200 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
+                          <span className="shrink-0 rounded bg-[var(--muted)]/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[var(--muted)]">
                             Local
                           </span>
                         )}
                       </span>
-                      <span className="mt-0.5 block truncate text-[11px] leading-tight text-neutral-500 dark:text-neutral-400">
+                      <span className="mt-0.5 block truncate text-[11px] leading-tight text-[var(--muted)]">
                         {rascunhoCriarVariantes.nomeResumo}
-                        <span className="text-neutral-400 dark:text-neutral-500"> · </span>
+                        <span className="text-[var(--muted)]"> · </span>
                         {new Date(rascunhoCriarVariantes.savedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
                       </span>
                     </span>
@@ -596,7 +600,7 @@ export default function FornecedorProdutosPage() {
                   <div className="flex items-stretch gap-1 p-1 pl-0">
                     <Link
                       href="/fornecedor/produtos/criar-variantes"
-                      className="flex h-8 items-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:brightness-[0.92] shadow-emerald-600/20"
+                      className="flex h-7 items-center rounded-md bg-emerald-600 px-2.5 text-[11px] font-medium text-white shadow-sm transition hover:bg-emerald-700 active:brightness-[0.92] shadow-emerald-600/15"
                     >
                       Criar produto
                     </Link>
@@ -605,7 +609,7 @@ export default function FornecedorProdutosPage() {
               ) : (
                 <Link
                   href="/fornecedor/produtos/criar-variantes"
-                  className="flex h-8 items-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:brightness-[0.92] shadow-emerald-600/20"
+                  className="flex h-7 items-center rounded-md bg-emerald-600 px-2.5 text-[11px] font-medium text-white shadow-sm transition hover:bg-emerald-700 active:brightness-[0.92] shadow-emerald-600/15"
                 >
                   Criar produto
                 </Link>
@@ -613,6 +617,7 @@ export default function FornecedorProdutosPage() {
             </div>
           </div>
         </div>
+        </header>
 
         {error && (
           <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-100 dark:bg-red-950 p-4 text-sm text-red-800 dark:text-red-300">
@@ -627,8 +632,6 @@ export default function FornecedorProdutosPage() {
           </div>
         )}
 
-        <AlteracoesCatalogoInfoBanner />
-
         {formError && modal === "none" && (
           <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-100 dark:bg-red-950 p-4 text-sm text-red-800 dark:text-red-300 flex items-start justify-between gap-3">
             <span>{formError}</span>
@@ -639,18 +642,18 @@ export default function FornecedorProdutosPage() {
         )}
 
         {/* Lista — mobile: cartões; desktop largo: tabela */}
-        <div className="min-w-0 overflow-visible rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="px-3 py-3 sm:px-4 border-b border-neutral-200 dark:border-neutral-800">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-neutral-100">Produtos do armazém</h2>
-            <p className="mt-0.5 text-sm text-gray-500 dark:text-neutral-400">Gerencie seus produtos e links de fotos</p>
+        <div className="min-w-0 overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
+          <div className="border-b border-[var(--card-border)] px-3 py-3 sm:px-4">
+            <h2 className="text-sm font-semibold text-[var(--foreground)]">Produtos do armazém</h2>
+            <p className="mt-0.5 text-sm text-[var(--muted)]">Gerencie seus produtos e links de fotos</p>
           </div>
-          <div className="divide-y divide-neutral-100 dark:divide-neutral-800 min-w-0">
+          <div className="min-w-0 divide-y divide-[var(--card-border)]/60">
             {grupos.length === 0 ? (
               <div className="px-4 py-12 text-center">
-                <p className="text-neutral-500 dark:text-neutral-400 text-sm">
+                <p className="text-sm text-[var(--muted)]">
                   {filtroEstoqueBaixo ? "Nenhum produto com estoque abaixo do mínimo." : "Nenhum produto cadastrado."}
                 </p>
-                <p className="text-neutral-500 dark:text-neutral-400 text-xs mt-1">Use Criar produto acima para cadastrar.</p>
+                <p className="mt-1 text-xs text-[var(--muted)]">Use Criar produto acima para cadastrar.</p>
               </div>
             ) : (
               grupos.map((g) => {
@@ -661,16 +664,16 @@ export default function FornecedorProdutosPage() {
                 const gruposCor = agruparVariantesPorCor(baseVariantes);
                 const todosInativos = linhas.every((p) => (p.status || "").toLowerCase() !== "ativo");
                 return (
-                  <div key={g.paiKey} className="bg-white dark:bg-transparent">
+                  <div key={g.paiKey} className="bg-[var(--card)]">
                     {/* Cabeçalho do produto — mobile: coluna; sm+: linha */}
                     <div
-                      className="flex min-w-0 cursor-pointer flex-col gap-3 px-3 py-3 sm:flex-row sm:flex-nowrap sm:items-center sm:gap-4 sm:px-4 sm:py-3 hover:bg-gray-100 dark:hover:bg-neutral-800"
+                      className="flex min-w-0 cursor-pointer flex-col gap-3 px-3 py-3 sm:flex-row sm:flex-nowrap sm:items-center sm:gap-4 sm:px-4 sm:py-3 hover:bg-[var(--muted)]/10"
                       onClick={() => toggleExpandido(g.paiKey)}
                     >
                       <div className="flex min-w-0 flex-1 items-start gap-3 overflow-visible sm:min-w-[0]">
                         <button
                           type="button"
-                          className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-400 p-0.5 -ml-1 shrink-0 mt-0.5"
+                          className="-ml-1 mt-0.5 shrink-0 p-0.5 text-[var(--muted)] hover:text-[var(--foreground)]"
                           aria-label={exp ? "Recolher" : "Expandir"}
                         >
                           <svg
@@ -686,13 +689,13 @@ export default function FornecedorProdutosPage() {
                             <path d="M9 18l6-6-6-6" />
                           </svg>
                         </button>
-                        <div className="w-12 h-12 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 flex items-center justify-center shrink-0 overflow-hidden">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--muted)]/10">
                           <MiniaturaListaGrupo g={g} todosProdutos={produtos} />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex min-w-0 items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-semibold text-gray-900 dark:text-neutral-100">
+                              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-semibold text-[var(--foreground)]">
                                 <span className="min-w-0 break-words">{representante?.nome_produto}</span>
                                 {todosInativos && (
                                   <span
@@ -736,20 +739,20 @@ export default function FornecedorProdutosPage() {
                               <details data-menu-acoes className="group relative open:z-40">
                                 <summary
                                   aria-label="Ações do produto"
-                                  className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md text-base font-semibold text-gray-700 transition hover:bg-gray-100 [&::-webkit-details-marker]:hidden dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                  className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md text-base font-semibold text-[var(--foreground)] transition hover:bg-[var(--muted)]/12 [&::-webkit-details-marker]:hidden"
                                 >
                                   ⋯
                                 </summary>
-                                <div className="absolute right-0 z-20 mt-1.5 min-w-[10rem] rounded-lg border border-gray-200 bg-white p-1 shadow-md dark:border-neutral-700 dark:bg-neutral-900">
+                                <div className="absolute right-0 z-20 mt-1.5 min-w-[10rem] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-1 shadow-md">
                                   <Link
                                     href={`/fornecedor/produtos/criar-variantes?editar=${encodeURIComponent(g.paiKey)}`}
-                                    className="block rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                    className="block rounded-md px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12"
                                   >
                                     Editar
                                   </Link>
                                   <Link
                                     href={`/fornecedor/produtos/criar-variantes?editar=${encodeURIComponent(g.paiKey)}#midia`}
-                                    className="block rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                    className="block rounded-md px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12"
                                   >
                                     Trocar foto
                                   </Link>
@@ -767,7 +770,7 @@ export default function FornecedorProdutosPage() {
                                       void handleSolicitarExclusaoGrupo(g);
                                     }}
                                     disabled={solicitandoExclusao === g.paiKey}
-                                    className="block w-full rounded-md px-3 py-2 text-left text-sm text-red-600 hover:bg-red-100 disabled:cursor-wait disabled:opacity-80"
+                                    className="block w-full rounded-md px-3 py-2 text-left text-sm text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-950/50 disabled:cursor-wait disabled:opacity-80"
                                     title={
                                       statusAlteracaoGrupo(g) === "pendente"
                                         ? "Há alterações em análise neste produto"
@@ -780,8 +783,8 @@ export default function FornecedorProdutosPage() {
                               </details>
                             </div>
                           </div>
-                          <p className="mt-0.5 break-words text-sm text-gray-500 dark:text-neutral-400">
-                            <span className="font-mono text-neutral-600 dark:text-neutral-500 break-all">{g.paiKey}</span>
+                          <p className="mt-0.5 break-words text-sm text-[var(--muted)]">
+                            <span className="font-mono text-[var(--muted)] break-all">{g.paiKey}</span>
                             {linhas.length > 0 && (
                               <span> · Variantes ({linhas.length})</span>
                             )}
@@ -795,9 +798,9 @@ export default function FornecedorProdutosPage() {
                             const max = Math.max(...custos);
                             const txt = min === max ? fmtCustoBaseFornecedor(min) : `${fmtCustoBaseFornecedor(min)} a ${fmtCustoBaseFornecedor(max)}`;
                             return (
-                              <p className="mt-1 text-sm text-gray-500 dark:text-neutral-300">
-                                Custo: <span className="font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">{txt}</span>
-                                <span className="text-neutral-400 dark:text-neutral-500"> / un.</span>
+                              <p className="mt-1 text-sm text-[var(--muted)]">
+                                Custo: <span className="font-semibold tabular-nums text-[var(--foreground)]">{txt}</span>
+                                <span className="text-[var(--muted)]"> / un.</span>
                               </p>
                             );
                           })()}
@@ -808,22 +811,25 @@ export default function FornecedorProdutosPage() {
                     {/* Variantes: cartões (sem scroll horizontal) até lg; tabela a partir de lg */}
                     {exp && linhas.length > 0 && (
                       <>
-                      <div className="border-t border-gray-200 bg-white px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-900 sm:px-4">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="inline-flex rounded-xl border border-neutral-200 bg-white p-0.5 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
+                      <div className="border-t border-[var(--card-border)] bg-[var(--card)] px-3 py-2 sm:px-4 sm:py-2">
+                        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-2.5">
+                        {/* Desktop: altura 28px, texto xs, largura só do conteúdo — não estica pela linha */}
+                        <div className="inline-flex h-8 w-full min-w-0 rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] p-px shadow-none ring-1 ring-[var(--foreground)]/[0.04] sm:h-7 sm:w-auto sm:flex-none sm:rounded-md">
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               setModoListaVariantes("agrupado-cor");
                             }}
-                            className={`h-8 min-w-[8.5rem] rounded-lg px-3 text-[13px] font-medium transition ${
+                            className={`flex h-full min-h-0 min-w-0 flex-1 items-center justify-center rounded-[6px] px-2.5 text-center text-[11px] font-medium leading-none transition sm:flex-initial sm:rounded-[5px] sm:px-3 sm:text-xs sm:font-normal ${
                               modoListaVariantes === "agrupado-cor"
-                                ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
-                                : "text-gray-600 hover:bg-white hover:text-gray-800 dark:text-neutral-400 dark:hover:bg-neutral-900 dark:hover:text-neutral-200"
+                                ? "bg-emerald-600 text-white hover:bg-emerald-700 sm:font-medium"
+                                : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
                             }`}
+                            title="Agrupado por cor"
                           >
-                            Agrupado por cor
+                            <span className="sm:hidden">Por cor</span>
+                            <span className="hidden sm:inline">Agrupado por cor</span>
                           </button>
                           <button
                             type="button"
@@ -831,13 +837,15 @@ export default function FornecedorProdutosPage() {
                               e.stopPropagation();
                               setModoListaVariantes("sku");
                             }}
-                            className={`h-8 min-w-[8.5rem] rounded-lg px-3 text-[13px] font-medium transition ${
+                            className={`flex h-full min-h-0 min-w-0 flex-1 items-center justify-center rounded-[6px] px-2.5 text-center text-[11px] font-medium leading-none transition sm:flex-initial sm:rounded-[5px] sm:px-3 sm:text-xs sm:font-normal ${
                               modoListaVariantes === "sku"
-                                ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
-                                : "text-gray-600 hover:bg-white hover:text-gray-800 dark:text-neutral-400 dark:hover:bg-neutral-900 dark:hover:text-neutral-200"
+                                ? "bg-emerald-600 text-white hover:bg-emerald-700 sm:font-medium"
+                                : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
                             }`}
+                            title="Detalhado por SKU"
                           >
-                            Detalhado por SKU
+                            <span className="sm:hidden">Por SKU</span>
+                            <span className="hidden sm:inline">Detalhado por SKU</span>
                           </button>
                         </div>
                         <button
@@ -846,21 +854,23 @@ export default function FornecedorProdutosPage() {
                             e.stopPropagation();
                             setMostrarFotosVariantes((v) => !v);
                           }}
-                          className="inline-flex h-8 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 text-[13px] font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                          className="inline-flex h-8 w-full shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 text-[11px] font-medium text-[var(--foreground)] shadow-none transition hover:bg-[var(--muted)]/10 sm:h-7 sm:w-auto sm:rounded-md sm:px-2.5 sm:text-xs sm:font-normal"
+                          title={mostrarFotosVariantes ? "Ocultar fotos das variantes" : "Mostrar fotos das variantes"}
                         >
-                          {mostrarFotosVariantes ? "Ocultar fotos" : "Mostrar fotos"}
+                          <span className="sm:hidden">{mostrarFotosVariantes ? "Ocultar" : "Fotos"}</span>
+                          <span className="hidden sm:inline">{mostrarFotosVariantes ? "Ocultar fotos" : "Mostrar fotos"}</span>
                         </button>
                         </div>
                       </div>
                       {!mostrarFotosVariantes ? (
-                        <div className="border-t border-gray-200 bg-white px-3 py-4 text-sm text-gray-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 sm:px-4">
+                        <div className="border-t border-[var(--card-border)] bg-[var(--card)] px-3 py-4 text-sm text-[var(--muted)] sm:px-4">
                           Variantes ocultas nesta visualização.
                         </div>
                       ) : null}
                       {mostrarFotosVariantes && modoListaVariantes === "agrupado-cor" && (
                         <>
-                          <div className="min-w-0 border-t border-gray-200 bg-white p-2 dark:border-neutral-800 dark:bg-neutral-900 sm:p-3">
-                            <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-3">
+                          <div className="min-w-0 border-t border-[var(--card-border)] bg-[var(--card)] p-3 sm:p-4">
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-3">
                             {gruposCor.map((gc) => {
                               const rowCor = gc.itens[0];
                               if (!rowCor) return null;
@@ -907,33 +917,32 @@ export default function FornecedorProdutosPage() {
                               return (
                                 <div
                                   key={`m-${gc.key}`}
-                                  className="min-w-0 rounded-xl border border-gray-200 bg-white px-2.5 py-2.5 shadow-sm transition-colors hover:border-gray-300 dark:border-neutral-700 dark:bg-neutral-900 sm:px-4 sm:py-3"
+                                  className="min-w-0 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm transition-colors hover:border-emerald-500/35"
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  <div className="flex min-w-0 items-start justify-between gap-2">
+                                  {/* Cabeçalho igual ao desktop / print: título + badge; abaixo “Preço … · Total…”; à direita Ver fotos / Editar */}
+                                  <div className="flex min-w-0 items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                                        <p className="text-sm font-semibold leading-snug text-neutral-900 dark:text-neutral-100">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <p className="text-sm font-bold tracking-tight text-[var(--foreground)]">
                                           {gc.corLabel}
                                         </p>
-                                        <span className="inline-flex rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                                        <span className="inline-flex shrink-0 rounded-full bg-[var(--muted)]/12 px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">
                                           {gc.itens.length} SKU(s)
                                         </span>
-                                        <span className="text-sm font-medium text-gray-700 dark:text-neutral-300">
-                                          Preço {custoTxt}
-                                        </span>
-                                        <span className="inline-flex rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                                          Total: {estoqueTotal}
-                                        </span>
                                       </div>
+                                      <p className="mt-1.5 text-sm leading-snug">
+                                        <span className="font-bold text-[var(--foreground)]">Preço {custoTxt}</span>
+                                        <span className="font-normal text-[var(--muted)]"> · Total em estoque: {estoqueTotal}</span>
+                                      </p>
                                     </div>
-                                    <div className="flex shrink-0 items-center gap-2">
+                                    <div className="flex shrink-0 gap-2">
                                       {lfCor ? (
                                         <a
                                           href={lfCor}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="inline-flex h-7 items-center rounded-md border border-gray-300 bg-white px-2.5 text-[11px] font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                          className="inline-flex h-8 items-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-2.5 text-xs font-medium text-[var(--foreground)] shadow-sm transition hover:bg-[var(--muted)]/10"
                                         >
                                           Ver fotos
                                         </a>
@@ -941,14 +950,16 @@ export default function FornecedorProdutosPage() {
                                       <button
                                         type="button"
                                         onClick={() => openEdit(rowCor)}
-                                        className="inline-flex h-7 shrink-0 items-center rounded-md border border-gray-300 bg-white px-3 text-[11px] font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800 touch-manipulation"
+                                        className="inline-flex h-8 touch-manipulation items-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-2.5 text-xs font-medium text-[var(--foreground)] shadow-sm transition hover:bg-[var(--muted)]/10"
                                       >
                                         Editar
                                       </button>
                                     </div>
                                   </div>
 
-                                  <div className="mt-2 grid min-w-0 grid-cols-[auto_1fr] items-start gap-3">
+                                  {/* Corpo: só miniatura + links à esquerda (92px); tabela à direita — mesmo layout mobile e desktop */}
+                                  <div className="mt-3 grid min-w-0 grid-cols-[92px_minmax(0,1fr)] items-start gap-3">
+                                    <div className="flex w-[92px] shrink-0 flex-col items-center gap-1">
                                     {mostrarFotosVariantes ? (
                                       <FotoVariacaoCell
                                         variant="stacked"
@@ -990,25 +1001,27 @@ export default function FornecedorProdutosPage() {
                                         }}
                                       />
                                     ) : (
-                                      <div className="h-24 w-24 shrink-0 rounded-lg border border-dashed border-neutral-200 bg-white dark:border-neutral-600 dark:bg-neutral-900" />
+                                      <div className="h-20 w-20 shrink-0 rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--muted)]/8" />
                                     )}
-                                    <div className="min-w-0">
-                                        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-neutral-700 dark:bg-neutral-900">
-                                        <div className="grid grid-cols-[5.25rem_minmax(0,1fr)_5rem] border-b border-neutral-200 bg-neutral-50/80 px-2 py-1 text-[11px] font-semibold text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800/40 dark:text-neutral-400">
+                                    </div>
+                                    <div className="dropcore-scroll-x min-w-0 self-start overflow-x-auto rounded-xl border border-[var(--card-border)] bg-[var(--card)]">
+                                        <div className="grid min-w-[min(100%,17.5rem)] grid-cols-[4.5rem_minmax(0,1fr)_3rem] border-b border-[var(--card-border)] bg-[var(--surface-subtle)] px-2.5 py-2 text-[11px] font-bold text-[var(--muted)]">
                                           <span>Numeração</span>
-                                          <span>SKU</span>
+                                          <span className="min-w-0">SKU</span>
                                           <span className="text-right">Qtd.</span>
                                         </div>
-                                        {itensOrdenados.map((p, idx) => (
-                                          <div key={p.id} className={`grid grid-cols-[5.25rem_minmax(0,1fr)_5rem] items-center border-b border-neutral-100 px-2 py-1 text-xs last:border-b-0 dark:border-neutral-800 ${idx % 2 === 1 ? "bg-neutral-50/50 dark:bg-neutral-800/25" : ""}`}>
-                                            <span className="font-semibold text-gray-700 dark:text-neutral-300">{(p.tamanho ?? "—").toUpperCase()}</span>
-                                            <span className="truncate font-mono text-gray-600 dark:text-neutral-400">{p.sku}</span>
-                                            <span className={`text-right font-semibold tabular-nums ${(p.estoque_atual ?? 0) <= 0 ? "text-red-500" : "text-gray-700 dark:text-neutral-300"}`}>
+                                        {itensOrdenados.map((p) => (
+                                          <div
+                                            key={p.id}
+                                            className="grid grid-cols-[4.5rem_minmax(0,1fr)_3rem] items-center border-b border-[var(--card-border)]/50 px-2.5 py-2 text-xs last:border-b-0"
+                                          >
+                                            <span className="font-bold text-[var(--foreground)]">{(p.tamanho ?? "—").toUpperCase()}</span>
+                                            <span className="min-w-0 break-all font-normal font-mono text-[11px] leading-snug text-[var(--muted)]">{p.sku}</span>
+                                            <span className={`text-right text-xs font-bold tabular-nums ${(p.estoque_atual ?? 0) <= 0 ? "text-[var(--danger)]" : "text-[var(--foreground)]"}`}>
                                               {p.estoque_atual != null ? p.estoque_atual : "—"}
                                             </span>
                                           </div>
                                         ))}
-                                      </div>
                                     </div>
                                   </div>
                                 </div>
@@ -1020,11 +1033,11 @@ export default function FornecedorProdutosPage() {
                       )}
                       {mostrarFotosVariantes && modoListaVariantes === "sku" && (
                         <>
-                      <div className="min-w-0 border-t border-gray-200 bg-white p-2 dark:border-neutral-800 dark:bg-neutral-900 lg:hidden">
+                      <div className="min-w-0 border-t border-[var(--card-border)] bg-[var(--card)] p-3 lg:hidden">
                         {linhas.map((row) => {
                           const lf = getLinkFotos(row, produtos) || row.link_fotos;
                           return (
-                            <div key={row.id} className="mb-2 min-w-0 rounded-xl border border-gray-200 bg-white px-2.5 py-2 dark:border-neutral-700 dark:bg-neutral-900" onClick={(e) => e.stopPropagation()}>
+                            <div key={row.id} className="mb-3 min-w-0 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 last:mb-0" onClick={(e) => e.stopPropagation()}>
                               <div className="flex gap-2.5 min-w-0 items-start">
                                 <FotoVariacaoCell
                                   variant="table"
@@ -1068,31 +1081,31 @@ export default function FornecedorProdutosPage() {
                                 <div className="min-w-0 flex-1 pt-0.5">
                                   <div className="flex items-start justify-between gap-2 min-w-0">
                                     <div className="min-w-0 flex-1">
-                                      <p className="text-sm font-medium leading-snug text-gray-900 dark:text-neutral-100">
+                                      <p className="text-sm font-medium leading-snug text-[var(--foreground)]">
                                         <CorCelulaProduto cor={row.cor} />
-                                        <span className="mx-1 text-neutral-400 dark:text-neutral-500">·</span>
-                                        <span className="font-normal text-gray-500 dark:text-neutral-400">{row.tamanho || "—"}</span>
+                                        <span className="mx-1 text-[var(--muted)]">·</span>
+                                        <span className="font-normal text-[var(--muted)]">{row.tamanho || "—"}</span>
                                       </p>
-                                      <p className="mt-0.5 break-all font-mono text-xs leading-tight text-gray-500 dark:text-neutral-500">{row.sku}</p>
+                                      <p className="mt-0.5 break-all font-mono text-xs leading-tight text-[var(--muted)]">{row.sku}</p>
                                     </div>
                                     <button
                                       type="button"
                                       onClick={() => openEdit(row)}
-                                      className="shrink-0 rounded-md border border-gray-300 px-2 py-1.5 text-[11px] font-medium text-gray-700 transition hover:bg-gray-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800 touch-manipulation -mr-1"
+                                      className="-mr-1 shrink-0 rounded-md border border-[var(--card-border)] px-2 py-1.5 text-[11px] font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)]/12 touch-manipulation"
                                     >
                                       Editar
                                     </button>
                                   </div>
-                                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-500 dark:text-neutral-400">
+                                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-[var(--muted)]">
                                     <span>
                                       Custo{" "}
-                                      <span className="tabular-nums font-medium text-gray-800 dark:text-neutral-200">
+                                      <span className="tabular-nums font-medium text-[var(--foreground)]">
                                         {fmtCustoBaseFornecedor(row.custo_base)}
                                       </span>
                                     </span>
                                     <span>
                                       Estoque{" "}
-                                      <span className={`tabular-nums font-medium ${(row.estoque_atual ?? 0) <= 0 ? "text-red-500" : "text-gray-800 dark:text-neutral-200"}`}>
+                                      <span className={`tabular-nums font-medium ${(row.estoque_atual ?? 0) <= 0 ? "text-[var(--danger)]" : "text-[var(--foreground)]"}`}>
                                         {row.estoque_atual != null ? row.estoque_atual : "—"}
                                       </span>
                                     </span>
@@ -1113,13 +1126,13 @@ export default function FornecedorProdutosPage() {
                           );
                         })}
                       </div>
-                      <div className="hidden lg:block min-w-0 overflow-x-auto border-t border-neutral-100 dark:border-neutral-800">
+                      <div className="hidden min-w-0 overflow-x-auto border-t border-[var(--card-border)]/60 lg:block">
                         <table className="w-full min-w-[700px] table-fixed text-sm">
                           <thead>
-                            <tr className="bg-neutral-50/90 text-left text-xs text-neutral-600 dark:bg-neutral-800/50 dark:text-neutral-400">
+                            <tr className="bg-[var(--muted)]/10 text-left text-xs text-[var(--muted)]">
                               <th className="w-[4.25rem] px-2 py-2 font-medium lg:px-3">
                                 <span className="block">Foto</span>
-                                <span className="block text-[10px] font-normal text-neutral-400 dark:text-neutral-500">SKU</span>
+                                <span className="block text-[10px] font-normal text-[var(--muted)]">SKU</span>
                               </th>
                               <th className="w-[18%] px-2 py-2 font-medium lg:px-3">Cor</th>
                               <th className="w-[7%] px-2 py-2 font-medium lg:px-3">Tam.</th>
@@ -1128,16 +1141,16 @@ export default function FornecedorProdutosPage() {
                               <th className="w-[6%] px-2 py-2 text-right font-medium lg:px-3">Est.</th>
                               <th className="w-[9%] px-2 py-2 font-medium lg:px-3">
                                 <span className="block">Fotos</span>
-                                <span className="block text-[10px] font-normal text-neutral-400 dark:text-neutral-500">Álbum</span>
+                                <span className="block text-[10px] font-normal text-[var(--muted)]">Álbum</span>
                               </th>
                               <th className="w-[4.5rem] px-2 py-2 text-right font-medium lg:pl-3 lg:pr-4">Ações</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                          <tbody className="divide-y divide-[var(--card-border)]/60">
                             {linhas.map((row) => {
                               const lf = getLinkFotos(row, produtos) || row.link_fotos;
                               return (
-                                <tr key={row.id} className="hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                                <tr key={row.id} className="hover:bg-[var(--muted)]/8">
                                   <td className="px-2 py-1.5 align-top lg:px-3">
                                     <FotoVariacaoCell
                                       skuId={row.id}
@@ -1178,15 +1191,15 @@ export default function FornecedorProdutosPage() {
                                       }}
                                     />
                                   </td>
-                                  <td className="px-2 py-1.5 align-top break-words text-xs text-neutral-700 dark:text-neutral-300 lg:px-3">
+                                  <td className="px-2 py-1.5 align-top break-words text-xs text-[var(--foreground)] lg:px-3">
                                     <CorCelulaProduto cor={row.cor} />
                                   </td>
-                                  <td className="px-2 py-1.5 align-top text-xs text-neutral-700 dark:text-neutral-300 lg:px-3">{row.tamanho || "—"}</td>
-                                  <td className="px-2 py-1.5 align-top font-mono text-[11px] leading-snug text-neutral-600 break-all dark:text-neutral-500 lg:px-3">{row.sku}</td>
-                                  <td className="px-2 py-1.5 align-top text-right text-xs tabular-nums font-medium text-neutral-800 dark:text-neutral-200 lg:px-3">
+                                  <td className="px-2 py-1.5 align-top text-xs text-[var(--foreground)] lg:px-3">{row.tamanho || "—"}</td>
+                                  <td className="px-2 py-1.5 align-top font-mono text-[11px] leading-snug text-[var(--muted)] break-all lg:px-3">{row.sku}</td>
+                                  <td className="px-2 py-1.5 align-top text-right text-xs tabular-nums font-medium text-[var(--foreground)] lg:px-3">
                                     {fmtCustoBaseFornecedor(row.custo_base)}
                                   </td>
-                                  <td className="px-2 py-1.5 align-top text-right text-xs tabular-nums text-neutral-700 dark:text-neutral-300 lg:px-3">
+                                  <td className="px-2 py-1.5 align-top text-right text-xs tabular-nums text-[var(--foreground)] lg:px-3">
                                     {row.estoque_atual != null ? row.estoque_atual : "—"}
                                   </td>
                                   <td className="min-w-0 px-2 py-1.5 align-top lg:px-3">
@@ -1200,7 +1213,7 @@ export default function FornecedorProdutosPage() {
                                         Ver
                                       </a>
                                     ) : (
-                                      <span className="text-neutral-400 dark:text-neutral-500 text-xs">—</span>
+                                      <span className="text-[var(--muted)] text-xs">—</span>
                                     )}
                                   </td>
                                   <td className="px-2 py-1.5 text-right align-top lg:pl-3 lg:pr-4">
@@ -1222,11 +1235,6 @@ export default function FornecedorProdutosPage() {
                     )}
                       {representante ? (
                         <>
-                          <div className="border-t border-gray-200 bg-white px-3 py-2 dark:border-neutral-800 dark:bg-neutral-900 sm:px-4">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-                              Resumo do cadastro
-                            </p>
-                          </div>
                           <ProdutoResumoListaGrupo
                             grupoKey={g.paiKey}
                             pai={g.pai}
@@ -1246,142 +1254,144 @@ export default function FornecedorProdutosPage() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-neutral-500 dark:text-neutral-400 px-1 break-words">
-          <Link href="/fornecedor/dashboard" className="hover:text-neutral-600 dark:hover:text-neutral-300">Dashboard</Link>
+        <AlteracoesCatalogoInfoBanner />
+
+        <p className="text-center text-xs text-[var(--muted)] px-1 break-words">
+          <Link href="/fornecedor/dashboard" className="hover:text-[var(--foreground)]">Dashboard</Link>
           {" · "}
-          <Link href="/" className="hover:text-neutral-600 dark:hover:text-neutral-300">Voltar ao DropCore</Link>
+          <Link href="/" className="hover:text-[var(--foreground)]">Voltar ao DropCore</Link>
         </p>
       </div>
 
       {/* Modal Edit */}
       {modal === "edit" && editando && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50" onClick={() => !formLoading && setModal("none")}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[color-mix(in_srgb,var(--foreground)_32%,transparent)]" onClick={() => !formLoading && setModal("none")}>
           <div
-            className="w-full max-w-md max-h-[min(92dvh,40rem)] overflow-y-auto overscroll-contain rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 sm:p-6 shadow-xl min-w-0"
+            className="w-full max-w-md max-h-[min(92dvh,40rem)] min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-xl sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-4 break-words">Editar produto · {editando.sku}</h3>
+            <h3 className="mb-4 break-words text-base font-semibold text-[var(--foreground)]">Editar produto · {editando.sku}</h3>
             <form onSubmit={handleEdit} className="space-y-4">
               <div>
-                <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Nome do produto *</label>
+                <label className="mb-1.5 block text-xs text-[var(--muted)]">Nome do produto *</label>
                 <input
                   type="text"
                   value={editNome}
                   onChange={(e) => setEditNome(e.target.value)}
                   onBlur={() => setEditNome(toTitleCase(editNome))}
                   placeholder="Ex: Camiseta Básica"
-                  className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
                   required
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Cor</label>
+                  <label className="mb-1.5 block text-xs text-[var(--muted)]">Cor</label>
                   <input
                     type="text"
                     value={editCor}
                     onChange={(e) => setEditCor(e.target.value)}
                     onBlur={() => setEditCor(toTitleCase(editCor))}
                     placeholder="Ex: Preto"
-                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Tamanho</label>
+                  <label className="mb-1.5 block text-xs text-[var(--muted)]">Tamanho</label>
                   <input
                     type="text"
                     value={editTamanho}
                     onChange={(e) => setEditTamanho(e.target.value)}
                     onBlur={() => setEditTamanho(editTamanho.trim().toUpperCase())}
                     placeholder="Ex: M"
-                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Descrição</label>
+                <label className="mb-1.5 block text-xs text-[var(--muted)]">Descrição</label>
                 <textarea
                   value={editDescricao}
                   onChange={(e) => setEditDescricao(e.target.value)}
                   onBlur={() => setEditDescricao(toTitleCase(editDescricao))}
                   placeholder="Descrição do produto"
                   rows={2}
-                  className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none"
+                  className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40 resize-none"
                 />
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Comp (cm)</label>
+                  <label className="mb-1.5 block text-xs text-[var(--muted)]">Comp (cm)</label>
                   <input
                     type="text"
                     value={editComp}
                     onChange={(e) => setEditComp(e.target.value)}
                     placeholder="—"
-                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Larg (cm)</label>
+                  <label className="mb-1.5 block text-xs text-[var(--muted)]">Larg (cm)</label>
                   <input
                     type="text"
                     value={editLarg}
                     onChange={(e) => setEditLarg(e.target.value)}
                     placeholder="—"
-                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Alt (cm)</label>
+                  <label className="mb-1.5 block text-xs text-[var(--muted)]">Alt (cm)</label>
                   <input
                     type="text"
                     value={editAlt}
                     onChange={(e) => setEditAlt(e.target.value)}
                     placeholder="—"
-                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Peso (kg)</label>
-                <input type="text" inputMode="decimal" value={editPeso} onChange={(e) => setEditPeso(e.target.value)} placeholder="—" className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" />
+                <label className="mb-1.5 block text-xs text-[var(--muted)]">Peso (kg)</label>
+                <input type="text" inputMode="decimal" value={editPeso} onChange={(e) => setEditPeso(e.target.value)} placeholder="—" className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Custo por unidade (R$)</label>
+                  <label className="mb-1.5 block text-xs text-[var(--muted)]">Custo por unidade (R$)</label>
                   <input
                     type="text"
                     inputMode="decimal"
                     value={editCusto}
                     onChange={(e) => setEditCusto(e.target.value)}
                     placeholder="0"
-                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Estoque</label>
+                  <label className="mb-1.5 block text-xs text-[var(--muted)]">Estoque</label>
                   <input
                     type="text"
                     inputMode="numeric"
                     value={editEstoque}
                     onChange={(e) => setEditEstoque(e.target.value)}
                     placeholder="0"
-                    className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Link das fotos (esta variante)</label>
+                <label className="mb-1.5 block text-xs text-[var(--muted)]">Link das fotos (esta variante)</label>
                 <input
                   type="url"
                   value={editLinkFotos}
                   onChange={(e) => setEditLinkFotos(e.target.value)}
                   placeholder="https://drive.google.com/... ou link do Dropbox, etc."
-                  className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
                 />
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">Cada variante pode ter seu próprio link de fotos</p>
+                <p className="text-[11px] text-[var(--muted)] mt-1">Cada variante pode ter seu próprio link de fotos</p>
               </div>
               <div>
-                <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">
+                <label className="mb-1.5 block text-xs text-[var(--muted)]">
                   Despacho / CD desta variante (opcional)
                 </label>
                 <textarea
@@ -1389,18 +1399,18 @@ export default function FornecedorProdutosPage() {
                   onChange={(e) => setEditExpedicao(e.target.value)}
                   rows={3}
                   placeholder="Só preencha se for diferente do CD padrão no cadastro da empresa. Ex.: CD Santa Catarina + endereço completo."
-                  className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-y min-h-[4rem]"
+                  className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40 resize-y min-h-[4rem]"
                 />
-                <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1 leading-snug">
+                <p className="text-[10px] text-[var(--muted)] mt-1 leading-snug">
                   Alterações seguem para análise da DropCore como os outros campos.
                 </p>
               </div>
-              {formError && <p className="text-sm text-red-400">{formError}</p>}
+              {formError && <p className="text-sm text-[var(--danger)]">{formError}</p>}
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => !formLoading && setModal("none")}
-                  className="flex-1 rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2.5 text-sm text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  className="flex-1 rounded-lg border border-[var(--card-border)] px-4 py-2.5 text-sm text-[var(--muted)] hover:bg-[var(--muted)]/10"
                 >
                   Cancelar
                 </button>

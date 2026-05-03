@@ -887,8 +887,8 @@ export default function SellerCalculadoraPage() {
     <div
       className={
         calcOnly
-          ? "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
-          : "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
+          ? "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
+          : "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
       }
     >
       <div className="w-full max-w-6xl mx-auto dropcore-px-calc py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-5 md:space-y-6">
