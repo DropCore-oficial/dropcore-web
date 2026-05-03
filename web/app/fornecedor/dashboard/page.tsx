@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { FornecedorNav } from "../FornecedorNav";
-import { NotificationBell } from "@/components/NotificationBell";
 import { NotificationToasts } from "@/components/NotificationToasts";
 import { IconArrowRight, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
 import { AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
@@ -365,8 +364,8 @@ export default function FornecedorDashboardPage() {
     return (
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 border-t-emerald-500 dark:border-t-emerald-500 animate-spin" />
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando...</p>
+          <div className="w-10 h-10 rounded-xl border-2 border-[var(--card-border)] border-t-neutral-500 dark:border-t-neutral-400 animate-spin" />
+          <p className="text-sm text-[var(--muted)] font-medium">Carregando...</p>
         </div>
       </div>
     );
@@ -375,13 +374,13 @@ export default function FornecedorDashboardPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center p-4">
-        <div className="rounded-2xl border border-red-200/80 dark:border-red-900/50 bg-white dark:bg-neutral-900/80 shadow-lg p-8 max-w-md w-full text-center">
+        <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-lg p-8 max-w-md w-full text-center">
           <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/50 flex items-center justify-center mx-auto mb-4">
             <svg className="w-6 h-6 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
           </div>
           <p className="text-red-700 dark:text-red-300 font-semibold mb-2">Ocorreu um erro</p>
-          <p className="text-neutral-600 dark:text-neutral-400 text-sm mb-6">{error}</p>
-          <button onClick={load} className="rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity">
+          <p className="text-[var(--muted)] text-sm mb-6">{error}</p>
+          <button onClick={load} className="rounded-xl bg-neutral-700 text-white dark:bg-neutral-600 dark:hover:bg-neutral-500 px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity">
             Tentar novamente
           </button>
         </div>
@@ -392,30 +391,36 @@ export default function FornecedorDashboardPage() {
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
       <div className="dropcore-shell-4xl py-5 md:py-7 space-y-5 md:space-y-6">
-        <header className="rounded-2xl border border-[var(--card-border)] bg-gradient-to-br from-[var(--card)] via-[var(--card)] to-emerald-50/40 dark:to-emerald-950/20 p-4 sm:p-5 shadow-sm overflow-visible">
+        <header className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 sm:p-5 shadow-sm overflow-visible">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-            <div className="flex items-start gap-3 min-w-0 flex-1">
+            <div className="flex min-w-0 flex-1 items-stretch gap-3">
               {fornecedor?.logo_url ? (
-                <img
-                  src={fornecedor.logo_url}
-                  alt=""
-                  className="w-14 h-14 rounded-2xl object-contain bg-white border border-emerald-200/80 dark:border-emerald-800/60 p-1 shadow-md shadow-emerald-500/15 shrink-0"
-                />
+                <div className="flex shrink-0 items-center">
+                  <img
+                    src={fornecedor.logo_url}
+                    alt=""
+                    className="h-[5.25rem] w-[5.25rem] shrink-0 rounded-2xl border-0 object-contain bg-transparent p-0 outline-none ring-0 sm:h-[5.5rem] sm:w-[5.5rem]"
+                  />
+                </div>
               ) : (
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center text-xl font-bold shadow-md shadow-emerald-500/25 shrink-0">
-                  {fornecedor?.nome?.charAt(0).toUpperCase() ?? "F"}
+                <div className="flex shrink-0 items-center">
+                  <div className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-2xl font-bold text-white shadow-md shadow-emerald-500/25 sm:h-[5.5rem] sm:w-[5.5rem]">
+                    {fornecedor?.nome?.charAt(0).toUpperCase() ?? "F"}
+                  </div>
                 </div>
               )}
-              <div className="min-w-0 pt-0.5">
-                <p className="text-sm font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90">Painel do fornecedor</p>
-                <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 dark:text-neutral-50 tracking-tight truncate">
+              <div className="min-w-0 flex flex-1 flex-col justify-center gap-0.5 pt-0.5">
+                <p className="text-sm font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90 leading-snug">
+                  Painel do fornecedor
+                </p>
+                <h1 className="text-2xl font-bold leading-tight tracking-tight text-[var(--foreground)] sm:text-3xl truncate">
                   {fornecedor?.nome ?? "Fornecedor"}
                 </h1>
-                <p className="text-base text-neutral-500 dark:text-neutral-400 mt-1 capitalize">{dataHojeFmt}</p>
+                <p className="text-base leading-snug text-[var(--muted)] capitalize">{dataHojeFmt}</p>
               </div>
             </div>
-            <div className="flex w-full flex-wrap items-center justify-end gap-2 border-t border-neutral-200/70 pt-3 dark:border-neutral-700/60 sm:w-auto sm:border-0 sm:pt-0 sm:shrink-0">
-              {(stats?.pedidos_aguardando_postagem ?? 0) > 0 && (
+            {(stats?.pedidos_aguardando_postagem ?? 0) > 0 && (
+              <div className="flex w-full flex-wrap items-center justify-end gap-2 border-t border-[var(--card-border)] pt-3 sm:w-auto sm:border-0 sm:pt-0 sm:shrink-0">
                 <Link
                   href="/fornecedor/pedidos?status=enviado"
                   className={cn(
@@ -429,9 +434,8 @@ export default function FornecedorDashboardPage() {
                   </span>
                   aguardando postagem
                 </Link>
-              )}
-              <NotificationBell context="fornecedor" className="md:hidden" />
-            </div>
+              </div>
+            )}
           </div>
         </header>
 
@@ -479,11 +483,11 @@ export default function FornecedorDashboardPage() {
               </button>
             }
           >
-            <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">
+            <p className="text-sm font-bold text-[var(--foreground)] tabular-nums">
               {BRL.format(totalRepasseFuturo)} previstos
             </p>
             {proxRepasseFuturo && (
-              <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-1">
+              <p className="text-[11px] text-[var(--muted)] mt-1">
                 Próximo: {formatDate(proxRepasseFuturo.ciclo_repasse)} · {proxRepasseFuturo.pedidos} pedido
                 {proxRepasseFuturo.pedidos !== 1 ? "s" : ""}
               </p>
@@ -495,11 +499,11 @@ export default function FornecedorDashboardPage() {
           <div className="relative p-4 sm:p-5">
             <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-emerald-500 to-emerald-600 opacity-90" aria-hidden />
             <div className="pl-4 sm:pl-5">
-              <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Total a receber (repasses)</p>
+              <p className="text-xs font-medium text-[var(--muted)]">Total a receber (repasses)</p>
               <p className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
                 {BRL.format(totalAReceber)}
               </p>
-              <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Valores liberados e pendentes conforme regras da organização</p>
+              <p className="mt-1 text-xs text-[var(--muted)]">Valores liberados e pendentes conforme regras da organização</p>
             </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 border-t border-[var(--card-border)]/80 bg-[var(--card)] p-3 pt-0 sm:p-4 sm:pt-0">
@@ -507,21 +511,21 @@ export default function FornecedorDashboardPage() {
               href="/fornecedor/pedidos?status=enviado"
               className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm text-left active:scale-[0.99]"
             >
-              <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Para postar</p>
-              <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+              <p className="text-[11px] font-semibold text-[var(--muted)]">Para postar</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-[var(--foreground)] group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                 {stats?.pedidos_aguardando_postagem ?? 0}
               </p>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-snug">pedidos enviados</p>
+              <p className="text-[11px] text-[var(--muted)] mt-1 leading-snug">pedidos enviados</p>
             </Link>
             <Link
               href="/fornecedor/produtos"
               className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm text-left active:scale-[0.99]"
             >
-              <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Produtos ativos</p>
-              <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+              <p className="text-[11px] font-semibold text-[var(--muted)]">Produtos ativos</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-[var(--foreground)] group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                 {stats?.produtos_ativos ?? 0}
               </p>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-snug">no catálogo</p>
+              <p className="text-[11px] text-[var(--muted)] mt-1 leading-snug">no catálogo</p>
             </Link>
             <Link
               href="/fornecedor/produtos?estoqueBaixo=1"
@@ -531,31 +535,31 @@ export default function FornecedorDashboardPage() {
                   : "border-[var(--card-border)] bg-[var(--card)] hover:border-emerald-300 dark:hover:border-emerald-700"
               }`}
             >
-              <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Estoque baixo</p>
-              <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100">{stats?.estoque_baixo ?? 0}</p>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-snug">abaixo do mínimo</p>
+              <p className="text-[11px] font-semibold text-[var(--muted)]">Estoque baixo</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-[var(--foreground)]">{stats?.estoque_baixo ?? 0}</p>
+              <p className="text-[11px] text-[var(--muted)] mt-1 leading-snug">abaixo do mínimo</p>
             </Link>
             <Link
               href="/fornecedor/pedidos"
               className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm text-left active:scale-[0.99]"
             >
-              <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Pedidos no mês</p>
-              <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+              <p className="text-[11px] font-semibold text-[var(--muted)]">Pedidos no mês</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-[var(--foreground)] group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                 {stats?.pedidos_mes_count ?? 0}
               </p>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 tabular-nums leading-snug">{BRL.format(stats?.pedidos_mes_valor ?? 0)}</p>
+              <p className="text-[11px] text-[var(--muted)] mt-1 tabular-nums leading-snug">{BRL.format(stats?.pedidos_mes_valor ?? 0)}</p>
             </Link>
           </div>
 
           {mensalidades.length > 0 && (
-            <div className="mx-3 mb-3 sm:mx-4 sm:mb-4 flex flex-col gap-3 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-4 dark:border-neutral-700">
+            <div className="flex flex-col gap-3 border-t border-[var(--card-border)] bg-[var(--card)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
               <div className="min-w-0 flex-1 space-y-1">
-                <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Mensalidade pendente</p>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                <p className="text-sm font-semibold text-[var(--foreground)]">Mensalidade pendente</p>
+                <p className="text-xs leading-relaxed text-[var(--muted)]">
                   {subtituloBannerMensalidade(mensalidades[0], trialAtivo, trialValidoAte)}
                 </p>
                 {!cobrancaMensalidadeAtiva && (
-                  <p className="text-xs text-neutral-500 dark:text-neutral-500 pt-0.5 leading-relaxed">
+                  <p className="text-xs leading-relaxed text-[var(--muted)] pt-0.5">
                     Sem cobrança enquanto o teste grátis estiver ativo.
                   </p>
                 )}
@@ -564,7 +568,7 @@ export default function FornecedorDashboardPage() {
                 <button
                   type="button"
                   onClick={() => abrirPixMensalidade(mensalidades[0])}
-                  className="w-full shrink-0 rounded-xl bg-neutral-900 dark:bg-neutral-100 px-4 py-2.5 text-sm font-semibold text-white dark:text-neutral-900 hover:opacity-90 transition-opacity sm:w-auto touch-manipulation"
+                  className="w-full shrink-0 rounded-xl bg-[var(--foreground)] px-4 py-2.5 text-sm font-semibold text-[var(--card)] shadow-sm hover:opacity-90 sm:w-auto touch-manipulation"
                 >
                   Pagar {BRL.format(mensalidades[0].valor)}
                 </button>
@@ -574,22 +578,22 @@ export default function FornecedorDashboardPage() {
         </section>
 
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
-          <div className="px-4 py-3.5 border-b border-neutral-100 dark:border-neutral-800 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <div className="px-4 py-3.5 border-b border-[var(--card-border)] flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Volume a receber</p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+              <p className="text-sm font-semibold text-[var(--foreground)]">Volume a receber</p>
+              <p className="text-xs text-[var(--muted)] mt-0.5">
                 {chartMode === "hoje" ? "Por hora — hoje" : "Por dia — escolha o período"}
               </p>
             </div>
             <div className="dropcore-scroll-x -mx-1 flex max-w-full flex-nowrap items-center gap-2 overflow-x-auto px-1 pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0">
-              <div className="flex rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
+              <div className="flex rounded-lg border border-[var(--card-border)] overflow-hidden bg-neutral-100 dark:bg-neutral-900">
                 <button
                   type="button"
                   onClick={() => setChartMode("hoje")}
                   className={`px-3 py-1.5 text-[11px] font-medium transition-colors ${
                     chartMode === "hoje"
                       ? "bg-emerald-600 text-white"
-                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                      : "bg-transparent text-neutral-600 hover:bg-neutral-200/80 dark:text-neutral-400 dark:hover:bg-neutral-800"
                   }`}
                 >
                   Hoje
@@ -597,10 +601,10 @@ export default function FornecedorDashboardPage() {
                 <button
                   type="button"
                   onClick={() => setChartMode("dias")}
-                  className={`px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                  className={`px-3 py-1.5 text-[11px] font-medium transition-colors border-l border-[var(--card-border)] ${
                     chartMode === "dias"
                       ? "bg-emerald-600 text-white"
-                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                      : "bg-transparent text-neutral-600 hover:bg-neutral-200/80 dark:text-neutral-400 dark:hover:bg-neutral-800"
                   }`}
                 >
                   Período
@@ -612,10 +616,10 @@ export default function FornecedorDashboardPage() {
                     <button
                       key={n}
                       onClick={() => setChartPeriodo(n)}
-                      className={`rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                      className={`rounded-lg border border-[var(--card-border)] px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
                         chartPeriodo === n
-                          ? "bg-emerald-600 text-white"
-                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                          ? "border-emerald-600 bg-emerald-600 text-white"
+                          : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200/90 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
                       }`}
                     >
                       {n}d
@@ -624,7 +628,7 @@ export default function FornecedorDashboardPage() {
                   <select
                     value={typeof chartPeriodo === "string" ? chartPeriodo : ""}
                     onChange={(e) => { const v = e.target.value; if (v) setChartPeriodo(v); }}
-                    className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-0 cursor-pointer focus:ring-2 focus:ring-emerald-500"
+                    className="rounded-lg border border-[var(--card-border)] bg-neutral-50 px-2.5 py-1.5 text-[11px] font-medium text-neutral-900 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:ring-neutral-500"
                   >
                     <option value="">Mês...</option>
                     <option value="month:current">Este mês</option>
@@ -668,27 +672,27 @@ export default function FornecedorDashboardPage() {
                         />
                         {tooltipHover?.dia === d.dia && (
                           <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-                            <div className="rounded-xl border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-xl py-3 px-4 min-w-[180px]">
-                              <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-2.5">
+                            <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-xl py-3 px-4 min-w-[180px]">
+                              <p className="text-xs font-semibold text-[var(--foreground)] mb-2.5">
                                 {isHojeMode ? periodLabel : `${periodLabel}`}
                               </p>
                               <div className="space-y-1.5 text-xs">
                                 <div className="flex justify-between gap-4">
-                                  <span className="text-neutral-500 dark:text-neutral-400">Valor a receber</span>
+                                  <span className="text-[var(--muted)]">Valor a receber</span>
                                   <span className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{BRL.format(d.valor)}</span>
                                 </div>
                                 <div className="flex justify-between gap-4">
-                                  <span className="text-neutral-500 dark:text-neutral-400">Pedidos</span>
-                                  <span className="font-semibold text-neutral-900 dark:text-neutral-100">{d.count ?? 0}</span>
+                                  <span className="text-[var(--muted)]">Pedidos</span>
+                                  <span className="font-semibold text-[var(--foreground)]">{d.count ?? 0}</span>
                                 </div>
                                 {ticketMedio != null && (
-                                  <div className="flex justify-between gap-4 pt-1 border-t border-neutral-100 dark:border-neutral-800">
-                                    <span className="text-neutral-500 dark:text-neutral-400">Ticket médio</span>
-                                    <span className="font-semibold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(ticketMedio)}</span>
+                                  <div className="flex justify-between gap-4 pt-1 border-t border-[var(--card-border)]">
+                                    <span className="text-[var(--muted)]">Ticket médio</span>
+                                    <span className="font-semibold text-[var(--foreground)] tabular-nums">{BRL.format(ticketMedio)}</span>
                                   </div>
                                 )}
                               </div>
-                              <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 border-r border-b border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900" />
+                              <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 border-r border-b border-[var(--card-border)] bg-[var(--card)]" />
                             </div>
                           </div>
                         )}
@@ -697,8 +701,8 @@ export default function FornecedorDashboardPage() {
                   })}
                 </div>
                 <div className="flex justify-between mt-1 px-0.5">
-                  <span className="text-[10px] text-neutral-500">{formatAxisLabel(chartData[0] ?? { dia: "" })}</span>
-                  <span className={`text-[10px] ${ultimoDiaHoje ? "font-medium text-emerald-600 dark:text-emerald-400" : "text-neutral-500"}`}>
+                  <span className="text-[10px] text-[var(--muted)]">{formatAxisLabel(chartData[0] ?? { dia: "" })}</span>
+                  <span className={`text-[10px] ${ultimoDiaHoje ? "font-medium text-emerald-600 dark:text-emerald-400" : "text-[var(--muted)]"}`}>
                     {ultimoDiaHoje ? "Hoje" : formatAxisLabel(chartData[chartData.length - 1] ?? { dia: "" })}
                   </span>
                 </div>
@@ -713,8 +717,8 @@ export default function FornecedorDashboardPage() {
                     <path d="M8 17v-3" />
                   </svg>
                 </div>
-                <p className="text-base font-semibold text-neutral-800 dark:text-neutral-200">Nenhum volume neste período</p>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm mx-auto">
+                <p className="text-base font-semibold text-[var(--foreground)]">Nenhum volume neste período</p>
+                <p className="text-sm text-[var(--muted)] mt-1 max-w-sm mx-auto">
                   Quando houver pedidos confirmados, o gráfico mostra o valor a receber por hora ou por dia.
                 </p>
                 <button
@@ -732,49 +736,49 @@ export default function FornecedorDashboardPage() {
         {/* 2b. Analytics — desempenho detalhado (igual ao seller) */}
         {desempenho && (desempenho.totalPedidos > 0 || desempenho.valorTotal > 0) && (
           <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
-            <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 bg-[var(--card)]">
-              <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+            <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--card-border)] bg-[var(--card)]">
+              <p className="text-xs font-semibold text-[var(--foreground)]">
                 Desempenho · {chartMode === "hoje" ? "Hoje" : `${desempenho.dias} dias`}
                 {desempenho.valorAnterior != null && desempenho.valorAnterior > 0 && (
-                  <span className="ml-2 text-neutral-600 dark:text-neutral-400">
+                  <span className="ml-2 text-[var(--muted)]">
                     ({(desempenho.valorTotal - desempenho.valorAnterior) / desempenho.valorAnterior >= 0 ? "+" : ""}
                     {(((desempenho.valorTotal - desempenho.valorAnterior) / desempenho.valorAnterior) * 100).toFixed(0)}% vs anterior)
                   </span>
                 )}
               </p>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 divide-x divide-y sm:divide-y-0 divide-neutral-100 dark:divide-neutral-800">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 divide-x divide-y sm:divide-y-0 divide-[var(--card-border)]">
               <div className="px-4 py-3">
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Valor total</p>
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(desempenho.valorTotal)}</p>
+                <p className="text-[11px] text-[var(--muted)]">Valor total</p>
+                <p className="text-sm font-bold text-[var(--foreground)] tabular-nums">{BRL.format(desempenho.valorTotal)}</p>
               </div>
               <div className="px-4 py-3">
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Pedidos</p>
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{desempenho.totalPedidos}</p>
+                <p className="text-[11px] text-[var(--muted)]">Pedidos</p>
+                <p className="text-sm font-bold text-[var(--foreground)]">{desempenho.totalPedidos}</p>
               </div>
               <div className="px-4 py-3">
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Ticket médio</p>
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">
+                <p className="text-[11px] text-[var(--muted)]">Ticket médio</p>
+                <p className="text-sm font-bold text-[var(--foreground)] tabular-nums">
                   {desempenho.ticketMedio != null ? BRL.format(desempenho.ticketMedio) : "—"}
                 </p>
               </div>
               <div className="px-4 py-3">
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Período</p>
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{desempenho.dias} dias</p>
+                <p className="text-[11px] text-[var(--muted)]">Período</p>
+                <p className="text-sm font-bold text-[var(--foreground)]">{desempenho.dias} dias</p>
               </div>
             </div>
             {desempenho.topProduto && (
-              <div className="px-4 py-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-xs">
-                <span className="text-neutral-500 dark:text-neutral-400">Top:</span>
-                <span className="font-medium text-neutral-900 dark:text-neutral-100 truncate max-w-[60%]">{desempenho.topProduto.nome}</span>
-                <span className="text-neutral-500 shrink-0">{desempenho.topProduto.count} pedidos · {BRL.format(desempenho.topProduto.valor)}</span>
+              <div className="px-4 py-2 border-t border-[var(--card-border)] flex items-center justify-between text-xs">
+                <span className="text-[var(--muted)]">Top:</span>
+                <span className="font-medium text-[var(--foreground)] truncate max-w-[60%]">{desempenho.topProduto.nome}</span>
+                <span className="text-[var(--muted)] shrink-0">{desempenho.topProduto.count} pedidos · {BRL.format(desempenho.topProduto.valor)}</span>
               </div>
             )}
           </section>
         )}
 
         <section aria-label="Atalhos">
-          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2 px-0.5">Acesso rápido</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)] mb-2 px-0.5">Acesso rápido</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button
               type="button"
@@ -790,8 +794,8 @@ export default function FornecedorDashboardPage() {
                   </svg>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Produtos</p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug">SKUs, preços e estoque</p>
+                  <p className="text-sm font-bold text-[var(--foreground)] group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Produtos</p>
+                  <p className="text-xs text-[var(--muted)] mt-0.5 leading-snug">SKUs, preços e estoque</p>
                 </div>
               </div>
             </button>
@@ -809,8 +813,8 @@ export default function FornecedorDashboardPage() {
                   </svg>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Pedidos</p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug">Postagem e acompanhamento</p>
+                  <p className="text-sm font-bold text-[var(--foreground)] group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Pedidos</p>
+                  <p className="text-xs text-[var(--muted)] mt-0.5 leading-snug">Postagem e acompanhamento</p>
                 </div>
               </div>
             </button>
@@ -827,8 +831,8 @@ export default function FornecedorDashboardPage() {
                   </svg>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Cadastro</p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug">Empresa e dados bancários</p>
+                  <p className="text-sm font-bold text-[var(--foreground)] group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Cadastro</p>
+                  <p className="text-xs text-[var(--muted)] mt-0.5 leading-snug">Empresa e dados bancários</p>
                 </div>
               </div>
             </button>
@@ -839,9 +843,9 @@ export default function FornecedorDashboardPage() {
         {stats && (stats.estoque_baixo ?? 0) > 0 && (
           <Link
             href="/fornecedor/produtos?estoqueBaixo=1"
-            className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 flex items-center gap-3 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 flex items-center gap-3 text-left hover:bg-[var(--background)]"
           >
-            <div className="w-9 h-9 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0 text-neutral-600 dark:text-neutral-300">
+            <div className="w-9 h-9 rounded-lg bg-[var(--background)] flex items-center justify-center shrink-0 text-[var(--muted)]">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 9v4" />
                 <path d="M10.363 3.591 2.257 18.028a1.5 1.5 0 0 0 1.274 2.257h16.938a1.5 1.5 0 0 0 1.274-2.257L13.637 3.59a1.5 1.5 0 0 0-2.274 0z" />
@@ -849,30 +853,30 @@ export default function FornecedorDashboardPage() {
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              <p className="text-sm font-semibold text-[var(--foreground)]">
                 {stats.estoque_baixo} {stats.estoque_baixo === 1 ? "produto" : "produtos"} com estoque abaixo do mínimo
               </p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">Clique para repor estoque</p>
+              <p className="text-xs text-[var(--muted)]">Clique para repor estoque</p>
             </div>
-            <IconArrowRight className="w-5 h-5 text-neutral-400 shrink-0" />
+            <IconArrowRight className="w-5 h-5 text-[var(--muted)] shrink-0" />
           </Link>
         )}
 
         {/* 5. Repasses — recolhível */}
         <section ref={repasseRef} className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-neutral-200 dark:border-neutral-700 bg-[var(--card)] px-4 py-3">
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--card-border)] bg-[var(--card)] px-4 py-3">
             <div>
-              <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Repasses</p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">Histórico por ciclo e status de pagamento</p>
+              <p className="text-sm font-semibold text-[var(--foreground)]">Repasses</p>
+              <p className="text-xs text-[var(--muted)]">Histórico por ciclo e status de pagamento</p>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={load} className="rounded-lg border border-neutral-200 dark:border-neutral-600 px-2.5 py-1.5 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+              <button onClick={load} className="rounded-lg border border-[var(--card-border)] px-2.5 py-1.5 text-xs text-[var(--muted)] hover:bg-[var(--background)]">
                 Atualizar
               </button>
               <button
                 type="button"
                 onClick={() => setRepasseAberto(!repasseAberto)}
-                className="rounded-lg px-2 py-1.5 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors flex items-center gap-1.5"
+                className="rounded-lg px-2 py-1.5 text-xs text-[var(--muted)] hover:bg-[var(--background)] hover:text-[var(--foreground)] transition-colors flex items-center gap-1.5"
                 title={repasseAberto ? "Recolher" : "Expandir"}
               >
                 {!repasseAberto && <span>{repasseItems.length} repasse{repasseItems.length !== 1 ? "s" : ""}</span>}
@@ -891,37 +895,37 @@ export default function FornecedorDashboardPage() {
                   <div className="space-y-1.5">
                     {repasseFuturos.map((f) => (
                       <div key={f.ciclo_repasse} className="flex items-center justify-between gap-3 text-xs">
-                        <span className="text-neutral-700 dark:text-neutral-300">
+                        <span className="text-[var(--foreground)]">
                           Ciclo {formatDate(f.ciclo_repasse)} · {f.pedidos} pedido{f.pedidos !== 1 ? "s" : ""}
                         </span>
                         <span className="font-semibold text-sky-700 dark:text-sky-300 tabular-nums">{BRL.format(f.valor_previsto)}</span>
                       </div>
                     ))}
                   </div>
-                  <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+                  <p className="mt-2 text-[11px] text-[var(--muted)]">
                     Valores previstos; entram em “Repasses” após o fechamento do ciclo pela org.
                   </p>
                 </div>
               )}
               {repasseItems.length === 0 ? (
                 <div className="py-12 text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mx-auto mb-4 text-neutral-400 dark:text-neutral-500">
+                  <div className="w-14 h-14 rounded-2xl bg-[var(--background)] flex items-center justify-center mx-auto mb-4 text-[var(--muted)]">
                     <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <rect width="20" height="14" x="2" y="5" rx="2" />
                       <line x1="2" x2="22" y1="10" y2="10" />
                     </svg>
                   </div>
-                  <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Nenhum repasse no momento</p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-1">Os repasses aparecem aqui quando houver pedidos confirmados no ciclo</p>
+                  <p className="text-sm font-medium text-[var(--muted)]">Nenhum repasse no momento</p>
+                  <p className="text-xs text-[var(--muted)] mt-1">Os repasses aparecem aqui quando houver pedidos confirmados no ciclo</p>
                 </div>
               ) : (
-                <div className="rounded-lg border border-neutral-100 dark:border-neutral-800 overflow-hidden">
+                <div className="rounded-lg border border-[var(--card-border)] overflow-hidden">
                   {repasseItems.map((r) => {
-                    const st = statusLabel[r.status] ?? { label: r.status, cor: "text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700" };
+                    const st = statusLabel[r.status] ?? { label: r.status, cor: "text-[var(--muted)] bg-[var(--background)] border-[var(--card-border)]" };
                     return (
                       <div
                         key={r.id}
-                        className="flex items-center gap-4 px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 last:border-0 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors"
+                        className="flex items-center gap-4 px-4 py-3 border-b border-[var(--card-border)] last:border-0 hover:bg-[var(--background)] transition-colors"
                       >
                         <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400">
                           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -929,9 +933,9 @@ export default function FornecedorDashboardPage() {
                           </svg>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Ciclo {formatDate(r.ciclo_repasse)}</p>
+                          <p className="text-sm font-medium text-[var(--foreground)]">Ciclo {formatDate(r.ciclo_repasse)}</p>
                           <span className={`inline-block mt-1 rounded-md px-2 py-0.5 text-[10px] font-medium border ${st.cor}`}>{st.label}</span>
-                          {r.pago_em && <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Pago em {formatDate(r.pago_em)}</p>}
+                          {r.pago_em && <p className="text-xs text-[var(--muted)] mt-1">Pago em {formatDate(r.pago_em)}</p>}
                         </div>
                         <p className="text-base font-bold tabular-nums text-emerald-600 dark:text-emerald-400 shrink-0">{BRL.format(r.valor_total)}</p>
                       </div>
@@ -947,47 +951,47 @@ export default function FornecedorDashboardPage() {
       {/* Modal PIX Mensalidade */}
       {modalPixMensalidade && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-fade-in-up">
-          <div className="w-full max-w-sm rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 shadow-2xl overflow-hidden animate-fade-in-up animate-fade-in-up-delay-1">
-            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-neutral-200 dark:border-neutral-700">
-              <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Pagar mensalidade</h2>
-              <button onClick={fecharModalPix} className="p-1 -m-1 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors rounded">
+          <div className="w-full max-w-sm rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-2xl overflow-hidden animate-fade-in-up animate-fade-in-up-delay-1">
+            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[var(--card-border)]">
+              <h2 className="text-sm font-semibold text-[var(--foreground)]">Pagar mensalidade</h2>
+              <button onClick={fecharModalPix} className="p-1 -m-1 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors rounded">
                 <IconX className="w-5 h-5" />
               </button>
             </div>
             <div className="p-5 space-y-4">
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                Valor: <strong className="text-neutral-900 dark:text-neutral-100">{BRL.format(modalPixMensalidade.valor)}</strong>
+              <p className="text-sm text-[var(--muted)]">
+                Valor: <strong className="text-[var(--foreground)]">{BRL.format(modalPixMensalidade.valor)}</strong>
               </p>
               {pixErro && (
                 <p className="text-xs text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2">{pixErro}</p>
               )}
-              {pixLoading && <p className="text-sm text-neutral-500">Gerando PIX...</p>}
+              {pixLoading && <p className="text-sm text-[var(--muted)]">Gerando PIX...</p>}
               {!pixLoading && pixQrCode && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                     <IconCheck className="w-5 h-5" />
                     <p className="text-sm font-semibold">PIX gerado! Pague agora</p>
                   </div>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">Escaneie o QR Code ou copie o código PIX. Após pagar, aguarde a confirmação automática.</p>
+                  <p className="text-xs text-[var(--muted)]">Escaneie o QR Code ou copie o código PIX. Após pagar, aguarde a confirmação automática.</p>
                   {pixRestanteSec !== null && (
                     <div
                       className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium ${
                         pixRestanteSec <= 60
                           ? cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY)
-                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                          : "bg-[var(--background)] text-[var(--muted)]"
                       }`}
                     >
                       <IconClock className={`w-4 h-4 shrink-0 ${pixRestanteSec <= 60 ? "animate-pulse" : ""}`} />
                       Válido por {Math.floor(pixRestanteSec / 60)}:{(pixRestanteSec % 60).toString().padStart(2, "0")}
                     </div>
                   )}
-                  <div className="flex justify-center p-4 bg-white dark:bg-neutral-800 rounded-xl">
+                  <div className="flex justify-center p-4 bg-[var(--background)] rounded-xl">
                     <img src={`data:image/png;base64,${pixQrCode}`} alt="QR Code PIX" className="w-40 h-40" />
                   </div>
                   {pixCopiaCola && (
                     <div className="space-y-2">
-                      <p className="text-xs text-neutral-500 dark:text-neutral-400">Código PIX (copia e cola):</p>
-                      <div className="rounded-xl border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-xs font-mono text-left break-all max-h-20 overflow-y-auto">
+                      <p className="text-xs text-[var(--muted)]">Código PIX (copia e cola):</p>
+                      <div className="rounded-xl border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-mono text-[var(--foreground)] text-left break-all max-h-20 overflow-y-auto">
                         {pixCopiaCola}
                       </div>
                       <button
@@ -1005,7 +1009,7 @@ export default function FornecedorDashboardPage() {
                   )}
                 </div>
               )}
-              {!pixLoading && !pixQrCode && !pixErro && <p className="text-sm text-neutral-500">Clique em Pagar para gerar o PIX.</p>}
+              {!pixLoading && !pixQrCode && !pixErro && <p className="text-sm text-[var(--muted)]">Clique em Pagar para gerar o PIX.</p>}
             </div>
           </div>
         </div>

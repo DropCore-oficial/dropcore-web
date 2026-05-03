@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { MobileAppBar } from "@/components/MobileAppBar";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -47,9 +47,6 @@ function IconCreditCard({ active }: { active: boolean }) {
 
 export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "pedidos" | "cadastro" }) {
   const router = useRouter();
-  const pathname = usePathname();
-  const showMobileFloatingBell = pathname !== "/fornecedor/dashboard";
-
   async function sair() {
     await supabaseBrowser.auth.signOut();
     router.replace("/fornecedor/login");
@@ -103,17 +100,12 @@ export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "
         </div>
       </nav>
 
-      {/* Mobile (exceto dashboard): sino acima da tab bar — no dashboard o sino fica no cartão do perfil */}
-      {showMobileFloatingBell && (
-        <div className="md:hidden fixed right-3 z-[45] bottom-[calc(4rem+env(safe-area-inset-bottom))]">
-          <NotificationBell context="fornecedor" />
-        </div>
-      )}
-
       <MobileAppBar
         logoHref="/fornecedor/dashboard"
         end={
           <div className="flex shrink-0 items-center gap-1">
+            <NotificationBell context="fornecedor" className="shrink-0" />
+            <ThemeToggle className="shrink-0 rounded-lg p-2 min-h-[40px] min-w-[40px] inline-flex items-center justify-center" />
             <button
               type="button"
               onClick={() => void sair()}
@@ -121,7 +113,6 @@ export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "
             >
               Sair
             </button>
-            <ThemeToggle className="shrink-0 rounded-lg p-2 min-h-[40px] min-w-[40px] inline-flex items-center justify-center" />
           </div>
         }
       />

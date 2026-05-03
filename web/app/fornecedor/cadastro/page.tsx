@@ -562,17 +562,17 @@ export default function FornecedorCadastroPage() {
     return (
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 border-t-emerald-500 dark:border-t-emerald-500 animate-spin" />
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando...</p>
+          <div className="w-10 h-10 rounded-xl border-2 border-[var(--card-border)] border-t-neutral-500 dark:border-t-neutral-400 animate-spin" />
+          <p className="text-sm text-[var(--muted)] font-medium">Carregando...</p>
         </div>
       </div>
     );
   }
 
   const inputClass =
-    "w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2.5 text-sm uppercase text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]";
+    "w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2.5 text-sm uppercase text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-neutral-500 dark:focus:ring-neutral-400";
   const btnAtalhoNumero =
-    "rounded-full border border-neutral-200 bg-white px-2.5 py-0.5 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700";
+    "rounded-full border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--foreground)] transition hover:bg-[var(--background)] disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
@@ -580,44 +580,44 @@ export default function FornecedorCadastroPage() {
         <div>
           <Link
             href="/fornecedor/dashboard"
-            className="text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white inline-flex items-center gap-1"
+            className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] inline-flex items-center gap-1 transition-colors"
           >
             ← Voltar ao dashboard
           </Link>
         </div>
 
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-5 shadow-sm overflow-visible">
+        <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm overflow-visible">
           <h1 className="text-lg font-semibold text-[var(--foreground)] mb-1">Cadastro da empresa</h1>
           <p className="text-xs text-[var(--muted)] mb-6">
             Identificação, contato e dados para receber repasses
           </p>
 
           {error && (
-            <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-100 dark:bg-red-950/30 px-4 py-3 text-sm text-red-700 dark:text-red-300 mb-4">
+            <div className="rounded-lg border border-[var(--danger)]/40 bg-red-50 dark:bg-red-950/35 px-4 py-3 text-sm text-red-800 dark:text-red-300 mb-4">
               {error}
             </div>
           )}
           {okMsg && (
-            <div className="rounded-lg border border-emerald-300 dark:border-emerald-900 bg-emerald-100 dark:bg-emerald-950/30 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 mb-4">
+            <div className="rounded-lg border border-emerald-500/35 dark:border-emerald-700/50 bg-emerald-50 dark:bg-emerald-950/25 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 mb-4">
               {okMsg}
             </div>
           )}
 
           <form onSubmit={salvar} className="space-y-8">
             <section id="empresa" className="space-y-5">
-              <h2 className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 border-b border-neutral-200 dark:border-neutral-700 pb-2">
+              <h2 className="text-sm font-semibold text-[var(--foreground)] border-b border-[var(--card-border)] pb-2">
                 Empresa e contato
               </h2>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50/80 dark:bg-neutral-950/40 p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                 <div className="shrink-0">
                   {logoUrl ? (
                     <img
                       src={logoUrl}
                       alt=""
-                      className="h-24 w-24 rounded-2xl border border-neutral-200 bg-white object-contain p-1 dark:border-neutral-600"
+                      className="h-24 w-24 shrink-0 rounded-2xl border-0 object-contain bg-transparent p-0 outline-none ring-0"
                     />
                   ) : (
-                    <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-white px-2 text-center text-[11px] text-neutral-400 dark:border-neutral-600 dark:bg-neutral-900">
+                    <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-[var(--background)] px-2 text-center text-[11px] text-[var(--muted)]">
                       Sem logo
                     </div>
                   )}
@@ -632,7 +632,7 @@ export default function FornecedorCadastroPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <label
                       className={cn(
-                        "inline-flex cursor-pointer items-center rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800",
+                        "inline-flex cursor-pointer items-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)]",
                         logoUploading && "pointer-events-none opacity-60",
                       )}
                     >
@@ -654,7 +654,7 @@ export default function FornecedorCadastroPage() {
                         type="button"
                         onClick={() => void removeLogo()}
                         disabled={logoUploading}
-                        className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-100 disabled:opacity-60 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                        className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--muted)] hover:bg-[var(--background)] hover:text-[var(--foreground)] disabled:opacity-60"
                       >
                         Remover
                       </button>
@@ -690,7 +690,7 @@ export default function FornecedorCadastroPage() {
                     type="button"
                     onClick={buscarDadosCnpj}
                     disabled={loadingCnpj}
-                    className="shrink-0 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-60"
+                    className="shrink-0 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--background)] disabled:opacity-60"
                   >
                     {loadingCnpj ? "Buscando..." : "Buscar CNPJ"}
                   </button>
@@ -826,7 +826,7 @@ export default function FornecedorCadastroPage() {
                     />
                   </div>
                 </div>
-                <div className="mt-5 pt-4 border-t border-neutral-200/80 dark:border-neutral-700/60">
+                <div className="mt-5 pt-4 border-t border-[var(--card-border)]">
                   <p className="text-xs font-medium text-[var(--muted)] mb-2">Despacho / CD padrão (opcional)</p>
                   <p className="text-[11px] text-[var(--muted)] mb-3 leading-snug">
                     O bloco «Endereço» acima é a <strong className="text-[var(--foreground)]">sede / fiscal</strong>. Aqui
@@ -844,9 +844,9 @@ export default function FornecedorCadastroPage() {
                           setForm((f) => ({ ...f, ...copiarMatrizParaDespacho(f) }));
                         }
                       }}
-                      className="mt-0.5 h-4 w-4 rounded border-neutral-300 dark:border-neutral-600 text-emerald-600 shrink-0"
+                      className="mt-0.5 h-4 w-4 rounded border-[var(--card-border)] bg-[var(--background)] text-emerald-600 shrink-0"
                     />
-                    <span className="text-sm text-neutral-800 dark:text-neutral-200 leading-snug">
+                    <span className="text-sm text-[var(--foreground)] leading-snug">
                       Endereço de envio é o mesmo endereço da matriz
                     </span>
                   </label>
@@ -994,7 +994,7 @@ export default function FornecedorCadastroPage() {
             </section>
 
             <section id="repasse" className="space-y-5 overflow-visible">
-              <h2 className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 border-b border-neutral-200 dark:border-neutral-700 pb-2">
+              <h2 className="text-sm font-semibold text-[var(--foreground)] border-b border-[var(--card-border)] pb-2">
                 Editar dados bancários e PIX (repasse)
               </h2>
               <p className="text-xs leading-relaxed text-[var(--muted)] -mt-2">
@@ -1076,7 +1076,7 @@ export default function FornecedorCadastroPage() {
                 >
                   <input
                     type="checkbox"
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 dark:border-neutral-500 dark:bg-neutral-800"
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--card-border)] bg-[var(--background)]"
                     checked={confirmoRepasseTitularCnpj}
                     onChange={(e) => setConfirmoRepasseTitularCnpj(e.target.checked)}
                   />
@@ -1090,11 +1090,11 @@ export default function FornecedorCadastroPage() {
               )}
             </section>
 
-            <div className="flex justify-end pt-1">
+            <div className="flex justify-center pt-1 md:justify-end">
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex min-h-10 items-center justify-center rounded-xl bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+                className="inline-flex min-h-11 w-full max-w-sm items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 active:brightness-[0.92] disabled:opacity-60 md:w-auto md:max-w-none md:min-w-[11rem] dark:bg-emerald-600 dark:hover:bg-emerald-700"
               >
                 {saving ? "Salvando..." : "Salvar cadastro"}
               </button>

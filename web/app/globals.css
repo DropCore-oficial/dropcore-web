@@ -136,7 +136,7 @@ summary {
 /* Tokens globais - todas as páginas usam esses valores */
 
 :root {
-  /* Light theme (default) */
+  /* Tema claro — referência oficial (default). Escuro: html.dark / .dark abaixo. */
   --background: #F5F5F6;
   --foreground: #111827;
   --card: #FFFFFF;
@@ -164,6 +164,8 @@ summary {
   --section-gap: 1.5rem;
   --shadow: 0 1px 3px rgb(0 0 0 / 0.06);
   --shadow-card: 0 1px 3px rgb(0 0 0 / 0.08);
+
+  color-scheme: light;
 }
 
 /* Background sutil para áreas de app (seller, admin) */
@@ -212,6 +214,8 @@ html.dark .app-bg,
 /* Tema escuro - preto puro, zero azul */
 html.dark,
 .dark {
+  color-scheme: dark;
+
   --background: #000000;
   --foreground: #ededed;
   --card: #0c0c0c;
