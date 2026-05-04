@@ -5,11 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
 import { NotificationToasts } from "@/components/NotificationToasts";
-import { IconTipoExtrato, IconDevolucao, IconArrowRight, IconPlus, IconClipboard, IconDeposito, IconChevronDown, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
+import { IconTipoExtrato, IconDevolucao, IconArrowRight, IconPlus, IconClipboard, IconDeposito, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
 import { planoSellerDefinido } from "@/lib/sellerDocumento";
 import {
   AMBER_PREMIUM_SHELL,
   AMBER_PREMIUM_SURFACE,
+  AMBER_PREMIUM_SURFACE_TRANSPARENT,
   AMBER_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/amberPremium";
 import {
@@ -28,6 +29,11 @@ import {
   DANGER_PREMIUM_TEXT_PRIMARY,
   DANGER_PREMIUM_TEXT_SOFT,
 } from "@/lib/semanticPremium";
+import {
+  PRIMARY_ACTION_BLUE_OUTLINE_HOVER,
+  PRIMARY_ACTION_BLUE_SURFACE_TRANSPARENT,
+  PRIMARY_ACTION_BLUE_TEXT_PRIMARY,
+} from "@/lib/primaryActionBlueUi";
 import { cn } from "@/lib/utils";
 
 const SELLER_LEDGER_BADGE_AMBER = cn(AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY);
@@ -150,7 +156,7 @@ const statusLabel: Record<string, { label: string; cor: string }> = {
   EM_DEVOLUCAO:      { label: "Em devolução",       cor: SELLER_LEDGER_BADGE_DANGER },
   DEVOLVIDO:         { label: "Devolvido",          cor: "text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-950/40 border-violet-300 dark:border-violet-700" },
   PAGO:              { label: "Concluído",          cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700" },
-  CANCELADO:         { label: "Cancelado",          cor: "text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700" },
+  CANCELADO:         { label: "Cancelado",          cor: "text-[var(--muted)] bg-[var(--surface-subtle)] border-[var(--card-border)]" },
   LIBERADO:          { label: "Disponível",         cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700" },
 };
 
@@ -189,6 +195,54 @@ function groupByDate(entries: LedgerEntry[]): { label: string; items: LedgerEntr
   return groups.filter((g) => g.items.length > 0);
 }
 
+function armazemHeaderAria(vinculo: VinculoFornecedor): string {
+  return vinculo.liberado_antecipado
+    ? "Ver regras: liberação antecipada de troca de armazém"
+    : vinculo.dentro_compromisso
+      ? vinculo.pode_trocar_a_partir_de
+        ? `Ver regras do armazém. Compromisso ativo até ${formatDate(vinculo.pode_trocar_a_partir_de.slice(0, 10))}`
+        : `Ver regras do armazém. Prazo mínimo de ${vinculo.meses_minimos} meses`
+      : "Ver regras: troca de armazém pelo suporte";
+}
+
+/** Cartão “Regras do armazém” — só na faixa mobile (dedo); desktop usa linha da data + link. */
+function SellerHeaderArmazemCardButton({ vinculo, onOpen }: { vinculo: VinculoFornecedor; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={armazemHeaderAria(vinculo)}
+      className={cn(
+        "min-h-10 w-full rounded-xl border bg-[var(--card)] px-3 py-2 text-left text-xs font-semibold touch-manipulation transition-colors",
+        vinculo.liberado_antecipado
+          ? cn(
+              AMBER_PREMIUM_SURFACE_TRANSPARENT,
+              AMBER_PREMIUM_TEXT_PRIMARY,
+              "hover:opacity-95 dark:hover:border-amber-300/70"
+            )
+          : !vinculo.dentro_compromisso && !vinculo.liberado_antecipado
+            ? "border-emerald-500/35 text-emerald-700 dark:border-emerald-600/40 dark:text-emerald-300 hover:bg-emerald-50/80 dark:hover:bg-emerald-950/30"
+            : cn(
+                PRIMARY_ACTION_BLUE_SURFACE_TRANSPARENT,
+                PRIMARY_ACTION_BLUE_TEXT_PRIMARY,
+                PRIMARY_ACTION_BLUE_OUTLINE_HOVER
+              )
+      )}
+    >
+      <span className="block leading-snug">
+        {vinculo.liberado_antecipado
+          ? "Liberação antecipada"
+          : vinculo.dentro_compromisso
+            ? vinculo.pode_trocar_a_partir_de
+              ? `Até ${formatDate(vinculo.pode_trocar_a_partir_de.slice(0, 10))}`
+              : `${vinculo.meses_minimos} meses mín.`
+            : "Troca liberada"}
+      </span>
+      <span className="mt-0.5 block text-[10px] font-medium text-[var(--muted)]">Regras do armazém</span>
+    </button>
+  );
+}
+
 export default function SellerDashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -224,6 +278,7 @@ export default function SellerDashboardPage() {
   const [depositoRestanteSec, setDepositoRestanteSec] = useState<number | null>(null);
   const [pixMensalidadeCopiado, setPixMensalidadeCopiado] = useState(false);
   const [modalPixMensalidade, setModalPixMensalidade] = useState<Mensalidade | null>(null);
+  const [modalArmazem, setModalArmazem] = useState(false);
   const [pixLoading, setPixLoading] = useState(false);
   const [pixQrCode, setPixQrCode] = useState<string | null>(null);
   const [pixCopiaCola, setPixCopiaCola] = useState<string | null>(null);
@@ -662,8 +717,8 @@ export default function SellerDashboardPage() {
     return (
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 border-t-emerald-500 dark:border-t-emerald-500 animate-spin" />
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando...</p>
+          <div className="w-10 h-10 rounded-xl border-2 border-[var(--card-border)] border-t-emerald-500 dark:border-t-emerald-500 animate-spin" />
+          <p className="text-sm text-[var(--muted)] font-medium">Carregando...</p>
         </div>
       </div>
     );
@@ -674,7 +729,7 @@ export default function SellerDashboardPage() {
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center p-4">
         <div
           className={cn(
-            "rounded-2xl bg-white dark:bg-neutral-900/80 shadow-lg p-8 max-w-md w-full text-center",
+            "rounded-2xl bg-[var(--card)] shadow-lg p-8 max-w-md w-full text-center",
             DANGER_PREMIUM_SURFACE_TRANSPARENT
           )}
         >
@@ -686,8 +741,8 @@ export default function SellerDashboardPage() {
             </svg>
           </div>
           <p className={cn("mb-2 font-semibold", DANGER_PREMIUM_TEXT_PRIMARY)}>Ocorreu um erro</p>
-          <p className="text-neutral-600 dark:text-neutral-400 text-sm mb-6">{error}</p>
-          <button onClick={load} className="rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity">
+          <p className="text-[var(--muted)] text-sm mb-6">{error}</p>
+          <button onClick={load} className="rounded-xl bg-[var(--foreground)] text-[var(--background)] px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity">
             Tentar novamente
           </button>
         </div>
@@ -723,88 +778,80 @@ export default function SellerDashboardPage() {
                     <span
                       className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold ${
                         isPro
-                          ? "bg-emerald-600/15 dark:bg-emerald-600/25 text-emerald-800 dark:text-emerald-300"
-                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                          ? "bg-emerald-600/15 dark:bg-emerald-600/25 text-emerald-700 dark:text-emerald-300"
+                          : "bg-[var(--surface-subtle)] text-[var(--muted)]"
                       }`}
                     >
                       {isPro ? "PRO" : "STARTER"}
                     </span>
                   )}
                 </div>
-                <p className="text-base leading-snug text-[var(--muted)] capitalize">{dataHojeFmt}</p>
+                <p className="text-base leading-snug text-[var(--muted)] capitalize sm:hidden">{dataHojeFmt}</p>
+                <p className="hidden text-base leading-snug sm:block">
+                  <span className="text-[var(--muted)] capitalize">{dataHojeFmt}</span>
+                  {vinculoFornecedor?.ativo && (
+                    <>
+                      <span className="text-[var(--muted)]/70" aria-hidden>
+                        {" "}
+                        ·{" "}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setModalArmazem(true)}
+                        aria-label={armazemHeaderAria(vinculoFornecedor)}
+                        className={cn(
+                          "text-sm font-semibold underline decoration-current/30 underline-offset-[3px] transition hover:opacity-90",
+                          vinculoFornecedor.liberado_antecipado && AMBER_PREMIUM_TEXT_PRIMARY,
+                          !vinculoFornecedor.dentro_compromisso &&
+                            !vinculoFornecedor.liberado_antecipado &&
+                            "text-emerald-700 decoration-emerald-600/35 dark:text-emerald-300 dark:decoration-emerald-400/35",
+                          vinculoFornecedor.dentro_compromisso &&
+                            !vinculoFornecedor.liberado_antecipado &&
+                            "text-[var(--primary-blue)] decoration-[var(--primary-blue)]/30 hover:text-[var(--primary-blue-hover)]"
+                        )}
+                      >
+                        {vinculoFornecedor.liberado_antecipado
+                          ? "Liberação antecipada — ver regras"
+                          : vinculoFornecedor.dentro_compromisso
+                            ? vinculoFornecedor.pode_trocar_a_partir_de
+                              ? `Até ${formatDate(vinculoFornecedor.pode_trocar_a_partir_de.slice(0, 10))} — ver regras`
+                              : `${vinculoFornecedor.meses_minimos} meses no armazém — ver regras`
+                            : "Troca liberada — ver regras"}
+                      </button>
+                    </>
+                  )}
+                </p>
               </div>
             </div>
-            {pendentesCount > 0 && (
-              <div className="flex w-full flex-wrap items-center justify-end gap-2 border-t border-[var(--card-border)] pt-3 sm:w-auto sm:border-0 sm:pt-0 sm:shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTab("depositos");
-                    setMovimentacoesAberto(true);
-                    extratoRef.current?.scrollIntoView({ behavior: "smooth" });
-                  }}
-                  className="min-h-10 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 touch-manipulation hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-                >
-                  {pendentesCount} PIX pendente{pendentesCount !== 1 ? "s" : ""}
-                </button>
+            {(pendentesCount > 0 || vinculoFornecedor?.ativo) && (
+              <div
+                className={cn(
+                  "flex w-full flex-col items-stretch gap-2 border-t border-[var(--card-border)] pt-3 sm:w-auto sm:shrink-0 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:border-0 sm:pt-0",
+                  pendentesCount === 0 && vinculoFornecedor?.ativo && "sm:hidden"
+                )}
+              >
+                {pendentesCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab("depositos");
+                      setMovimentacoesAberto(true);
+                      extratoRef.current?.scrollIntoView({ behavior: "smooth" });
+                    }}
+                    className="min-h-10 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] touch-manipulation hover:bg-[var(--surface-hover)] transition-colors sm:shrink-0"
+                  >
+                    {pendentesCount} PIX pendente{pendentesCount !== 1 ? "s" : ""}
+                  </button>
+                )}
+                {vinculoFornecedor?.ativo && (
+                  <div className="w-full sm:hidden">
+                    <SellerHeaderArmazemCardButton vinculo={vinculoFornecedor} onOpen={() => setModalArmazem(true)} />
+                  </div>
+                )}
               </div>
             )}
           </div>
         </header>
-
-        {vinculoFornecedor?.ativo && (vinculoFornecedor.dentro_compromisso || vinculoFornecedor.liberado_antecipado) && (
-          <div
-            role="note"
-            className={`rounded-2xl border p-4 text-sm shadow-sm ${
-              vinculoFornecedor.liberado_antecipado
-                ? cn(AMBER_PREMIUM_SURFACE)
-                : "border-sky-300 bg-sky-100 dark:border-sky-800 dark:bg-sky-950/25"
-            }`}
-          >
-            <p className={`font-semibold ${vinculoFornecedor.liberado_antecipado ? AMBER_PREMIUM_TEXT_PRIMARY : "text-sky-900 dark:text-sky-200"}`}>
-              {vinculoFornecedor.liberado_antecipado ? "Troca de armazém liberada pela DropCore" : "Compromisso mínimo com o armazém"}
-            </p>
-            <p className="mt-1 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
-              {vinculoFornecedor.liberado_antecipado ? (
-                <>A equipe marcou liberação antecipada (ex.: infração comprovada). Combine a troca ou desvinculação pelo suporte antes de alterar integrações ou catálogo.</>
-              ) : (
-                <>
-                  Pela regra da plataforma, permanecemos pelo menos <strong>{vinculoFornecedor.meses_minimos} meses</strong> com o mesmo armazém quando tudo corre bem (vale também entre uma troca e outra).
-                  {vinculoFornecedor.pode_trocar_a_partir_de ? (
-                    <>
-                      {" "}
-                      Troca ou remoção do víncio com a equipe a partir de{" "}
-                      <span className="font-semibold">{formatDate(vinculoFornecedor.pode_trocar_a_partir_de.slice(0, 10))}</span>.
-                    </>
-                  ) : null}{" "}
-                  Em caso de erro grave do fornecedor (pedidos errados, descumprimento), fale com o suporte DropCore.
-                </>
-              )}
-            </p>
-          </div>
-        )}
-
-        {vinculoFornecedor?.ativo && !vinculoFornecedor.dentro_compromisso && !vinculoFornecedor.liberado_antecipado && (
-          <div
-            role="note"
-            className="rounded-2xl border border-emerald-300 bg-emerald-100 p-4 text-sm shadow-sm dark:border-emerald-900 dark:bg-emerald-950/25"
-          >
-            <p className="font-semibold text-emerald-900 dark:text-emerald-300">Armazém vinculado — troca liberada</p>
-            <p className="mt-1 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
-              {vinculoFornecedor.pode_trocar_a_partir_de ? (
-                <>
-                  <strong>Já liberado desde {formatDate(vinculoFornecedor.pode_trocar_a_partir_de.slice(0, 10))}</strong> — fale com o <strong>suporte DropCore</strong> para trocar de armazém ou ajustar o víncio (a alteração é feita pela equipe no painel).
-                </>
-              ) : (
-                <>
-                  Você pode solicitar troca ou desvinculação de armazém pelo <strong>suporte DropCore</strong>. A alteração é feita pela equipe no painel.
-                </>
-              )}
-              {" "}
-              A cada troca efetiva, o período mínimo de <strong>{vinculoFornecedor.meses_minimos} meses</strong> volta a contar com o novo armazém.
-            </p>
-          </div>
-        )}
 
         {saldoAlerta && saldoAlerta.nivel !== "ok" && (
           <div
@@ -845,7 +892,7 @@ export default function SellerDashboardPage() {
             )}
             <p
               className={cn(
-                "mt-1 text-xs leading-relaxed text-neutral-700 dark:text-neutral-300",
+                "mt-1 text-xs leading-relaxed text-[var(--foreground)]",
                 saldoAlerta.nivel === "critico" && SELLER_SALDO_CRITICO_BODY
               )}
             >
@@ -880,13 +927,13 @@ export default function SellerDashboardPage() {
           </div>
         )}
 
-        {/* 2. Resumo financeiro — hero + grid como fornecedor */}
+        {/* 2. Resumo financeiro — um único fundo de cartão (sem faixa cinza); alinhado ao fornecedor */}
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
           <div className="relative p-4 sm:p-5">
             <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-emerald-500 to-emerald-600 opacity-90" aria-hidden />
             <div className="pl-4 sm:pl-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Saldo total</p>
+                <p className="text-xs font-medium text-[var(--muted)]">Saldo total</p>
                 <p className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
                   {BRL.format(seller?.saldo_atual ?? 0)}
                 </p>
@@ -899,52 +946,52 @@ export default function SellerDashboardPage() {
                 + Depositar PIX
               </button>
             </div>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 sm:p-4 pt-0 border-t border-[var(--card-border)]/80 bg-neutral-100 dark:bg-neutral-900/30">
-              <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem]">
-                <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Disponível</p>
-                <p className="mt-1 text-xl font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(seller?.saldo_disponivel ?? 0)}</p>
+            <div className="mt-5 grid grid-cols-2 gap-2.5 border-t border-[var(--card-border)]/80 pt-5 sm:grid-cols-4">
+              <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] shadow-[0_1px_0_rgb(0_0_0/0.04)] dark:shadow-none">
+                <p className="text-[11px] font-semibold text-[var(--muted)]">Disponível</p>
+                <p className="mt-1 text-xl font-bold text-[var(--foreground)] tabular-nums">{BRL.format(seller?.saldo_disponivel ?? 0)}</p>
               </div>
-              <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem]">
-                <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Bloqueado</p>
-                <p className="mt-1 text-xl font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(seller?.saldo_bloqueado ?? 0)}</p>
+              <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] shadow-[0_1px_0_rgb(0_0_0/0.04)] dark:shadow-none">
+                <p className="text-[11px] font-semibold text-[var(--muted)]">Bloqueado</p>
+                <p className="mt-1 text-xl font-bold text-[var(--foreground)] tabular-nums">{BRL.format(seller?.saldo_bloqueado ?? 0)}</p>
               </div>
               <button
                 type="button"
                 onClick={() => { setFiltroTipo("pedidos"); setFiltroStatus(""); setTab("extrato"); setMovimentacoesAberto(true); extratoRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
+                className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left shadow-[0_1px_0_rgb(0_0_0/0.04)] transition-all hover:border-emerald-300 dark:shadow-none dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
               >
-                <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Pedidos (mês)</p>
-                <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                <p className="text-[11px] font-semibold text-[var(--muted)]">Pedidos (mês)</p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-[var(--foreground)] group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                   {kpis?.pedidos_mes ?? 0}
                 </p>
               </button>
               <button
                 type="button"
                 onClick={() => { setFiltroTipo("pedidos"); setFiltroStatus(""); setTab("extrato"); setMovimentacoesAberto(true); extratoRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
+                className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left shadow-[0_1px_0_rgb(0_0_0/0.04)] transition-all hover:border-emerald-300 dark:shadow-none dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
               >
-                <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Volume (mês)</p>
-                <p className="mt-1 text-xl font-bold tabular-nums text-neutral-900 dark:text-neutral-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                <p className="text-[11px] font-semibold text-[var(--muted)]">Volume (mês)</p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-[var(--foreground)] group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                   {BRL.format(kpis?.total_mes ?? 0)}
                 </p>
               </button>
             </div>
+          </div>
             {aLiberar > 0 && (
-              <div className="mx-3 sm:mx-4 mt-3 flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-100/60 dark:bg-neutral-800/40 px-3.5 py-3">
-                <span className="text-xs font-medium text-neutral-600 dark:text-neutral-300">A liberar (aguardando repasse)</span>
-                <span className="text-base font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(aLiberar)}</span>
+              <div className="mx-3 sm:mx-4 mt-3 flex items-center justify-between rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3.5 py-3">
+                <span className="text-xs font-medium text-[var(--muted)]">A liberar (aguardando repasse)</span>
+                <span className="text-base font-bold text-[var(--foreground)] tabular-nums">{BRL.format(aLiberar)}</span>
               </div>
             )}
             {mensalidades.length > 0 && (
-              <div className="mx-3 mb-3 mt-3 sm:mx-4 sm:mb-4 flex flex-col gap-2 rounded-xl border border-[var(--card-border)] px-3.5 py-3 bg-neutral-100/60 dark:bg-neutral-800/40 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mx-3 mb-3 mt-3 sm:mx-4 sm:mb-4 flex flex-col gap-2 rounded-xl border border-[var(--card-border)] px-3.5 py-3 bg-[var(--surface-subtle)] sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 space-y-1">
-                  <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">Mensalidade pendente</p>
-                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                  <p className="text-xs font-medium text-[var(--foreground)]">Mensalidade pendente</p>
+                  <p className="text-[11px] text-[var(--muted)] leading-relaxed">
                     {subtituloBannerMensalidade(mensalidades[0], trialAtivo, trialValidoAte)}
                   </p>
                   {!cobrancaMensalidadeAtiva && (
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-500 pt-0.5 leading-relaxed">
+                    <p className="text-[11px] text-[var(--muted)] pt-0.5 leading-relaxed">
                       Sem cobrança enquanto o teste grátis estiver ativo.
                     </p>
                   )}
@@ -953,7 +1000,7 @@ export default function SellerDashboardPage() {
                   <button
                     type="button"
                     onClick={() => abrirPixMensalidade(mensalidades[0])}
-                    className="shrink-0 rounded-xl bg-neutral-900 dark:bg-neutral-100 hover:opacity-90 text-white dark:text-neutral-900 px-4 py-2 text-sm font-semibold"
+                    className="shrink-0 rounded-xl bg-[var(--foreground)] text-[var(--background)] hover:opacity-90 px-4 py-2 text-sm font-semibold"
                   >
                     Pagar {BRL.format(mensalidades[0].valor)}
                   </button>
@@ -964,10 +1011,10 @@ export default function SellerDashboardPage() {
 
         {/* 2a. Gráfico — volume por dia (hoje sempre fixo à direita) */}
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="px-4 py-3 border-b border-[var(--card-border)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Volume de pedidos</p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Hoje fixo à direita do gráfico</p>
+              <p className="text-sm font-semibold text-[var(--foreground)]">Volume de pedidos</p>
+              <p className="text-xs text-[var(--muted)] mt-0.5">Hoje fixo à direita do gráfico</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {([7, 14, 30, 60, 90, 120] as const).map((n) => (
@@ -977,7 +1024,7 @@ export default function SellerDashboardPage() {
                   className={`rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
                     chartPeriodo === n
                       ? "bg-emerald-600 text-white"
-                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                      : "bg-[var(--surface-subtle)] text-[var(--muted)] hover:bg-[var(--surface-hover)]"
                   }`}
                 >
                   {n}d
@@ -986,7 +1033,7 @@ export default function SellerDashboardPage() {
               <select
                 value={typeof chartPeriodo === "string" ? chartPeriodo : ""}
                 onChange={(e) => { const v = e.target.value; if (v) setChartPeriodo(v); }}
-                className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-0 cursor-pointer focus:ring-2 focus:ring-emerald-500"
+                className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium bg-[var(--surface-subtle)] text-[var(--foreground)] border-0 cursor-pointer focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="">Mês...</option>
                 <option value="month:current">Este mês</option>
@@ -1007,7 +1054,7 @@ export default function SellerDashboardPage() {
           <div className="p-4">
             {chartMax <= 0 ? (
               <div className="text-center py-10">
-                <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-3">Sem movimentações neste período</p>
+                <p className="text-sm text-[var(--muted)] mb-3">Sem movimentações neste período</p>
                 <button
                   onClick={() => router.push("/seller/produtos")}
                   className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-sm font-semibold"
@@ -1038,29 +1085,29 @@ export default function SellerDashboardPage() {
                         />
                         {chartTooltipHover?.dia === d.dia && (
                           <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-                            <div className="rounded-xl border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 shadow-xl py-3 px-4 min-w-[180px]">
-                              <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-2.5">{periodLabel}</p>
+                            <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-xl py-3 px-4 min-w-[180px]">
+                              <p className="text-xs font-semibold text-[var(--foreground)] mb-2.5">{periodLabel}</p>
                               <div className="space-y-1.5 text-xs">
                                 <div className="flex justify-between gap-4">
-                                  <span className="text-neutral-500 dark:text-neutral-400">Volume</span>
+                                  <span className="text-[var(--muted)]">Volume</span>
                                   <span className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{BRL.format(d.valor)}</span>
                                 </div>
                                 {count > 0 && (
                                   <>
                                     <div className="flex justify-between gap-4">
-                                      <span className="text-neutral-500 dark:text-neutral-400">Pedidos</span>
-                                      <span className="font-semibold text-neutral-900 dark:text-neutral-100">{count}</span>
+                                      <span className="text-[var(--muted)]">Pedidos</span>
+                                      <span className="font-semibold text-[var(--foreground)]">{count}</span>
                                     </div>
                                     {ticketMedio != null && (
-                                      <div className="flex justify-between gap-4 pt-1 border-t border-neutral-100 dark:border-neutral-800">
-                                        <span className="text-neutral-500 dark:text-neutral-400">Ticket médio</span>
-                                        <span className="font-semibold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(ticketMedio)}</span>
+                                      <div className="flex justify-between gap-4 pt-1 border-t border-[var(--card-border)]">
+                                        <span className="text-[var(--muted)]">Ticket médio</span>
+                                        <span className="font-semibold text-[var(--foreground)] tabular-nums">{BRL.format(ticketMedio)}</span>
                                       </div>
                                     )}
                                   </>
                                 )}
                               </div>
-                              <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 border-r border-b border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900" />
+                              <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 border-r border-b border-[var(--card-border)] bg-[var(--card)]" />
                             </div>
                           </div>
                         )}
@@ -1069,10 +1116,10 @@ export default function SellerDashboardPage() {
                   })}
                 </div>
                 <div className="flex justify-between mt-1 px-0.5">
-                  <span className="text-[10px] text-neutral-500">
+                  <span className="text-[10px] text-[var(--muted)]">
                     {chartData[0]?.dia?.length >= 10 ? `${chartData[0].dia.slice(8)}/${chartData[0].dia.slice(5, 7)}` : chartData[0]?.dia ?? ""}
                   </span>
-                  <span className={`text-[10px] ${ultimoDiaHoje ? "font-medium text-emerald-600 dark:text-emerald-400" : "text-neutral-500"}`}>
+                  <span className={`text-[10px] ${ultimoDiaHoje ? "font-medium text-emerald-600 dark:text-emerald-400" : "text-[var(--muted)]"}`}>
                     {ultimoDiaHoje ? "Hoje" : (() => {
                       const last = chartData[chartData.length - 1]?.dia;
                       return last?.length >= 10 ? `${last.slice(8)}/${last.slice(5, 7)}` : last ?? "";
@@ -1087,25 +1134,25 @@ export default function SellerDashboardPage() {
         {/* 2b. Analytics Pro — desempenho detalhado */}
         {isPro && analytics30d && (
           <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
-            <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 bg-[var(--card)]">
+            <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--card-border)] bg-[var(--card)]">
               <div className="flex items-center gap-2">
                 <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Desempenho</p>
                 <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-bold text-white">PRO · 30 dias</span>
               </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 divide-x divide-y sm:divide-y-0 divide-neutral-100 dark:divide-neutral-800">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 divide-x divide-y sm:divide-y-0 divide-[var(--card-border)]">
               {analytics30d.temDadosVenda ? (
                 <>
                   <div className="px-4 py-3">
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Receita</p>
-                    <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(analytics30d.receitaTotal)}</p>
+                    <p className="text-[11px] text-[var(--muted)]">Receita</p>
+                    <p className="text-sm font-bold text-[var(--foreground)] tabular-nums">{BRL.format(analytics30d.receitaTotal)}</p>
                   </div>
                   <div className="px-4 py-3">
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Custo</p>
-                    <p className="text-sm font-bold text-neutral-600 dark:text-neutral-400 tabular-nums">{BRL.format(analytics30d.custoTotal)}</p>
+                    <p className="text-[11px] text-[var(--muted)]">Custo</p>
+                    <p className="text-sm font-bold text-[var(--muted)] tabular-nums">{BRL.format(analytics30d.custoTotal)}</p>
                   </div>
                   <div className="px-4 py-3">
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Lucro</p>
+                    <p className="text-[11px] text-[var(--muted)]">Lucro</p>
                     <p
                       className={cn(
                         "text-sm font-bold tabular-nums",
@@ -1116,8 +1163,8 @@ export default function SellerDashboardPage() {
                     </p>
                   </div>
                   <div className="px-4 py-3">
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">{analytics30d.margemMedia != null ? "Margem" : "Ticket médio"}</p>
-                    <p className={`text-sm font-bold tabular-nums ${analytics30d.margemMedia != null && analytics30d.margemMedia >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-neutral-100"}`}>
+                    <p className="text-[11px] text-[var(--muted)]">{analytics30d.margemMedia != null ? "Margem" : "Ticket médio"}</p>
+                    <p className={`text-sm font-bold tabular-nums ${analytics30d.margemMedia != null && analytics30d.margemMedia >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-[var(--foreground)]"}`}>
                       {analytics30d.margemMedia != null ? `${analytics30d.margemMedia.toFixed(1)}%` : analytics30d.pedidos > 0 ? BRL.format(analytics30d.custoTotal / analytics30d.pedidos) : "—"}
                     </p>
                   </div>
@@ -1125,21 +1172,21 @@ export default function SellerDashboardPage() {
               ) : (
                 <>
                   <div className="px-4 py-3 sm:col-span-2">
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Custo total (pedidos)</p>
-                    <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(analytics30d.custoTotal)}</p>
+                    <p className="text-[11px] text-[var(--muted)]">Custo total (pedidos)</p>
+                    <p className="text-sm font-bold text-[var(--foreground)] tabular-nums">{BRL.format(analytics30d.custoTotal)}</p>
                   </div>
                   <div className="px-4 py-3 sm:col-span-2">
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Pedidos</p>
-                    <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{analytics30d.pedidos}</p>
+                    <p className="text-[11px] text-[var(--muted)]">Pedidos</p>
+                    <p className="text-sm font-bold text-[var(--foreground)]">{analytics30d.pedidos}</p>
                   </div>
                 </>
               )}
             </div>
             {analytics30d.topProduto && (
-              <div className="px-4 py-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-xs">
-                <span className="text-neutral-500 dark:text-neutral-400">Top:</span>
-                <span className="font-medium text-neutral-900 dark:text-neutral-100 truncate max-w-[60%]">{analytics30d.topProduto.nome}</span>
-                <span className="text-neutral-500 shrink-0">{analytics30d.topProduto.count} vendas</span>
+              <div className="px-4 py-2 border-t border-[var(--card-border)] flex items-center justify-between text-xs">
+                <span className="text-[var(--muted)]">Top:</span>
+                <span className="font-medium text-[var(--foreground)] truncate max-w-[60%]">{analytics30d.topProduto.nome}</span>
+                <span className="text-[var(--muted)] shrink-0">{analytics30d.topProduto.count} vendas</span>
               </div>
             )}
             {analytics30d.vendasPorDia.some(([, v]) => (v as { receita: number; custo: number }).receita > 0 || (v as { receita: number; custo: number }).custo > 0) && (
@@ -1153,7 +1200,7 @@ export default function SellerDashboardPage() {
                     );
                   })}
                 </div>
-                <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1">Últimos 14 dias</p>
+                <p className="text-[10px] text-[var(--muted)] mt-1">Últimos 14 dias</p>
               </div>
             )}
           </section>
@@ -1161,7 +1208,7 @@ export default function SellerDashboardPage() {
 
         {/* 3. Atalhos — mesmo padrão “Acesso rápido” do fornecedor */}
         <section aria-label="Atalhos">
-          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2 px-0.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)] mb-2 px-0.5">
             Acesso rápido
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1181,7 +1228,7 @@ export default function SellerDashboardPage() {
                 <line x1="15" y1="18" x2="16" y2="18" />
               </svg>
             </div>
-            <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Calculadora</span>
+            <span className="text-sm font-bold text-[var(--foreground)] truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Calculadora</span>
           </button>
           <button onClick={() => router.push("/seller/produtos")} className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md group">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400">
@@ -1191,7 +1238,7 @@ export default function SellerDashboardPage() {
                 <line x1="12" y1="22.08" x2="12" y2="12" />
               </svg>
             </div>
-            <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Produtos</span>
+            <span className="text-sm font-bold text-[var(--foreground)] truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Produtos</span>
           </button>
           <button onClick={() => router.push("/seller/integracoes-erp")} className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md group relative">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400">
@@ -1202,9 +1249,9 @@ export default function SellerDashboardPage() {
                 <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
               </svg>
             </div>
-            <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Integrações</span>
+            <span className="text-sm font-bold text-[var(--foreground)] truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Integrações</span>
             {erpConectado === true && (
-              <span className="absolute top-2 right-2 rounded-full bg-emerald-100 dark:bg-emerald-950/50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 dark:text-emerald-300">
+              <span className="absolute top-2 right-2 rounded-full bg-emerald-100 dark:bg-emerald-950/50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
                 Conectado
               </span>
             )}
@@ -1217,16 +1264,16 @@ export default function SellerDashboardPage() {
           <button
             type="button"
             onClick={() => { setTab("extrato"); setFiltroStatus(emDevolucaoCount > 0 ? "EM_DEVOLUCAO" : "DEVOLVIDO"); setMovimentacoesAberto(true); extratoRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-            className="w-full rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 flex items-center gap-3 text-left shadow-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="w-full rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 flex items-center gap-3 text-left shadow-sm hover:bg-[var(--surface-hover)]"
           >
             <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center shrink-0 text-emerald-700 dark:text-emerald-400">
               <IconDevolucao className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              <p className="text-sm font-semibold text-[var(--foreground)]">
                 {emDevolucaoCount > 0 ? `${emDevolucaoCount} pedido(s) em devolução` : `${devolvidoCount} devolução(ões) concluída(s)`}
               </p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">Clique para ver no extrato</p>
+              <p className="text-xs text-[var(--muted)]">Clique para ver no extrato</p>
             </div>
             <IconArrowRight className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
           </button>
@@ -1234,47 +1281,76 @@ export default function SellerDashboardPage() {
 
         {/* 5. Extrato / Depósitos — recolhível */}
         <section ref={extratoRef} className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
-          {/* Cabeçalho com tabs e botão recolher */}
-          <div className="flex items-center justify-between gap-3 border-b border-neutral-200 dark:border-neutral-700 bg-[var(--card)] px-3">
-            <div className="flex items-center gap-1">
-              {(["extrato", "depositos"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => { setTab(t); if (!movimentacoesAberto) setMovimentacoesAberto(true); }}
-                  className={`px-4 py-3 text-sm font-medium rounded-t-lg -mb-px transition-all ${
-                    tab === t
-                      ? "bg-white dark:bg-neutral-900 text-emerald-600 dark:text-emerald-400 border border-neutral-200 dark:border-neutral-700 border-b-transparent shadow-sm"
-                      : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
-                  }`}
-                >
-                  {t === "extrato" ? "Extrato" : "Depósitos PIX"}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-              {tab === "depositos" && (
-                <button onClick={() => setModalDeposito(true)} className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold">
-                  + Novo depósito
-                </button>
-              )}
-              <button onClick={load} className="rounded-lg border border-neutral-200 dark:border-neutral-600 px-2.5 py-1.5 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-                Atualizar
-              </button>
-              <button
-                type="button"
-                onClick={() => setMovimentacoesAberto(!movimentacoesAberto)}
-                className="rounded-lg px-2 py-1.5 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors flex items-center gap-1.5"
-                title={movimentacoesAberto ? "Recolher" : "Expandir"}
-              >
-                {!movimentacoesAberto && (
-                  <span>
-                    {tab === "extrato" ? `${extratoFiltrado.length} movimentações` : `${depositos.length} depósito${depositos.length !== 1 ? "s" : ""}`}
-                  </span>
+          {/* Cabeçalho: sempre uma linha; em telas estreitas desliza horizontalmente */}
+          <div className="border-b border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5">
+            <div className="flex min-w-0 flex-nowrap items-stretch gap-2 overflow-x-auto overscroll-x-contain pb-0.5 [-webkit-overflow-scrolling:touch] sm:justify-between sm:overflow-visible sm:pb-0">
+              <div className="flex shrink-0 flex-nowrap items-stretch gap-2">
+                {(["extrato", "depositos"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => { setTab(t); if (!movimentacoesAberto) setMovimentacoesAberto(true); }}
+                    type="button"
+                    className={cn(
+                      "inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border px-3 text-xs font-medium transition-colors touch-manipulation whitespace-nowrap",
+                      "outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]",
+                      tab === t
+                        ? "border-emerald-600 bg-emerald-600 text-white font-semibold hover:bg-emerald-700 dark:border-emerald-600 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-700"
+                        : "border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+                    )}
+                  >
+                    {t === "extrato" ? "Extrato" : "Depósitos PIX"}
+                  </button>
+                ))}
+              </div>
+              <div className="flex shrink-0 flex-nowrap items-stretch gap-2 sm:pl-2">
+                {tab === "depositos" && (
+                  <button
+                    type="button"
+                    onClick={() => setModalDeposito(true)}
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white outline-none transition-colors hover:bg-emerald-700 whitespace-nowrap touch-manipulation focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                  >
+                    + Novo depósito
+                  </button>
                 )}
-                <svg className={`w-4 h-4 transition-transform ${movimentacoesAberto ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="m18 15-6-6-6 6" />
-                </svg>
-              </button>
+                <button
+                  type="button"
+                  onClick={load}
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 text-xs font-medium text-[var(--muted)] outline-none transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)] touch-manipulation whitespace-nowrap focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                >
+                  Atualizar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMovimentacoesAberto(!movimentacoesAberto)}
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-2.5 text-xs font-medium text-[var(--muted)] outline-none transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)] touch-manipulation focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                  title={movimentacoesAberto ? "Recolher" : "Expandir"}
+                >
+                  {!movimentacoesAberto && (
+                    <span className="whitespace-nowrap">
+                      {tab === "extrato" ? (
+                        <>
+                          <span className="sm:hidden">{extratoFiltrado.length} mov.</span>
+                          <span className="hidden sm:inline">{extratoFiltrado.length} movimentações</span>
+                        </>
+                      ) : (
+                        <>
+                          {depositos.length} depósito{depositos.length !== 1 ? "s" : ""}
+                        </>
+                      )}
+                    </span>
+                  )}
+                  <svg
+                    className={`h-4 w-4 shrink-0 transition-transform ${movimentacoesAberto ? "rotate-180" : ""}`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden
+                  >
+                    <path d="m18 15-6-6-6 6" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1301,7 +1377,7 @@ export default function SellerDashboardPage() {
                       className={`rounded-full px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
                         filtroStatus === s
                           ? "bg-emerald-600 text-white shadow-sm"
-                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-900 dark:hover:text-neutral-200"
+                          : "bg-[var(--surface-subtle)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
                       }`}
                     >
                       {s === "" ? "Todos" : (statusLabel[s]?.label ?? s)}
@@ -1312,13 +1388,13 @@ export default function SellerDashboardPage() {
 
               {extratoFiltrado.length === 0 ? (
                 <div className="py-16 text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mx-auto mb-4 text-neutral-400 dark:text-neutral-500">
+                  <div className="w-14 h-14 rounded-2xl bg-[var(--surface-subtle)] flex items-center justify-center mx-auto mb-4 text-[var(--muted)]">
                     <IconClipboard className="w-7 h-7" />
                   </div>
-                  <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
+                  <p className="text-sm font-medium text-[var(--muted)]">
                     {filtroTipo === "pedidos" ? "Nenhum pedido" : `Nenhuma movimentação${filtroStatus ? " com este filtro" : ""}`}
                   </p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-1">Suas transações aparecerão aqui</p>
+                  <p className="text-xs text-[var(--muted)] mt-1">Suas transações aparecerão aqui</p>
                   {(filtroStatus || filtroTipo) && (
                     <button
                       onClick={() => { setFiltroStatus(""); setFiltroTipo(""); }}
@@ -1332,27 +1408,27 @@ export default function SellerDashboardPage() {
                 <div className="space-y-6">
                   {extratoAgrupado.map((group) => (
                     <div key={group.label}>
-                      <p className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-3 px-1">{group.label}</p>
-                      <div className="rounded-lg border border-neutral-100 dark:border-neutral-800 overflow-hidden">
+                      <p className="text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wider mb-3 px-1">{group.label}</p>
+                      <div className="rounded-lg border border-[var(--card-border)] overflow-hidden">
                       {group.items.map((e) => {
                         const info = tipoLabel[e.tipo] ?? { label: e.tipo };
                         const st = statusLabel[e.status];
                         return (
-                          <div key={e.id} className="flex items-center gap-4 px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 last:border-0 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors">
+                          <div key={e.id} className="flex items-center gap-4 px-4 py-3 border-b border-[var(--card-border)] last:border-0 hover:bg-[var(--surface-hover)]/50 transition-colors">
                               <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                                 isPositivo(e.tipo) ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400" :
-                                isNegativo(e.tipo) ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400" :
+                                isNegativo(e.tipo) ? "bg-[var(--surface-subtle)] text-[var(--muted)]" :
                                 "bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400"
                               }`}>
                                 <IconTipoExtrato tipo={e.tipo} className="w-5 h-5" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{e.nome_produto || info.label}</p>
-                                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                <p className="text-sm font-medium text-[var(--foreground)]">{e.nome_produto || info.label}</p>
+                                <p className="text-xs text-[var(--muted)] mt-0.5">
                                   {formatDateTime(e.data_evento)}{e.fornecedor_nome ? ` · ${e.fornecedor_nome}` : ""}
                                 </p>
                                 {e.preco_venda != null && e.custo != null && e.preco_venda > 0 && (
-                                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
+                                  <p className="text-[11px] text-[var(--muted)] mt-1">
                                     Venda {BRL.format(e.preco_venda)} · Margem{" "}
                                     <span
                                       className={
@@ -1367,7 +1443,7 @@ export default function SellerDashboardPage() {
                                 )}
                               </div>
                               <div className="text-right shrink-0">
-                                <p className={`text-base font-bold tabular-nums ${isPositivo(e.tipo) ? "text-emerald-600 dark:text-emerald-400" : isNegativo(e.tipo) ? "text-neutral-900 dark:text-neutral-100" : "text-neutral-400 dark:text-neutral-500"}`}>
+                                <p className={`text-base font-bold tabular-nums ${isPositivo(e.tipo) ? "text-emerald-600 dark:text-emerald-400" : isNegativo(e.tipo) ? "text-[var(--foreground)]" : "text-[var(--muted)]"}`}>
                                   {isPositivo(e.tipo) ? "+" : isNegativo(e.tipo) ? "−" : ""}{BRL.format(e.valor_total)}
                                 </p>
                                 {st && <span className={`inline-block mt-1.5 rounded-md px-2 py-0.5 text-[10px] font-medium ${st.cor}`}>{st.label}</span>}
@@ -1391,19 +1467,19 @@ export default function SellerDashboardPage() {
                   <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center mx-auto mb-4 text-emerald-500 dark:text-emerald-400">
                     <IconDeposito className="w-7 h-7" />
                   </div>
-                  <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Nenhum depósito ainda</p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-1">Adicione saldo via PIX para continuar vendendo</p>
+                  <p className="text-sm font-medium text-[var(--muted)]">Nenhum depósito ainda</p>
+                  <p className="text-xs text-[var(--muted)] mt-1">Adicione saldo via PIX para continuar vendendo</p>
                 <button onClick={() => setModalDeposito(true)} className="mt-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-sm font-semibold shadow-md shadow-emerald-900/15 hover:shadow-emerald-900/20 transition-all">
                     + Solicitar depósito
                   </button>
                 </div>
               ) : (
-                <div className="rounded-lg border border-neutral-100 dark:border-neutral-800 overflow-hidden">
+                <div className="rounded-lg border border-[var(--card-border)] overflow-hidden">
                   {depositos.map((d) => (
                     <div
                       key={d.id}
                       ref={(el) => { depositoRefs.current[d.id] = el; }}
-                      className={`flex items-center gap-4 px-4 py-4 border-b border-neutral-100 dark:border-neutral-800 last:border-0 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors ${
+                      className={`flex items-center gap-4 px-4 py-4 border-b border-[var(--card-border)] last:border-0 hover:bg-[var(--surface-hover)]/50 transition-colors ${
                         destaqueId === d.id ? "ring-2 ring-emerald-500 ring-inset bg-emerald-100 dark:bg-emerald-950/20" : ""
                       }`}
                     >
@@ -1411,8 +1487,8 @@ export default function SellerDashboardPage() {
                         <IconPlus className="w-5 h-5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Depósito via PIX</p>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                        <p className="text-sm font-medium text-[var(--foreground)]">Depósito via PIX</p>
+                        <p className="text-xs text-[var(--muted)] mt-0.5">
                           {formatDate(d.criado_em)}
                           {d.aprovado_em ? ` · Aprovado em ${formatDate(d.aprovado_em)}` : " · Aguardando aprovação"}
                         </p>
@@ -1424,7 +1500,7 @@ export default function SellerDashboardPage() {
                             ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300"
                             : d.status === "pendente"
                               ? SELLER_LEDGER_BADGE_AMBER
-                              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                              : "bg-[var(--surface-subtle)] text-[var(--muted)]"
                         }`}>
                           {d.status === "aprovado" ? "Aprovado" : d.status === "pendente" ? "Pendente" : d.status}
                         </span>
@@ -1441,10 +1517,10 @@ export default function SellerDashboardPage() {
 
         {modalDeposito && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-fade-in-up">
-            <div className="w-full max-w-sm rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 shadow-2xl overflow-hidden animate-fade-in-up animate-fade-in-up-delay-1">
-              <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-neutral-200 dark:border-neutral-700">
-                <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Solicitar depósito via PIX</h2>
-                <button onClick={fecharModal} className="p-1 -m-1 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors rounded">
+            <div className="w-full max-w-sm rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-2xl overflow-hidden animate-fade-in-up animate-fade-in-up-delay-1">
+              <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[var(--card-border)]">
+                <h2 className="text-sm font-semibold text-[var(--foreground)]">Solicitar depósito via PIX</h2>
+                <button onClick={fecharModal} className="p-1 -m-1 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors rounded">
                   <IconX className="w-5 h-5" />
                 </button>
               </div>
@@ -1454,28 +1530,28 @@ export default function SellerDashboardPage() {
                   <div className="p-5 space-y-4">
                     <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                       <IconCheck className="w-5 h-5" />
-                      <p className="text-sm font-semibold">PIX gerado! Pague agora</p>
+                      <p className="text-sm font-semibold text-[var(--foreground)]">PIX gerado! Pague agora</p>
                     </div>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">Escaneie o QR Code ou copie o código PIX. O saldo será creditado automaticamente após o pagamento.</p>
+                    <p className="text-xs text-[var(--muted)]">Escaneie o QR Code ou copie o código PIX. O saldo será creditado automaticamente após o pagamento.</p>
                     {depositoRestanteSec !== null && (
                       <div
                         className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium ${
                           depositoRestanteSec <= 60
                             ? cn(AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY)
-                            : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                            : "bg-[var(--surface-subtle)] text-[var(--muted)]"
                         }`}
                       >
                         <IconClock className={`w-4 h-4 shrink-0 ${depositoRestanteSec <= 60 ? "animate-pulse" : ""}`} />
                         Válido por {Math.floor(depositoRestanteSec / 60)}:{(depositoRestanteSec % 60).toString().padStart(2, "0")}
                       </div>
                     )}
-                    <div className="flex justify-center p-4 bg-white dark:bg-neutral-800 rounded-xl">
+                    <div className="flex justify-center p-4 bg-[var(--card)] rounded-xl">
                       <img src={`data:image/png;base64,${depositoQrCode}`} alt="QR Code PIX" className="w-40 h-40" />
                     </div>
                     {depositoCopiaCola && (
                       <div className="space-y-2">
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400">Código PIX (copia e cola):</p>
-                        <div className="rounded-xl border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-xs font-mono text-neutral-600 dark:text-neutral-400 break-all max-h-20 overflow-y-auto">
+                        <p className="text-xs text-[var(--muted)]">Código PIX (copia e cola):</p>
+                        <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 text-xs font-mono text-[var(--muted)] break-all max-h-20 overflow-y-auto">
                           {depositoCopiaCola}
                         </div>
                         <button
@@ -1499,16 +1575,16 @@ export default function SellerDashboardPage() {
                     <div className="w-12 h-12 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center mx-auto text-emerald-600">
                       <IconCheck className="w-6 h-6" />
                     </div>
-                    <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Solicitação enviada!</p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">Faça o PIX e aguarde a aprovação. O saldo será creditado assim que confirmado.</p>
-                    <button onClick={fecharModal} className="w-full rounded-xl bg-white dark:bg-neutral-800 text-black dark:text-white font-semibold py-2.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors mt-2">
+                    <p className="text-sm font-semibold text-[var(--foreground)]">Solicitação enviada!</p>
+                    <p className="text-xs text-[var(--muted)]">Faça o PIX e aguarde a aprovação. O saldo será creditado assim que confirmado.</p>
+                    <button onClick={fecharModal} className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] text-[var(--foreground)] font-semibold py-2.5 text-sm hover:bg-[var(--surface-hover)] transition-colors mt-2">
                       Fechar
                     </button>
                   </div>
                 )
               ) : (
                 <div className="p-5 space-y-4">
-                  <div className="rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-3 text-xs text-neutral-600 space-y-1">
+                  <div className="rounded-xl bg-[var(--surface-subtle)] border border-[var(--card-border)] p-3 text-xs text-[var(--muted)] space-y-1">
                     <p>1. Informe o valor que deseja depositar (mín. R$ 500)</p>
                     <p>2. Clique em Depositar — o QR Code PIX será gerado</p>
                     <p>3. Escaneie ou copie o código e pague no app do seu banco</p>
@@ -1516,14 +1592,14 @@ export default function SellerDashboardPage() {
                   </div>
 
                   <div>
-                    <label className="text-xs text-neutral-500 dark:text-neutral-400 mb-1.5 block">Valor (mínimo R$ 500,00)</label>
+                    <label className="text-xs text-[var(--muted)] mb-1.5 block">Valor (mínimo R$ 500,00)</label>
                     <input
                       type="text"
                       inputMode="decimal"
                       placeholder="0,00"
                       value={depositoValor}
                       onChange={(e) => setDepositoValor(e.target.value)}
-                      className="w-full rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-600 px-3 py-2.5 text-neutral-900 dark:text-neutral-100 text-sm focus:outline-none focus:border-neutral-400 dark:focus:border-neutral-500 placeholder-neutral-400 dark:placeholder-neutral-500"
+                      className="w-full rounded-xl bg-[var(--card)] border border-[var(--card-border)] px-3 py-2.5 text-[var(--foreground)] text-sm focus:outline-none focus:border-emerald-500 placeholder:text-[var(--muted)]"
                     />
                   </div>
 
@@ -1534,7 +1610,7 @@ export default function SellerDashboardPage() {
                   )}
 
                   <div className="flex gap-2 pt-1">
-                    <button onClick={fecharModal} className="flex-1 rounded-xl border border-neutral-300 dark:border-neutral-600 py-2.5 text-sm text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+                    <button onClick={fecharModal} className="flex-1 rounded-xl border border-[var(--card-border)] py-2.5 text-sm text-[var(--muted)] hover:bg-[var(--surface-hover)] transition-colors">
                       Cancelar
                     </button>
                     <button
@@ -1554,47 +1630,47 @@ export default function SellerDashboardPage() {
         {/* Modal PIX Mensalidade */}
         {modalPixMensalidade && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-fade-in-up">
-            <div className="w-full max-w-sm rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 shadow-2xl overflow-hidden animate-fade-in-up animate-fade-in-up-delay-1">
-              <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-neutral-200 dark:border-neutral-700">
-                <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Pagar mensalidade</h2>
-                <button onClick={fecharModalPix} className="p-1 -m-1 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors rounded">
+            <div className="w-full max-w-sm rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-2xl overflow-hidden animate-fade-in-up animate-fade-in-up-delay-1">
+              <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[var(--card-border)]">
+                <h2 className="text-sm font-semibold text-[var(--foreground)]">Pagar mensalidade</h2>
+                <button onClick={fecharModalPix} className="p-1 -m-1 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors rounded">
                   <IconX className="w-5 h-5" />
                 </button>
               </div>
               <div className="p-5 space-y-4">
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                  Valor: <strong className="text-neutral-900 dark:text-neutral-100">{BRL.format(modalPixMensalidade.valor)}</strong>
+                <p className="text-sm text-[var(--muted)]">
+                  Valor: <strong className="text-[var(--foreground)]">{BRL.format(modalPixMensalidade.valor)}</strong>
                 </p>
                 {pixErro && (
                   <p className={cn("text-xs rounded-xl px-3 py-2", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>{pixErro}</p>
                 )}
-                {pixLoading && <p className="text-sm text-neutral-500">Gerando PIX...</p>}
+                {pixLoading && <p className="text-sm text-[var(--muted)]">Gerando PIX...</p>}
                 {!pixLoading && pixQrCode && (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                       <IconCheck className="w-5 h-5" />
-                      <p className="text-sm font-semibold">PIX gerado! Pague agora</p>
+                      <p className="text-sm font-semibold text-[var(--foreground)]">PIX gerado! Pague agora</p>
                     </div>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">Escaneie o QR Code ou copie o código PIX. Após pagar, aguarde a confirmação automática.</p>
+                    <p className="text-xs text-[var(--muted)]">Escaneie o QR Code ou copie o código PIX. Após pagar, aguarde a confirmação automática.</p>
                     {pixRestanteSec !== null && (
                       <div
                         className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium ${
                           pixRestanteSec <= 60
                             ? cn(AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY)
-                            : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                            : "bg-[var(--surface-subtle)] text-[var(--muted)]"
                         }`}
                       >
                         <IconClock className={`w-4 h-4 shrink-0 ${pixRestanteSec <= 60 ? "animate-pulse" : ""}`} />
                         Válido por {Math.floor(pixRestanteSec / 60)}:{(pixRestanteSec % 60).toString().padStart(2, "0")}
                       </div>
                     )}
-                    <div className="flex justify-center p-4 bg-white dark:bg-neutral-800 rounded-xl">
+                    <div className="flex justify-center p-4 bg-[var(--card)] rounded-xl">
                       <img src={`data:image/png;base64,${pixQrCode}`} alt="QR Code PIX" className="w-40 h-40" />
                     </div>
                     {pixCopiaCola && (
                       <div className="space-y-2">
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400">Código PIX (copia e cola):</p>
-                        <div className="rounded-xl border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-xs font-mono text-left break-all max-h-20 overflow-y-auto">
+                        <p className="text-xs text-[var(--muted)]">Código PIX (copia e cola):</p>
+                        <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 text-xs font-mono text-left break-all max-h-20 overflow-y-auto">
                           {pixCopiaCola}
                         </div>
                         <button
@@ -1612,7 +1688,7 @@ export default function SellerDashboardPage() {
                     )}
                   </div>
                 )}
-                {!pixLoading && !pixQrCode && !pixErro && <p className="text-sm text-neutral-500">Clique em Pagar para gerar o PIX.</p>}
+                {!pixLoading && !pixQrCode && !pixErro && <p className="text-sm text-[var(--muted)]">Clique em Pagar para gerar o PIX.</p>}
               </div>
             </div>
           </div>
@@ -1627,13 +1703,13 @@ export default function SellerDashboardPage() {
           aria-modal="true"
           aria-labelledby="seller-plano-onboarding-titulo"
         >
-          <div className="w-full max-w-lg rounded-2xl border border-neutral-200/90 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-2xl p-6 sm:p-8 space-y-5 max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-lg rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-2xl p-6 sm:p-8 space-y-5 max-h-[90vh] overflow-y-auto">
             <div>
               <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Bem-vindo</p>
-              <h2 id="seller-plano-onboarding-titulo" className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">
+              <h2 id="seller-plano-onboarding-titulo" className="text-xl font-bold text-[var(--foreground)] mt-1">
                 Escolha seu plano
               </h2>
-              <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-2 leading-relaxed">
+              <p className="text-sm text-[var(--muted)] mt-2 leading-relaxed">
                 Para continuar no painel, selecione Starter ou Pro. Os valores são a mensalidade de referência cadastrada na plataforma (tabela financeira); se a sua organização tiver outro valor contratual, ele será aplicado nas cobranças.
               </p>
             </div>
@@ -1647,11 +1723,11 @@ export default function SellerDashboardPage() {
                 type="button"
                 disabled={planoSaving !== ""}
                 onClick={() => void escolherPlano("starter")}
-                className="rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800/50 px-4 py-4 text-left hover:border-emerald-500/60 transition-colors disabled:opacity-50"
+                className="rounded-xl border-2 border-[var(--card-border)] bg-[var(--surface-subtle)] px-4 py-4 text-left hover:border-emerald-500/60 transition-colors disabled:opacity-50"
               >
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Starter</p>
-                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums mt-1">{BRL.format(precoStarterMensal)}<span className="text-xs font-normal text-neutral-500">/mês</span></p>
-                <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-2 leading-snug">
+                <p className="text-sm font-bold text-[var(--foreground)]">Starter</p>
+                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums mt-1">{BRL.format(precoStarterMensal)}<span className="text-xs font-normal text-[var(--muted)]">/mês</span></p>
+                <p className="text-[11px] text-[var(--muted)] mt-2 leading-snug">
                   Resumo financeiro, gráfico de volume por dia e fluxo essencial para operar com o armazém.
                 </p>
                 {planoSaving === "starter" ? (
@@ -1664,14 +1740,95 @@ export default function SellerDashboardPage() {
                 onClick={() => void escolherPlano("pro")}
                 className="rounded-xl border-2 border-emerald-500/40 bg-emerald-100 dark:bg-emerald-950/25 px-4 py-4 text-left hover:border-emerald-500 transition-colors disabled:opacity-50"
               >
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Pro</p>
-                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums mt-1">{BRL.format(precoProMensal)}<span className="text-xs font-normal text-neutral-500">/mês</span></p>
-                <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-2 leading-snug">
+                <p className="text-sm font-bold text-[var(--foreground)]">Pro</p>
+                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums mt-1">{BRL.format(precoProMensal)}<span className="text-xs font-normal text-[var(--muted)]">/mês</span></p>
+                <p className="text-[11px] text-[var(--muted)] mt-2 leading-snug">
                   Inclui blocos de desempenho e analytics no painel para acompanhar receita, custo e margem quando houver dados de venda.
                 </p>
                 {planoSaving === "pro" ? (
                   <p className="text-xs text-emerald-600 mt-2">Salvando...</p>
                 ) : null}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalArmazem && vinculoFornecedor?.ativo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-fade-in-up"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="seller-modal-armazem-titulo"
+          onClick={() => setModalArmazem(false)}
+        >
+          <div
+            className="w-full max-w-md max-h-[min(90vh,calc(100dvh-2rem))] overflow-y-auto rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-2xl overflow-x-hidden animate-fade-in-up animate-fade-in-up-delay-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[var(--card-border)]">
+              <h2
+                id="seller-modal-armazem-titulo"
+                className={
+                  vinculoFornecedor.liberado_antecipado
+                    ? cn("text-sm font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)
+                    : !vinculoFornecedor.dentro_compromisso && !vinculoFornecedor.liberado_antecipado
+                      ? "text-sm font-semibold text-emerald-700 dark:text-emerald-300"
+                      : cn("text-sm font-semibold", PRIMARY_ACTION_BLUE_TEXT_PRIMARY)
+                }
+              >
+                {vinculoFornecedor.liberado_antecipado
+                  ? "Troca de armazém liberada pela DropCore"
+                  : vinculoFornecedor.dentro_compromisso
+                    ? "Compromisso mínimo com o armazém"
+                    : "Armazém vinculado — troca liberada"}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setModalArmazem(false)}
+                className="p-1 -m-1 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors rounded shrink-0"
+                aria-label="Fechar"
+              >
+                <IconX className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 text-sm leading-relaxed text-[var(--foreground)] space-y-3">
+              {vinculoFornecedor.liberado_antecipado ? (
+                <p>
+                  A equipe marcou liberação antecipada (ex.: infração comprovada). Combine a troca ou desvinculação pelo suporte antes de alterar integrações ou catálogo.
+                </p>
+              ) : vinculoFornecedor.dentro_compromisso ? (
+                <p>
+                  Pela regra da plataforma, permanecemos pelo menos <strong>{vinculoFornecedor.meses_minimos} meses</strong> com o mesmo armazém quando tudo corre bem (vale também entre uma troca e outra).
+                  {vinculoFornecedor.pode_trocar_a_partir_de ? (
+                    <>
+                      {" "}
+                      Troca ou remoção do víncio com a equipe a partir de{" "}
+                      <span className="font-semibold">{formatDate(vinculoFornecedor.pode_trocar_a_partir_de.slice(0, 10))}</span>.
+                    </>
+                  ) : null}{" "}
+                  Em caso de erro grave do fornecedor (pedidos errados, descumprimento), fale com o suporte DropCore.
+                </p>
+              ) : (
+                <p>
+                  {vinculoFornecedor.pode_trocar_a_partir_de ? (
+                    <>
+                      <strong>Já liberado desde {formatDate(vinculoFornecedor.pode_trocar_a_partir_de.slice(0, 10))}</strong> — fale com o <strong>suporte DropCore</strong> para trocar de armazém ou ajustar o víncio (a alteração é feita pela equipe no painel).
+                    </>
+                  ) : (
+                    <>
+                      Você pode solicitar troca ou desvinculação de armazém pelo <strong>suporte DropCore</strong>. A alteração é feita pela equipe no painel.
+                    </>
+                  )}{" "}
+                  A cada troca efetiva, o período mínimo de <strong>{vinculoFornecedor.meses_minimos} meses</strong> volta a contar com o novo armazém.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => setModalArmazem(false)}
+                className="w-full rounded-xl bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-2.5 text-sm hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors"
+              >
+                Entendi
               </button>
             </div>
           </div>
