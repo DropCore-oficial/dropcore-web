@@ -1,20 +1,44 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { FornecedorNav } from "../FornecedorNav";
 import { AlteracoesCatalogoInfoBanner } from "@/components/fornecedor/AlteracoesCatalogoInfoBanner";
-import { FotoVariacaoCell } from "@/components/FotoVariacaoCell";
+import { FotoVariacaoCell, type FotoVariacaoCellHandle } from "@/components/FotoVariacaoCell";
 import { toTitleCase } from "@/lib/formatText";
 import { fornecedorProdutoImagemSrc } from "@/lib/fornecedorProdutoImagemSrc";
 import { getResumoRascunhoCriarVariantes, type ResumoRascunhoCriarVariantes } from "@/lib/fornecedorCriarVariantesRascunho";
 import { ProdutoResumoListaGrupo } from "@/components/fornecedor/ProdutoResumoListaGrupo";
-import { AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_BODY, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
 
 const BRL_CUSTO_FORNECEDOR = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+
+function closeFornecedorVariantMenu(fromEl: HTMLElement) {
+  const d = fromEl.closest("details");
+  if (d) d.removeAttribute("open");
+}
+
+/** Três pontinhos horizontais (⋯ estilo lista / print). */
+function IconTresPontosHorizontais({ size = 16, className }: { size?: number; className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden
+    >
+      <circle cx="5" cy="12" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="19" cy="12" r="2" />
+    </svg>
+  );
+}
 
 /** Só `custo_base` — o que o fornecedor cadastrou (não mostrar taxa DropCore). */
 function fmtCustoBaseFornecedor(v: number | null | undefined): string {
@@ -243,6 +267,8 @@ export default function FornecedorProdutosPage() {
   const [expandido, setExpandido] = useState<Set<string>>(new Set());
   const [modoListaVariantes, setModoListaVariantes] = useState<"agrupado-cor" | "sku">("agrupado-cor");
   const [mostrarFotosVariantes, setMostrarFotosVariantes] = useState<boolean>(true);
+  /** Refs por `gc.key` para menu ⋮ (trocar / excluir foto) nos cartões «agrupado por cor». */
+  const fotoPorCorHandleRef = useRef<Record<string, FotoVariacaoCellHandle | null>>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [solicitandoExclusao, setSolicitandoExclusao] = useState<string | null>(null);
   const [alteracoesStatus, setAlteracoesStatus] = useState<{
@@ -700,9 +726,9 @@ export default function FornecedorProdutosPage() {
                                 {todosInativos && (
                                   <span
                                     className={cn(
-                                      AMBER_PREMIUM_SURFACE_TRANSPARENT,
+                                      AMBER_PREMIUM_SHELL,
                                       AMBER_PREMIUM_TEXT_PRIMARY,
-                                      "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
+                                      "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold shadow-none"
                                     )}
                                   >
                                     Inativo
@@ -711,9 +737,9 @@ export default function FornecedorProdutosPage() {
                                 {statusAlteracaoGrupo(g) === "pendente" && (
                                   <span
                                     className={cn(
-                                      AMBER_PREMIUM_SURFACE_TRANSPARENT,
+                                      AMBER_PREMIUM_SHELL,
                                       AMBER_PREMIUM_TEXT_PRIMARY,
-                                      "shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium"
+                                      "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium shadow-none"
                                     )}
                                     title="Alteração aguardando aprovação do admin"
                                   >
@@ -739,9 +765,9 @@ export default function FornecedorProdutosPage() {
                               <details data-menu-acoes className="group relative open:z-40">
                                 <summary
                                   aria-label="Ações do produto"
-                                  className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md text-base font-semibold text-[var(--foreground)] transition hover:bg-[var(--muted)]/12 [&::-webkit-details-marker]:hidden"
+                                  className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-[var(--muted)]/12 hover:text-[var(--foreground)] [&::-webkit-details-marker]:hidden"
                                 >
-                                  ⋯
+                                  <IconTresPontosHorizontais size={17} />
                                 </summary>
                                 <div className="absolute right-0 z-20 mt-1.5 min-w-[10rem] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-1 shadow-md">
                                   <Link
@@ -869,7 +895,7 @@ export default function FornecedorProdutosPage() {
                       ) : null}
                       {mostrarFotosVariantes && modoListaVariantes === "agrupado-cor" && (
                         <>
-                          <div className="min-w-0 border-t border-[var(--card-border)] bg-[var(--card)] p-3 sm:p-4">
+                          <div className="min-w-0 border-t border-[var(--card-border)] bg-[var(--card)] p-4">
                             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-3">
                             {gruposCor.map((gc) => {
                               const rowCor = gc.itens[0];
@@ -920,49 +946,105 @@ export default function FornecedorProdutosPage() {
                                   className="min-w-0 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm transition-colors hover:border-emerald-500/35"
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  {/* Cabeçalho igual ao desktop / print: título + badge; abaixo “Preço … · Total…”; à direita Ver fotos / Editar */}
-                                  <div className="flex min-w-0 items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <p className="text-sm font-bold tracking-tight text-[var(--foreground)]">
+                                  {/* Cabeçalho: linha 1 = cor + ações; linha 2 = preço/estoque em largura total (evita quebra no meio de “Total em estoque”) */}
+                                  <div className="min-w-0 space-y-2.5">
+                                    <div className="flex min-w-0 flex-nowrap items-center justify-between gap-2">
+                                      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                                        <p className="min-w-0 truncate text-sm font-bold tracking-tight text-[var(--foreground)]">
                                           {gc.corLabel}
                                         </p>
                                         <span className="inline-flex shrink-0 rounded-full bg-[var(--muted)]/12 px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">
                                           {gc.itens.length} SKU(s)
                                         </span>
                                       </div>
-                                      <p className="mt-1.5 text-sm leading-snug">
-                                        <span className="font-bold text-[var(--foreground)]">Preço {custoTxt}</span>
-                                        <span className="font-normal text-[var(--muted)]"> · Total em estoque: {estoqueTotal}</span>
-                                      </p>
-                                    </div>
-                                    <div className="flex shrink-0 gap-2">
-                                      {lfCor ? (
-                                        <a
-                                          href={lfCor}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="inline-flex h-8 items-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-2.5 text-xs font-medium text-[var(--foreground)] shadow-sm transition hover:bg-[var(--muted)]/10"
-                                        >
-                                          Ver fotos
-                                        </a>
-                                      ) : null}
-                                      <button
-                                        type="button"
-                                        onClick={() => openEdit(rowCor)}
-                                        className="inline-flex h-8 touch-manipulation items-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-2.5 text-xs font-medium text-[var(--foreground)] shadow-sm transition hover:bg-[var(--muted)]/10"
+                                      <details
+                                        className="relative shrink-0"
+                                        onClick={(e) => e.stopPropagation()}
                                       >
-                                        Editar
-                                      </button>
+                                        <summary
+                                          className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] shadow-sm transition hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] [&::-webkit-details-marker]:hidden"
+                                          aria-label="Mais opções desta cor"
+                                        >
+                                          <IconTresPontosHorizontais size={18} />
+                                        </summary>
+                                        <div className="absolute right-0 top-[calc(100%+6px)] z-40 min-w-[12.5rem] rounded-xl border border-[var(--card-border)] bg-[var(--card)] py-1 shadow-lg ring-1 ring-[var(--foreground)]/[0.05]">
+                                          <button
+                                            type="button"
+                                            className="block w-full px-3 py-2.5 text-left text-sm text-[var(--foreground)] transition hover:bg-[var(--muted)]/12"
+                                            onClick={(e) => {
+                                              closeFornecedorVariantMenu(e.currentTarget);
+                                              openEdit(rowCor);
+                                            }}
+                                          >
+                                            Editar
+                                          </button>
+                                          {lfCor ? (
+                                            <a
+                                              href={lfCor}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="block w-full px-3 py-2.5 text-left text-sm text-[var(--foreground)] transition hover:bg-[var(--muted)]/12"
+                                              onClick={(e) => closeFornecedorVariantMenu(e.currentTarget)}
+                                            >
+                                              Ver fotos
+                                            </a>
+                                          ) : (
+                                            <span className="block cursor-not-allowed px-3 py-2.5 text-left text-sm text-[var(--muted)] opacity-50">
+                                              Ver fotos
+                                            </span>
+                                          )}
+                                          <button
+                                            type="button"
+                                            className="block w-full px-3 py-2.5 text-left text-sm text-[var(--primary-blue)] transition hover:bg-[var(--muted)]/12"
+                                            onClick={(e) => {
+                                              closeFornecedorVariantMenu(e.currentTarget);
+                                              fotoPorCorHandleRef.current[gc.key]?.pickFile();
+                                            }}
+                                          >
+                                            Trocar foto
+                                          </button>
+                                          <button
+                                            type="button"
+                                            disabled={!rowCor.imagem_url}
+                                            className="block w-full px-3 py-2.5 text-left text-sm text-[var(--danger)] transition hover:bg-[var(--muted)]/12 disabled:cursor-not-allowed disabled:opacity-40"
+                                            onClick={(e) => {
+                                              closeFornecedorVariantMenu(e.currentTarget);
+                                              fotoPorCorHandleRef.current[gc.key]?.deleteImage();
+                                            }}
+                                          >
+                                            Excluir foto
+                                          </button>
+                                        </div>
+                                      </details>
+                                    </div>
+                                    <div className="flex min-w-0 flex-row items-center justify-between gap-2 rounded-lg bg-[var(--muted)]/8 px-3 py-2 text-xs leading-snug sm:text-sm">
+                                      <span className="min-w-0 pr-1 text-[var(--foreground)]">
+                                        <span className="font-normal">Preço </span>
+                                        <span className="font-semibold tabular-nums">{custoTxt}</span>
+                                      </span>
+                                      <span
+                                        className="h-3.5 w-px shrink-0 bg-[var(--card-border)] opacity-90 sm:h-4"
+                                        aria-hidden
+                                      />
+                                      <span className="shrink-0 whitespace-nowrap pl-1 text-right text-[var(--muted)]">
+                                        Total em estoque:{" "}
+                                        <span className="font-semibold tabular-nums text-[var(--foreground)]">{estoqueTotal}</span>
+                                      </span>
                                     </div>
                                   </div>
 
-                                  {/* Corpo: só miniatura + links à esquerda (92px); tabela à direita — mesmo layout mobile e desktop */}
-                                  <div className="mt-3 grid min-w-0 grid-cols-[92px_minmax(0,1fr)] items-start gap-3">
-                                    <div className="flex w-[92px] shrink-0 flex-col items-center gap-1">
+                                  {/* Mobile: foto em cima + tabela largura total (sem scroll lateral). md+: igual desktop, foto | tabela com links alinhados à GG. */}
+                                  <div className="mt-4 flex min-w-0 flex-col gap-4 md:grid md:grid-cols-[10rem_minmax(0,1fr)] md:items-stretch md:gap-x-4">
+                                    <div className="flex w-full min-w-0 max-w-full shrink-0 flex-col md:h-full md:min-h-0 md:max-w-[10rem]">
                                     {mostrarFotosVariantes ? (
                                       <FotoVariacaoCell
+                                        ref={(node) => {
+                                          if (node) fotoPorCorHandleRef.current[gc.key] = node;
+                                          else delete fotoPorCorHandleRef.current[gc.key];
+                                        }}
                                         variant="stacked"
+                                        stackedSize="large"
+                                        stackedHideInlineActions
                                         skuId={rowCor.id}
                                         imagemUrl={rowCor.imagem_url ?? null}
                                         fallbackImagemUrl={fallbackCor || fallbackImagemSkuPai(rowCor, g)}
@@ -1001,11 +1083,21 @@ export default function FornecedorProdutosPage() {
                                         }}
                                       />
                                     ) : (
-                                      <div className="h-20 w-20 shrink-0 rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--muted)]/8" />
+                                      <>
+                                        <div className="hidden h-full min-h-0 flex-col md:flex">
+                                          <div className="flex min-h-0 flex-1 flex-col items-center justify-end pb-0.5">
+                                            <div className="h-40 w-40 shrink-0 rounded-xl border border-dashed border-[var(--card-border)] bg-[var(--muted)]/8" />
+                                          </div>
+                                          <div className="shrink-0 py-2" aria-hidden />
+                                        </div>
+                                        <div className="w-full md:hidden">
+                                          <div className="aspect-square w-full shrink-0 rounded-xl border border-dashed border-[var(--card-border)] bg-[var(--muted)]/8" />
+                                        </div>
+                                      </>
                                     )}
                                     </div>
-                                    <div className="dropcore-scroll-x min-w-0 self-start overflow-x-auto rounded-xl border border-[var(--card-border)] bg-[var(--card)]">
-                                        <div className="grid min-w-[min(100%,17.5rem)] grid-cols-[4.5rem_minmax(0,1fr)_3rem] border-b border-[var(--card-border)] bg-[var(--surface-subtle)] px-2.5 py-2 text-[11px] font-bold text-[var(--muted)]">
+                                    <div className="min-w-0 w-full max-w-full overflow-x-visible rounded-xl bg-[var(--card)] max-md:overflow-hidden max-md:border-0 max-md:shadow-none md:border md:border-[var(--card-border)] md:shadow-sm md:overflow-x-auto md:[-webkit-overflow-scrolling:touch] md:overscroll-x-contain">
+                                        <div className="grid w-full min-w-0 grid-cols-[4.5rem_minmax(0,1fr)_3rem] rounded-t-xl border-b border-[var(--card-border)] bg-[var(--surface-subtle)] px-2.5 py-2 text-[11px] font-bold text-[var(--muted)] md:rounded-t-none">
                                           <span>Numeração</span>
                                           <span className="min-w-0">SKU</span>
                                           <span className="text-right">Qtd.</span>
@@ -1013,10 +1105,10 @@ export default function FornecedorProdutosPage() {
                                         {itensOrdenados.map((p) => (
                                           <div
                                             key={p.id}
-                                            className="grid grid-cols-[4.5rem_minmax(0,1fr)_3rem] items-center border-b border-[var(--card-border)]/50 px-2.5 py-2 text-xs last:border-b-0"
+                                            className="grid w-full min-w-0 grid-cols-[4.5rem_minmax(0,1fr)_3rem] items-center border-b border-[var(--card-border)]/50 px-2.5 py-2 text-xs last:border-b-0 max-md:last:rounded-b-xl"
                                           >
                                             <span className="font-bold text-[var(--foreground)]">{(p.tamanho ?? "—").toUpperCase()}</span>
-                                            <span className="min-w-0 break-all font-normal font-mono text-[11px] leading-snug text-[var(--muted)]">{p.sku}</span>
+                                            <span className="min-w-0 whitespace-nowrap font-mono text-[11px] font-normal leading-snug text-[var(--muted)]">{p.sku}</span>
                                             <span className={`text-right text-xs font-bold tabular-nums ${(p.estoque_atual ?? 0) <= 0 ? "text-[var(--danger)]" : "text-[var(--foreground)]"}`}>
                                               {p.estoque_atual != null ? p.estoque_atual : "—"}
                                             </span>
@@ -1401,7 +1493,7 @@ export default function FornecedorProdutosPage() {
                   placeholder="Só preencha se for diferente do CD padrão no cadastro da empresa. Ex.: CD Santa Catarina + endereço completo."
                   className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40 resize-y min-h-[4rem]"
                 />
-                <p className="text-[10px] text-[var(--muted)] mt-1 leading-snug">
+                <p className={cn("mt-1 text-[10px] leading-snug", AMBER_PREMIUM_TEXT_BODY)}>
                   Alterações seguem para análise da DropCore como os outros campos.
                 </p>
               </div>

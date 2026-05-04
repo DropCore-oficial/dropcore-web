@@ -4,8 +4,10 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  AMBER_PREMIUM_ACCENT_BAR,
   AMBER_PREMIUM_DOT,
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
+  AMBER_PREMIUM_TEXT_BODY,
   AMBER_PREMIUM_TEXT_PRIMARY,
   AMBER_PREMIUM_TEXT_SECONDARY,
   amberPremiumWarningMainTextClass,
@@ -209,7 +211,7 @@ function GradeBadge({ value }: { value: number }) {
         <span className={cn("shrink-0 font-normal", AMBER_PREMIUM_DOT)} aria-hidden>
           ·
         </span>
-        <span className={cn("min-w-0 font-normal", AMBER_PREMIUM_TEXT_SECONDARY)}>concluído</span>
+        <span className={cn("min-w-0 font-normal", AMBER_PREMIUM_TEXT_BODY)}>concluído</span>
       </span>
     );
   }
@@ -407,47 +409,44 @@ export function ProdutoResumoListaGrupo({
           <ProgressBar value={score} />
         </div>
 
-        <div className="mt-5 rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-3.5 sm:p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-semibold text-[var(--foreground)]">Próximas ações prioritárias</p>
+        <div className="mt-5 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-3 sm:p-3.5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <p className="text-[13px] font-semibold tracking-tight text-[var(--foreground)]">Próximas ações prioritárias</p>
             <Link
               href={editHref}
-              className="inline-flex h-8 shrink-0 items-center justify-center self-start rounded-lg bg-[var(--primary-blue)] px-3.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[var(--primary-blue-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)] focus:ring-offset-2 focus:ring-offset-[var(--card)] sm:self-auto"
+              className="inline-flex h-8 shrink-0 items-center justify-center self-start rounded-lg bg-[var(--primary-blue)] px-3 text-[12px] font-medium text-white shadow-none ring-1 ring-[var(--primary-blue)]/20 transition hover:bg-[var(--primary-blue-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)] focus:ring-offset-2 focus:ring-offset-[var(--card)] sm:self-auto"
             >
               Resolver agora
             </Link>
           </div>
           {acoesPrioritarias.length > 0 ? (
-            <div className="mt-3 flex min-w-0 flex-nowrap gap-2">
+            <div className="mt-2.5 flex min-w-0 flex-col gap-1.5 lg:mt-2 lg:flex-row lg:flex-nowrap lg:gap-2">
               {acoesPrioritarias.map((acao) => {
-                const shell =
-                  acao.impacto === "alto"
-                    ? AMBER_PREMIUM_SURFACE_TRANSPARENT
-                    : "border border-[var(--card-border)] bg-[var(--card)]";
                 const prefix = acao.impacto === "alto" ? "Alta prioridade" : "Melhoria";
                 return (
                   <span
                     key={acao.id}
                     title={`${prefix} · ${acao.titulo}`}
                     className={cn(
-                      "flex min-h-9 min-w-0 flex-1 basis-0 items-center gap-x-1 overflow-hidden rounded-xl px-2.5 py-2 text-xs leading-tight",
-                      acao.impacto === "alto" ? "shadow-none" : "shadow-sm dark:shadow-none",
-                      shell
+                      "flex w-full min-w-0 flex-col gap-0.5 rounded-lg border border-[var(--card-border)] px-2.5 py-2 text-[11px] leading-relaxed shadow-none lg:flex-1 lg:basis-0 lg:flex-row lg:items-baseline lg:gap-x-2 lg:overflow-hidden lg:px-3 lg:py-2",
+                      acao.impacto === "alto"
+                        ? cn(AMBER_PREMIUM_ACCENT_BAR, "bg-transparent pl-[9px]")
+                        : "border-l-[3px] border-l-emerald-800 bg-transparent pl-[9px] dark:border-l-emerald-400"
                     )}
                   >
                     <span
                       className={
                         acao.impacto === "alto"
-                          ? cn("shrink-0 font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)
-                          : "shrink-0 font-semibold text-[var(--foreground)]"
+                          ? cn("shrink-0 text-[11px] font-medium tracking-tight", AMBER_PREMIUM_TEXT_PRIMARY)
+                          : "shrink-0 text-[11px] font-semibold tracking-tight text-emerald-800 dark:text-emerald-400"
                       }
                     >
                       {prefix}
                     </span>
                     <span
                       className={cn(
-                        "shrink-0 font-normal",
-                        acao.impacto === "alto" ? AMBER_PREMIUM_DOT : "text-[var(--muted)]"
+                        "hidden shrink-0 text-[11px] font-normal lg:inline",
+                        acao.impacto === "alto" ? AMBER_PREMIUM_DOT : "text-emerald-700/55 dark:text-emerald-400/90"
                       )}
                       aria-hidden
                     >
@@ -455,8 +454,10 @@ export function ProdutoResumoListaGrupo({
                     </span>
                     <span
                       className={cn(
-                        "min-w-0 flex-1 truncate font-normal",
-                        acao.impacto === "alto" ? AMBER_PREMIUM_TEXT_SECONDARY : "text-[var(--foreground)]"
+                        "min-w-0 break-words text-[12px] font-normal leading-snug lg:flex-1 lg:truncate",
+                        acao.impacto === "alto"
+                          ? AMBER_PREMIUM_TEXT_PRIMARY
+                          : "text-emerald-900 dark:text-emerald-300"
                       )}
                     >
                       {acao.titulo}

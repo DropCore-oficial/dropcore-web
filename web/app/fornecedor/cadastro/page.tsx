@@ -570,42 +570,47 @@ export default function FornecedorCadastroPage() {
   }
 
   const inputClass =
-    "w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2.5 text-sm uppercase text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-neutral-500 dark:focus:ring-neutral-400";
+    "w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm uppercase text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40";
   const btnAtalhoNumero =
-    "rounded-full border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--foreground)] transition hover:bg-[var(--background)] disabled:cursor-not-allowed disabled:opacity-50";
+    "rounded-full border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="dropcore-shell-4xl py-5 space-y-6">
-        <div>
-          <Link
-            href="/fornecedor/dashboard"
-            className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] inline-flex items-center gap-1 transition-colors"
+      <div className="dropcore-shell-4xl space-y-5 py-5 md:space-y-6 md:py-7">
+        <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
+          <div className="min-w-0 space-y-1">
+            <Link
+              href="/fornecedor/dashboard"
+              className="inline-flex items-center gap-2.5 text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+              Voltar
+            </Link>
+            <p className="text-sm font-medium uppercase leading-snug tracking-wide text-emerald-700/90 dark:text-emerald-400/90">Cadastro</p>
+            <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">Cadastro da empresa</h1>
+            <p className="text-sm leading-snug text-[var(--muted)]">Identificação, contato e dados para receber repasses.</p>
+          </div>
+        </header>
+
+        {error && (
+          <div className="rounded-2xl border border-[var(--danger)]/40 bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/35 dark:text-red-300">
+            {error}
+          </div>
+        )}
+        {okMsg && (
+          <div className="rounded-2xl border border-emerald-500/35 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-700/50 dark:bg-emerald-950/25 dark:text-emerald-300">
+            {okMsg}
+          </div>
+        )}
+
+        <form onSubmit={salvar} className="space-y-5 md:space-y-6">
+          <section
+            id="empresa"
+            className="space-y-5 overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5"
           >
-            ← Voltar ao dashboard
-          </Link>
-        </div>
-
-        <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm overflow-visible">
-          <h1 className="text-lg font-semibold text-[var(--foreground)] mb-1">Cadastro da empresa</h1>
-          <p className="text-xs text-[var(--muted)] mb-6">
-            Identificação, contato e dados para receber repasses
-          </p>
-
-          {error && (
-            <div className="rounded-lg border border-[var(--danger)]/40 bg-red-50 dark:bg-red-950/35 px-4 py-3 text-sm text-red-800 dark:text-red-300 mb-4">
-              {error}
-            </div>
-          )}
-          {okMsg && (
-            <div className="rounded-lg border border-emerald-500/35 dark:border-emerald-700/50 bg-emerald-50 dark:bg-emerald-950/25 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 mb-4">
-              {okMsg}
-            </div>
-          )}
-
-          <form onSubmit={salvar} className="space-y-8">
-            <section id="empresa" className="space-y-5">
-              <h2 className="text-sm font-semibold text-[var(--foreground)] border-b border-[var(--card-border)] pb-2">
+              <h2 className="border-b border-[var(--card-border)] pb-2 text-sm font-semibold text-[var(--foreground)]">
                 Empresa e contato
               </h2>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -617,7 +622,7 @@ export default function FornecedorCadastroPage() {
                       className="h-24 w-24 shrink-0 rounded-2xl border-0 object-contain bg-transparent p-0 outline-none ring-0"
                     />
                   ) : (
-                    <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-[var(--background)] px-2 text-center text-[11px] text-[var(--muted)]">
+                    <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-dashed border-[var(--card-border)] bg-[var(--muted)]/8 px-2 text-center text-[11px] text-[var(--muted)]">
                       Sem logo
                     </div>
                   )}
@@ -632,7 +637,7 @@ export default function FornecedorCadastroPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <label
                       className={cn(
-                        "inline-flex cursor-pointer items-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)]",
+                        "inline-flex cursor-pointer items-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)]/10",
                         logoUploading && "pointer-events-none opacity-60",
                       )}
                     >
@@ -654,7 +659,7 @@ export default function FornecedorCadastroPage() {
                         type="button"
                         onClick={() => void removeLogo()}
                         disabled={logoUploading}
-                        className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--muted)] hover:bg-[var(--background)] hover:text-[var(--foreground)] disabled:opacity-60"
+                        className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] disabled:opacity-60"
                       >
                         Remover
                       </button>
@@ -690,7 +695,7 @@ export default function FornecedorCadastroPage() {
                     type="button"
                     onClick={buscarDadosCnpj}
                     disabled={loadingCnpj}
-                    className="shrink-0 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--background)] disabled:opacity-60"
+                    className="min-h-10 shrink-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-100 disabled:opacity-60 dark:text-neutral-300 dark:hover:bg-neutral-800"
                   >
                     {loadingCnpj ? "Buscando..." : "Buscar CNPJ"}
                   </button>
@@ -993,8 +998,11 @@ export default function FornecedorCadastroPage() {
               </div>
             </section>
 
-            <section id="repasse" className="space-y-5 overflow-visible">
-              <h2 className="text-sm font-semibold text-[var(--foreground)] border-b border-[var(--card-border)] pb-2">
+            <section
+              id="repasse"
+              className="space-y-5 overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5"
+            >
+              <h2 className="border-b border-[var(--card-border)] pb-2 text-sm font-semibold text-[var(--foreground)]">
                 Editar dados bancários e PIX (repasse)
               </h2>
               <p className="text-xs leading-relaxed text-[var(--muted)] -mt-2">
@@ -1076,7 +1084,7 @@ export default function FornecedorCadastroPage() {
                 >
                   <input
                     type="checkbox"
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--card-border)] bg-[var(--background)]"
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--card-border)] bg-[var(--surface-subtle)] text-emerald-600 focus:ring-emerald-500/40"
                     checked={confirmoRepasseTitularCnpj}
                     onChange={(e) => setConfirmoRepasseTitularCnpj(e.target.checked)}
                   />
@@ -1100,7 +1108,6 @@ export default function FornecedorCadastroPage() {
               </button>
             </div>
           </form>
-        </div>
       </div>
       <FornecedorNav active="cadastro" />
     </div>

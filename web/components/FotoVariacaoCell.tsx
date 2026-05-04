@@ -1,7 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import { fornecedorProdutoImagemSrc, linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
+
+export type FotoVariacaoCellHandle = {
+  pickFile: () => void;
+  deleteImage: () => void;
+};
 
 type Props = {
   skuId: string;
@@ -18,19 +23,28 @@ type Props = {
   /** `stacked`: miniatura em cima e ações em baixo — melhor em listas estreitas (mobile). */
   /** `table`: célula de tabela — miniatura e links alinhados ao centro na linha. */
   variant?: "row" | "stacked" | "table";
+  /** Só `variant="stacked"`: `large` = miniatura maior (cartões por cor no catálogo fornecedor). */
+  stackedSize?: "default" | "large";
+  /** Com `stacked` + `large`: esconde «Trocar»/«Excluir» — usar menu externo + `ref` (`pickFile` / `deleteImage`). */
+  stackedHideInlineActions?: boolean;
 };
 
 type PreviewMode = "off" | "hover" | "fixo";
 
-export function FotoVariacaoCell({
-  skuId,
-  imagemUrl,
-  fallbackImagemUrl = null,
-  linkFotosUrl = null,
-  onUpdate,
-  getToken,
-  variant = "row",
-}: Props) {
+export const FotoVariacaoCell = forwardRef<FotoVariacaoCellHandle | null, Props>(function FotoVariacaoCell(
+  {
+    skuId,
+    imagemUrl,
+    fallbackImagemUrl = null,
+    linkFotosUrl = null,
+    onUpdate,
+    getToken,
+    variant = "row",
+    stackedSize = "default",
+    stackedHideInlineActions = false,
+  },
+  ref
+) {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<PreviewMode>("off");
@@ -113,18 +127,40 @@ export function FotoVariacaoCell({
     }
   }
 
+  const handleDeleteRef = useRef(handleDelete);
+  handleDeleteRef.current = handleDelete;
+
+  useImperativeHandle(ref, () => ({
+    pickFile: () => {
+      inputRef.current?.click();
+    },
+    deleteImage: () => {
+      void handleDeleteRef.current();
+    },
+  }));
+
   const mostraThumb = Boolean(urlExibicao) && !imgErro;
   const srcImagem = urlExibicao ? fornecedorProdutoImagemSrc(urlExibicao) : "";
   const previewAberto = previewMode !== "off";
 
   const stacked = variant === "stacked";
   const table = variant === "table";
-  /* Empilhado: mesma densidade do desktop (lg) em todos os breakpoints — mais espaço para a tabela no mobile */
-  const box = stacked ? "h-20 w-20" : table ? "w-12 h-12" : "w-12 h-12";
-  const imgPx = stacked ? 80 : table ? 48 : 48;
-  const iconSz = stacked ? 18 : table ? 16 : 20;
-  const hoverPreviewW = stacked ? 340 : table ? 240 : 260;
-  const hoverPreviewH = stacked ? 400 : 320;
+  const stackedLarge = stacked && stackedSize === "large";
+  const hideStackedRow = stackedLarge && stackedHideInlineActions;
+  /* `default`: lista compacta. `large`: cartão por cor — mobile: foto largura total (alinhada à tabela); md+: 160px e coluna fixa. */
+  const box = stacked
+    ? stackedLarge
+      ? "aspect-square w-full shrink-0 md:aspect-auto md:h-40 md:w-40"
+      : "h-20 w-20"
+    : table
+      ? "w-12 h-12"
+      : "w-12 h-12";
+  const imgPx = stacked ? (stackedLarge ? 160 : 80) : table ? 48 : 48;
+  const iconSz = stacked ? (stackedLarge ? 24 : 18) : table ? 16 : 20;
+  const stackedColClass = stackedLarge ? "w-full min-w-0 md:w-40" : "w-[92px]";
+  const stackedErrMaxClass = stackedLarge ? "max-w-full md:max-w-[10rem]" : "max-w-[92px]";
+  const hoverPreviewW = stacked ? (stackedLarge ? 400 : 340) : table ? 240 : 260;
+  const hoverPreviewH = stacked ? (stackedLarge ? 460 : 400) : 320;
 
   function abrirPreviewHoverPorAnchor(el: HTMLElement) {
     const r = el.getBoundingClientRect();
@@ -154,7 +190,7 @@ export function FotoVariacaoCell({
   ) : null;
 
   const thumbBlock = mostraThumb ? (
-    <div className="relative">
+    <div className={stackedLarge ? "relative w-full min-w-0" : "relative"}>
       <button
         type="button"
         onPointerDown={(e) => {
@@ -174,7 +210,7 @@ export function FotoVariacaoCell({
             setPreviewMode((m) => (m === "fixo" ? "off" : "fixo"));
           }
         }}
-        className={`shrink-0 ${box} rounded border border-[var(--card-border)] overflow-hidden bg-[var(--card)] p-0 block focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)] cursor-pointer touch-manipulation`}
+        className={`shrink-0 max-md:min-w-0 ${box} ${stackedLarge ? "rounded-xl" : "rounded"} border border-[var(--card-border)] overflow-hidden bg-[var(--card)] p-0 block max-md:w-full focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)] cursor-pointer touch-manipulation`}
       >
         <img
           src={srcImagem}
@@ -219,7 +255,7 @@ export function FotoVariacaoCell({
     </div>
   ) : (
     <div
-      className={`shrink-0 ${box} rounded border border-dashed border-[var(--card-border)] bg-[var(--card)] flex items-center justify-center`}
+      className={`shrink-0 ${box} ${stackedLarge ? "rounded-xl" : "rounded"} border border-dashed border-[var(--card-border)] bg-[var(--card)] flex items-center justify-center`}
     >
       <svg xmlns="http://www.w3.org/2000/svg" width={iconSz} height={iconSz} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted)]">
         <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -229,58 +265,95 @@ export function FotoVariacaoCell({
     </div>
   );
 
-  const actions = (
+  const fileInput = (
+    <input
+      ref={inputRef}
+      type="file"
+      accept="image/jpeg,image/png,image/webp,image/gif"
+      className="hidden"
+      onChange={handleUpload}
+      disabled={loading}
+    />
+  );
+
+  const actions =
+    stackedLarge && hideStackedRow ? (
+      fileInput
+    ) : (
     <div
-      className={`flex flex-col gap-0.5 ${stacked ? "w-full items-center" : ""} ${table ? "min-w-0 justify-center" : ""}`}
+      className={
+        table
+          ? "flex min-w-0 flex-col justify-center gap-0.5"
+          : stackedLarge
+            ? "flex w-full min-w-0 flex-row flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 py-2 text-[11px] font-normal leading-snug"
+            : stacked
+              ? "flex w-full flex-col items-center gap-0.5"
+              : ""
+      }
     >
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
-        className="hidden"
-        onChange={handleUpload}
-        disabled={loading}
-      />
+      {fileInput}
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={loading}
-        className={`text-left disabled:opacity-50 touch-manipulation ${
-          stacked
-            ? "inline-flex h-auto min-h-0 w-full items-center justify-center border-0 bg-transparent px-0 py-0.5 text-[11px] font-medium text-[var(--primary-blue)] shadow-none hover:underline hover:underline-offset-2 disabled:hover:no-underline"
-            : table
-              ? "whitespace-nowrap text-[11px] font-medium leading-tight text-[var(--primary-blue)] hover:text-[var(--primary-blue-hover)]"
-              : "text-xs text-[var(--primary-blue)] hover:text-[var(--primary-blue-hover)]"
+        className={`disabled:opacity-50 touch-manipulation ${
+          stackedLarge
+            ? "whitespace-nowrap border-0 bg-transparent px-0 py-0.5 text-[11px] font-normal text-[var(--primary-blue)] shadow-none hover:underline hover:underline-offset-2 hover:text-[var(--primary-blue-hover)] disabled:opacity-50"
+            : stacked
+              ? "inline-flex h-auto min-h-0 w-full items-center justify-center border-0 bg-transparent px-0 py-0.5 text-left text-[11px] font-medium text-[var(--primary-blue)] shadow-none hover:underline hover:underline-offset-2 disabled:hover:no-underline"
+              : table
+                ? "whitespace-nowrap text-left text-[11px] font-medium leading-tight text-[var(--primary-blue)] hover:text-[var(--primary-blue-hover)]"
+                : "text-left text-xs text-[var(--primary-blue)] hover:text-[var(--primary-blue-hover)]"
         }`}
       >
         {mostraThumb ? "Trocar" : "Enviar"}
       </button>
       {temImagemSalva && (
-        <button
-          type="button"
-          onClick={handleDelete}
-          disabled={loading}
-          className={`text-left disabled:opacity-50 ${
-            stacked
-              ? "inline-flex h-auto min-h-0 w-full items-center justify-center border-0 bg-transparent px-0 py-0.5 text-[11px] font-medium text-[var(--danger)] shadow-none hover:underline hover:underline-offset-2 disabled:hover:no-underline"
-              : table
-                ? "whitespace-nowrap text-[11px] leading-tight text-[var(--danger)] hover:opacity-90"
-                : "text-xs text-[var(--danger)] hover:opacity-90"
-          }`}
-        >
-          Excluir
-        </button>
+        <>
+          {stackedLarge ? (
+            <span className="select-none text-[var(--muted)]" aria-hidden>
+              ·
+            </span>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={loading}
+            className={`disabled:opacity-50 ${
+              stackedLarge
+                ? "whitespace-nowrap border-0 bg-transparent px-0 py-0.5 text-[11px] font-normal text-[var(--danger)] shadow-none hover:underline hover:underline-offset-2 hover:opacity-90 disabled:opacity-50"
+                : stacked
+                  ? "inline-flex h-auto min-h-0 w-full items-center justify-center border-0 bg-transparent px-0 py-0.5 text-left text-[11px] font-medium text-[var(--danger)] shadow-none hover:underline hover:underline-offset-2 disabled:hover:no-underline"
+                  : table
+                    ? "whitespace-nowrap text-left text-[11px] leading-tight text-[var(--danger)] hover:opacity-90"
+                    : "text-left text-xs text-[var(--danger)] hover:opacity-90"
+            }`}
+          >
+            Excluir
+          </button>
+        </>
       )}
     </div>
-  );
+    );
 
   return (
-    <div className={`relative flex flex-col gap-0.5 ${table ? "min-w-0" : ""}`}>
+    <div
+      className={`relative flex flex-col ${table || stackedLarge ? "min-w-0" : ""} ${stacked && stackedLarge ? "w-full max-w-full" : ""} ${stacked && stackedLarge ? `h-full min-h-0 gap-0 max-md:h-auto ${hideStackedRow ? "max-md:gap-0" : "max-md:gap-2"}` : "gap-0.5"}`}
+    >
       {stacked ? (
-        <div className="flex w-[92px] shrink-0 flex-col items-center gap-1">
-          {thumbBlock}
-          {actions}
-        </div>
+        stackedLarge ? (
+          <div className={`flex ${stackedColClass} h-full min-h-0 shrink-0 flex-col max-md:h-auto`}>
+            <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col items-stretch justify-end pb-0.5 pt-0.5 max-md:flex-none max-md:justify-center max-md:pb-0 max-md:pt-0 md:items-center">
+              {thumbBlock}
+            </div>
+            {actions}
+          </div>
+        ) : (
+          <div className={`flex ${stackedColClass} shrink-0 flex-col items-center gap-1`}>
+            {thumbBlock}
+            {actions}
+          </div>
+        )
       ) : table ? (
         <div className="flex min-h-[2.75rem] items-center gap-2.5">
           {thumbBlock}
@@ -293,9 +366,11 @@ export function FotoVariacaoCell({
         </div>
       )}
       {erro && (
-        <p className={stacked ? "max-w-[92px] break-words text-center text-[10px] text-[var(--danger)]" : "text-[10px] text-[var(--danger)]"}>{erro}</p>
+        <p className={stacked ? `${stackedErrMaxClass} break-words text-center text-[10px] text-[var(--danger)]` : "text-[10px] text-[var(--danger)]"}>{erro}</p>
       )}
       {loading && <p className="text-[10px] text-[var(--muted)] text-center">...</p>}
     </div>
   );
-}
+});
+
+FotoVariacaoCell.displayName = "FotoVariacaoCell";

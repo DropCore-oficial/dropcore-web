@@ -9,7 +9,9 @@ alwaysApply: true
 - **Não** duplicar `border-*` light/dark em páginas ou componentes para esse padrão — usar `cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, …)` ou `Alert variant="warning"` / `AmberPremiumCallout`.
 - Ao ajustar contraste em um tema, **alterar o token** para os dois lados (`border …` + `dark:border …`) na mesma string, mantendo coerência com `AMBER_PREMIUM_TEXT_PRIMARY` no claro e âmbar legível no escuro.
 
-Valores atuais (referência; conferir no ficheiro):
+Referência de cor (prints fornecedor; valores finos em `web/lib/amberPremium.ts`):
 
-- Claro: moldura alinhada ao tom do título — `border-amber-900/*`, fundo transparente.
-- Escuro: `dark:border-amber-400/*`, `dark:bg-transparent`.
+- **Claro:** âmbar queimado `#b45309` (texto / molduras em opacidade sobre este tom).
+- **Escuro:** ouro `#F7C348` (vizinho dos prints `#FFD152`) para texto e molduras de alerta.
+
+Quando o utilizador disser “âmbar” ou “cores de alerta” neste contexto, assume **esta** paleta (`AMBER_PREMIUM_*`), não a escala Tailwind `amber-*` genérica fora deste ficheiro.
