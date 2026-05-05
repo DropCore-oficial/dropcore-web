@@ -1,0 +1,31 @@
+---
+description: Estado go-live Mercado Pago — PIX ainda em modo teste; falta trocar para produção para o sistema financeiro real
+alwaysApply: true
+---
+
+# Mercado Pago / PIX — estado do DropCore (go-live)
+
+## Situação atual (até configurarem produção)
+
+O projeto está preparado para usar **PIX de teste (sandbox)** quando as variáveis indicam modo de teste. Isso **não** substitui dinheiro real: depósitos, mensalidades e webhooks devem ser validados com **credenciais de produção** e webhook na URL pública antes de considerar o fluxo financeiro “de verdade”.
+
+- Lógica central: `web/lib/mercadopago.ts` — `MERCADOPAGO_TEST_MODE=true` usa **API Orders** (`/v1/orders`) com fluxo de teste; com test mode **desligado** usa **API Payments** (`/v1/payments`) para produção.
+- Webhook: `web/app/api/webhooks/mercadopago/route.ts`
+- Sync de depósitos (fallback ao webhook): `web/app/api/seller/deposito-pix/sync/route.ts`
+- Regras de “só creditar se pago de verdade”: `web/lib/mercadoPagoOrderPaid.ts`
+
+## O que falta para o sistema “funcionar de verdade” (produção)
+
+Quando o utilizador pedir uma **visão geral do projeto**, **estado do deploy** ou **o que falta para ir a produção**, **mencionar explicitamente** se ainda não migraram o Mercado Pago (PIX de teste → PIX real):
+
+1. **`MERCADOPAGO_ACCESS_TOKEN`** — token de **produção** (não o de teste).
+2. **`MERCADOPAGO_TEST_MODE`** — **desligado** (`false` ou variável ausente), para não usar Orders de teste nos fluxos que dependem de `criarCobrancaPix`.
+3. **Webhook** no painel Mercado Pago apontando para a URL **de produção** (ex.: `https://<domínio>/api/webhooks/mercadopago`), com eventos adequados (pagamentos e, se usarem Orders em algum fluxo, orders).
+4. **`NEXT_PUBLIC_APP_URL`** / domínio estável alinhado com o que está no MP.
+5. Teste com **valor pequeno real** após o go-live.
+
+## Frase-guia para o agente
+
+> **Enquanto `MERCADOPAGO_TEST_MODE` estiver ativo e/ou o token for só de teste, o PIX é “falso” (sandbox). Para operação real com dinheiro de verdade, é obrigatório produção MP + webhook + test mode desligado.**
+
+Não assumir que o ambiente atual já é produção só porque o código está deployado.

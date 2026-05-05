@@ -1,6 +1,6 @@
 /**
  * GET /api/org/plan-limits
- * Retorna limites do plano Starter (vendas/mês, produto+cor) ou null se Pro.
+ * Retorna limites do plano Starter da org (vendas/mês, produto+cor) ou null se Pro.
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";

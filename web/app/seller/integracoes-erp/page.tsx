@@ -10,6 +10,10 @@ import {
   AMBER_PREMIUM_TEXT_PRIMARY,
   AMBER_PREMIUM_TEXT_SOFT,
 } from "@/lib/amberPremium";
+import {
+  DANGER_PREMIUM_SURFACE_TRANSPARENT,
+  DANGER_PREMIUM_TEXT_BODY,
+} from "@/lib/semanticPremium";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { cn } from "@/lib/utils";
 
@@ -307,20 +311,21 @@ export default function SellerIntegracoesErpPage() {
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
       <SellerNav active="integracoes" />
-      <div className="w-full max-w-2xl mx-auto dropcore-px-wide py-6 lg:py-8">
+      <div className="dropcore-shell-4xl py-5 md:py-7 space-y-5 md:space-y-6">
         <SellerPageHeader
+          surface="hero"
           title="Integração ERP"
           subtitle={
             <>
               Conecte seu ERP ao DropCore para enviar pedidos automaticamente (fluxo <strong>marketplace → ERP → DropCore</strong>).
-              <span className="block mt-1.5 text-neutral-600 dark:text-neutral-300">
+              <span className="block mt-1.5 text-[var(--muted)]">
                 Cada linha de pedido na API deve referenciar o <strong>mesmo SKU</strong> exibido em <strong>Catálogo</strong> no painel do seller — sem esse alinhamento, estoque e saldo não batem.
               </span>
             </>
           }
         />
 
-        <div className="mb-5 -mt-1">
+        <div>
           <Link
             href="/seller/integracoes-erp/mapeamento"
             className="inline-flex text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
@@ -330,12 +335,18 @@ export default function SellerIntegracoesErpPage() {
         </div>
 
         {loading ? (
-          <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm p-12 text-center">
-            <span className="inline-block w-8 h-8 border-2 border-neutral-200 dark:border-neutral-700 border-t-emerald-500 rounded-full animate-spin mb-3" />
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">Carregando...</p>
+          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm p-12 text-center">
+            <span className="inline-block w-8 h-8 border-2 border-[var(--card-border)] border-t-emerald-500 rounded-full animate-spin mb-3" />
+            <p className="text-sm text-[var(--muted)]">Carregando...</p>
           </div>
         ) : error ? (
-          <div className="rounded-2xl border border-red-200 dark:border-red-900 bg-red-100 dark:bg-red-950/30 p-5 text-red-700 dark:text-red-300 text-sm">
+          <div
+            className={cn(
+              "rounded-2xl p-5 text-sm",
+              DANGER_PREMIUM_SURFACE_TRANSPARENT,
+              DANGER_PREMIUM_TEXT_BODY
+            )}
+          >
             {error}
           </div>
         ) : (
@@ -349,8 +360,8 @@ export default function SellerIntegracoesErpPage() {
                   <p className="text-emerald-700 dark:text-emerald-300 font-semibold text-sm">Chave gerada com sucesso</p>
                 </div>
                 <p className="text-emerald-600 dark:text-emerald-400 text-xs mb-4">Guarde em local seguro. Ela não será exibida novamente.</p>
-                <div className="flex items-center gap-2 p-4 bg-white dark:bg-neutral-900/60 rounded-xl border border-emerald-300/60 dark:border-emerald-900/50 font-mono text-xs break-all">
-                  <code className="flex-1 text-neutral-900 dark:text-neutral-100">{newKey}</code>
+                <div className="flex items-center gap-2 p-4 bg-[var(--card)] rounded-xl border border-emerald-300/60 dark:border-emerald-900/50 font-mono text-xs break-all">
+                  <code className="flex-1 text-[var(--foreground)]">{newKey}</code>
                   <button
                     type="button"
                     onClick={copiarChave}
@@ -361,27 +372,27 @@ export default function SellerIntegracoesErpPage() {
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900/80 shadow-md hover:shadow-lg transition-shadow p-6 mb-6">
-                <p className="text-neutral-600 dark:text-neutral-400 text-sm mb-4">
+              <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm transition-shadow hover:shadow-md p-6 mb-6">
+                <p className="text-[var(--muted)] text-sm mb-4">
                   {hasKey ? `Chave configurada (termina em ...${prefix ?? ""})` : "Nenhuma chave configurada"}
                 </p>
                 <button
                   type="button"
                   onClick={gerarChave}
                   disabled={generating}
-                  className="rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-4 py-2 text-sm font-semibold hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                  className="rounded-xl bg-[var(--foreground)] text-[var(--background)] px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
                 >
                   {generating ? "Gerando..." : hasKey ? "Gerar nova chave" : "Gerar chave API"}
                 </button>
                 {hasKey && !newKey && (
-                  <p className="text-neutral-500 dark:text-neutral-400 text-xs mt-3">Gerar uma nova chave invalida a anterior.</p>
+                  <p className="text-[var(--muted)] text-xs mt-3">Gerar uma nova chave invalida a anterior.</p>
                 )}
               </div>
             )}
 
-            <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900/80 shadow-md transition-shadow hover:shadow-lg p-6 mb-6">
-              <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-1">Bling</h2>
-              <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-4">
+            <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm transition-shadow hover:shadow-md p-6 mb-6">
+              <h2 className="text-base font-semibold text-[var(--foreground)] mb-1">Bling</h2>
+              <p className="text-xs text-[var(--muted)] mb-4">
                 Conecte sua conta: use o app DropCore no Bling Developers, cole a URL do webhook abaixo e informe aqui o{" "}
                 <strong>companyId</strong> da sua empresa (vem no payload e nos dados da empresa na API).
               </p>
@@ -391,9 +402,9 @@ export default function SellerIntegracoesErpPage() {
                 </p>
               ) : (
                 <>
-                  <label className="block text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-1">URL do webhook (no Bling)</label>
+                  <label className="block text-[11px] uppercase tracking-wide text-[var(--muted)] mb-1">URL do webhook (no Bling)</label>
                   <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                    <code className="flex-1 text-xs break-all rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800/60 px-3 py-2 text-neutral-900 dark:text-neutral-100">
+                    <code className="flex-1 text-xs break-all rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 text-[var(--foreground)]">
                       {blingWebhookUrl || (typeof window !== "undefined" ? `${window.location.origin}/api/webhooks/bling` : "/api/webhooks/bling")}
                     </code>
                     <button
@@ -404,14 +415,14 @@ export default function SellerIntegracoesErpPage() {
                       {blingCopied ? "Copiado!" : "Copiar URL"}
                     </button>
                   </div>
-                  <label className="block text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-1">ID da empresa no Bling (companyId)</label>
+                  <label className="block text-[11px] uppercase tracking-wide text-[var(--muted)] mb-1">ID da empresa no Bling (companyId)</label>
                   <div className="flex flex-col sm:flex-row gap-2 mb-4">
                     <input
                       type="text"
                       value={blingCompanyId}
                       onChange={(e) => setBlingCompanyId(e.target.value)}
                       placeholder="ex.: d4475854366a36c86a37e792f9634a51"
-                      className="flex-1 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100"
+                      className="flex-1 rounded-xl border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)]"
                     />
                     <button
                       type="button"
@@ -422,21 +433,21 @@ export default function SellerIntegracoesErpPage() {
                       {blingSaving ? "Salvando..." : "Salvar"}
                     </button>
                   </div>
-                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-3">
+                  <p className="text-[11px] text-[var(--muted)] mb-3">
                     No servidor de produção, configure <code className="text-xs">BLING_CLIENT_SECRET</code> com o client secret do aplicativo DropCore. Em desenvolvimento local use{" "}
                     <code className="text-xs">BLING_WEBHOOK_SKIP_VERIFY=true</code> no <code className="text-xs">.env.local</code> para testar sem assinatura.
                   </p>
-                  <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200 mb-2">Últimos eventos recebidos (Bling)</h3>
+                  <h3 className="text-sm font-medium text-[var(--foreground)] mb-2">Últimos eventos recebidos (Bling)</h3>
                   {blingEvents.length === 0 ? (
-                    <p className="text-xs text-neutral-600 dark:text-neutral-400">Nenhum webhook ainda. Após autorizar o app e salvar o companyId, os eventos aparecem aqui.</p>
+                    <p className="text-xs text-[var(--muted)]">Nenhum webhook ainda. Após autorizar o app e salvar o companyId, os eventos aparecem aqui.</p>
                   ) : (
                     <ul className="space-y-2">
                       {blingEvents.map((ev) => (
-                        <li key={ev.id} className="rounded-lg border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-xs">
-                          <span className="font-medium text-neutral-900 dark:text-neutral-100">{ev.event_type ?? "—"}</span>
-                          <span className="text-neutral-500 dark:text-neutral-400"> · {new Date(ev.criado_em).toLocaleString("pt-BR")}</span>
+                        <li key={ev.id} className="rounded-lg border border-[var(--card-border)] px-3 py-2 text-xs">
+                          <span className="font-medium text-[var(--foreground)]">{ev.event_type ?? "—"}</span>
+                          <span className="text-[var(--muted)]"> · {new Date(ev.criado_em).toLocaleString("pt-BR")}</span>
                           {ev.bling_event_id && (
-                            <p className="text-[10px] text-neutral-500 mt-0.5 font-mono break-all">eventId: {ev.bling_event_id}</p>
+                            <p className="text-[10px] text-[var(--muted)] mt-0.5 font-mono break-all">eventId: {ev.bling_event_id}</p>
                           )}
                         </li>
                       ))}
@@ -446,13 +457,13 @@ export default function SellerIntegracoesErpPage() {
               )}
             </div>
 
-            <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900/80 shadow-md transition-shadow hover:shadow-lg p-6 mb-6">
-              <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-1">Estoque → seu ERP (webhook)</h2>
-              <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-4 leading-relaxed">
+            <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm transition-shadow hover:shadow-md p-6 mb-6">
+              <h2 className="text-base font-semibold text-[var(--foreground)] mb-1">Estoque → seu ERP (webhook)</h2>
+              <p className="text-xs text-[var(--muted)] mb-4 leading-relaxed">
                 Depois que o <strong>POST /api/erp/pedidos</strong> é aceito (estoque já debitado no DropCore), enviamos um <strong>POST</strong> para a URL abaixo com o JSON do evento{" "}
-                <code className="text-[10px] bg-neutral-100 dark:bg-neutral-800 px-1 rounded">dropcore.estoque_atualizado</code>.
+                <code className="text-[10px] bg-[var(--surface-subtle)] px-1 rounded">dropcore.estoque_atualizado</code>.
                 Use n8n, Cloudflare Worker ou seu middleware para chamar Bling/Tiny com o token de vocês. Opcional: segredo compartilhado → cabeçalho{" "}
-                <code className="text-[10px] bg-neutral-100 dark:bg-neutral-800 px-1 rounded">X-DropCore-Signature</code> (HMAC-SHA256 hex do corpo).
+                <code className="text-[10px] bg-[var(--surface-subtle)] px-1 rounded">X-DropCore-Signature</code> (HMAC-SHA256 hex do corpo).
               </p>
               {estoqueWebhookColsMissing ? (
                 <p className={cn("text-sm", AMBER_PREMIUM_TEXT_SOFT)}>
@@ -460,15 +471,15 @@ export default function SellerIntegracoesErpPage() {
                 </p>
               ) : (
                 <>
-                  <label className="block text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-1">URL (https; localhost só em dev)</label>
+                  <label className="block text-[11px] uppercase tracking-wide text-[var(--muted)] mb-1">URL (https; localhost só em dev)</label>
                   <input
                     type="url"
                     value={estoqueWebhookUrl}
                     onChange={(e) => setEstoqueWebhookUrl(e.target.value)}
                     placeholder="https://seu-dominio.com/webhooks/dropcore-estoque"
-                    className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 mb-3"
+                    className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] mb-3"
                   />
-                  <label className="block text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-1">
+                  <label className="block text-[11px] uppercase tracking-wide text-[var(--muted)] mb-1">
                     Segredo (opcional) {estoqueHasSecret ? <span className="text-amber-700 dark:text-amber-300">· já salvo</span> : null}
                   </label>
                   <input
@@ -477,7 +488,7 @@ export default function SellerIntegracoesErpPage() {
                     onChange={(e) => setEstoqueWebhookSecret(e.target.value)}
                     placeholder={estoqueHasSecret ? "Deixe em branco para manter o atual" : "Opcional"}
                     autoComplete="off"
-                    className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 mb-3"
+                    className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] mb-3"
                   />
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -493,7 +504,7 @@ export default function SellerIntegracoesErpPage() {
                         type="button"
                         onClick={() => void limparSegredoEstoqueWebhook()}
                         disabled={estoqueWebhookSaving}
-                        className="rounded-xl border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 disabled:opacity-60"
+                        className="rounded-xl border border-[var(--card-border)] px-4 py-2 text-sm text-[var(--foreground)] disabled:opacity-60"
                       >
                         Excluir segredo
                       </button>
@@ -503,21 +514,21 @@ export default function SellerIntegracoesErpPage() {
               )}
             </div>
 
-            <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900/80 shadow-md hover:shadow-lg transition-shadow p-6">
+            <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm transition-shadow hover:shadow-md p-6">
               <div className="flex items-center justify-between gap-3 mb-4">
-                <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">Status da integração</h2>
+                <h2 className="text-base font-semibold text-[var(--foreground)]">Status da integração</h2>
                 <button
                   type="button"
                   onClick={() => { void loadDiagnostics(); void loadBling(); void loadEstoqueWebhook(); }}
-                  className="rounded-lg border border-neutral-300 dark:border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  className="rounded-lg border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
                 >
                   {diagLoading ? "Atualizando..." : "Atualizar status"}
                 </button>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-3 mb-5">
-                <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Chave API</p>
+                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-3 shadow-[0_1px_0_rgb(0_0_0/0.04)] dark:shadow-none">
+                  <p className="text-[11px] uppercase tracking-wide text-[var(--muted)]">Chave API</p>
                   <div className="mt-1">
                     {diag?.has_key ? (
                       <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
@@ -528,8 +539,8 @@ export default function SellerIntegracoesErpPage() {
                     )}
                   </div>
                 </div>
-                <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Vínculo com fornecedor</p>
+                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-3 shadow-[0_1px_0_rgb(0_0_0/0.04)] dark:shadow-none">
+                  <p className="text-[11px] uppercase tracking-wide text-[var(--muted)]">Vínculo com fornecedor</p>
                   <div className="mt-1">
                     {diag?.fornecedor_vinculado ? (
                       <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">OK</p>
@@ -538,9 +549,9 @@ export default function SellerIntegracoesErpPage() {
                     )}
                   </div>
                 </div>
-                <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 p-3 sm:col-span-2">
-                  <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Webhook estoque → ERP</p>
-                  <p className={`mt-1 text-sm font-medium ${diag?.estoque_webhook_configured ? "text-emerald-700 dark:text-emerald-300" : "text-neutral-600 dark:text-neutral-400"}`}>
+                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-3 sm:col-span-2 shadow-[0_1px_0_rgb(0_0_0/0.04)] dark:shadow-none">
+                  <p className="text-[11px] uppercase tracking-wide text-[var(--muted)]">Webhook estoque → ERP</p>
+                  <p className={`mt-1 text-sm font-medium ${diag?.estoque_webhook_configured ? "text-emerald-700 dark:text-emerald-300" : "text-[var(--muted)]"}`}>
                     {diag?.estoque_webhook_columns_ok === false
                       ? "SQL pendente (colunas)"
                       : diag?.estoque_webhook_configured
@@ -553,7 +564,7 @@ export default function SellerIntegracoesErpPage() {
               {diag?.integracao_pronta ? (
                 <div className="mb-6 rounded-xl border border-emerald-300 bg-emerald-100 px-4 py-3 dark:border-emerald-900 dark:bg-emerald-950/20">
                   <p className="text-sm font-medium text-emerald-900 dark:text-emerald-300">Integração pronta para uso</p>
-                  <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">
+                  <p className="mt-1 text-xs text-[var(--muted)]">
                     {diag?.mode === "com_webhook_estoque"
                       ? "Modo: após cada pedido aceito, o DropCore também POSTa o estoque atualizado para o seu webhook (além da API)."
                       : "Modo: pedidos só pela API (X-API-Key). Webhook de estoque opcional na seção anterior. Intervalo recomendado: 1 a 2 minutos."}
@@ -589,38 +600,38 @@ export default function SellerIntegracoesErpPage() {
                 </AmberPremiumCallout>
               )}
 
-              <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 px-4 py-3 mb-6">
-                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Proteção anti-abuso (rate limit)</p>
+              <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-4 py-3 mb-6">
+                <p className="text-sm font-medium text-[var(--foreground)]">Proteção anti-abuso (rate limit)</p>
                 {diag?.rate_limit_unavailable ? (
                   <p className={cn("text-xs mt-1", AMBER_PREMIUM_TEXT_SOFT)}>
                     Controle de rate limit indisponível. Execute o script `add-api-rate-limits.sql`.
                   </p>
                 ) : (
                   <>
-                    <p className="text-xs mt-1 text-neutral-600 dark:text-neutral-300">
+                    <p className="text-xs mt-1 text-[var(--muted)]">
                       Limites por minuto: POST {diag?.rate_limit_usage?.post_api_key_limit ?? 30} req / PATCH {diag?.rate_limit_usage?.patch_api_key_limit ?? 30} req.
                     </p>
-                    <p className="text-xs mt-1 text-neutral-600 dark:text-neutral-300">
+                    <p className="text-xs mt-1 text-[var(--muted)]">
                       Uso no minuto atual: POST {diag?.rate_limit_usage?.post_api_key_count ?? 0} / PATCH {diag?.rate_limit_usage?.patch_api_key_count ?? 0}.
                     </p>
-                    <p className="text-[11px] mt-2 text-neutral-500 dark:text-neutral-400">
+                    <p className="text-[11px] mt-2 text-[var(--muted)]">
                       Se o ERP receber HTTP 429, aguarde alguns segundos e tente novamente.
                     </p>
                   </>
                 )}
               </div>
 
-              <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Como usar</h2>
-              <ol className="list-decimal list-inside space-y-3 text-neutral-600 dark:text-neutral-400 text-sm leading-relaxed">
+              <h2 className="text-base font-semibold text-[var(--foreground)] mb-4">Como usar</h2>
+              <ol className="list-decimal list-inside space-y-3 text-[var(--muted)] text-sm leading-relaxed">
                 <li>Configure a chave API no seu ERP (Tiny, Bling, etc.)</li>
                 <li>O ERP deve enviar <strong>POST</strong> para:
-                  <code className="block mt-2 p-3 bg-neutral-100 dark:bg-neutral-800/60 rounded-xl text-xs break-all text-neutral-900 dark:text-neutral-100 border border-neutral-200 dark:border-neutral-700">
+                  <code className="block mt-2 p-3 bg-[var(--surface-subtle)] rounded-xl text-xs break-all text-[var(--foreground)] border border-[var(--card-border)]">
                     {typeof window !== "undefined" ? `${window.location.origin}/api/erp/pedidos` : "/api/erp/pedidos"}
                   </code>
                 </li>
-                <li>Header: <code className="bg-neutral-100 dark:bg-neutral-800/60 px-1.5 py-0.5 rounded-lg text-xs text-neutral-900 dark:text-neutral-100 border border-neutral-200 dark:border-neutral-700">X-API-Key: sua_chave</code></li>
+                <li>Header: <code className="bg-[var(--surface-subtle)] px-1.5 py-0.5 rounded-lg text-xs text-[var(--foreground)] border border-[var(--card-border)]">X-API-Key: sua_chave</code></li>
                 <li>Body exemplo:
-                  <pre className="mt-2 p-3 bg-neutral-100 dark:bg-neutral-800/60 rounded-xl text-[11px] overflow-x-auto text-neutral-900 dark:text-neutral-100 border border-neutral-200 dark:border-neutral-700">
+                  <pre className="mt-2 p-3 bg-[var(--surface-subtle)] rounded-xl text-[11px] overflow-x-auto text-[var(--foreground)] border border-[var(--card-border)]">
 {`{
   "referencia_externa": "ML-12345",
   "items": [{ "sku": "DJU044", "quantidade": 1 }],
@@ -630,8 +641,8 @@ export default function SellerIntegracoesErpPage() {
 }`}
                   </pre>
                 </li>
-                <li>Quando o marketplace confirmar postagem, envie <strong>PATCH</strong> para o mesmo endpoint com <code className="bg-neutral-100 dark:bg-neutral-800/60 px-1.5 py-0.5 rounded-lg text-xs text-neutral-900 dark:text-neutral-100 border border-neutral-200 dark:border-neutral-700">X-Event-Id</code> único:
-                  <pre className="mt-2 p-3 bg-neutral-100 dark:bg-neutral-800/60 rounded-xl text-[11px] overflow-x-auto text-neutral-900 dark:text-neutral-100 border border-neutral-200 dark:border-neutral-700">
+                <li>Quando o marketplace confirmar postagem, envie <strong>PATCH</strong> para o mesmo endpoint com <code className="bg-[var(--surface-subtle)] px-1.5 py-0.5 rounded-lg text-xs text-[var(--foreground)] border border-[var(--card-border)]">X-Event-Id</code> único:
+                  <pre className="mt-2 p-3 bg-[var(--surface-subtle)] rounded-xl text-[11px] overflow-x-auto text-[var(--foreground)] border border-[var(--card-border)]">
 {`{
   "event_id": "evt_20260325_0001",
   "referencia_externa": "ML-12345",
@@ -646,30 +657,30 @@ export default function SellerIntegracoesErpPage() {
               </ol>
             </div>
 
-            <div className="mt-6 rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900/80 shadow-md p-6">
-              <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Últimos eventos ERP</h2>
+            <div className="mt-6 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm p-6">
+              <h2 className="text-base font-semibold text-[var(--foreground)] mb-4">Últimos eventos ERP</h2>
               {diag?.eventos_unavailable ? (
                 <p className={cn("text-sm", AMBER_PREMIUM_TEXT_SOFT)}>
                   Log de eventos indisponível. Execute o script `add-erp-events-and-pedido-timeline.sql` no Supabase.
                 </p>
               ) : (diag?.eventos?.length ?? 0) === 0 ? (
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                <p className="text-sm text-[var(--muted)]">
                   Nenhum evento recebido ainda.
                 </p>
               ) : (
                 <div className="space-y-2">
                   {diag?.eventos.map((ev) => (
-                    <div key={ev.id} className="rounded-lg border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-xs">
+                    <div key={ev.id} className="rounded-lg border border-[var(--card-border)] px-3 py-2 text-xs">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium text-neutral-900 dark:text-neutral-100">{ev.tipo_evento}</span>
-                        <span className={`rounded px-2 py-0.5 ${ev.status_processamento === "processado" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : ev.status_processamento === "erro" ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"}`}>
+                        <span className="font-medium text-[var(--foreground)]">{ev.tipo_evento}</span>
+                        <span className={`rounded px-2 py-0.5 ${ev.status_processamento === "processado" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : ev.status_processamento === "erro" ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300" : "bg-[var(--surface-subtle)] text-[var(--foreground)]"}`}>
                           {ev.status_processamento}
                         </span>
                       </div>
-                      <p className="mt-1 text-neutral-600 dark:text-neutral-300">
+                      <p className="mt-1 text-[var(--muted)]">
                         {ev.referencia_externa ? `Ref: ${ev.referencia_externa}` : "Sem referência externa"} · {new Date(ev.criado_em).toLocaleString("pt-BR")}
                       </p>
-                      {ev.erro && <p className="mt-1 text-red-600 dark:text-red-300">{ev.erro}</p>}
+                      {ev.erro && <p className="mt-1 text-[var(--danger)]">{ev.erro}</p>}
                     </div>
                   ))}
                 </div>

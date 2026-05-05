@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
+import { parseValorMonetarioPtBr } from "@/lib/parseValorMonetarioPtBr";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +20,10 @@ export async function POST(
     const { org_id } = await requireAdmin(req);
     const { id: seller_id } = await params;
     const body = await req.json();
-    const valor = typeof body?.valor === "number" ? body.valor : parseFloat(String(body?.valor ?? "0").replace(",", "."));
+    const valor =
+      typeof body?.valor === "number" && Number.isFinite(body.valor)
+        ? body.valor
+        : parseValorMonetarioPtBr(body?.valor ?? "");
     const chave_pix = body?.pix_chave != null ? String(body.pix_chave).trim() : null;
 
     if (!Number.isFinite(valor) || valor <= 0) {

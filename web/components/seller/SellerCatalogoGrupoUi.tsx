@@ -438,7 +438,7 @@ export function SellerCatalogoItemCard({
   item: SellerCatalogoItem;
   sóVariante?: boolean;
   habilitarRow?: HabilitarRowProps;
-  /** Só leitura: esconde pendências/Starter; útil em “explorar catálogo” antes do vínculo. */
+  /** Só leitura: esconde pendências/plano Start; útil em “explorar catálogo” antes do vínculo. */
   modoPreview?: boolean;
   /** Layout compacto escuro (ex.: /seller/produtos). */
   appearance?: "default" | "saas";
@@ -610,7 +610,7 @@ export function SellerCatalogoItemCard({
             {habilitarRow?.starterComLimite && (
               <div className="w-full space-y-2">
                 {habilitarRow.isento ? (
-                  <p className="text-xs leading-snug text-zinc-500">SKU de sistema: dispensa lista de habilitados no Starter.</p>
+                  <p className="text-xs leading-snug text-zinc-500">SKU de sistema: dispensa lista de habilitados no Start.</p>
                 ) : (
                   <>
                     <label className="flex h-10 w-full cursor-pointer select-none items-center justify-between gap-3 rounded-lg border border-[#2A2F3A] bg-[#0F1115] px-4 touch-manipulation">
@@ -812,7 +812,7 @@ export function SellerCatalogoItemCard({
             {habilitarRow?.starterComLimite && (
               <div className="w-full sm:max-w-[14rem] space-y-1">
                 {habilitarRow.isento ? (
-                  <p className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-snug">SKU de sistema: dispensa lista de habilitados no Starter.</p>
+                  <p className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-snug">SKU de sistema: dispensa lista de habilitados no Start.</p>
                 ) : (
                   <>
                     <label className="flex items-center justify-between gap-3 cursor-pointer select-none touch-manipulation rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800/55 px-3 py-2.5 sm:justify-end sm:gap-2 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">

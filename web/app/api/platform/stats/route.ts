@@ -1,7 +1,7 @@
 /**
  * GET /api/platform/stats
  * Dados de toda a plataforma DropCore — visível SOMENTE para owner.
- * Sellers = clientes da DropCore (têm plano Starter ou Pro)
+ * Sellers = clientes da DropCore (planos starter/pro no banco; rótulos Start/Pro só no painel seller).
  * Fornecedores = parceiros que enviam produtos
  */
 import { NextResponse } from "next/server";

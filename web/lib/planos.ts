@@ -1,5 +1,5 @@
 /**
- * Helpers para planos org (Starter vs Pro).
+ * Helpers para planos da **organização** (chave BD `starter` | `pro`).
  * Starter: máx 15 pares (produto+cor). Pro: ilimitado.
  * Tamanho não entra no limite.
  */

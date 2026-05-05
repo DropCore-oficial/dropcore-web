@@ -7,6 +7,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { processarDepositoAprovado } from "@/lib/depositoPixProcessor";
+import { processarUpgradeProAprovado, SELLER_DEPOSITO_REF_UPGRADE_PRO } from "@/lib/upgradeProPixProcessor";
+import { mercadoPagoOrderIndicaPagamentoCredito, mercadoPagoOrderValorCompativel } from "@/lib/mercadoPagoOrderPaid";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,7 +47,7 @@ export async function POST(req: Request) {
 
     const { data: pendentes } = await supabaseAdmin
       .from("seller_depositos_pix")
-      .select("id, mp_order_id")
+      .select("id, mp_order_id, referencia, valor")
       .eq("seller_id", seller.id)
       .eq("status", "pendente")
       .not("mp_order_id", "is", null);
@@ -62,13 +64,19 @@ export async function POST(req: Request) {
       const res = await fetch(`https://api.mercadopago.com/v1/orders/${orderId}`, {
         headers: { Authorization: `Bearer ${mpToken}` },
       });
-      const order = await res.json();
-      const payments = order?.transactions?.payments ?? [];
-      const anyApproved = payments.some((p: { status?: string }) => p?.status === "approved");
-      const orderProcessed = order?.status === "processed";
+      const order = (await res.json()) as Record<string, unknown>;
 
-      if (res.ok && (orderProcessed || anyApproved)) {
-        const ok = await processarDepositoAprovado(`deposito-${d.id}`);
+      const valorDep = Number((d as { valor?: number }).valor ?? 0);
+      const isUpgrade = String(d.referencia ?? "") === SELLER_DEPOSITO_REF_UPGRADE_PRO;
+      const creditoOk =
+        res.ok &&
+        mercadoPagoOrderIndicaPagamentoCredito(order) &&
+        (isUpgrade || mercadoPagoOrderValorCompativel(order, valorDep));
+
+      if (creditoOk) {
+        const ok = isUpgrade
+          ? await processarUpgradeProAprovado(`upgrade-pro-${d.id}`)
+          : await processarDepositoAprovado(`deposito-${d.id}`);
         if (ok) aprovados++;
       }
     }

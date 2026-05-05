@@ -616,7 +616,7 @@ export default function AdminSellersPage() {
                 <label className="block text-xs text-[var(--muted)] mb-1">Plano</label>
                 <select value={editPlano} onChange={(e) => setEditPlano(e.target.value)} className="w-full u-input">
                   <option value="">—</option>
-                  <option value="Starter">Starter</option>
+                  <option value="Starter">Start</option>
                   <option value="Pro">Pro</option>
                 </select>
               </div>
@@ -666,7 +666,7 @@ export default function AdminSellersPage() {
       <DashboardHeader href="/dashboard" onLogout={() => router.push("/login")} />
       <h1 className="text-2xl font-semibold mb-2 text-[var(--foreground)]">Sellers</h1>
       <p className="text-[var(--muted)] mb-5 text-sm">
-        Cadastre sellers só com nome interno; CNPJ, contato, endereço e plano (Starter ou Pro) o seller escolhe no painel (Cadastro), após o convite.
+        Cadastre sellers só com nome interno; CNPJ, contato, endereço e plano (Start ou Pro) o seller escolhe no painel (Cadastro), após o convite.
       </p>
 
       {error && <div className="mb-4 p-3 bg-[var(--danger)]/8 text-[var(--danger)] rounded-[var(--radius)]">{error}</div>}
@@ -730,7 +730,7 @@ export default function AdminSellersPage() {
             <h3 id="modal-new-seller-title" className="mb-3 shrink-0 text-lg">Novo Seller</h3>
             <div className="overflow-y-auto flex-1 mb-4">
               <p className="text-[12px] text-[var(--muted)] mb-3 leading-relaxed">
-                Crie só com identificação interna (nome). O seller preenche CNPJ ou CPF, e-mail, endereço e escolhe o plano (Starter ou Pro) no painel após aceitar o convite.
+                Crie só com identificação interna (nome). O seller preenche CNPJ ou CPF, e-mail, endereço e escolhe o plano (Start ou Pro) no painel após aceitar o convite.
               </p>
               <div className="mb-3">
                 <label className="block text-xs text-[var(--muted)] mb-1">Nome ou razão provisória *</label>

@@ -1,6 +1,6 @@
 -- Mensalidades de sellers e fornecedores (receita DropCore)
 -- Execute no Supabase SQL Editor.
--- Seller: Starter R$ 97,90 | Pro R$ 147,90
+-- Seller: Starter R$ 97,90 | Pro R$ 147,90 (rótulos Start/Pro só no painel `/seller`)
 -- Fornecedor: R$ 97,90 (plano único)
 
 CREATE TABLE IF NOT EXISTS public.financial_planos (

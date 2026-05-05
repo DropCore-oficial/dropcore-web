@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createClient } from "@supabase/supabase-js";
 import { criarCobrancaPix } from "@/lib/mercadopago";
+import { parseValorMonetarioPtBr } from "@/lib/parseValorMonetarioPtBr";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,10 +46,18 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const valor = parseFloat(String(body?.valor ?? "0").replace(",", "."));
+    const valor =
+      typeof body?.valor === "number" && Number.isFinite(body.valor)
+        ? body.valor
+        : parseValorMonetarioPtBr(body?.valor ?? "");
 
     if (!Number.isFinite(valor) || valor < MINIMO) {
       return NextResponse.json({ error: `Valor mínimo é ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(MINIMO)}.` }, { status: 400 });
+    }
+
+    const email = (seller.email?.trim() || userData.user.email?.trim()) ?? "";
+    if (!email) {
+      return NextResponse.json({ error: "E-mail não cadastrado. Atualize seus dados para pagar via PIX." }, { status: 400 });
     }
 
     const { data: row, error: insertErr } = await supabaseAdmin
@@ -68,11 +77,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
 
-    const email = (seller.email?.trim() || userData.user.email?.trim()) ?? "";
-    if (!email) {
-      return NextResponse.json({ error: "E-mail não cadastrado. Atualize seus dados para pagar via PIX." }, { status: 400 });
-    }
-
     const result = await criarCobrancaPix({
       valor,
       descricao: `Depósito DropCore — R$ ${valor.toFixed(2)}`,
@@ -81,6 +85,7 @@ export async function POST(req: Request) {
     });
 
     if (!result.ok) {
+      await supabaseAdmin.from("seller_depositos_pix").delete().eq("id", row.id).eq("seller_id", seller.id);
       return NextResponse.json({ error: result.error }, { status: 502 });
     }
 

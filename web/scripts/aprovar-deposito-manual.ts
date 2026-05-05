@@ -35,7 +35,7 @@ async function main() {
   const valor = Number(deposito.valor);
   const now = new Date().toISOString();
 
-  await supabase.from("financial_ledger").insert({
+  const { error: ledgerErr } = await supabase.from("financial_ledger").insert({
     org_id: deposito.org_id,
     seller_id: deposito.seller_id,
     fornecedor_id: null,
@@ -47,10 +47,10 @@ async function main() {
     status: "LIBERADO",
     referencia: "PIX aprovado (manual)",
   });
-
-  const { data: seller } = await supabase.from("sellers").select("saldo_atual").eq("id", deposito.seller_id).single();
-  const novoSaldo = (Number(seller?.saldo_atual) || 0) + valor;
-  await supabase.from("sellers").update({ saldo_atual: novoSaldo, atualizado_em: now }).eq("id", deposito.seller_id);
+  if (ledgerErr) {
+    console.error("Erro ao inserir ledger:", ledgerErr.message);
+    process.exit(1);
+  }
 
   await supabase.from("seller_movimentacoes").insert({
     seller_id: deposito.seller_id,
@@ -66,7 +66,15 @@ async function main() {
     .eq("id", depositoId)
     .eq("org_id", deposito.org_id);
 
-  console.log("Depósito aprovado:", depositoId, "- Valor:", valor, "- Novo saldo Galileus:", novoSaldo);
+  const { data: sellerAtual } = await supabase.from("sellers").select("saldo_atual").eq("id", deposito.seller_id).single();
+  console.log(
+    "Depósito aprovado:",
+    depositoId,
+    "- Valor:",
+    valor,
+    "- saldo_atual (via trigger do ledger):",
+    sellerAtual?.saldo_atual ?? "?"
+  );
 }
 
 main().catch((e) => {

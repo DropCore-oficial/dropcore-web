@@ -1,14 +1,14 @@
 /**
- * Seller Starter: até 15 SKUs escolhidos em seller_skus_habilitados para concretizar venda.
- * Seller Pro: sem essa lista. SKUs com prefixo PREFIXO_SKU_SISTEMA não precisam estar na lista.
+ * Plano Start: até 15 SKUs escolhidos em seller_skus_habilitados para concretizar venda.
+ * Plano Pro: sem essa lista. SKUs com prefixo PREFIXO_SKU_SISTEMA não precisam estar na lista.
  */
 import { PREFIXO_SKU_SISTEMA } from "@/lib/planos";
 
 export const MSG_SKU_NAO_HABILITADO_PLANO_STARTER =
-  "SKU não habilitado no seu plano; ative no catálogo até 15. Ou faça upgrade para o plano Pro e libere mais limites.";
+  "SKU não habilitado no seu plano; ative no catálogo até 15. Ou faça upgrade para Pro e libere mais limites.";
 
 export const MSG_STARTER_PEDIDO_SEM_SKU =
-  "No plano Starter é obrigatório vincular o pedido a um SKU (catálogo habilitado). Ou faça upgrade para o plano Pro e libere mais limites.";
+  "No plano Start é obrigatório vincular o pedido a um SKU (catálogo habilitado). Ou faça upgrade para o plano Pro e libere mais limites.";
 
 const MAX_SKUS_HABILITADOS_STARTER = 15;
 
@@ -16,7 +16,7 @@ export function isSellerPlanoPro(plano: string | null | undefined): boolean {
   return String(plano ?? "").trim().toLowerCase() === "pro";
 }
 
-/** Se false, o SKU não conta no limite de 15 habilitados e não exige linha em seller_skus_habilitados para vender (Starter). */
+/** Se false, o SKU não conta no limite de 15 habilitados e não exige linha em seller_skus_habilitados para vender (plano Start). */
 export function skuContaLimiteHabilitacaoSeller(codigoSku: string | null | undefined): boolean {
   const s = String(codigoSku ?? "").trim().toUpperCase();
   return !s.startsWith(PREFIXO_SKU_SISTEMA.toUpperCase());
@@ -134,7 +134,7 @@ export async function assertPodeRegistrarHabilitacao(
   if (!skuContaLimiteHabilitacaoSeller(skuRow.sku)) {
     return {
       ok: false,
-      error: "Este SKU de sistema não precisa ser habilitado na lista; já pode ser usado nas vendas no plano Starter.",
+      error: "Este SKU de sistema não precisa ser habilitado na lista; já pode ser usado nas vendas no plano Start.",
       status: 400,
     };
   }

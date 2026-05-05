@@ -135,7 +135,7 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="w-full max-w-6xl mx-auto dropcore-px-wide py-6 lg:py-8 space-y-5">
+      <div className="dropcore-shell-4xl py-6 lg:py-8 space-y-5">
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <Link href="/seller/produtos" className="font-medium text-emerald-700 dark:text-emerald-400 hover:underline">
             ← Produtos
@@ -143,6 +143,7 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
         </div>
 
         <SellerPageHeader
+          surface="hero"
           title={nomeArmazem ? `Vitrine · ${nomeArmazem}` : "Vitrine do armazém"}
           subtitle={
             <>

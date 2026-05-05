@@ -891,35 +891,38 @@ export default function SellerCalculadoraPage() {
           : "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
       }
     >
-      <div className="w-full max-w-6xl mx-auto dropcore-px-calc py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-5 md:space-y-6">
-        <SellerPageHeader
-          title="Calculadora de preço"
-          subtitle="Preencha custos e operacionais por marketplace para gerar preço e margem."
-        />
-        {calcOnly && calcValidoAte && (
-          <div
-            className="rounded-xl border border-neutral-200 dark:border-neutral-700/80 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400 bg-white dark:bg-neutral-900/60 px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm leading-snug flex gap-2.5 items-start text-emerald-900 dark:text-emerald-300 shadow-sm dark:shadow-none"
-            role="status"
-          >
-            <span className="text-lg leading-none shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" aria-hidden>
-              ✓
-            </span>
-            <span>
-              <strong className="font-semibold text-emerald-900 dark:text-emerald-300">Teste da calculadora:</strong>{" "}
-              <span className="text-emerald-700 dark:text-emerald-400/95">
-                válido até{" "}
-                {new Date(calcValidoAte).toLocaleString("pt-BR", {
-                  dateStyle: "short",
-                  timeStyle: "short",
-                })}
-              </span>
-              .
-            </span>
+      <div className="dropcore-shell-4xl py-4 sm:py-6 lg:py-8">
+        <div className="grid w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_340px] gap-x-5 gap-y-5">
+          <div className="col-span-full">
+            <SellerPageHeader
+              surface="hero"
+              className="mb-0 sm:mb-0"
+              title="Calculadora de preço"
+              subtitle="Preencha custos e operacionais por marketplace para gerar preço e margem."
+            />
           </div>
-        )}
-
-        <div className="flex flex-col lg:flex-row lg:items-start gap-6 lg:gap-8 w-full">
-        <div className="w-full lg:flex-1 lg:min-w-0 space-y-4">
+          {calcOnly && calcValidoAte && (
+            <div
+              className="col-span-full rounded-xl border border-neutral-200 dark:border-neutral-700/80 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400 bg-white dark:bg-neutral-900/60 px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm leading-snug flex gap-2.5 items-start text-emerald-900 dark:text-emerald-300 shadow-sm dark:shadow-none"
+              role="status"
+            >
+              <span className="text-lg leading-none shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" aria-hidden>
+                ✓
+              </span>
+              <span>
+                <strong className="font-semibold text-emerald-900 dark:text-emerald-300">Teste da calculadora:</strong>{" "}
+                <span className="text-emerald-700 dark:text-emerald-400/95">
+                  válido até{" "}
+                  {new Date(calcValidoAte).toLocaleString("pt-BR", {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  })}
+                </span>
+                .
+              </span>
+            </div>
+          )}
+        <div className="min-w-0 space-y-4">
         {!calcOnly && (
           <div className="block rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm px-5 py-4 flex items-center justify-between gap-4">
             <div>
@@ -1370,18 +1373,18 @@ export default function SellerCalculadoraPage() {
         </div>
 
         {/* Coluna direita: resultado */}
-        <div className="w-full lg:w-[min(100%,440px)] xl:w-[min(100%,480px)] lg:shrink-0 space-y-4 lg:sticky lg:top-20 self-start">
+        <div className="w-full min-w-0 space-y-3 lg:sticky lg:top-20 self-start">
         {!calcOnly && precoMinimo != null && custoProduto && parseNum(custoProduto) > 0 ? (
           <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5">
             <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-0.5">Preço mínimo ({MARGEM_MINIMA}% margem)</div>
             <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">{BRL.format(precoMinimo)}</div>
           </div>
         ) : !calcOnly ? (
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm p-4 min-h-[80px] flex items-center justify-center">
+          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm p-4 min-h-[68px] flex items-center justify-center">
             <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">Preencha o custo e clique em Calcular.</p>
           </div>
         ) : !resultado ? (
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm p-4 min-h-[72px] flex items-center justify-center">
+          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm p-4 min-h-[68px] flex items-center justify-center">
             <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">Preencha o custo e clique em Calcular.</p>
           </div>
         ) : null}
@@ -1401,24 +1404,30 @@ export default function SellerCalculadoraPage() {
                 <div
                   className={
                     resultado.variantes.length > 1
-                      ? "grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4"
+                      ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2 gap-3 md:gap-4"
                       : "grid grid-cols-1 gap-3 w-full max-w-md lg:max-w-none mx-auto lg:mx-0"
                   }
                 >
                   {resultado.variantes.map((v) => (
                     <div
                       key={v.key}
-                      className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5 space-y-2"
+                      className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5 space-y-2.5"
                     >
                       <p className={cn("text-xs font-semibold uppercase tracking-wide", AMBER_PREMIUM_TEXT_BODY)}>{v.label}</p>
-                      <div className="flex justify-between items-center gap-2 text-sm">
-                        <span className="text-neutral-500 shrink-0">Preço</span>
-                        <span className="font-bold tabular-nums text-neutral-900 dark:text-neutral-100 text-right">
-                          {BRL.format(v.precoVenda)}
-                        </span>
+                      {/* KPI limpo: barra + fundo neutro (evita “bloco verde” pesado no escuro) */}
+                      <div className="flex min-h-0 overflow-hidden rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
+                        <div className="w-1.5 shrink-0 bg-emerald-500 dark:bg-emerald-500" aria-hidden />
+                        <div className="min-w-0 flex-1 px-3 py-2.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                            Preço de venda
+                          </p>
+                          <p className="mt-0.5 text-2xl sm:text-[1.65rem] font-bold tabular-nums leading-tight text-neutral-900 dark:text-neutral-50 tracking-tight">
+                            {BRL.format(v.precoVenda)}
+                          </p>
+                        </div>
                       </div>
                       <div className="flex justify-between items-baseline gap-2 text-sm flex-wrap">
-                        <span className="text-neutral-500 shrink-0">Lucro na margem</span>
+                        <span className="text-neutral-600 dark:text-neutral-300 shrink-0">Lucro na margem</span>
                         <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-300 text-right">
                           {BRL.format(v.valorLucro)}
                           <span className="text-xs font-medium text-emerald-600/95 dark:text-emerald-400/95 whitespace-nowrap">
@@ -1430,7 +1439,7 @@ export default function SellerCalculadoraPage() {
                       {v.rebateAplicado != null && v.rebateAplicado > 0 && (
                         <>
                           <div className="flex justify-between gap-2 text-sm">
-                            <span className="text-neutral-500">Rebate devolvido (ML)</span>
+                            <span className="text-neutral-600 dark:text-neutral-300">Rebate devolvido (ML)</span>
                             <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
                               +{BRL.format(v.rebateAplicado)}
                             </span>
@@ -1445,24 +1454,28 @@ export default function SellerCalculadoraPage() {
                           </div>
                         </>
                       )}
-                      <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/70 shadow-sm overflow-hidden">
-                        <div className="flex min-h-0 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400">
-                          <div className="min-w-0 flex-1 px-3 py-3">
-                            <div className="flex justify-between items-center gap-3">
-                              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 leading-snug">
-                                Você recebe{" "}
-                                <span className="text-[10px] font-normal text-neutral-400 dark:text-neutral-500">(estimado)</span>
-                              </span>
-                              <span className="text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300 leading-none shrink-0">
-                                {BRL.format(v.recebe)}
-                              </span>
-                            </div>
+                      <div className="flex min-h-0 overflow-hidden rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
+                        <div className="w-1.5 shrink-0 bg-emerald-400 dark:bg-emerald-400" aria-hidden />
+                        <div className="min-w-0 flex-1 px-3 py-2.5">
+                          <div className="flex justify-between items-center gap-3">
+                            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-300 leading-snug">
+                              Você recebe{" "}
+                              <span className="text-[10px] font-normal text-neutral-500 dark:text-neutral-400">(estimado)</span>
+                            </span>
+                            <span className="text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300 leading-none shrink-0">
+                              {BRL.format(v.recebe)}
+                            </span>
                           </div>
                         </div>
                       </div>
                       {v.operacionalBruto != null && (
-                        <div className="text-[11px] text-neutral-500 space-y-0.5 pt-1 border-t border-neutral-200/80 dark:border-neutral-700/80">
-                          <div className="flex justify-between"><span>Operacional (pago)</span><span>{BRL.format(v.operacionalBruto)}</span></div>
+                        <div className="text-[11px] text-neutral-500 dark:text-neutral-400 space-y-0.5 pt-1 border-t border-neutral-200/80 dark:border-neutral-700/80">
+                          <div className="flex justify-between items-baseline gap-2 min-w-0">
+                            <span className="shrink-0">Operacional (pago)</span>
+                            <span className="tabular-nums font-semibold text-neutral-800 dark:text-neutral-100 text-right shrink-0">
+                              {BRL.format(v.operacionalBruto)}
+                            </span>
+                          </div>
                           {v.rebateAplicado != null && v.rebateAplicado > 0 && (
                             <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
                               <span>Rebate devolvido</span>
@@ -1475,15 +1488,20 @@ export default function SellerCalculadoraPage() {
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5 space-y-1.5">
-                    <div className="flex justify-between items-center gap-3">
-                      <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Preço</span>
-                      <span className="text-xl font-bold tabular-nums text-right shrink-0 text-neutral-900 dark:text-neutral-50 tracking-tight">
-                        {resultado.precoVenda > 0 ? BRL.format(resultado.precoVenda) : "—"}
-                      </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2 gap-3 md:gap-4">
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm overflow-hidden">
+                    <div className="m-3 mb-2 flex min-h-0 overflow-hidden rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
+                      <div className="w-1.5 shrink-0 bg-emerald-500 dark:bg-emerald-500" aria-hidden />
+                      <div className="min-w-0 flex-1 px-3 py-2.5">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                          Preço de venda
+                        </p>
+                        <p className="mt-0.5 text-2xl font-bold tabular-nums text-neutral-900 dark:text-neutral-50 tracking-tight">
+                          {resultado.precoVenda > 0 ? BRL.format(resultado.precoVenda) : "—"}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    <p className="px-4 pb-3.5 text-[11px] text-neutral-500 dark:text-neutral-400">
                       {PRESET_TO_MARKETPLACE_NOME[preset] ?? (preset === "todos" ? "Comparativo" : "Canal")}
                     </p>
                   </div>

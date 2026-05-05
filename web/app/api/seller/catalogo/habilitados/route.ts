@@ -1,6 +1,6 @@
 /**
  * GET — lista sku_ids habilitados + meta (plano, contagem).
- * POST — body { sku_id } — adiciona habilitação (Starter até 15; Pro sem limite prático).
+ * POST — body { sku_id } — adiciona habilitação (plano seller Start: até 15; Pro: sem limite prático).
  * DELETE — ?sku_id= — remove habilitação.
  */
 import { NextResponse } from "next/server";

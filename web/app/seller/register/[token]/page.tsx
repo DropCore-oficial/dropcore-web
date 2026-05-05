@@ -206,7 +206,7 @@ export default function SellerRegisterPage() {
                   : null}
                 {conviteDadosPendente && convitePlanoPendente ? " " : ""}
                 {convitePlanoPendente
-                  ? `${conviteDadosPendente ? "Em seguida, no painel, " : "Depois de entrar, no painel, "}escolha o plano Starter ou Pro (com valores e comparação) antes de usar o restante.`
+                  ? `${conviteDadosPendente ? "Em seguida, no painel, " : "Depois de entrar, no painel, "}escolha o plano Start ou Pro (com valores e comparação) antes de usar o restante.`
                   : null}
               </p>
             )}

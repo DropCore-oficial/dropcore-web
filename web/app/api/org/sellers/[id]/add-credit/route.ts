@@ -50,14 +50,7 @@ export async function POST(
     });
 
     if (ledgerErr) {
-      // Fallback se financial_ledger ainda não existir: atualiza sellers direto
-      const novoSaldo = Number(seller.saldo_atual) + valor;
-      const { error: updateErr } = await supabaseAdmin
-        .from("sellers")
-        .update({ saldo_atual: novoSaldo, atualizado_em: new Date().toISOString() })
-        .eq("id", id)
-        .eq("org_id", org_id);
-      if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
+      return NextResponse.json({ error: ledgerErr.message ?? "Erro ao lançar crédito no ledger." }, { status: 500 });
     }
 
     const { error: movErr } = await supabaseAdmin.from("seller_movimentacoes").insert({

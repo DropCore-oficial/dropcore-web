@@ -62,7 +62,6 @@ export default function OrgMembrosPage() {
   const [orgId, setOrgId] = useState<string | null>(null);
   const [viewerRole, setViewerRole] = useState<"owner" | "admin" | "operacional" | null>(null);
   const [data, setData] = useState<Member[]>([]);
-  const [plano, setPlano] = useState<string | null>(null);
   const [err, setErr] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -123,8 +122,6 @@ export default function OrgMembrosPage() {
       } else {
         setViewerRole(null);
       }
-
-      if (meJson?.plano) setPlano(String(meJson.plano));
 
       const res = await fetch(`/api/org/membros?orgId=${encodeURIComponent(resolvedOrgId)}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -293,17 +290,6 @@ export default function OrgMembrosPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-tight">Membros</h1>
-              {plano && (
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    plano === "pro"
-                      ? "border border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
-                      : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)]"
-                  }`}
-                >
-                  {plano === "pro" ? "PLANO PRO" : "PLANO STARTER"}
-                </span>
-              )}
             </div>
             <p className="text-sm text-[var(--muted)] mt-1">
               Organização:{" "}

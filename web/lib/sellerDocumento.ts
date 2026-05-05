@@ -32,14 +32,14 @@ export function cadastroSellerDocumentoPendente(documento: string | null | undef
   return !documentoSellerValido(documento);
 }
 
-/** Starter ou Pro já definidos no banco (case-insensitive). */
+/** Plano seller já definido: `starter` ou `pro` no banco (ex.: coluna `Starter` / `Pro`, case-insensitive). */
 export function planoSellerDefinido(plano: string | null | undefined): boolean {
   const p = String(plano ?? "").trim().toLowerCase();
   return p === "starter" || p === "pro";
 }
 
 /**
- * Onboarding incompleto: falta documento/dados comerciais válidos ou plano Starter/Pro.
+ * Onboarding incompleto: falta documento/dados comerciais válidos ou plano seller (starter/pro) não definido.
  * Para gate só de dados comerciais use `cadastroSellerDocumentoPendente`; para só plano use `!planoSellerDefinido`.
  */
 export function sellerCadastroPendente(documento: string | null | undefined, plano: string | null | undefined): boolean {

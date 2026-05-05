@@ -1,5 +1,5 @@
 /**
- * PATCH /api/seller/plano — define Starter ou Pro (após dados comerciais válidos).
+ * PATCH /api/seller/plano — define Start ou Pro (após dados comerciais válidos).
  * Body: { plano: "starter" | "pro" }
  */
 import { NextResponse } from "next/server";
@@ -28,7 +28,7 @@ export async function PATCH(req: Request) {
     const planoRaw = String(body?.plano ?? "").trim().toLowerCase();
     const planoNorm = planoRaw === "pro" ? "Pro" : planoRaw === "starter" ? "Starter" : null;
     if (!planoNorm) {
-      return NextResponse.json({ error: "Informe plano \"starter\" ou \"pro\"." }, { status: 400 });
+      return NextResponse.json({ error: 'Informe plano "starter" ou "pro" (modalidades Start ou Pro).' }, { status: 400 });
     }
 
     if (planoSellerDefinido(seller.plano)) {

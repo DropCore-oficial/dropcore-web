@@ -4,17 +4,25 @@
  * - type=payment: usa external_reference do payment
  * - type=order: usa external_reference da order (modo teste / API Orders)
  * - external_reference = mensalidade_id → marca mensalidade como paga
+ * - external_reference = upgrade-pro-{id} → ativa Pro (não credita saldo)
  * - external_reference = deposito-{id} → aprova depósito e credita seller
  */
 import { NextResponse } from "next/server";
+import { mercadoPagoOrderIndicaPagamentoCredito } from "@/lib/mercadoPagoOrderPaid";
 import { processarDepositoAprovado } from "@/lib/depositoPixProcessor";
 import { processarMensalidadePaga } from "@/lib/mensalidadePixProcessor";
+import { processarUpgradeProAprovado } from "@/lib/upgradeProPixProcessor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 async function processarPorExtRef(extRef: string): Promise<void> {
   if (!extRef.trim()) return;
+
+  if (extRef.startsWith("upgrade-pro-")) {
+    await processarUpgradeProAprovado(extRef);
+    return;
+  }
 
   if (extRef.startsWith("deposito-")) {
     await processarDepositoAprovado(extRef);
@@ -49,10 +57,7 @@ export async function POST(req: Request) {
           headers: { Authorization: `Bearer ${token}` },
         });
         order = (await res.json()) as Record<string, unknown>;
-        const payments = (order?.transactions as { payments?: { status?: string }[] })?.payments ?? [];
-        const anyApproved = payments.some((p) => p?.status === "approved");
-        const orderProcessed = order?.status === "processed";
-        if (res.ok && (orderProcessed || anyApproved)) {
+        if (res.ok && mercadoPagoOrderIndicaPagamentoCredito(order)) {
           extRef = String(order?.external_reference ?? "").trim();
           break;
         }

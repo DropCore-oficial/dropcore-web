@@ -47,9 +47,10 @@ export async function POST(
     });
 
     if (ledgerErr) {
-      const { data: seller } = await supabaseAdmin.from("sellers").select("saldo_atual").eq("id", deposito.seller_id).single();
-      const novoSaldo = (Number(seller?.saldo_atual) || 0) + valor;
-      await supabaseAdmin.from("sellers").update({ saldo_atual: novoSaldo, atualizado_em: new Date().toISOString() }).eq("id", deposito.seller_id);
+      return NextResponse.json(
+        { error: ledgerErr.message ?? "Não foi possível lançar o crédito no ledger." },
+        { status: 500 }
+      );
     }
 
     const { error: movErr } = await supabaseAdmin.from("seller_movimentacoes").insert({

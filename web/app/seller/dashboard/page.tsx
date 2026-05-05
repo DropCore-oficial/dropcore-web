@@ -1,12 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
 import { NotificationToasts } from "@/components/NotificationToasts";
 import { IconTipoExtrato, IconDevolucao, IconArrowRight, IconPlus, IconClipboard, IconDeposito, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
 import { planoSellerDefinido } from "@/lib/sellerDocumento";
+import {
+  nomeExibicaoPlanoSeller,
+  SELLER_PLANO_NOME_PRO,
+  SELLER_PLANO_NOME_START,
+  SELLER_PLANO_OPCOES_LEGIVEL,
+} from "@/lib/sellerPlanoLabels";
+import { VALOR_DEFAULT_MENSALIDADE_SELLER, VALOR_DEFAULT_MENSALIDADE_SELLER_PRO } from "@/lib/sellerPlanoPrecos";
 import {
   AMBER_PREMIUM_SHELL,
   AMBER_PREMIUM_SURFACE,
@@ -35,6 +43,7 @@ import {
   PRIMARY_ACTION_BLUE_TEXT_PRIMARY,
 } from "@/lib/primaryActionBlueUi";
 import { cn } from "@/lib/utils";
+import { parseValorMonetarioPtBr } from "@/lib/parseValorMonetarioPtBr";
 
 const SELLER_LEDGER_BADGE_AMBER = cn(AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY);
 const SELLER_LEDGER_BADGE_DANGER = cn(DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY);
@@ -50,6 +59,7 @@ type SellerData = {
   saldo_disponivel: number;
   data_entrada: string | null;
   email: string | null;
+  logo_url?: string | null;
 };
 
 type Kpis = {
@@ -163,17 +173,35 @@ const statusLabel: Record<string, { label: string; cor: string }> = {
 const isPositivo = (tipo: string) => tipo === "CREDITO" || tipo === "DEVOLUCAO";
 const isNegativo = (tipo: string) => tipo === "BLOQUEIO" || tipo === "VENDA";
 
+/** YYYY-MM-DD no fuso local do browser (não usar toISOString() para dia civil — quebra Hoje/Ontem no BR à noite). */
+function dateToLocalYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function dataEventoParaYmdLocal(iso: string): string {
+  if (!iso || typeof iso !== "string") return "1970-01-01";
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return iso.slice(0, 10);
+  return dateToLocalYmd(t);
+}
+
 function groupByDate(entries: LedgerEntry[]): { label: string; items: LedgerEntry[] }[] {
-  const hoje = new Date().toISOString().slice(0, 10);
-  const ontem = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
-  const d = new Date();
-  const day = d.getDay();
+  const agora = new Date();
+  const hoje = dateToLocalYmd(agora);
+  const ont = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - 1);
+  const ontem = dateToLocalYmd(ont);
+
+  const dSemana = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  const day = dSemana.getDay();
   const diff = day === 0 ? 6 : day - 1;
-  d.setDate(d.getDate() - diff);
-  const inicioSemanaStr = d.toISOString().slice(0, 10);
-  const inicioMes = new Date();
-  inicioMes.setDate(1);
-  const inicioMesStr = inicioMes.toISOString().slice(0, 10);
+  dSemana.setDate(dSemana.getDate() - diff);
+  const inicioSemanaStr = dateToLocalYmd(dSemana);
+
+  const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
+  const inicioMesStr = dateToLocalYmd(inicioMes);
 
   const groups: { label: string; minDate: string; items: LedgerEntry[] }[] = [
     { label: "Hoje", minDate: hoje, items: [] },
@@ -184,7 +212,7 @@ function groupByDate(entries: LedgerEntry[]): { label: string; items: LedgerEntr
   ];
 
   for (const e of entries) {
-    const d = e.data_evento.slice(0, 10);
+    const d = dataEventoParaYmdLocal(e.data_evento);
     if (d >= hoje) groups[0].items.push(e);
     else if (d >= ontem) groups[1].items.push(e);
     else if (d >= inicioSemanaStr) groups[2].items.push(e);
@@ -475,21 +503,27 @@ export default function SellerDashboardPage() {
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) { router.replace("/seller/login"); return; }
+      const valorDep = parseValorMonetarioPtBr(depositoValor);
+      if (!Number.isFinite(valorDep)) {
+        throw new Error("Valor inválido. Digite só números e vírgula ou ponto (ex.: 777 ou 777,00). Evite espaços no meio do valor.");
+      }
+      if (valorDep < 500) {
+        throw new Error(`Valor mínimo R$ 500,00. Interpretamos o campo como ${BRL.format(valorDep)} — confira se não há espaço ou caractere estranho entre os dígitos.`);
+      }
       const res = await fetch("/api/seller/deposito-pix", {
         method: "POST",
         headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ valor: parseFloat(depositoValor.replace(",", ".")) }),
+        body: JSON.stringify({ valor: valorDep }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Erro ao solicitar depósito.");
-      if (json.qr_code_base64) {
-        setDepositoQrCode(json.qr_code_base64);
-        setDepositoCopiaCola(json.qr_code ?? null);
-        setDepositoExpiraEm(json.expira_em ?? null);
-        setDepositoSucesso(true);
-      } else {
-        setDepositoSucesso(true);
+      if (!json.qr_code_base64 && !json.qr_code) {
+        throw new Error("Resposta sem QR Code PIX. A cobrança não foi concluída — tente de novo.");
       }
+      setDepositoQrCode(json.qr_code_base64 ?? null);
+      setDepositoCopiaCola(json.qr_code ?? null);
+      setDepositoExpiraEm(json.expira_em ?? null);
+      setDepositoSucesso(true);
       setDepositoValor("");
       load();
     } catch (e: unknown) {
@@ -559,13 +593,77 @@ export default function SellerDashboardPage() {
 
   const isPro = seller?.plano?.toLowerCase() === "pro";
   const planoOk = planoSellerDefinido(seller?.plano);
-  const precoStarterMensal = planoPrecos?.starter ?? 97.9;
-  const precoProMensal = planoPrecos?.pro ?? 97.9;
+  const precoStarterMensal = planoPrecos?.starter ?? VALOR_DEFAULT_MENSALIDADE_SELLER;
+  const precoProMensal = planoPrecos?.pro ?? VALOR_DEFAULT_MENSALIDADE_SELLER_PRO;
   const dataHojeFmt = new Date().toLocaleDateString("pt-BR", {
     weekday: "long",
     day: "numeric",
     month: "long",
   });
+
+  function renderPlanoHeaderControls(opts?: { linkClassName?: string; showVerPlano?: boolean }) {
+    const showVerPlano = opts?.showVerPlano ?? true;
+    const linkClassName = opts?.linkClassName;
+    if (!planoOk) {
+      const pend = (
+        <span className={cn(SELLER_LEDGER_BADGE_AMBER, "rounded-md px-2 py-0.5 text-[10px] font-semibold")}>
+          Plano pendente
+        </span>
+      );
+      if (!showVerPlano) {
+        return (
+          <Link
+            href="/seller/plano"
+            className="inline-flex shrink-0 items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+            aria-label="Definir ou ver plano"
+          >
+            {pend}
+          </Link>
+        );
+      }
+      return pend;
+    }
+    const badgeClass = cn(
+      "inline-flex shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-tight",
+      isPro
+        ? "bg-emerald-700 text-white shadow-sm shadow-emerald-600/25 hover:bg-emerald-700/95 dark:bg-emerald-700 dark:text-white"
+        : "bg-emerald-600 text-white shadow-sm shadow-emerald-600/20 hover:bg-emerald-700 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-700"
+    );
+    const badgeTitle = isPro
+      ? `Plano ${SELLER_PLANO_NOME_PRO} — analytics e desempenho ampliados`
+      : `Plano ${SELLER_PLANO_NOME_START} — resumo e operação essencial`;
+    const badge = (
+      <span translate="no" lang="en" className={badgeClass} title={badgeTitle}>
+        {nomeExibicaoPlanoSeller(seller?.plano)}
+      </span>
+    );
+    return (
+      <>
+        {!showVerPlano ? (
+          <Link
+            href="/seller/plano"
+            className="inline-flex shrink-0 items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+            aria-label="Ver detalhes do plano"
+          >
+            {badge}
+          </Link>
+        ) : (
+          badge
+        )}
+        {showVerPlano && (
+          <Link
+            href="/seller/plano"
+            className={cn(
+              "shrink-0 py-0.5 text-[11px] font-semibold text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-400",
+              linkClassName
+            )}
+          >
+            Ver plano
+          </Link>
+        )}
+      </>
+    );
+  }
 
   const extratoFiltrado = (() => {
     let list = extrato;
@@ -757,35 +855,43 @@ export default function SellerDashboardPage() {
         <header className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 sm:p-5 shadow-sm overflow-visible">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="flex min-w-0 flex-1 items-stretch gap-3">
-              <div className="flex shrink-0 items-center">
-                <div className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-2xl font-bold text-white shadow-md shadow-emerald-500/25 sm:h-[5.5rem] sm:w-[5.5rem]">
-                  {seller?.nome?.charAt(0).toUpperCase() ?? "S"}
+              {seller?.logo_url ? (
+                <div className="flex shrink-0 items-center">
+                  <img
+                    src={seller.logo_url}
+                    alt=""
+                    className="h-[5.25rem] w-[5.25rem] shrink-0 rounded-2xl border-0 object-contain bg-transparent p-0 outline-none ring-0 sm:h-[5.5rem] sm:w-[5.5rem]"
+                  />
                 </div>
-              </div>
-              <div className="min-w-0 flex flex-1 flex-col justify-center gap-0.5 pt-0.5">
-                <p className="text-sm font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90 leading-snug">
-                  Painel do seller
-                </p>
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-bold leading-tight tracking-tight text-[var(--foreground)] sm:text-3xl truncate">
-                    {seller?.nome ?? "Seller"}
-                  </h1>
-                  {!planoOk ? (
-                    <span className={cn(SELLER_LEDGER_BADGE_AMBER, "shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold")}>
-                      Plano pendente
-                    </span>
-                  ) : (
-                    <span
-                      className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold ${
-                        isPro
-                          ? "bg-emerald-600/15 dark:bg-emerald-600/25 text-emerald-700 dark:text-emerald-300"
-                          : "bg-[var(--surface-subtle)] text-[var(--muted)]"
-                      }`}
-                    >
-                      {isPro ? "PRO" : "STARTER"}
-                    </span>
-                  )}
+              ) : (
+                <div className="flex shrink-0 items-center">
+                  <div className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-2xl font-bold text-white shadow-md shadow-emerald-500/25 sm:h-[5.5rem] sm:w-[5.5rem]">
+                    {seller?.nome?.charAt(0).toUpperCase() ?? "S"}
+                  </div>
                 </div>
+              )}
+              <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 pt-0.5">
+                <div className="hidden min-w-0 w-full flex-nowrap items-center justify-between gap-x-3 sm:flex">
+                  <p className="m-0 min-w-0 text-sm font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90 leading-snug">
+                    Painel do seller
+                  </p>
+                  <div
+                    className={cn(
+                      "flex shrink-0 items-center gap-2 rounded-xl border border-[var(--card-border)] bg-[var(--background)]/70 px-2 py-1 dark:bg-[var(--background)]/40"
+                    )}
+                  >
+                    {renderPlanoHeaderControls({ linkClassName: "pr-0.5" })}
+                  </div>
+                </div>
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:hidden">
+                  <p className="m-0 flex min-w-0 items-center text-sm font-medium uppercase leading-none tracking-wide text-emerald-700/90 dark:text-emerald-400/90">
+                    Painel do seller
+                  </p>
+                  {renderPlanoHeaderControls({ showVerPlano: false })}
+                </div>
+                <h1 className="min-w-0 text-2xl font-bold leading-tight tracking-tight text-[var(--foreground)] sm:text-3xl truncate">
+                  {seller?.nome ?? "Seller"}
+                </h1>
                 <p className="text-base leading-snug text-[var(--muted)] capitalize sm:hidden">{dataHojeFmt}</p>
                 <p className="hidden text-base leading-snug sm:block">
                   <span className="text-[var(--muted)] capitalize">{dataHojeFmt}</span>
@@ -1137,7 +1243,9 @@ export default function SellerDashboardPage() {
             <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--card-border)] bg-[var(--card)]">
               <div className="flex items-center gap-2">
                 <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Desempenho</p>
-                <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-bold text-white">PRO · 30 dias</span>
+                <span translate="no" lang="en" className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-bold text-white">
+                  {SELLER_PLANO_NOME_PRO} · 30 dias
+                </span>
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 divide-x divide-y sm:divide-y-0 divide-[var(--card-border)]">
@@ -1596,11 +1704,14 @@ export default function SellerDashboardPage() {
                     <input
                       type="text"
                       inputMode="decimal"
-                      placeholder="0,00"
+                      placeholder="Ex.: 777,00"
                       value={depositoValor}
                       onChange={(e) => setDepositoValor(e.target.value)}
                       className="w-full rounded-xl bg-[var(--card)] border border-[var(--card-border)] px-3 py-2.5 text-[var(--foreground)] text-sm focus:outline-none focus:border-emerald-500 placeholder:text-[var(--muted)]"
                     />
+                    <p className="mt-1 text-[11px] text-[var(--muted)]">
+                      Não deixe espaço entre os dígitos — o valor pode ser interpretado errado (ex.: 77 seguido de 7 vira só 77).
+                    </p>
                   </div>
 
                   {depositoErro && (
@@ -1710,7 +1821,7 @@ export default function SellerDashboardPage() {
                 Escolha seu plano
               </h2>
               <p className="text-sm text-[var(--muted)] mt-2 leading-relaxed">
-                Para continuar no painel, selecione Starter ou Pro. Os valores são a mensalidade de referência cadastrada na plataforma (tabela financeira); se a sua organização tiver outro valor contratual, ele será aplicado nas cobranças.
+                Para continuar no painel, selecione {SELLER_PLANO_OPCOES_LEGIVEL}. Os valores são a mensalidade de referência cadastrada na plataforma (tabela financeira); se a sua organização tiver outro valor contratual, ele será aplicado nas cobranças.
               </p>
             </div>
             {planoEscolhaErro && (
@@ -1725,7 +1836,11 @@ export default function SellerDashboardPage() {
                 onClick={() => void escolherPlano("starter")}
                 className="rounded-xl border-2 border-[var(--card-border)] bg-[var(--surface-subtle)] px-4 py-4 text-left hover:border-emerald-500/60 transition-colors disabled:opacity-50"
               >
-                <p className="text-sm font-bold text-[var(--foreground)]">Starter</p>
+                <p className="text-sm font-bold text-[var(--foreground)]">
+                  <span translate="no" lang="en">
+                    {SELLER_PLANO_NOME_START}
+                  </span>
+                </p>
                 <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums mt-1">{BRL.format(precoStarterMensal)}<span className="text-xs font-normal text-[var(--muted)]">/mês</span></p>
                 <p className="text-[11px] text-[var(--muted)] mt-2 leading-snug">
                   Resumo financeiro, gráfico de volume por dia e fluxo essencial para operar com o armazém.
@@ -1740,7 +1855,11 @@ export default function SellerDashboardPage() {
                 onClick={() => void escolherPlano("pro")}
                 className="rounded-xl border-2 border-emerald-500/40 bg-emerald-100 dark:bg-emerald-950/25 px-4 py-4 text-left hover:border-emerald-500 transition-colors disabled:opacity-50"
               >
-                <p className="text-sm font-bold text-[var(--foreground)]">Pro</p>
+                <p className="text-sm font-bold text-[var(--foreground)]">
+                  <span translate="no" lang="en">
+                    {SELLER_PLANO_NOME_PRO}
+                  </span>
+                </p>
                 <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums mt-1">{BRL.format(precoProMensal)}<span className="text-xs font-normal text-[var(--muted)]">/mês</span></p>
                 <p className="text-[11px] text-[var(--muted)] mt-2 leading-snug">
                   Inclui blocos de desempenho e analytics no painel para acompanhar receita, custo e margem quando houver dados de venda.

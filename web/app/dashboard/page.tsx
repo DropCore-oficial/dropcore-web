@@ -473,7 +473,6 @@ export default function DashboardPage() {
 
   const isAdmin = me?.role_base === "owner" || me?.role_base === "admin";
   const roleLabel = me?.role_base === "owner" ? "Proprietário" : me?.role_base === "admin" ? "Admin" : me?.role_base ?? "—";
-  const roleInitial = roleLabel.charAt(0).toUpperCase();
   const isPro = stats?.plano === "pro";
   const dataHojeFmt = new Date().toLocaleDateString("pt-BR", {
     weekday: "long",
@@ -661,50 +660,20 @@ export default function DashboardPage() {
       <div className="dropcore-shell-4xl py-5 md:py-7 space-y-5 md:space-y-6">
         {/* 1. Header — mesmo cartão do painel fornecedor (mobile/desktop) */}
         <header className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 sm:p-5 shadow-sm overflow-visible">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-            <div className="flex min-w-0 flex-1 items-stretch gap-3">
-              <div className="flex shrink-0 items-center">
-                <div className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-2xl font-bold text-white shadow-md shadow-emerald-500/25 sm:h-[5.5rem] sm:w-[5.5rem]">
-                  {roleInitial}
-                </div>
-              </div>
-              <div className="min-w-0 flex flex-1 flex-col justify-center gap-0.5 pt-0.5">
-                <p className="text-sm font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90 leading-snug">
-                  {painelContextoLabel}
-                </p>
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-bold leading-tight tracking-tight text-[var(--foreground)] sm:text-3xl truncate">
-                    {roleLabel}
-                  </h1>
-                  {stats?.plano && (
-                    <span
-                      className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold ${
-                        isPro
-                          ? "bg-emerald-600/15 dark:bg-emerald-600/25 text-emerald-800 dark:text-emerald-300"
-                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
-                      }`}
-                    >
-                      {stats.plano.toUpperCase()}
-                    </span>
-                  )}
-                </div>
-                <p className="text-base leading-snug text-[var(--muted)] capitalize">{dataHojeFmt}</p>
-                {stats?.plan_limits && (
-                  <p className="mt-1.5 text-[11px] text-[var(--muted)]">
-                    Vendas {stats.plan_limits.vendas_mes}/{stats.plan_limits.vendas_limite} · Produtos{" "}
-                    {stats.plan_limits.produto_cor_count}/{stats.plan_limits.produto_cor_limite}
-                  </p>
-                )}
-              </div>
+          <div className="flex min-w-0 flex-1 items-stretch gap-3">
+            <div className="flex shrink-0 items-center">
+              <DropCoreLogo variant="symbol" href={null} size="panel" className="shrink-0" />
             </div>
-            <div className="flex w-full flex-wrap items-center justify-end gap-2 border-t border-[var(--card-border)] pt-3 sm:w-auto sm:border-0 sm:pt-0 sm:shrink-0">
-              <button
-                type="button"
-                onClick={load}
-                className="min-h-10 rounded-xl border border-[var(--card-border)] bg-[var(--background)]/80 px-3 py-2 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 touch-manipulation transition-colors"
-              >
-                Atualizar
-              </button>
+            <div className="min-w-0 flex flex-1 flex-col justify-center gap-0.5 pt-0.5">
+              <p className="text-sm font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90 leading-snug">
+                {painelContextoLabel}
+              </p>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-bold leading-tight tracking-tight text-[var(--foreground)] sm:text-3xl truncate">
+                  {roleLabel}
+                </h1>
+              </div>
+              <p className="text-base leading-snug text-[var(--muted)] capitalize">{dataHojeFmt}</p>
             </div>
           </div>
         </header>
@@ -944,14 +913,14 @@ export default function DashboardPage() {
           </button>
         )}
 
-        {/* Analytics Pro — card estilo seller/fornecedor */}
+        {/* Analytics (dados ampliados — sem rótulo de plano na UI) */}
         {isAdmin && stats?.plano === "pro" && proData && (
           <>
             <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
               <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 bg-[var(--card)]">
                 <div className="flex items-center gap-2">
                   <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Analytics</p>
-                  <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-bold text-white">PRO · 30 dias</span>
+                  <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-bold text-white">Últimos 30 dias</span>
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 divide-x divide-y sm:divide-y-0 divide-neutral-100 dark:divide-neutral-800">
@@ -1038,13 +1007,6 @@ export default function DashboardPage() {
               </div>
             </section>
           </>
-        )}
-
-        {isAdmin && stats && stats.plano !== "pro" && (
-          <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden p-6 text-center">
-            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Analytics avançado</p>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Margem, ticket médio, top sellers e gráficos disponíveis no <span className="text-emerald-600 dark:text-emerald-400 font-medium">Plano Pro</span>.</p>
-          </section>
         )}
 
         {/* Seções — atalhos (visual alinhado seller/fornecedor) */}

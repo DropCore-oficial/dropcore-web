@@ -53,8 +53,25 @@ function IconPlug({ active }: { active: boolean }) {
     </svg>
   );
 }
+function IconPlano({ active }: { active: boolean }) {
+  return (
+    <svg className={`w-5 h-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2 2 7l10 5 10-5L12 2z" />
+      <path d="M2 17l10 5 10-5" />
+      <path d="M2 12l10 5 10-5" />
+    </svg>
+  );
+}
+function IconCadastro({ active }: { active: boolean }) {
+  return (
+    <svg className={`w-5 h-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="20" height="14" x="2" y="5" rx="2" />
+      <line x1="2" x2="22" y1="10" y2="10" />
+    </svg>
+  );
+}
 
-type NavKey = "dashboard" | "produtos" | "calculadora" | "integracoes";
+type NavKey = "dashboard" | "produtos" | "calculadora" | "plano" | "cadastro" | "integracoes";
 
 export function SellerNav({
   active,
@@ -142,8 +159,8 @@ export function SellerNav({
         end={<AppBarEndMobileAuth context="seller" onLogout={sair} />}
       />
       <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
-        <div className="max-w-4xl mx-auto flex w-full min-w-0 items-center justify-between gap-4 px-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-6">
+        <div className="dropcore-shell-4xl flex w-full min-w-0 items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-6">
             <DropCoreLogo variant="horizontal" href="/seller/dashboard" className="shrink-0" />
             <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <Link href="/seller/dashboard" className={linkClass("dashboard")}>
@@ -158,6 +175,14 @@ export function SellerNav({
                 <IconCalculator active={active === "calculadora"} />
                 Calculadora
               </Link>
+              <Link href="/seller/plano" className={linkClass("plano")}>
+                <IconPlano active={active === "plano"} />
+                Plano
+              </Link>
+              <Link href="/seller/cadastro" className={linkClass("cadastro")}>
+                <IconCadastro active={active === "cadastro"} />
+                Cadastro
+              </Link>
               <Link href="/seller/integracoes-erp" className={linkClass("integracoes")}>
                 <IconPlug active={active === "integracoes"} />
                 Integrações
@@ -169,22 +194,30 @@ export function SellerNav({
       </nav>
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto grid max-w-3xl grid-cols-4 items-stretch min-h-[50px]">
+        <div className="mx-auto grid w-full max-w-4xl grid-cols-6 items-stretch min-h-[52px]">
           <Link href="/seller/dashboard" className={mobileLinkClass("dashboard")}>
             <IconHome active={active === "dashboard"} />
-            <span className="max-w-[4.5rem] text-center text-[9px] sm:text-[10px] font-medium leading-tight tracking-tight">Painel</span>
+            <span className="max-w-[4.25rem] text-center text-[8px] font-medium leading-tight tracking-tight sm:text-[9px]">Painel</span>
           </Link>
           <Link href="/seller/produtos" className={mobileLinkClass("produtos")}>
             <IconPackage active={active === "produtos"} />
-            <span className="max-w-[4.5rem] text-center text-[9px] sm:text-[10px] font-medium leading-tight tracking-tight">Produtos</span>
+            <span className="max-w-[4.25rem] text-center text-[8px] font-medium leading-tight tracking-tight sm:text-[9px]">Produtos</span>
           </Link>
           <Link href="/seller/calculadora" className={mobileLinkClass("calculadora")}>
             <IconCalculator active={active === "calculadora"} />
-            <span className="max-w-[4.5rem] text-center text-[9px] sm:text-[10px] font-medium leading-tight tracking-tight">Calc.</span>
+            <span className="max-w-[4.25rem] text-center text-[8px] font-medium leading-tight tracking-tight sm:text-[9px]">Calc.</span>
+          </Link>
+          <Link href="/seller/plano" className={mobileLinkClass("plano")}>
+            <IconPlano active={active === "plano"} />
+            <span className="max-w-[4.25rem] text-center text-[8px] font-medium leading-tight tracking-tight sm:text-[9px]">Plano</span>
+          </Link>
+          <Link href="/seller/cadastro" className={mobileLinkClass("cadastro")}>
+            <IconCadastro active={active === "cadastro"} />
+            <span className="max-w-[4.25rem] text-center text-[8px] font-medium leading-tight tracking-tight sm:text-[9px]">Cadastro</span>
           </Link>
           <Link href="/seller/integracoes-erp" className={mobileLinkClass("integracoes")}>
             <IconPlug active={active === "integracoes"} />
-            <span className="max-w-[4.5rem] text-center text-[9px] sm:text-[10px] font-medium leading-tight tracking-tight">Integr.</span>
+            <span className="max-w-[4.25rem] text-center text-[8px] font-medium leading-tight tracking-tight sm:text-[9px]">Integr.</span>
           </Link>
         </div>
       </nav>

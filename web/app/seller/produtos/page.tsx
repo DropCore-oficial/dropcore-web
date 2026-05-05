@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
+import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
 import { normalizarFornecedoresSellerApi, type FornecedorSellerListaRow } from "@/lib/mapFornecedorSellerPublico";
 import {
   agruparPaiFilhosSeller as agruparPaiFilhos,
@@ -406,28 +407,30 @@ export default function SellerProdutosPage() {
 
   return (
     <div className="min-h-screen bg-[#f6f6f7] text-[#202223] dark:bg-[#0F1115] dark:text-[#e3e5e8] pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="mx-auto w-full max-w-[1040px] px-3 py-3 dropcore-px-wide sm:px-4 md:py-4">
+      <div className="dropcore-shell-4xl py-3 md:py-4">
         <div className="overflow-hidden rounded-xl border border-[#dfe3e8] bg-white shadow-[0_1px_0_rgba(0,0,0,0.03)] dark:border-[#2e3240] dark:bg-[#1a1d24] dark:shadow-none sm:px-4 sm:py-4">
           <div className="px-3 py-3 sm:px-0 sm:pt-1">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#008060] dark:text-[#45b891]">Catálogo · Seller</p>
-              <h1 className="mt-1 text-xl font-semibold tracking-tight text-[#202223] dark:text-white">Produtos</h1>
-              <p className="mt-1.5 max-w-2xl text-[13px] leading-relaxed text-[#5c5f62] dark:text-[#9ca3a8]">
+          <SellerPageHeader
+            surface="hero"
+            title="Produtos"
+            subtitle={
+              <>
                 O fornecedor mantém o cadastro no armazém;{" "}
-                <span className="font-medium text-[#202223] dark:text-[#e3e5e8]">aqui você escolhe o que a API ERP pode vender</span>.
-              </p>
-            </div>
-            <Link
-              href="/seller/integracoes-erp/mapeamento"
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#d7dbe0] bg-white px-3 py-2 text-[13px] font-medium text-[#1f2933] no-underline transition hover:border-[#bfc5cc] hover:bg-[#fafbfb] dark:border-[#2e3240] dark:bg-[#14171c] dark:text-[#d2d8de] dark:hover:border-[#3a404d] dark:hover:bg-[#20242b]"
-            >
-              <svg className="h-4 w-4 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-              </svg>
-              Mapeamento SKU
-            </Link>
-          </div>
+                <span className="font-medium text-[var(--foreground)]">aqui você escolhe o que a API ERP pode vender</span>.
+              </>
+            }
+            right={
+              <Link
+                href="/seller/integracoes-erp/mapeamento"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#d7dbe0] bg-white px-3 py-2 text-[13px] font-medium text-[#1f2933] no-underline transition hover:border-[#bfc5cc] hover:bg-[#fafbfb] dark:border-[#2e3240] dark:bg-[#14171c] dark:text-[#d2d8de] dark:hover:border-[#3a404d] dark:hover:bg-[#20242b]"
+              >
+                <svg className="h-4 w-4 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
+                Mapeamento SKU
+              </Link>
+            }
+          />
           <div className="mt-3.5 flex flex-col gap-2 sm:mt-5 sm:flex-row sm:flex-wrap sm:items-stretch">
             <input
               value={q}
@@ -564,7 +567,7 @@ export default function SellerProdutosPage() {
             </p>
             {!planoSellerPro && catalogMeta.tabela_ok && (
               <p className="text-[12px] text-[#6d7175] dark:text-[#8c9196]">
-                Plano Starter: até {catalogMeta.habilitados_max ?? 15} SKUs na API ·{" "}
+                Plano Start: até {catalogMeta.habilitados_max ?? 15} SKUs na API ·{" "}
                 <span className="tabular-nums font-medium text-[#202223] dark:text-[#c9d0d5]">{catalogMeta.habilitados_count}</span> habilitados
               </p>
             )}
@@ -684,7 +687,7 @@ export default function SellerProdutosPage() {
           <div className={cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY, "mt-6 rounded-2xl px-5 py-4 text-sm md:px-6")}>
             A lista de SKUs habilitados para venda ainda não está disponível na base (migração pendente). Execute o script{" "}
             <code className="rounded border border-card-border bg-card px-1.5 py-0.5 font-mono text-xs">web/scripts/create-seller-skus-habilitados.sql</code> no
-            Supabase para ativar o limite de 15 no Starter e a integração ERP alinhada ao catálogo.
+            Supabase para ativar o limite de 15 no Start e a integração ERP alinhada ao catálogo.
           </div>
         )}
 

@@ -12,6 +12,7 @@ import {
   sellerCadastroPendente,
 } from "@/lib/sellerDocumento";
 import { sellerFromBearer } from "@/lib/sellerFromBearer";
+import { SELLER_PLANO_OPCOES_LEGIVEL } from "@/lib/sellerPlanoLabels";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +38,20 @@ export async function GET(req: Request) {
 
     const tipo_documento = inferTipoDocumento(seller.documento);
 
+    let logo_url: string | null = null;
+    const lr = await supabaseAdmin.from("sellers").select("logo_url").eq("id", seller.id).maybeSingle();
+    if (lr.error) {
+      const missing =
+        String(lr.error.code ?? "") === "42703" ||
+        String(lr.error.message ?? "").toLowerCase().includes("logo_url") ||
+        String(lr.error.message ?? "").toLowerCase().includes("does not exist");
+      if (!missing) {
+        return NextResponse.json({ error: lr.error.message }, { status: 500 });
+      }
+    } else {
+      logo_url = (lr.data as { logo_url?: string | null } | null)?.logo_url ?? null;
+    }
+
     return NextResponse.json({
       cadastro_pendente,
       cadastro_dados_pendente,
@@ -52,6 +67,7 @@ export async function GET(req: Request) {
       nome_responsavel: seller.nome_responsavel ?? "",
       cpf_responsavel: seller.cpf_responsavel ?? "",
       data_nascimento: seller.data_nascimento ?? "",
+      logo_url,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
@@ -83,7 +99,10 @@ export async function PATCH(req: Request) {
       const planoRaw = String(body.plano).trim().toLowerCase();
       const n = planoRaw === "pro" ? "Pro" : planoRaw === "starter" ? "Starter" : null;
       if (!n) {
-        return NextResponse.json({ error: "Plano inválido. Use Starter ou Pro." }, { status: 400 });
+        return NextResponse.json(
+          { error: `Plano inválido. Indique ${SELLER_PLANO_OPCOES_LEGIVEL} no corpo (campos starter ou pro).` },
+          { status: 400 }
+        );
       }
       planoNorm = n;
     }

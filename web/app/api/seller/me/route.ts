@@ -50,6 +50,20 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Conta bloqueada. Entre em contato com o suporte." }, { status: 403 });
     }
 
+    let logo_url: string | null = null;
+    const lrLogo = await supabaseAdmin.from("sellers").select("logo_url").eq("id", seller.id).maybeSingle();
+    if (lrLogo.error) {
+      const missing =
+        String(lrLogo.error.code ?? "") === "42703" ||
+        String(lrLogo.error.message ?? "").toLowerCase().includes("logo_url") ||
+        String(lrLogo.error.message ?? "").toLowerCase().includes("does not exist");
+      if (!missing) {
+        return NextResponse.json({ error: lrLogo.error.message }, { status: 500 });
+      }
+    } else {
+      logo_url = (lrLogo.data as { logo_url?: string | null } | null)?.logo_url ?? null;
+    }
+
     let fornecedor_id: string | null = null;
     let fornecedor_nome: string | null = null;
     let fornecedor_vinculado_em: string | null = null;
@@ -167,7 +181,11 @@ export async function GET(req: Request) {
       fornecedor_nome: e.fornecedor_id ? (fornNomes[e.fornecedor_id] ?? "—") : null,
     }));
 
-    const saldoDisponivel = Math.max(0, Number(seller.saldo_atual ?? 0) - Number(seller.saldo_bloqueado ?? 0));
+    /**
+     * Com ledger v2 + trigger, `sellers.saldo_atual` já é o disponível (fn_seller_saldo_from_ledger.saldo_disponivel).
+     * Subtrair saldo_bloqueado outra vez subestimava o disponível e misturava semântica com o cartão "Saldo total".
+     */
+    const saldoDisponivel = Math.max(0, Number(seller.saldo_atual ?? 0));
 
     /** Custo médio por pedido (BLOQUEIO/VENDA) para estimar quantos pedidos o saldo ainda cobre. */
     function custoMedioPedidosRecentes(dias: number): { media: number | null; amostra: number } {
@@ -292,6 +310,7 @@ export async function GET(req: Request) {
         fornecedor_nome,
         trial_valido_ate: (seller as { trial_valido_ate?: string | null }).trial_valido_ate ?? null,
         trial_ativo: isPortalTrialAtivo((seller as { trial_valido_ate?: string | null }).trial_valido_ate),
+        logo_url,
       },
       kpis: {
         pedidos_mes: pedidosMes.length,

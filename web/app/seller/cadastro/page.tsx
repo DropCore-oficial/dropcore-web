@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
 import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { toTitleCase } from "@/lib/formatText";
 import { normalizeSellerDocDigits } from "@/lib/sellerDocumento";
 import { isValidCnpjDigits, normalizeCnpjInput } from "@/lib/fornecedorCadastro";
 import { empresaCnpjParaEnderecoLinha, type EmpresaCnpjPayload } from "@/lib/cnpjBrasilConsulta";
 import { cepParaConsultaViaCep } from "@/lib/cepViaCep";
+import { cn } from "@/lib/utils";
 
 function formatarCNPJouCPF(val: string, tipo: "CNPJ" | "CPF"): string {
   const dig = val.replace(/\D/g, "");
@@ -66,6 +67,8 @@ export default function SellerCadastroPage() {
   const [cadastroPendente, setCadastroPendente] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<Form>(emptyForm);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -110,6 +113,8 @@ export default function SellerCadastroPage() {
         cpf_responsavel: formatarCNPJouCPF(normalizeSellerDocDigits(String(j.cpf_responsavel ?? "")), "CPF"),
         data_nascimento: String(j.data_nascimento ?? "").slice(0, 10),
       });
+      const lu = j.logo_url;
+      setLogoUrl(typeof lu === "string" && lu.length > 0 ? lu : null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
@@ -254,163 +259,303 @@ export default function SellerCadastroPage() {
     }
   }
 
+  async function uploadLogo(file: File) {
+    setLogoUploading(true);
+    setError(null);
+    setOkMsg(null);
+    try {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/seller/logo", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: fd,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof json?.error === "string" ? json.error : "Erro ao enviar logo.");
+      }
+      if (typeof json.logo_url === "string" && json.logo_url.length > 0) {
+        setLogoUrl(json.logo_url);
+      }
+      setOkMsg("Logo da marca atualizada.");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao enviar logo.");
+    } finally {
+      setLogoUploading(false);
+    }
+  }
+
+  async function removeLogo() {
+    setLogoUploading(true);
+    setError(null);
+    setOkMsg(null);
+    try {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const res = await fetch("/api/seller/logo", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof json?.error === "string" ? json.error : "Erro ao remover logo.");
+      }
+      setLogoUrl(null);
+      setOkMsg("Logo da marca removida.");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao remover logo.");
+    } finally {
+      setLogoUploading(false);
+    }
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-200 border-t-emerald-500 dark:border-neutral-700 dark:border-t-emerald-400" />
+      <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-xl border-2 border-[var(--card-border)] border-t-neutral-500 dark:border-t-neutral-400" />
+          <p className="text-sm font-medium text-[var(--muted)]">Carregando...</p>
+        </div>
       </div>
     );
   }
 
+  const inputClass =
+    "w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40";
+  const inputMonoClass = `${inputClass} font-mono`;
+
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="absolute top-3 right-3 md:top-4 md:right-4 z-50">
-        <ThemeToggle />
-      </div>
-      <main className="max-w-xl mx-auto px-4 sm:px-6">
+      <div className="dropcore-shell-4xl space-y-5 py-5 md:space-y-6 md:py-7">
         <SellerPageHeader
+          surface="hero"
+          showBack
+          backHref="/seller/dashboard"
           title={cadastroPendente ? "Complete seu cadastro" : "Dados comerciais"}
           subtitle={
             cadastroPendente
-              ? "Preencha CNPJ ou CPF, contato e endereço. O CNPJ deve ser o da sua conta no marketplace. Depois de salvar, você escolhe o plano (Starter ou Pro) no painel inicial."
+              ? "Preencha CNPJ ou CPF, contato e endereço. O CNPJ deve ser o da sua conta no marketplace. Depois de salvar, você escolhe o plano (Start ou Pro) no painel inicial."
               : "Revise ou atualize seus dados comerciais quando precisar."
           }
         />
 
         {error && (
-          <div className="mb-4 rounded-xl border border-red-300 bg-red-100 dark:bg-red-950/30 px-4 py-3 text-sm text-red-700 dark:text-red-200">
+          <div className="rounded-2xl border border-[var(--danger)]/40 bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/35 dark:text-red-300">
             {error}
           </div>
         )}
         {okMsg && (
-          <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-100 dark:bg-emerald-950/25 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100">
+          <div className="rounded-2xl border border-emerald-500/35 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-700/50 dark:bg-emerald-950/25 dark:text-emerald-300">
             {okMsg}
           </div>
         )}
-        <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900/90 shadow-md p-5 sm:p-6 space-y-4">
-          <div>
-            <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">Razão social ou nome fantasia *</label>
-            <input
-              type="text"
-              value={form.nome}
-              onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-              onBlur={() => setForm((f) => ({ ...f, nome: toTitleCase(f.nome) }))}
-              className="w-full rounded-xl border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-3 py-2.5 text-sm"
-            />
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">Tipo *</label>
-              <select
-                value={form.tipo_documento}
-                onChange={(e) => {
-                  const t = e.target.value === "CPF" ? "CPF" : "CNPJ";
-                  setOkMsg(null);
-                  setForm((f) => ({ ...f, tipo_documento: t, documento: "" }));
-                }}
-                className="w-full rounded-xl border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-3 py-2.5 text-sm"
-              >
-                <option value="CNPJ">CNPJ</option>
-                <option value="CPF">CPF</option>
-              </select>
-            </div>
-            <div className="sm:col-span-2 space-y-2">
-              <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">{form.tipo_documento} *</label>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-                <input
-                  type="text"
-                  value={form.documento}
-                  onChange={(e) => {
-                    setOkMsg(null);
-                    setForm((f) => ({ ...f, documento: formatarCNPJouCPF(e.target.value, f.tipo_documento) }));
-                  }}
-                  className="w-full min-w-0 flex-1 rounded-xl border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-3 py-2.5 text-sm font-mono"
-                  maxLength={form.tipo_documento === "CPF" ? 14 : 18}
-                />
-                {form.tipo_documento === "CNPJ" && (
-                  <button
-                    type="button"
-                    onClick={() => void buscarDadosCnpj()}
-                    disabled={cnpjBuscaLoading}
-                    className="shrink-0 rounded-xl border border-emerald-600 bg-emerald-600 px-3 py-2.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
-                  >
-                    {cnpjBuscaLoading ? "A consultar..." : "Validar na Receita"}
-                  </button>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void salvar();
+          }}
+          className="space-y-5 md:space-y-6"
+        >
+          <section className="space-y-4 overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:space-y-5 sm:p-5">
+            <h2 className="border-b border-[var(--card-border)] pb-2 text-sm font-semibold text-[var(--foreground)]">Loja e contato</h2>
+
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              <div className="shrink-0">
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt=""
+                    className="h-24 w-24 shrink-0 rounded-2xl border-0 object-contain bg-transparent p-0 outline-none ring-0"
+                  />
+                ) : (
+                  <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-dashed border-[var(--card-border)] bg-[var(--muted)]/8 px-2 text-center text-[11px] text-[var(--muted)]">
+                    Sem logo
+                  </div>
                 )}
               </div>
-              {form.tipo_documento === "CNPJ" && (
-                <label className="flex items-start gap-2 text-[11px] text-neutral-600 dark:text-neutral-400 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={overwriteFromCnpj}
-                    onChange={(e) => setOverwriteFromCnpj(e.target.checked)}
-                    className="mt-0.5 rounded border-neutral-300"
-                  />
-                  <span>Substituir nome, e-mail, telefone, CEP e endereço já preenchidos pelos dados da consulta.</span>
-                </label>
-              )}
-              {form.tipo_documento === "CNPJ" && (
-                <p className="text-[10px] text-neutral-500 dark:text-neutral-500 leading-relaxed">
-                  Consulta BrasilAPI / fallback ReceitaWS: confirma que o CNPJ existe na base pública e ajuda a evitar erro de digitação. O cadastro final continua sujeito à revisão da organização.
-                </p>
-              )}
+              <div className="min-w-0 flex-1 space-y-2">
+                <div>
+                  <p className="text-xs font-medium text-[var(--muted)]">Logo da marca</p>
+                  <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+                    PNG, JPG, WebP ou GIF até 2 MB. Aparece no painel ao lado do nome da loja.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label
+                    className={cn(
+                      "inline-flex cursor-pointer items-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)]/10",
+                      logoUploading && "pointer-events-none opacity-60",
+                    )}
+                  >
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="sr-only"
+                      disabled={logoUploading}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        if (f) void uploadLogo(f);
+                      }}
+                    />
+                    {logoUploading ? "Enviando…" : "Enviar imagem"}
+                  </label>
+                  {logoUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => void removeLogo()}
+                      disabled={logoUploading}
+                      className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] disabled:opacity-60"
+                    >
+                      Remover
+                    </button>
+                  ) : null}
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">E-mail comercial *</label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              className="w-full rounded-xl border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-3 py-2.5 text-sm"
-            />
-          </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">Razão social ou nome fantasia *</label>
+              <input
+                type="text"
+                value={form.nome}
+                onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
+                onBlur={() => setForm((f) => ({ ...f, nome: toTitleCase(f.nome) }))}
+                className={inputClass}
+              />
+            </div>
 
-          <div>
-            <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">Telefone (com DDD) *</label>
-            <input
-              type="text"
-              value={form.telefone}
-              onChange={(e) => setForm((f) => ({ ...f, telefone: e.target.value }))}
-              className="w-full rounded-xl border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-3 py-2.5 text-sm"
-            />
-          </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">Tipo *</label>
+                <select
+                  value={form.tipo_documento}
+                  onChange={(e) => {
+                    const t = e.target.value === "CPF" ? "CPF" : "CNPJ";
+                    setOkMsg(null);
+                    setForm((f) => ({ ...f, tipo_documento: t, documento: "" }));
+                  }}
+                  className={inputClass}
+                >
+                  <option value="CNPJ">CNPJ</option>
+                  <option value="CPF">CPF</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2 space-y-2">
+                <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">{form.tipo_documento} *</label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                  <input
+                    type="text"
+                    value={form.documento}
+                    onChange={(e) => {
+                      setOkMsg(null);
+                      setForm((f) => ({ ...f, documento: formatarCNPJouCPF(e.target.value, f.tipo_documento) }));
+                    }}
+                    className={`min-h-10 min-w-0 flex-1 ${inputMonoClass}`}
+                    maxLength={form.tipo_documento === "CPF" ? 14 : 18}
+                  />
+                  {form.tipo_documento === "CNPJ" && (
+                    <button
+                      type="button"
+                      onClick={() => void buscarDadosCnpj()}
+                      disabled={cnpjBuscaLoading}
+                      className="min-h-10 shrink-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-100 disabled:opacity-60 dark:text-neutral-300 dark:hover:bg-neutral-800 whitespace-nowrap"
+                    >
+                      {cnpjBuscaLoading ? "A consultar..." : "Validar na Receita"}
+                    </button>
+                  )}
+                </div>
+                {form.tipo_documento === "CNPJ" && (
+                  <label className="flex cursor-pointer items-start gap-2.5 text-[11px] text-[var(--muted)]">
+                    <input
+                      type="checkbox"
+                      checked={overwriteFromCnpj}
+                      onChange={(e) => setOverwriteFromCnpj(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--card-border)] bg-[var(--background)] text-emerald-600 focus:ring-emerald-500/40"
+                    />
+                    <span>Substituir nome, e-mail, telefone, CEP e endereço já preenchidos pelos dados da consulta.</span>
+                  </label>
+                )}
+                {form.tipo_documento === "CNPJ" && (
+                  <p className="text-[11px] leading-relaxed text-[var(--muted)]">
+                    Consulta BrasilAPI / fallback ReceitaWS: confirma que o CNPJ existe na base pública e ajuda a evitar erro de digitação. O cadastro final continua sujeito à revisão da organização.
+                  </p>
+                )}
+              </div>
+            </div>
 
-          <div>
-            <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">CEP *</label>
-            <input
-              type="text"
-              value={form.cep}
-              onChange={(e) => {
-                const v = e.target.value.replace(/\D/g, "").slice(0, 8);
-                setForm((f) => ({ ...f, cep: v.length <= 5 ? v : `${v.slice(0, 5)}-${v.slice(5)}` }));
-              }}
-              className="w-full rounded-xl border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-3 py-2.5 text-sm"
-              maxLength={9}
-            />
-            {cepLoading && <p className="text-[11px] text-emerald-600 mt-1">Buscando endereço...</p>}
-          </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">E-mail comercial *</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                className={inputClass}
+              />
+            </div>
 
-          <div>
-            <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">Endereço da loja *</label>
-            <input
-              type="text"
-              value={form.endereco}
-              onChange={(e) => setForm((f) => ({ ...f, endereco: e.target.value }))}
-              onBlur={() => setForm((f) => ({ ...f, endereco: toTitleCase(f.endereco) }))}
-              className="w-full rounded-xl border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-3 py-2.5 text-sm"
-            />
-          </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">Telefone (com DDD) *</label>
+              <input
+                type="text"
+                value={form.telefone}
+                onChange={(e) => setForm((f) => ({ ...f, telefone: e.target.value }))}
+                className={inputClass}
+              />
+            </div>
 
-          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-4 space-y-3">
-            <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-200">Responsável (opcional)</p>
-            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 -mt-1 leading-relaxed">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">CEP *</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={form.cep}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "").slice(0, 8);
+                  setForm((f) => ({ ...f, cep: v.length <= 5 ? v : `${v.slice(0, 5)}-${v.slice(5)}` }));
+                }}
+                placeholder="00000-000"
+                className={inputClass}
+                maxLength={9}
+              />
+              <p className="mt-1 text-[11px] leading-snug text-[var(--muted)]">
+                {cepLoading ? "A consultar CEP (ViaCEP)…" : "Com 8 dígitos preenchemos logradouro, bairro, cidade e UF quando disponível."}
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">Endereço da loja *</label>
+              <input
+                type="text"
+                value={form.endereco}
+                onChange={(e) => setForm((f) => ({ ...f, endereco: e.target.value }))}
+                onBlur={() => setForm((f) => ({ ...f, endereco: toTitleCase(f.endereco) }))}
+                className={inputClass}
+              />
+            </div>
+          </section>
+
+          <section className="space-y-4 overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:space-y-5 sm:p-5">
+            <h2 className="border-b border-[var(--card-border)] pb-2 text-sm font-semibold text-[var(--foreground)]">Responsável (opcional)</h2>
+            <p className="text-[11px] leading-relaxed text-[var(--muted)]">
               Dados da pessoa de contato ou representante legal, quando quiser deixar registrado no cadastro.
             </p>
             <div>
-              <label htmlFor="seller_nome_responsavel" className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">
+              <label htmlFor="seller_nome_responsavel" className="mb-1.5 block text-xs font-medium text-[var(--muted)]">
                 Nome do responsável
               </label>
               <input
@@ -420,11 +565,11 @@ export default function SellerCadastroPage() {
                 value={form.nome_responsavel}
                 onChange={(e) => setForm((f) => ({ ...f, nome_responsavel: e.target.value }))}
                 onBlur={() => setForm((f) => ({ ...f, nome_responsavel: toTitleCase(f.nome_responsavel) }))}
-                className="w-full rounded-xl border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-3 py-2.5 text-sm"
+                className={inputClass}
               />
             </div>
             <div>
-              <label htmlFor="seller_cpf_responsavel" className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">
+              <label htmlFor="seller_cpf_responsavel" className="mb-1.5 block text-xs font-medium text-[var(--muted)]">
                 CPF do responsável
               </label>
               <input
@@ -433,12 +578,12 @@ export default function SellerCadastroPage() {
                 placeholder="000.000.000-00"
                 value={form.cpf_responsavel}
                 onChange={(e) => setForm((f) => ({ ...f, cpf_responsavel: formatarCNPJouCPF(e.target.value, "CPF") }))}
-                className="w-full rounded-xl border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-3 py-2.5 text-sm"
+                className={inputMonoClass}
                 maxLength={14}
               />
             </div>
             <div>
-              <label htmlFor="seller_data_nascimento_responsavel" className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">
+              <label htmlFor="seller_data_nascimento_responsavel" className="mb-1.5 block text-xs font-medium text-[var(--muted)]">
                 Data de nascimento do responsável
               </label>
               <input
@@ -446,36 +591,38 @@ export default function SellerCadastroPage() {
                 type="date"
                 value={form.data_nascimento}
                 onChange={(e) => setForm((f) => ({ ...f, data_nascimento: e.target.value }))}
-                className="w-full rounded-xl border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-3 py-2.5 text-sm"
+                className={inputClass}
               />
-              <p className="text-[10px] text-neutral-500 dark:text-neutral-500 mt-1 leading-relaxed">
+              <p className="mt-1 text-[11px] leading-relaxed text-[var(--muted)]">
                 Opcional. Usada apenas como referência no cadastro comercial.
               </p>
             </div>
-          </div>
+          </section>
 
-          <div className="flex flex-wrap gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => void salvar()}
-              disabled={saving}
-              className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2.5 text-sm disabled:opacity-60"
-            >
-              {saving ? "Salvando..." : "Salvar"}
-            </button>
-            {!cadastroPendente && (
-              <button
-                type="button"
-                onClick={() => router.push("/seller/dashboard")}
-                className="rounded-xl border border-neutral-300 dark:border-neutral-600 px-5 py-2.5 text-sm"
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {!cadastroPendente ? (
+              <Link
+                href="/seller/dashboard"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-5 py-2.5 text-center text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] sm:min-h-0 sm:justify-start"
               >
                 Voltar ao painel
-              </button>
+              </Link>
+            ) : (
+              <span className="hidden sm:block" aria-hidden />
             )}
+            <div className="flex justify-center sm:justify-end">
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex min-h-11 w-full max-w-sm items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 active:brightness-[0.92] disabled:opacity-60 dark:bg-emerald-600 dark:hover:bg-emerald-700 sm:w-auto sm:max-w-none sm:min-w-[11rem]"
+              >
+                {saving ? "Salvando..." : "Salvar cadastro"}
+              </button>
+            </div>
           </div>
-        </div>
-      </main>
-      <SellerNav active="dashboard" />
+        </form>
+      </div>
+      <SellerNav active="cadastro" />
     </div>
   );
 }
