@@ -13,11 +13,18 @@ import { normalizarFornecedoresSellerApi, type FornecedorSellerListaRow } from "
 import { mascararSkuListagem } from "@/lib/sellerCatalogoPrivacidade";
 import {
   AMBER_PREMIUM_LINK,
+  AMBER_PREMIUM_SHELL,
   AMBER_PREMIUM_TEXT_BODY,
   AMBER_PREMIUM_TEXT_PRIMARY,
   AMBER_PREMIUM_TEXT_SOFT,
 } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
+import { CalculadoraAssinaturaRegrasInfo } from "@/components/calculadora/CalculadoraAssinaturaRegrasInfo";
+import { isCalculadoraAssinaturaExpiradaLegacy403 } from "@/lib/calculadoraAssinaturaExpired";
+import {
+  DANGER_PREMIUM_SURFACE_TRANSPARENT,
+  DANGER_PREMIUM_TEXT_SOFT,
+} from "@/lib/semanticPremium";
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const MARGEM_MINIMA = 5;
 
@@ -88,13 +95,26 @@ type EfeitoCupom = {
   reducaoPreco: number;
 };
 
-type CalcAccess = "loading" | "seller" | "calc_only" | "denied";
+type CalcAccess = "loading" | "seller" | "calc_only" | "calc_only_locked" | "denied";
 
 export default function SellerCalculadoraPage() {
   const router = useRouter();
   const [calcAccess, setCalcAccess] = useState<CalcAccess>("loading");
   const [calcValidoAte, setCalcValidoAte] = useState<string | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
+  /** Renovação PIX na página (plano calculadora avulso bloqueado) */
+  const [renoMeta, setRenoMeta] = useState<{ valor: number | null; configurado: boolean } | null>(null);
+  const [renoPixLoading, setRenoPixLoading] = useState(false);
+  const [renoPixErr, setRenoPixErr] = useState<string | null>(null);
+  const [renoPixData, setRenoPixData] = useState<{
+    qr_code_base64: string;
+    qr_code: string;
+    expira_em: string;
+    valor: number;
+  } | null>(null);
+  const [renoPixCopiado, setRenoPixCopiado] = useState(false);
+  /** Segundos até expira_em do PIX gerado (cronômetro regressivo). */
+  const [renoPixCountdownSec, setRenoPixCountdownSec] = useState<number | null>(null);
   const [preset, setPreset] = useState("");
   const [custoProduto, setCustoProduto] = useState("");
   const [embFul, setEmbFul] = useState("");
@@ -152,47 +172,145 @@ export default function SellerCalculadoraPage() {
     efeitoCupom?: EfeitoCupom | null;
   } | null>(null);
 
+  const refreshCalcAccess = useCallback(async () => {
+    const { data: { session } } = await supabaseBrowser.auth.getSession();
+    if (!session?.access_token) {
+      router.replace("/calculadora/login");
+      return;
+    }
+    const res = await fetch(`/api/calculadora/me?t=${Date.now()}`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      cache: "no-store",
+    });
+    const j = await res.json().catch(() => ({}));
+    if (res.status === 503) {
+      setAccessError(
+        typeof j?.error === "string"
+          ? j.error
+          : "Base de assinatura da calculadora não configurada. Execute create-calculadora-assinantes.sql no Supabase.",
+      );
+      setCalcAccess("denied");
+      return;
+    }
+    if (isCalculadoraAssinaturaExpiradaLegacy403(res.status, j)) {
+      setCalcAccess("calc_only_locked");
+      setCalcValidoAte(typeof j.valido_ate === "string" ? j.valido_ate : null);
+      return;
+    }
+    if (!res.ok) {
+      await supabaseBrowser.auth.signOut();
+      router.replace("/calculadora/login");
+      return;
+    }
+    if (j.access === "seller") {
+      setCalcAccess("seller");
+      setCalcValidoAte(null);
+    } else if (j.access === "calc_only") {
+      setCalcAccess("calc_only");
+      setCalcValidoAte(typeof j.valido_ate === "string" ? j.valido_ate : null);
+    } else if (j.access === "calc_only_locked") {
+      setCalcAccess("calc_only_locked");
+      setCalcValidoAte(typeof j.valido_ate === "string" ? j.valido_ate : null);
+    } else {
+      setCalcAccess("denied");
+    }
+  }, [router]);
+
   useEffect(() => {
+    void refreshCalcAccess();
+  }, [refreshCalcAccess]);
+
+  useEffect(() => {
+    if (calcAccess !== "calc_only_locked") return;
     let cancelled = false;
-    (async () => {
-      const { data: { session } } = await supabaseBrowser.auth.getSession();
-      if (!session?.access_token) {
-        router.replace("/calculadora/login");
-        return;
-      }
-      const res = await fetch("/api/calculadora/me", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+    fetch("/api/calculadora/renovacao-pix")
+      .then((r) => r.json())
+      .then((j: { valor?: number | null; configurado?: boolean }) => {
+        if (cancelled) return;
+        setRenoMeta({
+          valor: typeof j.valor === "number" ? j.valor : null,
+          configurado: Boolean(j.configurado),
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setRenoMeta({ valor: null, configurado: false });
       });
-      const j = await res.json().catch(() => ({}));
-      if (cancelled) return;
-      if (res.status === 503) {
-        setAccessError(
-          typeof j?.error === "string"
-            ? j.error
-            : "Base de assinatura da calculadora não configurada. Execute create-calculadora-assinantes.sql no Supabase.",
-        );
-        setCalcAccess("denied");
-        return;
-      }
-      if (!res.ok) {
-        await supabaseBrowser.auth.signOut();
-        router.replace("/calculadora/login");
-        return;
-      }
-      if (j.access === "seller") {
-        setCalcAccess("seller");
-        setCalcValidoAte(null);
-      } else if (j.access === "calc_only") {
-        setCalcAccess("calc_only");
-        setCalcValidoAte(typeof j.valido_ate === "string" ? j.valido_ate : null);
-      } else {
-        setCalcAccess("denied");
-      }
-    })();
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [calcAccess]);
+
+  useEffect(() => {
+    if (calcAccess === "calc_only") {
+      setRenoPixData(null);
+      setRenoPixErr(null);
+      setRenoPixCountdownSec(null);
+    }
+  }, [calcAccess]);
+
+  useEffect(() => {
+    const exp = renoPixData?.expira_em;
+    if (!exp) {
+      setRenoPixCountdownSec(null);
+      return;
+    }
+    const end = new Date(exp).getTime();
+    if (Number.isNaN(end)) {
+      setRenoPixCountdownSec(null);
+      return;
+    }
+    const tick = () => {
+      setRenoPixCountdownSec(Math.max(0, Math.floor((end - Date.now()) / 1000)));
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [renoPixData?.expira_em]);
+
+  useEffect(() => {
+    if (!renoPixData || calcAccess !== "calc_only_locked") return;
+    const id = setInterval(async () => {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return;
+      try {
+        await fetch("/api/calculadora/renovacao-pix/sync", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        await refreshCalcAccess();
+      } catch {
+        /* ignore */
+      }
+    }, 5000);
+    return () => clearInterval(id);
+  }, [renoPixData, calcAccess, refreshCalcAccess]);
+
+  const gerarPixRenovacao = useCallback(async () => {
+    setRenoPixLoading(true);
+    setRenoPixErr(null);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/calculadora/renovacao-pix", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof j?.error === "string" ? j.error : "Erro ao gerar PIX.");
+      }
+      setRenoPixData({
+        qr_code_base64: String(j.qr_code_base64 ?? ""),
+        qr_code: String(j.qr_code ?? ""),
+        expira_em: String(j.expira_em ?? ""),
+        valor: Number(j.valor ?? 0),
+      });
+    } catch (e: unknown) {
+      setRenoPixErr(e instanceof Error ? e.message : "Erro ao gerar PIX.");
+    } finally {
+      setRenoPixLoading(false);
+    }
+  }, []);
 
   /** Migra preset antigo “só Clássico” / “só Premium” → comparativo Clássico + Premium */
   useEffect(() => {
@@ -871,7 +989,8 @@ export default function SellerCalculadoraPage() {
             {accessError ?? "Seu acesso à calculadora expirou."}
           </p>
           <p className="text-xs text-neutral-600 dark:text-neutral-400">
-            Se o teste grátis terminou ou a assinatura venceu, fale com o suporte para renovar o acesso.
+            Se o teste grátis terminou ou a assinatura venceu, fale com o suporte para renovar o acesso. No plano pago, prevalece
+            um dia fixo de renovação no mês, sem juros; quem ficar sem pagar pode ficar sem acesso até regularizar.
           </p>
           <a href="/calculadora/login" className="text-sm text-emerald-600 dark:text-emerald-400 underline">
             Voltar ao login
@@ -881,12 +1000,13 @@ export default function SellerCalculadoraPage() {
     );
   }
 
-  const calcOnly = calcAccess === "calc_only";
+  const calcOnlyLite = calcAccess === "calc_only" || calcAccess === "calc_only_locked";
+  const usoBloqueadoCalc = calcAccess === "calc_only_locked";
 
   return (
     <div
       className={
-        calcOnly
+        calcOnlyLite
           ? "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
           : "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
       }
@@ -901,29 +1021,40 @@ export default function SellerCalculadoraPage() {
               subtitle="Preencha custos e operacionais por marketplace para gerar preço e margem."
             />
           </div>
-          {calcOnly && calcValidoAte && (
+          {calcAccess === "calc_only" && calcValidoAte && (
             <div
-              className="col-span-full rounded-xl border border-neutral-200 dark:border-neutral-700/80 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400 bg-white dark:bg-neutral-900/60 px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm leading-snug flex gap-2.5 items-start text-emerald-900 dark:text-emerald-300 shadow-sm dark:shadow-none"
+              className="col-span-full rounded-xl border border-neutral-200 dark:border-neutral-700/80 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400 bg-white dark:bg-neutral-900/60 px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm leading-snug text-emerald-900 dark:text-emerald-300 shadow-sm dark:shadow-none"
               role="status"
             >
-              <span className="text-lg leading-none shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" aria-hidden>
-                ✓
-              </span>
-              <span>
-                <strong className="font-semibold text-emerald-900 dark:text-emerald-300">Teste da calculadora:</strong>{" "}
-                <span className="text-emerald-700 dark:text-emerald-400/95">
-                  válido até{" "}
-                  {new Date(calcValidoAte).toLocaleString("pt-BR", {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  })}
+              <div className="flex gap-2.5 items-start">
+                <span className="text-lg leading-none shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" aria-hidden>
+                  ✓
                 </span>
-                .
-              </span>
+                <div className="min-w-0 flex-1">
+                  <p>
+                    <strong className="font-semibold text-emerald-900 dark:text-emerald-300">Acesso à calculadora:</strong>{" "}
+                    <span className="text-emerald-700 dark:text-emerald-400/95">
+                      válido até{" "}
+                      {new Date(calcValidoAte).toLocaleString("pt-BR", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })}
+                    </span>
+                    .
+                  </p>
+                  <CalculadoraAssinaturaRegrasInfo variant="embedded" />
+                </div>
+              </div>
             </div>
           )}
+          <div
+            className={cn(
+              "col-span-full grid w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_340px] gap-x-5 gap-y-5 isolate",
+              usoBloqueadoCalc && "relative min-h-[min(72vh,560px)]",
+            )}
+          >
         <div className="min-w-0 space-y-4">
-        {!calcOnly && (
+        {!calcOnlyLite && (
           <div className="block rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm px-5 py-4 flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
@@ -945,7 +1076,7 @@ export default function SellerCalculadoraPage() {
           </p>
         </div>
 
-        {!calcOnly && semArmazemCatalogo === true && (
+        {!calcOnlyLite && semArmazemCatalogo === true && (
           <div className="rounded-2xl border border-neutral-200/90 dark:border-neutral-700/70 bg-white dark:bg-neutral-900/70 shadow-sm overflow-hidden">
             <div className="h-1 w-full bg-gradient-to-r from-emerald-500 to-teal-600 sm:hidden" aria-hidden />
             <div className="flex flex-col sm:flex-row sm:items-stretch">
@@ -982,7 +1113,7 @@ export default function SellerCalculadoraPage() {
 
         <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm overflow-visible">
 
-          {!calcOnly && semArmazemCatalogo !== true && fornecedores.length > 0 && (
+          {!calcOnlyLite && semArmazemCatalogo !== true && fornecedores.length > 0 && (
             <>
               <Row label="Fornecedor">
                 <div className="space-y-2 w-full min-w-0">
@@ -1374,12 +1505,12 @@ export default function SellerCalculadoraPage() {
 
         {/* Coluna direita: resultado */}
         <div className="w-full min-w-0 space-y-3 lg:sticky lg:top-20 self-start">
-        {!calcOnly && precoMinimo != null && custoProduto && parseNum(custoProduto) > 0 ? (
+        {!calcOnlyLite && precoMinimo != null && custoProduto && parseNum(custoProduto) > 0 ? (
           <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5">
             <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-0.5">Preço mínimo ({MARGEM_MINIMA}% margem)</div>
             <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">{BRL.format(precoMinimo)}</div>
           </div>
-        ) : !calcOnly ? (
+        ) : !calcOnlyLite ? (
           <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm p-4 min-h-[68px] flex items-center justify-center">
             <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">Preencha o custo e clique em Calcular.</p>
           </div>
@@ -1395,7 +1526,7 @@ export default function SellerCalculadoraPage() {
               <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Resultado</h3>
             </div>
             <div className="p-4 space-y-4">
-              {!calcOnly && abaixoMinimo && (
+              {!calcOnlyLite && abaixoMinimo && (
                 <div className="rounded-xl border border-red-300 dark:border-red-900 bg-red-100 dark:bg-red-950/40 p-3 text-sm text-red-800 dark:text-red-200">
                   ⚠️ Margem abaixo do mínimo! Você está vendendo com menos de {MARGEM_MINIMA}% de lucro.
                 </div>
@@ -1661,9 +1792,184 @@ export default function SellerCalculadoraPage() {
           </div>
         )}
         </div>
+
+        {usoBloqueadoCalc ? (
+          <div
+            className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto p-4 sm:p-6 bg-black/45 dark:bg-black/60 backdrop-blur-[3px]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bloqueio-calc-titulo"
+          >
+            <div className="relative w-full max-w-[min(22rem,calc(100vw-2rem))] max-h-[calc(100dvh-8rem)] overflow-x-hidden overflow-y-auto rounded-xl border border-emerald-300/60 dark:border-emerald-500/40 bg-white dark:bg-neutral-900 px-4 py-4 shadow-xl ring-1 ring-emerald-500/10 dark:ring-emerald-400/20">
+              <div className="absolute inset-x-0 top-0 h-0.5 sm:h-1 bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-600" aria-hidden />
+              <div className="flex items-start gap-2.5">
+                <span
+                  className={cn(
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-500/40 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300",
+                  )}
+                  aria-hidden
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect width="18" height="14" x="3" y="7" rx="2" ry="2" />
+                    <path d="M8 7V5a4 4 0 0 1 8 0v2" />
+                    <circle cx="12" cy="14" r="1" fill="currentColor" stroke="none" />
+                  </svg>
+                </span>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <h2 id="bloqueio-calc-titulo" className="text-base font-semibold leading-snug text-neutral-900 dark:text-neutral-100">
+                    Renovar acesso da calculadora
+                  </h2>
+                  {calcValidoAte ? (
+                    <p className="text-xs sm:text-[13px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                      Vencido em{" "}
+                      <span className="tabular-nums font-medium text-neutral-700 dark:text-neutral-300">
+                        {new Date(calcValidoAte).toLocaleString("pt-BR", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
+                      </span>
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+                Pague o PIX para liberar o acesso. A confirmação é automática em poucos segundos.
+              </p>
+              {renoMeta && !renoMeta.configurado ? (
+                <p
+                  className={cn(
+                    "mt-3 rounded-xl px-3 py-2.5 text-xs leading-relaxed",
+                    DANGER_PREMIUM_SURFACE_TRANSPARENT,
+                    DANGER_PREMIUM_TEXT_SOFT,
+                  )}
+                >
+                  O valor da renovação ainda não está configurado no servidor (variável{" "}
+                  <span className="font-mono text-[11px]">CALCULADORA_RENOVACAO_VALOR</span>). Peça à equipe técnica para
+                  configurar antes de gerar o PIX.
+                </p>
+              ) : null}
+              {renoMeta?.configurado && typeof renoMeta.valor === "number" && !renoPixData ? (
+                <p className="mt-2 text-xs font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
+                  {BRL.format(renoMeta.valor)} · ciclo mensal
+                </p>
+              ) : null}
+              {renoPixErr ? (
+                <p
+                  className={cn(
+                    "mt-3 rounded-xl px-3 py-2.5 text-xs leading-relaxed",
+                    DANGER_PREMIUM_SURFACE_TRANSPARENT,
+                    DANGER_PREMIUM_TEXT_SOFT,
+                  )}
+                >
+                  {renoPixErr}
+                </p>
+              ) : null}
+              {!renoPixData ? (
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                  <button
+                    type="button"
+                    onClick={() => void gerarPixRenovacao()}
+                    disabled={renoPixLoading || (renoMeta !== null && !renoMeta.configurado)}
+                    className="w-full sm:w-auto rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                  >
+                    {renoPixLoading ? "Gerando PIX…" : "Gerar PIX da renovação"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await supabaseBrowser.auth.signOut();
+                      router.replace("/calculadora/login");
+                    }}
+                    className="w-full sm:w-auto rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--foreground)] hover:opacity-90 transition-opacity"
+                  >
+                    Sair da conta
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-1">
+                    <span className="text-xs font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
+                      {BRL.format(renoPixData.valor)}
+                    </span>
+                    <span className="text-[11px] text-neutral-500 dark:text-neutral-400">App do banco</span>
+                  </div>
+                  {renoPixCountdownSec !== null ? (
+                    <div
+                      className={cn(
+                        "rounded-lg px-2.5 py-1.5 text-center text-[11px] font-medium tabular-nums border",
+                        renoPixCountdownSec <= 60
+                          ? cn(AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_SOFT)
+                          : "border-neutral-200 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-400",
+                      )}
+                    >
+                      {renoPixCountdownSec <= 0 ? (
+                        <>QR expirado — toque em &quot;Gerar novo PIX&quot;</>
+                      ) : (
+                        <>
+                          QR válido por{" "}
+                          <span className={renoPixCountdownSec <= 60 ? "tabular-nums" : ""}>
+                            {Math.floor(renoPixCountdownSec / 60)}:{(renoPixCountdownSec % 60).toString().padStart(2, "0")}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  ) : null}
+                  <div className="flex justify-center rounded-lg border border-neutral-200 bg-white p-2 dark:border-neutral-700 dark:bg-neutral-950">
+                    {renoPixData.qr_code_base64 ? (
+                      <img
+                        src={`data:image/png;base64,${renoPixData.qr_code_base64}`}
+                        alt="QR Code PIX"
+                        className="h-[7.75rem] w-[7.75rem] sm:h-32 sm:w-32 object-contain"
+                      />
+                    ) : (
+                      <p className="text-xs text-neutral-500 px-2">QR indisponível — copie e cole.</p>
+                    )}
+                  </div>
+                  {renoPixData.qr_code ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(renoPixData.qr_code);
+                        setRenoPixCopiado(true);
+                        window.setTimeout(() => setRenoPixCopiado(false), 2500);
+                      }}
+                      className="w-full rounded-xl border border-emerald-600 bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors touch-manipulation"
+                    >
+                      {renoPixCopiado ? "Copiado!" : "Copiar código PIX"}
+                    </button>
+                  ) : null}
+                  <p className="text-center text-[10px] leading-snug text-neutral-500 dark:text-neutral-400">
+                    Após o pagamento, esta página atualiza sozinha.
+                  </p>
+                  <div className="flex flex-col-reverse gap-1.5 sm:flex-row sm:justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={() => void gerarPixRenovacao()}
+                      disabled={renoPixLoading}
+                      className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-xs font-medium text-[var(--foreground)] hover:opacity-90 disabled:opacity-50"
+                    >
+                      {renoPixLoading ? "Gerando…" : "Gerar novo PIX"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await supabaseBrowser.auth.signOut();
+                        router.replace("/calculadora/login");
+                      }}
+                      className="rounded-xl border border-[var(--card-border)] px-3 py-2 text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                    >
+                      Sair da conta
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
+          </div>
         </div>
       </div>
-      <SellerNav active="calculadora" calcOnly={calcOnly} />
+      <SellerNav active="calculadora" calcOnly={calcOnlyLite} />
     </div>
   );
 }

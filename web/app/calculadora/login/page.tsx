@@ -13,6 +13,8 @@ import {
 } from "@/components/DropcoreAuthShell";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { CalculadoraAssinaturaRegrasInfo } from "@/components/calculadora/CalculadoraAssinaturaRegrasInfo";
+import { isCalculadoraAssinaturaExpiradaLegacy403 } from "@/lib/calculadoraAssinaturaExpired";
 
 /**
  * Login dedicado à marca "DropCore Calculadora".
@@ -76,11 +78,18 @@ export default function CalculadoraLoginPage() {
         throw new Error("Não foi possível obter a sessão. Atualize a página e tente de novo.");
       }
 
-      const res = await fetch("/api/calculadora/me", {
+      const res = await fetch(`/api/calculadora/me?t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
+        cache: "no-store",
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
+      const accessOk =
+        res.ok &&
+        (body?.access === "seller" ||
+          body?.access === "calc_only" ||
+          body?.access === "calc_only_locked");
+      const legacyExpired = isCalculadoraAssinaturaExpiradaLegacy403(res.status, body);
+      if (!accessOk && !legacyExpired) {
         await supabaseBrowser.auth.signOut();
         throw new Error(
           typeof body?.error === "string"
@@ -148,6 +157,10 @@ export default function CalculadoraLoginPage() {
           {esqueciSenha ? "← Voltar ao login" : "Esqueci a senha"}
         </button>
 
+        <CalculadoraAssinaturaRegrasInfo
+          className="mt-4"
+          heading="Plano pago — como funciona"
+        />
       </div>
     </DropcoreAuthShell>
   );

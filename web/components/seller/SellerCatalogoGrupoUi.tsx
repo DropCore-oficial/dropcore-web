@@ -46,6 +46,9 @@ export type SellerCatalogoItem = {
   link_fotos: string | null;
   descricao: string | null;
   ncm: string | null;
+  origem: string | null;
+  cest: string | null;
+  cfop: string | null;
   habilitado_venda?: boolean;
 };
 
@@ -104,6 +107,9 @@ export function normalizarItemsSellerCatalogo(raw: unknown): SellerCatalogoItem[
           link_fotos: row?.link_fotos != null ? str(row.link_fotos) : null,
           descricao: row?.descricao != null ? str(row.descricao) : null,
           ncm: row?.ncm != null ? str(row.ncm) : null,
+          origem: row?.origem != null ? str(row.origem) : null,
+          cest: row?.cest != null ? str(row.cest) : null,
+          cfop: row?.cfop != null ? str(row.cfop) : null,
           habilitado_venda: row?.habilitado_venda === true,
         } as SellerCatalogoItem;
       } catch {

@@ -97,7 +97,8 @@ function VendaSwitch({
   );
 }
 
-export function CatalogoV2VariacaoRow({ linha, onToggleOne, busy }: Props) {
+/** Mesma regra do card completo — use onde o switch da API ERP fica fora do `CatalogoV2VariacaoRow`. */
+export function CatalogoV2VariacaoApiToggle({ linha, onToggleOne, busy }: Props) {
   const { item } = linha;
   const ativo = linha.ativo;
   const pronto = linha.prontoParaVender;
@@ -107,6 +108,21 @@ export function CatalogoV2VariacaoRow({ linha, onToggleOne, busy }: Props) {
   const switchDisabled = busy || !ativo || (!habilitado && !podeLigar);
   const saleTone: "ok" | "stale" | "off" =
     !habilitado ? "off" : habilitado && !pronto ? "stale" : "ok";
+  return (
+    <VendaSwitch
+      habilitado={habilitado}
+      busy={busy}
+      disabled={switchDisabled}
+      saleTone={saleTone}
+      onToggle={() => onToggleOne(item, !habilitado)}
+    />
+  );
+}
+
+export function CatalogoV2VariacaoRow({ linha, onToggleOne, busy }: Props) {
+  const { item } = linha;
+  const ativo = linha.ativo;
+  const pronto = linha.prontoParaVender;
   const semEstoque = ativo && linha.estoque <= 0;
   const fraco = semEstoque || !ativo;
 
@@ -118,14 +134,21 @@ export function CatalogoV2VariacaoRow({ linha, onToggleOne, busy }: Props) {
 
   return (
     <div
-      className={`rounded-lg border border-[#e6eaee] bg-white p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.035)] transition-all duration-200 ease-in-out hover:-translate-y-[1px] hover:shadow-[0_8px_16px_-12px_rgba(15,23,42,0.22)] dark:border-[#2c313a] dark:bg-[#1e222a] ${fraco ? "opacity-[0.82]" : ""}`}
+      className={`rounded-lg border border-[#e6eaee] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.035)] transition-all duration-200 ease-in-out hover:-translate-y-[1px] hover:shadow-[0_8px_16px_-12px_rgba(15,23,42,0.22)] dark:border-[#2c313a] dark:bg-[#1e222a] ${fraco ? "opacity-[0.82]" : ""}`}
     >
-      <div className="grid grid-cols-[80px_minmax(0,1fr)_auto] items-center gap-3.5 sm:gap-4">
+      <div className="flex items-start justify-between gap-3 border-b border-[#e6eaee] px-3.5 py-2.5 dark:border-[#2c313a]">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-semibold leading-snug text-[#202223] dark:text-[#e8eaed]">{tituloVariacao}</p>
+          <p className={`mt-0.5 truncate font-mono text-[10px] tracking-wide ${muted}`}>{linha.sku}</p>
+        </div>
+        <div className="shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
+          <CatalogoV2VariacaoApiToggle linha={linha} onToggleOne={onToggleOne} busy={busy} />
+        </div>
+      </div>
+      <div className="grid grid-cols-[80px_minmax(0,1fr)] items-start gap-3.5 p-3.5 sm:gap-4">
         <ThumbModal url={linha.imagemUrl} />
         <div className="min-w-0 py-0.5">
-          <p className={`truncate font-mono text-[10px] tracking-wide ${muted}`}>{linha.sku}</p>
-          <p className="mt-0.5 truncate text-[13px] font-medium leading-snug text-[#202223] dark:text-[#e8eaed]">{tituloVariacao}</p>
-          <p className={`mt-1 truncate text-xs tabular-nums leading-tight ${muted}`}>
+          <p className={`truncate text-xs tabular-nums leading-tight ${muted}`}>
             Est. <span className="font-medium text-[#202223] dark:text-[#e3e5e8]">{linha.estoque}</span>
             <span className="mx-1 text-[#dcdfe4] dark:text-[#454b54]">·</span>
             {fmtMoney(linha.custo)}
@@ -142,15 +165,6 @@ export function CatalogoV2VariacaoRow({ linha, onToggleOne, busy }: Props) {
               {pendenciaTexto}
             </p>
           )}
-        </div>
-        <div className="flex h-full min-h-[80px] shrink-0 items-center justify-end self-center">
-          <VendaSwitch
-            habilitado={habilitado}
-            busy={busy}
-            disabled={switchDisabled}
-            saleTone={saleTone}
-            onToggle={() => onToggleOne(item, !habilitado)}
-          />
         </div>
       </div>
     </div>

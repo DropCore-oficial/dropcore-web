@@ -5,6 +5,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { FornecedorNav } from "../FornecedorNav";
+import { CorCelulaProduto } from "@/components/fornecedor/CorCelulaProduto";
 import { AlteracoesCatalogoInfoBanner } from "@/components/fornecedor/AlteracoesCatalogoInfoBanner";
 import { FotoVariacaoCell, type FotoVariacaoCellHandle } from "@/components/FotoVariacaoCell";
 import { toTitleCase } from "@/lib/formatText";
@@ -12,6 +13,7 @@ import { fornecedorProdutoImagemSrc } from "@/lib/fornecedorProdutoImagemSrc";
 import { getResumoRascunhoCriarVariantes, type ResumoRascunhoCriarVariantes } from "@/lib/fornecedorCriarVariantesRascunho";
 import { ProdutoResumoListaGrupo } from "@/components/fornecedor/ProdutoResumoListaGrupo";
 import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_BODY, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
 import { cn } from "@/lib/utils";
 
 const BRL_CUSTO_FORNECEDOR = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -96,30 +98,7 @@ function getLinkFotos(produto: Produto, todos: Produto[]): string | null {
   return pai?.link_fotos ?? null;
 }
 
-/** Se `cor` tiver vários valores numa string (dados antigos com vírgulas), mostra em chips em vez de um bloco único. */
-function CorCelulaProduto({ cor }: { cor: string | null }) {
-  const raw = (cor ?? "").trim();
-  if (!raw) return <>—</>;
-  const parts = raw.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
-  if (parts.length <= 1) {
-    return <span className="break-words">{raw}</span>;
-  }
-  return (
-    <span className="flex flex-wrap gap-1">
-      {parts.map((p, i) => (
-        <span
-          key={`${i}-${p}`}
-          className="inline-flex max-w-full rounded-md bg-[var(--muted)]/15 px-1.5 py-0.5 text-[11px] font-medium text-[var(--foreground)]"
-        >
-          {p}
-        </span>
-      ))}
-    </span>
-  );
-}
-
 type GrupoProduto = { paiKey: string; pai: Produto | null; filhos: Produto[] };
-type GrupoPorCor = { key: string; corLabel: string; itens: Produto[] };
 
 /** Primeira variante (menor SKU) que já tem `imagem_url`. */
 function primeiraImagemUrlEntreFilhos(filhos: Produto[]): string | null {
@@ -207,29 +186,6 @@ function fallbackImagemSkuPai(row: Produto, g: GrupoProduto): string | null {
   if (row.sku !== g.paiKey) return null;
   if (row.imagem_url) return null;
   return primeiraImagemUrlEntreFilhos(g.filhos);
-}
-
-function agruparVariantesPorCor(rows: Produto[]): GrupoPorCor[] {
-  const porCor = new Map<string, GrupoPorCor>();
-  const ordenadas = [...rows].sort((a, b) => a.sku.localeCompare(b.sku));
-  for (const row of ordenadas) {
-    const cor = (row.cor ?? "").trim();
-    const corLabel = cor || "Sem cor";
-    const key = cor.toLowerCase() || "__sem_cor__";
-    const atual = porCor.get(key);
-    if (atual) {
-      atual.itens.push(row);
-    } else {
-      porCor.set(key, { key, corLabel, itens: [row] });
-    }
-  }
-  return Array.from(porCor.values()).sort((a, b) => {
-    const skuA = a.itens[0]?.sku ?? "";
-    const skuB = b.itens[0]?.sku ?? "";
-    const bySku = skuA.localeCompare(skuB, "pt-BR", { numeric: true });
-    if (bySku !== 0) return bySku;
-    return a.corLabel.localeCompare(b.corLabel, "pt-BR");
-  });
 }
 
 function isEstoqueBaixo(p: Produto): boolean {

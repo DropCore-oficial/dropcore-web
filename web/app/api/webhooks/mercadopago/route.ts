@@ -12,11 +12,12 @@ import { mercadoPagoOrderIndicaPagamentoCredito } from "@/lib/mercadoPagoOrderPa
 import { processarDepositoAprovado } from "@/lib/depositoPixProcessor";
 import { processarMensalidadePaga } from "@/lib/mensalidadePixProcessor";
 import { processarUpgradeProAprovado } from "@/lib/upgradeProPixProcessor";
+import { processarCalculadoraRenovacaoPaga } from "@/lib/calculadoraRenovacaoPixProcessor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function processarPorExtRef(extRef: string): Promise<void> {
+async function processarPorExtRef(extRef: string, mpPaymentId?: string | null): Promise<void> {
   if (!extRef.trim()) return;
 
   if (extRef.startsWith("upgrade-pro-")) {
@@ -26,6 +27,11 @@ async function processarPorExtRef(extRef: string): Promise<void> {
 
   if (extRef.startsWith("deposito-")) {
     await processarDepositoAprovado(extRef);
+    return;
+  }
+
+  if (extRef.startsWith("crcalc") || extRef.startsWith("calc-renew::")) {
+    await processarCalculadoraRenovacaoPaga(extRef, mpPaymentId ?? null);
     return;
   }
 
@@ -47,6 +53,7 @@ export async function POST(req: Request) {
     }
 
     let extRef = "";
+    let mpPaymentIdOut: string | null = null;
 
     // type=order (API Orders / modo teste)
     if (type === "order" && orderId) {
@@ -59,6 +66,8 @@ export async function POST(req: Request) {
         order = (await res.json()) as Record<string, unknown>;
         if (res.ok && mercadoPagoOrderIndicaPagamentoCredito(order)) {
           extRef = String(order?.external_reference ?? "").trim();
+          const payments = (order?.transactions as { payments?: { id?: string }[] })?.payments ?? [];
+          mpPaymentIdOut = payments[0]?.id ? String(payments[0].id) : null;
           break;
         }
         if (action === "order.action_required" && attempt < 2) {
@@ -70,6 +79,7 @@ export async function POST(req: Request) {
     // type=payment (API Payments clássica)
     if (type === "payment" && data?.id) {
       const paymentId = String(data.id);
+      mpPaymentIdOut = paymentId;
       const res = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -80,7 +90,7 @@ export async function POST(req: Request) {
     }
 
     if (extRef) {
-      await processarPorExtRef(extRef);
+      await processarPorExtRef(extRef, mpPaymentIdOut);
     }
 
     return NextResponse.json({ received: true });

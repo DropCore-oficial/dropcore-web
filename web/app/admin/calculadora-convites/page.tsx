@@ -162,7 +162,9 @@ export default function AdminCalculadoraConvitesPage() {
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 shadow-sm">
           <h1 className="text-lg font-semibold mb-1">Teste grátis da DropCore Calculadora</h1>
           <p className="text-sm text-[var(--muted)] mb-5">
-            Gere um link de teste grátis para a calculadora e envie para o cliente ativar o acesso.
+            Gere um link de teste grátis para a calculadora e envie para o cliente ativar o acesso. Informação oficial para cliente
+            (plano pago): dia de renovação fixo no calendário, sem juros; inadimplência bloqueia o uso até quitar — o dia da
+            renovação não migra só porque o último pagamento foi atrasado (está também nas telas /calculadora).
           </p>
 
           <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">

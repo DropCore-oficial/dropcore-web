@@ -1,6 +1,8 @@
 /**
  * GET /api/calculadora/me
- * Quem pode usar a calculadora: seller DropCore ativo OU assinante calculadora (valido_ate > agora).
+ * Seller completo: acesso total.
+ * Assinante calculadora com data válida: access calc_only.
+ * Assinante calculadora vencido mas ainda ativo no cadastro: access calc_only_locked (entra no app, uso bloqueado na UI).
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -78,18 +80,25 @@ export async function GET(req: Request) {
     }
 
     const validoAte = new Date(assin.valido_ate);
-    if (Number.isNaN(validoAte.getTime()) || validoAte.getTime() < Date.now()) {
+    const expirado = Number.isNaN(validoAte.getTime()) || validoAte.getTime() < Date.now();
+
+    if (expirado) {
       return NextResponse.json(
-        { error: "Assinatura da calculadora expirada. Renove para continuar." },
-        { status: 403 },
+        {
+          access: "calc_only_locked",
+          valido_ate: assin.valido_ate,
+          uso_bloqueado: true,
+          motivo: "assinatura_expirada",
+          email,
+        },
+        { headers: { "Cache-Control": "no-store, max-age=0" } },
       );
     }
 
-    return NextResponse.json({
-      access: "calc_only",
-      valido_ate: assin.valido_ate,
-      email,
-    });
+    return NextResponse.json(
+      { access: "calc_only", valido_ate: assin.valido_ate, email },
+      { headers: { "Cache-Control": "no-store, max-age=0" } },
+    );
   } catch (e: unknown) {
     console.error("GET /api/calculadora/me", e);
     return NextResponse.json({ error: "Erro interno." }, { status: 500 });

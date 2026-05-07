@@ -7,13 +7,20 @@ import {
   AMBER_PREMIUM_ACCENT_BAR,
   AMBER_PREMIUM_DOT,
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
-  AMBER_PREMIUM_TEXT_BODY,
   AMBER_PREMIUM_TEXT_PRIMARY,
   AMBER_PREMIUM_TEXT_SECONDARY,
-  amberPremiumWarningMainTextClass,
 } from "@/lib/amberPremium";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { cn } from "@/lib/utils";
+import {
+  CadastroResumoShell,
+  FieldRow,
+  GradeBadge,
+  KpiCard,
+  MiniCard,
+  ProgressBar,
+  cadastroCampoPreenchido as filled,
+} from "@/components/fornecedor/produtoCadastroUiKit";
 
 /** Campos usados no resumo da lista — alinhar com GET /api/fornecedor/produtos */
 export type ProdutoResumoLista = {
@@ -42,13 +49,6 @@ export type ProdutoResumoLista = {
   expedicao_override_linha?: string | null;
   detalhes_produto_json?: Record<string, unknown> | null;
 };
-
-function filled(v: unknown): boolean {
-  if (v == null) return false;
-  if (typeof v === "string") return v.trim().length > 0;
-  if (typeof v === "number") return Number.isFinite(v);
-  return true;
-}
 
 function asObj(v: unknown): Record<string, unknown> | null {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
@@ -91,133 +91,6 @@ function percent(preenchidos: number, total: number): number {
   return Math.max(0, Math.min(100, Math.round((preenchidos / total) * 100)));
 }
 
-type StatusVariant = "aprovado" | "pendente" | "erro" | "opcional" | "analise";
-
-function StatusBadge({ text, variant }: { text: string; variant: StatusVariant }) {
-  const cls =
-    variant === "aprovado"
-      ? "bg-emerald-50 text-emerald-900 ring-1 ring-emerald-600/10 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-500/45"
-      : variant === "pendente"
-        ? cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY)
-        : variant === "erro"
-          ? "bg-rose-50 text-rose-800 ring-1 ring-rose-600/15 dark:bg-rose-950 dark:text-rose-200 dark:ring-rose-500/45"
-          : variant === "analise"
-            ? "bg-sky-50 text-sky-900 ring-1 ring-sky-600/15 dark:bg-sky-950 dark:text-sky-200 dark:ring-sky-500/45"
-            : "bg-[var(--surface-subtle)] text-[var(--muted)] ring-1 ring-[var(--foreground)]/8";
-  return (
-    <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-tight ${cls}`}>
-      {text}
-    </span>
-  );
-}
-
-function FieldRow({
-  label,
-  value,
-  ok,
-  optional = false,
-}: {
-  label: string;
-  value: ReactNode;
-  ok: boolean;
-  optional?: boolean;
-}) {
-  const variant: StatusVariant = optional ? "opcional" : ok ? "aprovado" : "pendente";
-  const badgeText = optional ? "Opcional" : ok ? "Completo" : "Pendente";
-  return (
-    <div className="flex items-start justify-between gap-3 border-b border-[var(--card-border)] py-3.5 last:border-b-0">
-      <div className="min-w-0 flex-1 pr-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">{label}</p>
-        <div className="mt-1.5 break-words text-sm font-medium leading-snug text-[var(--foreground)]">{value}</div>
-      </div>
-      <StatusBadge text={badgeText} variant={variant} />
-    </div>
-  );
-}
-
-function MiniCard({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm dark:shadow-none">
-      <h4 className="text-[15px] font-semibold tracking-tight text-[var(--foreground)]">{title}</h4>
-      {subtitle ? <p className="mt-1 text-sm text-[var(--muted)]">{subtitle}</p> : null}
-      <div className="mt-1">{children}</div>
-    </section>
-  );
-}
-
-function KpiCard({
-  label,
-  value,
-  status,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  status?: string;
-  tone?: "neutral" | "success" | "warning";
-}) {
-  const toneClass =
-    tone === "success"
-      ? "text-emerald-700 dark:text-emerald-300"
-      : tone === "warning"
-        ? amberPremiumWarningMainTextClass(value)
-        : "text-[var(--foreground)]";
-  return (
-    <div className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm transition-all hover:border-emerald-300 dark:hover:border-emerald-700">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">{label}</p>
-      <p className={`mt-2 text-xl font-semibold tabular-nums tracking-tight ${toneClass}`}>{value}</p>
-      {status ? (
-        <p
-          className={`mt-1.5 text-xs leading-snug ${
-            tone === "warning" ? AMBER_PREMIUM_TEXT_SECONDARY : "text-[var(--muted)]"
-          }`}
-        >
-          {status}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function ProgressBar({ value }: { value: number }) {
-  return (
-    <div className="h-2.5 w-full overflow-hidden rounded-full bg-[var(--muted)]/20 ring-1 ring-inset ring-[var(--foreground)]/8 dark:ring-white/10">
-      <div
-        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-500 ease-out"
-        style={{ width: `${value}%` }}
-      />
-    </div>
-  );
-}
-
-function GradeBadge({ value }: { value: number }) {
-  const variant: StatusVariant = value >= 85 ? "aprovado" : value >= 70 ? "analise" : "pendente";
-  if (variant === "pendente") {
-    return (
-      <span
-        className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3.5 py-2 text-xs leading-snug shadow-none ${AMBER_PREMIUM_SURFACE_TRANSPARENT}`}
-      >
-        <span className={cn("shrink-0 font-semibold tabular-nums", amberPremiumWarningMainTextClass(`${value}%`))}>
-          {value}%
-        </span>
-        <span className={cn("shrink-0 font-normal", AMBER_PREMIUM_DOT)} aria-hidden>
-          ·
-        </span>
-        <span className={cn("min-w-0 font-normal", AMBER_PREMIUM_TEXT_BODY)}>concluído</span>
-      </span>
-    );
-  }
-  return <StatusBadge text={`${value}% concluído`} variant={variant} />;
-}
-
 type AcaoPrioritaria = {
   id: string;
   titulo: string;
@@ -235,6 +108,7 @@ function SummaryShell({ children }: { children: ReactNode }) {
   );
 }
 
+/** Mesmo invólucro interno que `CadastroResumoShell` no kit — lista fornecedor mantém borda superior no pai. */
 type Props = {
   grupoKey: string;
   pai: ProdutoResumoLista | null;
@@ -242,6 +116,8 @@ type Props = {
   representante: ProdutoResumoLista;
   linkAlbum: string | null;
   editHref: string;
+  /** Seller no catálogo: mesmo layout, sem CTAs de edição do fornecedor; medidas via API do seller. */
+  somenteLeitura?: boolean;
 };
 
 export function ProdutoResumoListaGrupo({
@@ -251,6 +127,7 @@ export function ProdutoResumoListaGrupo({
   representante,
   linkAlbum,
   editHref,
+  somenteLeitura = false,
 }: Props) {
   const base = pai ?? representante;
   const [mostrarDetalhes, setMostrarDetalhes] = useState(false);
@@ -276,13 +153,16 @@ export function ProdutoResumoListaGrupo({
       try {
         const { data: { session } } = await supabaseBrowser.auth.getSession();
         if (!session?.access_token || cancel) return;
-        const res = await fetch(
-          `/api/fornecedor/produtos/tabela-medidas?grupoKey=${encodeURIComponent(grupoKey)}`,
-          { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }
-        );
+        const url = somenteLeitura
+          ? `/api/seller/catalogo/tabela-medidas?grupoKey=${encodeURIComponent(grupoKey)}`
+          : `/api/fornecedor/produtos/tabela-medidas?grupoKey=${encodeURIComponent(grupoKey)}`;
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: "no-store",
+        });
         if (!res.ok || cancel) return;
         const data = await res.json();
-        const fonte = data.pendente ?? data.aprovada ?? null;
+        const fonte = somenteLeitura ? (data.aprovada ?? null) : (data.pendente ?? data.aprovada ?? null);
         const medidas = fonte?.medidas ?? {};
         let preenchidas = 0;
         let total = 0;
@@ -307,7 +187,7 @@ export function ProdutoResumoListaGrupo({
     return () => {
       cancel = true;
     };
-  }, [grupoKey]);
+  }, [grupoKey, somenteLeitura]);
 
   const detalhes = asObj(base.detalhes_produto_json);
   const infoBasica = asObj(detalhes?.infoBasica);
@@ -380,7 +260,7 @@ export function ProdutoResumoListaGrupo({
 
   return (
     <SummaryShell>
-      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
+      <CadastroResumoShell>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Resumo do cadastro</p>
@@ -388,17 +268,20 @@ export function ProdutoResumoListaGrupo({
               Qualidade dos dados do produto
             </h3>
             <p className="mt-1.5 text-sm leading-relaxed text-[var(--muted)]">
-              <strong className="font-medium text-[var(--foreground)]">Foto</strong> é por SKU; abra o link na coluna de álbum para ver o catálogo completo.
+              <strong className="font-medium text-[var(--foreground)]">Foto</strong> é por SKU; abra o link na coluna de álbum para
+              ver o catálogo completo.
             </p>
           </div>
           <div className="flex shrink-0 flex-nowrap items-center gap-2.5">
             <GradeBadge value={score} />
-            <Link
-              href={editHref}
-              className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 px-4 text-[13px] font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-[var(--card)]"
-            >
-              Completar dados
-            </Link>
+            {!somenteLeitura ? (
+              <Link
+                href={editHref}
+                className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 px-4 text-[13px] font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-[var(--card)]"
+              >
+                Completar dados
+              </Link>
+            ) : null}
           </div>
         </div>
         <div className="mt-5 space-y-2.5">
@@ -412,12 +295,14 @@ export function ProdutoResumoListaGrupo({
         <div className="mt-5 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-3 sm:p-3.5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <p className="text-[13px] font-semibold tracking-tight text-[var(--foreground)]">Próximas ações prioritárias</p>
-            <Link
-              href={editHref}
-              className="inline-flex h-8 shrink-0 items-center justify-center self-start rounded-lg bg-[var(--primary-blue)] px-3 text-[12px] font-medium text-white shadow-none ring-1 ring-[var(--primary-blue)]/20 transition hover:bg-[var(--primary-blue-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)] focus:ring-offset-2 focus:ring-offset-[var(--card)] sm:self-auto"
-            >
-              Resolver agora
-            </Link>
+            {!somenteLeitura ? (
+              <Link
+                href={editHref}
+                className="inline-flex h-8 shrink-0 items-center justify-center self-start rounded-lg bg-[var(--primary-blue)] px-3 text-[12px] font-medium text-white shadow-none ring-1 ring-[var(--primary-blue)]/20 transition hover:bg-[var(--primary-blue-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)] focus:ring-offset-2 focus:ring-offset-[var(--card)] sm:self-auto"
+              >
+                Resolver agora
+              </Link>
+            ) : null}
           </div>
           {acoesPrioritarias.length > 0 ? (
             <div className="mt-2.5 flex min-w-0 flex-col gap-1.5 lg:mt-2 lg:flex-row lg:flex-nowrap lg:gap-2">
@@ -431,14 +316,14 @@ export function ProdutoResumoListaGrupo({
                       "flex w-full min-w-0 flex-col gap-0.5 rounded-lg border border-[var(--card-border)] px-2.5 py-2 text-[11px] leading-relaxed shadow-none lg:flex-1 lg:basis-0 lg:flex-row lg:items-baseline lg:gap-x-2 lg:overflow-hidden lg:px-3 lg:py-2",
                       acao.impacto === "alto"
                         ? cn(AMBER_PREMIUM_ACCENT_BAR, "bg-transparent pl-[9px]")
-                        : "border-l-[3px] border-l-emerald-800 bg-transparent pl-[9px] dark:border-l-emerald-400"
+                        : "border-l-[3px] border-l-emerald-700 bg-transparent pl-[9px] dark:border-l-emerald-400"
                     )}
                   >
                     <span
                       className={
                         acao.impacto === "alto"
                           ? cn("shrink-0 text-[11px] font-medium tracking-tight", AMBER_PREMIUM_TEXT_PRIMARY)
-                          : "shrink-0 text-[11px] font-semibold tracking-tight text-emerald-800 dark:text-emerald-400"
+                          : "shrink-0 text-[11px] font-semibold tracking-tight text-emerald-900 dark:text-emerald-400"
                       }
                     >
                       {prefix}
@@ -509,7 +394,7 @@ export function ProdutoResumoListaGrupo({
             {mostrarDetalhes ? "Ocultar detalhes" : "Ver detalhes"}
           </button>
         </div>
-      </div>
+      </CadastroResumoShell>
 
       {mostrarDetalhes && (
         <>

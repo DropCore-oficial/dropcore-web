@@ -12,22 +12,22 @@ type Props = {
   skusHabilitados: number;
   skusComPendencia: number;
   habilitadosMax: number | null;
-  /** strip: grade; stripScroll: uma linha com scroll horizontal (mobile). */
-  variant?: "cards" | "strip" | "stripScroll";
+  /** strip: grade unificada (2 cols no mobile, 4 no sm+); cards: cartões com ícones. */
+  variant?: "cards" | "strip";
 };
 
-/** Bordas e superfícies alinhadas ao padrão "admin" (estilo Shopify / Polaris). */
-const b = "border-[#dfe3e8] dark:border-[#2e3240]";
-const label = "text-[11px] font-medium uppercase tracking-wide text-[#6d7175] dark:text-[#8c9196]";
-const value = "text-lg font-semibold tabular-nums leading-tight text-[#202223] dark:text-[#e3e5e8]";
+/** Mesmos tokens do dashboard seller (`globals.css` / `--card`, `--muted`). */
+const b = "border-[var(--card-border)]";
+const label = "text-xs font-medium uppercase tracking-wide text-[var(--muted)]";
+const value = "text-lg font-semibold tabular-nums leading-tight text-[var(--foreground)]";
 
 function IconBox({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "success" | "pending" }) {
   const shell =
     tone === "success"
-      ? "bg-[#e3f1ed] text-[#008060] dark:bg-[#008060]/20 dark:text-[#6fd4b0]"
+      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
       : tone === "pending"
         ? cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, "border-0", AMBER_PREMIUM_TEXT_PRIMARY)
-        : "bg-[#e8eaed]/80 text-[#5c5f62] dark:bg-[#2e3240] dark:text-[#8c9196]";
+        : "bg-[var(--surface-subtle)] text-[var(--muted)]";
   return (
     <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${shell} [&_svg]:h-3.5 [&_svg]:w-3.5`}>
       {children}
@@ -44,63 +44,28 @@ function MetricStrip({
 }: Props) {
   return (
     <div
-      className={`grid grid-cols-2 gap-px overflow-hidden rounded-lg border ${b} bg-[#f4f6f8] dark:bg-[#1a1d24] sm:grid-cols-4`}
+      className={`grid grid-cols-2 gap-px overflow-hidden rounded-lg border ${b} bg-[var(--surface-subtle)] sm:grid-cols-4`}
     >
-      <div className="bg-white px-3 py-2.5 dark:bg-[#1a1d24]">
+      <div className="bg-[var(--card)] px-3 py-2.5">
         <p className={label}>Produtos</p>
         <p className={value}>{totalProdutos}</p>
       </div>
-      <div className="bg-white px-3 py-2.5 dark:bg-[#1a1d24]">
+      <div className="bg-[var(--card)] px-3 py-2.5">
         <p className={label}>SKUs</p>
         <p className={value}>{skusDisponiveis}</p>
       </div>
-      <div className="bg-white px-3 py-2.5 dark:bg-[#1a1d24]">
+      <div className="bg-[var(--card)] px-3 py-2.5">
         <p className={label}>Habilitados</p>
         <p className={value}>
           {skusHabilitados}
           {habilitadosMax != null && (
-            <span className="text-sm font-medium text-[#6d7175] dark:text-[#8c9196]">/{habilitadosMax}</span>
+            <span className="text-sm font-medium text-[var(--muted)]">/{habilitadosMax}</span>
           )}
         </p>
       </div>
-      <div className="bg-white px-3 py-2.5 dark:bg-[#1a1d24]">
-        <p className={cn("text-[11px] font-medium uppercase tracking-wide", AMBER_PREMIUM_TEXT_SOFT)}>Pendências</p>
+      <div className="bg-[var(--card)] px-3 py-2.5">
+        <p className={cn("text-xs font-medium uppercase tracking-wide", AMBER_PREMIUM_TEXT_SOFT)}>Pendências</p>
         <p className={cn("text-lg font-semibold tabular-nums", AMBER_PREMIUM_TEXT_PRIMARY)}>{skusComPendencia}</p>
-      </div>
-    </div>
-  );
-}
-
-function MetricStripScroll({
-  totalProdutos,
-  skusDisponiveis,
-  skusHabilitados,
-  skusComPendencia,
-  habilitadosMax,
-}: Props) {
-  const cell = `shrink-0 rounded-lg border ${b} bg-white px-2.5 py-2 shadow-sm dark:bg-[#1a1d24]`;
-  return (
-    <div className={`flex w-max max-w-none flex-nowrap gap-2`}>
-      <div className={`min-w-[5rem] ${cell}`}>
-        <p className={label}>Produtos</p>
-        <p className={`${value} text-base`}>{totalProdutos}</p>
-      </div>
-      <div className={`min-w-[4.75rem] ${cell}`}>
-        <p className={label}>SKUs</p>
-        <p className={`${value} text-base`}>{skusDisponiveis}</p>
-      </div>
-      <div className={`min-w-[5.5rem] ${cell}`}>
-        <p className={label}>Habilitados</p>
-        <p className={`${value} text-base`}>
-          {skusHabilitados}
-          {habilitadosMax != null && (
-            <span className="text-sm font-medium text-[#6d7175] dark:text-[#8c9196]">/{habilitadosMax}</span>
-          )}
-        </p>
-      </div>
-      <div className={`min-w-[5.25rem] ${cell}`}>
-        <p className={cn("text-[10px] font-medium uppercase tracking-wide", AMBER_PREMIUM_TEXT_SOFT)}>Pendências</p>
-        <p className={cn("text-base font-semibold tabular-nums", AMBER_PREMIUM_TEXT_PRIMARY)}>{skusComPendencia}</p>
       </div>
     </div>
   );
@@ -125,21 +90,9 @@ export function CatalogoV2ResumoTopo({
       />
     );
   }
-  if (variant === "stripScroll") {
-    return (
-      <MetricStripScroll
-        totalProdutos={totalProdutos}
-        skusDisponiveis={skusDisponiveis}
-        skusHabilitados={skusHabilitados}
-        skusComPendencia={skusComPendencia}
-        habilitadosMax={habilitadosMax}
-      />
-    );
-  }
-
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5">
-      <div className={`flex items-center gap-2.5 rounded-lg border ${b} bg-white px-3 py-2.5 dark:bg-[#1a1d24] sm:gap-3 sm:px-4 sm:py-3`}>
+      <div className={`flex items-center gap-2.5 rounded-lg border ${b} bg-[var(--card)] px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3`}>
         <IconBox>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
             <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -153,7 +106,7 @@ export function CatalogoV2ResumoTopo({
           <p className={`${value} sm:text-xl`}>{totalProdutos}</p>
         </div>
       </div>
-      <div className={`flex items-center gap-2.5 rounded-lg border ${b} bg-white px-3 py-2.5 dark:bg-[#1a1d24] sm:gap-3 sm:px-4 sm:py-3`}>
+      <div className={`flex items-center gap-2.5 rounded-lg border ${b} bg-[var(--card)] px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3`}>
         <IconBox>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
             <path d="M16.5 9.4 7.55 4.24" />
@@ -165,7 +118,7 @@ export function CatalogoV2ResumoTopo({
           <p className={`${value} sm:text-xl`}>{skusDisponiveis}</p>
         </div>
       </div>
-      <div className={`flex items-center gap-2.5 rounded-lg border ${b} bg-white px-3 py-2.5 dark:bg-[#1a1d24] sm:gap-3 sm:px-4 sm:py-3`}>
+      <div className={`flex items-center gap-2.5 rounded-lg border ${b} bg-[var(--card)] px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3`}>
         <IconBox tone="success">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
             <path d="M5 13l4 4L19 7" />
@@ -176,7 +129,7 @@ export function CatalogoV2ResumoTopo({
           <p className={`${value} sm:text-xl`}>
             {skusHabilitados}
             {habilitadosMax != null && (
-              <span className="text-sm font-medium text-[#6d7175] dark:text-[#8c9196]">/{habilitadosMax}</span>
+              <span className="text-sm font-medium text-[var(--muted)]">/{habilitadosMax}</span>
             )}
           </p>
         </div>
@@ -189,7 +142,7 @@ export function CatalogoV2ResumoTopo({
           </svg>
         </IconBox>
         <div className="min-w-0">
-          <p className={cn("text-[11px] font-medium uppercase tracking-wide", AMBER_PREMIUM_TEXT_SOFT)}>Pendências</p>
+          <p className={cn("text-xs font-medium uppercase tracking-wide", AMBER_PREMIUM_TEXT_SOFT)}>Pendências</p>
           <p className={cn("text-lg font-semibold tabular-nums sm:text-xl", AMBER_PREMIUM_TEXT_PRIMARY)}>{skusComPendencia}</p>
         </div>
       </div>

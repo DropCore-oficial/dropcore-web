@@ -22,6 +22,29 @@ function isTestMode(): boolean {
   return v === "true" || v === "1" || String(v).toLowerCase() === "yes";
 }
 
+/** Evita devolver JSON cru da API do MP para o utilizador (Orders/Payments). */
+function mensagemErroApiMercadoPago(data: unknown): string {
+  if (!data || typeof data !== "object") {
+    return "Não foi possível criar o PIX. Tente de novo em instantes.";
+  }
+  const d = data as Record<string, unknown>;
+  if (typeof d.message === "string" && d.message.trim()) return d.message.trim();
+  if (typeof d.error === "string" && d.error.trim()) return d.error.trim();
+  const errors = d.errors;
+  if (Array.isArray(errors) && errors.length > 0 && errors[0] && typeof errors[0] === "object") {
+    const e0 = errors[0] as Record<string, unknown>;
+    const details = e0.details;
+    if (Array.isArray(details)) {
+      const detTxt = details.filter((x): x is string => typeof x === "string").join(" ");
+      if (detTxt.includes("external_reference") && detTxt.includes("length")) {
+        return "O código interno do PIX era longo demais para o Mercado Pago. Atualize a página e gere o PIX de novo.";
+      }
+    }
+    if (typeof e0.message === "string" && e0.message.trim()) return e0.message.trim();
+  }
+  return "Não foi possível criar o PIX. Tente de novo em instantes.";
+}
+
 /** Usa API Orders (Checkout v2) — suporta credenciais de teste com PIX */
 async function criarCobrancaPixOrders(params: {
   valor: number;
@@ -67,8 +90,7 @@ async function criarCobrancaPixOrders(params: {
   const data = await res.json();
 
   if (!res.ok) {
-    const msg = data?.message || data?.error || JSON.stringify(data) || "Erro ao criar cobrança PIX";
-    return { ok: false, error: String(msg) };
+    return { ok: false, error: mensagemErroApiMercadoPago(data) };
   }
 
   const payment = data?.transactions?.payments?.[0];
@@ -124,8 +146,7 @@ async function criarCobrancaPixPayments(params: {
   const data = await res.json();
 
   if (!res.ok) {
-    const msg = data?.message || data?.error || "Erro ao criar cobrança PIX";
-    return { ok: false, error: String(msg) };
+    return { ok: false, error: mensagemErroApiMercadoPago(data) };
   }
 
   const poi = data?.point_of_interaction?.transaction_data;

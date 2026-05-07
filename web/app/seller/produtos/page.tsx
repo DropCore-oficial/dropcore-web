@@ -20,7 +20,7 @@ import { skuProntoParaVender } from "@/lib/sellerSkuReadiness";
 import { toTitleCase } from "@/lib/formatText";
 import { getColunasTabelaMedidas, type TipoProduto } from "@/lib/tipoProduto";
 import { CatalogoV2ResumoTopo } from "@/components/seller/catalogo/v2/CatalogoV2ResumoTopo";
-import { CatalogoV2ProdutoCard } from "@/components/seller/catalogo/v2/CatalogoV2ProdutoCard";
+import { SellerListaGrupoArmazem } from "@/components/seller/catalogo/v2/SellerListaGrupoArmazem";
 import { linhasGrupo, type GrupoCatalogoV2 } from "@/components/seller/catalogo/v2/aggregates";
 import {
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
@@ -49,7 +49,9 @@ export default function SellerProdutosPage() {
   const [items, setItems] = useState<SellerCatalogoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [gestaoPaiKey, setGestaoPaiKey] = useState<string | null>(null);
+  const [expandido, setExpandido] = useState<Set<string>>(new Set());
+  const [modoListaVariantes, setModoListaVariantes] = useState<"agrupado-cor" | "sku">("agrupado-cor");
+  const [mostrarFotosVariantes, setMostrarFotosVariantes] = useState(true);
   const [filtroStatus, setFiltroStatus] = useState<"todos" | "ativos" | "pendencias" | "sem_estoque" | "desligados">("todos");
   const [painelFiltros, setPainelFiltros] = useState(false);
   const [catalogMeta, setCatalogMeta] = useState<{
@@ -94,6 +96,15 @@ export default function SellerProdutosPage() {
   }, [fornecedorLigadoId, fornecedoresLista]);
 
   const planoSellerPro = useMemo(() => String(catalogMeta.plano ?? "").trim().toLowerCase() === "pro", [catalogMeta.plano]);
+
+  function toggleExpandido(key: string) {
+    setExpandido((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   useEffect(() => {
     setVinculoAceiteUso(false);
@@ -406,12 +417,11 @@ export default function SellerProdutosPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#f6f6f7] text-[#202223] dark:bg-[#0F1115] dark:text-[#e3e5e8] pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="dropcore-shell-4xl py-3 md:py-4">
-        <div className="overflow-hidden rounded-xl border border-[#dfe3e8] bg-white shadow-[0_1px_0_rgba(0,0,0,0.03)] dark:border-[#2e3240] dark:bg-[#1a1d24] dark:shadow-none sm:px-4 sm:py-4">
-          <div className="px-3 py-3 sm:px-0 sm:pt-1">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+      <div className="dropcore-shell-4xl py-4 sm:py-6 lg:py-8">
           <SellerPageHeader
             surface="hero"
+            className="mb-0 sm:mb-0"
             title="Produtos"
             subtitle={
               <>
@@ -422,7 +432,7 @@ export default function SellerProdutosPage() {
             right={
               <Link
                 href="/seller/integracoes-erp/mapeamento"
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#d7dbe0] bg-white px-3 py-2 text-[13px] font-medium text-[#1f2933] no-underline transition hover:border-[#bfc5cc] hover:bg-[#fafbfb] dark:border-[#2e3240] dark:bg-[#14171c] dark:text-[#d2d8de] dark:hover:border-[#3a404d] dark:hover:bg-[#20242b]"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-[13px] font-medium text-[var(--foreground)] no-underline transition hover:border-emerald-300 hover:bg-[var(--surface-hover)] dark:hover:border-emerald-700"
               >
                 <svg className="h-4 w-4 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
@@ -431,71 +441,67 @@ export default function SellerProdutosPage() {
               </Link>
             }
           />
-          <div className="mt-3.5 flex flex-col gap-2 sm:mt-5 sm:flex-row sm:flex-wrap sm:items-stretch">
+          <div className="mt-3.5 flex flex-nowrap gap-2 sm:mt-5">
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onBlur={() => setQ(toTitleCase(q))}
               placeholder="Buscar por nome, SKU, cor ou tamanho…"
-              className="min-h-[44px] min-w-0 flex-1 rounded-lg border border-[#c8cdd2] bg-white px-3.5 py-2 text-[15px] text-[#202223] placeholder:text-[#8c9196] shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] transition focus:border-[#8f99a5] focus:outline-none focus:ring-2 focus:ring-[#5c6c7a]/14 dark:border-[#3d4450] dark:bg-[#14171c] dark:text-white dark:placeholder:text-[#6d7175] sm:min-h-10 sm:text-sm"
+              className="min-h-[44px] min-w-0 flex-1 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-2 text-[15px] text-[var(--foreground)] placeholder:text-[var(--muted)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 sm:min-h-10 sm:text-sm dark:focus:ring-emerald-400/30"
             />
-            <div className="flex gap-2 sm:shrink-0">
+            <div className="flex shrink-0 gap-2">
               {q ? (
                 <button
                   type="button"
                   onClick={() => setQ("")}
-                  className="min-h-[44px] rounded-lg border border-[#c9cccf] bg-white px-3.5 text-sm font-medium text-[#202223] hover:bg-[#f6f6f7] dark:border-[#3d4450] dark:bg-[#1a1d24] dark:text-[#e3e5e8] dark:hover:bg-[#252a32] sm:min-h-10"
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--surface-hover)] sm:min-h-10 sm:min-w-0 sm:px-3.5 sm:text-sm sm:font-medium"
                 >
-                  Limpar
+                  <svg className="h-5 w-5 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  <span className="sr-only sm:hidden">Limpar busca</span>
+                  <span className="hidden sm:inline">Limpar</span>
                 </button>
               ) : null}
               <button
                 type="button"
                 onClick={() => setPainelFiltros((p) => !p)}
                 aria-expanded={painelFiltros}
-                className={`min-h-[44px] min-w-[6.5rem] rounded-lg border px-3.5 text-sm font-medium transition sm:min-h-10 ${
+                className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-lg border px-3.5 text-sm font-medium transition sm:min-h-10 sm:min-w-[6.5rem] ${
                   painelFiltros
-                    ? "border-[#2f7f64] bg-[#e9f4ef] text-[#14513d] dark:border-[#2f7f64] dark:bg-[#008060]/20 dark:text-[#a3e5c1]"
-                    : "border-[#c9cccf] bg-white text-[#202223] hover:bg-[#f6f6f7] dark:border-[#3d4450] dark:bg-[#1a1d24] dark:text-[#e3e5e8] dark:hover:bg-[#252a32]"
+                    ? "border-emerald-600 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-900/35 dark:text-emerald-300"
+                    : "border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
                 }`}
               >
-                Filtros
+                <svg className="h-5 w-5 shrink-0 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z"
+                  />
+                </svg>
+                <span className="sr-only sm:hidden">{painelFiltros ? "Fechar filtros" : "Abrir filtros"}</span>
+                <span className="hidden sm:inline">Filtros</span>
               </button>
             </div>
           </div>
           {!loading && !error && (
-            <>
-              <div className="mt-3 md:hidden">
-                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#6d7175] dark:text-[#8c9196]">Visão rápida</p>
-                <div className="-mx-1 overflow-x-auto px-1 pb-0.5 [scrollbar-width:thin]">
-                  <CatalogoV2ResumoTopo
-                    variant="stripScroll"
-                    totalProdutos={resumoTopo.totalProdutos}
-                    skusDisponiveis={resumoTopo.skusDisponiveis}
-                    skusHabilitados={catalogMeta.habilitados_count}
-                    skusComPendencia={resumoTopo.skusComPendencia}
-                    habilitadosMax={catalogMeta.habilitados_max}
-                  />
-                </div>
-              </div>
-              <div className="mt-3.5 hidden md:block">
-                <CatalogoV2ResumoTopo
-                  variant="strip"
-                  totalProdutos={resumoTopo.totalProdutos}
-                  skusDisponiveis={resumoTopo.skusDisponiveis}
-                  skusHabilitados={catalogMeta.habilitados_count}
-                  skusComPendencia={resumoTopo.skusComPendencia}
-                  habilitadosMax={catalogMeta.habilitados_max}
-                />
-              </div>
-            </>
+            <div className="mt-3 md:mt-3.5">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)] md:hidden">Visão rápida</p>
+              <CatalogoV2ResumoTopo
+                variant="strip"
+                totalProdutos={resumoTopo.totalProdutos}
+                skusDisponiveis={resumoTopo.skusDisponiveis}
+                skusHabilitados={catalogMeta.habilitados_count}
+                skusComPendencia={resumoTopo.skusComPendencia}
+                habilitadosMax={catalogMeta.habilitados_max}
+              />
+            </div>
           )}
-          </div>
-        </div>
 
         {painelFiltros && (
-          <div className="mt-3 rounded-xl border border-[#dfe3e8] bg-white p-4 shadow-[0_1px_0_rgba(0,0,0,0.03)] dark:border-[#2e3240] dark:bg-[#1a1d24] dark:shadow-none">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#6d7175] dark:text-[#8c9196]">Filtros rápidos</p>
+          <div className="mt-3 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm dark:shadow-none">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Filtros rápidos</p>
             <div className="flex flex-wrap gap-2">
               {(
                 [
@@ -517,16 +523,16 @@ export default function SellerProdutosPage() {
                     filtroStatus === f.key
                       ? f.key === "pendencias"
                         ? cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY)
-                        : "border-[#008060] bg-[#e3f1ed] text-[#0c3d2a] dark:border-[#008060] dark:bg-[#008060]/20 dark:text-[#a3e5c1]"
-                      : "border-[#e3e5e8] bg-[#fafbfb] text-[#5c5f62] hover:bg-[#f6f6f7] dark:border-[#2e3240] dark:bg-[#14171c] dark:text-[#8c9196] dark:hover:bg-[#252a32]"
+                        : "border-emerald-600 bg-emerald-100 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-900/35 dark:text-emerald-300"
+                      : "border-[var(--card-border)] bg-[var(--surface-subtle)] text-[var(--muted)] hover:bg-[var(--surface-hover)] dark:bg-[var(--card)]"
                   } disabled:cursor-not-allowed disabled:opacity-45`}
                 >
                   {f.label}
                 </button>
               ))}
             </div>
-            <details className="mt-3 text-xs text-[#6d7175] dark:text-[#8c9196] [&_summary]:cursor-pointer">
-              <summary className="font-medium text-[#202223] dark:text-[#e3e5e8]">O que é “pronto para vender”?</summary>
+            <details className="mt-3 text-xs text-[var(--muted)] [&_summary]:cursor-pointer">
+              <summary className="font-medium text-[var(--foreground)]">O que é “pronto para vender”?</summary>
               <p className="mt-2 max-w-2xl text-[13px] leading-relaxed">
                 São os dados que o <strong>fornecedor</strong> cadastrou no produto no armazém: nome, foto ou link de fotos, custo,
                 estoque &gt; 0, medidas do pacote, NCM (8 dígitos), descrição com pelo menos 20 caracteres. O seller{" "}
@@ -536,8 +542,8 @@ export default function SellerProdutosPage() {
           </div>
         )}
 
-        <div className="mt-2.5 flex items-start gap-3 rounded-xl border border-[#dfe3e8] bg-white px-3 py-3 shadow-[0_1px_0_rgba(0,0,0,0.03)] dark:border-[#2e3240] dark:bg-[#1a1d24] dark:ring-white/[0.04] sm:mt-3 sm:px-4 sm:py-3.5">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f0f9f4] text-[#008060] dark:bg-[#008060]/15 dark:text-[#6fd4b0]">
+        <div className="mt-2.5 flex items-start gap-3 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-3 shadow-sm sm:mt-3 sm:px-4 sm:py-3.5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2" />
@@ -545,9 +551,9 @@ export default function SellerProdutosPage() {
           </span>
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-[#6d7175] dark:text-[#8c9196]">Armazém</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Armazém</span>
               {fornecedorLigadoId?.trim() ? (
-                <span className="inline-flex items-center rounded-full bg-[#e3f1ed] px-2 py-0.5 text-[11px] font-semibold text-[#0c3d2a] dark:bg-[#008060]/25 dark:text-[#a3e5c1]">
+                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-300">
                   API ligada
                 </span>
               ) : (
@@ -562,23 +568,23 @@ export default function SellerProdutosPage() {
                 </span>
               )}
             </div>
-            <p className="text-[14px] font-medium leading-snug text-[#202223] dark:text-[#e3e5e8]">
+            <p className="text-[14px] font-medium leading-snug text-[var(--foreground)]">
               {nomeArmazemLigado ?? (fornecedorLigadoId ? "—" : "Nenhum armazém vinculado")}
             </p>
             {!planoSellerPro && catalogMeta.tabela_ok && (
-              <p className="text-[12px] text-[#6d7175] dark:text-[#8c9196]">
+              <p className="text-[12px] text-[var(--muted)]">
                 Plano Start: até {catalogMeta.habilitados_max ?? 15} SKUs na API ·{" "}
-                <span className="tabular-nums font-medium text-[#202223] dark:text-[#c9d0d5]">{catalogMeta.habilitados_count}</span> habilitados
+                <span className="tabular-nums font-medium text-[var(--foreground)]">{catalogMeta.habilitados_count}</span> habilitados
               </p>
             )}
           </div>
         </div>
 
-        <details className="group mt-2.5 overflow-hidden rounded-xl border border-[#dfe3e8] bg-white shadow-[0_1px_0_rgba(0,0,0,0.03)] transition open:shadow-sm dark:border-[#2e3240] dark:bg-[#1a1d24] dark:ring-white/[0.04]">
-          <summary className="cursor-pointer list-none px-3 py-3 text-sm font-medium text-[#202223] marker:content-none hover:bg-[#fafbfb] dark:text-[#e3e5e8] dark:hover:bg-[#20242b] sm:px-3.5 [&::-webkit-details-marker]:hidden">
+        <details className="group mt-2.5 overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm transition open:shadow-md">
+          <summary className="cursor-pointer list-none px-3 py-3 text-sm font-medium text-[var(--foreground)] marker:content-none hover:bg-[var(--surface-hover)] sm:px-3.5 [&::-webkit-details-marker]:hidden">
             Configurar armazém e vínculo
           </summary>
-          <div className="space-y-4 border-t border-[#e3e5e8] px-3 pb-4 pt-3 dark:border-[#2e3240] sm:px-3.5">
+          <div className="space-y-4 border-t border-[var(--card-border)] px-3 pb-4 pt-3 sm:px-3.5">
           {fornecedoresLoadErr && <p className={cn("text-sm", AMBER_PREMIUM_TEXT_SOFT)}>{fornecedoresLoadErr}</p>}
           {fornecedoresLista?.length === 0 ? (
             <p className="text-sm text-muted">Não há fornecedores na organização.</p>
@@ -589,7 +595,7 @@ export default function SellerProdutosPage() {
                 <select
                   value={vinculoSelectId}
                   onChange={(e) => setVinculoSelectId(e.target.value)}
-                  className="h-10 w-full rounded-md border border-[#c9cccf] bg-white px-3 text-sm text-[#202223] shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] dark:border-[#3d4450] dark:bg-[#14171c] dark:text-[#e3e5e8]"
+                  className="h-10 w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:focus:ring-emerald-400/25"
                 >
                   <option value="">— Nenhum (só se a org autorizar) —</option>
                   {(fornecedoresLista ?? []).map((f) => (
@@ -619,7 +625,7 @@ export default function SellerProdutosPage() {
                     vinculoSaving || (vinculoMeta != null && !vinculoMeta.pode_trocar_agora && vinculoAlterado) || (precisaAceiteVinculo && !vinculoAceiteUso)
                   }
                   onClick={() => void gravarVinculoFornecedor()}
-                  className="h-10 w-full rounded-md bg-[#008060] px-4 text-sm font-semibold text-white shadow-[inset_0_-1px_0_rgba(0,0,0,0.15)] hover:bg-[#006e52] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                  className="h-10 w-full rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
                   {vinculoSaving ? "Salvando..." : "Gravar armazém"}
                 </button>
@@ -691,59 +697,69 @@ export default function SellerProdutosPage() {
           </div>
         )}
 
-        <div className="mt-4 space-y-3 md:space-y-3.5">
-          {loading && (
-            <div className="rounded-2xl border border-[#e3e5e8] bg-white p-10 text-center shadow-[0_2px_16px_-8px_rgba(0,0,0,0.08)] dark:border-[#2e3240] dark:bg-[#1a1d24] dark:shadow-none">
-              <span className="mx-auto mb-4 inline-flex h-11 w-11 animate-spin rounded-full border-2 border-[#e3e5e8] border-t-[#008060] dark:border-[#3d4450]" />
-              <div className="mx-auto mb-3 h-2 max-w-[180px] animate-pulse rounded-full bg-[#e8eaed] dark:bg-[#2e3240]" />
-              <p className="text-sm font-medium text-[#202223] dark:text-[#e3e5e8]">Carregando catálogo</p>
-              <p className="mt-1 text-[13px] text-[#6d7175] dark:text-[#8c9196]">Buscando produtos do armazém…</p>
-            </div>
-          )}
-          {error && (
-            <div className="rounded-2xl border border-red-200/90 bg-red-100 p-4 text-sm font-medium text-red-900 shadow-sm dark:border-red-900/45 dark:bg-red-950/45 dark:text-red-200">
-              {error}
-            </div>
-          )}
-          {!loading && !error && grupos.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-[#d3d6d9] bg-[#fafbfb] px-6 py-12 text-center dark:border-[#3d4450] dark:bg-[#16191e]">
-              <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-[#e3e5e8] dark:bg-[#1a1d24] dark:ring-[#2e3240]">
-                <svg className="h-7 w-7 text-[#b0b5ba] dark:text-[#6d7175]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 01-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 011-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 011.52 0C14.51 3.81 17 5 19 5a1 1 0 011 1v7z" />
-                </svg>
-              </span>
-              <p className="text-[15px] font-semibold text-[#202223] dark:text-[#e3e5e8]">Nada para mostrar aqui</p>
-              <p className="mx-auto mt-2 max-w-sm text-[13px] leading-relaxed text-[#6d7175] dark:text-[#8c9196]">
-                {q
-                  ? "Nenhum produto encontrado para essa busca."
-                  : filtroStatus === "pendencias"
-                    ? "Nenhum SKU com pendência neste recorte."
-                    : filtroStatus === "desligados"
-                      ? "Nenhum grupo com SKU desligado neste recorte."
-                      : "Nenhum produto disponível para este armazém."}
-              </p>
-            </div>
-          )}
+        <div className="mt-4 min-w-0 overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
+          <div className="border-b border-[var(--card-border)] px-3 py-3 sm:px-4 sm:py-3.5">
+            <h2 className="text-sm font-semibold text-[var(--foreground)]">Produtos do armazém</h2>
+            <p className="mt-0.5 text-sm leading-relaxed text-[var(--muted)]">
+              Cadastro do fornecedor é só leitura; expanda um item para ver SKUs e o que está habilitado na API.
+            </p>
+          </div>
+          <div className="min-w-0 divide-y divide-[var(--card-border)]/60">
+            {loading && (
+              <div className="px-4 py-12 text-center">
+                <span className="mx-auto mb-4 inline-flex h-11 w-11 animate-spin rounded-full border-2 border-[var(--card-border)] border-t-emerald-600 dark:border-t-emerald-400" />
+                <div className="mx-auto mb-3 h-2 max-w-[180px] animate-pulse rounded-full bg-[var(--surface-subtle)]" />
+                <p className="text-sm font-medium text-[var(--foreground)]">Carregando catálogo</p>
+                <p className="mt-1 text-[13px] text-[var(--muted)]">Buscando produtos do armazém…</p>
+              </div>
+            )}
+            {error && (
+              <div className="border-t border-red-200/90 bg-red-100 p-4 text-sm font-medium text-red-900 dark:border-red-900/45 dark:bg-red-950/45 dark:text-red-200">
+                {error}
+              </div>
+            )}
+            {!loading && !error && grupos.length === 0 && (
+              <div className="px-4 py-12 text-center">
+                <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--surface-subtle)] shadow-sm ring-1 ring-[var(--card-border)]">
+                  <svg className="h-7 w-7 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 01-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 011-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 011.52 0C14.51 3.81 17 5 19 5a1 1 0 011 1v7z" />
+                  </svg>
+                </span>
+                <p className="text-[15px] font-semibold text-[var(--foreground)]">Nada para mostrar aqui</p>
+                <p className="mx-auto mt-2 max-w-sm text-[13px] leading-relaxed text-[var(--muted)]">
+                  {q
+                    ? "Nenhum produto encontrado para essa busca."
+                    : filtroStatus === "pendencias"
+                      ? "Nenhum SKU com pendência neste recorte."
+                      : filtroStatus === "desligados"
+                        ? "Nenhum grupo com SKU desligado neste recorte."
+                        : "Nenhum produto disponível para este armazém."}
+                </p>
+              </div>
+            )}
 
-          {!loading &&
-            !error &&
-            grupos.map((grupo) => (
-              <CatalogoV2ProdutoCard
-                key={grupo.paiKey}
-                grupo={grupo}
-                fornecedorNome={nomeArmazemLigado}
-                expandido={gestaoPaiKey === grupo.paiKey}
-                onToggleExpand={() =>
-                  setGestaoPaiKey((prev) => (prev === grupo.paiKey ? null : grupo.paiKey))
-                }
-                onOpenMedidas={() => void abrirTabelaMedidas(grupo.paiKey)}
-                bulkLoading={bulkPaiKey === grupo.paiKey}
-                onBulkEnableValidas={() => void bulkEnableValidas(grupo)}
-                onBulkDisableAll={() => void bulkDisableAll(grupo)}
-                toggleLoadingId={toggleLoadingId}
-                onToggleOne={(item, ativar) => void setSkuHabilitado(item, ativar)}
-              />
-            ))}
+            {!loading &&
+              !error &&
+              grupos.map((grupo) => (
+                <SellerListaGrupoArmazem
+                  key={grupo.paiKey}
+                  grupo={grupo}
+                  exp={expandido.has(grupo.paiKey)}
+                  onToggleExpand={() => toggleExpandido(grupo.paiKey)}
+                  nomeArmazem={nomeArmazemLigado}
+                  modoListaVariantes={modoListaVariantes}
+                  setModoListaVariantes={setModoListaVariantes}
+                  mostrarFotosVariantes={mostrarFotosVariantes}
+                  setMostrarFotosVariantes={setMostrarFotosVariantes}
+                  onOpenMedidas={() => void abrirTabelaMedidas(grupo.paiKey)}
+                  bulkLoading={bulkPaiKey === grupo.paiKey}
+                  onBulkEnableValidas={() => void bulkEnableValidas(grupo)}
+                  onBulkDisableAll={() => void bulkDisableAll(grupo)}
+                  toggleLoadingId={toggleLoadingId}
+                  onToggleOne={(item, ativar) => void setSkuHabilitado(item, ativar)}
+                />
+              ))}
+          </div>
         </div>
       </div>
 

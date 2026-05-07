@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { CalculadoraAssinaturaRegrasInfo } from "@/components/calculadora/CalculadoraAssinaturaRegrasInfo";
 
 export default function CalculadoraRegisterPage() {
   const { token } = useParams<{ token: string }>();
@@ -231,6 +232,11 @@ export default function CalculadoraRegisterPage() {
             </p>
             {emailAlvo && <p className="text-xs text-[var(--muted)] mt-1">Válido para: {emailAlvo}</p>}
           </div>
+
+          <CalculadoraAssinaturaRegrasInfo
+            className="mb-5"
+            heading="Depois do teste — plano pago (informação)"
+          />
 
           <div className="space-y-4">
             <div>
