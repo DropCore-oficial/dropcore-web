@@ -11,6 +11,8 @@ import { AdminMobileBottomNav } from "@/components/AdminMobileBottomNav";
 import {
   AMBER_PREMIUM_SHELL,
   AMBER_PREMIUM_SURFACE,
+  AMBER_PREMIUM_SURFACE_TRANSPARENT,
+  AMBER_PREMIUM_TEXT_BODY,
   AMBER_PREMIUM_TEXT_PRIMARY,
   AMBER_PREMIUM_TEXT_SOFT,
 } from "@/lib/amberPremium";
@@ -62,6 +64,13 @@ type Stats = {
     fornecedores: { em_teste: number; adimplentes: number; inadimplentes: number };
   };
   portal_trial_days?: number;
+};
+
+type CalcReceitaWidget = {
+  soma: number;
+  quantidade: number;
+  ultimos: { id?: string; email: string | null; valor: number; pago_em: string }[];
+  avisoTabela: string | null;
 };
 
 type ProData = {
@@ -359,10 +368,12 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [proData, setProData] = useState<ProData | null>(null);
   const [chartTooltipHover, setChartTooltipHover] = useState<{ dia: string; total: number; dropcore: number; count: number } | null>(null);
+  const [calcReceita, setCalcReceita] = useState<CalcReceitaWidget | null>(null);
 
   async function load() {
     setLoading(true);
     setError(null);
+    setCalcReceita(null);
     try {
       let { data } = await supabaseBrowser.auth.getSession();
       let token = data.session?.access_token;
@@ -435,6 +446,27 @@ export default function DashboardPage() {
               .then((j) => { if (j?.total_pedidos !== undefined) setProData(j); })
               .catch(() => {});
           }
+        }
+
+        try {
+          const cr = await fetch("/api/org/calculadora/recebimentos?limit=5", {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: "no-store",
+          });
+          const cj = (await cr.json()) as {
+            items?: { id?: string; email: string | null; valor: number; pago_em: string }[];
+            soma_total_geral?: number;
+            quantidade_total?: number;
+            error?: string;
+          };
+          setCalcReceita({
+            soma: Number(cj.soma_total_geral ?? 0),
+            quantidade: Number(cj.quantidade_total ?? 0),
+            ultimos: Array.isArray(cj.items) ? cj.items : [],
+            avisoTabela: typeof cj.error === "string" && cj.error ? cj.error : null,
+          });
+        } catch {
+          setCalcReceita({ soma: 0, quantidade: 0, ultimos: [], avisoTabela: null });
         }
       }
     } catch (e: unknown) {
@@ -759,6 +791,103 @@ export default function DashboardPage() {
                     <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Pagando (em dia)</span><span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{stats.mensalidade_portal.fornecedores.adimplentes}</span></li>
                     <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Não pagou (inadimplente)</span><span className="font-semibold tabular-nums text-red-600 dark:text-red-400">{stats.mensalidade_portal.fornecedores.inadimplentes}</span></li>
                   </ul>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Calculadora — receita PIX (assinatura calc-only) */}
+        {isAdmin && calcReceita && (
+          <section className="relative overflow-hidden rounded-2xl border border-emerald-200/90 dark:border-emerald-800/55 bg-gradient-to-br from-emerald-50/98 via-white to-neutral-50 dark:from-emerald-950/35 dark:via-neutral-900 dark:to-neutral-950 shadow-md">
+            <div
+              className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-600"
+              aria-hidden
+            />
+            <div className="relative p-4 sm:p-5 pt-5">
+              <div className="flex flex-col lg:flex-row lg:items-stretch gap-5 lg:gap-8">
+                <div className="flex min-w-0 flex-1 flex-col gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600/12 dark:bg-emerald-500/15 ring-1 ring-emerald-600/25 dark:ring-emerald-400/20">
+                      <svg className="h-5 w-5 text-emerald-700 dark:text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <rect width="16" height="20" x="4" y="2" rx="2" />
+                        <line x1="8" x2="16" y1="6" y2="6" />
+                        <line x1="8" x2="16" y1="10" y2="10" />
+                        <line x1="8" x2="12" y1="14" y2="14" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800/90 dark:text-emerald-400/95">
+                        DropCore Calculadora
+                      </p>
+                      <h2 className="mt-0.5 text-lg font-bold leading-tight text-neutral-900 dark:text-neutral-100">
+                        Receita PIX — renovações
+                      </h2>
+                      <p className="mt-1 text-[13px] leading-snug text-neutral-600 dark:text-neutral-400">
+                        Espelho do que foi registrado quando o Mercado Pago aprova o PIX. O saldo real continua na sua conta MP.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-emerald-200/80 dark:border-emerald-800/50 bg-white/80 dark:bg-neutral-950/50 px-4 py-3.5 shadow-sm">
+                    <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Total acumulado (registrado)</p>
+                    <p className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
+                      {BRL.format(calcReceita.soma)}
+                    </p>
+                    <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+                      {calcReceita.quantidade} pagamento{calcReceita.quantidade !== 1 ? "s" : ""} contabilizado{calcReceita.quantidade !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  {calcReceita.avisoTabela && (
+                    <p
+                      className={cn(
+                        AMBER_PREMIUM_SURFACE_TRANSPARENT,
+                        AMBER_PREMIUM_TEXT_BODY,
+                        "text-[11px] leading-relaxed rounded-lg px-3 py-2",
+                      )}
+                    >
+                      {calcReceita.avisoTabela}
+                    </p>
+                  )}
+                  <Link
+                    href="/admin/calculadora-convites"
+                    className="inline-flex w-fit items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                  >
+                    Ver histórico e convites
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg>
+                  </Link>
+                </div>
+
+                <div className="lg:w-[min(100%,22rem)] lg:shrink-0 flex flex-col min-h-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2">
+                    Últimos pagamentos
+                  </p>
+                  <div className="flex-1 rounded-xl border border-neutral-200/90 dark:border-neutral-700/80 bg-white/90 dark:bg-neutral-950/60 divide-y divide-neutral-200/80 dark:divide-neutral-800 overflow-hidden">
+                    {calcReceita.ultimos.length === 0 ? (
+                      <div className="px-3 py-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
+                        Nenhum PIX registrado ainda. Após novas renovações aprovadas, aparecem aqui.
+                      </div>
+                    ) : (
+                      calcReceita.ultimos.map((row, idx) => {
+                        const d = new Date(row.pago_em);
+                        const dataStr = Number.isNaN(d.getTime())
+                          ? "—"
+                          : d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+                        return (
+                          <div key={row.id ?? `${row.pago_em}-${idx}`} className="flex items-center justify-between gap-2 px-3 py-2.5">
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-neutral-900 dark:text-neutral-100 truncate" title={row.email ?? ""}>
+                                {row.email ?? "—"}
+                              </p>
+                              <p className="text-[10px] text-neutral-500 dark:text-neutral-400">{dataStr}</p>
+                            </div>
+                            <span className="text-sm font-bold tabular-nums text-emerald-700 dark:text-emerald-400 shrink-0">
+                              {BRL.format(row.valor)}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

@@ -40,10 +40,15 @@ export async function GET(req: Request) {
           total_registros: 0,
           soma_valores: 0,
           soma_total_geral: 0,
+          quantidade_total: 0,
         });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    const { count: quantidade_total } = await supabase
+      .from("calculadora_recebimentos")
+      .select("*", { count: "exact", head: true });
 
     const { data: todasLinhasValor } = await supabase.from("calculadora_recebimentos").select("valor");
     const soma_total_geral = (todasLinhasValor ?? []).reduce(
@@ -83,6 +88,7 @@ export async function GET(req: Request) {
       total_registros: items.length,
       soma_valores,
       soma_total_geral,
+      quantidade_total: quantidade_total ?? 0,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
