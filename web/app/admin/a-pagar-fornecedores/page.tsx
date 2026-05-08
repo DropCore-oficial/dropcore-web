@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
@@ -12,8 +12,8 @@ type Item = {
   status: string;
 };
 
-const btnPrimary: React.CSSProperties = { padding: "8px 16px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14 };
-const btnSecondary: React.CSSProperties = { padding: "8px 16px", border: "1px solid var(--card-border)", borderRadius: 6, background: "var(--card)", color: "var(--foreground)", cursor: "pointer", fontSize: 14 };
+const btnPrimary: CSSProperties = { padding: "8px 16px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14 };
+const btnSecondary: CSSProperties = { padding: "8px 16px", border: "1px solid var(--card-border)", borderRadius: 6, background: "var(--card)", color: "var(--foreground)", cursor: "pointer", fontSize: 14 };
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);

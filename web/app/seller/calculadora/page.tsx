@@ -143,6 +143,12 @@ export default function SellerCalculadoraPage() {
   const [selectedProdutoId, setSelectedProdutoId] = useState("");
   const [produtosLoading, setProdutosLoading] = useState(false);
   const [rebateML, setRebateML] = useState("");
+  /** ML Clássico / Premium — editável para tarifa negociada ou isenção (padrão tabela) */
+  const [meliComissaoClassico, setMeliComissaoClassico] = useState("14");
+  const [meliComissaoPremium, setMeliComissaoPremium] = useState("19");
+  /** Shein masc. / fem. — editável (padrão tabela) */
+  const [sheinComissaoMasc, setSheinComissaoMasc] = useState("18");
+  const [sheinComissaoFem, setSheinComissaoFem] = useState("20");
   /** Cupom (%) — modo único ou por família em “todos” */
   const [cupomUnico, setCupomUnico] = useState("");
   const [cupomMl, setCupomMl] = useState("");
@@ -161,6 +167,8 @@ export default function SellerCalculadoraPage() {
     | "afiliado"
     | "tiktokOpGratis"
     | "marketplacePreset"
+    | "meliComissao"
+    | "sheinComissao"
     | "resultadoLegenda"
   >(null);
 
@@ -535,6 +543,35 @@ export default function SellerCalculadoraPage() {
     return s;
   }, []);
 
+  /** Comissão ML efetiva para conta — campo vazio volta ao padrão da tabela */
+  const meliClPctEff = useMemo(() => {
+    const t = meliComissaoClassico.trim();
+    if (t === "") return COMISSOES.meli_classico;
+    const n = parseNum(meliComissaoClassico);
+    return Number.isFinite(n) && n >= 0 ? Math.min(n, 99.99) : COMISSOES.meli_classico;
+  }, [meliComissaoClassico, parseNum]);
+
+  const meliPrPctEff = useMemo(() => {
+    const t = meliComissaoPremium.trim();
+    if (t === "") return COMISSOES.meli_premium;
+    const n = parseNum(meliComissaoPremium);
+    return Number.isFinite(n) && n >= 0 ? Math.min(n, 99.99) : COMISSOES.meli_premium;
+  }, [meliComissaoPremium, parseNum]);
+
+  const sheinMascPctEff = useMemo(() => {
+    const t = sheinComissaoMasc.trim();
+    if (t === "") return COMISSOES.shein_masc;
+    const n = parseNum(sheinComissaoMasc);
+    return Number.isFinite(n) && n >= 0 ? Math.min(n, 99.99) : COMISSOES.shein_masc;
+  }, [sheinComissaoMasc, parseNum]);
+
+  const sheinFemPctEff = useMemo(() => {
+    const t = sheinComissaoFem.trim();
+    if (t === "") return COMISSOES.shein_fem;
+    const n = parseNum(sheinComissaoFem);
+    return Number.isFinite(n) && n >= 0 ? Math.min(n, 99.99) : COMISSOES.shein_fem;
+  }, [sheinComissaoFem, parseNum]);
+
   const isMeliFamilia = preset === "meli";
   const isPresetShein = preset === "shein";
   const isModoTodos = preset === "todos";
@@ -676,12 +713,12 @@ export default function SellerCalculadoraPage() {
         shein: boolean;
         afiliadoLinhaPct: number;
       }[] = [
-        { nome: "ML Clássico", comissao: COMISSOES.meli_classico, opStr: opMeli, rebate: true, cupom: cMl, shein: false, afiliadoLinhaPct: affGlobal },
-        { nome: "ML Premium", comissao: COMISSOES.meli_premium, opStr: opMeli, rebate: true, cupom: cMl, shein: false, afiliadoLinhaPct: affGlobal },
+        { nome: "ML Clássico", comissao: meliClPctEff, opStr: opMeli, rebate: true, cupom: cMl, shein: false, afiliadoLinhaPct: affGlobal },
+        { nome: "ML Premium", comissao: meliPrPctEff, opStr: opMeli, rebate: true, cupom: cMl, shein: false, afiliadoLinhaPct: affGlobal },
         { nome: "TikTok Shop", comissao: COMISSOES.tiktok, opStr: opTiktok, rebate: false, cupom: cTk, shein: false, afiliadoLinhaPct: affGlobal },
         { nome: "Shopee", comissao: COMISSOES.shopee, opStr: opShopee, rebate: false, cupom: cSp, shein: false, afiliadoLinhaPct: affGlobal },
-        { nome: "Shein masc.", comissao: COMISSOES.shein_masc, opStr: opShein, rebate: false, cupom: cSh, shein: true, afiliadoLinhaPct: 0 },
-        { nome: "Shein fem.", comissao: COMISSOES.shein_fem, opStr: opShein, rebate: false, cupom: cSh, shein: true, afiliadoLinhaPct: 0 },
+        { nome: "Shein masc.", comissao: sheinMascPctEff, opStr: opShein, rebate: false, cupom: cSh, shein: true, afiliadoLinhaPct: 0 },
+        { nome: "Shein fem.", comissao: sheinFemPctEff, opStr: opShein, rebate: false, cupom: cSh, shein: true, afiliadoLinhaPct: 0 },
       ];
 
       const porMarketplace = linhasTodos.map((row) => {
@@ -787,8 +824,8 @@ export default function SellerCalculadoraPage() {
     // ——— SHEIN dual ———
     if (preset === "shein") {
       const freteEf = opSheinNum;
-      const vMasc = computeLinha(COMISSOES.shein_masc, freteEf, true, cupomU, 0);
-      const vFem = computeLinha(COMISSOES.shein_fem, freteEf, true, cupomU, 0);
+      const vMasc = computeLinha(sheinMascPctEff, freteEf, true, cupomU, 0);
+      const vFem = computeLinha(sheinFemPctEff, freteEf, true, cupomU, 0);
       if (!vMasc || !vFem) {
         setResultado(null);
         return;
@@ -798,8 +835,8 @@ export default function SellerCalculadoraPage() {
       const variantes: ResultadoVariante[] = [
         {
           key: "shein_masc",
-          label: "Shein masculino (18%)",
-          comissao: COMISSOES.shein_masc,
+          label: `Shein masculino (${sheinMascPctEff}%)`,
+          comissao: sheinMascPctEff,
           ...coreMasc,
           precoSemCupom:
             cupomU > 0 && vMasc.efeitoCupom.reducaoPreco > 0 ? vMasc.efeitoCupom.precoSemCupom : undefined,
@@ -807,8 +844,8 @@ export default function SellerCalculadoraPage() {
         },
         {
           key: "shein_fem",
-          label: "Shein feminino (20%)",
-          comissao: COMISSOES.shein_fem,
+          label: `Shein feminino (${sheinFemPctEff}%)`,
+          comissao: sheinFemPctEff,
           ...coreFem,
           precoSemCupom:
             cupomU > 0 && vFem.efeitoCupom.reducaoPreco > 0 ? vFem.efeitoCupom.precoSemCupom : undefined,
@@ -837,8 +874,8 @@ export default function SellerCalculadoraPage() {
     // ——— ML dual ———
     if (preset === "meli") {
       const freteEf = Math.max(0, opMeliNum - rebateVal);
-      const vCl = computeLinha(COMISSOES.meli_classico, freteEf, false, cupomU, affGlobal);
-      const vPr = computeLinha(COMISSOES.meli_premium, freteEf, false, cupomU, affGlobal);
+      const vCl = computeLinha(meliClPctEff, freteEf, false, cupomU, affGlobal);
+      const vPr = computeLinha(meliPrPctEff, freteEf, false, cupomU, affGlobal);
       if (!vCl || !vPr) {
         setResultado(null);
         return;
@@ -848,8 +885,8 @@ export default function SellerCalculadoraPage() {
       const variantes: ResultadoVariante[] = [
         {
           key: "meli_classico",
-          label: "Mercado Livre Clássico (14%)",
-          comissao: COMISSOES.meli_classico,
+          label: `Mercado Livre Clássico (${meliClPctEff}%)`,
+          comissao: meliClPctEff,
           ...coreCl,
           precoSemCupom:
             cupomU > 0 && vCl.efeitoCupom.reducaoPreco > 0 ? vCl.efeitoCupom.precoSemCupom : undefined,
@@ -861,8 +898,8 @@ export default function SellerCalculadoraPage() {
         },
         {
           key: "meli_premium",
-          label: "Mercado Livre Premium (19%)",
-          comissao: COMISSOES.meli_premium,
+          label: `Mercado Livre Premium (${meliPrPctEff}%)`,
+          comissao: meliPrPctEff,
           ...corePr,
           precoSemCupom:
             cupomU > 0 && vPr.efeitoCupom.reducaoPreco > 0 ? vPr.efeitoCupom.precoSemCupom : undefined,
@@ -946,6 +983,7 @@ export default function SellerCalculadoraPage() {
     custoProduto, embFul, margem, comissao, imposto, ads, afiliado, perda, perdaTipo, preset, extras,
     opMeli, opTiktok, opShopee, opShein, rebateML, parseNum,
     cupomUnico, cupomMl, cupomShopee, cupomTiktok, cupomShein,
+    meliClPctEff, meliPrPctEff,
   ]);
 
   // Recalcula quando qualquer dependência de `calcular` mudar (incl. cupom, margem, operacional...)
@@ -971,6 +1009,10 @@ export default function SellerCalculadoraPage() {
     setAfiliado("");
     setMargem("15");
     setComissao("");
+    setMeliComissaoClassico("14");
+    setMeliComissaoPremium("19");
+    setSheinComissaoMasc("18");
+    setSheinComissaoFem("20");
     setImposto("");
     setAds("");
     setPerda("");
@@ -985,8 +1027,8 @@ export default function SellerCalculadoraPage() {
     const custo = parseNum(custoProduto);
     const emb = parseNum(embFul);
     let com = parseNum(comissao);
-    if (preset === "shein") com = COMISSOES.shein_fem;
-    else if (preset === "meli") com = COMISSOES.meli_premium;
+    if (preset === "shein") com = sheinFemPctEff;
+    else if (preset === "meli") com = meliPrPctEff;
     const imp = parseNum(imposto);
     const adsPreco = preset === "shein" ? 0 : parseNum(ads);
     const affMin =
@@ -1528,27 +1570,123 @@ export default function SellerCalculadoraPage() {
               onChange={(e) => setMargem(sanitizeNumInput(e.target.value))} placeholder="15" className={inputLight} />
           </Row>
 
-          {(preset === "shein" || preset === "todos" || preset === "meli") ? (
-            <Row label="Comissão (Marketplace)">
-              <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-snug pr-1">
-                {preset === "shein" && (
-                  <>
-                    <span className="font-medium text-neutral-800 dark:text-neutral-200">18% masc.</span> e{" "}
-                    <span className="font-medium text-neutral-800 dark:text-neutral-200">20% fem.</span>
-                    <span className="block text-xs text-neutral-500 dark:text-neutral-400 mt-1">Dois cards de resultado.</span>
-                  </>
+          {(preset === "meli" || preset === "todos") && (
+            <>
+              <Row
+                label={
+                  <span className="inline-flex items-center gap-1.5 min-w-0">
+                    <span className="min-w-0 leading-snug">ML — Clássico</span>
+                    <HelpBubble
+                      open={helpOpen === "meliComissao"}
+                      onOpen={() => setHelpOpen("meliComissao")}
+                      onClose={() => setHelpOpen(null)}
+                      ariaLabel="Comissão negociada no Mercado Livre"
+                      side="above"
+                    >
+                      <p className="font-semibold text-neutral-900 dark:text-neutral-100 mb-1.5">Comissão Clássico e Premium</p>
+                      <p className="text-sm leading-relaxed">
+                        Os valores padrão são 14% e 19%. Se sua conta tiver <strong>tarifa especial ou isenção</strong>, altere cada campo para a simulação bater com o seu contrato.
+                      </p>
+                    </HelpBubble>
+                  </span>
+                }
+                unit="%"
+              >
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={meliComissaoClassico}
+                  onChange={(e) => setMeliComissaoClassico(sanitizeNumInput(e.target.value))}
+                  placeholder="14"
+                  className={`${inputLight} tabular-nums`}
+                  aria-label="Comissão percentual Mercado Livre Clássico"
+                  title="Padrão 14% se vazio"
+                />
+              </Row>
+              <Row label="ML — Premium" unit="%">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={meliComissaoPremium}
+                  onChange={(e) => setMeliComissaoPremium(sanitizeNumInput(e.target.value))}
+                  placeholder="19"
+                  className={`${inputLight} tabular-nums`}
+                  aria-label="Comissão percentual Mercado Livre Premium"
+                  title="Padrão 19% se vazio"
+                />
+              </Row>
+              <div className="px-4 py-2.5 border-b border-neutral-200/70 dark:border-[var(--card-border)]/70 bg-neutral-50/50 dark:bg-neutral-900/30">
+                <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                  Campo vazio volta ao padrão (14% no Clássico, 19% no Premium). O resultado mantém dois cards — um por tipo.
+                </p>
+                {preset === "todos" && (
+                  <p className="text-[11px] leading-relaxed font-medium text-neutral-600 dark:text-neutral-400 mt-2">
+                    No comparativo, TikTok e Shopee seguem taxas fixas do modelo; ML e Shein usam os % das linhas de comissão de cada canal.
+                  </p>
                 )}
-                {preset === "meli" && (
-                  <>
-                    <span className="font-medium text-neutral-800 dark:text-neutral-200">14% Clássico</span> e{" "}
-                    <span className="font-medium text-neutral-800 dark:text-neutral-200">19% Premium</span>
-                    <span className="block text-xs text-neutral-500 dark:text-neutral-400 mt-1">Dois cards de resultado.</span>
-                  </>
+              </div>
+            </>
+          )}
+
+          {(preset === "shein" || preset === "todos") && (
+            <>
+              <Row
+                label={
+                  <span className="inline-flex items-center gap-1.5 min-w-0">
+                    <span className="min-w-0 leading-snug">Shein — masc.</span>
+                    <HelpBubble
+                      open={helpOpen === "sheinComissao"}
+                      onOpen={() => setHelpOpen("sheinComissao")}
+                      onClose={() => setHelpOpen(null)}
+                      ariaLabel="Comissão Shein masculino e feminino"
+                      side="above"
+                    >
+                      <p className="font-semibold text-neutral-900 dark:text-neutral-100 mb-1.5">Comissão Shein</p>
+                      <p className="text-sm leading-relaxed">
+                        Os valores padrão são 18% (masculino) e 20% (feminino). Ajuste se a sua conta tiver <strong>tarifa diferente</strong>.
+                      </p>
+                    </HelpBubble>
+                  </span>
+                }
+                unit="%"
+              >
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={sheinComissaoMasc}
+                  onChange={(e) => setSheinComissaoMasc(sanitizeNumInput(e.target.value))}
+                  placeholder="18"
+                  className={`${inputLight} tabular-nums`}
+                  aria-label="Comissão percentual Shein masculino"
+                  title="Padrão 18% se vazio"
+                />
+              </Row>
+              <Row label="Shein — fem." unit="%">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={sheinComissaoFem}
+                  onChange={(e) => setSheinComissaoFem(sanitizeNumInput(e.target.value))}
+                  placeholder="20"
+                  className={`${inputLight} tabular-nums`}
+                  aria-label="Comissão percentual Shein feminino"
+                  title="Padrão 20% se vazio"
+                />
+              </Row>
+              <div className="px-4 py-2.5 border-b border-neutral-200/70 dark:border-[var(--card-border)]/70 bg-neutral-50/50 dark:bg-neutral-900/30">
+                <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                  Campo vazio volta ao padrão (18% masc., 20% fem.). Dois cards de resultado — um por linha.
+                </p>
+                {preset === "todos" && (
+                  <p className="text-[11px] leading-relaxed font-medium text-neutral-600 dark:text-neutral-400 mt-2">
+                    No comparativo, as linhas Shein masc./fem. usam estes %. TikTok e Shopee seguem taxas fixas.
+                  </p>
                 )}
-                {preset === "todos" && "Definida por linha na tabela de comparativo."}
-              </p>
-            </Row>
-          ) : (
+              </div>
+            </>
+          )}
+
+          {(preset === "tiktok" || preset === "shopee" || preset === "") && (
             <Row label="Comissão (Marketplace)" unit="%">
               <input type="text" inputMode="decimal" value={comissao}
                 onChange={(e) => setComissao(sanitizeNumInput(e.target.value))} placeholder="0" className={inputLight} />
