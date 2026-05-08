@@ -13,7 +13,6 @@ import {
 } from "@/components/DropcoreAuthShell";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import { CalculadoraAssinaturaRegrasInfo } from "@/components/calculadora/CalculadoraAssinaturaRegrasInfo";
 import { isCalculadoraAssinaturaExpiradaLegacy403 } from "@/lib/calculadoraAssinaturaExpired";
 
 /**
@@ -156,11 +155,6 @@ export default function CalculadoraLoginPage() {
         >
           {esqueciSenha ? "← Voltar ao login" : "Esqueci a senha"}
         </button>
-
-        <CalculadoraAssinaturaRegrasInfo
-          className="mt-4"
-          heading="Plano pago — como funciona"
-        />
       </div>
     </DropcoreAuthShell>
   );

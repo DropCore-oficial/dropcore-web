@@ -11,14 +11,13 @@ import { cn } from "@/lib/utils";
  */
 
 export const authLabelClass =
-  "mb-1.5 block text-[13px] font-medium text-neutral-600 dark:text-neutral-400";
+  "mb-1.5 block text-[13px] font-medium text-[var(--muted)]";
 
 export const authInputClass = cn(
-  "w-full min-h-[44px] rounded-lg border border-neutral-300 bg-white px-3.5 py-2.5 text-[15px] text-neutral-900",
-  "placeholder:text-neutral-400 outline-none transition-[box-shadow,border-color]",
-  "hover:border-neutral-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20",
-  "dark:border-neutral-600 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500",
-  "dark:hover:border-neutral-500 dark:focus:border-emerald-500",
+  "w-full min-h-[44px] rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3.5 py-2.5 text-[15px] text-[var(--foreground)]",
+  "placeholder:text-[var(--muted)]/90 outline-none transition-[box-shadow,border-color,background-color]",
+  "hover:bg-[var(--surface-hover)] hover:border-emerald-300 dark:hover:border-emerald-700",
+  "focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20",
 );
 
 export const authCardWrapperClass = cn(
@@ -27,14 +26,12 @@ export const authCardWrapperClass = cn(
 
 export const authShellPageClass = cn(
   "min-h-screen min-h-[100dvh] flex flex-col items-center justify-center",
-  "bg-[#f6f6f7] px-4 py-6 sm:py-8",
-  "dark:bg-neutral-950",
+  "bg-[var(--background)] app-bg px-4 py-6 sm:py-8",
 );
 
 export const authCardClass = cn(
-  "overflow-hidden rounded-2xl border border-neutral-200/90 bg-white",
+  "overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--card)]",
   "shadow-[0_1px_0_rgba(0,0,0,0.03),0_2px_8px_rgba(0,0,0,0.035),0_6px_18px_rgba(0,0,0,0.045)]",
-  "dark:border-neutral-800 dark:bg-neutral-900",
 );
 
 export const authAlertErrorClass =
@@ -51,13 +48,13 @@ export const authAlertSuccessClass =
 
 /** Link secundário (esqueci senha, rodapé). */
 export const authMutedLinkClass =
-  "text-center text-[13px] text-neutral-500 transition hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200";
+  "text-center text-[13px] text-[var(--muted)] transition hover:text-[var(--foreground)]";
 
 export const authFooterDividerClass =
-  "mt-4 border-t border-neutral-200 pt-3.5 text-center text-[12px] leading-relaxed text-neutral-600 dark:border-neutral-700 dark:text-neutral-400";
+  "mt-4 border-t border-[var(--card-border)] pt-3.5 text-center text-[12px] leading-relaxed text-[var(--muted)]";
 
 export const authPrimaryButtonClass =
-  "mt-1 w-full rounded-lg py-3 text-[15px] font-semibold shadow-sm transition hover:shadow";
+  "mt-1 w-full rounded-lg bg-emerald-600 py-3 text-[15px] font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700";
 
 export type DropcoreAuthShellProps = {
   /** Rótulo curto em caixa alta (ex.: «Seller», «Organização»). */
@@ -76,19 +73,19 @@ export function DropcoreAuthShell({ eyebrow, heading, description, headingClassN
       <div className={authCardWrapperClass}>
         <div className={authCardClass}>
           {/* Cabeçalho da marca — sempre igual em todas as rotas */}
-          <div className="border-b border-neutral-100 px-6 pb-3 pt-5 text-center dark:border-neutral-800 sm:px-7 sm:pb-4 sm:pt-6">
+          <div className="border-b border-[var(--card-border)] px-6 pb-3 pt-5 text-center sm:px-7 sm:pb-4 sm:pt-6">
             <div className="flex items-center justify-between">
               <DropCoreLogo variant="horizontal" href={null} className="shrink-0" />
-              <ThemeToggle className="min-h-[34px] min-w-[34px] inline-flex touch-manipulation items-center justify-center rounded-md border border-neutral-200 bg-neutral-100 text-neutral-600 transition hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700" />
+              <ThemeToggle className="min-h-[34px] min-w-[34px] inline-flex touch-manipulation items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--surface-subtle)] text-[var(--muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]" />
             </div>
-            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-400">
+            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700/90 dark:text-emerald-400/90">
               {eyebrow}
             </p>
-            <h1 className={cn("mt-0.5 text-[1.25rem] font-semibold leading-snug tracking-tight text-neutral-900 dark:text-neutral-50 sm:text-[1.38rem]", headingClassName)}>
+            <h1 className={cn("mt-0.5 text-[1.25rem] font-semibold leading-snug tracking-tight text-[var(--foreground)] sm:text-[1.38rem]", headingClassName)}>
               {heading}
             </h1>
             {description ? (
-              <p className="mx-auto mt-1 max-w-[20rem] text-[13px] leading-relaxed text-neutral-600 dark:text-neutral-400">
+              <p className="mx-auto mt-1 max-w-[20rem] text-[13px] leading-relaxed text-[var(--muted)]">
                 {description}
               </p>
             ) : null}
@@ -173,7 +170,7 @@ export function AuthPasswordInput({
         <button
           type="button"
           onClick={() => setMostrar(!mostrar)}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
           title={mostrar ? "Ocultar senha" : "Mostrar senha"}
         >
           {mostrar ? (

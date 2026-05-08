@@ -109,3 +109,16 @@ Assim o sistema fica **completo** no sentido: admin controla tudo, dinheiro flui
 - Se algo não ficar claro ou você quiser mudar a ordem (ex.: “quero portal do fornecedor antes do seller”), a gente ajusta o plano.
 
 Quando quiser começar, diga por onde prefere: **Fase 1 inteira** ou **só o item 1.1 (Dashboard Admin)** para eu já ir implementando.
+
+---
+
+## Pendência futura (lembrar depois do go-live)
+
+- **Mercado Pago — assinatura com cartão de crédito recorrente (não fazer agora).**
+- Implementar apenas quando você decidir entrar nessa fase.
+- Na implementação, considerar:
+  - fluxo de assinatura recorrente no MP (plano/subscription),
+  - webhook com eventos de `Planos e assinaturas` + `Pagamentos`,
+  - status no sistema (ativo, inadimplente, cancelado),
+  - gestão de cartão/assinatura na área do cliente.
+- Enquanto isso, manter o modelo atual de cobrança por PIX.

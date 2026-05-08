@@ -62,10 +62,10 @@ function AvisoPortaErrada({
           <IconInfoPortal className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1 space-y-2">
-          <p className="text-[14px] font-semibold leading-snug text-neutral-900 dark:text-neutral-100">
+          <p className="text-[14px] font-semibold leading-snug text-[var(--foreground)]">
             Este login é só para a equipe administrativa (DropCore).
           </p>
-          <p className="text-[13px] leading-relaxed text-neutral-600 dark:text-neutral-400">
+          <p className="text-[13px] leading-relaxed text-[var(--muted)]">
             {detalhe}
           </p>
           <p className="pt-0.5">

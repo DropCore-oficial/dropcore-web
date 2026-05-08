@@ -35,13 +35,13 @@ export function CalculadoraAssinaturaRegrasInfo({
       <details className={cn("group mt-2", className)}>
         <summary
           className={cn(
-            "cursor-pointer select-none list-none text-[12px] font-medium text-emerald-800 dark:text-emerald-200",
-            "underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden",
+            "cursor-pointer select-none list-none text-[13px] font-semibold text-neutral-700 dark:text-neutral-300 sm:text-sm",
+            "underline decoration-neutral-500/80 decoration-[1.5px] underline-offset-2 transition hover:text-neutral-900 dark:decoration-neutral-400/80 dark:hover:text-neutral-100 [&::-webkit-details-marker]:hidden",
           )}
         >
-          Como funciona a renovação
+          Como funciona a renovação?
         </summary>
-        <RegrasLista className="mt-2 pl-4 text-[11px] leading-snug text-emerald-900/95 dark:text-emerald-100/90" />
+        <RegrasLista className="mt-2 pl-4 text-[11px] leading-snug text-neutral-700 dark:text-neutral-300" />
       </details>
     );
   }
