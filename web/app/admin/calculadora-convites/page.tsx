@@ -31,6 +31,18 @@ type Assinante = {
   expirado: boolean;
 };
 
+type RecebimentoCalc = {
+  id: string;
+  user_id: string;
+  email: string | null;
+  mp_payment_id: string;
+  valor: number;
+  external_reference: string | null;
+  pago_em: string;
+};
+
+const fmtBrl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+
 export default function AdminCalculadoraConvitesPage() {
   const [emailAlvo, setEmailAlvo] = useState("");
   const [validadeDias, setValidadeDias] = useState("7");
@@ -40,11 +52,42 @@ export default function AdminCalculadoraConvitesPage() {
   const [assinantes, setAssinantes] = useState<Assinante[]>([]);
   const [assinantesLoading, setAssinantesLoading] = useState(false);
   const [assinantesErro, setAssinantesErro] = useState<string | null>(null);
+  const [recebimentos, setRecebimentos] = useState<RecebimentoCalc[]>([]);
+  const [recebimentosSomaTotal, setRecebimentosSomaTotal] = useState<number | null>(null);
+  const [recebimentosLoading, setRecebimentosLoading] = useState(false);
+  const [recebimentosErro, setRecebimentosErro] = useState<string | null>(null);
   const [apagarLoginModal, setApagarLoginModal] = useState<{ userId: string; emailHint: string } | null>(null);
   const [apagarLoginEmail, setApagarLoginEmail] = useState("");
   const [apagarLoginSending, setApagarLoginSending] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [copiarErro, setCopiarErro] = useState<string | null>(null);
+
+  async function carregarRecebimentos() {
+    setRecebimentosErro(null);
+    setRecebimentosLoading(true);
+    try {
+      const json = await apiGet<{
+        items?: RecebimentoCalc[];
+        soma_total_geral?: number;
+        error?: string;
+      }>("/api/org/calculadora/recebimentos?limit=100");
+      if (typeof json?.error === "string" && json.error && !json.items?.length) {
+        setRecebimentosErro(json.error);
+        setRecebimentos([]);
+        setRecebimentosSomaTotal(null);
+        return;
+      }
+      setRecebimentos(Array.isArray(json.items) ? json.items : []);
+      setRecebimentosSomaTotal(typeof json.soma_total_geral === "number" ? json.soma_total_geral : null);
+      if (typeof json?.error === "string" && json.error) setRecebimentosErro(json.error);
+    } catch (e: unknown) {
+      setRecebimentosErro(e instanceof Error ? e.message : "Erro ao carregar recebimentos.");
+      setRecebimentos([]);
+      setRecebimentosSomaTotal(null);
+    } finally {
+      setRecebimentosLoading(false);
+    }
+  }
 
   async function carregarAssinantes() {
     setAssinantesErro(null);
@@ -67,6 +110,7 @@ export default function AdminCalculadoraConvitesPage() {
 
   useEffect(() => {
     carregarAssinantes();
+    carregarRecebimentos();
   }, []);
 
   async function gerarConvite() {
@@ -496,6 +540,80 @@ export default function AdminCalculadoraConvitesPage() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold">Recebimentos — renovação PIX (calculadora)</h2>
+              <p className="text-xs text-[var(--muted)]">
+                Valores registrados quando o Mercado Pago aprova o PIX de renovação. O dinheiro continua caindo na sua conta MP;
+                aqui é o espelho interno.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={carregarRecebimentos}
+              disabled={recebimentosLoading}
+              className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50 shrink-0"
+            >
+              {recebimentosLoading ? "Atualizando..." : "Atualizar"}
+            </button>
+          </div>
+
+          {recebimentosSomaTotal != null && recebimentosSomaTotal >= 0 && (
+            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+              Total registrado (todos os PIX): {fmtBrl.format(recebimentosSomaTotal)}
+            </p>
+          )}
+
+          {recebimentosErro && (
+            <div className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+              {recebimentosErro}
+            </div>
+          )}
+
+          {recebimentos.length === 0 && !recebimentosLoading && !recebimentosErro && (
+            <p className="text-xs text-[var(--muted)]">Nenhum pagamento registrado ainda (após rodar o SQL da tabela e novas renovações).</p>
+          )}
+
+          {recebimentos.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs border-separate border-spacing-y-1">
+                <thead>
+                  <tr className="text-[11px] text-[var(--muted)]">
+                    <th className="text-left px-2 py-1.5">Pago em</th>
+                    <th className="text-left px-2 py-1.5">E-mail</th>
+                    <th className="text-right px-2 py-1.5">Valor</th>
+                    <th className="text-left px-2 py-1.5 font-mono">Payment MP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recebimentos.map((r) => {
+                    const d = new Date(r.pago_em);
+                    const dataStr = Number.isNaN(d.getTime())
+                      ? "—"
+                      : d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+                    return (
+                      <tr key={r.id} className="align-middle">
+                        <td className="px-2 py-1.5 text-[var(--muted)] whitespace-nowrap">{dataStr}</td>
+                        <td className="px-2 py-1.5 text-[var(--foreground)] font-medium max-w-[200px] truncate" title={r.email ?? ""}>
+                          {r.email ?? "—"}
+                        </td>
+                        <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+                          {fmtBrl.format(r.valor)}
+                        </td>
+                        <td className="px-2 py-1.5 text-[var(--muted)] text-[10px] max-w-[140px] truncate" title={r.mp_payment_id}>
+                          {r.mp_payment_id}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <p className="text-[11px] text-[var(--muted)] mt-2">Últimos 100 registros. Pagamentos antigos (antes desta versão) não aparecem.</p>
             </div>
           )}
         </section>

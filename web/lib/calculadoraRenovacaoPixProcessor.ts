@@ -121,5 +121,36 @@ export async function processarCalculadoraRenovacaoPaga(
     return false;
   }
 
+  const valorPago =
+    typeof payment.transaction_amount === "number"
+      ? payment.transaction_amount
+      : parseFloat(String(payment.transaction_amount ?? ""));
+  const pagoEmRaw = payment.date_approved;
+  const pagoEm =
+    typeof pagoEmRaw === "string" && pagoEmRaw.trim()
+      ? new Date(pagoEmRaw).toISOString()
+      : new Date().toISOString();
+
+  if (Number.isFinite(valorPago) && valorPago >= 0) {
+    const { error: recErr } = await supabaseAdmin.from("calculadora_recebimentos").insert({
+      user_id: parsed.userId,
+      mp_payment_id: mpPaymentId.trim(),
+      valor: valorPago,
+      external_reference: externalReference.trim(),
+      pago_em: pagoEm,
+    });
+    if (recErr) {
+      if (recErr.code === "23505") {
+        /* já registrado — idempotente */
+      } else if (recErr.code === "42P01" || /does not exist/i.test(recErr.message ?? "")) {
+        console.warn(
+          "[calculadoraRenovacao] Tabela calculadora_recebimentos ausente. Rode web/scripts/create-calculadora-recebimentos.sql no Supabase.",
+        );
+      } else {
+        console.error("[calculadoraRenovacao] calculadora_recebimentos:", recErr.message);
+      }
+    }
+  }
+
   return true;
 }
