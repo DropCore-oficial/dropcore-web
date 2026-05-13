@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { Inter } from "next/font/google";
 import { useTheme } from "./ThemeProvider";
+
+/** Wordmark da marca: sempre Inter Bold (700). */
+const dropCoreWordmarkFont = Inter({
+  subsets: ["latin"],
+  weight: "700",
+});
 
 export type DropCoreLogoVariant = "horizontal" | "symbol";
 
@@ -119,11 +126,8 @@ function Wordmark({
   const sizeClass = compact ? "text-sm" : panel ? "text-xl sm:text-2xl" : "text-base";
   return (
     <span
-      className={`font-bold tracking-tight antialiased whitespace-nowrap ${sizeClass} ${className}`}
-      style={{
-        fontFamily: "var(--font-geist-sans), Inter, system-ui, -apple-system, sans-serif",
-        letterSpacing: "-0.02em",
-      }}
+      className={`${dropCoreWordmarkFont.className} tracking-tight antialiased whitespace-nowrap ${sizeClass} ${className}`}
+      style={{ letterSpacing: "-0.02em" }}
     >
       <span style={{ color: c.drop }}>Drop</span>
       <span style={{ color: c.core }}>Core</span>

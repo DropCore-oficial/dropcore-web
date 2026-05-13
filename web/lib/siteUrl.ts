@@ -13,6 +13,21 @@ function trimUrl(raw: string): string {
  * Ignora NEXT_PUBLIC_APP_URL quando aponta para outro *.vercel.app que não é
  * o deploy atual (ex.: dropcore.vercel.app órfão → DEPLOYMENT_NOT_FOUND).
  */
+/**
+ * Base pública para exibir URLs que serviços externos (ex.: Bling) devem chamar.
+ * No browser em localhost, usa NEXT_PUBLIC_APP_URL ou o domínio canônico — webhooks não alcançam localhost.
+ */
+export function getClientPreferredPublicOrigin(): string {
+  if (typeof window === "undefined") return "";
+  const h = window.location.hostname.toLowerCase();
+  if (h === "localhost" || h === "127.0.0.1") {
+    const raw = trimUrl(process.env.NEXT_PUBLIC_APP_URL ?? "");
+    if (raw.startsWith("http")) return raw;
+    return CANONICAL_SITE_ORIGIN;
+  }
+  return window.location.origin.replace(/\/+$/, "");
+}
+
 export function getSiteUrl(): string {
   const raw = trimUrl(process.env.NEXT_PUBLIC_APP_URL ?? "");
   const onVercel = process.env.VERCEL === "1";

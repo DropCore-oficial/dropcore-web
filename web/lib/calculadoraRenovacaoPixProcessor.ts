@@ -58,6 +58,21 @@ function valorCompativel(valorMp: unknown, esperado: number): boolean {
 }
 
 /**
+ * Valor para espelho interno de receita: **líquido na conta** (`transaction_details.net_received_amount`)
+ * quando o MP envia; senão cai no valor total da transação (`transaction_amount`).
+ */
+function valorRegistroRecebimentoMp(payment: Record<string, unknown>): number {
+  const td = payment.transaction_details as Record<string, unknown> | undefined;
+  const net = td?.net_received_amount;
+  if (typeof net === "number" && Number.isFinite(net) && net >= 0) return net;
+  const netParsed = parseFloat(String(net ?? ""));
+  if (Number.isFinite(netParsed) && netParsed >= 0) return netParsed;
+  const gross = payment.transaction_amount;
+  const g = typeof gross === "number" ? gross : parseFloat(String(gross ?? ""));
+  return Number.isFinite(g) && g >= 0 ? g : 0;
+}
+
+/**
  * Confirma pagamento e estende valido_ate. Idempotente por mp_renovacao_ultimo_aprovado_id.
  */
 export async function processarCalculadoraRenovacaoPaga(
@@ -121,10 +136,7 @@ export async function processarCalculadoraRenovacaoPaga(
     return false;
   }
 
-  const valorPago =
-    typeof payment.transaction_amount === "number"
-      ? payment.transaction_amount
-      : parseFloat(String(payment.transaction_amount ?? ""));
+  const valorPago = valorRegistroRecebimentoMp(payment);
   const pagoEmRaw = payment.date_approved;
   const pagoEm =
     typeof pagoEmRaw === "string" && pagoEmRaw.trim()

@@ -549,8 +549,7 @@ export default function AdminCalculadoraConvitesPage() {
             <div>
               <h2 className="text-sm font-semibold">Recebimentos — renovação PIX (calculadora)</h2>
               <p className="text-xs text-[var(--muted)]">
-                Valores registrados quando o Mercado Pago aprova o PIX de renovação. O dinheiro continua caindo na sua conta MP;
-                aqui é o espelho interno.
+                Valores quando o Mercado Pago aprova o PIX: preferimos o líquido creditado (após taxas), conforme a API; se não vier, mostramos o valor da cobrança. O dinheiro fica no seu MP — aqui é só espelho.
               </p>
             </div>
             <button
@@ -565,7 +564,7 @@ export default function AdminCalculadoraConvitesPage() {
 
           {recebimentosSomaTotal != null && recebimentosSomaTotal >= 0 && (
             <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-              Total registrado (todos os PIX): {fmtBrl.format(recebimentosSomaTotal)}
+              Total registrado (líquido quando o MP informa): {fmtBrl.format(recebimentosSomaTotal)}
             </p>
           )}
 
@@ -586,7 +585,7 @@ export default function AdminCalculadoraConvitesPage() {
                   <tr className="text-[11px] text-[var(--muted)]">
                     <th className="text-left px-2 py-1.5">Pago em</th>
                     <th className="text-left px-2 py-1.5">E-mail</th>
-                    <th className="text-right px-2 py-1.5">Valor</th>
+                    <th className="text-right px-2 py-1.5">Valor líquido</th>
                     <th className="text-left px-2 py-1.5 font-mono">Payment MP</th>
                   </tr>
                 </thead>
@@ -613,7 +612,9 @@ export default function AdminCalculadoraConvitesPage() {
                   })}
                 </tbody>
               </table>
-              <p className="text-[11px] text-[var(--muted)] mt-2">Últimos 100 registros. Pagamentos antigos (antes desta versão) não aparecem.</p>
+              <p className="text-[11px] text-[var(--muted)] mt-2">
+                Últimos 100 registros. Pagamentos antigos (antes desta versão) não aparecem. Linhas gravadas antes da mudança para líquido podem mostrar o valor bruto da cobrança.
+              </p>
             </div>
           )}
         </section>

@@ -64,3 +64,21 @@ export function resolveInvitePublicOrigin(req: Request): string {
   }
   return getSiteUrl();
 }
+
+/**
+ * URL base para webhooks chamados por terceiros (Bling, etc.).
+ * Em localhost o request é http://127.0.0.1 — serviços externos não alcançam; devolve o site público.
+ */
+export function resolveExternalWebhookOrigin(req: Request): string {
+  try {
+    const u = new URL(req.url);
+    const h = u.hostname.toLowerCase();
+    if (h === "localhost" || h === "127.0.0.1") {
+      return getSiteUrl();
+    }
+  } catch {
+    /* ignore */
+  }
+  const fromReq = resolvePublicOrigin(req);
+  return fromReq || getSiteUrl();
+}

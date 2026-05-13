@@ -315,7 +315,8 @@ export default function SellerDashboardPage() {
   const [pixRestanteSec, setPixRestanteSec] = useState<number | null>(null);
   const [movimentacoesAberto, setMovimentacoesAberto] = useState(false);
   const [chartPeriodo, setChartPeriodo] = useState<7 | 14 | 30 | 60 | 90 | 120 | "month:current" | "month:last" | string>(14);
-  const [erpConectado, setErpConectado] = useState<boolean | null>(null);
+  /** Olist/Tiny: token API salvo na integração. */
+  const [olistIntegrado, setOlistIntegrado] = useState<boolean | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<"" | "pedidos">("");
   const autoOpenedRef = useRef(false);
   const extratoRef = useRef<HTMLDivElement>(null);
@@ -333,10 +334,10 @@ export default function SellerDashboardPage() {
         router.replace("/seller/login");
         return;
       }
-      const [meRes, mensRes, erpRes] = await Promise.all([
+      const [meRes, mensRes, olistRes] = await Promise.all([
         fetch("/api/seller/me", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }),
         fetch("/api/seller/mensalidades", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }),
-        fetch("/api/seller/erp-api-key", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }),
+        fetch("/api/seller/olist", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }),
       ]);
       const json = await meRes.json();
       if (!meRes.ok) {
@@ -367,11 +368,11 @@ export default function SellerDashboardPage() {
         setTrialAtivo(false);
         setTrialValidoAte(null);
       }
-      if (erpRes.ok) {
-        const erpJson = await erpRes.json();
-        setErpConectado(erpJson.has_key ?? false);
+      if (olistRes.ok) {
+        const olistJson = await olistRes.json();
+        setOlistIntegrado(Boolean(olistJson.connected));
       } else {
-        setErpConectado(false);
+        setOlistIntegrado(false);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
@@ -1357,10 +1358,10 @@ export default function SellerDashboardPage() {
                 <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
               </svg>
             </div>
-            <span className="text-sm font-bold text-[var(--foreground)] truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Integrações</span>
-            {erpConectado === true && (
+            <span className="text-sm font-bold text-[var(--foreground)] truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">ERP</span>
+            {olistIntegrado === true && (
               <span className="absolute top-2 right-2 rounded-full bg-emerald-100 dark:bg-emerald-950/50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
-                Conectado
+                Olist/Tiny ok
               </span>
             )}
           </button>

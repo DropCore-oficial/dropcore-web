@@ -60,7 +60,7 @@ export const viewport: Viewport = {
 const themeScript = `
 (function() {
   const stored = localStorage.getItem('dropcore-theme');
-  const theme = stored === 'dark' || stored === 'light' ? stored : 'dark';
+  const theme = stored === 'dark' || stored === 'light' ? stored : 'light';
   if (theme === 'dark') document.documentElement.classList.add('dark');
   else document.documentElement.classList.remove('dark');
 })();
@@ -71,9 +71,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // SSR: className "dark" no <html> evita flash claro; o script no <head> ajusta conforme localStorage.
+  // Padrão claro no HTML; o script no <head> aplica dark só se houver preferência salva (evita flash).
   return (
-    <html lang="pt-BR" suppressHydrationWarning className="dark">
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

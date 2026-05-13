@@ -6,43 +6,54 @@ O repositório tem o Next em web/. Na Vercel isso precisa estar explícito, sen�
 build falha ou deploya o projeto errado.
 
 --------------------------------------------------------------------------------
+Projeto oficial (obrigatório)
+--------------------------------------------------------------------------------
+
+  Nome na Vercel:  dropcore-web
+  Time:            dropcore-oficials-projects
+  Produção:        https://www.dropcore.com.br
+  Root Directory:  web  (no projeto ligado ao Git)
+
+NÃO use o projeto paralelo "web" (criado por engano via CLI sem link). Ele não
+tem o domínio oficial nem o mesmo histórico do Git. Variáveis de ambiente vão
+só em dropcore-web.
+
+--------------------------------------------------------------------------------
 Opção A — Painel Vercel (recomendado)
 --------------------------------------------------------------------------------
 
-1. https://vercel.com → Add New → Project → escolha o GitHub DropCore-oficial/dropcore-web
+1. https://vercel.com → projeto dropcore-web (GitHub DropCore-oficial/dropcore-web)
 
-2. Em "Configure Project":
-   - Root Directory: clique em "Edit" e defina exatamente:  web
-   - Framework Preset: Next.js (deve aparecer sozinho depois de escolher a pasta web)
+2. Settings → General → Root Directory = web
 
-3. Environment Variables (Production):
+3. Settings → Environment Variables (Production):
    Copie do seu arquivo local web/.env.local (ou use web/.env.example como lista):
    NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
    NEXT_PUBLIC_APP_URL, MERCADOPAGO_*, etc.
 
-4. Deploy.
+4. Deploy: push na branch ligada ao projeto (ex.: main).
 
-5. Depois: no Supabase → Auth → URL Configuration, adicione o domínio Vercel
-   (ex.: https://xxx.vercel.app) em Redirect URLs / Site URL se necessário.
+5. Depois: no Supabase → Auth → URL Configuration, alinhe Redirect URLs / Site URL
+   com https://www.dropcore.com.br (e aliases se precisar).
 
 --------------------------------------------------------------------------------
-Opção B — CLI no seu Mac (se preferir o terminal)
+Opção B — CLI no Mac (só se precisar)
 --------------------------------------------------------------------------------
 
-cd /Users/tiagopereirasilva/Downloads/DropCore/web
+cd /Users/tiagopereirasilva/Downloads/DropCore
 npx vercel login
-npx vercel link          # escolha o time e o projeto "web" (ou crie um novo)
-npx vercel deploy --prod
+npx vercel link          # escolha o time e o projeto dropcore-web (NÃO "web")
+cd web && npm run deploy:vercel    # valida o link e faz deploy na raiz do repo
 
-Se der "EPIPE" ou timeout, execute novamente só:
-npx vercel deploy --prod
+Não rode npx vercel --prod --yes sem link: isso pode criar outro projeto.
 
 --------------------------------------------------------------------------------
 Erros frequentes
 --------------------------------------------------------------------------------
 
+- CLI ligado ao projeto "web": rode npx vercel link de novo e escolha dropcore-web.
 - "No Next.js version" / build falha no root: Root Directory NÃO está em "web".
-- Variáveis faltando: build passa mas login/API falha — reconfigure as env na Vercel.
+- Variáveis faltando: build passa mas login/API falha — reconfigure as env em dropcore-web.
 - Repo já ligado com Root = raiz do mono: Settings → General → Root Directory → web
 
 --------------------------------------------------------------------------------
@@ -50,4 +61,4 @@ O que já está pronto no Git
 --------------------------------------------------------------------------------
 
 Push para main já dispara deploy automático SE o projeto GitHub estiver ligado
-na Vercel com Root Directory = web.
+ao dropcore-web na Vercel com Root Directory = web.

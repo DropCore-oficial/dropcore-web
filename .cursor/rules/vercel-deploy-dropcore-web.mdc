@@ -1,0 +1,29 @@
+---
+description: Deploy Vercel — projeto oficial dropcore-web (nunca o projeto web)
+alwaysApply: true
+---
+
+# Deploy na Vercel (DropCore)
+
+## Projeto oficial
+
+- **Único projeto de produção:** `dropcore-web` (time `dropcore-oficials-projects`).
+- **Domínio canónico:** `https://www.dropcore.com.br` (e aliases do mesmo projeto).
+- **Root Directory na Vercel:** pasta `web/` do repositório Git.
+
+## Proibido
+
+- **Não** criar nem usar o projeto Vercel chamado `web` (deploy CLI sem link criou um projeto paralelo sem Git e sem o domínio).
+- **Não** rodar `npx vercel --prod --yes` sem antes confirmar o link local para `dropcore-web`.
+- **Não** tratar URLs `web-*.vercel.app` / `web-self-psi-42.vercel.app` como produção do DropCore.
+
+## Fluxo preferido
+
+1. **Git:** push na branch ligada ao `dropcore-web` (deploy automático).
+2. **CLI (só se necessário):** na **raiz do repo**, `npx vercel link` → **`dropcore-web`**; depois `cd web && npm run deploy:vercel` (deploy na raiz — Root Directory `web` no painel; não rodar `vercel --prod` só dentro de `web/`).
+
+## Variáveis de ambiente
+
+Configurar em **dropcore-web** → Settings → Environment Variables (Production), não no projeto `web`.
+
+Referência: `DEPLOY-VERCEL.txt` na raiz do repositório.

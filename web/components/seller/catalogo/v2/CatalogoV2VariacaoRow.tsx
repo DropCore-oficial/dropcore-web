@@ -61,12 +61,18 @@ function VendaSwitch({
   busy,
   onToggle,
   saleTone,
+  ariaLabel,
+  hintTitle,
 }: {
   habilitado: boolean;
   disabled: boolean;
   busy: boolean;
   onToggle: () => void;
   saleTone: "ok" | "stale" | "off";
+  /** Rótulo para leitores de tela (ex.: ação do switch por cor na API). */
+  ariaLabel?: string;
+  /** Dica nativa do botão (quando não está no estado “cadastro incompleto”). */
+  hintTitle?: string;
 }) {
   const track =
     saleTone === "stale"
@@ -80,7 +86,12 @@ function VendaSwitch({
       role="switch"
       aria-checked={habilitado}
       aria-busy={busy}
-      title={saleTone === "stale" ? "Venda ligada na API, mas o fornecedor ainda precisa completar o cadastro. Toque para desligar." : undefined}
+      aria-label={ariaLabel}
+      title={
+        saleTone === "stale"
+          ? "Venda ligada na API, mas o fornecedor ainda precisa completar o cadastro. Toque para desligar."
+          : hintTitle
+      }
       disabled={disabled || busy}
       onClick={() => {
         if (disabled || busy) return;
@@ -94,6 +105,67 @@ function VendaSwitch({
         }`}
       />
     </button>
+  );
+}
+
+/** Um switch por cor no agrupamento — habilita/desabilita todas as numerações da cor de uma vez. */
+export function CatalogoV2CorGrupoApiToggle({
+  linhas,
+  busy,
+  onToggleGrupo,
+  bloqueioLigarMotivo,
+}: {
+  linhas: LinhaCatalogoV2[];
+  busy: boolean;
+  onToggleGrupo: () => void;
+  /** Impede ligar na API (ex.: sem armazém gravado); desligar continua permitido quando todas as elegíveis já estão on. */
+  bloqueioLigarMotivo?: string | null;
+}) {
+  const elegiveisLigar = linhas.filter(
+    (l) => skuContaLimiteHabilitacaoSeller(l.sku) && l.ativo && l.prontoParaVender,
+  );
+  const todosHabilitadosNaCor =
+    elegiveisLigar.length > 0 && elegiveisLigar.every((l) => l.habilitado);
+  const podeDesligarAlgum = linhas.some((l) => l.habilitado);
+  const podeLigarAlgum = elegiveisLigar.some((l) => !l.habilitado);
+  const bloqueadoSohLigar = Boolean((bloqueioLigarMotivo ?? "").trim()) && podeLigarAlgum;
+  const disabled = busy || (!podeLigarAlgum && !podeDesligarAlgum) || bloqueadoSohLigar;
+
+  const comHabilitado = linhas.filter((l) => l.habilitado);
+  const saleTone: "ok" | "stale" | "off" =
+    comHabilitado.length === 0 ? "off" : comHabilitado.some((l) => !l.prontoParaVender) ? "stale" : "ok";
+
+  const dicaToggle =
+    "Liga ou desliga todas as numerações desta cor no catálogo da DropCore (venda na API).";
+  const motivo = (bloqueioLigarMotivo ?? "").trim();
+  const ariaVendaGrupo = busy
+    ? "Atualizando venda na API…"
+    : bloqueadoSohLigar && motivo
+      ? motivo
+      : disabled
+        ? "Não é possível alterar a venda na API para esta cor no momento."
+        : todosHabilitadosNaCor
+          ? "Desligar venda na API para todas as numerações desta cor"
+          : "Ligar venda na API para todas as numerações desta cor";
+
+  const titleWrapper = bloqueadoSohLigar && motivo ? motivo : dicaToggle;
+  const hintSwitch = bloqueadoSohLigar && motivo ? motivo : dicaToggle;
+
+  return (
+    <div className="inline-flex shrink-0 max-w-full items-center gap-1.5 sm:gap-2" title={titleWrapper}>
+      <span className="select-none text-[10px] font-medium leading-tight text-[var(--muted)] sm:text-[11px]">
+        Venda na API
+      </span>
+      <VendaSwitch
+        habilitado={todosHabilitadosNaCor}
+        disabled={disabled}
+        busy={busy}
+        saleTone={saleTone}
+        onToggle={onToggleGrupo}
+        ariaLabel={ariaVendaGrupo}
+        hintTitle={hintSwitch}
+      />
+    </div>
   );
 }
 

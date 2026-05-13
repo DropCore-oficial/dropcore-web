@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { AppBarEndDesktopAuth, AppBarEndMobileAuth } from "@/components/AppBarEndAuth";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { MobileAppBar } from "@/components/MobileAppBar";
@@ -73,15 +74,137 @@ function IconCadastro({ active }: { active: boolean }) {
 
 type NavKey = "dashboard" | "produtos" | "calculadora" | "plano" | "cadastro" | "integracoes";
 
+/** Rotas agrupadas no menu “Mais” (desktop e mobile). */
+const NAV_MAIS_MENU_KEYS = ["integracoes", "plano", "cadastro"] as const satisfies readonly NavKey[];
+
+function SellerNavDesktopMais({ active }: { active: NavKey }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const maisActive = (NAV_MAIS_MENU_KEYS as readonly string[]).includes(active);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [active]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (rootRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const btnClass =
+    `flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ` +
+    (maisActive ? activeClass + " hover:bg-emerald-100 dark:hover:bg-emerald-900" : inactiveDesktop);
+
+  return (
+    <div className="relative shrink-0" ref={rootRef}>
+      <button
+        type="button"
+        className={btnClass}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        id="seller-nav-mais-trigger"
+        onClick={() => setOpen((o) => !o)}
+      >
+        Mais
+        <svg
+          className={`h-4 w-4 shrink-0 opacity-70 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      {open ? (
+        <div
+          className="absolute left-0 top-full z-[100] mt-1 w-[min(calc(100vw-2rem),16rem)] rounded-xl border border-[var(--card-border)] bg-[var(--card)] py-1 shadow-lg ring-1 ring-[var(--foreground)]/[0.06]"
+          role="menu"
+          aria-labelledby="seller-nav-mais-trigger"
+        >
+          <Link
+            href="/seller/integracoes-erp"
+            role="menuitem"
+            className={`mx-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              active === "integracoes"
+                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+            }`}
+            onClick={() => setOpen(false)}
+          >
+            <IconPlug active={active === "integracoes"} />
+            ERP
+          </Link>
+          <Link
+            href="/seller/plano"
+            role="menuitem"
+            className={`mx-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              active === "plano"
+                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+            }`}
+            onClick={() => setOpen(false)}
+          >
+            <IconPlano active={active === "plano"} />
+            Plano
+          </Link>
+          <Link
+            href="/seller/cadastro"
+            role="menuitem"
+            className={`mx-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              active === "cadastro"
+                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+            }`}
+            onClick={() => setOpen(false)}
+          >
+            <IconCadastro active={active === "cadastro"} />
+            Cadastro
+          </Link>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function SellerNav({
   active,
   calcOnly = false,
 }: {
   active: NavKey;
-  /** Só assinatura calculadora: esconde Dashboard e Integrações */
+  /** Só assinatura calculadora: esconde Dashboard e ERP */
   calcOnly?: boolean;
 }) {
   const router = useRouter();
+  const [mobileMaisOpen, setMobileMaisOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileMaisOpen(false);
+  }, [active]);
+
+  useEffect(() => {
+    if (!mobileMaisOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMobileMaisOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileMaisOpen]);
 
   async function sair() {
     await supabaseBrowser.auth.signOut();
@@ -94,14 +217,21 @@ export function SellerNav({
   }
 
   const linkClass = (key: NavKey) =>
-    `flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ${
+    `flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ${
       active === key ? activeClass + " hover:bg-emerald-100 dark:hover:bg-emerald-900" : inactiveDesktop
     }`;
 
   const mobileLinkClass = (key: NavKey) =>
-    `flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 overflow-visible px-1 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ${
+    `flex min-w-0 flex-1 flex-row items-center justify-center gap-1 overflow-hidden px-0.5 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ${
       active === key ? activeClass + " bg-emerald-100 dark:bg-emerald-900" : inactiveMobile
     }`;
+
+  const mobileMaisActive = (NAV_MAIS_MENU_KEYS as readonly string[]).includes(active);
+  const mobileMaisBtnClass =
+    `flex min-w-0 flex-1 flex-row items-center justify-center gap-1 overflow-hidden px-0.5 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ` +
+    (mobileMaisActive
+      ? activeClass + " bg-emerald-100 dark:bg-emerald-900"
+      : inactiveMobile + (mobileMaisOpen ? " bg-[var(--surface-hover)]" : ""));
 
   if (calcOnly) {
     return (
@@ -112,9 +242,9 @@ export function SellerNav({
         />
         <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
           <div className="max-w-4xl mx-auto flex w-full min-w-0 items-center justify-between gap-4 px-4 sm:px-6">
-            <div className="flex min-w-0 items-center gap-8">
+            <div className="flex min-w-0 items-center gap-6 sm:gap-8">
               <DropCoreLogo variant="horizontal" href="/seller/calculadora" className="shrink-0" />
-              <div className="flex items-center gap-0.5">
+              <div className="flex shrink-0 items-center gap-0.5">
                 <Link href="/seller/calculadora" className={linkClass("calculadora")}>
                   <IconCalculator active={active === "calculadora"} />
                   Calculadora
@@ -160,9 +290,9 @@ export function SellerNav({
       />
       <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
         <div className="dropcore-shell-4xl flex w-full min-w-0 items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6">
-          <div className="flex min-w-0 items-center gap-3 sm:gap-6">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4 md:gap-6">
             <DropCoreLogo variant="horizontal" href="/seller/dashboard" className="shrink-0" />
-            <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex shrink-0 items-center gap-0.5">
               <Link href="/seller/dashboard" className={linkClass("dashboard")}>
                 <IconHome active={active === "dashboard"} />
                 Dashboard
@@ -175,50 +305,104 @@ export function SellerNav({
                 <IconCalculator active={active === "calculadora"} />
                 Calculadora
               </Link>
-              <Link href="/seller/plano" className={linkClass("plano")}>
-                <IconPlano active={active === "plano"} />
-                Plano
-              </Link>
-              <Link href="/seller/cadastro" className={linkClass("cadastro")}>
-                <IconCadastro active={active === "cadastro"} />
-                Cadastro
-              </Link>
-              <Link href="/seller/integracoes-erp" className={linkClass("integracoes")}>
-                <IconPlug active={active === "integracoes"} />
-                Integrações
-              </Link>
+              <SellerNavDesktopMais active={active} />
             </div>
           </div>
           <AppBarEndDesktopAuth context="seller" onLogout={sair} />
         </div>
       </nav>
 
+      {mobileMaisOpen ? (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-[85] md:hidden bg-[var(--foreground)]/20"
+            aria-label="Fechar menu"
+            onClick={() => setMobileMaisOpen(false)}
+          />
+          <div
+            className="fixed left-3 right-3 bottom-[calc(3.75rem+env(safe-area-inset-bottom,0px))] z-[95] rounded-2xl border border-[var(--card-border)] bg-[var(--card)] py-2 shadow-xl ring-1 ring-[var(--foreground)]/[0.06] md:hidden"
+            role="menu"
+            aria-label="Mais opções do seller"
+          >
+            <Link
+              href="/seller/integracoes-erp"
+              role="menuitem"
+              className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+                active === "integracoes"
+                  ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                  : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
+              }`}
+              onClick={() => setMobileMaisOpen(false)}
+            >
+              <IconPlug active={active === "integracoes"} />
+              ERP
+            </Link>
+            <Link
+              href="/seller/plano"
+              role="menuitem"
+              className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+                active === "plano"
+                  ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                  : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
+              }`}
+              onClick={() => setMobileMaisOpen(false)}
+            >
+              <IconPlano active={active === "plano"} />
+              Plano
+            </Link>
+            <Link
+              href="/seller/cadastro"
+              role="menuitem"
+              className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+                active === "cadastro"
+                  ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                  : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
+              }`}
+              onClick={() => setMobileMaisOpen(false)}
+            >
+              <IconCadastro active={active === "cadastro"} />
+              Cadastro
+            </Link>
+          </div>
+        </>
+      ) : null}
+
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto grid w-full max-w-4xl grid-cols-6 items-stretch min-h-[52px]">
+        <div className="mx-auto grid w-full max-w-4xl grid-cols-4 items-stretch min-h-[52px]">
           <Link href="/seller/dashboard" className={mobileLinkClass("dashboard")}>
             <IconHome active={active === "dashboard"} />
-            <span className="max-w-[4.25rem] text-center text-[8px] font-medium leading-tight tracking-tight sm:text-[9px]">Painel</span>
+            <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Painel</span>
           </Link>
           <Link href="/seller/produtos" className={mobileLinkClass("produtos")}>
             <IconPackage active={active === "produtos"} />
-            <span className="max-w-[4.25rem] text-center text-[8px] font-medium leading-tight tracking-tight sm:text-[9px]">Produtos</span>
+            <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Produtos</span>
           </Link>
           <Link href="/seller/calculadora" className={mobileLinkClass("calculadora")}>
             <IconCalculator active={active === "calculadora"} />
-            <span className="max-w-[4.25rem] text-center text-[8px] font-medium leading-tight tracking-tight sm:text-[9px]">Calc.</span>
+            <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Calculadora</span>
           </Link>
-          <Link href="/seller/plano" className={mobileLinkClass("plano")}>
-            <IconPlano active={active === "plano"} />
-            <span className="max-w-[4.25rem] text-center text-[8px] font-medium leading-tight tracking-tight sm:text-[9px]">Plano</span>
-          </Link>
-          <Link href="/seller/cadastro" className={mobileLinkClass("cadastro")}>
-            <IconCadastro active={active === "cadastro"} />
-            <span className="max-w-[4.25rem] text-center text-[8px] font-medium leading-tight tracking-tight sm:text-[9px]">Cadastro</span>
-          </Link>
-          <Link href="/seller/integracoes-erp" className={mobileLinkClass("integracoes")}>
-            <IconPlug active={active === "integracoes"} />
-            <span className="max-w-[4.25rem] text-center text-[8px] font-medium leading-tight tracking-tight sm:text-[9px]">Integr.</span>
-          </Link>
+          <button
+            type="button"
+            className={mobileMaisBtnClass}
+            aria-expanded={mobileMaisOpen}
+            aria-haspopup="menu"
+            onClick={() => setMobileMaisOpen((o) => !o)}
+          >
+            <svg
+              className={`h-5 w-5 shrink-0 transition-transform duration-200 ${mobileMaisOpen ? "rotate-180 text-emerald-500" : "text-current"}`}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+            <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Mais</span>
+          </button>
         </div>
       </nav>
     </>

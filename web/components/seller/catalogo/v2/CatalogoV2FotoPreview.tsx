@@ -116,7 +116,7 @@ export function CatalogoV2FotoPreview({
         className={cn(
           "flex shrink-0 items-center justify-center border border-[var(--card-border)] bg-[var(--muted)]/10 text-[var(--muted)]",
           grade
-            ? "h-full min-h-[10rem] w-full rounded-xl border-dashed md:min-h-0 md:h-full"
+            ? "min-h-[10rem] w-full rounded-xl border-dashed md:h-40 md:min-h-0"
             : "h-12 w-12 rounded border",
           className,
         )}
@@ -127,7 +127,7 @@ export function CatalogoV2FotoPreview({
   }
 
   const thumbBlock = (
-    <div className={cn("relative", grade ? "h-full min-h-0 w-full" : "")}>
+    <div className={cn("relative", grade ? "w-full max-md:h-auto md:h-full md:min-h-0" : "")}>
       <button
         type="button"
         onPointerDown={(e) => {
@@ -149,19 +149,22 @@ export function CatalogoV2FotoPreview({
           }
         }}
         className={cn(
-          "block max-md:w-full cursor-pointer touch-manipulation overflow-hidden border border-[var(--card-border)] bg-[var(--card)] p-0 focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)]",
+          "cursor-pointer touch-manipulation overflow-hidden border border-[var(--card-border)] bg-[var(--card)] p-0 focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)]",
           grade
-            ? "h-full min-h-[10rem] w-full rounded-xl md:min-h-0 md:h-40"
-            : "h-12 w-12 shrink-0 rounded",
+            ? "relative block w-full rounded-xl max-md:h-auto md:h-40 md:w-full"
+            : "block h-12 w-12 shrink-0 rounded max-md:w-full",
           className,
         )}
       >
         <img
           src={src}
           alt="Foto do produto"
-          width={imgPx}
-          height={imgPx}
-          className={cn("block h-full w-full object-cover", grade && "min-h-[10rem] md:min-h-0")}
+          {...(grade ? {} : { width: imgPx, height: imgPx })}
+          className={cn(
+            grade
+              ? "block h-auto w-full max-w-full object-contain md:h-full md:w-full md:max-h-full md:max-w-full"
+              : "block h-full w-full object-cover",
+          )}
           onError={() => {
             setImgErro(true);
             onThumbError?.();

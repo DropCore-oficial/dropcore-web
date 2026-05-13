@@ -3,33 +3,13 @@
  * PUT /api/seller/bling — Salva bling_company_id (ID da empresa no Bling)
  */
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { resolveExternalWebhookOrigin } from "@/lib/appOrigin";
+import { isBlingClientIdMisusedAsCompanyId } from "@/lib/blingCompanyId";
+import { getSellerFromToken } from "@/lib/sellerBlingAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-async function getSellerFromToken(req: Request) {
-  const auth = req.headers.get("authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  if (!token) return null;
-
-  const sbAnon = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { persistSession: false } }
-  );
-  const { data: userData, error: userErr } = await sbAnon.auth.getUser(token);
-  if (userErr || !userData?.user) return null;
-
-  const { data: seller } = await supabaseAdmin
-    .from("sellers")
-    .select("id, org_id")
-    .eq("user_id", userData.user.id)
-    .maybeSingle();
-
-  return seller;
-}
 
 function normalizeCompanyId(v: string): string {
   return v.trim().slice(0, 128);
@@ -42,25 +22,69 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
     }
 
-    const origin = new URL(req.url).origin;
+    const origin = resolveExternalWebhookOrigin(req);
 
-    const { data: row, error } = await supabaseAdmin
+    const { data: rows, error } = await supabaseAdmin
       .from("seller_bling_integrations")
-      .select("bling_company_id, updated_at")
+      .select("bling_company_id, bling_refresh_token, bling_access_token_expires_at, updated_at")
       .eq("seller_id", seller.id)
-      .maybeSingle();
+      .limit(1);
 
     if (error) {
-      if (error.message?.toLowerCase().includes("does not exist")) {
+      const msg = String(error.message ?? "").toLowerCase();
+      const code = String((error as { code?: string }).code ?? "");
+      const tabelaInexistente =
+        msg.includes("does not exist") ||
+        msg.includes("schema cache") ||
+        code === "42P01" ||
+        code === "PGRST205";
+      if (tabelaInexistente) {
         return NextResponse.json({
           bling_unavailable: true,
           webhook_url: `${origin}/api/webhooks/bling`,
           bling_company_id: null,
+          oauth_connected: false,
+          access_token_expires_at: null,
           bling_events: [],
         });
       }
-      console.error("[seller/bling GET]", error.message);
-      return NextResponse.json({ error: "Erro ao carregar." }, { status: 500 });
+      console.error("[seller/bling GET]", error.message, code);
+      const detalhe =
+        process.env.NODE_ENV === "development" ? ` (${error.message || code || "sem detalhe"})` : "";
+      return NextResponse.json(
+        {
+          error: `Não foi possível ler a integração Bling no banco.${detalhe} Confira se o script add-seller-bling.sql foi aplicado no Supabase.`,
+        },
+        { status: 500 },
+      );
+    }
+
+    const row = rows?.[0] as
+      | {
+          bling_company_id: string | null;
+          bling_refresh_token: string | null;
+          bling_access_token_expires_at: string | null;
+          updated_at: string | null;
+        }
+      | null
+      | undefined;
+
+    const oauthConnected = Boolean(row?.bling_refresh_token?.trim() || row?.bling_access_token_expires_at);
+
+    let blingCompanyId = row?.bling_company_id ?? null;
+    if (isBlingClientIdMisusedAsCompanyId(blingCompanyId)) {
+      blingCompanyId = null;
+    }
+    if (!blingCompanyId) {
+      const { data: latestCompanyLog } = await supabaseAdmin
+        .from("bling_webhook_logs")
+        .select("company_id")
+        .eq("seller_id", seller.id)
+        .not("company_id", "is", null)
+        .order("criado_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      blingCompanyId = latestCompanyLog?.company_id ?? null;
     }
 
     const { data: logs, error: logsErr } = await supabaseAdmin
@@ -77,7 +101,9 @@ export async function GET(req: Request) {
     return NextResponse.json({
       bling_unavailable: false,
       webhook_url: `${origin}/api/webhooks/bling`,
-      bling_company_id: row?.bling_company_id ?? null,
+      bling_company_id: blingCompanyId,
+      oauth_connected: oauthConnected,
+      access_token_expires_at: row?.bling_access_token_expires_at ?? null,
       updated_at: row?.updated_at ?? null,
       bling_events: (logs ?? []) as Array<{
         id: string;
@@ -103,9 +129,37 @@ export async function PUT(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}));
+    const clearCompanyId = body?.clear_company_id === true;
     const bling_company_id = normalizeCompanyId(String(body?.bling_company_id ?? ""));
-    if (!bling_company_id) {
-      return NextResponse.json({ error: "Informe o ID da empresa no Bling (companyId)." }, { status: 400 });
+
+    if (clearCompanyId || !bling_company_id) {
+      const { error: clearErr } = await supabaseAdmin
+        .from("seller_bling_integrations")
+        .update({ bling_company_id: null, updated_at: new Date().toISOString() })
+        .eq("seller_id", seller.id);
+
+      if (clearErr) {
+        if (String(clearErr.message ?? "").toLowerCase().includes("does not exist")) {
+          return NextResponse.json(
+            { error: "Execute o script add-seller-bling.sql no Supabase." },
+            { status: 503 },
+          );
+        }
+        console.error("[seller/bling PUT clear]", clearErr.message);
+        return NextResponse.json({ error: "Erro ao limpar o companyId." }, { status: 500 });
+      }
+
+      return NextResponse.json({ ok: true, bling_company_id: null });
+    }
+
+    if (isBlingClientIdMisusedAsCompanyId(bling_company_id)) {
+      return NextResponse.json(
+        {
+          error:
+            "Esse valor é o Client ID do app no Bling, não o companyId da empresa. Limpe o campo e autorize de novo pelo Link de convite.",
+        },
+        { status: 400 },
+      );
     }
 
     const { error: upErr } = await supabaseAdmin.from("seller_bling_integrations").upsert(

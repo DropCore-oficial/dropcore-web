@@ -97,7 +97,7 @@ export default function IntegracoesErpPage() {
       </div>
 
       <p style={{ color: "#737373", marginBottom: 24, fontSize: 14, lineHeight: 1.5 }}>
-        Conecte seu ERP (Tiny, Bling, Olist ou outro) ao DropCore para receber pedidos automaticamente.
+        Conecte seu ERP (Olist/Tiny, Bling ou outro) ao DropCore para receber pedidos automaticamente.
         O ERP envia o pedido via API e o DropCore debita estoque e bloqueia o saldo do seller.
       </p>
 
@@ -206,7 +206,7 @@ export default function IntegracoesErpPage() {
           }}>
             <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Como usar</h2>
             <ol style={{ margin: 0, paddingLeft: 20, color: "#a3a3a3", fontSize: 13, lineHeight: 1.8 }}>
-              <li>Configure a chave API no seu ERP (Tiny, Bling, etc.)</li>
+              <li>Configure a chave API no seu ERP (Olist/Tiny, Bling, etc.)</li>
               <li>O ERP deve enviar requisições <strong>POST</strong> para:<br />
                 <code style={{ background: "#171717", padding: "2px 6px", borderRadius: 4, fontSize: 12 }}>
                   {typeof window !== "undefined" ? `${window.location.origin}/api/erp/pedidos` : "https://seu-dominio.com/api/erp/pedidos"}

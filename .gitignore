@@ -14,3 +14,5 @@ web/out/
 web/build/
 web/.vercel/
 web/coverage/
+.vercel
+.env*.local

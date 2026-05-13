@@ -799,95 +799,92 @@ export default function DashboardPage() {
 
         {/* Calculadora — receita PIX (assinatura calc-only) */}
         {isAdmin && calcReceita && (
-          <section className="relative overflow-hidden rounded-2xl border border-emerald-200/90 dark:border-emerald-800/55 bg-gradient-to-br from-emerald-50/98 via-white to-neutral-50 dark:from-emerald-950/35 dark:via-neutral-900 dark:to-neutral-950 shadow-md">
-            <div
-              className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-600"
-              aria-hidden
-            />
-            <div className="relative p-4 sm:p-5 pt-5">
-              <div className="flex flex-col lg:flex-row lg:items-stretch gap-5 lg:gap-8">
-                <div className="flex min-w-0 flex-1 flex-col gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600/12 dark:bg-emerald-500/15 ring-1 ring-emerald-600/25 dark:ring-emerald-400/20">
-                      <svg className="h-5 w-5 text-emerald-700 dark:text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                        <rect width="16" height="20" x="4" y="2" rx="2" />
-                        <line x1="8" x2="16" y1="6" y2="6" />
-                        <line x1="8" x2="16" y1="10" y2="10" />
-                        <line x1="8" x2="12" y1="14" y2="14" />
-                      </svg>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800/90 dark:text-emerald-400/95">
-                        DropCore Calculadora
-                      </p>
-                      <h2 className="mt-0.5 text-lg font-bold leading-tight text-neutral-900 dark:text-neutral-100">
-                        Receita PIX — renovações
-                      </h2>
-                      <p className="mt-1 text-[13px] leading-snug text-neutral-600 dark:text-neutral-400">
-                        Espelho do que foi registrado quando o Mercado Pago aprova o PIX. O saldo real continua na sua conta MP.
-                      </p>
-                    </div>
+          <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
+            <div className="relative flex flex-col lg:flex-row">
+              <div
+                className="absolute left-0 top-0 bottom-0 w-0.5 rounded-r-full bg-gradient-to-b from-emerald-400/90 to-emerald-600/70 dark:from-emerald-500/80 dark:to-emerald-600/60"
+                aria-hidden
+              />
+              <div className="flex min-w-0 flex-1 flex-col gap-5 p-5 sm:p-6 pl-6 sm:pl-7">
+                <div className="flex items-start gap-3.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 dark:bg-emerald-400/10">
+                    <svg className="h-[18px] w-[18px] text-emerald-600/90 dark:text-emerald-400/90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <rect width="16" height="20" x="4" y="2" rx="2" />
+                      <line x1="8" x2="16" y1="6" y2="6" />
+                      <line x1="8" x2="16" y1="10" y2="10" />
+                      <line x1="8" x2="12" y1="14" y2="14" />
+                    </svg>
                   </div>
-                  <div className="rounded-xl border border-emerald-200/80 dark:border-emerald-800/50 bg-white/80 dark:bg-neutral-950/50 px-4 py-3.5 shadow-sm">
-                    <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Total acumulado (registrado)</p>
-                    <p className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
-                      {BRL.format(calcReceita.soma)}
-                    </p>
-                    <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
-                      {calcReceita.quantidade} pagamento{calcReceita.quantidade !== 1 ? "s" : ""} contabilizado{calcReceita.quantidade !== 1 ? "s" : ""}
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Calculadora</p>
+                    <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+                      Receita PIX · renovações
+                    </h2>
+                    <p className="text-[13px] leading-relaxed text-neutral-600 dark:text-neutral-400 pt-0.5">
+                      Espelho interno dos PIX aprovados. Os valores abaixo são o que o Mercado Pago informa como recebido na conta após taxas (líquido); se o líquido não vier na resposta da API, usamos o valor da cobrança. O dinheiro fica no seu MP.
                     </p>
                   </div>
-                  {calcReceita.avisoTabela && (
-                    <p
-                      className={cn(
-                        AMBER_PREMIUM_SURFACE_TRANSPARENT,
-                        AMBER_PREMIUM_TEXT_BODY,
-                        "text-[11px] leading-relaxed rounded-lg px-3 py-2",
-                      )}
-                    >
-                      {calcReceita.avisoTabela}
-                    </p>
-                  )}
-                  <Link
-                    href="/admin/calculadora-convites"
-                    className="inline-flex w-fit items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
-                  >
-                    Ver histórico e convites
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg>
-                  </Link>
                 </div>
 
-                <div className="lg:w-[min(100%,22rem)] lg:shrink-0 flex flex-col min-h-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2">
-                    Últimos pagamentos
+                <div className="rounded-xl bg-neutral-50/90 dark:bg-neutral-900/35 px-4 py-4 sm:px-5 border border-[var(--card-border)]/90">
+                  <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Total acumulado (líquido na conta, quando o MP informa)</p>
+                  <p className="mt-1.5 text-2xl sm:text-3xl font-semibold tracking-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
+                    {BRL.format(calcReceita.soma)}
                   </p>
-                  <div className="flex-1 rounded-xl border border-neutral-200/90 dark:border-neutral-700/80 bg-white/90 dark:bg-neutral-950/60 divide-y divide-neutral-200/80 dark:divide-neutral-800 overflow-hidden">
-                    {calcReceita.ultimos.length === 0 ? (
-                      <div className="px-3 py-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
-                        Nenhum PIX registrado ainda. Após novas renovações aprovadas, aparecem aqui.
-                      </div>
-                    ) : (
-                      calcReceita.ultimos.map((row, idx) => {
-                        const d = new Date(row.pago_em);
-                        const dataStr = Number.isNaN(d.getTime())
-                          ? "—"
-                          : d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-                        return (
-                          <div key={row.id ?? `${row.pago_em}-${idx}`} className="flex items-center justify-between gap-2 px-3 py-2.5">
-                            <div className="min-w-0">
-                              <p className="text-xs font-medium text-neutral-900 dark:text-neutral-100 truncate" title={row.email ?? ""}>
-                                {row.email ?? "—"}
-                              </p>
-                              <p className="text-[10px] text-neutral-500 dark:text-neutral-400">{dataStr}</p>
-                            </div>
-                            <span className="text-sm font-bold tabular-nums text-emerald-700 dark:text-emerald-400 shrink-0">
-                              {BRL.format(row.valor)}
-                            </span>
-                          </div>
-                        );
-                      })
+                  <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                    {calcReceita.quantidade} pagamento{calcReceita.quantidade !== 1 ? "s" : ""} registrado{calcReceita.quantidade !== 1 ? "s" : ""}
+                  </p>
+                </div>
+
+                {calcReceita.avisoTabela && (
+                  <p
+                    className={cn(
+                      AMBER_PREMIUM_SURFACE_TRANSPARENT,
+                      AMBER_PREMIUM_TEXT_BODY,
+                      "text-[11px] leading-relaxed rounded-lg px-3 py-2",
                     )}
-                  </div>
+                  >
+                    {calcReceita.avisoTabela}
+                  </p>
+                )}
+
+                <Link
+                  href="/admin/calculadora-convites"
+                  className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 transition-colors"
+                >
+                  Histórico e convites
+                  <svg className="h-4 w-4 opacity-80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg>
+                </Link>
+              </div>
+
+              <div className="lg:w-[min(100%,20rem)] lg:border-l lg:border-[var(--card-border)]/80 bg-neutral-50/40 dark:bg-neutral-900/25 px-5 py-5 sm:p-6 lg:py-6 flex flex-col min-h-0">
+                <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-3">Últimos pagamentos</p>
+                <div className="flex-1 rounded-xl border border-[var(--card-border)] bg-[var(--card)] overflow-hidden divide-y divide-neutral-200/60 dark:divide-neutral-800/80">
+                  {calcReceita.ultimos.length === 0 ? (
+                    <div className="px-4 py-10 text-center text-[13px] leading-snug text-neutral-500 dark:text-neutral-400">
+                      Nenhum PIX aqui ainda. Novas renovações aprovadas passam a aparecer automaticamente.
+                    </div>
+                  ) : (
+                    calcReceita.ultimos.map((row, idx) => {
+                      const d = new Date(row.pago_em);
+                      const dataStr = Number.isNaN(d.getTime())
+                        ? "—"
+                        : d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+                      return (
+                        <div key={row.id ?? `${row.pago_em}-${idx}`} className="flex items-center justify-between gap-3 px-4 py-3">
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-medium text-neutral-800 dark:text-neutral-200 truncate" title={row.email ?? ""}>
+                              {row.email ?? "—"}
+                            </p>
+                            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">{dataStr}</p>
+                          </div>
+                          <span className="text-[13px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-400 shrink-0">
+                            {BRL.format(row.valor)}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>

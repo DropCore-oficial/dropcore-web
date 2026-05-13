@@ -15,10 +15,10 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 const STORAGE_KEY = "dropcore-theme";
 
 function getStoredTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
   if (stored === "dark" || stored === "light") return stored;
-  return "dark";
+  return "light";
 }
 
 function applyTheme(theme: Theme) {
@@ -31,14 +31,12 @@ function applyTheme(theme: Theme) {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("dark");
-  const [mounted, setMounted] = useState(false);
+  const [theme, setThemeState] = useState<Theme>("light");
 
   useEffect(() => {
     const stored = getStoredTheme();
     setThemeState(stored);
     applyTheme(stored);
-    setMounted(true);
   }, []);
 
   const setTheme = (t: Theme) => {
@@ -62,6 +60,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export function useTheme() {
   const ctx = useContext(ThemeContext);
-  if (!ctx) return { theme: "dark" as Theme, setTheme: () => {}, toggleTheme: () => {} };
+  if (!ctx) return { theme: "light" as Theme, setTheme: () => {}, toggleTheme: () => {} };
   return ctx;
 }

@@ -1,6 +1,6 @@
 /**
  * POST /api/erp/pedidos — Recebe pedidos do ERP (Modelo B: chave por seller)
- * Autenticação: header X-API-Key (chave do SELLER gerada em /seller/integracoes-erp)
+ * Autenticação: header X-API-Key (uso interno / legado; o painel do seller expõe só integração Bling).
  * Body: {
  *   referencia_externa?: string (ex: ID do pedido no ML/ERP),
  *   items: [{ sku: string, quantidade: number }]

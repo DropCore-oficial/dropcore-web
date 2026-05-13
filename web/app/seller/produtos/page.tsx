@@ -27,6 +27,7 @@ import {
   AMBER_PREMIUM_TEXT_PRIMARY,
   AMBER_PREMIUM_TEXT_SOFT,
 } from "@/lib/amberPremium";
+import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { cn } from "@/lib/utils";
 
 type VinculoFornecedorMeta = {
@@ -62,6 +63,8 @@ export default function SellerProdutosPage() {
     sem_armazem_ligado: boolean;
   }>({ plano: null, habilitados_count: 0, habilitados_max: null, tabela_ok: true, sem_armazem_ligado: false });
   const [toggleLoadingId, setToggleLoadingId] = useState<string | null>(null);
+  /** Habilitação em lote por cor (agrupado por cor): `${paiKey}:${corKey}` */
+  const [bulkCorKey, setBulkCorKey] = useState<string | null>(null);
   const [bulkPaiKey, setBulkPaiKey] = useState<string | null>(null);
   const [fornecedorLigadoId, setFornecedorLigadoId] = useState<string | null>(null);
   const [fornecedoresLista, setFornecedoresLista] = useState<FornecedorSellerListaRow[] | null>(null);
@@ -96,6 +99,16 @@ export default function SellerProdutosPage() {
   }, [fornecedorLigadoId, fornecedoresLista]);
 
   const planoSellerPro = useMemo(() => String(catalogMeta.plano ?? "").trim().toLowerCase() === "pro", [catalogMeta.plano]);
+
+  const habilitarVendaApiBloqueioLigar = useMemo(() => {
+    if (!fornecedorLigadoId?.trim() || catalogMeta.sem_armazem_ligado) {
+      return "Grave um armazém em «Configurar armazém e vínculo» antes de ligar SKUs na API.";
+    }
+    if (!catalogMeta.tabela_ok) {
+      return "Cadastro de habilitações indisponível no servidor (tabela seller_skus_habilitados). Fale com o suporte DropCore.";
+    }
+    return null;
+  }, [fornecedorLigadoId, catalogMeta.tabela_ok, catalogMeta.sem_armazem_ligado]);
 
   function toggleExpandido(key: string) {
     setExpandido((prev) => {
@@ -161,6 +174,72 @@ export default function SellerProdutosPage() {
         setError(err instanceof Error ? err.message : "Erro ao atualizar habilitação");
       } finally {
         setToggleLoadingId(null);
+      }
+    },
+    [router, postHabilitar, deleteHabilitar],
+  );
+
+  const toggleHabilitacaoPorCor = useCallback(
+    async (paiKey: string, corKey: string, items: SellerCatalogoItem[]) => {
+      const loadingKey = `${paiKey}:${corKey}`;
+      setBulkCorKey(loadingKey);
+      setError(null);
+      try {
+        const {
+          data: { session },
+        } = await supabaseBrowser.auth.getSession();
+        if (!session?.access_token) {
+          router.replace("/seller/login");
+          return;
+        }
+        const elegiveis = items.filter(
+          (it) =>
+            skuContaLimiteHabilitacaoSeller(it.sku) &&
+            isAtivoItem(it) &&
+            skuProntoParaVender(it),
+        );
+        const todosHabilitadosNaCor =
+          elegiveis.length > 0 && elegiveis.every((it) => it.habilitado_venda === true);
+
+        if (todosHabilitadosNaCor) {
+          const targets = items.filter((it) => it.habilitado_venda === true);
+          for (const it of targets) {
+            if (!it.id) continue;
+            const r = await deleteHabilitar(session.access_token, it.id);
+            if (!r.ok) throw new Error(r.error || "Erro ao desabilitar na API");
+            setItems((prev) => prev.map((row) => (row.id === it.id ? { ...row, habilitado_venda: false } : row)));
+            if (typeof r.habilitados_count === "number") {
+              setCatalogMeta((m) => ({ ...m, habilitados_count: r.habilitados_count! }));
+            }
+          }
+        } else {
+          const targets = items.filter(
+            (it) =>
+              skuContaLimiteHabilitacaoSeller(it.sku) &&
+              isAtivoItem(it) &&
+              skuProntoParaVender(it) &&
+              !it.habilitado_venda,
+          );
+          if (targets.length === 0) {
+            setError(
+              "Nenhum SKU desta cor pôde ser ligado na API. Confira se o cadastro está completo, o estoque e se você já gravou o armazém.",
+            );
+            return;
+          }
+          for (const it of targets) {
+            if (!it.id) continue;
+            const r = await postHabilitar(session.access_token, it.id);
+            if (!r.ok) throw new Error(r.error || "Erro ao habilitar na API");
+            setItems((prev) => prev.map((row) => (row.id === it.id ? { ...row, habilitado_venda: true } : row)));
+            if (typeof r.habilitados_count === "number") {
+              setCatalogMeta((m) => ({ ...m, habilitados_count: r.habilitados_count! }));
+            }
+          }
+        }
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Erro ao atualizar habilitação");
+      } finally {
+        setBulkCorKey(null);
       }
     },
     [router, postHabilitar, deleteHabilitar],
@@ -426,21 +505,38 @@ export default function SellerProdutosPage() {
             subtitle={
               <>
                 O fornecedor mantém o cadastro no armazém;{" "}
-                <span className="font-medium text-[var(--foreground)]">aqui você escolhe o que a API ERP pode vender</span>.
+                <span className="font-medium text-[var(--foreground)]">aqui você escolhe o que pode vender com a Olist/Tiny ligada</span>.
               </>
             }
             right={
               <Link
-                href="/seller/integracoes-erp/mapeamento"
+                href="#erp-catalogo-sku"
                 className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-[13px] font-medium text-[var(--foreground)] no-underline transition hover:border-emerald-300 hover:bg-[var(--surface-hover)] dark:hover:border-emerald-700"
               >
                 <svg className="h-4 w-4 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
-                Mapeamento SKU
+                ERP e SKU
               </Link>
             }
           />
+          <div id="erp-catalogo-sku" className="mt-4 scroll-mt-28">
+            <AmberPremiumCallout title="Olist/Tiny e código no catálogo (SKU)" className="rounded-2xl px-4 py-3.5 sm:px-5">
+              <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+                No cadastro de produtos da <strong className="text-[var(--foreground)]">Olist/Tiny</strong>, use o mesmo código que
+                aparece como <strong className="text-[var(--foreground)]">SKU</strong> aqui no DropCore. Assim, quando o ERP
+                enviar pedidos, o sistema reconhece o item certo. O <strong className="text-[var(--foreground)]">token API</strong>{" "}
+                fica em{" "}
+                <Link
+                  href="/seller/integracoes-erp"
+                  className="font-semibold text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-400"
+                >
+                  Mais → ERP
+                </Link>
+                ; este é só o lugar do catálogo onde você confere os códigos.
+              </p>
+            </AmberPremiumCallout>
+          </div>
           <div className="mt-3.5 flex flex-nowrap gap-2 sm:mt-5">
             <input
               value={q}
@@ -698,13 +794,13 @@ export default function SellerProdutosPage() {
         )}
 
         <div className="mt-4 min-w-0 overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
-          <div className="border-b border-[var(--card-border)] px-3 py-3 sm:px-4 sm:py-3.5">
-            <h2 className="text-sm font-semibold text-[var(--foreground)]">Produtos do armazém</h2>
-            <p className="mt-0.5 text-sm leading-relaxed text-[var(--muted)]">
-              Cadastro do fornecedor é só leitura; expanda um item para ver SKUs e o que está habilitado na API.
+          <div className="border-b border-[var(--card-border)] bg-[var(--card)] px-4 py-4 sm:px-5 sm:py-4">
+            <h2 className="text-[15px] font-semibold tracking-tight text-[var(--foreground)] sm:text-sm">Produtos do armazém</h2>
+            <p className="mt-1.5 max-w-prose text-[13px] leading-relaxed text-[var(--muted)] sm:text-sm">
+              Cadastro do fornecedor é só leitura; expanda um item para ver SKUs e habilitações na API.
             </p>
           </div>
-          <div className="min-w-0 divide-y divide-[var(--card-border)]/60">
+          <div className="min-w-0 space-y-2.5 px-3 py-3 sm:space-y-3 sm:px-4 sm:py-4">
             {loading && (
               <div className="px-4 py-12 text-center">
                 <span className="mx-auto mb-4 inline-flex h-11 w-11 animate-spin rounded-full border-2 border-[var(--card-border)] border-t-emerald-600 dark:border-t-emerald-400" />
@@ -739,7 +835,6 @@ export default function SellerProdutosPage() {
             )}
 
             {!loading &&
-              !error &&
               grupos.map((grupo) => (
                 <SellerListaGrupoArmazem
                   key={grupo.paiKey}
@@ -757,6 +852,9 @@ export default function SellerProdutosPage() {
                   onBulkDisableAll={() => void bulkDisableAll(grupo)}
                   toggleLoadingId={toggleLoadingId}
                   onToggleOne={(item, ativar) => void setSkuHabilitado(item, ativar)}
+                  bulkCorLoadingKey={bulkCorKey}
+                  onToggleCorGrupo={(paiKey, corKey, items) => void toggleHabilitacaoPorCor(paiKey, corKey, items)}
+                  habilitarVendaApiBloqueioLigar={habilitarVendaApiBloqueioLigar}
                 />
               ))}
           </div>

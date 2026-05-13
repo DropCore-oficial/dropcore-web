@@ -30,9 +30,21 @@ function redirectVercelProductionToCanonical(req: NextRequest): NextResponse | n
   return NextResponse.redirect(dest, 308);
 }
 
+function redirectBlingOAuthTrailingDot(req: NextRequest): NextResponse | null {
+  const { pathname, search } = req.nextUrl;
+  if (!pathname.endsWith(".")) return null;
+  const normalized = pathname.replace(/\.+$/, "");
+  if (normalized === pathname) return null;
+  const dest = new URL(normalized + search, req.url);
+  return NextResponse.redirect(dest, 307);
+}
+
 export async function middleware(req: NextRequest) {
   const canonicalRedirect = redirectVercelProductionToCanonical(req);
   if (canonicalRedirect) return canonicalRedirect;
+
+  const blingOAuthRedirect = redirectBlingOAuthTrailingDot(req);
+  if (blingOAuthRedirect) return blingOAuthRedirect;
 
   let res = NextResponse.next();
 
