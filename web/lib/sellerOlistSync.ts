@@ -241,6 +241,9 @@ async function syncSellerOlistOrders(row: SellerOlistSyncRow, now: Date): Promis
 
     if (proc.outcome === "skipped_duplicate" || proc.outcome === "skipped_situacao") {
       result.skipped += 1;
+      if (proc.outcome === "skipped_duplicate" && proc.warnings?.length) {
+        result.warnings.push(...proc.warnings);
+      }
       continue;
     }
 

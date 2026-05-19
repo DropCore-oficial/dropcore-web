@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  filterNotificationsForContext,
+  type NotificationPortalContext,
+} from "@/lib/notificationContextFilter";
+import { useMensalidadeBloqueio } from "@/lib/mensalidadeBloqueioContext";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 type Notif = {
@@ -12,29 +17,35 @@ type Notif = {
 
 const POLL_MS = 15000;
 
-export function NotificationToasts() {
+export function NotificationToasts({ context = "admin" }: { context?: NotificationPortalContext }) {
   const [toasts, setToasts] = useState<Notif[]>([]);
+  const { portalBloqueado, verificando } = useMensalidadeBloqueio();
 
   const fetchAndShow = async () => {
-    const { data: { session } } = await supabaseBrowser.auth.getSession();
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
     if (!session?.access_token) return;
     try {
-      const res = await fetch("/api/notifications?mark_read=1", {
+      const res = await fetch(`/api/notifications?mark_read=1&context=${context}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (!res.ok) return;
       const json = await res.json();
-      const items = (json.items ?? []).filter((n: { lido?: boolean }) => !n.lido);
+      const items = filterNotificationsForContext(
+        (json.items ?? []).filter((n: { lido?: boolean }) => !n.lido) as Notif[],
+        context,
+      );
       if (items.length) {
-        const newNotifs = items.slice(0, 5).map((n: { id: string; titulo: string; mensagem: string; tipo: string }) => ({
+        const newNotifs = items.slice(0, 5).map((n) => ({
           id: n.id,
           titulo: n.titulo,
           mensagem: n.mensagem ?? "",
-          tipo: n.tipo,
+          tipo: n.tipo ?? "",
         }));
         setToasts((prev) => {
           const seen = new Set(prev.map((t) => t.id));
-          const added = newNotifs.filter((n: Notif) => !seen.has(n.id));
+          const added = newNotifs.filter((n) => !seen.has(n.id));
           return [...added, ...prev].slice(0, 5);
         });
       }
@@ -44,10 +55,11 @@ export function NotificationToasts() {
   };
 
   useEffect(() => {
+    if (portalBloqueado || verificando) return;
     fetchAndShow();
     const t = setInterval(fetchAndShow, POLL_MS);
     return () => clearInterval(t);
-  }, []);
+  }, [context, portalBloqueado, verificando]);
 
   useEffect(() => {
     if (toasts.length === 0) return;
@@ -68,7 +80,9 @@ export function NotificationToasts() {
           className="rounded-xl border border-emerald-300 dark:border-emerald-900 bg-emerald-100 dark:bg-emerald-950/80 dark:bg-opacity-95 px-4 py-3 shadow-lg animate-in slide-in-from-right-5"
         >
           <p className="font-semibold text-emerald-900 dark:text-emerald-100 text-sm">{n.titulo}</p>
-          {n.mensagem && <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">{n.mensagem}</p>}
+          {n.mensagem ? (
+            <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">{n.mensagem}</p>
+          ) : null}
         </div>
       ))}
     </div>

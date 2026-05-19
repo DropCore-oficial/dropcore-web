@@ -3,6 +3,11 @@
 import { useEffect, useState, useRef } from "react";
 import { AMBER_PREMIUM_LINK } from "@/lib/amberPremium";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import {
+  filterNotificationsForContext,
+  type NotificationPortalContext,
+} from "@/lib/notificationContextFilter";
+import { useMensalidadeBloqueio } from "@/lib/mensalidadeBloqueioContext";
 import { cn } from "@/lib/utils";
 
 type Notif = {
@@ -21,51 +26,21 @@ type Notif = {
   };
 };
 
-const TIPOS_POR_CONTEXTO: Record<string, string[]> = {
-  /** Resumo de inadimplência da org — só faz sentido no painel admin */
-  admin: [
-    "deposito_entrou",
-    "mensalidade_inadimplentes_org",
-    "mensalidade_vencendo",
-    "mensalidade_paga_admin",
-    "alteracao_produto_pendente",
-  ],
-  seller: ["deposito_aprovado", "estoque_baixo", "mensalidade_vencida", "mensalidade_vencendo", "saldo_baixo"],
-  /** Sem tipo de admin: fornecedor em trial não vê alerta de «X fornecedores inadimplentes» */
-  fornecedor: [
-    "mensalidade_paga",
-    "mensalidade_vencida",
-    "mensalidade_vencendo",
-    "estoque_baixo",
-    "pedido_para_postar",
-    "repasse_recebido",
-    "alteracao_aprovada",
-    "alteracao_rejeitada",
-  ],
-};
-
-export function NotificationBell({ className = "", context = "admin" }: { className?: string; context?: "admin" | "seller" | "fornecedor" }) {
+export function NotificationBell({
+  className = "",
+  context = "admin",
+}: {
+  className?: string;
+  context?: NotificationPortalContext;
+}) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notif[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const { portalBloqueado, verificando } = useMensalidadeBloqueio();
 
-  const tiposPermitidos = TIPOS_POR_CONTEXTO[context] ?? [];
-  const itemsFiltrados = context
-    ? items.filter((n) => {
-        if (n.tipo && !tiposPermitidos.includes(n.tipo)) return false;
-        // Legado: resumo da org ia como mensalidade_vencida — não mostrar em seller/fornecedor
-        if (
-          (context === "seller" || context === "fornecedor") &&
-          n.tipo === "mensalidade_vencida" &&
-          n.titulo === "Mensalidades vencidas"
-        ) {
-          return false;
-        }
-        return true;
-      })
-    : items;
+  const itemsFiltrados = context ? filterNotificationsForContext(items, context) : items;
   const unreadCount = itemsFiltrados.filter((n) => !n.lido).length;
 
   const fetchNotifs = async (markRead = false) => {
@@ -73,7 +48,9 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
     if (!session?.access_token) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/notifications${markRead ? "?mark_read=1" : ""}`, {
+      const qs = new URLSearchParams({ context });
+      if (markRead) qs.set("mark_read", "1");
+      const res = await fetch(`/api/notifications?${qs}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (!res.ok) return;
@@ -90,10 +67,11 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
   };
 
   useEffect(() => {
+    if (portalBloqueado || verificando) return;
     fetchNotifs();
     const t = setInterval(() => fetchNotifs(), 20000);
     return () => clearInterval(t);
-  }, []);
+  }, [context, portalBloqueado, verificando]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -195,7 +173,16 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                   const isDeposito = n.tipo === "deposito_aprovado" || n.tipo === "deposito_entrou";
                   const isMensalidadePagaAdmin = n.tipo === "mensalidade_paga_admin";
                   const isAlteracaoProduto = n.tipo === "alteracao_produto_pendente";
-                  const isFornecedor = ["mensalidade_paga", "mensalidade_vencida", "mensalidade_vencendo", "estoque_baixo", "pedido_para_postar", "repasse_recebido", "saldo_baixo"].includes(n.tipo ?? "");
+                  const isFornecedor = [
+                    "mensalidade_paga",
+                    "mensalidade_paga_fornecedor",
+                    "mensalidade_vencida",
+                    "mensalidade_vencendo",
+                    "estoque_baixo",
+                    "pedido_para_postar",
+                    "repasse_recebido",
+                    "saldo_baixo",
+                  ].includes(n.tipo ?? "");
                   return (
                     <div
                       key={n.id}
@@ -264,13 +251,26 @@ export function NotificationBell({ className = "", context = "admin" }: { classN
                                 Ver este depósito →
                               </a>
                             )}
-                            {n.tipo === "mensalidade_paga" && (
+                            {(n.tipo === "mensalidade_paga" ||
+                              n.tipo === "mensalidade_paga_seller" ||
+                              n.tipo === "mensalidade_paga_fornecedor") && (
                               <a
-                                href="/fornecedor/dashboard"
+                                href={
+                                  context === "seller" ? "/seller/dashboard" : "/fornecedor/dashboard"
+                                }
                                 onClick={(e) => e.stopPropagation()}
                                 className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
                               >
                                 Ir ao dashboard →
+                              </a>
+                            )}
+                            {n.tipo === "plano_upgrade_pro" && (
+                              <a
+                                href="/seller/plano"
+                                onClick={(e) => e.stopPropagation()}
+                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
+                              >
+                                Ver plano →
                               </a>
                             )}
                             {n.tipo === "mensalidade_paga_admin" && (

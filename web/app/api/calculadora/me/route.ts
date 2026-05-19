@@ -2,7 +2,7 @@
  * GET /api/calculadora/me
  * Seller completo: acesso total.
  * Assinante calculadora com data válida: access calc_only.
- * Assinante calculadora vencido mas ainda ativo no cadastro: access calc_only_locked (entra no app, uso bloqueado na UI).
+ * Sem assinatura, desativado ou vencido: access calc_only_locked (entra no app; bloqueio na UI).
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -69,13 +69,29 @@ export async function GET(req: Request) {
       );
     }
 
-    if (!assin || !assin.ativo) {
+    if (!assin) {
       return NextResponse.json(
         {
-          error:
-            "Sem acesso à calculadora. Contrate o plano ou use uma conta seller DropCore com convite.",
+          access: "calc_only_locked",
+          valido_ate: null,
+          uso_bloqueado: true,
+          motivo: "sem_assinatura",
+          email,
         },
-        { status: 403 },
+        { headers: { "Cache-Control": "no-store, max-age=0" } },
+      );
+    }
+
+    if (!assin.ativo) {
+      return NextResponse.json(
+        {
+          access: "calc_only_locked",
+          valido_ate: assin.valido_ate,
+          uso_bloqueado: true,
+          motivo: "assinatura_desativada",
+          email,
+        },
+        { headers: { "Cache-Control": "no-store, max-age=0" } },
       );
     }
 

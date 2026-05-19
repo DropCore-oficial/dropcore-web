@@ -176,6 +176,9 @@ type Props = {
   onToggleCorGrupo: (paiKey: string, corKey: string, items: SellerCatalogoItem[]) => void;
   /** Mensagem quando não dá para ligar na API (ex.: sem armazém gravado). */
   habilitarVendaApiBloqueioLigar: string | null;
+  exportandoOlist?: boolean;
+  onExportOlist?: () => void;
+  exportOlistDisabled?: boolean;
 };
 
 export function SellerListaGrupoArmazem({
@@ -196,6 +199,9 @@ export function SellerListaGrupoArmazem({
   bulkCorLoadingKey,
   onToggleCorGrupo,
   habilitarVendaApiBloqueioLigar,
+  exportandoOlist = false,
+  onExportOlist,
+  exportOlistDisabled = false,
 }: Props) {
   const bulkRef = useRef<HTMLDetailsElement>(null);
   const fecharBulk = () => {
@@ -444,6 +450,25 @@ export function SellerListaGrupoArmazem({
                 >
                   Tabela de medidas
                 </button>
+                {onExportOlist ? (
+                  <>
+                    <span className="text-[var(--muted)]" aria-hidden>
+                      ·
+                    </span>
+                    <button
+                      type="button"
+                      disabled={exportOlistDisabled || exportandoOlist}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onExportOlist();
+                      }}
+                      className="inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 text-[11px] font-semibold text-[var(--primary-blue)] shadow-none transition hover:bg-[var(--muted)]/10 disabled:opacity-50 sm:h-7 sm:rounded-md sm:px-2.5 sm:text-xs"
+                      title="Baixa CSV deste produto (pai + variações) para importar na Olist/Tiny"
+                    >
+                      {exportandoOlist ? "Exportando…" : "Exportar para Olist"}
+                    </button>
+                  </>
+                ) : null}
                 <span className="text-[var(--muted)]" aria-hidden>
                   ·
                 </span>
@@ -630,6 +655,7 @@ export function SellerListaGrupoArmazem({
                             linha={ltMob}
                             onToggleOne={onToggleOne}
                             busy={toggleLoadingId === row.id}
+                            bloqueioLigarMotivo={habilitarVendaApiBloqueioLigar}
                           />
                         ) : null}
                       </div>
@@ -708,6 +734,7 @@ export function SellerListaGrupoArmazem({
                                   linha={ltDesk}
                                   onToggleOne={onToggleOne}
                                   busy={toggleLoadingId === row.id}
+                                  bloqueioLigarMotivo={habilitarVendaApiBloqueioLigar}
                                 />
                               </div>
                             ) : (

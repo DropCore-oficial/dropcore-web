@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
+import { criarSellerCreditLot } from "@/lib/sellerCreditLots";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,18 +34,24 @@ export async function POST(
 
     const valor = Number(deposito.valor);
 
-    const { error: ledgerErr } = await supabaseAdmin.from("financial_ledger").insert({
-      org_id: deposito.org_id,
-      seller_id: deposito.seller_id,
-      fornecedor_id: null,
-      pedido_id: null,
-      tipo: "CREDITO",
-      valor_fornecedor: 0,
-      valor_dropcore: valor,
-      valor_total: valor,
-      status: "LIBERADO",
-      referencia: "PIX aprovado",
-    });
+    const aprovadoEm = new Date().toISOString();
+
+    const { data: ledgerRow, error: ledgerErr } = await supabaseAdmin
+      .from("financial_ledger")
+      .insert({
+        org_id: deposito.org_id,
+        seller_id: deposito.seller_id,
+        fornecedor_id: null,
+        pedido_id: null,
+        tipo: "CREDITO",
+        valor_fornecedor: 0,
+        valor_dropcore: valor,
+        valor_total: valor,
+        status: "LIBERADO",
+        referencia: "Recarga PIX aprovada (manual)",
+      })
+      .select("id")
+      .single();
 
     if (ledgerErr) {
       return NextResponse.json(
@@ -64,9 +71,27 @@ export async function POST(
       // ledger já foi; movimentação é histórico
     }
 
+    let creditoExpiraEm: string | null = null;
+    try {
+      creditoExpiraEm = await criarSellerCreditLot({
+        org_id: deposito.org_id,
+        seller_id: deposito.seller_id,
+        deposito_id: id,
+        ledger_id: ledgerRow.id,
+        valor,
+        creditado_em: aprovadoEm,
+      });
+    } catch (lotErr) {
+      console.error("[aprovar deposito] lote crédito:", lotErr);
+    }
+
     const { error: updateErr } = await supabaseAdmin
       .from("seller_depositos_pix")
-      .update({ status: "aprovado", aprovado_em: new Date().toISOString() })
+      .update({
+        status: "aprovado",
+        aprovado_em: aprovadoEm,
+        ...(creditoExpiraEm ? { credito_expira_em: creditoExpiraEm } : {}),
+      })
       .eq("id", id)
       .eq("org_id", org_id);
 
@@ -87,8 +112,8 @@ export async function POST(
       await supabaseAdmin.from("notifications").insert({
         user_id: sellerUserId,
         tipo: "deposito_aprovado",
-        titulo: "Depósito aprovado",
-        mensagem: `Seu depósito de ${valorBRL} foi aprovado e já está disponível no saldo.`,
+        titulo: "Recarga aprovada",
+        mensagem: `Sua recarga de ${valorBRL} virou crédito DropCore. Validade: 12 meses a partir de hoje.`,
         metadata: { deposito_id: id, valor },
       });
     }
@@ -104,8 +129,8 @@ export async function POST(
         .map((a) => ({
           user_id: a.user_id,
           tipo: "deposito_entrou",
-          titulo: "Novo depósito PIX",
-          mensagem: `Depósito de ${valorBRL} de ${sellerNome} foi aprovado.`,
+          titulo: "Nova recarga PIX",
+          mensagem: `Recarga de ${valorBRL} de ${sellerNome} foi aprovada.`,
           metadata: { deposito_id: id, valor, seller_id: deposito.seller_id },
         }));
       if (toInsert.length) {

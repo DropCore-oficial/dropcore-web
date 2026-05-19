@@ -29,7 +29,7 @@ export async function processarMensalidadePaga(mensalidadeId: string): Promise<b
 
   const valorBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(row.valor ?? 0));
 
-  // Notificação para fornecedor quando mensalidade paga
+  // Notificação para quem pagou (seller ou fornecedor)
   if (row.tipo === "fornecedor") {
     const { data: member } = await supabaseAdmin
       .from("org_members")
@@ -41,10 +41,25 @@ export async function processarMensalidadePaga(mensalidadeId: string): Promise<b
     if (member?.user_id) {
       await supabaseAdmin.from("notifications").insert({
         user_id: member.user_id,
-        tipo: "mensalidade_paga",
+        tipo: "mensalidade_paga_fornecedor",
         titulo: "Mensalidade paga",
         mensagem: `Sua mensalidade de ${valorBRL} foi confirmada. O acesso está regularizado.`,
-        metadata: { mensalidade_id: row.id },
+        metadata: { mensalidade_id: row.id, entidade_tipo: "fornecedor" },
+      });
+    }
+  } else if (row.tipo === "seller") {
+    const { data: seller } = await supabaseAdmin
+      .from("sellers")
+      .select("user_id")
+      .eq("id", row.entidade_id)
+      .maybeSingle();
+    if (seller?.user_id) {
+      await supabaseAdmin.from("notifications").insert({
+        user_id: seller.user_id,
+        tipo: "mensalidade_paga_seller",
+        titulo: "Mensalidade paga",
+        mensagem: `Sua mensalidade de ${valorBRL} foi confirmada. O acesso está regularizado.`,
+        metadata: { mensalidade_id: row.id, entidade_tipo: "seller" },
       });
     }
   }

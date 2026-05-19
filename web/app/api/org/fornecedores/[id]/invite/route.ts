@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { resolveInvitePublicOrigin } from "@/lib/appOrigin";
+import { clampPortalTrialDiasConvite } from "@/lib/portalTrial";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +19,8 @@ export async function POST(
   try {
     const { org_id } = await requireAdmin(req);
     const { id: fornecedor_id } = await params;
+    const body = await req.json().catch(() => ({}));
+    const portal_trial_dias = clampPortalTrialDiasConvite(body?.portal_trial_dias);
 
     const { data: forn, error: fornErr } = await supabaseAdmin
       .from("fornecedores")
@@ -53,8 +56,8 @@ export async function POST(
 
     const { data: invite, error: inviteErr } = await supabaseAdmin
       .from("fornecedor_invites")
-      .insert({ org_id, fornecedor_id })
-      .select("token, expira_em")
+      .insert({ org_id, fornecedor_id, portal_trial_dias })
+      .select("token, expira_em, portal_trial_dias")
       .single();
 
     if (inviteErr || !invite) {
@@ -69,6 +72,7 @@ export async function POST(
       fornecedor_nome: forn.nome,
       link,
       expira_em: invite.expira_em,
+      portal_trial_dias: (invite as { portal_trial_dias?: number }).portal_trial_dias ?? portal_trial_dias,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";

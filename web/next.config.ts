@@ -17,11 +17,15 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // unsafe-eval necessário para Next.js dev; remover em prod se possível
-      "style-src 'self' 'unsafe-inline'",
-      `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""} https://*.supabase.co wss://*.supabase.co https://viacep.com.br`,
-      "img-src 'self' data: blob: https://*.supabase.co",
-      "font-src 'self'",
+      // Mercado Pago Bricks (cartão): sdk + secure fields + API + mlstatic
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://http2.mlstatic.com https://*.mlstatic.com",
+      "style-src 'self' 'unsafe-inline' https://sdk.mercadopago.com https://http2.mlstatic.com https://*.mlstatic.com",
+      `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""} https://*.supabase.co wss://*.supabase.co https://viacep.com.br https://api.mercadopago.com https://*.mercadopago.com https://api.mercadolibre.com https://*.mercadolibre.com https://http2.mlstatic.com https://*.mlstatic.com`,
+      "img-src 'self' data: blob: https://*.supabase.co https://http2.mlstatic.com https://*.mlstatic.com https://*.mercadopago.com",
+      "font-src 'self' data: https://http2.mlstatic.com https://*.mlstatic.com",
+      "worker-src 'self' blob:",
+      "child-src 'self' https://www.mercadopago.com https://*.mercadopago.com https://www.mercadolibre.com https://*.mercadolibre.com",
+      "frame-src 'self' https://www.mercadopago.com https://*.mercadopago.com https://www.mercadolibre.com https://*.mercadolibre.com",
       "frame-ancestors 'none'",
     ].join("; "),
   },

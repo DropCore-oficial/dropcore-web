@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { buildSellerFornecedorIdPatch, uuidNormFornecedor } from "@/lib/applySellerFornecedorIdChange";
+import { clampMensalidadeDiaVencimento } from "@/lib/mensalidadeDiaVencimento";
 
 function uuidNorm(v: unknown): string | null {
   return uuidNormFornecedor(v);
@@ -92,6 +93,13 @@ export async function PATCH(
     if (body?.agencia !== undefined) allowed.agencia = body?.agencia != null ? String(body.agencia).trim() : null;
     if (body?.conta !== undefined) allowed.conta = body?.conta != null ? String(body.conta).trim() : null;
     if (body?.tipo_conta !== undefined) allowed.tipo_conta = body?.tipo_conta != null ? String(body.tipo_conta).trim() : null;
+    if (body?.mensalidade_dia_vencimento !== undefined) {
+      if (body.mensalidade_dia_vencimento === null) {
+        allowed.mensalidade_dia_vencimento = null;
+      } else {
+        allowed.mensalidade_dia_vencimento = clampMensalidadeDiaVencimento(Number(body.mensalidade_dia_vencimento));
+      }
+    }
 
     const libNoBody =
       body?.fornecedor_desvinculo_liberado !== undefined ? Boolean(body.fornecedor_desvinculo_liberado) : undefined;

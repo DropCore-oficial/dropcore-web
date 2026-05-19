@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS public.fornecedor_invites (
   token         text NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
   usado         boolean NOT NULL DEFAULT false,
   expira_em     timestamptz NOT NULL DEFAULT (now() + interval '7 days'),
+  portal_trial_dias integer NOT NULL DEFAULT 7,
   criado_em     timestamptz NOT NULL DEFAULT now()
 );
 
@@ -18,4 +19,4 @@ CREATE INDEX IF NOT EXISTS idx_fornecedor_invites_fornecedor ON public.fornecedo
 CREATE INDEX IF NOT EXISTS idx_fornecedor_invites_org ON public.fornecedor_invites(org_id);
 
 COMMENT ON TABLE public.fornecedor_invites IS
-  'Tokens de convite para fornecedores criarem login. Expira em 7 dias. Uso único.';
+  'Tokens de convite para fornecedores criarem login. Expira em 7 dias. Uso único. portal_trial_dias = dias de teste grátis no painel ao aceitar (0 = sem).';

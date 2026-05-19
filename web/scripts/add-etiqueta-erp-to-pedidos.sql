@@ -1,5 +1,5 @@
 -- Adiciona campos para armazenar a etiqueta oficial do marketplace/transportadora
--- Enviado pelo ERP no fluxo POST /api/erp/pedidos
+-- Usado por: POST /api/erp/pedidos e import automático Olist/Tiny (webhook + cron).
 --
 -- Preferência: salvar URL do PDF (pequeno e leve). Base64 pode ser usado se não houver URL.
 

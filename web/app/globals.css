@@ -376,3 +376,14 @@ input, select, textarea {
 .u-btn-warning { background: var(--warning); color: white; }
 .u-btn-info { background: var(--info); color: white; }
 .u-btn-secondary { background: var(--muted); color: white; }
+
+/* Landing pública sempre em tema claro (independente da preferência salva). */
+.landing-light-only {
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --muted: #64748b;
+  --card: #ffffff;
+  --surface-hover: #f8fafc;
+  --border-subtle: #e2e8f0;
+  --card-border: #dbe3eb;
+}

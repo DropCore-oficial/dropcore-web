@@ -5,6 +5,7 @@ import {
   requireAdminForOrgId,
 } from "@/lib/apiOrgAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { mensalidadeDiaVencimentoHojeSaoPaulo } from "@/lib/mensalidadeDiaVencimento";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,7 +58,12 @@ export async function POST(req: Request) {
 
     const { data, error } = await supabaseAdmin
       .from("fornecedores")
-      .insert({ org_id, nome, status: "ativo" })
+      .insert({
+        org_id,
+        nome,
+        status: "ativo",
+        mensalidade_dia_vencimento: mensalidadeDiaVencimentoHojeSaoPaulo(),
+      })
       .select("id, nome, org_id, status, premium, criado_em")
       .single();
 

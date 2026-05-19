@@ -1,0 +1,25 @@
+# Modais — sempre centralizados
+
+## Regra
+
+Todo **modal / dialog** sobre overlay escuro deve ficar **centralizado** na viewport (**vertical e horizontal**), em **mobile e desktop**.
+
+## Proibido
+
+- `items-end` no backdrop (sheet colado embaixo)
+- `items-end sm:items-center` (só centralizar no desktop)
+- Padrão “bottom sheet” para modais de formulário, PIX, confirmação, etc.
+
+## Obrigatório
+
+- Backdrop: `flex items-center justify-center` + padding (`p-4` ou `MODAL_OVERLAY_CLASS`)
+- Painel alto: `max-h-[min(90dvh,calc(100vh-2rem))]` + corpo com `overflow-y-auto` (`MODAL_PANEL_CLASS` / `MODAL_PANEL_BODY_CLASS`)
+
+## Fonte única
+
+- Classes: `web/lib/modalOverlay.ts` — `MODAL_OVERLAY_CLASS`, `MODAL_PANEL_CLASS`, `MODAL_PANEL_BODY_CLASS`
+- Componente (opcional): `web/components/ui/ModalOverlay.tsx`
+
+## Exceção
+
+Lightbox de **foto em tela cheia** ou fluxos que exigem UI explícita de sheet podem divergir, com comentário no código.

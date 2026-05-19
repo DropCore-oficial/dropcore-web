@@ -24,12 +24,24 @@ function webhookCallbackBase(): string {
   return trimmed;
 }
 
-/** URL pública para colar na Olist/Tiny → Webhooks → notificações de pedidos. */
-export function buildOlistPedidosWebhookUrl(): string {
+export type BuildOlistPedidosWebhookUrlParams = {
+  /** Token por seller (`?w=`). Preferível ao segredo global na URL. */
+  ingestToken?: string | null;
+};
+
+/**
+ * URL pública para colar na Olist/Tiny → Webhooks → notificações de pedidos.
+ * Preferir `ingestToken` (por seller); senão cai no legado `?secret=OLIST_WEBHOOK_SECRET` se existir.
+ */
+export function buildOlistPedidosWebhookUrl(params?: BuildOlistPedidosWebhookUrlParams): string {
   const base = webhookCallbackBase();
-  const secret = process.env.OLIST_WEBHOOK_SECRET?.trim();
   const path = "/api/webhooks/olist";
   const url = `${base}${path}`;
+  const ingest = params?.ingestToken?.trim();
+  if (ingest) {
+    return `${url}?w=${encodeURIComponent(ingest)}`;
+  }
+  const secret = process.env.OLIST_WEBHOOK_SECRET?.trim();
   if (secret) {
     return `${url}?secret=${encodeURIComponent(secret)}`;
   }

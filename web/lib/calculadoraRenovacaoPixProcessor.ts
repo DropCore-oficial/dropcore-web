@@ -109,16 +109,15 @@ export async function processarCalculadoraRenovacaoPaga(
     .from("calculadora_assinantes")
     .select("id, user_id, valido_ate, ativo, mp_renovacao_ultimo_aprovado_id")
     .eq("user_id", parsed.userId)
-    .eq("ativo", true)
     .maybeSingle();
 
-  if (fetchErr || !row) return false;
-
-  const ultimo = (row as { mp_renovacao_ultimo_aprovado_id?: string | null }).mp_renovacao_ultimo_aprovado_id;
-  if (ultimo && ultimo === mpPaymentId) return true;
+  if (fetchErr) return false;
 
   const now = Date.now();
-  const validoAteStr = String((row as { valido_ate: string }).valido_ate);
+  const ultimo = (row as { mp_renovacao_ultimo_aprovado_id?: string | null } | null)?.mp_renovacao_ultimo_aprovado_id;
+  if (ultimo && ultimo === mpPaymentId) return true;
+
+  const validoAteStr = row ? String((row as { valido_ate: string }).valido_ate) : new Date(0).toISOString();
   const novoValido = computeCalculadoraRenovacaoValidoAte(validoAteStr, now).toISOString();
 
   const patch = {
@@ -129,7 +128,12 @@ export async function processarCalculadoraRenovacaoPaga(
     updated_at: new Date().toISOString(),
   };
 
-  const { error: upErr } = await supabaseAdmin.from("calculadora_assinantes").update(patch).eq("id", row.id);
+  const { error: upErr } = row
+    ? await supabaseAdmin.from("calculadora_assinantes").update(patch).eq("id", row.id)
+    : await supabaseAdmin.from("calculadora_assinantes").insert({
+        user_id: parsed.userId,
+        ...patch,
+      });
 
   if (upErr) {
     console.error("[calculadoraRenovacao] update:", upErr.message);

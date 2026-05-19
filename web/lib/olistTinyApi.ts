@@ -320,6 +320,172 @@ export async function lancarSaidaEstoqueOlistProduto(
   };
 }
 
+type PesquisaProdutosResponse = TinyRetornoBase & {
+  pagina?: number;
+  numero_paginas?: number;
+  produtos?: Array<{ produto?: { id?: number; codigo?: string } }>;
+};
+
+type ExpedicaoObterResponse = TinyRetornoBase & {
+  expedicao?: {
+    id?: number;
+    idAgrupamento?: number;
+    idObjeto?: number;
+    tipoObjeto?: string;
+  };
+};
+
+type EtiquetasImpressaoResponse = TinyRetornoBase & {
+  links?: Array<{ link?: string } | string>;
+};
+
+/** Resolve id do produto na Olist pelo código (SKU), quando o pedido não traz id_produto no item. */
+export async function resolverIdProdutoOlistPorCodigo(apiToken: string, codigo: string): Promise<number | null> {
+  const c = codigo.trim();
+  if (!c) return null;
+  try {
+    const retorno = await postTinyApi2Form<PesquisaProdutosResponse>("produtos.pesquisa.php", apiToken, {
+      pesquisa: c,
+      pagina: "1",
+      situacao: "A",
+    });
+    const rows = retorno.produtos ?? [];
+    const upper = c.toUpperCase();
+    for (const row of rows) {
+      const p = row?.produto;
+      if (!p || typeof p.id !== "number") continue;
+      if (String(p.codigo ?? "").trim().toUpperCase() === upper) {
+        return p.id;
+      }
+    }
+    if (rows.length === 1 && rows[0]?.produto && typeof rows[0].produto.id === "number") {
+      return rows[0].produto.id;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/** Expedição vinculada ao pedido de venda (necessária para etiquetas de impressão na Olist). */
+export async function obterExpedicaoPorPedidoVenda(
+  apiToken: string,
+  pedidoId: number
+): Promise<{ id: number; idAgrupamento?: number } | null> {
+  const token = apiToken.trim();
+  if (!token || !Number.isFinite(pedidoId)) return null;
+  const body = new URLSearchParams({
+    token,
+    formato: "JSON",
+    tipoObjeto: "venda",
+    idObjeto: String(pedidoId),
+  });
+  const res = await fetch(`${TINY_API2_BASE}/expedicao.obter.php`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const json = await readTinyHttpJson(res);
+  const retorno = unwrapTinyRetorno<ExpedicaoObterResponse>(json);
+  if (!retorno || !isTinyRetornoOk(retorno)) return null;
+  const exp = retorno.expedicao;
+  if (!exp) return null;
+  const id = typeof exp.id === "number" ? exp.id : Number.parseInt(String(exp.id ?? ""), 10);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  const idAgrupamentoRaw =
+    typeof exp.idAgrupamento === "number" ? exp.idAgrupamento : Number.parseInt(String(exp.idAgrupamento ?? ""), 10);
+  const idAgrupamento = Number.isFinite(idAgrupamentoRaw) && idAgrupamentoRaw > 0 ? idAgrupamentoRaw : undefined;
+  return { id, idAgrupamento };
+}
+
+function coletarLinksEtiquetasRetorno(retorno: EtiquetasImpressaoResponse): string[] {
+  const out: string[] = [];
+  for (const row of retorno.links ?? []) {
+    if (typeof row === "string" && row.trim()) {
+      out.push(row.trim());
+      continue;
+    }
+    if (row && typeof row === "object") {
+      const r = row as Record<string, unknown>;
+      for (const k of ["link", "Link", "url", "URL"]) {
+        const v = r[k];
+        if (typeof v === "string" && v.trim()) {
+          out.push(v.trim());
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Links temporários para PDF de etiquetas (expedição na Olist — inclui fluxos de marketplace quando a Olist já gerou a expedição).
+ * @see https://tiny.com.br/api-docs/api2-expedicao-obter-etiquetas-impressao
+ */
+export async function obterLinksEtiquetasImpressaoOlist(
+  apiToken: string,
+  opts: { idExpedicao?: number; idAgrupamento?: number }
+): Promise<string[]> {
+  const token = apiToken.trim();
+  if (!token) return [];
+
+  const tentar = async (fields: Record<string, string>) => {
+    const retorno = await postTinyApi2Form<EtiquetasImpressaoResponse>("expedicao.obter.etiquetas.impressao.php", token, fields);
+    return coletarLinksEtiquetasRetorno(retorno);
+  };
+
+  try {
+    if (opts.idExpedicao && opts.idExpedicao > 0) {
+      const links = await tentar({ idExpedicao: String(opts.idExpedicao) });
+      if (links.length) return links;
+    }
+  } catch {
+    /* tenta agrupamento */
+  }
+
+  try {
+    if (opts.idAgrupamento && opts.idAgrupamento > 0) {
+      return await tentar({ idAgrupamento: String(opts.idAgrupamento) });
+    }
+  } catch {
+    return [];
+  }
+  return [];
+}
+
+const MAX_ETIQUETA_PDF_BYTES = Math.floor(1.35 * 1024 * 1024);
+
+/** Baixa URL (link temporário da Olist) e devolve base64 do PDF, com limite de tamanho para gravar no Postgres. */
+export async function fetchUrlAsPdfBase64(url: string, maxBytes = MAX_ETIQUETA_PDF_BYTES): Promise<string | null> {
+  const u = url.trim();
+  if (!u.startsWith("http")) return null;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 45_000);
+  try {
+    const res = await fetch(u, { redirect: "follow", signal: ctrl.signal, cache: "no-store" });
+    if (!res.ok) return null;
+    const cl = res.headers.get("content-length");
+    if (cl && Number(cl) > maxBytes) return null;
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength > maxBytes) return null;
+    const ct = (res.headers.get("content-type") ?? "").toLowerCase();
+    const looksPdf =
+      ct.includes("pdf") ||
+      ct.includes("octet-stream") ||
+      u.toLowerCase().includes(".pdf") ||
+      u.toLowerCase().includes("pdf");
+    if (!looksPdf) return null;
+    return Buffer.from(buf).toString("base64");
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export { formatTinyApiDateTime };
 
 export type OlistAccountInfo = {

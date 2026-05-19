@@ -62,3 +62,47 @@ O que já está pronto no Git
 
 Push para main já dispara deploy automático SE o projeto GitHub estiver ligado
 ao dropcore-web na Vercel com Root Directory = web.
+
+--------------------------------------------------------------------------------
+Go-live Olist / Tiny (pedidos + etiqueta PDF)
+--------------------------------------------------------------------------------
+
+1) Supabase (SQL Editor ou CLI), uma vez por projeto:
+
+   a) Rode: web/scripts/add-etiqueta-erp-to-pedidos.sql
+
+   b) Rode: web/scripts/add-seller-olist-ingest-token.sql
+      (token `?w=` por seller na URL do webhook — não depende de trocar OLIST_WEBHOOK_SECRET para cada conta)
+
+   Isso cria (se ainda não existirem) as colunas etiqueta_pdf_base64, etiqueta_pdf_url,
+   tracking_codigo e metodo_envio em public.pedidos. Sem etiqueta_pdf_base64 o
+   import Olist até roda, mas o anexo automático da etiqueta vira só aviso no log.
+
+2) Vercel — variável obrigatória para o cron de sync:
+
+   CRON_SECRET  (valor forte; o mesmo que a Vercel usa em Authorization: Bearer …
+   nas chamadas agendadas a /api/cron/olist-sync)
+
+   Sem CRON_SECRET o endpoint de cron responde 401 e o sync diário não roda.
+
+3) Olist — URL do webhook (cadastro no painel Tiny/Olist):
+
+   Preferencial: use a URL que a tela do seller mostra com ?w= (token por conta).
+   Legado: ainda funciona ?secret= com OLIST_WEBHOOK_SECRET na Vercel, até migrar.
+
+   https://www.dropcore.com.br/api/webhooks/olist
+   (opcional legado: ?secret=… se OLIST_WEBHOOK_SECRET estiver definida)
+
+   Rate limit (opcional): OLIST_WEBHOOK_RL_IP_MAX e OLIST_WEBHOOK_RL_W_MAX — máximo de POSTs
+   por minuto por IP e por token ?w= (padrão 200 / 150 se não definir).
+
+4) Depois do deploy: validar um pedido (webhook ou esperar o cron), conferir no
+   Supabase se o pedido tem referencia_externa olist:<id> e, quando a Olist já
+   tiver expedição, se etiqueta_pdf_base64 foi preenchido.
+
+--------------------------------------------------------------------------------
+Mercado Pago / PIX (dinheiro real)
+--------------------------------------------------------------------------------
+
+Para cobrança real: token de produção, MERCADOPAGO_TEST_MODE desligado, webhook
+na URL de produção. Ver regras do repo e web/lib/mercadopago.ts.

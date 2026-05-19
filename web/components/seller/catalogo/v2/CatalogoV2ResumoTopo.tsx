@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 type Props = {
   totalProdutos: number;
   skusDisponiveis: number;
+  /** No plano Start: quantidade de cores distintas (produto + cor) com venda na API. */
   skusHabilitados: number;
   skusComPendencia: number;
   habilitadosMax: number | null;
@@ -55,7 +56,7 @@ function MetricStrip({
         <p className={value}>{skusDisponiveis}</p>
       </div>
       <div className="bg-[var(--card)] px-3 py-2.5">
-        <p className={label}>Habilitados</p>
+        <p className={label}>Cores na API</p>
         <p className={value}>
           {skusHabilitados}
           {habilitadosMax != null && (
@@ -125,7 +126,7 @@ export function CatalogoV2ResumoTopo({
           </svg>
         </IconBox>
         <div className="min-w-0">
-          <p className={label}>Habilitados</p>
+          <p className={label}>Cores na API</p>
           <p className={`${value} sm:text-xl`}>
             {skusHabilitados}
             {habilitadosMax != null && (

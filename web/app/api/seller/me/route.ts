@@ -10,6 +10,7 @@ import { isPortalTrialAtivo } from "@/lib/portalTrial";
 import { MESES_MINIMOS_COM_FORNECEDOR, dataMinimaTrocaFornecedor, podeTrocarFornecedorAgora } from "@/lib/sellerFornecedorVinculo";
 import { cadastroSellerDocumentoPendente, planoSellerDefinido, sellerCadastroPendente } from "@/lib/sellerDocumento";
 import { fetchMensalidadeSellerPorPlano } from "@/lib/sellerPlanoPrecos";
+import { getSellerCreditoResumo } from "@/lib/sellerCreditLots";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -276,11 +277,18 @@ export async function GET(req: Request) {
     // Depósitos PIX recentes
     const { data: depositos } = await supabaseAdmin
       .from("seller_depositos_pix")
-      .select("id, valor, status, criado_em, aprovado_em")
+      .select("id, valor, status, criado_em, aprovado_em, credito_expira_em")
       .eq("org_id", seller.org_id)
       .eq("seller_id", seller.id)
       .order("criado_em", { ascending: false })
       .limit(10);
+
+    let credito_resumo: Awaited<ReturnType<typeof getSellerCreditoResumo>> | null = null;
+    try {
+      credito_resumo = await getSellerCreditoResumo(seller.id);
+    } catch {
+      credito_resumo = null;
+    }
 
     const cadastro_dados_pendente = cadastroSellerDocumentoPendente(seller.documento);
     const plano_pendente = !planoSellerDefinido(seller.plano);
@@ -320,6 +328,7 @@ export async function GET(req: Request) {
       vinculo_fornecedor: vinculo_fornecedor,
       extrato: extratoEnriquecido,
       depositos: depositos ?? [],
+      credito_resumo,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";

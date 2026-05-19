@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useMensalidadeBloqueio } from "@/lib/mensalidadeBloqueioContext";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 /**
@@ -11,8 +12,10 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 export function SellerCadastroRedirect({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { portalBloqueado, verificando } = useMensalidadeBloqueio();
 
   useEffect(() => {
+    if (portalBloqueado || verificando) return;
     if (
       pathname.startsWith("/seller/login") ||
       pathname.startsWith("/seller/register") ||

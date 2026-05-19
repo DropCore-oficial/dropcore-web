@@ -83,13 +83,21 @@ export function SellerOlistConnectGuidePanel({ id = "guia-olist" }: { id?: strin
               DropCore valida com a Olist/Tiny e mostra o nome da conta quando der certo.
             </p>
           </StepBlock>
-          <StepBlock n="5" title="Webhook de pedidos (opcional)">
+          <StepBlock n="5" title="Exportar catálogo para a Olist (recomendado antes dos pedidos)">
+            <p>
+              Em <strong className="text-neutral-900 dark:text-neutral-100">Mais → Produtos</strong>, clique em{" "}
+              <strong className="text-neutral-900 dark:text-neutral-100">Exportar para Olist</strong> em cada produto da lista (expandir o
+              card) para baixar o CSV daquele grupo — pai, variações, estoque, NCM e fotos. Importe em Cadastros → Produtos → Importar
+              planilha na Olist/Tiny.
+            </p>
+          </StepBlock>
+          <StepBlock n="6" title="Webhook de pedidos (opcional)">
             <p>
               Na mesma página <strong className="text-neutral-900 dark:text-neutral-100">Integração ERP</strong>, copie a{" "}
               <strong className="text-neutral-900 dark:text-neutral-100">URL do webhook</strong> exibida no cartão “Webhook de
               pedidos”. Na Olist/Tiny, use um plano com extensão de <strong className="text-neutral-900 dark:text-neutral-100">Webhooks</strong>{" "}
-              e cadastre essa URL nas notificações de pedido. O CNPJ enviado pela Olist associa o evento à sua conta no DropCore
-              depois que o CNPJ estiver gravado (mensagem verde na página).
+              e cadastre essa URL nas notificações de pedido. O link inclui um token só seu (<code className="text-xs">?w=</code>); o
+              CNPJ no corpo do evento precisa bater com o CNPJ gravado no DropCore (mensagem verde na página).
             </p>
           </StepBlock>
         </ol>

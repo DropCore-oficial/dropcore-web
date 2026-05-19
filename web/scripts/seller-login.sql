@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.seller_invites (
   token       text NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
   usado       boolean NOT NULL DEFAULT false,
   expira_em   timestamptz NOT NULL DEFAULT (now() + interval '7 days'),
+  portal_trial_dias integer NOT NULL DEFAULT 7,
   criado_em   timestamptz NOT NULL DEFAULT now()
 );
 
@@ -27,4 +28,4 @@ CREATE INDEX IF NOT EXISTS idx_seller_invites_seller   ON public.seller_invites(
 CREATE INDEX IF NOT EXISTS idx_seller_invites_org      ON public.seller_invites(org_id);
 
 COMMENT ON TABLE public.seller_invites IS
-  'Tokens de convite para sellers criarem login. Expira em 7 dias. Uso único.';
+  'Tokens de convite para sellers criarem login. Expira em 7 dias. Uso único. portal_trial_dias = dias de teste grátis no painel ao aceitar (0 = sem).';

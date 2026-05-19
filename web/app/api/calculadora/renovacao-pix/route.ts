@@ -63,11 +63,19 @@ export async function POST(req: Request) {
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (assinErr || !assin?.ativo) {
-      return NextResponse.json(
-        { error: "Sem assinatura da calculadora ativa. Use um convite ou fale com o suporte." },
-        { status: 403 },
-      );
+    if (assinErr) {
+      return NextResponse.json({ error: assinErr.message }, { status: 500 });
+    }
+
+    if (!assin) {
+      const { error: insErr } = await supabaseAdmin.from("calculadora_assinantes").insert({
+        user_id: userId,
+        valido_ate: new Date().toISOString(),
+        ativo: false,
+      });
+      if (insErr) {
+        return NextResponse.json({ error: "Erro ao preparar assinatura: " + insErr.message }, { status: 500 });
+      }
     }
 
     const valor = getCalculadoraRenovacaoValorBrl();

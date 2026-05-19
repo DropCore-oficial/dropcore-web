@@ -43,6 +43,7 @@ export async function GET(req: Request) {
     const fornecedorId = (seller as { fornecedor_id?: string | null }).fornecedor_id ?? null;
 
     let habilitadoSet = new Set<string>();
+    /** Plano Start: quantidade de cores distintas (grupo SKU + cor) com ao menos uma variação habilitada. */
     let habilitados_count = 0;
     let habilitados_tabela_ok = true;
     const { data: habRows, error: habErr } = await supabaseAdmin

@@ -6,7 +6,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { addPortalTrialIso } from "@/lib/portalTrial";
+import { applyPortalTrialFromInviteForSeller } from "@/lib/applyPortalTrialFromInvite";
+import { ensureMensalidadeDiaVencimentoSeNull } from "@/lib/ensureMensalidadeDiaVencimento";
 import { resolveSellerInvite } from "@/lib/sellerInviteToken";
 
 export const runtime = "nodejs";
@@ -100,17 +101,9 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json({ error: "Erro ao vincular conta: " + upErr.message }, { status: 500 });
     }
 
-    const { data: trialRow } = await supabaseAdmin
-      .from("sellers")
-      .select("trial_valido_ate")
-      .eq("id", invite.seller_id)
-      .maybeSingle();
-    if (!(trialRow as { trial_valido_ate?: string | null } | null)?.trial_valido_ate) {
-      await supabaseAdmin
-        .from("sellers")
-        .update({ trial_valido_ate: addPortalTrialIso() })
-        .eq("id", invite.seller_id);
-    }
+    await applyPortalTrialFromInviteForSeller(supabaseAdmin, invite.seller_id, invite.portal_trial_dias);
+
+    await ensureMensalidadeDiaVencimentoSeNull(supabaseAdmin, "seller", invite.seller_id);
 
     await supabaseAdmin.from("seller_invites").update({ usado: true }).eq("id", invite.id);
 

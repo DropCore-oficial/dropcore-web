@@ -773,7 +773,8 @@ export default function DashboardPage() {
                 </button>
               </div>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-3">
-                Novos sellers e fornecedores ganham {stats.portal_trial_days ?? 7} dias de teste ao aceitar o convite (como a calculadora). &quot;Pagando&quot; = sem mensalidade inadimplente; &quot;Não pagou&quot; = bloqueio até regularizar.
+                Ao gerar o convite (Sellers ou Empresas), você define quantos dias de teste grátis no painel — ou <strong>0</strong> para não dar período grátis (como na calculadora). Se não informar na API, vale o padrão{" "}
+                <code className="text-[11px]">PORTAL_TRIAL_DAYS</code> ({stats.portal_trial_days ?? 7} dias). &quot;Pagando&quot; = sem mensalidade inadimplente; &quot;Não pagou&quot; = bloqueio até regularizar.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-lg border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900/40 p-3">

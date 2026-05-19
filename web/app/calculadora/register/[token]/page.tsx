@@ -95,7 +95,12 @@ export default function CalculadoraRegisterPage() {
         cache: "no-store",
       });
       const meBody = await me.json().catch(() => ({}));
-      if (!me.ok) {
+      const meAccess =
+        me.ok &&
+        (meBody?.access === "seller" ||
+          meBody?.access === "calc_only" ||
+          meBody?.access === "calc_only_locked");
+      if (!meAccess) {
         await supabaseBrowser.auth.signOut();
         setFormError(
           typeof meBody?.error === "string"

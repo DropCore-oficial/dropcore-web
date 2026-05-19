@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
+import { mensalidadeDiaVencimentoFromDataEntrada } from "@/lib/mensalidadeDiaVencimento";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
 
     if (!nome) return NextResponse.json({ error: "Nome é obrigatório." }, { status: 400 });
 
+    const dataEntrada = body?.data_entrada || new Date().toISOString().slice(0, 10);
     const insertData: Record<string, unknown> = {
       org_id,
       nome,
@@ -60,7 +62,8 @@ export async function POST(req: Request) {
       status,
       saldo_atual: 0,
       saldo_bloqueado: 0,
-      data_entrada: body?.data_entrada || new Date().toISOString().slice(0, 10),
+      data_entrada: dataEntrada,
+      mensalidade_dia_vencimento: mensalidadeDiaVencimentoFromDataEntrada(String(dataEntrada)),
     };
 
     if (body?.email !== undefined) insertData.email = body.email ? String(body.email).trim() : null;

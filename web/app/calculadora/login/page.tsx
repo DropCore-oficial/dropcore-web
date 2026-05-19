@@ -13,12 +13,15 @@ import {
 } from "@/components/DropcoreAuthShell";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import { isCalculadoraAssinaturaExpiradaLegacy403 } from "@/lib/calculadoraAssinaturaExpired";
+import {
+  isCalculadoraAssinaturaExpiradaLegacy403,
+  isCalculadoraSemAcessoLegacy403,
+} from "@/lib/calculadoraAssinaturaExpired";
 
 /**
  * Login dedicado à marca "DropCore Calculadora".
  * Mesmo Supabase Auth do seller; após entrar, redireciona para a calculadora no painel seller.
- * (Futuro: entitlements calc-only sem linha em `sellers` — ver /api/calculadora/me.)
+ * Após autenticar, `/api/calculadora/me` define seller, calc ativo ou calc bloqueado na UI.
  */
 export default function CalculadoraLoginPage() {
   const [email, setEmail] = useState("");
@@ -87,13 +90,15 @@ export default function CalculadoraLoginPage() {
         (body?.access === "seller" ||
           body?.access === "calc_only" ||
           body?.access === "calc_only_locked");
-      const legacyExpired = isCalculadoraAssinaturaExpiradaLegacy403(res.status, body);
-      if (!accessOk && !legacyExpired) {
+      const legacyLocked =
+        isCalculadoraAssinaturaExpiradaLegacy403(res.status, body) ||
+        isCalculadoraSemAcessoLegacy403(res.status, body);
+      if (!accessOk && !legacyLocked) {
         await supabaseBrowser.auth.signOut();
         throw new Error(
           typeof body?.error === "string"
             ? body.error
-            : "Sem acesso à calculadora. Verifique assinatura ou conta seller.",
+            : "Não foi possível validar o acesso. Tente novamente ou fale com o suporte.",
         );
       }
       window.location.assign("/seller/calculadora");

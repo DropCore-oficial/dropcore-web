@@ -7,12 +7,27 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { fetchOlistAccountInfo, formatOlistAccountLabel } from "@/lib/olistTinyApi";
 import { buildOlistPedidosWebhookUrl } from "@/lib/olistWebhookUrl";
+import { ensureSellerOlistIngestToken } from "@/lib/olistIngestToken";
 import { normalizeOlistCnpjDigits } from "@/lib/olistPedidoImportPolicy";
 import { encryptSellerErpSecret, maskErpSecret, decryptSellerErpSecret, describeSellerErpSecretDecryptFailure } from "@/lib/sellerErpSecretBox";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** Evita cache de CDN/browser com URL do webhook (`?w=` ou segredo legado). */
+const NO_STORE_JSON_HEADERS = { "Cache-Control": "private, no-store, max-age=0" } as const;
+
+async function webhookPedidosUrlForSeller(
+  sellerId: string,
+  opts: { connected: boolean; tokenUsable: boolean; cnpjLen: number },
+): Promise<string> {
+  if (opts.connected && opts.tokenUsable && opts.cnpjLen >= 11) {
+    const ingest = await ensureSellerOlistIngestToken(sellerId);
+    if (ingest) return buildOlistPedidosWebhookUrl({ ingestToken: ingest });
+  }
+  return buildOlistPedidosWebhookUrl();
+}
 
 type OlistRow = {
   olist_token_ciphertext: string | null;
@@ -68,7 +83,7 @@ export async function GET(req: Request) {
   try {
     const seller = await getSellerFromToken(req);
     if (!seller) {
-      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+      return NextResponse.json({ error: "Não autenticado." }, { status: 401, headers: NO_STORE_JSON_HEADERS });
     }
 
     const { data: rows, error } = await supabaseAdmin
@@ -79,24 +94,32 @@ export async function GET(req: Request) {
 
     if (error) {
       if (isMissingTableError(error)) {
-        return NextResponse.json({
-          olist_unavailable: true,
+        const webhook_pedidos_url = await webhookPedidosUrlForSeller(seller.id, {
           connected: false,
-          token_prefix: null,
-          account_name: null,
-          validated_at: null,
-          updated_at: null,
-          webhook_pedidos_url: buildOlistPedidosWebhookUrl(),
-          olist_webhook_cnpj_ready: false,
-          sync: {
-            last_at: null,
-            status: null,
-            error: null,
-            imported: null,
-            skipped: null,
-            warnings: null,
-          },
+          tokenUsable: false,
+          cnpjLen: 0,
         });
+        return NextResponse.json(
+          {
+            olist_unavailable: true,
+            connected: false,
+            token_prefix: null,
+            account_name: null,
+            validated_at: null,
+            updated_at: null,
+            webhook_pedidos_url,
+            olist_webhook_cnpj_ready: false,
+            sync: {
+              last_at: null,
+              status: null,
+              error: null,
+              imported: null,
+              skipped: null,
+              warnings: null,
+            },
+          },
+          { headers: NO_STORE_JSON_HEADERS },
+        );
       }
 
       const msg = String(error.message ?? "").toLowerCase();
@@ -115,26 +138,52 @@ export async function GET(req: Request) {
         }
         if (fb.error) {
           console.error("[seller/olist GET]", fb.error.message);
-          return NextResponse.json({ error: "Erro ao carregar integração Olist/Tiny." }, { status: 500 });
+          return NextResponse.json(
+            { error: "Erro ao carregar integração Olist/Tiny." },
+            { status: 500, headers: NO_STORE_JSON_HEADERS },
+          );
         }
         const row = fb.data?.[0] as OlistRow | null | undefined;
         const connected = Boolean(row?.olist_token_ciphertext?.trim());
+        let token_usable = connected;
+        let token_error: string | null = null;
+        if (connected && row?.olist_token_ciphertext) {
+          try {
+            decryptSellerErpSecret(row.olist_token_ciphertext);
+          } catch (e: unknown) {
+            token_usable = false;
+            token_error = describeSellerErpSecretDecryptFailure(e);
+          }
+        }
         const cnpjNorm = row?.olist_account_cnpj_normalized?.trim() ?? "";
-        return NextResponse.json({
-          olist_unavailable: false,
+        const webhook_pedidos_url = await webhookPedidosUrlForSeller(seller.id, {
           connected,
-          token_prefix: row?.olist_token_prefix ?? null,
-          account_name: row?.olist_account_name ?? null,
-          validated_at: row?.olist_token_validated_at ?? null,
-          updated_at: row?.updated_at ?? null,
-          webhook_pedidos_url: buildOlistPedidosWebhookUrl(),
-          olist_webhook_cnpj_ready: cnpjNorm.length >= 11,
-          sync: buildSyncPayload(row),
+          tokenUsable: token_usable,
+          cnpjLen: cnpjNorm.length,
         });
+        return NextResponse.json(
+          {
+            olist_unavailable: false,
+            connected,
+            token_usable,
+            token_error,
+            token_prefix: row?.olist_token_prefix ?? null,
+            account_name: row?.olist_account_name ?? null,
+            validated_at: row?.olist_token_validated_at ?? null,
+            updated_at: row?.updated_at ?? null,
+            webhook_pedidos_url,
+            olist_webhook_cnpj_ready: cnpjNorm.length >= 11,
+            sync: buildSyncPayload(row),
+          },
+          { headers: NO_STORE_JSON_HEADERS },
+        );
       }
 
       console.error("[seller/olist GET]", error.message);
-      return NextResponse.json({ error: "Erro ao carregar integração Olist/Tiny." }, { status: 500 });
+      return NextResponse.json(
+        { error: "Erro ao carregar integração Olist/Tiny." },
+        { status: 500, headers: NO_STORE_JSON_HEADERS },
+      );
     }
 
     const row = rows?.[0] as OlistRow | null | undefined;
@@ -151,21 +200,32 @@ export async function GET(req: Request) {
     }
 
     const cnpjNorm = row?.olist_account_cnpj_normalized?.trim() ?? "";
-    return NextResponse.json({
-      olist_unavailable: false,
+    const webhook_pedidos_url = await webhookPedidosUrlForSeller(seller.id, {
       connected,
-      token_usable,
-      token_error,
-      token_prefix: row?.olist_token_prefix ?? null,
-      account_name: row?.olist_account_name ?? null,
-      validated_at: row?.olist_token_validated_at ?? null,
-      updated_at: row?.updated_at ?? null,
-      webhook_pedidos_url: buildOlistPedidosWebhookUrl(),
-      olist_webhook_cnpj_ready: cnpjNorm.length >= 11,
-      sync: buildSyncPayload(row),
+      tokenUsable: token_usable,
+      cnpjLen: cnpjNorm.length,
     });
+    return NextResponse.json(
+      {
+        olist_unavailable: false,
+        connected,
+        token_usable,
+        token_error,
+        token_prefix: row?.olist_token_prefix ?? null,
+        account_name: row?.olist_account_name ?? null,
+        validated_at: row?.olist_token_validated_at ?? null,
+        updated_at: row?.updated_at ?? null,
+        webhook_pedidos_url,
+        olist_webhook_cnpj_ready: cnpjNorm.length >= 11,
+        sync: buildSyncPayload(row),
+      },
+      { headers: NO_STORE_JSON_HEADERS },
+    );
   } catch (e: unknown) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Erro inesperado" }, { status: 500 });
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Erro inesperado" },
+      { status: 500, headers: NO_STORE_JSON_HEADERS },
+    );
   }
 }
 
@@ -261,13 +321,19 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Erro ao salvar o token." }, { status: 500 });
     }
 
+    let webhook_pedidos_url = buildOlistPedidosWebhookUrl();
+    if (cnpjSavedToDb) {
+      const ingest = await ensureSellerOlistIngestToken(seller.id);
+      if (ingest) webhook_pedidos_url = buildOlistPedidosWebhookUrl({ ingestToken: ingest });
+    }
+
     return NextResponse.json({
       ok: true,
       connected: true,
       token_prefix: maskErpSecret(apiToken),
       account_name: accountName,
       validated_at: now,
-      webhook_pedidos_url: buildOlistPedidosWebhookUrl(),
+      webhook_pedidos_url,
       olist_webhook_cnpj_ready: cnpjSavedToDb,
     });
   } catch (e: unknown) {
@@ -290,6 +356,7 @@ export async function DELETE(req: Request) {
           olist_token_prefix: null,
           olist_account_name: null,
           olist_account_cnpj_normalized: null,
+          olist_ingest_token: null,
           olist_token_validated_at: null,
           updated_at: new Date().toISOString(),
         })
@@ -298,7 +365,7 @@ export async function DELETE(req: Request) {
 
     if (delErr) {
       const msg = String(delErr.message ?? "").toLowerCase();
-      if (msg.includes("olist_account_cnpj") || delErr.code === "42703") {
+      if (msg.includes("olist_account_cnpj") || msg.includes("olist_ingest_token") || delErr.code === "42703") {
         delErr = (
           await supabaseAdmin
             .from("seller_olist_integrations")

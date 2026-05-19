@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/olist-sync",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/mensalidades-mes",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/creditos-expiracao",
+      "schedule": "0 10 * * *"
     }
   ]
 }

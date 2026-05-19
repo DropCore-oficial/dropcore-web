@@ -5,7 +5,7 @@
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { addPortalTrialIso } from "@/lib/portalTrial";
+import { applyPortalTrialFromInviteForSeller } from "@/lib/applyPortalTrialFromInvite";
 import { cadastroSellerDocumentoPendente, planoSellerDefinido, sellerCadastroPendente } from "@/lib/sellerDocumento";
 import { resolveSellerInvite } from "@/lib/sellerInviteToken";
 
@@ -38,6 +38,7 @@ export async function GET(_req: Request, { params }: Params) {
       ok: true,
       seller_nome: seller?.nome ?? "—",
       expira_em: invite.expira_em,
+      portal_trial_dias: invite.portal_trial_dias,
       cadastro_pendente,
       cadastro_dados_pendente,
       plano_pendente,
@@ -104,17 +105,7 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json({ error: "Erro ao vincular conta ao seller: " + sellerErr.message }, { status: 500 });
     }
 
-    const { data: trialRow } = await supabaseAdmin
-      .from("sellers")
-      .select("trial_valido_ate")
-      .eq("id", invite.seller_id)
-      .maybeSingle();
-    if (!(trialRow as { trial_valido_ate?: string | null } | null)?.trial_valido_ate) {
-      await supabaseAdmin
-        .from("sellers")
-        .update({ trial_valido_ate: addPortalTrialIso() })
-        .eq("id", invite.seller_id);
-    }
+    await applyPortalTrialFromInviteForSeller(supabaseAdmin, invite.seller_id, invite.portal_trial_dias);
 
     // Marca convite como usado
     await supabaseAdmin

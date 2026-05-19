@@ -72,13 +72,18 @@ export function SellerPortalGate({ children }: { children: ReactNode }) {
     };
   }, [pathname, router]);
 
-  if (!ok) {
-    return (
-      <div className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400" aria-live="polite">
-        Verificando acesso…
-      </div>
-    );
-  }
-
-  return <>{children}</>;
+  return (
+    <>
+      {ok ? children : null}
+      {!ok ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--background)]"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">Verificando acesso…</p>
+        </div>
+      ) : null}
+    </>
+  );
 }

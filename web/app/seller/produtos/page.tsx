@@ -73,7 +73,6 @@ export default function SellerProdutosPage() {
   const [vinculoAceiteUso, setVinculoAceiteUso] = useState(false);
   const [fornecedoresLoadErr, setFornecedoresLoadErr] = useState<string | null>(null);
   const [vinculoMeta, setVinculoMeta] = useState<VinculoFornecedorMeta | null>(null);
-
   const [modalTabelaGrupoKey, setModalTabelaGrupoKey] = useState<string | null>(null);
   const [tabelaMedidasData, setTabelaMedidasData] = useState<{ tipo_produto: string; medidas: Record<string, Record<string, number>> } | null>(null);
   const [loadingTabela, setLoadingTabela] = useState(false);
@@ -192,12 +191,7 @@ export default function SellerProdutosPage() {
           router.replace("/seller/login");
           return;
         }
-        const elegiveis = items.filter(
-          (it) =>
-            skuContaLimiteHabilitacaoSeller(it.sku) &&
-            isAtivoItem(it) &&
-            skuProntoParaVender(it),
-        );
+        const elegiveis = items.filter((it) => skuContaLimiteHabilitacaoSeller(it.sku) && isAtivoItem(it));
         const todosHabilitadosNaCor =
           elegiveis.length > 0 && elegiveis.every((it) => it.habilitado_venda === true);
 
@@ -214,16 +208,10 @@ export default function SellerProdutosPage() {
           }
         } else {
           const targets = items.filter(
-            (it) =>
-              skuContaLimiteHabilitacaoSeller(it.sku) &&
-              isAtivoItem(it) &&
-              skuProntoParaVender(it) &&
-              !it.habilitado_venda,
+            (it) => skuContaLimiteHabilitacaoSeller(it.sku) && isAtivoItem(it) && !it.habilitado_venda,
           );
           if (targets.length === 0) {
-            setError(
-              "Nenhum SKU desta cor pôde ser ligado na API. Confira se o cadastro está completo, o estoque e se você já gravou o armazém.",
-            );
+            setError("Nenhum SKU ativo desta cor para ligar na API. Confira se o armazém está gravado.");
             return;
           }
           for (const it of targets) {
@@ -473,6 +461,52 @@ export default function SellerProdutosPage() {
     return { totalProdutos, skusDisponiveis, skusComPendencia };
   }, [gruposResumo.length, skusVisiveis]);
 
+  const [exportandoOlistGrupo, setExportandoOlistGrupo] = useState<string | null>(null);
+
+  const baixarCsvOlistGrupo = useCallback(
+    async (grupoKey: string) => {
+      const grupo = grupoKey.trim().toUpperCase();
+      if (!grupo) return;
+      setExportandoOlistGrupo(grupo);
+      setError(null);
+      try {
+        const {
+          data: { session },
+        } = await supabaseBrowser.auth.getSession();
+        if (!session?.access_token) {
+          router.replace("/seller/login");
+          return;
+        }
+        const res = await fetch(
+          `/api/seller/catalogo/export-olist?grupo=${encodeURIComponent(grupo)}&scope=todos`,
+          {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+            cache: "no-store",
+          },
+        );
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          throw new Error(typeof json?.error === "string" ? json.error : "Erro ao exportar planilha para a Olist.");
+        }
+        const blob = await res.blob();
+        const disp = res.headers.get("Content-Disposition") ?? "";
+        const match = /filename="([^"]+)"/.exec(disp);
+        const filename = match?.[1] ?? `dropcore-olist-${grupo}.csv`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Erro ao exportar planilha para a Olist.");
+      } finally {
+        setExportandoOlistGrupo(null);
+      }
+    },
+    [router],
+  );
+
   const abrirTabelaMedidas = useCallback(async (grupoKey: string) => {
     setModalTabelaGrupoKey(grupoKey);
     setTabelaMedidasData(null);
@@ -511,11 +545,11 @@ export default function SellerProdutosPage() {
             right={
               <Link
                 href="#erp-catalogo-sku"
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-[13px] font-medium text-[var(--foreground)] no-underline transition hover:border-emerald-300 hover:bg-[var(--surface-hover)] dark:hover:border-emerald-700"
-              >
-                <svg className="h-4 w-4 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-[13px] font-medium text-[var(--foreground)] no-underline transition hover:border-emerald-300 hover:bg-[var(--surface-hover)] dark:hover:border-emerald-700"
+                >
+                  <svg className="h-4 w-4 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                  </svg>
                 ERP e SKU
               </Link>
             }
@@ -524,16 +558,20 @@ export default function SellerProdutosPage() {
             <AmberPremiumCallout title="Olist/Tiny e código no catálogo (SKU)" className="rounded-2xl px-4 py-3.5 sm:px-5">
               <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
                 No cadastro de produtos da <strong className="text-[var(--foreground)]">Olist/Tiny</strong>, use o mesmo código que
-                aparece como <strong className="text-[var(--foreground)]">SKU</strong> aqui no DropCore. Assim, quando o ERP
-                enviar pedidos, o sistema reconhece o item certo. O <strong className="text-[var(--foreground)]">token API</strong>{" "}
-                fica em{" "}
+                aparece como <strong className="text-[var(--foreground)]">SKU</strong> aqui no DropCore. Em cada produto da lista,
+                expanda e use <strong className="text-[var(--foreground)]">Exportar para Olist</strong> para baixar a planilha daquele
+                grupo (pai + variações). O <strong className="text-[var(--foreground)]">token API</strong> fica em{" "}
                 <Link
                   href="/seller/integracoes-erp"
                   className="font-semibold text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-400"
                 >
                   Mais → ERP
                 </Link>
-                ; este é só o lugar do catálogo onde você confere os códigos.
+                .
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+                Na Olist: Cadastros → Produtos → Mais ações → Importar planilha (reconhecimento por SKU). SKU do produto na Olist deve
+                estar em <strong className="text-[var(--foreground)]">Manual</strong> (Configurações → Cadastros → Código SKU).
               </p>
             </AmberPremiumCallout>
           </div>
@@ -628,11 +666,12 @@ export default function SellerProdutosPage() {
               ))}
             </div>
             <details className="mt-3 text-xs text-[var(--muted)] [&_summary]:cursor-pointer">
-              <summary className="font-medium text-[var(--foreground)]">O que é “pronto para vender”?</summary>
+              <summary className="font-medium text-[var(--foreground)]">Venda na API e pendências</summary>
               <p className="mt-2 max-w-2xl text-[13px] leading-relaxed">
-                São os dados que o <strong>fornecedor</strong> cadastrou no produto no armazém: nome, foto ou link de fotos, custo,
-                estoque &gt; 0, medidas do pacote, NCM (8 dígitos), descrição com pelo menos 20 caracteres. O seller{" "}
-                <strong>não edita</strong> isso nesta tela — se algo aparecer em pendência, o ajuste é feito pelo fornecedor.
+                Você pode ligar <strong>Venda na API</strong> aqui mesmo com badge “Com pendência”. Enquanto o{" "}
+                <strong>fornecedor</strong> não completar nome, fotos, custo, estoque, medidas, NCM e descrição (mín. 20 caracteres)
+                no cadastro do armazém, o aviso continua — o seller não edita isso nesta tela. No plano Start: até{" "}
+                <strong>15 cores</strong> (produto + cor) com venda na API; numerações da mesma cor não gastam o limite.
               </p>
             </details>
           </div>
@@ -669,8 +708,8 @@ export default function SellerProdutosPage() {
             </p>
             {!planoSellerPro && catalogMeta.tabela_ok && (
               <p className="text-[12px] text-[var(--muted)]">
-                Plano Start: até {catalogMeta.habilitados_max ?? 15} SKUs na API ·{" "}
-                <span className="tabular-nums font-medium text-[var(--foreground)]">{catalogMeta.habilitados_count}</span> habilitados
+                Plano Start: até {catalogMeta.habilitados_max ?? 15} cores na API ·{" "}
+                <span className="tabular-nums font-medium text-[var(--foreground)]">{catalogMeta.habilitados_count}</span> no limite
               </p>
             )}
           </div>
@@ -855,6 +894,9 @@ export default function SellerProdutosPage() {
                   bulkCorLoadingKey={bulkCorKey}
                   onToggleCorGrupo={(paiKey, corKey, items) => void toggleHabilitacaoPorCor(paiKey, corKey, items)}
                   habilitarVendaApiBloqueioLigar={habilitarVendaApiBloqueioLigar}
+                  exportandoOlist={exportandoOlistGrupo === grupo.paiKey}
+                  onExportOlist={() => void baixarCsvOlistGrupo(grupo.paiKey)}
+                  exportOlistDisabled={catalogMeta.sem_armazem_ligado}
                 />
               ))}
           </div>

@@ -20,7 +20,12 @@ import {
 } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
 import { CalculadoraAssinaturaRegrasInfo } from "@/components/calculadora/CalculadoraAssinaturaRegrasInfo";
-import { isCalculadoraAssinaturaExpiradaLegacy403 } from "@/lib/calculadoraAssinaturaExpired";
+import {
+  type CalculadoraBloqueioMotivo,
+  isCalculadoraAssinaturaExpiradaLegacy403,
+  isCalculadoraSemAcessoLegacy403,
+  parseCalculadoraBloqueioMotivo,
+} from "@/lib/calculadoraAssinaturaExpired";
 import {
   DANGER_PREMIUM_SURFACE_TRANSPARENT,
   DANGER_PREMIUM_TEXT_SOFT,
@@ -106,6 +111,7 @@ export default function SellerCalculadoraPage() {
   const router = useRouter();
   const [calcAccess, setCalcAccess] = useState<CalcAccess>("loading");
   const [calcValidoAte, setCalcValidoAte] = useState<string | null>(null);
+  const [bloqueioMotivo, setBloqueioMotivo] = useState<CalculadoraBloqueioMotivo | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
   /** Renovação PIX na página (plano calculadora avulso bloqueado) */
   const [renoMeta, setRenoMeta] = useState<{ valor: number | null; configurado: boolean } | null>(null);
@@ -223,25 +229,40 @@ export default function SellerCalculadoraPage() {
       setCalcAccess("denied");
       return;
     }
-    if (isCalculadoraAssinaturaExpiradaLegacy403(res.status, j)) {
+    const applyLocked = (body: Record<string, unknown>, motivoPadrao: CalculadoraBloqueioMotivo) => {
       setCalcAccess("calc_only_locked");
-      setCalcValidoAte(typeof j.valido_ate === "string" ? j.valido_ate : null);
+      setCalcValidoAte(typeof body.valido_ate === "string" ? body.valido_ate : null);
+      setBloqueioMotivo(parseCalculadoraBloqueioMotivo(body) ?? motivoPadrao);
+    };
+
+    if (isCalculadoraAssinaturaExpiradaLegacy403(res.status, j)) {
+      applyLocked(j, "assinatura_expirada");
+      return;
+    }
+    if (isCalculadoraSemAcessoLegacy403(res.status, j)) {
+      applyLocked({ motivo: "sem_assinatura" }, "sem_assinatura");
       return;
     }
     if (!res.ok) {
-      await supabaseBrowser.auth.signOut();
-      router.replace("/calculadora/login");
+      if (res.status === 401) {
+        await supabaseBrowser.auth.signOut();
+        router.replace("/calculadora/login");
+        return;
+      }
+      setAccessError(typeof j?.error === "string" ? j.error : "Não foi possível validar o acesso.");
+      setCalcAccess("denied");
       return;
     }
     if (j.access === "seller") {
       setCalcAccess("seller");
       setCalcValidoAte(null);
+      setBloqueioMotivo(null);
     } else if (j.access === "calc_only") {
       setCalcAccess("calc_only");
       setCalcValidoAte(typeof j.valido_ate === "string" ? j.valido_ate : null);
+      setBloqueioMotivo(null);
     } else if (j.access === "calc_only_locked") {
-      setCalcAccess("calc_only_locked");
-      setCalcValidoAte(typeof j.valido_ate === "string" ? j.valido_ate : null);
+      applyLocked(j, "assinatura_expirada");
     } else {
       setCalcAccess("denied");
     }
@@ -1110,6 +1131,14 @@ export default function SellerCalculadoraPage() {
 
   const calcOnlyLite = calcAccess === "calc_only" || calcAccess === "calc_only_locked";
   const usoBloqueadoCalc = calcAccess === "calc_only_locked";
+  const podeRenovarPix = usoBloqueadoCalc;
+  const tituloBloqueioCalc = "Renovar acesso da calculadora";
+  const textoBloqueioCalc =
+    bloqueioMotivo === "sem_assinatura"
+      ? "Contrate o plano com PIX para liberar a calculadora. A confirmação é automática em poucos segundos."
+      : bloqueioMotivo === "assinatura_desativada"
+        ? "Sua assinatura está desativada. Pague o PIX abaixo para reativar o acesso."
+        : "Pague o PIX para liberar o acesso. A confirmação é automática em poucos segundos.";
 
   return (
     <div
@@ -2243,9 +2272,13 @@ export default function SellerCalculadoraPage() {
                 </span>
                 <div className="min-w-0 flex-1 space-y-1">
                   <h2 id="bloqueio-calc-titulo" className="text-base font-semibold leading-snug text-neutral-900 dark:text-neutral-100">
-                    Renovar acesso da calculadora
+                    {tituloBloqueioCalc}
                   </h2>
-                  {calcValidoAte ? (
+                  {bloqueioMotivo === "assinatura_desativada" ? (
+                    <p className="text-xs sm:text-[13px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                      Assinatura desativada — reative pagando o PIX abaixo.
+                    </p>
+                  ) : calcValidoAte && bloqueioMotivo === "assinatura_expirada" ? (
                     <p className="text-xs sm:text-[13px] leading-relaxed text-neutral-500 dark:text-neutral-400">
                       Vencido em{" "}
                       <span className="tabular-nums font-medium text-neutral-700 dark:text-neutral-300">
@@ -2258,10 +2291,8 @@ export default function SellerCalculadoraPage() {
                   ) : null}
                 </div>
               </div>
-              <p className="mt-2 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
-                Pague o PIX para liberar o acesso. A confirmação é automática em poucos segundos.
-              </p>
-              {renoMeta && !renoMeta.configurado ? (
+              <p className="mt-2 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">{textoBloqueioCalc}</p>
+              {podeRenovarPix && renoMeta && !renoMeta.configurado ? (
                 <p
                   className={cn(
                     "mt-3 rounded-xl px-3 py-2.5 text-xs leading-relaxed",
@@ -2274,12 +2305,12 @@ export default function SellerCalculadoraPage() {
                   configurar antes de gerar o PIX.
                 </p>
               ) : null}
-              {renoMeta?.configurado && typeof renoMeta.valor === "number" && !renoPixData ? (
+              {podeRenovarPix && renoMeta?.configurado && typeof renoMeta.valor === "number" && !renoPixData ? (
                 <p className="mt-2 text-xs font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
                   {BRL.format(renoMeta.valor)} · ciclo mensal
                 </p>
               ) : null}
-              {renoPixErr ? (
+              {podeRenovarPix && renoPixErr ? (
                 <p
                   className={cn(
                     "mt-3 rounded-xl px-3 py-2.5 text-xs leading-relaxed",
@@ -2292,14 +2323,16 @@ export default function SellerCalculadoraPage() {
               ) : null}
               {!renoPixData ? (
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                  <button
-                    type="button"
-                    onClick={() => void gerarPixRenovacao()}
-                    disabled={renoPixLoading || (renoMeta !== null && !renoMeta.configurado)}
-                    className="w-full sm:w-auto rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
-                  >
-                    {renoPixLoading ? "Gerando PIX…" : "Gerar PIX da renovação"}
-                  </button>
+                  {podeRenovarPix ? (
+                    <button
+                      type="button"
+                      onClick={() => void gerarPixRenovacao()}
+                      disabled={renoPixLoading || (renoMeta !== null && !renoMeta.configurado)}
+                      className="w-full sm:w-auto rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                    >
+                      {renoPixLoading ? "Gerando PIX…" : "Gerar PIX da renovação"}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={async () => {
@@ -2311,7 +2344,7 @@ export default function SellerCalculadoraPage() {
                     Sair da conta
                   </button>
                 </div>
-              ) : (
+              ) : podeRenovarPix ? (
                 <div className="mt-3 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-1">
                     <span className="text-xs font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
@@ -2388,7 +2421,7 @@ export default function SellerCalculadoraPage() {
                     </button>
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
         ) : null}

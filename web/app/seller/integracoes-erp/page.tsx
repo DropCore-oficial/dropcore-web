@@ -37,6 +37,7 @@ export default function SellerIntegracoesErpPage() {
   const [olistSaving, setOlistSaving] = useState(false);
   const [olistSyncing, setOlistSyncing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [ingestRegenerating, setIngestRegenerating] = useState(false);
 
   const applyOlistPayload = useCallback((json: Record<string, unknown>) => {
     setOlistUnavailable(Boolean(json.olist_unavailable));
@@ -218,6 +219,36 @@ export default function SellerIntegracoesErpPage() {
     }
   }
 
+  async function regenerarWebhookIngest() {
+    setIngestRegenerating(true);
+    setError(null);
+    try {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const res = await fetch("/api/seller/olist/ingest-token", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof json?.error === "string" ? json.error : "Erro ao gerar novo link do webhook.");
+      }
+      if (typeof json.webhook_pedidos_url === "string") {
+        setOlistWebhookPedidosUrl(json.webhook_pedidos_url);
+      }
+      await loadOlist(session.access_token);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao gerar novo link do webhook.");
+    } finally {
+      setIngestRegenerating(false);
+    }
+  }
+
   return (
     <IntegracoesErpPageView
       loading={loading}
@@ -242,10 +273,12 @@ export default function SellerIntegracoesErpPage() {
       olistSaving={olistSaving}
       olistSyncing={olistSyncing}
       refreshing={refreshing}
+      ingestRegenerating={ingestRegenerating}
       onSalvarOlistToken={() => void salvarOlistToken()}
       onRemoverOlistToken={() => void removerOlistToken()}
       onSincronizarPedidos={() => void sincronizarPedidosAgora()}
       onAtualizar={() => void atualizar()}
+      onRegenerarWebhookIngest={() => void regenerarWebhookIngest()}
     />
   );
 }
@@ -273,10 +306,12 @@ type IntegracoesPageProps = {
   olistSaving: boolean;
   olistSyncing: boolean;
   refreshing: boolean;
+  ingestRegenerating: boolean;
   onSalvarOlistToken: () => void;
   onRemoverOlistToken: () => void;
   onSincronizarPedidos: () => void;
   onAtualizar: () => void;
+  onRegenerarWebhookIngest: () => void;
 };
 
 function IntegracoesErpPageView(props: IntegracoesPageProps) {
@@ -310,8 +345,12 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
             >
               Como conectar
             </Link>
-            . Você gera o <strong className="text-[var(--foreground)]">token API</strong> na Olist/Tiny e cola aqui. Webhook na Olist/Tiny
-            não é obrigatório para começar.
+            . Você gera o <strong className="text-[var(--foreground)]">token API</strong> na Olist/Tiny e cola aqui. Antes dos pedidos,
+            exporte o catálogo em{" "}
+            <Link href="/seller/produtos" className="font-semibold text-[var(--foreground)] underline underline-offset-2">
+              Produtos → Exportar para Olist (por produto)
+            </Link>{" "}
+            e importe a planilha no ERP.
           </p>
         </AmberPremiumCallout>
 
@@ -365,6 +404,14 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                 {props.olistConnected && !props.olistTokenUsable && props.olistTokenError ? (
                   <AmberPremiumCallout title="Token salvo, mas inacessível neste servidor" className="rounded-2xl px-3 py-3.5 sm:px-5">
                     <p className="text-pretty leading-relaxed">{props.olistTokenError}</p>
+                    <p className="mt-3 text-pretty text-xs leading-relaxed text-[var(--muted)]">
+                      <strong className="text-[var(--foreground)]">O que fazer:</strong> no projeto{" "}
+                      <code className="font-mono text-[10px]">dropcore-web</code> (Production), confira{" "}
+                      <code className="font-mono text-[10px]">SELLER_ERP_CREDENTIALS_KEY</code>. Se a chave mudou ou estava vazia em
+                      algum deploy, o token antigo não abre mais. Gere um token novo na Olist/Tiny se precisar,{" "}
+                      <strong className="text-[var(--foreground)]">cole aqui embaixo e salve</strong> para recriptografar com a chave
+                      atual; em seguida use <strong className="text-[var(--foreground)]">Atualizar</strong>.
+                    </p>
                   </AmberPremiumCallout>
                 ) : null}
 
@@ -372,6 +419,9 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                   webhookUrl={props.olistWebhookPedidosUrl}
                   connected={props.olistConnected}
                   cnpjReady={props.olistWebhookCnpjReady}
+                  tokenUsable={props.olistTokenUsable}
+                  ingestRegenerating={props.ingestRegenerating}
+                  onRegenerarIngest={props.onRegenerarWebhookIngest}
                 />
 
                 {props.olistConnected && (
@@ -462,9 +512,13 @@ function OlistWebhookPedidosPanel(props: {
   webhookUrl: string | null;
   connected: boolean;
   cnpjReady: boolean;
+  tokenUsable: boolean;
+  ingestRegenerating: boolean;
+  onRegenerarIngest: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const url = props.webhookUrl?.trim() ?? "";
+  const podeRegenerar = props.connected && props.cnpjReady && props.tokenUsable;
 
   async function copiar() {
     if (!url) return;
@@ -483,28 +537,56 @@ function OlistWebhookPedidosPanel(props: {
         <div className="min-w-0 flex-1">
           <p className="font-medium text-[var(--foreground)]">Webhook de pedidos (Olist/Tiny)</p>
           <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
-            URL única do DropCore: a Olist envia o CNPJ da conta no corpo do evento; o sistema associa ao seu token salvo. Plano com
-            extensão de Webhooks na Olist/Tiny. Se você estiver em <code className="text-[11px]">localhost</code>, a URL abaixo usa o
-            domínio público do DropCore — a Olist não consegue chamar o seu computador diretamente.
+            <strong className="text-[var(--foreground)]">Link próprio por seller:</strong> o parâmetro <code className="font-mono text-[10px]">?w=</code>{" "}
+            é um token só seu (gravado no DropCore). A Olist continua mandando o <strong className="text-[var(--foreground)]">CNPJ</strong>{" "}
+            da conta no JSON; o servidor exige que bata com o CNPJ salvo aqui — assim, mesmo que alguém veja a URL, não consegue
+            simular outra conta. Legado: ainda aceitamos <code className="font-mono text-[10px]">?secret=</code> global da Vercel se
+            você ainda não migrou a URL na Olist.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void copiar()}
-          disabled={!url}
-          className="shrink-0 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
-        >
-          {copied ? "Copiado" : "Copiar URL"}
-        </button>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void copiar()}
+            disabled={!url}
+            className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
+          >
+            {copied ? "Copiado" : "Copiar URL"}
+          </button>
+          <button
+            type="button"
+            onClick={props.onRegenerarIngest}
+            disabled={!podeRegenerar || props.ingestRegenerating}
+            className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
+            title="Invalida o link atual; atualize a URL na Olist/Tiny"
+          >
+            {props.ingestRegenerating ? "Gerando…" : "Novo link webhook"}
+          </button>
+        </div>
       </div>
 
       {url ? (
-        <input
-          readOnly
-          value={url}
-          className="mt-3 w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-2 py-2 font-mono text-[11px] text-[var(--foreground)]"
-          aria-label="URL do webhook de pedidos"
-        />
+        <>
+          <textarea
+            readOnly
+            value={url}
+            rows={4}
+            spellCheck={false}
+            className="mt-3 min-h-[5rem] w-full resize-y rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-2 py-2 font-mono text-[11px] leading-snug text-[var(--foreground)] break-all whitespace-pre-wrap"
+            aria-label="URL do webhook de pedidos"
+          />
+          <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted)]">
+            O campo pode quebrar a URL em várias linhas; use <strong className="text-[var(--foreground)]">Copiar URL</strong> para pegar
+            o texto inteiro (nada fica cortado na área de transferência).
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+            Preferimos <code className="font-mono text-[10px]">?w=</code> (token por seller). O <code className="font-mono text-[10px]">OLIST_WEBHOOK_SECRET</code>{" "}
+            na Vercel vira opcional (só legado). Se você trocou o segredo global, faça <strong className="text-[var(--foreground)]">Redeploy</strong>{" "}
+            do <code className="font-mono text-[10px]">dropcore-web</code> e use a URL que esta página mostrar após{" "}
+            <strong className="text-[var(--foreground)]">Atualizar</strong> — idealmente já com <code className="font-mono text-[10px]">?w=</code> após rodar o SQL{" "}
+            <code className="font-mono text-[10px]">add-seller-olist-ingest-token.sql</code> no Supabase.
+          </p>
+        </>
       ) : (
         <p className="mt-2 text-xs text-[var(--muted)]">URL indisponível neste ambiente.</p>
       )}

@@ -3,14 +3,14 @@
  * Webhooks de pedidos da Olist/Tiny (API 2.0 — notificações de vendas).
  * Doc: https://tiny.com.br/api-docs/api2-webhooks-tiny
  *
- * A Olist envia JSON com cnpj (conta), tipo (inclusao_pedido | atualizacao_pedido) e dados.id (pedido).
- * O DropCore identifica o seller pelo CNPJ salvo em seller_olist_integrations.olist_account_cnpj_normalized.
+ * Autenticação (preferencial): `?w=` — token opaco por seller (`olist_ingest_token`), com binding ao CNPJ do JSON.
+ * Legado opcional: `?secret=` ou header `x-dropcore-olist-secret` = `OLIST_WEBHOOK_SECRET` na Vercel (mesmo URL para todos).
  *
- * Segurança opcional: defina OLIST_WEBHOOK_SECRET na Vercel e use a mesma na URL cadastrada na Olist:
- *   https://www.dropcore.com.br/api/webhooks/olist?secret=SUA_CHAVE
+ * Rate limit: janela de 60s por IP e por `?w=` (env `OLIST_WEBHOOK_RL_IP_MAX`, `OLIST_WEBHOOK_RL_W_MAX`).
  */
 import { NextResponse } from "next/server";
 import { normalizeOlistCnpjDigits } from "@/lib/olistPedidoImportPolicy";
+import { assertOlistWebhookRateLimit } from "@/lib/olistWebhookRateLimit";
 import { processOlistPedidoImport } from "@/lib/sellerOlistPedidoImport";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -30,13 +30,67 @@ type OlistWebhookPayload = {
   };
 };
 
-function verifyOptionalSecret(req: Request): boolean {
+type OlistWebhookRow = {
+  seller_id: string;
+  org_id: string;
+  olist_token_ciphertext: string;
+};
+
+function verifyOptionalGlobalSecret(req: Request): boolean {
   const expected = process.env.OLIST_WEBHOOK_SECRET?.trim();
   if (!expected) return true;
   const url = new URL(req.url);
   const q = url.searchParams.get("secret")?.trim() ?? "";
   const h = req.headers.get("x-dropcore-olist-secret")?.trim() ?? "";
   return q === expected || h === expected;
+}
+
+async function tryAuthIngestToken(
+  ingestToken: string,
+  body: OlistWebhookPayload
+): Promise<{ ok: true; row: OlistWebhookRow } | { ok: false; reason: string }> {
+  const { data: rows, error } = await supabaseAdmin
+    .from("seller_olist_integrations")
+    .select("seller_id, org_id, olist_token_ciphertext, olist_account_cnpj_normalized")
+    .eq("olist_ingest_token", ingestToken)
+    .limit(5);
+
+  if (error) {
+    const msg = String(error.message ?? "").toLowerCase();
+    if (error.code === "42703" || msg.includes("olist_ingest_token")) {
+      return { ok: false, reason: "ingest_col_ausente" };
+    }
+    console.error("[webhooks/olist] ingest lookup:", error.message);
+    return { ok: false, reason: "erro_db" };
+  }
+
+  const list = rows ?? [];
+  if (list.length === 0) return { ok: false, reason: "token_invalido" };
+  if (list.length > 1) {
+    console.warn("[webhooks/olist] múltiplas integrações com o mesmo olist_ingest_token; usando a primeira.");
+  }
+
+  const r = list[0] as {
+    seller_id: string;
+    org_id: string;
+    olist_token_ciphertext: string;
+    olist_account_cnpj_normalized: string | null;
+  };
+
+  const payloadCnpj = normalizeOlistCnpjDigits(body.cnpj);
+  const saved = String(r.olist_account_cnpj_normalized ?? "").trim();
+  if (!payloadCnpj || payloadCnpj.length < 11 || saved.length < 11 || payloadCnpj !== saved) {
+    return { ok: false, reason: "cnpj_binding" };
+  }
+
+  return {
+    ok: true,
+    row: {
+      seller_id: r.seller_id,
+      org_id: r.org_id,
+      olist_token_ciphertext: r.olist_token_ciphertext,
+    },
+  };
 }
 
 async function logOlistWebhook(params: {
@@ -68,6 +122,23 @@ async function logOlistWebhook(params: {
 }
 
 export async function POST(req: Request) {
+  const url = new URL(req.url);
+  const ingestTokenEarly = url.searchParams.get("w")?.trim() ?? "";
+
+  const rl = assertOlistWebhookRateLimit(req, ingestTokenEarly || null);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Muitas requisições. Aguarde e tente novamente." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rl.retryAfterSec),
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+  }
+
   const raw = await req.text();
   let body: OlistWebhookPayload;
   try {
@@ -76,44 +147,136 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
 
-  if (!verifyOptionalSecret(req)) {
-    await logOlistWebhook({
-      seller_id: null,
-      org_id: null,
-      olist_cnpj_normalized: normalizeOlistCnpjDigits(body.cnpj) || null,
-      tipo: body.tipo ?? null,
-      olist_pedido_id: typeof body.dados?.id === "number" ? body.dados.id : null,
-      payload: body as unknown as Record<string, unknown>,
-      resultado: "rejeitado_secret",
-      error_detail: "secret inválido ou ausente",
-    });
-    return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-  }
+  const ingestToken = ingestTokenEarly;
 
   const cnpjNorm = normalizeOlistCnpjDigits(body.cnpj);
   const tipo = String(body.tipo ?? "").trim();
   const pedidoId = typeof body.dados?.id === "number" ? body.dados.id : Number.NaN;
   const codigoSituacao = body.dados?.codigoSituacao ? String(body.dados.codigoSituacao).trim() : "";
 
-  if (!cnpjNorm || cnpjNorm.length < 11) {
-    await logOlistWebhook({
-      seller_id: null,
-      org_id: null,
-      olist_cnpj_normalized: cnpjNorm || null,
-      tipo: tipo || null,
-      olist_pedido_id: Number.isFinite(pedidoId) ? pedidoId : null,
-      payload: body as unknown as Record<string, unknown>,
-      resultado: "ignorado_sem_cnpj",
-      error_detail: null,
-    });
-    return NextResponse.json({ ok: true, ignored: true }, { status: 200 });
+  let row: OlistWebhookRow | null = null;
+
+  if (ingestToken) {
+    const auth = await tryAuthIngestToken(ingestToken, body);
+    if (!auth.ok) {
+      await logOlistWebhook({
+        seller_id: null,
+        org_id: null,
+        olist_cnpj_normalized: cnpjNorm || null,
+        tipo: body.tipo ?? null,
+        olist_pedido_id: Number.isFinite(pedidoId) ? pedidoId : null,
+        payload: body as unknown as Record<string, unknown>,
+        resultado: "rejeitado_ingest",
+        error_detail: auth.reason,
+      });
+      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    }
+    row = auth.row;
+  } else {
+    if (!verifyOptionalGlobalSecret(req)) {
+      await logOlistWebhook({
+        seller_id: null,
+        org_id: null,
+        olist_cnpj_normalized: cnpjNorm || null,
+        tipo: body.tipo ?? null,
+        olist_pedido_id: Number.isFinite(pedidoId) ? pedidoId : null,
+        payload: body as unknown as Record<string, unknown>,
+        resultado: "rejeitado_secret",
+        error_detail: "secret inválido ou ausente",
+      });
+      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    }
+
+    if (!cnpjNorm || cnpjNorm.length < 11) {
+      await logOlistWebhook({
+        seller_id: null,
+        org_id: null,
+        olist_cnpj_normalized: cnpjNorm || null,
+        tipo: tipo || null,
+        olist_pedido_id: Number.isFinite(pedidoId) ? pedidoId : null,
+        payload: body as unknown as Record<string, unknown>,
+        resultado: "ignorado_sem_cnpj",
+        error_detail: null,
+      });
+      return NextResponse.json({ ok: true, ignored: true }, { status: 200 });
+    }
+
+    if (!Number.isFinite(pedidoId)) {
+      await logOlistWebhook({
+        seller_id: null,
+        org_id: null,
+        olist_cnpj_normalized: cnpjNorm,
+        tipo: tipo || null,
+        olist_pedido_id: null,
+        payload: body as unknown as Record<string, unknown>,
+        resultado: "ignorado_sem_pedido_id",
+        error_detail: null,
+      });
+      return NextResponse.json({ ok: true, ignored: true }, { status: 200 });
+    }
+
+    if (tipo !== "inclusao_pedido" && tipo !== "atualizacao_pedido") {
+      await logOlistWebhook({
+        seller_id: null,
+        org_id: null,
+        olist_cnpj_normalized: cnpjNorm,
+        tipo: tipo || null,
+        olist_pedido_id: pedidoId,
+        payload: body as unknown as Record<string, unknown>,
+        resultado: "ignorado_tipo",
+        error_detail: tipo || null,
+      });
+      return NextResponse.json({ ok: true, ignored: true }, { status: 200 });
+    }
+
+    const { data: rows, error: findErr } = await supabaseAdmin
+      .from("seller_olist_integrations")
+      .select("seller_id, org_id, olist_token_ciphertext, olist_account_cnpj_normalized")
+      .eq("olist_account_cnpj_normalized", cnpjNorm)
+      .not("olist_token_ciphertext", "is", null)
+      .limit(5);
+
+    if (findErr) {
+      console.error("[webhooks/olist] lookup:", findErr.message);
+      return NextResponse.json({ error: "Erro interno." }, { status: 500 });
+    }
+
+    const matches = rows ?? [];
+    if (matches.length === 0) {
+      await logOlistWebhook({
+        seller_id: null,
+        org_id: null,
+        olist_cnpj_normalized: cnpjNorm,
+        tipo,
+        olist_pedido_id: pedidoId,
+        payload: body as unknown as Record<string, unknown>,
+        resultado: "sem_seller",
+        error_detail: null,
+      });
+      return NextResponse.json({ ok: true, matched: false }, { status: 200 });
+    }
+
+    if (matches.length > 1) {
+      console.warn("[webhooks/olist] múltiplos sellers para o mesmo CNPJ; usando o primeiro.");
+    }
+
+    const m = matches[0] as {
+      seller_id: string;
+      org_id: string;
+      olist_token_ciphertext: string;
+    };
+    row = { seller_id: m.seller_id, org_id: m.org_id, olist_token_ciphertext: m.olist_token_ciphertext };
+  }
+
+  if (!row) {
+    return NextResponse.json({ error: "Erro interno." }, { status: 500 });
   }
 
   if (!Number.isFinite(pedidoId)) {
     await logOlistWebhook({
-      seller_id: null,
-      org_id: null,
-      olist_cnpj_normalized: cnpjNorm,
+      seller_id: row.seller_id,
+      org_id: row.org_id,
+      olist_cnpj_normalized: cnpjNorm || null,
       tipo: tipo || null,
       olist_pedido_id: null,
       payload: body as unknown as Record<string, unknown>,
@@ -125,9 +288,9 @@ export async function POST(req: Request) {
 
   if (tipo !== "inclusao_pedido" && tipo !== "atualizacao_pedido") {
     await logOlistWebhook({
-      seller_id: null,
-      org_id: null,
-      olist_cnpj_normalized: cnpjNorm,
+      seller_id: row.seller_id,
+      org_id: row.org_id,
+      olist_cnpj_normalized: cnpjNorm || null,
       tipo: tipo || null,
       olist_pedido_id: pedidoId,
       payload: body as unknown as Record<string, unknown>,
@@ -136,43 +299,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ ok: true, ignored: true }, { status: 200 });
   }
-
-  const { data: rows, error: findErr } = await supabaseAdmin
-    .from("seller_olist_integrations")
-    .select("seller_id, org_id, olist_token_ciphertext, olist_account_cnpj_normalized")
-    .eq("olist_account_cnpj_normalized", cnpjNorm)
-    .not("olist_token_ciphertext", "is", null)
-    .limit(5);
-
-  if (findErr) {
-    console.error("[webhooks/olist] lookup:", findErr.message);
-    return NextResponse.json({ error: "Erro interno." }, { status: 500 });
-  }
-
-  const matches = rows ?? [];
-  if (matches.length === 0) {
-    await logOlistWebhook({
-      seller_id: null,
-      org_id: null,
-      olist_cnpj_normalized: cnpjNorm,
-      tipo,
-      olist_pedido_id: pedidoId,
-      payload: body as unknown as Record<string, unknown>,
-      resultado: "sem_seller",
-      error_detail: null,
-    });
-    return NextResponse.json({ ok: true, matched: false }, { status: 200 });
-  }
-
-  if (matches.length > 1) {
-    console.warn("[webhooks/olist] múltiplos sellers para o mesmo CNPJ; usando o primeiro.");
-  }
-
-  const row = matches[0] as {
-    seller_id: string;
-    org_id: string;
-    olist_token_ciphertext: string;
-  };
 
   const proc = await processOlistPedidoImport({
     org_id: row.org_id,
@@ -200,7 +326,7 @@ export async function POST(req: Request) {
   await logOlistWebhook({
     seller_id: row.seller_id,
     org_id: row.org_id,
-    olist_cnpj_normalized: cnpjNorm,
+    olist_cnpj_normalized: cnpjNorm || null,
     tipo,
     olist_pedido_id: pedidoId,
     payload: body as unknown as Record<string, unknown>,
@@ -216,5 +342,8 @@ export async function POST(req: Request) {
     ok: true,
     outcome: proc.outcome,
     ...(proc.outcome === "imported" ? { pedido_id_dropcore: proc.pedido_id_dropcore } : {}),
+    ...(proc.outcome === "skipped_duplicate" && proc.pedido_id_dropcore
+      ? { pedido_id_dropcore: proc.pedido_id_dropcore }
+      : {}),
   });
 }

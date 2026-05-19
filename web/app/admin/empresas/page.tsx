@@ -30,7 +30,8 @@ export default function AdminEmpresasPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [invitingId, setInvitingId] = useState<string | null>(null);
-  const [inviteLink, setInviteLink] = useState<{ nome: string; link: string } | null>(null);
+  const [inviteLink, setInviteLink] = useState<{ nome: string; link: string; portal_trial_dias?: number } | null>(null);
+  const [fornecedorConviteTrialDias, setFornecedorConviteTrialDias] = useState(7);
   const [modalNova, setModalNova] = useState(false);
   const [novoNome, setNovoNome] = useState("");
   const [saving, setSaving] = useState(false);
@@ -127,11 +128,19 @@ export default function AdminEmpresasPage() {
       }
       const res = await fetch(`/api/org/fornecedores/${encodeURIComponent(emp.id)}/invite`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ portal_trial_dias: fornecedorConviteTrialDias }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Erro ao gerar convite.");
-      setInviteLink({ nome: emp.nome || "Fornecedor", link: json.link });
+      setInviteLink({
+        nome: emp.nome || "Fornecedor",
+        link: json.link,
+        portal_trial_dias: typeof json.portal_trial_dias === "number" ? json.portal_trial_dias : fornecedorConviteTrialDias,
+      });
     } catch (e: any) {
       setError(e?.message ?? "Erro ao gerar convite.");
     } finally {
@@ -250,8 +259,34 @@ export default function AdminEmpresasPage() {
             </div>
           }>
             <p className="text-xs break-all">{inviteLink.link}</p>
+            {inviteLink.portal_trial_dias !== undefined && (
+              <p className="text-[11px] mt-2 text-[var(--muted)]">
+                Teste grátis no painel após aceitar:{" "}
+                <strong className="text-[var(--foreground)]">
+                  {inviteLink.portal_trial_dias === 0 ? "nenhum (0 dias)" : `${inviteLink.portal_trial_dias} dia(s)`}
+                </strong>
+                .
+              </p>
+            )}
           </Alert>
         )}
+
+        <Card padding="md" className="mb-4">
+          <p className="text-sm font-medium text-[var(--foreground)] mb-2">Convites (login fornecedor)</p>
+          <label htmlFor="forn-convite-trial" className="text-[12px] text-[var(--muted)] block mb-1">
+            Dias de teste grátis no painel ao aceitar o convite (0 = sem período)
+          </label>
+          <Input
+            id="forn-convite-trial"
+            type="number"
+            min={0}
+            max={365}
+            className="max-w-[6rem] h-9 text-sm mb-1"
+            value={fornecedorConviteTrialDias}
+            onChange={(e) => setFornecedorConviteTrialDias(Math.min(365, Math.max(0, parseInt(e.target.value, 10) || 0)))}
+          />
+          <p className="text-[11px] text-[var(--muted)]">Mesmo conceito do convite da calculadora: você define quantos dias grátis (ou zero).</p>
+        </Card>
 
         {loading && <p className="text-sm text-[var(--muted)]">Carregando empresas...</p>}
 

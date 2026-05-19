@@ -114,7 +114,7 @@ export default function AdminLayout({
         <NotificationBell context="admin" />
       </div>
       <AdminMobileBottomNav />
-      <NotificationToasts />
+      <NotificationToasts context="admin" />
     </>
   );
 }

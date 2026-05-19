@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { FornecedorNav } from "../../FornecedorNav";
-import { NotificationToasts } from "@/components/NotificationToasts";
 import { toTitleCase } from "@/lib/formatText";
 import {
   CORES_PREDEFINIDAS,
@@ -3437,7 +3436,6 @@ export default function CriarVariantesPage() {
         </div>
       )}
       <FornecedorNav active="produtos" />
-      <NotificationToasts />
     </div>
   );
 }

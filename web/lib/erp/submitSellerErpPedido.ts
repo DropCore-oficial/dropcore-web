@@ -367,6 +367,32 @@ export async function submitSellerErpPedido(
       String(insertErr.message ?? "").includes("23505");
     if (isUniqueViolation) {
       await tryReverterEstoque();
+      // Corrida: duas importações podem passar na checagem pré-insert; a perdedora
+      // cai em 23505 sem ter visto o pedido ainda. Reconsulta pela referência.
+      if (referencia_externa) {
+        const { data: pedidoPosRace, error: pedidoPosRaceErr } = await supabaseAdmin
+          .from("pedidos")
+          .select("id, status, referencia_externa")
+          .eq("org_id", org_id)
+          .eq("seller_id", seller.id)
+          .eq("referencia_externa", referencia_externa)
+          .order("criado_em", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!pedidoPosRaceErr && pedidoPosRace) {
+          return {
+            ok: false,
+            error_code: "PEDIDO_DUPLICADO",
+            error_message: "Já existe pedido com esta referência externa.",
+            http_status: 409,
+            pedido_existente: {
+              pedido_id: pedidoPosRace.id,
+              status: pedidoPosRace.status,
+              referencia_externa: pedidoPosRace.referencia_externa,
+            },
+          };
+        }
+      }
       return {
         ok: false,
         error_code: "PEDIDO_DUPLICADO",

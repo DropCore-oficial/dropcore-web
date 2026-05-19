@@ -21,14 +21,17 @@ export default function FornecedorRegisterPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
   const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [portalTrialDiasConvite, setPortalTrialDiasConvite] = useState<number | null>(null);
 
   useEffect(() => {
     if (!token) return;
     fetch(`/api/fornecedor/invite/${token}`)
       .then((r) => r.json())
       .then((j) => {
-        if (j?.ok) setFornecedorNome(j.fornecedor_nome);
-        else setTokenError(j?.error ?? "Convite inválido.");
+        if (j?.ok) {
+          setFornecedorNome(j.fornecedor_nome);
+          if (typeof j.portal_trial_dias === "number") setPortalTrialDiasConvite(j.portal_trial_dias);
+        } else setTokenError(j?.error ?? "Convite inválido.");
       })
       .catch(() => setTokenError("Erro ao validar convite."))
       .finally(() => setLoading(false));
@@ -126,6 +129,13 @@ export default function FornecedorRegisterPage() {
           <div className="mb-5 rounded-xl bg-[var(--background)] border border-[var(--card-border)] px-4 py-3">
             <p className="text-xs text-[var(--muted)]">Convite para</p>
             <p className="text-[var(--foreground)] font-semibold mt-0.5">{fornecedorNome}</p>
+            {portalTrialDiasConvite !== null && (
+              <p className="text-[11px] text-[var(--muted)] mt-1.5">
+                {portalTrialDiasConvite === 0
+                  ? "Este convite não inclui período de teste grátis da mensalidade no painel."
+                  : `Após ativar a conta: ${portalTrialDiasConvite} dia(s) de teste grátis da mensalidade no painel.`}
+              </p>
+            )}
           </div>
 
           <div className="space-y-4">

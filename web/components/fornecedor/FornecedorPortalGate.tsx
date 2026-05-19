@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
@@ -13,10 +13,17 @@ const PUBLIC_PREFIXES = ["/fornecedor/login", "/fornecedor/register"];
 export function FornecedorPortalGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [ok, setOk] = useState(PUBLIC_PREFIXES.some((p) => pathname.startsWith(p)));
+  const isPublic = PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
+  const [ok, setOk] = useState(isPublic);
+  const verifiedRef = useRef(isPublic);
 
   useEffect(() => {
-    if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
+    if (isPublic) {
+      verifiedRef.current = true;
+      setOk(true);
+      return;
+    }
+    if (verifiedRef.current) {
       setOk(true);
       return;
     }
@@ -50,6 +57,7 @@ export function FornecedorPortalGate({ children }: { children: ReactNode }) {
       }
       const role = String(org?.role_base ?? "");
       if (fornRes.ok || org?.fornecedor_id) {
+        verifiedRef.current = true;
         if (!cancelled) setOk(true);
         return;
       }
@@ -66,12 +74,16 @@ export function FornecedorPortalGate({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [pathname, router]);
+  }, [isPublic, pathname, router]);
 
   if (!ok) {
     return (
-      <div className="p-6 text-center text-sm text-neutral-500 dark:text-neutral-400" aria-live="polite">
-        Verificando acesso…
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--background)]"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-200 border-t-emerald-500 dark:border-neutral-700 dark:border-t-emerald-400" />
       </div>
     );
   }

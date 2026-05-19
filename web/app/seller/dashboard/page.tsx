@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { useMensalidadeBloqueio } from "@/lib/mensalidadeBloqueioContext";
+import { SellerPortalBlockedShell } from "@/components/seller/SellerPortalBlockedShell";
 import { SellerNav } from "../SellerNav";
-import { NotificationToasts } from "@/components/NotificationToasts";
 import { IconTipoExtrato, IconDevolucao, IconArrowRight, IconPlus, IconClipboard, IconDeposito, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
 import { planoSellerDefinido } from "@/lib/sellerDocumento";
 import {
@@ -44,6 +45,14 @@ import {
 } from "@/lib/primaryActionBlueUi";
 import { cn } from "@/lib/utils";
 import { parseValorMonetarioPtBr } from "@/lib/parseValorMonetarioPtBr";
+import { Alert } from "@/components/ui/Alert";
+import {
+  SELLER_CREDITO_CHECKBOX_LABEL,
+  SELLER_CREDITO_MESES_VALIDADE,
+  SELLER_CREDITO_NAO_PAGA_MENSALIDADE,
+} from "@/lib/sellerCreditoTermos";
+import { SellerPixRecargaVsMensalidadeBox } from "@/components/seller/SellerPixRecargaVsMensalidadeBox";
+import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 
 const SELLER_LEDGER_BADGE_AMBER = cn(AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY);
 const SELLER_LEDGER_BADGE_DANGER = cn(DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY);
@@ -104,6 +113,13 @@ type Deposito = {
   status: string;
   criado_em: string;
   aprovado_em: string | null;
+  credito_expira_em: string | null;
+};
+
+type CreditoResumo = {
+  expira_em_breve: number;
+  proxima_expiracao_em: string | null;
+  dias_ate_proxima_expiracao: number | null;
 };
 
 type Mensalidade = {
@@ -151,7 +167,7 @@ function subtituloBannerMensalidade(
 }
 
 const tipoLabel: Record<string, { label: string }> = {
-  CREDITO:   { label: "Depósito recebido" },
+  CREDITO:   { label: "Recarga de créditos" },
   BLOQUEIO:  { label: "Pedido enviado" },
   VENDA:     { label: "Venda" },
   DEVOLUCAO: { label: "Devolução" },
@@ -274,6 +290,7 @@ function SellerHeaderArmazemCardButton({ vinculo, onOpen }: { vinculo: VinculoFo
 export default function SellerDashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { portalBloqueado, verificando } = useMensalidadeBloqueio();
   const destaqueId = searchParams.get("destaque");
   const tabParam = searchParams.get("tab");
   const depositoRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -304,6 +321,8 @@ export default function SellerDashboardPage() {
   const [depositoCopiado, setDepositoCopiado] = useState(false);
   const [depositoExpiraEm, setDepositoExpiraEm] = useState<string | null>(null);
   const [depositoRestanteSec, setDepositoRestanteSec] = useState<number | null>(null);
+  const [depositoAceiteTermos, setDepositoAceiteTermos] = useState(false);
+  const [creditoResumo, setCreditoResumo] = useState<CreditoResumo | null>(null);
   const [pixMensalidadeCopiado, setPixMensalidadeCopiado] = useState(false);
   const [modalPixMensalidade, setModalPixMensalidade] = useState<Mensalidade | null>(null);
   const [modalArmazem, setModalArmazem] = useState(false);
@@ -325,8 +344,8 @@ export default function SellerDashboardPage() {
   const temMensalidadeVencida = mensalidades.some((m) => m.vencido);
   const cobrancaMensalidadeAtiva = !trialAtivo;
 
-  async function load() {
-    setLoading(true);
+  async function load(opts?: { silent?: boolean }) {
+    if (!opts?.silent) setLoading(true);
     setError(null);
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
@@ -358,6 +377,7 @@ export default function SellerDashboardPage() {
       const seen = new Set<string>();
       setExtrato(raw.filter((e: LedgerEntry) => { if (seen.has(e.id)) return false; seen.add(e.id); return true; }));
       setDepositos(json.depositos ?? []);
+      setCreditoResumo(json.credito_resumo ?? null);
       if (mensRes.ok) {
         const mensJson = await mensRes.json();
         setMensalidades(mensJson.items ?? []);
@@ -377,7 +397,7 @@ export default function SellerDashboardPage() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }
 
@@ -409,9 +429,10 @@ export default function SellerDashboardPage() {
   }
 
   useEffect(() => {
+    if (portalBloqueado || verificando) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [portalBloqueado, verificando]);
 
   useEffect(() => {
     if (!pixExpiraEm || !pixQrCode) return;
@@ -425,10 +446,10 @@ export default function SellerDashboardPage() {
   }, [pixExpiraEm, pixQrCode]);
 
   useEffect(() => {
-    if (!temMensalidadeVencida || !cobrancaMensalidadeAtiva) return;
-    const id = setInterval(load, 10000);
+    if (portalBloqueado || verificando || !temMensalidadeVencida || !cobrancaMensalidadeAtiva) return;
+    const id = setInterval(() => void load({ silent: true }), 30_000);
     return () => clearInterval(id);
-  }, [temMensalidadeVencida, cobrancaMensalidadeAtiva]);
+  }, [portalBloqueado, verificando, temMensalidadeVencida, cobrancaMensalidadeAtiva]);
 
   useEffect(() => {
     if (tabParam === "depositos" || destaqueId) {
@@ -500,6 +521,10 @@ export default function SellerDashboardPage() {
     setDepositoErro(null);
     setDepositoQrCode(null);
     setDepositoCopiaCola(null);
+    if (!depositoAceiteTermos) {
+      setDepositoErro("Aceite os termos da recarga para continuar.");
+      return;
+    }
     setDepositoLoading(true);
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
@@ -514,10 +539,10 @@ export default function SellerDashboardPage() {
       const res = await fetch("/api/seller/deposito-pix", {
         method: "POST",
         headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ valor: valorDep }),
+        body: JSON.stringify({ valor: valorDep, aceite_termos_credito: true }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? "Erro ao solicitar depósito.");
+      if (!res.ok) throw new Error(json?.error ?? "Erro ao solicitar recarga.");
       if (!json.qr_code_base64 && !json.qr_code) {
         throw new Error("Resposta sem QR Code PIX. A cobrança não foi concluída — tente de novo.");
       }
@@ -543,6 +568,7 @@ export default function SellerDashboardPage() {
     setDepositoCopiaCola(null);
     setDepositoExpiraEm(null);
     setDepositoRestanteSec(null);
+    setDepositoAceiteTermos(false);
   }
 
   // Cronômetro do PIX (expira em 30 min)
@@ -812,6 +838,10 @@ export default function SellerDashboardPage() {
   const hojeKeyChart = new Date().toISOString().slice(0, 10);
   const ultimoDiaHoje = ultimoDiaKey === hojeKeyChart;
 
+  if (portalBloqueado) {
+    return <SellerPortalBlockedShell />;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
@@ -841,7 +871,7 @@ export default function SellerDashboardPage() {
           </div>
           <p className={cn("mb-2 font-semibold", DANGER_PREMIUM_TEXT_PRIMARY)}>Ocorreu um erro</p>
           <p className="text-[var(--muted)] text-sm mb-6">{error}</p>
-          <button onClick={load} className="rounded-xl bg-[var(--foreground)] text-[var(--background)] px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity">
+          <button onClick={() => void load()} className="rounded-xl bg-[var(--foreground)] text-[var(--background)] px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity">
             Tentar novamente
           </button>
         </div>
@@ -995,7 +1025,7 @@ export default function SellerDashboardPage() {
                 </div>
               </div>
             ) : (
-              <p className={cn("text-sm font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>Saldo baixo — antecipe um depósito</p>
+              <p className={cn("text-sm font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>Saldo baixo — recarregue créditos para pedidos</p>
             )}
             <p
               className={cn(
@@ -1015,7 +1045,7 @@ export default function SellerDashboardPage() {
               ) : (
                 <>
                   {" "}
-                  · Sem histórico suficiente de pedidos no extrato para estimar; faça um depósito PIX antes de escalar vendas.
+                  · Sem histórico suficiente de pedidos no extrato para estimar; faça uma recarga PIX (créditos) antes de escalar vendas.
                 </>
               )}
             </p>
@@ -1028,7 +1058,7 @@ export default function SellerDashboardPage() {
                   : "mt-3 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors bg-emerald-600 hover:bg-emerald-700"
               )}
             >
-              Depositar PIX
+              Recarregar créditos
             </button>
             </div>
           </div>
@@ -1040,9 +1070,13 @@ export default function SellerDashboardPage() {
             <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-emerald-500 to-emerald-600 opacity-90" aria-hidden />
             <div className="pl-4 sm:pl-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <p className="text-xs font-medium text-[var(--muted)]">Saldo total</p>
+                <p className="text-xs font-medium text-[var(--muted)]">Créditos DropCore (total)</p>
                 <p className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
                   {BRL.format(seller?.saldo_atual ?? 0)}
+                </p>
+                <p className="mt-1.5 text-[11px] text-[var(--muted)] max-w-md leading-relaxed">
+                  Para <strong className="font-medium text-[var(--foreground)]">pedidos</strong> na plataforma. Não é saque,
+                  reembolso nem pagamento da mensalidade do plano.
                 </p>
               </div>
               <button
@@ -1050,7 +1084,7 @@ export default function SellerDashboardPage() {
                 onClick={() => setModalDeposito(true)}
                 className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 text-sm font-semibold shrink-0 shadow-sm shadow-emerald-600/20 transition-colors"
               >
-                + Depositar PIX
+                + Recarregar
               </button>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-2.5 border-t border-[var(--card-border)]/80 pt-5 sm:grid-cols-4">
@@ -1083,6 +1117,26 @@ export default function SellerDashboardPage() {
                 </p>
               </button>
             </div>
+            {(creditoResumo?.expira_em_breve ?? 0) > 0 && (
+              <div className="mx-3 sm:mx-4 mt-3 rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3.5 py-3">
+                <p className="text-xs font-medium text-[var(--foreground)]">
+                  Expira em breve:{" "}
+                  <span className="tabular-nums font-semibold">{BRL.format(creditoResumo!.expira_em_breve)}</span>
+                  {creditoResumo?.proxima_expiracao_em ? (
+                    <span className="text-[var(--muted)] font-normal">
+                      {" "}
+                      · próximo vencimento {formatDate(creditoResumo.proxima_expiracao_em)}
+                      {creditoResumo.dias_ate_proxima_expiracao != null
+                        ? ` (${creditoResumo.dias_ate_proxima_expiracao} dia${creditoResumo.dias_ate_proxima_expiracao === 1 ? "" : "s"})`
+                        : ""}
+                    </span>
+                  ) : null}
+                </p>
+                <p className="mt-1 text-[11px] text-[var(--muted)]">
+                  Créditos de recarga valem {SELLER_CREDITO_MESES_VALIDADE} meses. Use na plataforma antes de expirar.
+                </p>
+              </div>
+            )}
           </div>
             {aLiberar > 0 && (
               <div className="mx-3 sm:mx-4 mt-3 flex items-center justify-between rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3.5 py-3">
@@ -1093,9 +1147,13 @@ export default function SellerDashboardPage() {
             {mensalidades.length > 0 && (
               <div className="mx-3 mb-3 mt-3 sm:mx-4 sm:mb-4 flex flex-col gap-2 rounded-xl border border-[var(--card-border)] px-3.5 py-3 bg-[var(--surface-subtle)] sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 space-y-1">
-                  <p className="text-xs font-medium text-[var(--foreground)]">Mensalidade pendente</p>
+                  <p className="text-xs font-medium text-[var(--foreground)]">Mensalidade do plano (acesso ao painel)</p>
                   <p className="text-[11px] text-[var(--muted)] leading-relaxed">
                     {subtituloBannerMensalidade(mensalidades[0], trialAtivo, trialValidoAte)}
+                  </p>
+                  <p className="text-[11px] text-[var(--muted)] leading-relaxed">
+                    PIX separado da recarga de créditos. Recarregar saldo <strong className="text-[var(--foreground)]">não</strong>{" "}
+                    quita esta mensalidade.
                   </p>
                   {!cobrancaMensalidadeAtiva && (
                     <p className="text-[11px] text-[var(--muted)] pt-0.5 leading-relaxed">
@@ -1407,7 +1465,7 @@ export default function SellerDashboardPage() {
                         : "border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
                     )}
                   >
-                    {t === "extrato" ? "Extrato" : "Depósitos PIX"}
+                    {t === "extrato" ? "Extrato" : "Recargas PIX"}
                   </button>
                 ))}
               </div>
@@ -1418,12 +1476,12 @@ export default function SellerDashboardPage() {
                     onClick={() => setModalDeposito(true)}
                     className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white outline-none transition-colors hover:bg-emerald-700 whitespace-nowrap touch-manipulation focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
                   >
-                    + Novo depósito
+                    + Nova recarga
                   </button>
                 )}
                 <button
                   type="button"
-                  onClick={load}
+                  onClick={() => void load()}
                   className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 text-xs font-medium text-[var(--muted)] outline-none transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)] touch-manipulation whitespace-nowrap focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
                 >
                   Atualizar
@@ -1443,7 +1501,7 @@ export default function SellerDashboardPage() {
                         </>
                       ) : (
                         <>
-                          {depositos.length} depósito{depositos.length !== 1 ? "s" : ""}
+                          {depositos.length} recarga{depositos.length !== 1 ? "s" : ""}
                         </>
                       )}
                     </span>
@@ -1576,10 +1634,12 @@ export default function SellerDashboardPage() {
                   <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center mx-auto mb-4 text-emerald-500 dark:text-emerald-400">
                     <IconDeposito className="w-7 h-7" />
                   </div>
-                  <p className="text-sm font-medium text-[var(--muted)]">Nenhum depósito ainda</p>
-                  <p className="text-xs text-[var(--muted)] mt-1">Adicione saldo via PIX para continuar vendendo</p>
+                  <p className="text-sm font-medium text-[var(--muted)]">Nenhuma recarga ainda</p>
+                  <p className="text-xs text-[var(--muted)] mt-1 max-w-sm mx-auto leading-relaxed">
+                    Recarregue créditos via PIX (mín. R$ 500) para pedidos. {SELLER_CREDITO_NAO_PAGA_MENSALIDADE}
+                  </p>
                 <button onClick={() => setModalDeposito(true)} className="mt-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-sm font-semibold shadow-md shadow-emerald-900/15 hover:shadow-emerald-900/20 transition-all">
-                    + Solicitar depósito
+                    + Recarregar créditos
                   </button>
                 </div>
               ) : (
@@ -1596,10 +1656,13 @@ export default function SellerDashboardPage() {
                         <IconPlus className="w-5 h-5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[var(--foreground)]">Depósito via PIX</p>
+                        <p className="text-sm font-medium text-[var(--foreground)]">Recarga via PIX</p>
                         <p className="text-xs text-[var(--muted)] mt-0.5">
                           {formatDate(d.criado_em)}
-                          {d.aprovado_em ? ` · Aprovado em ${formatDate(d.aprovado_em)}` : " · Aguardando aprovação"}
+                          {d.aprovado_em ? ` · Creditado em ${formatDate(d.aprovado_em)}` : " · Aguardando pagamento"}
+                          {d.status === "aprovado" && d.credito_expira_em
+                            ? ` · Válido até ${formatDate(d.credito_expira_em)}`
+                            : ""}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
@@ -1625,10 +1688,10 @@ export default function SellerDashboardPage() {
         </section>
 
         {modalDeposito && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-fade-in-up">
-            <div className="w-full max-w-sm rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-2xl overflow-hidden animate-fade-in-up animate-fade-in-up-delay-1">
-              <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[var(--card-border)]">
-                <h2 className="text-sm font-semibold text-[var(--foreground)]">Solicitar depósito via PIX</h2>
+          <div className={cn(MODAL_OVERLAY_CLASS, "animate-fade-in-up")}>
+            <div className={cn(MODAL_PANEL_CLASS, "animate-fade-in-up animate-fade-in-up-delay-1")}>
+              <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[var(--card-border)] shrink-0">
+                <h2 className="text-sm font-semibold text-[var(--foreground)]">Recarregar créditos via PIX</h2>
                 <button onClick={fecharModal} className="p-1 -m-1 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors rounded">
                   <IconX className="w-5 h-5" />
                 </button>
@@ -1641,7 +1704,13 @@ export default function SellerDashboardPage() {
                       <IconCheck className="w-5 h-5" />
                       <p className="text-sm font-semibold text-[var(--foreground)]">PIX gerado! Pague agora</p>
                     </div>
-                    <p className="text-xs text-[var(--muted)]">Escaneie o QR Code ou copie o código PIX. O saldo será creditado automaticamente após o pagamento.</p>
+                    <p className="text-xs text-[var(--muted)]">
+                      Escaneie o QR Code ou copie o código PIX. Após o pagamento, o valor vira crédito DropCore (validade{" "}
+                      {SELLER_CREDITO_MESES_VALIDADE} meses).
+                    </p>
+                    <p className="text-[11px] text-[var(--muted)] rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 leading-relaxed">
+                      Ao pagar este PIX você confirma a recarga de créditos para pedidos (não paga mensalidade do plano).
+                    </p>
                     {depositoRestanteSec !== null && (
                       <div
                         className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium ${
@@ -1685,23 +1754,43 @@ export default function SellerDashboardPage() {
                       <IconCheck className="w-6 h-6" />
                     </div>
                     <p className="text-sm font-semibold text-[var(--foreground)]">Solicitação enviada!</p>
-                    <p className="text-xs text-[var(--muted)]">Faça o PIX e aguarde a aprovação. O saldo será creditado assim que confirmado.</p>
+                    <p className="text-xs text-[var(--muted)]">Faça o PIX e aguarde a confirmação. Os créditos entram assim que o pagamento for aprovado.</p>
                     <button onClick={fecharModal} className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] text-[var(--foreground)] font-semibold py-2.5 text-sm hover:bg-[var(--surface-hover)] transition-colors mt-2">
                       Fechar
                     </button>
                   </div>
                 )
               ) : (
-                <div className="p-5 space-y-4">
-                  <div className="rounded-xl bg-[var(--surface-subtle)] border border-[var(--card-border)] p-3 text-xs text-[var(--muted)] space-y-1">
-                    <p>1. Informe o valor que deseja depositar (mín. R$ 500)</p>
-                    <p>2. Clique em Depositar — o QR Code PIX será gerado</p>
-                    <p>3. Escaneie ou copie o código e pague no app do seu banco</p>
-                    <p>4. O saldo é creditado automaticamente após o pagamento</p>
-                  </div>
+                <div className={cn("p-5 space-y-4", MODAL_PANEL_BODY_CLASS)}>
+                  <SellerPixRecargaVsMensalidadeBox variant="recarga" />
+                  <Alert variant="warning" title="Antes de recarregar, leia isto">
+                    <ul className="list-disc pl-4 space-y-1.5 text-sm">
+                      <li>
+                        <strong>Não paga mensalidade:</strong> este PIX só gera crédito para pedidos. A mensalidade do plano
+                        é outro pagamento no painel.
+                      </li>
+                      <li>O valor pago vira <strong>crédito DropCore</strong>, só para usar na plataforma.</li>
+                      <li>
+                        <strong>Não</strong> é depósito bancário: sem saque e sem reembolso após a confirmação.
+                      </li>
+                      <li>
+                        Cada recarga vale <strong>{SELLER_CREDITO_MESES_VALIDADE} meses</strong> a partir do crédito confirmado.
+                      </li>
+                      <li>Saldo não usado nesse prazo <strong>expira</strong>.</li>
+                    </ul>
+                    <p className="mt-2">
+                      <Link
+                        href="/seller/creditos/regras"
+                        className="text-emerald-600 dark:text-emerald-400 font-medium hover:underline"
+                        target="_blank"
+                      >
+                        Ver regras completas de créditos →
+                      </Link>
+                    </p>
+                  </Alert>
 
                   <div>
-                    <label className="text-xs text-[var(--muted)] mb-1.5 block">Valor (mínimo R$ 500,00)</label>
+                    <label className="text-xs text-[var(--muted)] mb-1.5 block">Valor da recarga (mínimo R$ 500,00)</label>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -1715,6 +1804,25 @@ export default function SellerDashboardPage() {
                     </p>
                   </div>
 
+                  <label className="flex gap-2.5 items-start cursor-pointer rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] p-3">
+                    <input
+                      type="checkbox"
+                      checked={depositoAceiteTermos}
+                      onChange={(e) => setDepositoAceiteTermos(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--card-border)] text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span className="text-[11px] leading-relaxed text-[var(--foreground)]">
+                      {SELLER_CREDITO_CHECKBOX_LABEL}{" "}
+                      <Link
+                        href="/seller/creditos/regras"
+                        className="text-emerald-600 dark:text-emerald-400 underline"
+                        target="_blank"
+                      >
+                        Regras de créditos
+                      </Link>
+                    </span>
+                  </label>
+
                   {depositoErro && (
                     <p className={cn("text-xs rounded-xl px-3 py-2", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>
                       {depositoErro}
@@ -1727,10 +1835,10 @@ export default function SellerDashboardPage() {
                     </button>
                     <button
                       onClick={solicitarDeposito}
-                      disabled={depositoLoading || !depositoValor}
+                      disabled={depositoLoading || !depositoValor || !depositoAceiteTermos}
                       className="flex-1 rounded-xl bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-2.5 text-sm hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {depositoLoading ? "Gerando PIX..." : "Depositar"}
+                      {depositoLoading ? "Gerando PIX..." : "Gerar PIX da recarga"}
                     </button>
                   </div>
                 </div>
@@ -1741,17 +1849,19 @@ export default function SellerDashboardPage() {
 
         {/* Modal PIX Mensalidade */}
         {modalPixMensalidade && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-fade-in-up">
-            <div className="w-full max-w-sm rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-2xl overflow-hidden animate-fade-in-up animate-fade-in-up-delay-1">
-              <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[var(--card-border)]">
+          <div className={cn(MODAL_OVERLAY_CLASS, "animate-fade-in-up")}>
+            <div className={cn(MODAL_PANEL_CLASS, "animate-fade-in-up animate-fade-in-up-delay-1")}>
+              <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[var(--card-border)] shrink-0">
                 <h2 className="text-sm font-semibold text-[var(--foreground)]">Pagar mensalidade</h2>
                 <button onClick={fecharModalPix} className="p-1 -m-1 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors rounded">
                   <IconX className="w-5 h-5" />
                 </button>
               </div>
-              <div className="p-5 space-y-4">
+              <div className={cn("p-5 space-y-4", MODAL_PANEL_BODY_CLASS)}>
+                <SellerPixRecargaVsMensalidadeBox variant="mensalidade" />
                 <p className="text-sm text-[var(--muted)]">
-                  Valor: <strong className="text-[var(--foreground)]">{BRL.format(modalPixMensalidade.valor)}</strong>
+                  Valor da <strong className="text-[var(--foreground)]">mensalidade do plano</strong>:{" "}
+                  <strong className="text-[var(--foreground)] tabular-nums">{BRL.format(modalPixMensalidade.valor)}</strong>
                 </p>
                 {pixErro && (
                   <p className={cn("text-xs rounded-xl px-3 py-2", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>{pixErro}</p>
@@ -1956,7 +2066,6 @@ export default function SellerDashboardPage() {
       )}
 
       <SellerNav active="dashboard" />
-      <NotificationToasts />
     </div>
   );
 }

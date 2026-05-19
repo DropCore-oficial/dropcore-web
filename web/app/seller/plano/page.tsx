@@ -37,7 +37,7 @@ const FEATURES_START = [
   "Resumo financeiro e extrato de movimentações",
   "Gráfico de volume por dia",
   "Operação com armazém (fornecedor) vinculado",
-  "Até 15 SKUs habilitados no catálogo para concretizar vendas",
+  "Até 15 cores (produto + cor) habilitadas no catálogo para concretizar vendas no plano Start",
   "Pedidos com SKU do catálogo obrigatório no plano Start",
 ] as const;
 
@@ -393,8 +393,8 @@ export default function SellerPlanoPage() {
       </div>
 
       {modalUpgrade && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-md sm:items-center">
-          <div className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-md sm:p-6">
+          <div className="max-h-[min(90dvh,calc(100vh-2rem))] w-full max-w-sm overflow-y-auto rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-2xl">
             <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 pb-4 pt-5">
               <h2 className="text-sm font-semibold text-[var(--foreground)]">Upgrade para Pro — PIX</h2>
               <button

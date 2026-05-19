@@ -6,7 +6,16 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  filterNotificationsForContext,
+  type NotificationPortalContext,
+} from "@/lib/notificationContextFilter";
 import { syncMensalidadeNotifications } from "@/lib/syncMensalidadeNotifications";
+
+function parseNotificationContext(raw: string | null): NotificationPortalContext | null {
+  if (raw === "admin" || raw === "seller" || raw === "fornecedor") return raw;
+  return null;
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +43,7 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const markRead = searchParams.get("mark_read") === "1";
+    const portalContext = parseNotificationContext(searchParams.get("context"));
 
     const { data: rows } = await supabaseAdmin
       .from("notifications")
@@ -65,6 +75,10 @@ export async function GET(req: Request) {
         return n;
       });
     }
+    if (portalContext) {
+      items = filterNotificationsForContext(items, portalContext);
+    }
+
     if (markRead && items.some((n) => !n.lido)) {
       const ids = items.filter((n) => !n.lido).map((n) => n.id);
       await supabaseAdmin.from("notifications").update({ lido: true }).in("id", ids).eq("user_id", userId);

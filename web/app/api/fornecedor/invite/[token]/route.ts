@@ -9,7 +9,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { addPortalTrialIso } from "@/lib/portalTrial";
+import { applyPortalTrialFromInviteForFornecedor } from "@/lib/applyPortalTrialFromInvite";
+import { ensureMensalidadeDiaVencimentoSeNull } from "@/lib/ensureMensalidadeDiaVencimento";
 
 function isEmailAlreadyRegisteredError(msg: string): boolean {
   const m = msg.toLowerCase();
@@ -53,14 +54,29 @@ type Params = { params: Promise<{ token: string }> };
 async function resolveInvite(token: string) {
   const { data, error } = await supabaseAdmin
     .from("fornecedor_invites")
-    .select("id, org_id, fornecedor_id, usado, expira_em")
+    .select("id, org_id, fornecedor_id, usado, expira_em, portal_trial_dias")
     .eq("token", token)
     .maybeSingle();
 
   if (error || !data) return { error: "Convite não encontrado.", invite: null };
   if (data.usado) return { error: "Este convite já foi utilizado.", invite: null };
   if (new Date(data.expira_em) < new Date()) return { error: "Este convite expirou.", invite: null };
-  return { error: null, invite: data };
+  const portal_trial_dias =
+    typeof (data as { portal_trial_dias?: unknown }).portal_trial_dias === "number" &&
+    Number.isFinite((data as { portal_trial_dias: number }).portal_trial_dias)
+      ? Math.min(365, Math.max(0, Math.floor((data as { portal_trial_dias: number }).portal_trial_dias)))
+      : 7;
+  return {
+    error: null,
+    invite: {
+      id: data.id,
+      org_id: data.org_id,
+      fornecedor_id: data.fornecedor_id,
+      usado: data.usado,
+      expira_em: data.expira_em,
+      portal_trial_dias,
+    },
+  };
 }
 
 export async function GET(_req: Request, { params }: Params) {
@@ -81,6 +97,7 @@ export async function GET(_req: Request, { params }: Params) {
       ok: true,
       fornecedor_nome: forn?.nome ?? "—",
       expira_em: invite.expira_em,
+      portal_trial_dias: invite.portal_trial_dias,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
@@ -205,17 +222,9 @@ export async function POST(req: Request, { params }: Params) {
       }
     }
 
-    const { data: trialForn } = await supabaseAdmin
-      .from("fornecedores")
-      .select("trial_valido_ate")
-      .eq("id", invite.fornecedor_id)
-      .maybeSingle();
-    if (!(trialForn as { trial_valido_ate?: string | null } | null)?.trial_valido_ate) {
-      await supabaseAdmin
-        .from("fornecedores")
-        .update({ trial_valido_ate: addPortalTrialIso() })
-        .eq("id", invite.fornecedor_id);
-    }
+    await applyPortalTrialFromInviteForFornecedor(supabaseAdmin, invite.fornecedor_id, invite.portal_trial_dias);
+
+    await ensureMensalidadeDiaVencimentoSeNull(supabaseAdmin, "fornecedor", invite.fornecedor_id);
 
     await supabaseAdmin
       .from("fornecedor_invites")

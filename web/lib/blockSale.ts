@@ -3,6 +3,7 @@
  * Usada por POST /api/org/financial/block-sale e POST /api/org/pedidos.
  */
 import { supabaseAdmin } from "./supabaseAdmin";
+import { consumirSellerCreditLots } from "./sellerCreditLots";
 
 function toNum(v: unknown): number {
   if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -90,6 +91,8 @@ export async function executeBlockSale(input: BlockSaleInput): Promise<BlockSale
   if (insertErr) {
     return { ok: false, code: "ERRO_LEDGER", message: insertErr.message };
   }
+
+  await consumirSellerCreditLots(input.seller_id, valor_total);
 
   return {
     ok: true,

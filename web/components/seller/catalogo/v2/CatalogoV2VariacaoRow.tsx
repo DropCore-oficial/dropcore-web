@@ -6,6 +6,7 @@ import { skuContaLimiteHabilitacaoSeller } from "@/lib/sellerSkuHabilitado";
 import { skuReadinessLabelsFalha } from "@/lib/sellerSkuReadiness";
 import type { LinhaCatalogoV2 } from "./aggregates";
 import { catalogoV2UrlImagem } from "./catalogoV2Imagem";
+import { cn } from "@/lib/utils";
 
 type Props = {
   linha: LinhaCatalogoV2;
@@ -74,12 +75,9 @@ function VendaSwitch({
   /** Dica nativa do botão (quando não está no estado “cadastro incompleto”). */
   hintTitle?: string;
 }) {
-  const track =
-    saleTone === "stale"
-      ? "bg-[#c7c9c2] ring-1 ring-[#b8baae]/45 dark:bg-[#666a63] dark:ring-[#7b8077]/40"
-      : habilitado
-        ? "bg-[#0f8b66] ring-1 ring-[#0f8b66]/25 dark:bg-[#16956f] dark:ring-[#16956f]/30"
-        : "bg-[#dfe3e8] ring-1 ring-black/[0.05] dark:bg-[#3f4652] dark:ring-white/[0.08]";
+  const track = !habilitado
+    ? "bg-[#dfe3e8] ring-1 ring-black/[0.05] dark:bg-[#3f4652] dark:ring-white/[0.08]"
+    : "bg-emerald-600 ring-1 ring-emerald-500/30 dark:bg-emerald-500 dark:ring-emerald-400/35";
   return (
     <button
       type="button"
@@ -121,11 +119,11 @@ export function CatalogoV2CorGrupoApiToggle({
   /** Impede ligar na API (ex.: sem armazém gravado); desligar continua permitido quando todas as elegíveis já estão on. */
   bloqueioLigarMotivo?: string | null;
 }) {
-  const elegiveisLigar = linhas.filter(
-    (l) => skuContaLimiteHabilitacaoSeller(l.sku) && l.ativo && l.prontoParaVender,
-  );
+  const elegiveisLigar = linhas.filter((l) => skuContaLimiteHabilitacaoSeller(l.sku) && l.ativo);
+  const habilitadosNaCor = elegiveisLigar.filter((l) => l.habilitado);
   const todosHabilitadosNaCor =
     elegiveisLigar.length > 0 && elegiveisLigar.every((l) => l.habilitado);
+  const algumHabilitadoNaCor = habilitadosNaCor.length > 0;
   const podeDesligarAlgum = linhas.some((l) => l.habilitado);
   const podeLigarAlgum = elegiveisLigar.some((l) => !l.habilitado);
   const bloqueadoSohLigar = Boolean((bloqueioLigarMotivo ?? "").trim()) && podeLigarAlgum;
@@ -133,10 +131,12 @@ export function CatalogoV2CorGrupoApiToggle({
 
   const comHabilitado = linhas.filter((l) => l.habilitado);
   const saleTone: "ok" | "stale" | "off" =
-    comHabilitado.length === 0 ? "off" : comHabilitado.some((l) => !l.prontoParaVender) ? "stale" : "ok";
+    !algumHabilitadoNaCor ? "off" : comHabilitado.some((l) => !l.prontoParaVender) ? "stale" : "ok";
 
   const dicaToggle =
-    "Liga ou desliga todas as numerações desta cor no catálogo da DropCore (venda na API).";
+    elegiveisLigar.length === 0
+      ? "Nenhuma variação ativa nesta cor para ligar na API."
+      : "Liga ou desliga todas as numerações desta cor na API DropCore (pendências no cadastro não impedem ligar).";
   const motivo = (bloqueioLigarMotivo ?? "").trim();
   const ariaVendaGrupo = busy
     ? "Atualizando venda na API…"
@@ -153,33 +153,66 @@ export function CatalogoV2CorGrupoApiToggle({
 
   return (
     <div className="inline-flex shrink-0 max-w-full items-center gap-1.5 sm:gap-2" title={titleWrapper}>
-      <span className="select-none text-[10px] font-medium leading-tight text-[var(--muted)] sm:text-[11px]">
+      <span
+        className={cn(
+          "select-none text-[10px] font-medium leading-tight sm:text-[11px]",
+          algumHabilitadoNaCor ? "text-emerald-700 dark:text-emerald-400" : "text-[var(--muted)]",
+        )}
+      >
         Venda na API
+        {algumHabilitadoNaCor && !todosHabilitadosNaCor ? (
+          <span className="ml-1 tabular-nums text-[9px] font-semibold opacity-90">
+            ({habilitadosNaCor.length}/{elegiveisLigar.length})
+          </span>
+        ) : null}
       </span>
       <VendaSwitch
-        habilitado={todosHabilitadosNaCor}
+        habilitado={algumHabilitadoNaCor}
         disabled={disabled}
         busy={busy}
         saleTone={saleTone}
         onToggle={onToggleGrupo}
         ariaLabel={ariaVendaGrupo}
-        hintTitle={hintSwitch}
+        hintTitle={
+          algumHabilitadoNaCor && !todosHabilitadosNaCor
+            ? `${habilitadosNaCor.length}/${elegiveisLigar.length} numerações ligadas na API. Toque para ${podeLigarAlgum ? "ligar o restante ou desligar todas" : "desligar todas"}.`
+            : hintSwitch
+        }
       />
     </div>
   );
 }
 
 /** Mesma regra do card completo — use onde o switch da API ERP fica fora do `CatalogoV2VariacaoRow`. */
-export function CatalogoV2VariacaoApiToggle({ linha, onToggleOne, busy }: Props) {
+export function CatalogoV2VariacaoApiToggle({
+  linha,
+  onToggleOne,
+  busy,
+  bloqueioLigarMotivo,
+}: Props & { bloqueioLigarMotivo?: string | null }) {
   const { item } = linha;
   const ativo = linha.ativo;
   const pronto = linha.prontoParaVender;
   const habilitado = linha.habilitado;
   const contaLimite = skuContaLimiteHabilitacaoSeller(linha.sku);
-  const podeLigar = Boolean(contaLimite && ativo && pronto);
-  const switchDisabled = busy || !ativo || (!habilitado && !podeLigar);
+  const podeLigar = Boolean(contaLimite && ativo);
+  const motivoBloqueio = (bloqueioLigarMotivo ?? "").trim();
+  const bloqueadoArmazem = Boolean(motivoBloqueio) && !habilitado;
+  const switchDisabled = busy || !ativo || !contaLimite || bloqueadoArmazem || (!habilitado && !podeLigar);
   const saleTone: "ok" | "stale" | "off" =
     !habilitado ? "off" : habilitado && !pronto ? "stale" : "ok";
+  const falhas = ativo && !pronto ? skuReadinessLabelsFalha(item) : [];
+  const hintTitle = bloqueadoArmazem
+    ? motivoBloqueio
+    : !ativo
+      ? "Variação inativa no cadastro do fornecedor."
+      : !contaLimite
+        ? "SKU de sistema — não precisa habilitar na lista."
+        : habilitado && falhas.length > 0
+          ? `Ligado na API, mas o fornecedor ainda deve completar: ${falhas.join(", ")}.`
+          : !habilitado && falhas.length > 0
+            ? `Pode ligar na API. Pendências no cadastro (fornecedor): ${falhas.join(", ")}.`
+            : "Liga ou desliga a venda deste SKU na API DropCore.";
   return (
     <VendaSwitch
       habilitado={habilitado}
@@ -187,6 +220,8 @@ export function CatalogoV2VariacaoApiToggle({ linha, onToggleOne, busy }: Props)
       disabled={switchDisabled}
       saleTone={saleTone}
       onToggle={() => onToggleOne(item, !habilitado)}
+      hintTitle={hintTitle}
+      ariaLabel={hintTitle}
     />
   );
 }

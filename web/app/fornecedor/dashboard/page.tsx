@@ -4,8 +4,9 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
+import { FornecedorPortalBlockedShell } from "@/components/fornecedor/FornecedorPortalBlockedShell";
+import { useMensalidadeBloqueio } from "@/lib/mensalidadeBloqueioContext";
 import { FornecedorNav } from "../FornecedorNav";
-import { NotificationToasts } from "@/components/NotificationToasts";
 import { IconArrowRight, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
 import { AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
@@ -84,6 +85,7 @@ const statusLabel: Record<string, { label: string; cor: string }> = {
 
 export default function FornecedorDashboardPage() {
   const router = useRouter();
+  const { portalBloqueado, verificando } = useMensalidadeBloqueio();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fornecedor, setFornecedor] = useState<FornecedorData | null>(null);
@@ -135,8 +137,8 @@ export default function FornecedorDashboardPage() {
   const totalRepasseFuturo = repasseFuturos.reduce((acc, item) => acc + Number(item.valor_previsto || 0), 0);
   const proxRepasseFuturo = repasseFuturos[0] ?? null;
 
-  async function load() {
-    setLoading(true);
+  async function load(opts?: { silent?: boolean }) {
+    if (!opts?.silent) setLoading(true);
     setError(null);
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
@@ -146,11 +148,10 @@ export default function FornecedorDashboardPage() {
       }
       const headers = { Authorization: `Bearer ${session.access_token}` };
 
-      const [meRes, repRes, statsRes, mensRes] = await Promise.all([
+      const [meRes, repRes, statsRes] = await Promise.all([
         fetch("/api/fornecedor/me", { headers, cache: "no-store" }),
         fetch("/api/fornecedor/repasse-list?include_preview=1", { headers, cache: "no-store" }),
         fetch("/api/fornecedor/dashboard-stats", { headers, cache: "no-store" }),
-        fetch("/api/fornecedor/mensalidades", { headers, cache: "no-store" }),
       ]);
 
       if (!meRes.ok) {
@@ -186,33 +187,10 @@ export default function FornecedorDashboardPage() {
       } else {
         setStats(null);
       }
-      if (mensRes.ok) {
-        const mensJson = await mensRes.json();
-        setMensalidades(mensJson.items ?? []);
-        setTrialAtivo(!!mensJson.trial_ativo);
-        setTrialValidoAte(mensJson.trial_valido_ate ?? null);
-      } else {
-        setMensalidades([]);
-        setTrialAtivo(false);
-        setTrialValidoAte(null);
-      }
-
-      const modo = chartMode;
-      const periodParam = typeof chartPeriodo === "string" ? chartPeriodo : String(chartPeriodo);
-      const desempenhoRes = await fetch(
-        `/api/fornecedor/desempenho?modo=${modo}&periodo=${encodeURIComponent(periodParam)}`,
-        { headers, cache: "no-store" }
-      );
-      if (desempenhoRes.ok) {
-        const dJson = await desempenhoRes.json();
-        setDesempenho(dJson);
-      } else {
-        setDesempenho(null);
-      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }
 
@@ -235,12 +213,19 @@ export default function FornecedorDashboardPage() {
   }
 
   useEffect(() => {
+    if (verificando) return;
+    if (portalBloqueado) {
+      setLoading(false);
+      return;
+    }
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [portalBloqueado, verificando]);
 
   useEffect(() => {
-    if (!loading) loadDesempenho();
-  }, [chartMode, chartPeriodo, loading]);
+    if (portalBloqueado || verificando || loading) return;
+    loadDesempenho();
+  }, [chartMode, chartPeriodo, portalBloqueado, verificando, loading]);
 
   useEffect(() => {
     const pagar = searchParams.get("pagar");
@@ -257,10 +242,31 @@ export default function FornecedorDashboardPage() {
   }, [searchParams.get("pagar"), mensalidades.length, loading, cobrancaMensalidadeAtiva]);
 
   useEffect(() => {
-    if (!temMensalidadeVencida || !cobrancaMensalidadeAtiva) return;
-    const id = setInterval(load, 10000);
+    if (portalBloqueado || verificando) return;
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token || cancelled) return;
+      const res = await fetch("/api/fornecedor/mensalidades", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: "no-store",
+      });
+      if (!res.ok || cancelled) return;
+      const mensJson = await res.json();
+      setMensalidades(mensJson.items ?? []);
+      setTrialAtivo(!!mensJson.trial_ativo);
+      setTrialValidoAte(mensJson.trial_valido_ate ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [portalBloqueado, verificando]);
+
+  useEffect(() => {
+    if (portalBloqueado || verificando || !temMensalidadeVencida || !cobrancaMensalidadeAtiva) return;
+    const id = setInterval(() => void load({ silent: true }), 60_000);
     return () => clearInterval(id);
-  }, [temMensalidadeVencida, cobrancaMensalidadeAtiva]);
+  }, [portalBloqueado, verificando, temMensalidadeVencida, cobrancaMensalidadeAtiva]);
 
   useEffect(() => {
     if (!pixExpiraEm || !pixQrCode) return;
@@ -360,6 +366,10 @@ export default function FornecedorDashboardPage() {
     month: "long",
   });
 
+  if (portalBloqueado) {
+    return <FornecedorPortalBlockedShell />;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
@@ -380,7 +390,7 @@ export default function FornecedorDashboardPage() {
           </div>
           <p className="text-red-700 dark:text-red-300 font-semibold mb-2">Ocorreu um erro</p>
           <p className="text-[var(--muted)] text-sm mb-6">{error}</p>
-          <button onClick={load} className="rounded-xl bg-neutral-700 text-white dark:bg-neutral-600 dark:hover:bg-neutral-500 px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity">
+          <button onClick={() => void load()} className="rounded-xl bg-neutral-700 text-white dark:bg-neutral-600 dark:hover:bg-neutral-500 px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity">
             Tentar novamente
           </button>
         </div>
@@ -870,7 +880,7 @@ export default function FornecedorDashboardPage() {
               <p className="text-xs text-[var(--muted)]">Histórico por ciclo e status de pagamento</p>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={load} className="rounded-lg border border-[var(--card-border)] px-2.5 py-1.5 text-xs text-[var(--muted)] hover:bg-[var(--background)]">
+              <button onClick={() => void load()} className="rounded-lg border border-[var(--card-border)] px-2.5 py-1.5 text-xs text-[var(--muted)] hover:bg-[var(--background)]">
                 Atualizar
               </button>
               <button
@@ -950,7 +960,7 @@ export default function FornecedorDashboardPage() {
 
       {/* Modal PIX Mensalidade */}
       {modalPixMensalidade && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-fade-in-up">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-fade-in-up">
           <div className="w-full max-w-sm rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-2xl overflow-hidden animate-fade-in-up animate-fade-in-up-delay-1">
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[var(--card-border)]">
               <h2 className="text-sm font-semibold text-[var(--foreground)]">Pagar mensalidade</h2>
@@ -1016,7 +1026,6 @@ export default function FornecedorDashboardPage() {
       )}
 
       <FornecedorNav active="dashboard" />
-      <NotificationToasts />
     </div>
   );
 }

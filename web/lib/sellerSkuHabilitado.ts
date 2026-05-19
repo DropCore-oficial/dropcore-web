@@ -1,35 +1,69 @@
 /**
- * Plano Start: até 15 SKUs escolhidos em seller_skus_habilitados para concretizar venda.
- * Plano Pro: sem essa lista. SKUs com prefixo PREFIXO_SKU_SISTEMA não precisam estar na lista.
+ * Plano Start: até 15 combinações **produto (grupo) + cor** com ao menos uma variação
+ * em `seller_skus_habilitados`. Numerações da mesma cor não aumentam o contador.
+ * Plano Pro: sem esse teto. SKUs com prefixo PREFIXO_SKU_SISTEMA não entram no limite.
  */
 import { PREFIXO_SKU_SISTEMA } from "@/lib/planos";
 
 export const MSG_SKU_NAO_HABILITADO_PLANO_STARTER =
-  "SKU não habilitado no seu plano; ative no catálogo até 15. Ou faça upgrade para Pro e libere mais limites.";
+  "Esta variação não está habilitada no seu plano; ative a cor no catálogo (até 15 produto+cor no Start). Ou faça upgrade para Pro.";
 
 export const MSG_STARTER_PEDIDO_SEM_SKU =
-  "No plano Start é obrigatório vincular o pedido a um SKU (catálogo habilitado). Ou faça upgrade para o plano Pro e libere mais limites.";
+  "No plano Start é obrigatório vincular o pedido a variações do catálogo habilitado. Ou faça upgrade para o plano Pro.";
 
-const MAX_SKUS_HABILITADOS_STARTER = 15;
+const MAX_CORES_HABILITADAS_STARTER = 15;
+
+/** Legado / APIs: mesmo valor numérico do teto Start. */
+export const MAX_SKUS_HABILITADOS_STARTER = MAX_CORES_HABILITADAS_STARTER;
 
 export function isSellerPlanoPro(plano: string | null | undefined): boolean {
   return String(plano ?? "").trim().toLowerCase() === "pro";
 }
 
-/** Se false, o SKU não conta no limite de 15 habilitados e não exige linha em seller_skus_habilitados para vender (plano Start). */
+/** Se false, o SKU não conta no limite e não exige linha em seller_skus_habilitados para vender (plano Start). */
 export function skuContaLimiteHabilitacaoSeller(codigoSku: string | null | undefined): boolean {
   const s = String(codigoSku ?? "").trim().toUpperCase();
   return !s.startsWith(PREFIXO_SKU_SISTEMA.toUpperCase());
 }
 
+/** Pai do grupo a partir do código SKU (últimos 3 dígitos → 000). */
+export function paiKeySkuHabilitacao(sku: string | null | undefined): string {
+  const s = String(sku ?? "").trim();
+  return s.length >= 3 ? s.slice(0, -3) + "000" : s;
+}
+
+/**
+ * Identificador único para o teto Start: um produto (grupo) + uma cor.
+ * Só aplica quando o SKU entra no limite (`skuContaLimiteHabilitacaoSeller`).
+ */
+export function corHabilitacaoKey(sku: string | null | undefined, cor: string | null | undefined): string | null {
+  if (!skuContaLimiteHabilitacaoSeller(sku)) return null;
+  const pai = paiKeySkuHabilitacao(sku);
+  const c = String(cor ?? "").trim().toUpperCase();
+  return `${pai}::${c}`;
+}
+
+type HabilitadoJoinRow = { skus?: { sku?: string | null; cor?: string | null } | null };
+
+function collectCorKeysFromHabilitadosRows(rows: HabilitadoJoinRow[] | null | undefined): Set<string> {
+  const keys = new Set<string>();
+  for (const row of rows ?? []) {
+    const sk = row?.skus;
+    if (!sk) continue;
+    const k = corHabilitacaoKey(sk.sku ?? null, sk.cor ?? null);
+    if (k) keys.add(k);
+  }
+  return keys;
+}
+
 export async function countHabilitadosQueContamNoLimite(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
-  sellerId: string
+  sellerId: string,
 ): Promise<{ count: number; error?: string }> {
   const { data, error } = await supabase
     .from("seller_skus_habilitados")
-    .select("sku_id, skus(sku)")
+    .select("sku_id, skus(sku, cor)")
     .eq("seller_id", sellerId);
 
   if (error) {
@@ -40,12 +74,7 @@ export async function countHabilitadosQueContamNoLimite(
     return { count: 0, error: msg };
   }
 
-  let count = 0;
-  for (const row of data ?? []) {
-    const code = String((row as { skus?: { sku?: string | null } | null }).skus?.sku ?? "");
-    if (skuContaLimiteHabilitacaoSeller(code)) count++;
-  }
-  return { count };
+  return { count: collectCorKeysFromHabilitadosRows((data ?? []) as HabilitadoJoinRow[]).size };
 }
 
 export type SkuRefParaVenda = { id: string; sku: string };
@@ -53,7 +82,7 @@ export type SkuRefParaVenda = { id: string; sku: string };
 export async function assertSellerPodeVenderSkus(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
-  params: { sellerId: string; sellerPlano: string | null | undefined; skus: SkuRefParaVenda[] }
+  params: { sellerId: string; sellerPlano: string | null | undefined; skus: SkuRefParaVenda[] },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (isSellerPlanoPro(params.sellerPlano)) return { ok: true };
 
@@ -104,20 +133,20 @@ export async function assertPodeRegistrarHabilitacao(
     orgId: string;
     fornecedorId: string | null | undefined;
     skuId: string;
-  }
+  },
 ): Promise<{ ok: true } | { ok: false; error: string; status?: number }> {
   if (!params.fornecedorId) {
     return {
       ok: false,
       error:
-        "Escolha e salve o seu fornecedor (armazém) no catálogo ou na Calculadora antes de marcar SKUs para vender.",
+        "Escolha e salve o seu fornecedor (armazém) no catálogo ou na Calculadora antes de marcar variações para vender na API.",
       status: 400,
     };
   }
 
   const { data: skuRow, error: skuErr } = await supabase
     .from("skus")
-    .select("id, sku, org_id, fornecedor_id, status")
+    .select("id, sku, cor, org_id, fornecedor_id, status")
     .eq("id", params.skuId)
     .maybeSingle();
 
@@ -141,12 +170,36 @@ export async function assertPodeRegistrarHabilitacao(
 
   if (isSellerPlanoPro(params.sellerPlano)) return { ok: true };
 
-  const { count, error: cntErr } = await countHabilitadosQueContamNoLimite(supabase, params.sellerId);
-  if (cntErr) return { ok: false, error: cntErr };
-  if (count >= MAX_SKUS_HABILITADOS_STARTER) {
+  const novaChave = corHabilitacaoKey(skuRow.sku, skuRow.cor);
+  if (!novaChave) {
+    return { ok: true };
+  }
+
+  const { data: habData, error: habErr } = await supabase
+    .from("seller_skus_habilitados")
+    .select("sku_id, skus(sku, cor)")
+    .eq("seller_id", params.sellerId);
+
+  if (habErr) {
+    const msg = String(habErr.message ?? "");
+    if (msg.includes("does not exist") || habErr.code === "42P01") {
+      return {
+        ok: false,
+        error: "Tabela seller_skus_habilitados inexistente. Execute o script create-seller-skus-habilitados.sql no Supabase.",
+        status: 503,
+      };
+    }
+    return { ok: false, error: msg };
+  }
+
+  const chavesExistentes = collectCorKeysFromHabilitadosRows((habData ?? []) as HabilitadoJoinRow[]);
+  if (chavesExistentes.has(novaChave)) {
+    return { ok: true };
+  }
+  if (chavesExistentes.size >= MAX_CORES_HABILITADAS_STARTER) {
     return {
       ok: false,
-      error: `Você já tem ${MAX_SKUS_HABILITADOS_STARTER} SKUs habilitados. Remova um no catálogo ou faça upgrade para o plano Pro.`,
+      error: `No plano Start você já tem ${MAX_CORES_HABILITADAS_STARTER} cores habilitadas (produto + cor). Desligue uma cor no catálogo ou faça upgrade para Pro.`,
       status: 403,
     };
   }
