@@ -1140,11 +1140,10 @@ export default function SellerCalculadoraPage() {
   const calcOnlyLite = calcAccess === "calc_only" || calcAccess === "calc_only_locked";
   const usoBloqueadoCalc = calcAccess === "calc_only_locked";
   const podeRenovarPix = usoBloqueadoCalc;
-  /** Abaixo de xl: empilhado com form estreito; xl+: form à esquerda e resultado à direita. */
-  const calcMainStack =
-    "flex w-full min-w-0 flex-col gap-5 sm:gap-6 xl:flex-row xl:items-start xl:gap-8";
-  const calcFormSectionClass = "w-full min-w-0 mx-auto max-w-xl space-y-4 xl:mx-0 xl:max-w-[30rem] xl:shrink-0";
-  const calcResultSectionClass = "flex w-full min-w-0 flex-col gap-3 xl:min-w-0 xl:flex-1 [&>*]:w-full";
+  /** Mesma coluna e ritmo vertical do dashboard seller (dropcore-shell-4xl). */
+  const calcMainStack = "flex w-full min-w-0 flex-col gap-5 md:gap-6";
+  const calcFormSectionClass = "w-full min-w-0 space-y-4";
+  const calcResultSectionClass = "flex w-full min-w-0 flex-col gap-3 [&>*]:w-full";
   const calcVariantesGridCols = "grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4";
 
   const tituloBloqueioCalc = "Renovar acesso da calculadora";
@@ -1163,8 +1162,7 @@ export default function SellerCalculadoraPage() {
           : "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
       }
     >
-      <div className="dropcore-shell-calc py-4 sm:py-6 lg:py-8">
-        <div className="flex w-full min-w-0 max-w-full flex-col gap-5 sm:gap-6">
+      <div className="dropcore-shell-4xl py-5 md:py-7 space-y-5 md:space-y-6">
             <SellerPageHeader
               surface="hero"
               className="mb-0 sm:mb-0"
@@ -2433,7 +2431,6 @@ export default function SellerCalculadoraPage() {
           </div>
         ) : null}
           </div>
-        </div>
       </div>
       <SellerNav active="calculadora" calcOnly={calcOnlyLite} />
     </div>
