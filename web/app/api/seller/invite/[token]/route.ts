@@ -7,7 +7,10 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { applyPortalTrialFromInviteForSeller } from "@/lib/applyPortalTrialFromInvite";
 import { cadastroSellerDocumentoPendente, planoSellerDefinido, sellerCadastroPendente } from "@/lib/sellerDocumento";
-import { resolveSellerInvite } from "@/lib/sellerInviteToken";
+import {
+  resolveSellerInvite,
+  resolveSellerInviteConsumedWithAccount,
+} from "@/lib/sellerInviteToken";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +22,14 @@ export async function GET(_req: Request, { params }: Params) {
     const { token } = await params;
     const { error, invite } = await resolveSellerInvite(token);
     if (error || !invite) {
+      const consumed = await resolveSellerInviteConsumedWithAccount(token);
+      if (consumed) {
+        return NextResponse.json({
+          ok: true,
+          conta_ja_ativa: true,
+          seller_nome: consumed.seller_nome,
+        });
+      }
       return NextResponse.json({ error }, { status: 400 });
     }
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { cn } from "@/lib/utils";
 import {
@@ -14,15 +14,22 @@ import {
   authPrimaryButtonClass,
 } from "@/components/DropcoreAuthShell";
 import { Button } from "@/components/ui";
+import { goToSellerAfterAuth } from "@/lib/sellerPostAuthRedirect";
 
 export default function SellerLoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [esqueciSenha, setEsqueciSenha] = useState(false);
   const [resetEnviado, setResetEnviado] = useState(false);
+
+  useEffect(() => {
+    const fromUrl = searchParams.get("email")?.trim();
+    if (fromUrl) setEmail(fromUrl);
+  }, [searchParams]);
 
   async function solicitarReset() {
     setError(null);
@@ -84,7 +91,7 @@ export default function SellerLoginPage() {
             "Acesso não autorizado neste painel. Se você é administrador da organização, use o login em /login.",
         );
       }
-      router.replace("/seller/dashboard");
+      await goToSellerAfterAuth(router);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro ao fazer login.");
     } finally {

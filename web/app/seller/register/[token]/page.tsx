@@ -7,6 +7,7 @@ import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_BODY, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
+import { goToSellerAfterAuth, goToSellerLogin } from "@/lib/sellerPostAuthRedirect";
 
 export default function SellerRegisterPage() {
   const { token } = useParams<{ token: string }>();
@@ -27,11 +28,29 @@ export default function SellerRegisterPage() {
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [portalTrialDiasConvite, setPortalTrialDiasConvite] = useState<number | null>(null);
   const [needsLink, setNeedsLink] = useState(false);
+  const [contaJaAtiva, setContaJaAtiva] = useState(false);
 
   useEffect(() => {
     fetch(`/api/seller/invite/${token}`)
       .then((r) => r.json())
-      .then((j) => {
+      .then(async (j) => {
+        if (j?.ok && j.conta_ja_ativa) {
+          setContaJaAtiva(true);
+          setSellerNome(j.seller_nome ?? null);
+          const { data: { session } } = await supabaseBrowser.auth.getSession();
+          if (session?.access_token) {
+            const me = await fetch("/api/seller/me", {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+              cache: "no-store",
+            });
+            if (me.ok) {
+              await afterAuthRedirect();
+              return;
+            }
+          }
+          goToSellerLogin();
+          return;
+        }
         if (j?.ok) {
           setSellerNome(j.seller_nome);
           setConviteDadosPendente(!!j.cadastro_dados_pendente);
@@ -44,19 +63,7 @@ export default function SellerRegisterPage() {
   }, [token]);
 
   async function afterAuthRedirect() {
-    const { data: { session } } = await supabaseBrowser.auth.getSession();
-    if (session?.access_token) {
-      const r = await fetch("/api/seller/cadastro", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        cache: "no-store",
-      });
-      const cj = await r.json();
-      if (r.ok && cj.cadastro_dados_pendente) {
-        router.replace("/seller/cadastro");
-        return;
-      }
-    }
-    router.replace("/seller/dashboard");
+    await goToSellerAfterAuth(router);
   }
 
   async function vincularContaExistente() {
@@ -139,7 +146,7 @@ export default function SellerRegisterPage() {
         password: senha,
       });
       if (loginErr) {
-        setSucesso(true);
+        goToSellerLogin(email.trim());
         return;
       }
       await afterAuthRedirect();
@@ -154,6 +161,29 @@ export default function SellerRegisterPage() {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
         <p className="text-[var(--muted)] text-sm">Validando convite...</p>
+      </div>
+    );
+  }
+
+  if (contaJaAtiva) {
+    return (
+      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
+        <div className="rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent)]/10 p-8 max-w-sm w-full text-center shadow-sm">
+          <div className="text-[var(--accent)] font-semibold text-lg mb-2">Conta já ativada</div>
+          <p className="text-[var(--accent)]/90 text-sm mb-2 leading-relaxed">
+            O convite de <strong>{sellerNome ?? "seller"}</strong> já foi usado e sua conta está pronta.
+          </p>
+          <p className="text-[var(--muted)] text-xs mb-6">
+            Use o e-mail e a senha que você definiu no cadastro para entrar no painel.
+          </p>
+          <button
+            type="button"
+            onClick={() => router.replace("/seller/login")}
+            className="w-full rounded-xl bg-[var(--accent)] hover:opacity-90 text-white font-medium py-2.5 transition"
+          >
+            Ir para o login do seller
+          </button>
+        </div>
       </div>
     );
   }

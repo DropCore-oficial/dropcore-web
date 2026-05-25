@@ -78,12 +78,20 @@ Go-live Olist / Tiny (pedidos + etiqueta PDF)
    tracking_codigo e metodo_envio em public.pedidos. Sem etiqueta_pdf_base64 o
    import Olist até roda, mas o anexo automático da etiqueta vira só aviso no log.
 
-2) Vercel — variável obrigatória para o cron de sync:
+2) Crons — Supabase (pg_cron), NÃO na Vercel (evita plano/custo extra de Cron Jobs)
 
-   CRON_SECRET  (valor forte; o mesmo que a Vercel usa em Authorization: Bearer …
-   nas chamadas agendadas a /api/cron/olist-sync)
+   Rode no SQL Editor: web/scripts/supabase-cron-jobs.sql
 
-   Sem CRON_SECRET o endpoint de cron responde 401 e o sync diário não roda.
+   a) Habilite extensões: pg_cron, pg_net, Vault (supabase_vault)
+   b) Crie o secret no Vault (descomente vault.create_secret no script) com o MESMO
+      valor que CRON_SECRET na Vercel (as rotas /api/cron/* validam Bearer)
+   c) Jobs agendados (UTC): olist-sync a cada 1 min (* * * * *), mensalidades-mes 9h,
+      creditos-expiracao 10h. Re-rode o script se já tinha agendado olist só 1x/dia.
+
+   Vercel → dropcore-web → CRON_SECRET continua obrigatório (Supabase chama a URL
+   de produção com esse Bearer). Sem secret, cron responde 401.
+
+   O vercel.json NÃO define crons — só hospedagem do Next.js.
 
 3) Olist — URL do webhook (cadastro no painel Tiny/Olist):
 

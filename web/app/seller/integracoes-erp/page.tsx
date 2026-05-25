@@ -35,7 +35,6 @@ export default function SellerIntegracoesErpPage() {
   const [olistWebhookCnpjReady, setOlistWebhookCnpjReady] = useState(false);
   const [olistTokenInput, setOlistTokenInput] = useState("");
   const [olistSaving, setOlistSaving] = useState(false);
-  const [olistSyncing, setOlistSyncing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [ingestRegenerating, setIngestRegenerating] = useState(false);
 
@@ -92,6 +91,25 @@ export default function SellerIntegracoesErpPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /** Atualiza status da última sync automática (Supabase cron ~1 min) sem botão manual. */
+  useEffect(() => {
+    if (!olistConnected || !olistTokenUsable || loading) return;
+    const id = setInterval(() => {
+      void (async () => {
+        const {
+          data: { session },
+        } = await supabaseBrowser.auth.getSession();
+        if (!session?.access_token) return;
+        try {
+          await loadOlist(session.access_token);
+        } catch {
+          /* polling silencioso */
+        }
+      })();
+    }, 45_000);
+    return () => clearInterval(id);
+  }, [olistConnected, olistTokenUsable, loading, loadOlist]);
 
   async function salvarOlistToken() {
     setOlistSaving(true);
@@ -162,41 +180,6 @@ export default function SellerIntegracoesErpPage() {
       setError(e instanceof Error ? e.message : "Erro ao remover o token.");
     } finally {
       setOlistSaving(false);
-    }
-  }
-
-  async function sincronizarPedidosAgora() {
-    setOlistSyncing(true);
-    setError(null);
-    try {
-      const {
-        data: { session },
-      } = await supabaseBrowser.auth.getSession();
-      if (!session?.access_token) {
-        router.replace("/seller/login");
-        return;
-      }
-      const res = await fetch("/api/seller/olist/sync", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const retry =
-          typeof json?.retry_after_seconds === "number" && Number.isFinite(json.retry_after_seconds)
-            ? Math.max(1, Math.ceil(json.retry_after_seconds))
-            : null;
-        const base =
-          typeof json?.error === "string" && json.error.trim()
-            ? json.error.trim()
-            : "Erro ao sincronizar pedidos da Olist/Tiny.";
-        throw new Error(retry ? `${base} Tente de novo em cerca de ${retry} segundos.` : base);
-      }
-      await loadOlist(session.access_token);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Erro ao sincronizar pedidos da Olist/Tiny.");
-    } finally {
-      setOlistSyncing(false);
     }
   }
 
@@ -271,12 +254,10 @@ export default function SellerIntegracoesErpPage() {
       olistTokenInput={olistTokenInput}
       setOlistTokenInput={setOlistTokenInput}
       olistSaving={olistSaving}
-      olistSyncing={olistSyncing}
       refreshing={refreshing}
       ingestRegenerating={ingestRegenerating}
       onSalvarOlistToken={() => void salvarOlistToken()}
       onRemoverOlistToken={() => void removerOlistToken()}
-      onSincronizarPedidos={() => void sincronizarPedidosAgora()}
       onAtualizar={() => void atualizar()}
       onRegenerarWebhookIngest={() => void regenerarWebhookIngest()}
     />
@@ -304,12 +285,10 @@ type IntegracoesPageProps = {
   olistTokenInput: string;
   setOlistTokenInput: (value: string) => void;
   olistSaving: boolean;
-  olistSyncing: boolean;
   refreshing: boolean;
   ingestRegenerating: boolean;
   onSalvarOlistToken: () => void;
   onRemoverOlistToken: () => void;
-  onSincronizarPedidos: () => void;
   onAtualizar: () => void;
   onRegenerarWebhookIngest: () => void;
 };
@@ -445,21 +424,13 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                     </div>
 
                     <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="font-medium text-[var(--foreground)]">Sincronização de pedidos</p>
-                          <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
-                            O DropCore consulta pedidos atualizados na Olist/Tiny, cria o pedido no hub e alinha o estoque.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={props.onSincronizarPedidos}
-                          disabled={props.olistSyncing || props.olistSaving || !props.olistTokenUsable}
-                          className="rounded-xl bg-[var(--primary-blue)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-blue-hover)] disabled:opacity-60"
-                        >
-                          {props.olistSyncing ? "Sincronizando..." : "Sincronizar agora"}
-                        </button>
+                      <div>
+                        <p className="font-medium text-[var(--foreground)]">Sincronização automática de pedidos</p>
+                        <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+                          O DropCore consulta a Olist/Tiny <strong className="text-[var(--foreground)]">a cada ~1 minuto</strong>{" "}
+                          (agendado no Supabase). Pedidos novos também podem entrar pelo webhook. Não é preciso clicar em
+                          sincronizar.
+                        </p>
                       </div>
 
                       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -469,7 +440,9 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                             Última execução: {new Date(props.olistSyncLastAt).toLocaleString("pt-BR")}
                           </span>
                         ) : (
-                          <span className="text-xs text-[var(--muted)]">Ainda não houve sincronização automática.</span>
+                          <span className="text-xs text-[var(--muted)]">
+                            Aguardando primeira execução automática (em até 1 minuto após salvar o token).
+                          </span>
                         )}
                       </div>
 

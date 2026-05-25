@@ -12,6 +12,7 @@ import { isValidCnpjDigits, normalizeCnpjInput } from "@/lib/fornecedorCadastro"
 import { empresaCnpjParaEnderecoLinha, type EmpresaCnpjPayload } from "@/lib/cnpjBrasilConsulta";
 import { cepParaConsultaViaCep } from "@/lib/cepViaCep";
 import { cn } from "@/lib/utils";
+import { goToSellerAfterAuth } from "@/lib/sellerPostAuthRedirect";
 
 function formatarCNPJouCPF(val: string, tipo: "CNPJ" | "CPF"): string {
   const dig = val.replace(/\D/g, "");
@@ -183,7 +184,7 @@ export default function SellerCadastroPage() {
       if (!res.ok) throw new Error(j?.error ?? "Erro ao salvar.");
       setCadastroPendente(!!j.cadastro_dados_pendente);
       if (!j.cadastro_dados_pendente) {
-        router.replace("/seller/dashboard");
+        await goToSellerAfterAuth(router);
         return;
       }
     } catch (e: unknown) {

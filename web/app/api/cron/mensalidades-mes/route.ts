@@ -2,6 +2,7 @@
  * GET/POST /api/cron/mensalidades-mes
  * Gera mensalidades do mês corrente (America/Sao_Paulo) para todas as orgs com sellers ou fornecedores,
  * marca inadimplentes e reverte linhas indevidas durante trial.
+ * Agendamento: Supabase pg_cron (web/scripts/supabase-cron-jobs.sql), não Vercel Cron.
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
