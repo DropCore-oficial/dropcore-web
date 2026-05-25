@@ -1132,6 +1132,11 @@ export default function SellerCalculadoraPage() {
   const calcOnlyLite = calcAccess === "calc_only" || calcAccess === "calc_only_locked";
   const usoBloqueadoCalc = calcAccess === "calc_only_locked";
   const podeRenovarPix = usoBloqueadoCalc;
+  /** lg: formulário + painel lado a lado; xl+: resultados em largura total (evita cortar cards ML). */
+  const calcPageGridCols =
+    "grid w-full min-w-0 grid-cols-1 gap-x-5 gap-y-5 lg:gap-x-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,36%)] xl:grid-cols-1 xl:gap-y-6";
+  const calcVariantesGridCols = "grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 md:gap-4";
+
   const tituloBloqueioCalc = "Renovar acesso da calculadora";
   const textoBloqueioCalc =
     bloqueioMotivo === "sem_assinatura"
@@ -1148,8 +1153,8 @@ export default function SellerCalculadoraPage() {
           : "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
       }
     >
-      <div className="dropcore-shell-6xl py-4 sm:py-6 lg:py-8">
-        <div className="grid w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(360px,38%)] xl:grid-cols-[minmax(0,1fr)_minmax(400px,42%)] 2xl:grid-cols-[minmax(0,1fr)_480px] gap-x-5 gap-y-5 lg:gap-x-6">
+      <div className="dropcore-shell-calc py-4 sm:py-6 lg:py-8">
+        <div className={calcPageGridCols}>
           <div className="col-span-full">
             <SellerPageHeader
               surface="hero"
@@ -1186,7 +1191,7 @@ export default function SellerCalculadoraPage() {
           )}
           <div
             className={cn(
-              "col-span-full grid w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(360px,38%)] xl:grid-cols-[minmax(0,1fr)_minmax(400px,42%)] 2xl:grid-cols-[minmax(0,1fr)_480px] gap-x-5 gap-y-5 lg:gap-x-6 isolate",
+              cn(calcPageGridCols, "col-span-full isolate"),
               usoBloqueadoCalc && "relative min-h-[min(72vh,560px)]",
             )}
           >
@@ -1892,7 +1897,7 @@ export default function SellerCalculadoraPage() {
         ) : null}
 
         {resultado ? (
-          <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm overflow-hidden">
+          <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm">
             <div className="p-4 border-b border-neutral-200 dark:border-[var(--card-border)] flex flex-wrap items-center gap-x-2 gap-y-1">
               <h3 className="font-semibold text-neutral-900 dark:text-neutral-100 shrink-0">Resultado</h3>
               {preset ? (
@@ -1934,8 +1939,8 @@ export default function SellerCalculadoraPage() {
                 <div
                   className={
                     resultado.variantes.length > 1
-                      ? "grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4"
-                      : "grid grid-cols-1 gap-3 w-full max-w-md lg:max-w-none mx-auto lg:mx-0"
+                      ? calcVariantesGridCols
+                      : "grid grid-cols-1 gap-3 w-full max-w-md lg:max-w-none mx-auto lg:mx-0 xl:max-w-2xl"
                   }
                 >
                   {resultado.variantes.map((v) => (
@@ -1945,9 +1950,9 @@ export default function SellerCalculadoraPage() {
                     >
                       <p className={cn("text-[13px] font-semibold uppercase tracking-wide leading-snug", AMBER_PREMIUM_TEXT_BODY)}>{v.label}</p>
                       {/* KPI limpo: barra + fundo neutro (evita “bloco verde” pesado no escuro) */}
-                      <div className="flex min-h-0 overflow-hidden rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
-                        <div className="w-1.5 shrink-0 bg-emerald-500 dark:bg-emerald-500" aria-hidden />
-                        <div className="min-w-0 flex-1 px-3 py-2.5">
+                      <div className="flex min-h-0 rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
+                        <div className="w-1.5 shrink-0 bg-emerald-500 dark:bg-emerald-500 rounded-l-xl" aria-hidden />
+                        <div className="min-w-0 flex-1 px-3 py-2.5 overflow-visible">
                           <PrecoVendaComCupomBlock
                             precoComCampoCupom={v.precoVenda}
                             precoReferenciaCupomZero={v.precoSemCupom}
@@ -1982,15 +1987,15 @@ export default function SellerCalculadoraPage() {
                           </div>
                         </>
                       )}
-                      <div className="flex min-h-0 overflow-hidden rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
-                        <div className="w-1.5 shrink-0 bg-emerald-400 dark:bg-emerald-400" aria-hidden />
+                      <div className="flex min-h-0 rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
+                        <div className="w-1.5 shrink-0 bg-emerald-400 dark:bg-emerald-400 rounded-l-xl" aria-hidden />
                         <div className="min-w-0 flex-1 px-3 py-2.5">
-                          <div className="flex justify-between items-center gap-3">
-                            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-300 leading-snug">
+                          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-300 leading-snug min-w-0">
                               Você recebe{" "}
                               <span className="text-xs font-normal text-neutral-500 dark:text-neutral-400">(estimado)</span>
                             </span>
-                            <span className="text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300 leading-none shrink-0">
+                            <span className="text-lg sm:text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300 leading-none shrink-0 text-right">
                               {BRL.format(v.recebe)}
                             </span>
                           </div>
@@ -2016,9 +2021,9 @@ export default function SellerCalculadoraPage() {
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm overflow-hidden">
-                    <div className="m-3 mb-2 flex min-h-0 overflow-hidden rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
+                <div className={calcVariantesGridCols}>
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm">
+                    <div className="m-3 mb-2 flex min-h-0 rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
                       <div className="w-1.5 shrink-0 bg-emerald-500 dark:bg-emerald-500" aria-hidden />
                       <div className="min-w-0 flex-1 px-3 py-2.5">
                         <PrecoVendaComCupomBlock
@@ -2141,7 +2146,7 @@ export default function SellerCalculadoraPage() {
                 </table>
               </div>
               )}
-              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/55 overflow-hidden shadow-sm">
+              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/55 shadow-sm">
                 <details {...(composicaoDesktopAberta ? { open: true } : {})}>
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-neutral-200/80 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:border-neutral-700/70 dark:text-neutral-400 min-h-[44px] touch-manipulation select-none [&::-webkit-details-marker]:hidden md:min-h-0 md:cursor-default">
                     <span>Composição de custos</span>
@@ -2475,7 +2480,7 @@ function PrecoVendaComCupomBlock({
         <p className="text-[13px] sm:text-sm font-semibold text-neutral-800 dark:text-neutral-100 leading-snug">
           Você deve anunciar na vitrine por:
         </p>
-        <p className="mt-1.5 text-[1.35rem] sm:text-2xl font-bold tabular-nums tracking-tight text-emerald-700 dark:text-emerald-300">
+        <p className="mt-1.5 text-xl sm:text-2xl font-bold tabular-nums tracking-tight text-emerald-700 dark:text-emerald-300 break-words">
           {BRL.format(precoReferenciaCupomZero)}
         </p>
         <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-2 leading-snug border-t border-emerald-300/60 dark:border-emerald-900/50 pt-2">
