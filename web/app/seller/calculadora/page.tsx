@@ -48,14 +48,6 @@ const unitBadge =
 const perdaToggleClass =
   "inline-flex items-center justify-center w-[52px] h-[42px] rounded-xl bg-neutral-900 dark:bg-neutral-950 border border-neutral-900 dark:border-neutral-700 text-xs font-semibold text-white shrink-0 select-none cursor-pointer hover:opacity-90 transition-colors";
 
-/** Grid das linhas do formulário — colunas fixas (não % da tela inteira). */
-const CALC_FORM_ROW_GRID =
-  "flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(8.75rem,10.5rem)_minmax(0,13rem)_3.25rem] sm:items-center sm:gap-x-3 sm:gap-y-0";
-
-/** Painéis vazios / placeholder na coluna de resultado — mesma largura e altura mínima. */
-const CALC_PAINEL_VAZIO_CLASS =
-  "w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-6 min-h-[5.5rem] flex items-center justify-center text-center";
-
 type Extra = { id: string; nome: string; valorStr: string; tipo: "brl" | "pct" };
 
 /** Comissões tabela (variantes Shein/ML) */
@@ -1140,12 +1132,6 @@ export default function SellerCalculadoraPage() {
   const calcOnlyLite = calcAccess === "calc_only" || calcAccess === "calc_only_locked";
   const usoBloqueadoCalc = calcAccess === "calc_only_locked";
   const podeRenovarPix = usoBloqueadoCalc;
-  /** Mesma coluna e ritmo vertical do dashboard seller (dropcore-shell-4xl). */
-  const calcMainStack = "flex w-full min-w-0 flex-col gap-5 md:gap-6";
-  const calcFormSectionClass = "w-full min-w-0 space-y-4";
-  const calcResultSectionClass = "flex w-full min-w-0 flex-col gap-3 [&>*]:w-full";
-  const calcVariantesGridCols = "grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4";
-
   const tituloBloqueioCalc = "Renovar acesso da calculadora";
   const textoBloqueioCalc =
     bloqueioMotivo === "sem_assinatura"
@@ -1162,16 +1148,19 @@ export default function SellerCalculadoraPage() {
           : "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
       }
     >
-      <div className="dropcore-shell-4xl py-5 md:py-7 space-y-5 md:space-y-6">
+      <div className="dropcore-shell-4xl py-4 sm:py-6 lg:py-8">
+        <div className="grid w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] gap-x-5 gap-y-5">
+          <div className="col-span-full">
             <SellerPageHeader
               surface="hero"
               className="mb-0 sm:mb-0"
               title="Calculadora de preço"
               subtitle="Preencha custos e operacionais por marketplace para gerar preço e margem."
             />
+          </div>
           {calcAccess === "calc_only" && calcValidoAte && (
             <div
-              className="rounded-xl border border-neutral-200 dark:border-neutral-700/80 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400 bg-white dark:bg-neutral-900/60 px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm leading-snug text-emerald-900 dark:text-emerald-300 shadow-sm dark:shadow-none"
+              className="col-span-full rounded-xl border border-neutral-200 dark:border-neutral-700/80 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400 bg-white dark:bg-neutral-900/60 px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm leading-snug text-emerald-900 dark:text-emerald-300 shadow-sm dark:shadow-none"
               role="status"
             >
               <div className="flex gap-2.5 items-start">
@@ -1197,11 +1186,11 @@ export default function SellerCalculadoraPage() {
           )}
           <div
             className={cn(
-              calcMainStack,
+              "col-span-full grid w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] gap-x-5 gap-y-5 isolate",
               usoBloqueadoCalc && "relative min-h-[min(72vh,560px)]",
             )}
           >
-        <section className={calcFormSectionClass} aria-label="Entrada de custos">
+        <div className="min-w-0 space-y-4">
         {!calcOnlyLite && (
           <div className="block rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm px-5 py-4 flex items-center justify-between gap-4">
             <div>
@@ -1367,7 +1356,7 @@ export default function SellerCalculadoraPage() {
           )}
           {showOpTiktok() && (
             <div className="border-b border-neutral-200/70 dark:border-[var(--card-border)]/70 px-4 py-3 sm:py-2.5">
-              <div className={CALC_FORM_ROW_GRID}>
+              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_52px] sm:items-center sm:gap-x-3 sm:gap-y-0">
                 {/* Mesmo encaixe do <Row /> (unit): sm:contents distribui input+zerar na coluna 2 e R$ na 3 */}
                 <label className="text-sm font-medium text-neutral-600 dark:text-neutral-400 shrink-0 flex items-center gap-1.5 min-w-0 overflow-visible">
                   <span className="truncate">TikTok Shop</span>
@@ -1442,7 +1431,7 @@ export default function SellerCalculadoraPage() {
           )}
           {(preset === "meli" || preset === "todos") && (
             <div className="px-4 py-2.5 border-b border-neutral-200/70 dark:border-[var(--card-border)]/70">
-              <div className={CALC_FORM_ROW_GRID}>
+              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_52px] sm:items-center sm:gap-x-3">
                 <div className="flex items-center gap-1.5 min-w-0 sm:pt-0">
                   <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate">
                     Rebate (ML)
@@ -1741,7 +1730,7 @@ export default function SellerCalculadoraPage() {
           {/* ADS/TACOS — oculto no modo Shein único (na Shein a conta do seller costuma não usar esse % como nos outros canais) */}
           {!isPresetShein && (
             <div className="px-4 py-2.5 border-b border-neutral-200/70 dark:border-[var(--card-border)]/70 last:border-b-0">
-              <div className={CALC_FORM_ROW_GRID}>
+              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_52px] sm:items-center sm:gap-x-3">
                 <div className="flex items-center gap-1.5 min-w-0 shrink-0">
                   <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate">ADS/TACOS</span>
                   <HelpBubble
@@ -1790,7 +1779,7 @@ export default function SellerCalculadoraPage() {
 
           {/* Perdas — único campo em cinza escuro (destaque para ajustar) */}
           <div className="px-4 py-3 sm:py-2.5 border-b border-neutral-200/70 dark:border-[var(--card-border)]/70 bg-neutral-200/40 dark:bg-neutral-900/50">
-            <div className={CALC_FORM_ROW_GRID}>
+            <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_52px] sm:items-center sm:gap-x-3">
               <label className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 shrink-0 truncate">Perdas/Devoluções</label>
               <div className="flex gap-2 items-center min-w-0 sm:contents">
                 <input type="text" inputMode="decimal" value={perda}
@@ -1879,12 +1868,12 @@ export default function SellerCalculadoraPage() {
             </button>
           </div>
         </div>
-        </section>
+        </div>
 
-        {/* Resultado — largura total (não coluna lateral) */}
-        <section className={calcResultSectionClass} aria-label="Resultado do cálculo">
+        {/* Coluna direita: resultado */}
+        <div className="w-full min-w-0 space-y-3 self-start">
         {!calcOnlyLite && precoMinimo != null && custoProduto && parseNum(custoProduto) > 0 ? (
-          <div className="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5 min-h-[5.5rem]">
+          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5">
             <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-0.5">
               {parseNum(cupomUnico) > 0.0001
                 ? `Etiqueta mínima na vitrine (${MARGEM_MINIMA}% margem sobre receita com cupom)`
@@ -1892,10 +1881,18 @@ export default function SellerCalculadoraPage() {
             </div>
             <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">{BRL.format(precoMinimo)}</div>
           </div>
+        ) : !calcOnlyLite ? (
+          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm p-4 min-h-[68px] flex items-center justify-center">
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">Preencha o custo e clique em Calcular.</p>
+          </div>
+        ) : !resultado ? (
+          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm p-4 min-h-[68px] flex items-center justify-center">
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">Preencha o custo e clique em Calcular.</p>
+          </div>
         ) : null}
 
         {resultado ? (
-          <div className="w-full rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm">
+          <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm overflow-hidden">
             <div className="p-4 border-b border-neutral-200 dark:border-[var(--card-border)] flex flex-wrap items-center gap-x-2 gap-y-1">
               <h3 className="font-semibold text-neutral-900 dark:text-neutral-100 shrink-0">Resultado</h3>
               {preset ? (
@@ -1937,8 +1934,8 @@ export default function SellerCalculadoraPage() {
                 <div
                   className={
                     resultado.variantes.length > 1
-                      ? calcVariantesGridCols
-                      : "grid w-full grid-cols-1 gap-3"
+                      ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2 gap-3 md:gap-4"
+                      : "grid grid-cols-1 gap-3 w-full max-w-md lg:max-w-none mx-auto lg:mx-0"
                   }
                 >
                   {resultado.variantes.map((v) => (
@@ -1948,9 +1945,9 @@ export default function SellerCalculadoraPage() {
                     >
                       <p className={cn("text-[13px] font-semibold uppercase tracking-wide leading-snug", AMBER_PREMIUM_TEXT_BODY)}>{v.label}</p>
                       {/* KPI limpo: barra + fundo neutro (evita “bloco verde” pesado no escuro) */}
-                      <div className="flex min-h-0 rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
-                        <div className="w-1.5 shrink-0 bg-emerald-500 dark:bg-emerald-500 rounded-l-xl" aria-hidden />
-                        <div className="min-w-0 flex-1 px-3 py-2.5 overflow-visible">
+                      <div className="flex min-h-0 overflow-hidden rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
+                        <div className="w-1.5 shrink-0 bg-emerald-500 dark:bg-emerald-500" aria-hidden />
+                        <div className="min-w-0 flex-1 px-3 py-2.5">
                           <PrecoVendaComCupomBlock
                             precoComCampoCupom={v.precoVenda}
                             precoReferenciaCupomZero={v.precoSemCupom}
@@ -1985,15 +1982,15 @@ export default function SellerCalculadoraPage() {
                           </div>
                         </>
                       )}
-                      <div className="flex min-h-0 rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
-                        <div className="w-1.5 shrink-0 bg-emerald-400 dark:bg-emerald-400 rounded-l-xl" aria-hidden />
+                      <div className="flex min-h-0 overflow-hidden rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
+                        <div className="w-1.5 shrink-0 bg-emerald-400 dark:bg-emerald-400" aria-hidden />
                         <div className="min-w-0 flex-1 px-3 py-2.5">
-                          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-300 leading-snug min-w-0">
+                          <div className="flex justify-between items-center gap-3">
+                            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-300 leading-snug">
                               Você recebe{" "}
                               <span className="text-xs font-normal text-neutral-500 dark:text-neutral-400">(estimado)</span>
                             </span>
-                            <span className="text-lg sm:text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300 leading-none shrink-0 text-right">
+                            <span className="text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300 leading-none shrink-0">
                               {BRL.format(v.recebe)}
                             </span>
                           </div>
@@ -2019,9 +2016,9 @@ export default function SellerCalculadoraPage() {
                   ))}
                 </div>
               ) : (
-                <div className={calcVariantesGridCols}>
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm">
-                    <div className="m-3 mb-2 flex min-h-0 rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2 gap-3 md:gap-4">
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm overflow-hidden">
+                    <div className="m-3 mb-2 flex min-h-0 overflow-hidden rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
                       <div className="w-1.5 shrink-0 bg-emerald-500 dark:bg-emerald-500" aria-hidden />
                       <div className="min-w-0 flex-1 px-3 py-2.5">
                         <PrecoVendaComCupomBlock
@@ -2144,7 +2141,7 @@ export default function SellerCalculadoraPage() {
                 </table>
               </div>
               )}
-              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/55 shadow-sm">
+              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/55 overflow-hidden shadow-sm">
                 <details {...(composicaoDesktopAberta ? { open: true } : {})}>
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-neutral-200/80 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:border-neutral-700/70 dark:text-neutral-400 min-h-[44px] touch-manipulation select-none [&::-webkit-details-marker]:hidden md:min-h-0 md:cursor-default">
                     <span>Composição de custos</span>
@@ -2245,13 +2242,11 @@ export default function SellerCalculadoraPage() {
             </div>
           </div>
         ) : (
-          <div className={CALC_PAINEL_VAZIO_CLASS}>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              Preencha o custo e clique em <strong className="font-medium text-neutral-800 dark:text-neutral-200">Calcular</strong> para ver o resultado.
-            </p>
+          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm p-4 min-h-[120px] flex items-center justify-center">
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">Clique em Calcular para ver o resultado.</p>
           </div>
         )}
-        </section>
+        </div>
 
         {usoBloqueadoCalc ? (
           <div
@@ -2431,6 +2426,7 @@ export default function SellerCalculadoraPage() {
           </div>
         ) : null}
           </div>
+        </div>
       </div>
       <SellerNav active="calculadora" calcOnly={calcOnlyLite} />
     </div>
@@ -2479,7 +2475,7 @@ function PrecoVendaComCupomBlock({
         <p className="text-[13px] sm:text-sm font-semibold text-neutral-800 dark:text-neutral-100 leading-snug">
           Você deve anunciar na vitrine por:
         </p>
-        <p className="mt-1.5 text-xl sm:text-2xl font-bold tabular-nums tracking-tight text-emerald-700 dark:text-emerald-300 break-words">
+        <p className="mt-1.5 text-[1.35rem] sm:text-2xl font-bold tabular-nums tracking-tight text-emerald-700 dark:text-emerald-300">
           {BRL.format(precoReferenciaCupomZero)}
         </p>
         <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-2 leading-snug border-t border-emerald-300/60 dark:border-emerald-900/50 pt-2">
@@ -2501,7 +2497,7 @@ function Row({
 }) {
   return (
     <div className="px-4 py-3 sm:py-2.5 border-b border-neutral-200/70 dark:border-[var(--card-border)]/70">
-      <div className={CALC_FORM_ROW_GRID}>
+      <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_52px] sm:items-center sm:gap-x-3 sm:gap-y-0">
         {/* overflow-visible: tooltips (?) no label não podem usar sm:truncate no pai — overflow:hidden recorta o painel */}
         <label className="text-sm font-medium text-neutral-600 dark:text-neutral-400 shrink-0 flex items-center gap-1.5 min-w-0 overflow-visible">
           {label}

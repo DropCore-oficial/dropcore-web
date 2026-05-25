@@ -241,7 +241,7 @@ export function SellerNav({
           end={<AppBarEndMobileAuth context="seller" onLogout={sairCalculadoraNav} logoutLabel="Sair" />}
         />
         <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
-          <div className="dropcore-shell-4xl flex w-full min-w-0 items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6">
+          <div className="max-w-4xl mx-auto flex w-full min-w-0 items-center justify-between gap-4 px-4 sm:px-6">
             <div className="flex min-w-0 items-center gap-6 sm:gap-8">
               <DropCoreLogo variant="horizontal" href="/seller/calculadora" className="shrink-0" />
               <div className="flex shrink-0 items-center gap-0.5">
