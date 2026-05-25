@@ -48,6 +48,10 @@ const unitBadge =
 const perdaToggleClass =
   "inline-flex items-center justify-center w-[52px] h-[42px] rounded-xl bg-neutral-900 dark:bg-neutral-950 border border-neutral-900 dark:border-neutral-700 text-xs font-semibold text-white shrink-0 select-none cursor-pointer hover:opacity-90 transition-colors";
 
+/** Grid das linhas do formulário — colunas fixas (não % da tela inteira). */
+const CALC_FORM_ROW_GRID =
+  "flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(8.75rem,10.5rem)_minmax(0,13rem)_3.25rem] sm:items-center sm:gap-x-3 sm:gap-y-0";
+
 type Extra = { id: string; nome: string; valorStr: string; tipo: "brl" | "pct" };
 
 /** Comissões tabela (variantes Shein/ML) */
@@ -1132,9 +1136,12 @@ export default function SellerCalculadoraPage() {
   const calcOnlyLite = calcAccess === "calc_only" || calcAccess === "calc_only_locked";
   const usoBloqueadoCalc = calcAccess === "calc_only_locked";
   const podeRenovarPix = usoBloqueadoCalc;
-  /** Sempre empilhado no desktop — evita cortar com escala 125%/150% do Windows (viewport efetiva < 1280px). */
-  const calcMainStack = "flex w-full min-w-0 max-w-full flex-col gap-5 sm:gap-6 lg:gap-8";
-  const calcVariantesGridCols = "grid w-full min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4";
+  /** Abaixo de xl: empilhado com form estreito; xl+: form à esquerda e resultado à direita. */
+  const calcMainStack =
+    "flex w-full min-w-0 flex-col gap-5 sm:gap-6 xl:flex-row xl:items-start xl:gap-8";
+  const calcFormSectionClass = "w-full min-w-0 mx-auto max-w-xl space-y-4 xl:mx-0 xl:max-w-[30rem] xl:shrink-0";
+  const calcResultSectionClass = "w-full min-w-0 space-y-3 xl:min-w-0 xl:flex-1";
+  const calcVariantesGridCols = "grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4";
 
   const tituloBloqueioCalc = "Renovar acesso da calculadora";
   const textoBloqueioCalc =
@@ -1192,7 +1199,7 @@ export default function SellerCalculadoraPage() {
               usoBloqueadoCalc && "relative min-h-[min(72vh,560px)]",
             )}
           >
-        <section className="min-w-0 w-full max-w-full space-y-4" aria-label="Entrada de custos">
+        <section className={calcFormSectionClass} aria-label="Entrada de custos">
         {!calcOnlyLite && (
           <div className="block rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm px-5 py-4 flex items-center justify-between gap-4">
             <div>
@@ -1358,7 +1365,7 @@ export default function SellerCalculadoraPage() {
           )}
           {showOpTiktok() && (
             <div className="border-b border-neutral-200/70 dark:border-[var(--card-border)]/70 px-4 py-3 sm:py-2.5">
-              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_52px] sm:items-center sm:gap-x-3 sm:gap-y-0">
+              <div className={CALC_FORM_ROW_GRID}>
                 {/* Mesmo encaixe do <Row /> (unit): sm:contents distribui input+zerar na coluna 2 e R$ na 3 */}
                 <label className="text-sm font-medium text-neutral-600 dark:text-neutral-400 shrink-0 flex items-center gap-1.5 min-w-0 overflow-visible">
                   <span className="truncate">TikTok Shop</span>
@@ -1433,7 +1440,7 @@ export default function SellerCalculadoraPage() {
           )}
           {(preset === "meli" || preset === "todos") && (
             <div className="px-4 py-2.5 border-b border-neutral-200/70 dark:border-[var(--card-border)]/70">
-              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_52px] sm:items-center sm:gap-x-3">
+              <div className={CALC_FORM_ROW_GRID}>
                 <div className="flex items-center gap-1.5 min-w-0 sm:pt-0">
                   <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate">
                     Rebate (ML)
@@ -1732,7 +1739,7 @@ export default function SellerCalculadoraPage() {
           {/* ADS/TACOS — oculto no modo Shein único (na Shein a conta do seller costuma não usar esse % como nos outros canais) */}
           {!isPresetShein && (
             <div className="px-4 py-2.5 border-b border-neutral-200/70 dark:border-[var(--card-border)]/70 last:border-b-0">
-              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_52px] sm:items-center sm:gap-x-3">
+              <div className={CALC_FORM_ROW_GRID}>
                 <div className="flex items-center gap-1.5 min-w-0 shrink-0">
                   <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate">ADS/TACOS</span>
                   <HelpBubble
@@ -1781,7 +1788,7 @@ export default function SellerCalculadoraPage() {
 
           {/* Perdas — único campo em cinza escuro (destaque para ajustar) */}
           <div className="px-4 py-3 sm:py-2.5 border-b border-neutral-200/70 dark:border-[var(--card-border)]/70 bg-neutral-200/40 dark:bg-neutral-900/50">
-            <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_52px] sm:items-center sm:gap-x-3">
+            <div className={CALC_FORM_ROW_GRID}>
               <label className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 shrink-0 truncate">Perdas/Devoluções</label>
               <div className="flex gap-2 items-center min-w-0 sm:contents">
                 <input type="text" inputMode="decimal" value={perda}
@@ -1873,7 +1880,7 @@ export default function SellerCalculadoraPage() {
         </section>
 
         {/* Resultado — largura total (não coluna lateral) */}
-        <section className="min-w-0 w-full max-w-full space-y-3" aria-label="Resultado do cálculo">
+        <section className={calcResultSectionClass} aria-label="Resultado do cálculo">
         {!calcOnlyLite && precoMinimo != null && custoProduto && parseNum(custoProduto) > 0 ? (
           <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5">
             <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-0.5">
@@ -2499,7 +2506,7 @@ function Row({
 }) {
   return (
     <div className="px-4 py-3 sm:py-2.5 border-b border-neutral-200/70 dark:border-[var(--card-border)]/70">
-      <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_52px] sm:items-center sm:gap-x-3 sm:gap-y-0">
+      <div className={CALC_FORM_ROW_GRID}>
         {/* overflow-visible: tooltips (?) no label não podem usar sm:truncate no pai — overflow:hidden recorta o painel */}
         <label className="text-sm font-medium text-neutral-600 dark:text-neutral-400 shrink-0 flex items-center gap-1.5 min-w-0 overflow-visible">
           {label}

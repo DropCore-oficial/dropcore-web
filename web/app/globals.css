@@ -98,7 +98,7 @@ html {
 .dropcore-shell-calc {
   width: 100%;
   min-width: 0;
-  max-width: min(96rem, calc(100vw - 1.5rem));
+  max-width: min(80rem, calc(100vw - 1.5rem));
   margin-left: auto;
   margin-right: auto;
   box-sizing: border-box;
