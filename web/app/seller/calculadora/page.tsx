@@ -52,6 +52,10 @@ const perdaToggleClass =
 const CALC_FORM_ROW_GRID =
   "flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(8.75rem,10.5rem)_minmax(0,13rem)_3.25rem] sm:items-center sm:gap-x-3 sm:gap-y-0";
 
+/** Painéis vazios / placeholder na coluna de resultado — mesma largura e altura mínima. */
+const CALC_PAINEL_VAZIO_CLASS =
+  "w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-6 min-h-[5.5rem] flex items-center justify-center text-center";
+
 type Extra = { id: string; nome: string; valorStr: string; tipo: "brl" | "pct" };
 
 /** Comissões tabela (variantes Shein/ML) */
@@ -1140,7 +1144,7 @@ export default function SellerCalculadoraPage() {
   const calcMainStack =
     "flex w-full min-w-0 flex-col gap-5 sm:gap-6 xl:flex-row xl:items-start xl:gap-8";
   const calcFormSectionClass = "w-full min-w-0 mx-auto max-w-xl space-y-4 xl:mx-0 xl:max-w-[30rem] xl:shrink-0";
-  const calcResultSectionClass = "w-full min-w-0 space-y-3 xl:min-w-0 xl:flex-1";
+  const calcResultSectionClass = "flex w-full min-w-0 flex-col gap-3 xl:min-w-0 xl:flex-1 [&>*]:w-full";
   const calcVariantesGridCols = "grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4";
 
   const tituloBloqueioCalc = "Renovar acesso da calculadora";
@@ -1882,7 +1886,7 @@ export default function SellerCalculadoraPage() {
         {/* Resultado — largura total (não coluna lateral) */}
         <section className={calcResultSectionClass} aria-label="Resultado do cálculo">
         {!calcOnlyLite && precoMinimo != null && custoProduto && parseNum(custoProduto) > 0 ? (
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5">
+          <div className="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5 min-h-[5.5rem]">
             <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-0.5">
               {parseNum(cupomUnico) > 0.0001
                 ? `Etiqueta mínima na vitrine (${MARGEM_MINIMA}% margem sobre receita com cupom)`
@@ -1890,18 +1894,10 @@ export default function SellerCalculadoraPage() {
             </div>
             <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">{BRL.format(precoMinimo)}</div>
           </div>
-        ) : !calcOnlyLite ? (
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm p-4 min-h-[68px] flex items-center justify-center">
-            <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">Preencha o custo e clique em Calcular.</p>
-          </div>
-        ) : !resultado ? (
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm p-4 min-h-[68px] flex items-center justify-center">
-            <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">Preencha o custo e clique em Calcular.</p>
-          </div>
         ) : null}
 
         {resultado ? (
-          <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm">
+          <div className="w-full rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm">
             <div className="p-4 border-b border-neutral-200 dark:border-[var(--card-border)] flex flex-wrap items-center gap-x-2 gap-y-1">
               <h3 className="font-semibold text-neutral-900 dark:text-neutral-100 shrink-0">Resultado</h3>
               {preset ? (
@@ -1944,7 +1940,7 @@ export default function SellerCalculadoraPage() {
                   className={
                     resultado.variantes.length > 1
                       ? calcVariantesGridCols
-                      : "grid grid-cols-1 gap-3 w-full max-w-md sm:max-w-none mx-auto sm:mx-0"
+                      : "grid w-full grid-cols-1 gap-3"
                   }
                 >
                   {resultado.variantes.map((v) => (
@@ -2251,8 +2247,10 @@ export default function SellerCalculadoraPage() {
             </div>
           </div>
         ) : (
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm p-4 min-h-[120px] flex items-center justify-center">
-            <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">Clique em Calcular para ver o resultado.</p>
+          <div className={CALC_PAINEL_VAZIO_CLASS}>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              Preencha o custo e clique em <strong className="font-medium text-neutral-800 dark:text-neutral-200">Calcular</strong> para ver o resultado.
+            </p>
           </div>
         )}
         </section>

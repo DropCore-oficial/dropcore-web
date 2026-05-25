@@ -1087,19 +1087,19 @@ export default function SellerDashboardPage() {
                 + Recarregar
               </button>
             </div>
-            <div className="mt-5 grid grid-cols-2 gap-2.5 border-t border-[var(--card-border)]/80 pt-5 sm:grid-cols-4">
-              <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] shadow-[0_1px_0_rgb(0_0_0/0.04)] dark:shadow-none">
+            <div className="mt-5 grid grid-cols-2 gap-2.5 border-t border-[var(--card-border)]/80 pt-5 sm:grid-cols-4 sm:[&>*]:min-w-0">
+              <div className="w-full min-w-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] shadow-[0_1px_0_rgb(0_0_0/0.04)] dark:shadow-none">
                 <p className="text-[11px] font-semibold text-[var(--muted)]">Disponível</p>
                 <p className="mt-1 text-xl font-bold text-[var(--foreground)] tabular-nums">{BRL.format(seller?.saldo_disponivel ?? 0)}</p>
               </div>
-              <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] shadow-[0_1px_0_rgb(0_0_0/0.04)] dark:shadow-none">
+              <div className="w-full min-w-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] shadow-[0_1px_0_rgb(0_0_0/0.04)] dark:shadow-none">
                 <p className="text-[11px] font-semibold text-[var(--muted)]">Bloqueado</p>
                 <p className="mt-1 text-xl font-bold text-[var(--foreground)] tabular-nums">{BRL.format(seller?.saldo_bloqueado ?? 0)}</p>
               </div>
               <button
                 type="button"
                 onClick={() => { setFiltroTipo("pedidos"); setFiltroStatus(""); setTab("extrato"); setMovimentacoesAberto(true); extratoRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left shadow-[0_1px_0_rgb(0_0_0/0.04)] transition-all hover:border-emerald-300 dark:shadow-none dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
+                className="group w-full min-w-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left shadow-[0_1px_0_rgb(0_0_0/0.04)] transition-all hover:border-emerald-300 dark:shadow-none dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
               >
                 <p className="text-[11px] font-semibold text-[var(--muted)]">Pedidos (mês)</p>
                 <p className="mt-1 text-xl font-bold tabular-nums text-[var(--foreground)] group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
@@ -1109,7 +1109,7 @@ export default function SellerDashboardPage() {
               <button
                 type="button"
                 onClick={() => { setFiltroTipo("pedidos"); setFiltroStatus(""); setTab("extrato"); setMovimentacoesAberto(true); extratoRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                className="group rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left shadow-[0_1px_0_rgb(0_0_0/0.04)] transition-all hover:border-emerald-300 dark:shadow-none dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
+                className="group w-full min-w-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left shadow-[0_1px_0_rgb(0_0_0/0.04)] transition-all hover:border-emerald-300 dark:shadow-none dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
               >
                 <p className="text-[11px] font-semibold text-[var(--muted)]">Volume (mês)</p>
                 <p className="mt-1 text-xl font-bold tabular-nums text-[var(--foreground)] group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
