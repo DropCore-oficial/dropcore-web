@@ -1148,8 +1148,8 @@ export default function SellerCalculadoraPage() {
           : "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
       }
     >
-      <div className="dropcore-shell-4xl py-4 sm:py-6 lg:py-8">
-        <div className="grid w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] gap-x-5 gap-y-5">
+      <div className="dropcore-shell-6xl py-4 sm:py-6 lg:py-8">
+        <div className="grid w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(360px,38%)] xl:grid-cols-[minmax(0,1fr)_minmax(400px,42%)] 2xl:grid-cols-[minmax(0,1fr)_480px] gap-x-5 gap-y-5 lg:gap-x-6">
           <div className="col-span-full">
             <SellerPageHeader
               surface="hero"
@@ -1186,7 +1186,7 @@ export default function SellerCalculadoraPage() {
           )}
           <div
             className={cn(
-              "col-span-full grid w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] gap-x-5 gap-y-5 isolate",
+              "col-span-full grid w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(360px,38%)] xl:grid-cols-[minmax(0,1fr)_minmax(400px,42%)] 2xl:grid-cols-[minmax(0,1fr)_480px] gap-x-5 gap-y-5 lg:gap-x-6 isolate",
               usoBloqueadoCalc && "relative min-h-[min(72vh,560px)]",
             )}
           >
@@ -1934,7 +1934,7 @@ export default function SellerCalculadoraPage() {
                 <div
                   className={
                     resultado.variantes.length > 1
-                      ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2 gap-3 md:gap-4"
+                      ? "grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4"
                       : "grid grid-cols-1 gap-3 w-full max-w-md lg:max-w-none mx-auto lg:mx-0"
                   }
                 >
@@ -2016,7 +2016,7 @@ export default function SellerCalculadoraPage() {
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2 gap-3 md:gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                   <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm overflow-hidden">
                     <div className="m-3 mb-2 flex min-h-0 overflow-hidden rounded-xl border border-neutral-200/95 dark:border-neutral-700/90 bg-white dark:bg-neutral-950/70 shadow-sm">
                       <div className="w-1.5 shrink-0 bg-emerald-500 dark:bg-emerald-500" aria-hidden />
