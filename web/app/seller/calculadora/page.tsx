@@ -1132,10 +1132,9 @@ export default function SellerCalculadoraPage() {
   const calcOnlyLite = calcAccess === "calc_only" || calcAccess === "calc_only_locked";
   const usoBloqueadoCalc = calcAccess === "calc_only_locked";
   const podeRenovarPix = usoBloqueadoCalc;
-  /** lg: formulário + painel lado a lado; xl+: resultados em largura total (evita cortar cards ML). */
-  const calcPageGridCols =
-    "grid w-full min-w-0 grid-cols-1 gap-x-5 gap-y-5 lg:gap-x-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,36%)] xl:grid-cols-1 xl:gap-y-6";
-  const calcVariantesGridCols = "grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 md:gap-4";
+  /** Sempre empilhado no desktop — evita cortar com escala 125%/150% do Windows (viewport efetiva < 1280px). */
+  const calcMainStack = "flex w-full min-w-0 max-w-full flex-col gap-5 sm:gap-6 lg:gap-8";
+  const calcVariantesGridCols = "grid w-full min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4";
 
   const tituloBloqueioCalc = "Renovar acesso da calculadora";
   const textoBloqueioCalc =
@@ -1154,18 +1153,16 @@ export default function SellerCalculadoraPage() {
       }
     >
       <div className="dropcore-shell-calc py-4 sm:py-6 lg:py-8">
-        <div className={calcPageGridCols}>
-          <div className="col-span-full">
+        <div className="flex w-full min-w-0 max-w-full flex-col gap-5 sm:gap-6">
             <SellerPageHeader
               surface="hero"
               className="mb-0 sm:mb-0"
               title="Calculadora de preço"
               subtitle="Preencha custos e operacionais por marketplace para gerar preço e margem."
             />
-          </div>
           {calcAccess === "calc_only" && calcValidoAte && (
             <div
-              className="col-span-full rounded-xl border border-neutral-200 dark:border-neutral-700/80 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400 bg-white dark:bg-neutral-900/60 px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm leading-snug text-emerald-900 dark:text-emerald-300 shadow-sm dark:shadow-none"
+              className="rounded-xl border border-neutral-200 dark:border-neutral-700/80 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400 bg-white dark:bg-neutral-900/60 px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm leading-snug text-emerald-900 dark:text-emerald-300 shadow-sm dark:shadow-none"
               role="status"
             >
               <div className="flex gap-2.5 items-start">
@@ -1191,11 +1188,11 @@ export default function SellerCalculadoraPage() {
           )}
           <div
             className={cn(
-              cn(calcPageGridCols, "col-span-full isolate"),
+              calcMainStack,
               usoBloqueadoCalc && "relative min-h-[min(72vh,560px)]",
             )}
           >
-        <div className="min-w-0 space-y-4">
+        <section className="min-w-0 w-full max-w-full space-y-4" aria-label="Entrada de custos">
         {!calcOnlyLite && (
           <div className="block rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm px-5 py-4 flex items-center justify-between gap-4">
             <div>
@@ -1873,10 +1870,10 @@ export default function SellerCalculadoraPage() {
             </button>
           </div>
         </div>
-        </div>
+        </section>
 
-        {/* Coluna direita: resultado */}
-        <div className="w-full min-w-0 space-y-3 self-start">
+        {/* Resultado — largura total (não coluna lateral) */}
+        <section className="min-w-0 w-full max-w-full space-y-3" aria-label="Resultado do cálculo">
         {!calcOnlyLite && precoMinimo != null && custoProduto && parseNum(custoProduto) > 0 ? (
           <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5">
             <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-0.5">
@@ -1940,7 +1937,7 @@ export default function SellerCalculadoraPage() {
                   className={
                     resultado.variantes.length > 1
                       ? calcVariantesGridCols
-                      : "grid grid-cols-1 gap-3 w-full max-w-md lg:max-w-none mx-auto lg:mx-0 xl:max-w-2xl"
+                      : "grid grid-cols-1 gap-3 w-full max-w-md sm:max-w-none mx-auto sm:mx-0"
                   }
                 >
                   {resultado.variantes.map((v) => (
@@ -2251,7 +2248,7 @@ export default function SellerCalculadoraPage() {
             <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">Clique em Calcular para ver o resultado.</p>
           </div>
         )}
-        </div>
+        </section>
 
         {usoBloqueadoCalc ? (
           <div
