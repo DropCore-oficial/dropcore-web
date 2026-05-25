@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
@@ -8,7 +8,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_BODY, AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
 
-export default function SellerResetPasswordPage() {
+function SellerResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [novaSenha, setNovaSenha] = useState("");
@@ -233,5 +233,21 @@ export default function SellerResetPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function SellerResetPasswordFallback() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[var(--background)] text-[var(--foreground)]">
+      <p className="text-sm text-neutral-500 dark:text-neutral-400">Carregando…</p>
+    </div>
+  );
+}
+
+export default function SellerResetPasswordPage() {
+  return (
+    <Suspense fallback={<SellerResetPasswordFallback />}>
+      <SellerResetPasswordForm />
+    </Suspense>
   );
 }

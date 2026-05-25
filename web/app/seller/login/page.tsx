@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { cn } from "@/lib/utils";
@@ -16,7 +16,19 @@ import {
 import { Button } from "@/components/ui";
 import { goToSellerAfterAuth } from "@/lib/sellerPostAuthRedirect";
 
-export default function SellerLoginPage() {
+function SellerLoginFallback() {
+  return (
+    <DropcoreAuthShell
+      eyebrow="Acesso"
+      heading="Seller"
+      headingClassName="text-[1.45rem] sm:text-[1.6rem]"
+    >
+      <p className="text-sm text-neutral-500 dark:text-neutral-400">Carregando…</p>
+    </DropcoreAuthShell>
+  );
+}
+
+function SellerLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
@@ -146,5 +158,13 @@ export default function SellerLoginPage() {
 
       </div>
     </DropcoreAuthShell>
+  );
+}
+
+export default function SellerLoginPage() {
+  return (
+    <Suspense fallback={<SellerLoginFallback />}>
+      <SellerLoginForm />
+    </Suspense>
   );
 }
