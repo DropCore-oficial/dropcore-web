@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { OrgAuthError, requireAdmin } from "@/lib/apiOrgAuth";
-import { contarInadimplentes } from "@/lib/inadimplencia";
 import { resumoMensalidadePortal } from "@/lib/mensalidadeResumoPortal";
 import { diasAteVencimentoFromMin, fetchOrgDashboardStatsAgg } from "@/lib/orgDashboardRpc";
+import { emptyRepasseFuturosPreview, loadOrgRepasseFuturosPreview } from "@/lib/orgRepasseFuturosPreview";
 import { portalTrialDays } from "@/lib/portalTrial";
 
 export const runtime = "nodejs";
@@ -35,6 +35,17 @@ export async function GET(req: Request) {
   try {
     const { org_id } = await requireAdmin(req);
     const supabase = supabaseService();
+    const { searchParams } = new URL(req.url);
+    const repasseOnly = searchParams.get("repasse_only") === "1";
+    const includeRepassePreview = searchParams.get("repasse_preview") !== "0";
+
+    if (repasseOnly) {
+      const hojePreview = new Date();
+      hojePreview.setHours(0, 0, 0, 0);
+      const hojeStr = hojePreview.toISOString().slice(0, 10);
+      const preview = await loadOrgRepasseFuturosPreview(supabase, org_id, hojeStr);
+      return NextResponse.json(preview);
+    }
 
     const { data: org } = await supabase.from("orgs").select("plano").eq("id", org_id).maybeSingle();
     const plano = org?.plano ?? "starter";
@@ -45,7 +56,12 @@ export async function GET(req: Request) {
     const hojeInicio = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const hojeFim = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
 
-    const [rpcAgg, countsSettled] = await Promise.all([
+    const repasse_proximo_ciclo = proximaSegundaFeira();
+    const hojePreview = new Date();
+    hojePreview.setHours(0, 0, 0, 0);
+    const hojeStrPreview = hojePreview.toISOString().slice(0, 10);
+
+    const [rpcAgg, countsSettled, mensalidade_portal, cicloRepasseRowRes, repassePreviewRes] = await Promise.all([
       fetchOrgDashboardStatsAgg(org_id, primeiroDiaMes, ultimoDiaMes).catch(() => null),
       Promise.allSettled([
         supabase.from("fornecedores").select("id", { count: "exact", head: true }).eq("org_id", org_id),
@@ -55,7 +71,6 @@ export async function GET(req: Request) {
         supabase.from("sellers").select("id", { count: "exact", head: true }).eq("org_id", org_id).ilike("status", "ativo"),
         supabase.from("seller_depositos_pix").select("id", { count: "exact", head: true }).eq("org_id", org_id).eq("status", "pendente"),
         supabase.from("financial_repasse_fornecedor").select("id", { count: "exact", head: true }).eq("org_id", org_id).eq("status", "pendente"),
-        supabase.from("financial_ciclos_repasse").select("total_dropcore").eq("org_id", org_id).eq("status", "fechado"),
         supabase
           .from("pedidos")
           .select("id", { count: "exact", head: true })
@@ -75,6 +90,16 @@ export async function GET(req: Request) {
           .or("status.eq.enviado,status.eq.aguardando_repasse,status.eq.entregue,status.eq.devolvido"),
         supabase.from("sku_alteracoes_pendentes").select("id", { count: "exact", head: true }).eq("org_id", org_id).eq("status", "pendente"),
       ]),
+      resumoMensalidadePortal(supabase, org_id),
+      supabase
+        .from("financial_ciclos_repasse")
+        .select("status")
+        .eq("org_id", org_id)
+        .eq("ciclo_repasse", repasse_proximo_ciclo)
+        .maybeSingle(),
+      includeRepassePreview
+        ? loadOrgRepasseFuturosPreview(supabase, org_id, hojeStrPreview)
+        : Promise.resolve(emptyRepasseFuturosPreview),
     ]);
 
     let agg = rpcAgg;
@@ -181,7 +206,6 @@ export async function GET(req: Request) {
       sellersAtivosRes,
       pixPendentes,
       repassesPendentes,
-      ciclosRepasse,
       pedidosHojeRes,
       pedidosAguardandoRes,
       vendasMesRes,
@@ -204,10 +228,15 @@ export async function GET(req: Request) {
 
     const entrada_mes = agg.entrada_mes;
 
-    const ciclosData = ciclosRepasse.status === "fulfilled" && Array.isArray((ciclosRepasse.value as { data?: { total_dropcore: number }[] }).data)
-      ? (ciclosRepasse.value as { data: { total_dropcore: number }[] }).data ?? []
-      : [];
-    const receita_dropcore = (ciclosData as { total_dropcore?: number }[]).reduce((s, r) => s + Number(r.total_dropcore || 0), 0);
+    let receita_dropcore = rpcAgg?.receita_dropcore_total;
+    if (receita_dropcore == null) {
+      const { data: ciclosData } = await supabase
+        .from("financial_ciclos_repasse")
+        .select("total_dropcore")
+        .eq("org_id", org_id)
+        .eq("status", "fechado");
+      receita_dropcore = (ciclosData ?? []).reduce((s, r) => s + Number(r.total_dropcore || 0), 0);
+    }
 
     const pedidos_hoje =
       pedidosHojeRes.status === "fulfilled" && !(pedidosHojeRes.value as { error?: unknown }).error
@@ -217,8 +246,8 @@ export async function GET(req: Request) {
     const mensalidades_sellers_pendente = agg.mensalidades_sellers_pendente;
     const mensalidades_fornecedores_pendente = agg.mensalidades_fornecedores_pendente;
 
-    const inadimplentes = await contarInadimplentes(supabase, org_id);
-    const mensalidade_portal = await resumoMensalidadePortal(supabase, org_id);
+    const inadimplentes_sellers = mensalidade_portal.sellers.inadimplentes;
+    const inadimplentes_fornecedores = mensalidade_portal.fornecedores.inadimplentes;
 
     let dias_ate_vencimento = diasAteVencimentoFromMin(agg.min_vencimento_pendente);
     if (dias_ate_vencimento === null && !rpcAgg) {
@@ -254,13 +283,7 @@ export async function GET(req: Request) {
 
     const isStarter = String(plano ?? "").toLowerCase() !== "pro";
 
-    const repasse_proximo_ciclo = proximaSegundaFeira();
-    const { data: cicloRepasseRow } = await supabase
-      .from("financial_ciclos_repasse")
-      .select("status")
-      .eq("org_id", org_id)
-      .eq("ciclo_repasse", repasse_proximo_ciclo)
-      .maybeSingle();
+    const cicloRepasseRow = cicloRepasseRowRes.data;
 
     let repasse_ledger_pronto_proximo_ciclo = 0;
     if (cicloRepasseRow?.status !== "fechado") {
@@ -274,48 +297,14 @@ export async function GET(req: Request) {
       repasse_ledger_pronto_proximo_ciclo = count ?? 0;
     }
 
-    // Preview de repasses futuros (baseado no ledger), similar ao que o fornecedor faz.
-    // - Considera qualquer ciclo >= hoje
-    // - Agrupa por `ciclo_repasse` e soma `valor_fornecedor`
-    // - Usa `ENTREGUE`/`AGUARDANDO_REPASSE` como status "pronto no ledger"
-    const hojePreview = new Date();
-    hojePreview.setHours(0, 0, 0, 0);
-    const hojeStr = hojePreview.toISOString().slice(0, 10);
-
-    const { data: prevRows, error: prevErr } = await supabase
-      .from("financial_ledger")
-      .select("ciclo_repasse, valor_fornecedor")
-      .eq("org_id", org_id)
-      .in("tipo", ["BLOQUEIO", "VENDA"])
-      .in("status", ["ENTREGUE", "AGUARDANDO_REPASSE"])
-      .gte("ciclo_repasse", hojeStr)
-      .order("ciclo_repasse", { ascending: true })
-      .limit(2000);
-
-    if (prevErr) throw prevErr;
-
-    const byCycle: Record<string, { valor: number; pedidos: number }> = {};
-    for (const r of prevRows ?? []) {
-      const ciclo = (r as any).ciclo_repasse as string | null;
-      if (!ciclo) continue;
-      if (!byCycle[ciclo]) byCycle[ciclo] = { valor: 0, pedidos: 0 };
-      byCycle[ciclo].valor += Number((r as any).valor_fornecedor ?? 0);
-      byCycle[ciclo].pedidos += 1;
-    }
-
-    const repasse_futuros_previstos = Object.keys(byCycle)
-      .sort((a, b) => (a < b ? -1 : 1))
-      .map((ciclo) => ({
-        ciclo_repasse: ciclo,
-        valor_previsto: Math.max(0, byCycle[ciclo].valor),
-        pedidos: byCycle[ciclo].pedidos,
-      }))
-      .filter((x) => x.valor_previsto > 0);
-
-    const repasse_futuros_previstos_top8 = repasse_futuros_previstos.slice(0, 8);
-    const repasse_futuros_previstos_total_valor = repasse_futuros_previstos_top8.reduce((s, x) => s + Number(x.valor_previsto ?? 0), 0);
-    const repasse_futuros_previstos_total_pedidos = repasse_futuros_previstos_top8.reduce((s, x) => s + Number(x.pedidos ?? 0), 0);
-    const proximo_futuro = repasse_futuros_previstos_top8[0] ?? null;
+    const {
+      repasse_futuros_previstos_total_valor,
+      repasse_futuros_previstos_total_pedidos,
+      repasse_futuros_previstos_ciclos_qtd,
+      repasse_futuros_proximo_ciclo,
+      repasse_futuros_proximo_pedidos,
+      repasse_futuros_proximo_valor,
+    } = repassePreviewRes;
 
     return NextResponse.json({
       fornecedores_total,
@@ -330,18 +319,18 @@ export async function GET(req: Request) {
       repasse_proximo_ciclo,
       repasse_futuros_previstos_total_valor,
       repasse_futuros_previstos_total_pedidos,
-      repasse_futuros_previstos_ciclos_qtd: repasse_futuros_previstos_top8.length,
-      repasse_futuros_proximo_ciclo: proximo_futuro?.ciclo_repasse ?? null,
-      repasse_futuros_proximo_pedidos: proximo_futuro?.pedidos ?? 0,
-      repasse_futuros_proximo_valor: proximo_futuro?.valor_previsto ?? 0,
+      repasse_futuros_previstos_ciclos_qtd,
+      repasse_futuros_proximo_ciclo,
+      repasse_futuros_proximo_pedidos,
+      repasse_futuros_proximo_valor,
       saldo_sellers_total,
       depositos_pix_pendentes,
       entrada_mes,
       receita_dropcore,
       mensalidades_sellers_pendente,
       mensalidades_fornecedores_pendente,
-      inadimplentes_sellers: inadimplentes.sellers,
-      inadimplentes_fornecedores: inadimplentes.fornecedores,
+      inadimplentes_sellers,
+      inadimplentes_fornecedores,
       mensalidade_portal,
       portal_trial_days: portalTrialDays(),
       pedidos_aguardando_envio,

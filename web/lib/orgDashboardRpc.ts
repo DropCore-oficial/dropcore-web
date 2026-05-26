@@ -8,6 +8,21 @@ export type OrgDashboardStatsAgg = {
   mensalidades_fornecedores_pendente: number;
   produto_cor_count: number;
   min_vencimento_pendente: string | null;
+  receita_dropcore_total?: number;
+};
+
+export type OrgRepasseFuturosPreview = {
+  repasse_futuros_previstos_total_valor: number;
+  repasse_futuros_previstos_total_pedidos: number;
+  repasse_futuros_previstos_ciclos_qtd: number;
+  repasse_futuros_proximo_ciclo: string | null;
+  repasse_futuros_proximo_pedidos: number;
+  repasse_futuros_proximo_valor: number;
+};
+
+export type CalculadoraRecebimentosTotais = {
+  quantidade_total: number;
+  soma_total_geral: number;
 };
 
 export type DashboardProPayload = {
@@ -33,6 +48,8 @@ function isMissingRpcError(error: { message?: string; code?: string } | null): b
     code === "42883" ||
     code === "PGRST202" ||
     msg.includes("fn_org_dashboard") ||
+    msg.includes("fn_org_repasse") ||
+    msg.includes("fn_calculadora_recebimentos") ||
     msg.includes("does not exist")
   );
 }
@@ -70,6 +87,55 @@ export async function fetchOrgDashboardStatsAgg(
     produto_cor_count: num(row.produto_cor_count),
     min_vencimento_pendente:
       typeof row.min_vencimento_pendente === "string" ? row.min_vencimento_pendente : null,
+    receita_dropcore_total:
+      row.receita_dropcore_total != null ? num(row.receita_dropcore_total) : undefined,
+  };
+}
+
+export async function fetchOrgRepasseFuturosPreview(
+  orgId: string,
+  hojeStr: string
+): Promise<OrgRepasseFuturosPreview | null> {
+  const { data, error } = await supabaseAdmin.rpc("fn_org_repasse_futuros_preview", {
+    p_org_id: orgId,
+    p_hoje: hojeStr,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) return null;
+    throw new Error(error.message);
+  }
+
+  const row = data as Record<string, unknown> | null;
+  if (!row || typeof row !== "object") return null;
+
+  const proximoCiclo =
+    typeof row.repasse_futuros_proximo_ciclo === "string" ? row.repasse_futuros_proximo_ciclo : null;
+
+  return {
+    repasse_futuros_previstos_total_valor: num(row.repasse_futuros_previstos_total_valor),
+    repasse_futuros_previstos_total_pedidos: num(row.repasse_futuros_previstos_total_pedidos),
+    repasse_futuros_previstos_ciclos_qtd: num(row.repasse_futuros_previstos_ciclos_qtd),
+    repasse_futuros_proximo_ciclo: proximoCiclo,
+    repasse_futuros_proximo_pedidos: num(row.repasse_futuros_proximo_pedidos),
+    repasse_futuros_proximo_valor: num(row.repasse_futuros_proximo_valor),
+  };
+}
+
+export async function fetchCalculadoraRecebimentosTotais(): Promise<CalculadoraRecebimentosTotais | null> {
+  const { data, error } = await supabaseAdmin.rpc("fn_calculadora_recebimentos_totais");
+
+  if (error) {
+    if (isMissingRpcError(error)) return null;
+    throw new Error(error.message);
+  }
+
+  const row = data as Record<string, unknown> | null;
+  if (!row || typeof row !== "object") return null;
+
+  return {
+    quantidade_total: num(row.quantidade_total),
+    soma_total_geral: num(row.soma_total_geral),
   };
 }
 

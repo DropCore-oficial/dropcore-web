@@ -14,6 +14,7 @@ import {
 } from "@/lib/semanticPremium";
 import { SellerOlistIntegracaoChecklist } from "@/components/seller/SellerOlistIntegracaoChecklist";
 import { cn } from "@/lib/utils";
+import { useVisibilityAwareInterval } from "@/lib/useVisibilityAwareInterval";
 
 export default function SellerIntegracoesErpPage() {
   const router = useRouter();
@@ -97,24 +98,21 @@ export default function SellerIntegracoesErpPage() {
     void load();
   }, [load]);
 
-  /** Atualiza status da última sync automática (Supabase cron ~1 min) sem botão manual. */
-  useEffect(() => {
-    if (!olistConnected || !olistTokenUsable || loading) return;
-    const id = setInterval(() => {
-      void (async () => {
-        const {
-          data: { session },
-        } = await supabaseBrowser.auth.getSession();
-        if (!session?.access_token) return;
-        try {
-          await loadOlist(session.access_token);
-        } catch {
-          /* polling silencioso */
-        }
-      })();
-    }, 45_000);
-    return () => clearInterval(id);
-  }, [olistConnected, olistTokenUsable, loading, loadOlist]);
+  useVisibilityAwareInterval(
+    async () => {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return;
+      try {
+        await loadOlist(session.access_token);
+      } catch {
+        /* polling silencioso */
+      }
+    },
+    60_000,
+    !olistConnected || !olistTokenUsable || loading
+  );
 
   async function salvarOlistToken() {
     setOlistSaving(true);

@@ -206,15 +206,6 @@ export async function GET(req: Request) {
       valorAnterior = (pedidosAnt ?? []).reduce((s, p) => s + Number(p.valor_fornecedor ?? 0), 0);
     }
 
-    const pedidosParaGrafico =
-      modo === "dias"
-        ? lista.map((p) => ({
-            criado_em: p.criado_em,
-            valor_fornecedor: Number(p.valor_fornecedor ?? 0),
-            nome_produto: p.nome_produto ?? null,
-          }))
-        : undefined;
-
     return NextResponse.json({
       vendasPorDia,
       totalPedidos,
@@ -222,7 +213,6 @@ export async function GET(req: Request) {
       ticketMedio,
       topProduto,
       dias,
-      pedidos: pedidosParaGrafico,
       modo,
       valorAnterior,
       pedidosAnteriores,

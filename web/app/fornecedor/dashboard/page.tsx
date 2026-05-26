@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { FornecedorPortalBlockedShell } from "@/components/fornecedor/FornecedorPortalBlockedShell";
 import { useMensalidadeBloqueio } from "@/lib/mensalidadeBloqueioContext";
+import { useVisibilityAwareInterval } from "@/lib/useVisibilityAwareInterval";
 import { FornecedorNav } from "../FornecedorNav";
 import { IconArrowRight, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
 import { AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
@@ -85,7 +86,8 @@ const statusLabel: Record<string, { label: string; cor: string }> = {
 
 export default function FornecedorDashboardPage() {
   const router = useRouter();
-  const { portalBloqueado, verificando } = useMensalidadeBloqueio();
+  const { portalBloqueado, verificando, mensalidades: mensalidadesCtx, trialAtivo: trialAtivoCtx, trialValidoAte: trialValidoAteCtx } =
+    useMensalidadeBloqueio();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fornecedor, setFornecedor] = useState<FornecedorData | null>(null);
@@ -126,7 +128,6 @@ export default function FornecedorDashboardPage() {
     modo?: string;
     valorAnterior?: number;
     pedidosAnteriores?: number;
-    pedidos?: { criado_em: string; valor_fornecedor: number; nome_produto: string | null }[];
   } | null>(null);
 
   const searchParams = useSearchParams();
@@ -148,10 +149,14 @@ export default function FornecedorDashboardPage() {
       }
       const headers = { Authorization: `Bearer ${session.access_token}` };
 
-      const [meRes, repRes, statsRes] = await Promise.all([
+      const [meRes, repRes, statsRes, desempRes] = await Promise.all([
         fetch("/api/fornecedor/me", { headers, cache: "no-store" }),
-        fetch("/api/fornecedor/repasse-list?include_preview=1", { headers, cache: "no-store" }),
+        fetch("/api/fornecedor/repasse-list", { headers, cache: "no-store" }),
         fetch("/api/fornecedor/dashboard-stats", { headers, cache: "no-store" }),
+        fetch(`/api/fornecedor/desempenho?modo=${chartMode}&periodo=${encodeURIComponent(typeof chartPeriodo === "string" ? chartPeriodo : String(chartPeriodo))}`, {
+          headers,
+          cache: "no-store",
+        }),
       ]);
 
       if (!meRes.ok) {
@@ -187,6 +192,18 @@ export default function FornecedorDashboardPage() {
       } else {
         setStats(null);
       }
+
+      if (desempRes.ok) {
+        setDesempenho(await desempRes.json());
+      }
+
+      fetch("/api/fornecedor/repasse-list?include_preview=1", { headers, cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((repJson) => {
+          if (!repJson) return;
+          setRepasseFuturos(repJson.futuros ?? []);
+        })
+        .catch(() => {});
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
@@ -224,8 +241,15 @@ export default function FornecedorDashboardPage() {
 
   useEffect(() => {
     if (portalBloqueado || verificando || loading) return;
-    loadDesempenho();
+    void loadDesempenho();
   }, [chartMode, chartPeriodo, portalBloqueado, verificando, loading]);
+
+  useEffect(() => {
+    if (verificando) return;
+    setMensalidades(mensalidadesCtx as Mensalidade[]);
+    setTrialAtivo(trialAtivoCtx);
+    setTrialValidoAte(trialValidoAteCtx);
+  }, [verificando, mensalidadesCtx, trialAtivoCtx, trialValidoAteCtx]);
 
   useEffect(() => {
     const pagar = searchParams.get("pagar");
@@ -241,32 +265,25 @@ export default function FornecedorDashboardPage() {
     }
   }, [searchParams.get("pagar"), mensalidades.length, loading, cobrancaMensalidadeAtiva]);
 
-  useEffect(() => {
-    if (portalBloqueado || verificando) return;
-    let cancelled = false;
-    (async () => {
-      const { data: { session } } = await supabaseBrowser.auth.getSession();
-      if (!session?.access_token || cancelled) return;
-      const res = await fetch("/api/fornecedor/mensalidades", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        cache: "no-store",
-      });
-      if (!res.ok || cancelled) return;
-      const mensJson = await res.json();
-      setMensalidades(mensJson.items ?? []);
-      setTrialAtivo(!!mensJson.trial_ativo);
-      setTrialValidoAte(mensJson.trial_valido_ate ?? null);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [portalBloqueado, verificando]);
+  const pollMensalidadesVencidas = async () => {
+    const { data: { session } } = await supabaseBrowser.auth.getSession();
+    if (!session?.access_token) return;
+    const res = await fetch("/api/fornecedor/mensalidades", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return;
+    const mensJson = await res.json();
+    setMensalidades(mensJson.items ?? []);
+    setTrialAtivo(!!mensJson.trial_ativo);
+    setTrialValidoAte(mensJson.trial_valido_ate ?? null);
+  };
 
-  useEffect(() => {
-    if (portalBloqueado || verificando || !temMensalidadeVencida || !cobrancaMensalidadeAtiva) return;
-    const id = setInterval(() => void load({ silent: true }), 60_000);
-    return () => clearInterval(id);
-  }, [portalBloqueado, verificando, temMensalidadeVencida, cobrancaMensalidadeAtiva]);
+  useVisibilityAwareInterval(
+    () => void pollMensalidadesVencidas(),
+    60_000,
+    portalBloqueado || verificando || !temMensalidadeVencida || !cobrancaMensalidadeAtiva
+  );
 
   useEffect(() => {
     if (!pixExpiraEm || !pixQrCode) return;
@@ -324,27 +341,6 @@ export default function FornecedorDashboardPage() {
     if (!desempenho) return [];
     if (chartMode === "hoje" && desempenho.modo === "hoje") {
       return desempenho.vendasPorDia ?? [];
-    }
-    if (chartMode === "dias" && desempenho.pedidos && typeof chartPeriodo === "number") {
-      const dias = desempenho.dias;
-      const agora = new Date();
-      const toKey = (d: Date) => d.toISOString().slice(0, 10);
-      const diasArr: { dia: string; valor: number; count: number }[] = [];
-      for (let i = dias - 1; i >= 0; i--) {
-        const d = new Date(agora.getTime() - i * 24 * 60 * 60 * 1000);
-        diasArr.push({ dia: toKey(d), valor: 0, count: 0 });
-      }
-      const map = new Map(diasArr.map((x) => [x.dia, x]));
-      for (const p of desempenho.pedidos) {
-        if (!p?.criado_em || p.criado_em.length < 10) continue;
-        const key = toKey(new Date(p.criado_em));
-        const row = map.get(key);
-        if (row) {
-          row.valor += Number(p.valor_fornecedor) || 0;
-          row.count += 1;
-        }
-      }
-      if (diasArr.some((d) => d.valor > 0)) return diasArr;
     }
     return desempenho.vendasPorDia ?? [];
   })();

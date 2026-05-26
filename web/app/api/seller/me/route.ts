@@ -247,33 +247,6 @@ export async function GET(req: Request) {
     );
     const totalMes = pedidosMes.reduce((s, e) => s + e.valor_total, 0);
 
-    if (saldo_alerta_nivel === "critico") {
-      const desde = new Date();
-      desde.setHours(desde.getHours() - 24);
-      const { data: jaExiste } = await supabaseAdmin
-        .from("notifications")
-        .select("id")
-        .eq("user_id", user_id)
-        .eq("tipo", "saldo_baixo")
-        .gte("criado_em", desde.toISOString())
-        .limit(1)
-        .maybeSingle();
-      if (!jaExiste) {
-        const fmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-        const mensagemCritico =
-          pedidosEstimados != null && custoMedioPedido != null && custoMedioPedido > 0
-            ? `Saldo disponível ${fmt.format(saldoDisponivel)} cobre cerca de ${pedidosEstimados} pedido(s) (média ${fmt.format(custoMedioPedido)}). Deposite via PIX para não travar vendas.`
-            : `Saldo disponível ${fmt.format(saldoDisponivel)}. Faça um depósito PIX para continuar vendendo.`;
-        await supabaseAdmin.from("notifications").insert({
-          user_id,
-          tipo: "saldo_baixo",
-          titulo: "Saldo crítico para pedidos",
-          mensagem: mensagemCritico,
-          metadata: { pedidos_estimados: pedidosEstimados },
-        });
-      }
-    }
-
     // Depósitos PIX recentes
     const { data: depositos } = await supabaseAdmin
       .from("seller_depositos_pix")

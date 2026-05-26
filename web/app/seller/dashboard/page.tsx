@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { useMensalidadeBloqueio } from "@/lib/mensalidadeBloqueioContext";
+import { useVisibilityAwareInterval } from "@/lib/useVisibilityAwareInterval";
 import { SellerPortalBlockedShell } from "@/components/seller/SellerPortalBlockedShell";
 import { SellerNav } from "../SellerNav";
 import { IconTipoExtrato, IconDevolucao, IconArrowRight, IconPlus, IconClipboard, IconDeposito, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
@@ -290,7 +291,13 @@ function SellerHeaderArmazemCardButton({ vinculo, onOpen }: { vinculo: VinculoFo
 export default function SellerDashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { portalBloqueado, verificando } = useMensalidadeBloqueio();
+  const {
+    portalBloqueado,
+    verificando,
+    mensalidades: mensalidadesCtx,
+    trialAtivo: trialAtivoCtx,
+    trialValidoAte: trialValidoAteCtx,
+  } = useMensalidadeBloqueio();
   const destaqueId = searchParams.get("destaque");
   const tabParam = searchParams.get("tab");
   const depositoRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -353,10 +360,9 @@ export default function SellerDashboardPage() {
         router.replace("/seller/login");
         return;
       }
-      const [meRes, mensRes, olistRes] = await Promise.all([
+      const [meRes, olistRes] = await Promise.all([
         fetch("/api/seller/me", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }),
-        fetch("/api/seller/mensalidades", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }),
-        fetch("/api/seller/olist", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }),
+        fetch("/api/seller/olist?lite=1", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }),
       ]);
       const json = await meRes.json();
       if (!meRes.ok) {
@@ -378,16 +384,6 @@ export default function SellerDashboardPage() {
       setExtrato(raw.filter((e: LedgerEntry) => { if (seen.has(e.id)) return false; seen.add(e.id); return true; }));
       setDepositos(json.depositos ?? []);
       setCreditoResumo(json.credito_resumo ?? null);
-      if (mensRes.ok) {
-        const mensJson = await mensRes.json();
-        setMensalidades(mensJson.items ?? []);
-        setTrialAtivo(!!mensJson.trial_ativo);
-        setTrialValidoAte(mensJson.trial_valido_ate ?? null);
-      } else {
-        setMensalidades([]);
-        setTrialAtivo(false);
-        setTrialValidoAte(null);
-      }
       if (olistRes.ok) {
         const olistJson = await olistRes.json();
         setOlistIntegrado(Boolean(olistJson.connected));
@@ -435,6 +431,13 @@ export default function SellerDashboardPage() {
   }, [portalBloqueado, verificando]);
 
   useEffect(() => {
+    if (verificando) return;
+    setMensalidades(mensalidadesCtx);
+    setTrialAtivo(trialAtivoCtx);
+    setTrialValidoAte(trialValidoAteCtx);
+  }, [verificando, mensalidadesCtx, trialAtivoCtx, trialValidoAteCtx]);
+
+  useEffect(() => {
     if (!pixExpiraEm || !pixQrCode) return;
     const tick = () => {
       const rest = Math.max(0, Math.floor((new Date(pixExpiraEm).getTime() - Date.now()) / 1000));
@@ -445,11 +448,25 @@ export default function SellerDashboardPage() {
     return () => clearInterval(id);
   }, [pixExpiraEm, pixQrCode]);
 
-  useEffect(() => {
-    if (portalBloqueado || verificando || !temMensalidadeVencida || !cobrancaMensalidadeAtiva) return;
-    const id = setInterval(() => void load({ silent: true }), 30_000);
-    return () => clearInterval(id);
-  }, [portalBloqueado, verificando, temMensalidadeVencida, cobrancaMensalidadeAtiva]);
+  const pollMensalidadesVencidas = async () => {
+    const { data: { session } } = await supabaseBrowser.auth.getSession();
+    if (!session?.access_token) return;
+    const res = await fetch("/api/seller/mensalidades", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return;
+    const mensJson = await res.json();
+    setMensalidades(mensJson.items ?? []);
+    setTrialAtivo(!!mensJson.trial_ativo);
+    setTrialValidoAte(mensJson.trial_valido_ate ?? null);
+  };
+
+  useVisibilityAwareInterval(
+    () => void pollMensalidadesVencidas(),
+    60_000,
+    portalBloqueado || verificando || !temMensalidadeVencida || !cobrancaMensalidadeAtiva
+  );
 
   useEffect(() => {
     if (tabParam === "depositos" || destaqueId) {
@@ -488,11 +505,10 @@ export default function SellerDashboardPage() {
     }
   }, [destaqueId, depositos, loading]);
 
-  // Polling automático: verifica no MP se depósitos pendentes já foram pagos
   const pendentesCount = depositos.filter((d) => d.status === "pendente").length;
-  useEffect(() => {
-    if (pendentesCount === 0 || !seller) return;
-    const sync = async () => {
+  useVisibilityAwareInterval(
+    async () => {
+      if (pendentesCount === 0 || !seller) return;
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) return;
       const res = await fetch("/api/seller/deposito-pix/sync", {
@@ -500,12 +516,11 @@ export default function SellerDashboardPage() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       const json = await res.json();
-      if (json.ok && json.aprovados > 0) load();
-    };
-    const id = setInterval(sync, 30_000);
-    sync();
-    return () => clearInterval(id);
-  }, [pendentesCount, seller?.id]);
+      if (json.ok && json.aprovados > 0) void load({ silent: true });
+    },
+    60_000,
+    pendentesCount === 0 || !seller
+  );
 
   useEffect(() => {
     const bloquear = Boolean(seller && !planoSellerDefinido(seller.plano) && !loading && !error);

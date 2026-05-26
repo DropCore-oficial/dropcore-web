@@ -118,11 +118,17 @@ function MensalidadeBloqueioGateInner({
     retornoRef.current = q.get("mensalidade") === "retorno";
   }, [pathname]);
 
-  const applyMensalidades = useCallback((items: Mensalidade[], trial: boolean) => {
-    setMensalidades((prev) => (mensalidadesIguais(prev, items) ? prev : items));
-    setTrialAtivo((prev) => (prev === trial ? prev : trial));
-    bloqueadoRef.current = items.some((m) => mensalidadeBloqueia(m)) && !trial;
-  }, []);
+  const [trialValidoAte, setTrialValidoAte] = useState<string | null>(null);
+
+  const applyMensalidades = useCallback(
+    (items: Mensalidade[], trial: boolean, trialAte: string | null) => {
+      setMensalidades((prev) => (mensalidadesIguais(prev, items) ? prev : items));
+      setTrialAtivo((prev) => (prev === trial ? prev : trial));
+      setTrialValidoAte((prev) => (prev === trialAte ? prev : trialAte));
+      bloqueadoRef.current = items.some((m) => mensalidadeBloqueia(m)) && !trial;
+    },
+    []
+  );
 
   const load = useCallback(async (opts?: { doSync?: boolean }) => {
     try {
@@ -137,24 +143,7 @@ function MensalidadeBloqueioGateInner({
         routerRef.current.replace(loginPath);
         return;
       }
-      let cadastroEmail: string | null = null;
-      const mePath = context === "seller" ? "/api/seller/me" : "/api/fornecedor/me";
-      try {
-        const meRes = await fetch(mePath, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-          cache: "no-store",
-        });
-        if (meRes.ok) {
-          const meJson = await meRes.json();
-          cadastroEmail =
-            context === "seller"
-              ? (meJson.seller?.email as string | null | undefined) ?? null
-              : (meJson.fornecedor?.email_comercial as string | null | undefined) ?? null;
-        }
-      } catch {
-        // ignora
-      }
-      setPayerEmail(resolverEmailPagadorMp(session.user.email, cadastroEmail));
+      setPayerEmail(resolverEmailPagadorMp(session.user.email, null));
       if (opts?.doSync) {
         try {
           await fetch(apiSync, {
@@ -182,9 +171,11 @@ function MensalidadeBloqueioGateInner({
       const json = await res.json();
       const items = (json.items ?? []) as Mensalidade[];
       const trial = !!json.trial_ativo;
+      const trialAte =
+        typeof json.trial_valido_ate === "string" ? json.trial_valido_ate : null;
       const aindaBloqueia = items.some((m) => mensalidadeBloqueia(m)) && !trial;
 
-      applyMensalidades(items, trial);
+      applyMensalidades(items, trial, trialAte);
 
       if (!aindaBloqueia) {
         setPixQrCode(null);
@@ -215,7 +206,11 @@ function MensalidadeBloqueioGateInner({
     let cancelled = false;
     (async () => {
       try {
-        await loadRef.current({ doSync: true });
+        const doSync =
+          retornoRef.current ||
+          (typeof window !== "undefined" &&
+            new URLSearchParams(window.location.search).get("pagar") === "1");
+        await loadRef.current({ doSync });
       } finally {
         if (!cancelled) setBooting(false);
       }
@@ -290,6 +285,9 @@ function MensalidadeBloqueioGateInner({
   const ctx: MensalidadeBloqueioContextValue = {
     portalBloqueado: exibirBloqueio,
     verificando: booting,
+    mensalidades,
+    trialAtivo,
+    trialValidoAte,
   };
 
   return (

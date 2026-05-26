@@ -87,6 +87,20 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Não autenticado." }, { status: 401, headers: NO_STORE_JSON_HEADERS });
     }
 
+    const lite = new URL(req.url).searchParams.get("lite") === "1";
+    if (lite) {
+      const { data: liteRow } = await supabaseAdmin
+        .from("seller_olist_integrations")
+        .select("olist_token_ciphertext")
+        .eq("seller_id", seller.id)
+        .maybeSingle();
+      const connected = Boolean(liteRow?.olist_token_ciphertext?.trim());
+      return NextResponse.json(
+        { connected, olist_unavailable: false },
+        { headers: NO_STORE_JSON_HEADERS }
+      );
+    }
+
     const webhook_last_received_at = await fetchSellerOlistWebhookLastAt(seller.id);
 
     const { data: rows, error } = await supabaseAdmin

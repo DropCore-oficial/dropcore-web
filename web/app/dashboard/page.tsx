@@ -425,13 +425,30 @@ export default function DashboardPage() {
       }
 
       if (m.role_base === "owner" || m.role_base === "admin") {
+        const authHeaders = { Authorization: `Bearer ${token}` };
         let statsRes: { ok: boolean; json: Stats & { plano?: string } };
         try {
-          const raw = await fetch("/api/org/dashboard-stats", {
-            headers: { Authorization: `Bearer ${token}` },
-            cache: "no-store",
-          });
-          statsRes = await fetchJsonSafe(raw);
+          const [statsRaw, calcRaw] = await Promise.all([
+            fetch("/api/org/dashboard-stats?repasse_preview=0", { headers: authHeaders, cache: "no-store" }),
+            fetch("/api/org/calculadora/recebimentos?limit=5&widget=1", { headers: authHeaders, cache: "no-store" }),
+          ]);
+          statsRes = await fetchJsonSafe(statsRaw);
+          try {
+            const cj = (await calcRaw.json()) as {
+              items?: { id?: string; email: string | null; valor: number; pago_em: string }[];
+              soma_total_geral?: number;
+              quantidade_total?: number;
+              error?: string;
+            };
+            setCalcReceita({
+              soma: Number(cj.soma_total_geral ?? 0),
+              quantidade: Number(cj.quantidade_total ?? 0),
+              ultimos: Array.isArray(cj.items) ? cj.items : [],
+              avisoTabela: typeof cj.error === "string" && cj.error ? cj.error : null,
+            });
+          } catch {
+            setCalcReceita({ soma: 0, quantidade: 0, ultimos: [], avisoTabela: null });
+          }
         } catch (fetchErr) {
           const msg = fetchErr instanceof Error && fetchErr.message === "Failed to fetch"
             ? "Falha na conexão. Servidor pode estar reiniciando. Tente novamente."
@@ -441,32 +458,38 @@ export default function DashboardPage() {
         if (statsRes.ok) {
           setStats(statsRes.json as Stats);
           if (statsRes.json.plano === "pro") {
-            fetch("/api/org/dashboard-pro", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })
+            fetch("/api/org/dashboard-pro", { headers: authHeaders, cache: "no-store" })
               .then((r) => r.json())
               .then((j) => { if (j?.total_pedidos !== undefined) setProData(j); })
               .catch(() => {});
           }
-        }
-
-        try {
-          const cr = await fetch("/api/org/calculadora/recebimentos?limit=5", {
-            headers: { Authorization: `Bearer ${token}` },
-            cache: "no-store",
-          });
-          const cj = (await cr.json()) as {
-            items?: { id?: string; email: string | null; valor: number; pago_em: string }[];
-            soma_total_geral?: number;
-            quantidade_total?: number;
-            error?: string;
-          };
-          setCalcReceita({
-            soma: Number(cj.soma_total_geral ?? 0),
-            quantidade: Number(cj.quantidade_total ?? 0),
-            ultimos: Array.isArray(cj.items) ? cj.items : [],
-            avisoTabela: typeof cj.error === "string" && cj.error ? cj.error : null,
-          });
-        } catch {
-          setCalcReceita({ soma: 0, quantidade: 0, ultimos: [], avisoTabela: null });
+          fetch("/api/org/dashboard-stats?repasse_only=1", { headers: authHeaders, cache: "no-store" })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((patch) => {
+              if (!patch || typeof patch !== "object") return;
+              setStats((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      repasse_futuros_previstos_total_valor: Number(
+                        patch.repasse_futuros_previstos_total_valor ?? prev.repasse_futuros_previstos_total_valor
+                      ),
+                      repasse_futuros_previstos_total_pedidos: Number(
+                        patch.repasse_futuros_previstos_total_pedidos ?? prev.repasse_futuros_previstos_total_pedidos
+                      ),
+                      repasse_futuros_previstos_ciclos_qtd: Number(
+                        patch.repasse_futuros_previstos_ciclos_qtd ?? prev.repasse_futuros_previstos_ciclos_qtd
+                      ),
+                      repasse_futuros_proximo_ciclo:
+                        patch.repasse_futuros_proximo_ciclo ?? prev.repasse_futuros_proximo_ciclo,
+                      repasse_futuros_proximo_pedidos: Number(
+                        patch.repasse_futuros_proximo_pedidos ?? prev.repasse_futuros_proximo_pedidos
+                      ),
+                    }
+                  : prev
+              );
+            })
+            .catch(() => {});
         }
       }
     } catch (e: unknown) {

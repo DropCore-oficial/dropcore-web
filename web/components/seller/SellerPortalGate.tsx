@@ -31,17 +31,8 @@ export function SellerPortalGate({ children }: { children: ReactNode }) {
         return;
       }
       const headers = { Authorization: `Bearer ${session.access_token}` };
-      const [orgRes, fornRes, sellRes] = await Promise.all([
-        fetch("/api/org/me", { headers, cache: "no-store" }),
-        fetch("/api/fornecedor/me", { headers, cache: "no-store" }),
-        fetch("/api/seller/me", { headers, cache: "no-store" }),
-      ]);
+      const orgRes = await fetch("/api/org/me", { headers, cache: "no-store" });
       if (cancelled) return;
-
-      if (fornRes.ok) {
-        router.replace("/fornecedor/dashboard");
-        return;
-      }
 
       const org = orgRes.ok
         ? ((await orgRes.json().catch(() => ({}))) as {
@@ -50,12 +41,13 @@ export function SellerPortalGate({ children }: { children: ReactNode }) {
             role_base?: string | null;
           })
         : null;
+
       if (org?.fornecedor_id) {
         router.replace("/fornecedor/dashboard");
         return;
       }
 
-      if (sellRes.ok) {
+      if (org?.seller_id) {
         if (!cancelled) setOk(true);
         return;
       }

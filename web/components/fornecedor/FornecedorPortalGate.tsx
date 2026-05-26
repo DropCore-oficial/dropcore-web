@@ -38,10 +38,7 @@ export function FornecedorPortalGate({ children }: { children: ReactNode }) {
         return;
       }
       const headers = { Authorization: `Bearer ${session.access_token}` };
-      const [orgRes, fornRes] = await Promise.all([
-        fetch("/api/org/me", { headers, cache: "no-store" }),
-        fetch("/api/fornecedor/me", { headers, cache: "no-store" }),
-      ]);
+      const orgRes = await fetch("/api/org/me", { headers, cache: "no-store" });
       if (cancelled) return;
       const org = orgRes.ok
         ? ((await orgRes.json().catch(() => ({}))) as {
@@ -56,7 +53,7 @@ export function FornecedorPortalGate({ children }: { children: ReactNode }) {
         return;
       }
       const role = String(org?.role_base ?? "");
-      if (fornRes.ok || org?.fornecedor_id) {
+      if (org?.fornecedor_id) {
         verifiedRef.current = true;
         if (!cancelled) setOk(true);
         return;

@@ -1,14 +1,18 @@
 /**
  * GET /api/fornecedor/dashboard-stats
- * Estatísticas para a visão geral do dashboard do fornecedor.
+ * Estatísticas para a visão geral do dashboard do fornecedor (somente leitura).
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { fetchFornecedorDashboardStats } from "@/lib/fornecedorDashboardRpc";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: string; org_id: string; user_id: string } | null> {
+const PREFIXO_OCULTO = "DJU999";
+
+async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: string; org_id: string } | null> {
   const auth = req.headers.get("authorization") ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
   if (!token) return null;
@@ -30,7 +34,72 @@ async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: st
     .maybeSingle();
 
   if (!member?.fornecedor_id) return null;
-  return { fornecedor_id: member.fornecedor_id, org_id: member.org_id, user_id: userData.user.id };
+  return { fornecedor_id: member.fornecedor_id, org_id: member.org_id };
+}
+
+async function legacyStats(
+  org_id: string,
+  fornecedor_id: string,
+  startOfMonth: Date,
+  endOfMonth: Date
+) {
+  const startIso = startOfMonth.toISOString();
+  const endIso = endOfMonth.toISOString();
+
+  const [
+    { count: pedidosAguardando },
+    { data: pedidosMes },
+    { count: produtosAtivos },
+    { data: skusEstoque },
+    { data: repasses },
+  ] = await Promise.all([
+    supabaseAdmin
+      .from("pedidos")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", org_id)
+      .eq("fornecedor_id", fornecedor_id)
+      .eq("status", "enviado"),
+    supabaseAdmin
+      .from("pedidos")
+      .select("valor_fornecedor")
+      .eq("org_id", org_id)
+      .eq("fornecedor_id", fornecedor_id)
+      .in("status", ["enviado", "aguardando_repasse", "entregue"])
+      .gte("criado_em", startIso)
+      .lte("criado_em", endIso),
+    supabaseAdmin
+      .from("skus")
+      .select("id", { count: "exact", head: true })
+      .eq("fornecedor_id", fornecedor_id)
+      .eq("status", "ativo"),
+    supabaseAdmin
+      .from("skus")
+      .select("id, estoque_atual, estoque_minimo")
+      .eq("fornecedor_id", fornecedor_id)
+      .not("sku", "ilike", `${PREFIXO_OCULTO}%`)
+      .limit(2000),
+    supabaseAdmin
+      .from("financial_repasse_fornecedor")
+      .select("valor_total")
+      .eq("org_id", org_id)
+      .eq("fornecedor_id", fornecedor_id)
+      .in("status", ["pendente", "liberado"]),
+  ]);
+
+  const estoqueBaixo = (skusEstoque ?? []).filter((r) => {
+    const atual = r.estoque_atual;
+    const min = r.estoque_minimo;
+    return min != null && atual != null && Number(atual) < Number(min);
+  }).length;
+
+  return {
+    pedidos_aguardando_postagem: pedidosAguardando ?? 0,
+    pedidos_mes_count: pedidosMes?.length ?? 0,
+    pedidos_mes_valor: (pedidosMes ?? []).reduce((s, p) => s + Number(p.valor_fornecedor ?? 0), 0),
+    produtos_ativos: produtosAtivos ?? 0,
+    estoque_baixo: estoqueBaixo,
+    total_a_receber: (repasses ?? []).reduce((s, r) => s + Number(r.valor_total ?? 0), 0),
+  };
 }
 
 export async function GET(req: Request) {
@@ -40,116 +109,22 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Não autenticado como fornecedor." }, { status: 401 });
     }
 
-    const { fornecedor_id, org_id, user_id } = ctx;
-
-    // Pedidos aguardando postagem — buscar IDs para criar notificações faltando
-    const { data: pedidosParaPostar } = await supabaseAdmin
-      .from("pedidos")
-      .select("id, valor_fornecedor")
-      .eq("org_id", org_id)
-      .eq("fornecedor_id", fornecedor_id)
-      .eq("status", "enviado");
-
-    const idsPedidosEnviado = new Set((pedidosParaPostar ?? []).map((p) => p.id));
-    const { data: notifsPedidoPostar } = await supabaseAdmin
-      .from("notifications")
-      .select("id, metadata")
-      .eq("user_id", user_id)
-      .eq("tipo", "pedido_para_postar");
-    const idsNotifsOrfas = (notifsPedidoPostar ?? [])
-      .filter((n) => {
-        const pid = (n.metadata as { pedido_id?: string } | null)?.pedido_id;
-        return !pid || !idsPedidosEnviado.has(pid);
-      })
-      .map((n) => n.id);
-    if (idsNotifsOrfas.length > 0) {
-      await supabaseAdmin.from("notifications").delete().in("id", idsNotifsOrfas);
-    }
-
-    // Garantir notificação "pedido_para_postar" para cada pedido que não tem
-    if (pedidosParaPostar && pedidosParaPostar.length > 0) {
-      const { data: notifsExistentes } = await supabaseAdmin
-        .from("notifications")
-        .select("id, metadata")
-        .eq("user_id", user_id)
-        .eq("tipo", "pedido_para_postar");
-      const idsComNotif = new Set((notifsExistentes ?? []).map((n) => (n.metadata as { pedido_id?: string })?.pedido_id).filter(Boolean));
-      const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-      const inserts = pedidosParaPostar
-        .filter((p) => !idsComNotif.has(p.id))
-        .map((p) => ({
-          user_id,
-          tipo: "pedido_para_postar",
-          titulo: "Novo pedido para postar",
-          mensagem: `Você tem um novo pedido de ${BRL.format(Number(p.valor_fornecedor ?? 0))} aguardando envio.`,
-          metadata: { pedido_id: p.id },
-        }));
-      if (inserts.length > 0) {
-        await supabaseAdmin.from("notifications").insert(inserts);
-      }
-    }
-
-    // Início e fim do mês atual (fuso Brasil)
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-    // 1. Pedidos aguardando postagem (já buscados acima)
-    const pedidosAguardando = pedidosParaPostar?.length ?? 0;
+    const rpc = await fetchFornecedorDashboardStats(
+      ctx.org_id,
+      ctx.fornecedor_id,
+      startOfMonth.toISOString(),
+      endOfMonth.toISOString()
+    ).catch(() => null);
 
-    // 2. Pedidos do mês (enviado, aguardando_repasse, entregue) — usa valor_fornecedor (o que o fornecedor recebe, sem taxa DropCore)
-    const { data: pedidosMes } = await supabaseAdmin
-      .from("pedidos")
-      .select("valor_fornecedor")
-      .eq("org_id", org_id)
-      .eq("fornecedor_id", fornecedor_id)
-      .in("status", ["enviado", "aguardando_repasse", "entregue"])
-      .gte("criado_em", startOfMonth.toISOString())
-      .lte("criado_em", endOfMonth.toISOString());
+    const stats =
+      rpc ??
+      (await legacyStats(ctx.org_id, ctx.fornecedor_id, startOfMonth, endOfMonth));
 
-    const pedidosMesCount = pedidosMes?.length ?? 0;
-    const pedidosMesValor = (pedidosMes ?? []).reduce((s, p) => s + Number(p.valor_fornecedor ?? 0), 0);
-
-    // 3. Produtos ativos
-    const { count: produtosAtivos } = await supabaseAdmin
-      .from("skus")
-      .select("id", { count: "exact", head: true })
-      .eq("fornecedor_id", fornecedor_id)
-      .eq("status", "ativo");
-
-    // 4. Estoque baixo (SKUs com estoque_atual < estoque_minimo)
-    const PREFIXO_OCULTO = "DJU999";
-    const { data: skusEstoque } = await supabaseAdmin
-      .from("skus")
-      .select("id, estoque_atual, estoque_minimo")
-      .eq("fornecedor_id", fornecedor_id)
-      .not("sku", "ilike", `${PREFIXO_OCULTO}%`)
-      .limit(2000);
-
-    const estoqueBaixo = (skusEstoque ?? []).filter((r) => {
-      const atual = r.estoque_atual;
-      const min = r.estoque_minimo;
-      return min != null && atual != null && Number(atual) < Number(min);
-    }).length;
-
-    // 5. Total a receber (repasses pendente + liberado)
-    const { data: repasses } = await supabaseAdmin
-      .from("financial_repasse_fornecedor")
-      .select("valor_total")
-      .eq("org_id", org_id)
-      .eq("fornecedor_id", fornecedor_id)
-      .in("status", ["pendente", "liberado"]);
-
-    const totalAReceber = (repasses ?? []).reduce((s, r) => s + Number(r.valor_total ?? 0), 0);
-
-    return NextResponse.json({
-      pedidos_aguardando_postagem: pedidosAguardando ?? 0,
-      pedidos_mes_count: pedidosMesCount,
-      pedidos_mes_valor: pedidosMesValor,
-      produtos_ativos: produtosAtivos ?? 0,
-      estoque_baixo: estoqueBaixo,
-      total_a_receber: totalAReceber,
-    });
+    return NextResponse.json(stats);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { orgErrorHttpStatus, requireAdmin } from "@/lib/apiOrgAuth";
+import { fetchCalculadoraRecebimentosTotais } from "@/lib/orgDashboardRpc";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export async function GET(req: Request) {
     const supabase = supabaseService();
 
     const { searchParams } = new URL(req.url);
+    const widget = searchParams.get("widget") === "1";
     const limitRaw = searchParams.get("limit");
     const limit = Math.min(500, Math.max(1, parseInt(limitRaw ?? "100", 10) || 100));
 
@@ -46,29 +48,38 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const { count: quantidade_total } = await supabase
-      .from("calculadora_recebimentos")
-      .select("*", { count: "exact", head: true });
-
-    const { data: todasLinhasValor } = await supabase.from("calculadora_recebimentos").select("valor");
-    const soma_total_geral = (todasLinhasValor ?? []).reduce(
-      (acc, r) => acc + (Number.isFinite(Number(r.valor)) ? Number(r.valor) : 0),
-      0,
-    );
+    let quantidade_total = 0;
+    let soma_total_geral = 0;
+    const totaisRpc = await fetchCalculadoraRecebimentosTotais().catch(() => null);
+    if (totaisRpc) {
+      quantidade_total = totaisRpc.quantidade_total;
+      soma_total_geral = totaisRpc.soma_total_geral;
+    } else {
+      const { count } = await supabase
+        .from("calculadora_recebimentos")
+        .select("*", { count: "exact", head: true });
+      quantidade_total = count ?? 0;
+      const { data: todasLinhasValor } = await supabase.from("calculadora_recebimentos").select("valor");
+      soma_total_geral = (todasLinhasValor ?? []).reduce(
+        (acc, r) => acc + (Number.isFinite(Number(r.valor)) ? Number(r.valor) : 0),
+        0,
+      );
+    }
 
     const list = rows ?? [];
-    const userIds = Array.from(new Set(list.map((r) => r.user_id)));
-
-    const { data: usersData, error: usersErr } = await supabase.auth.admin.listUsers({
-      page: 1,
-      perPage: 1000,
-    });
-
     const emailById = new Map<string, string | null>();
-    if (!usersErr && usersData?.users) {
-      usersData.users.forEach((u) => {
-        if (userIds.includes(u.id)) emailById.set(u.id, u.email ?? null);
+
+    if (!widget) {
+      const userIds = Array.from(new Set(list.map((r) => r.user_id)));
+      const { data: usersData, error: usersErr } = await supabase.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000,
       });
+      if (!usersErr && usersData?.users) {
+        usersData.users.forEach((u) => {
+          if (userIds.includes(u.id)) emailById.set(u.id, u.email ?? null);
+        });
+      }
     }
 
     const items = list.map((r) => ({
@@ -88,7 +99,7 @@ export async function GET(req: Request) {
       total_registros: items.length,
       soma_valores,
       soma_total_geral,
-      quantidade_total: quantidade_total ?? 0,
+      quantidade_total,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
