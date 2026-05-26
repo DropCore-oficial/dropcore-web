@@ -156,7 +156,9 @@ function partesCdFromRascunhoLogistica(p: RascunhoCriarVariantesV1): EnderecoCdF
       !direto.bairro &&
       !direto.cidade &&
       !direto.uf &&
-      (direto.logradouro.includes("·") || /cep\s*\d/i.test(direto.logradouro));
+      (direto.logradouro.includes("·") ||
+        /cep\s*\d/i.test(direto.logradouro) ||
+        (direto.logradouro.includes(" - ") && direto.logradouro.split(/\s+-\s+/).length >= 3));
     if (soLogradouro) {
       return enderecoCdFormFromExpedicao({ expedicao_padrao_linha: direto.logradouro, expedicao_cep: null, expedicao_logradouro: null, expedicao_numero: null, expedicao_complemento: null, expedicao_bairro: null, expedicao_cidade: null, expedicao_uf: null });
     }

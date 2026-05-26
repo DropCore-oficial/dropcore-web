@@ -28,6 +28,19 @@ describe("expedicaoFornecedorFormat", () => {
     expect(parsed?.expedicao_uf).toBe("SP");
   });
 
+  it("parse linha legada com separador « - » (cadastro)", () => {
+    const linha =
+      "RUA MANDAGUARI, S/N - QUADRA 36 LOTE 10 SALA 07 - SETOR JARDIM MARISTA - CEP 75383-423 - TRINDADE/GO";
+    const parsed = parseExpedicaoPadraoLinha(linha);
+    expect(parsed?.expedicao_logradouro).toBe("RUA MANDAGUARI");
+    expect(parsed?.expedicao_numero).toBe("S/N");
+    expect(parsed?.expedicao_complemento).toBe("QUADRA 36 LOTE 10 SALA 07");
+    expect(parsed?.expedicao_bairro).toBe("SETOR JARDIM MARISTA");
+    expect(parsed?.expedicao_cep).toBe("75383423");
+    expect(parsed?.expedicao_cidade).toBe("TRINDADE");
+    expect(parsed?.expedicao_uf).toBe("GO");
+  });
+
   it("resolveExpedicaoEndereco usa linha quando struct vazio", () => {
     const linha =
       "RUA DAS FLORES, 50 · GALPAO · CENTRO · CEP 30130010 · BELO HORIZONTE/MG";

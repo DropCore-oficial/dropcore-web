@@ -34,18 +34,44 @@ function splitLogradouroNumero(ruaPart: string): { logradouro: string; numero: s
   return { logradouro: t, numero: "" };
 }
 
+/** Linha única com CEP / cidade (cadastro antigo usa « - », o app novo usa « · »). */
+function linhaPareceEnderecoFormatado(s: string): boolean {
+  const t = s.trim();
+  if (!t) return false;
+  if (/cep\s*\d/i.test(t)) return true;
+  if (t.includes("·")) return true;
+  if (/\s-\s/.test(t) && t.split(/\s+-\s+/).length >= 3) return true;
+  return false;
+}
+
+function segmentosDaLinhaEndereco(raw: string): string[] {
+  const t = raw.trim();
+  if (!t) return [];
+  if (t.includes("·")) {
+    return t
+      .split(/\s*·\s*/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  if (/\s+-\s+/.test(t) && /cep\s*\d/i.test(t)) {
+    return t
+      .split(/\s+-\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [t];
+}
+
 /**
- * Interpreta `expedicao_padrao_linha` gerada por `buildExpedicaoPadraoLinha`
- * (ex.: "RUA X, 123 · SALA · CENTRO · CEP 01310-100 · SAO PAULO/SP").
+ * Interpreta `expedicao_padrao_linha` (formato « · » ou legado « - »).
+ * Ex.: "RUA X, 123 · SALA · CENTRO · CEP 01310-100 · SAO PAULO/SP"
+ * Ex.: "RUA MANDAGUARI, S/N - QUADRA 36 … - SETOR JARDIM MARISTA - CEP 75383-423 - TRINDADE/GO"
  */
 export function parseExpedicaoPadraoLinha(linha: string): ExpedicaoEnderecoParts | null {
   const raw = linha.trim();
   if (!raw) return null;
 
-  const segmentos = raw
-    .split(/\s*·\s*/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const segmentos = segmentosDaLinhaEndereco(raw);
   if (segmentos.length === 0) return null;
 
   let expedicao_cep = "";
@@ -102,47 +128,82 @@ export function parseExpedicaoPadraoLinha(linha: string): ExpedicaoEnderecoParts
   };
 }
 
+function enderecoParseadoTemDetalhe(r: ExpedicaoEnderecoParts): boolean {
+  return Boolean(
+    trimPart(r.expedicao_cep) ||
+      trimPart(r.expedicao_bairro) ||
+      trimPart(r.expedicao_cidade) ||
+      trimPart(r.expedicao_complemento)
+  );
+}
+
+function normalizarStruct(p: ExpedicaoEnderecoParts): ExpedicaoEnderecoParts {
+  return {
+    expedicao_cep: trimPart(p.expedicao_cep).replace(/\D/g, "").slice(0, 8) || null,
+    expedicao_logradouro: trimPart(p.expedicao_logradouro) || null,
+    expedicao_numero: trimPart(p.expedicao_numero) || null,
+    expedicao_complemento: trimPart(p.expedicao_complemento) || null,
+    expedicao_bairro: trimPart(p.expedicao_bairro) || null,
+    expedicao_cidade: trimPart(p.expedicao_cidade) || null,
+    expedicao_uf:
+      trimPart(p.expedicao_uf)
+        .toUpperCase()
+        .replace(/[^A-Z]/g, "")
+        .slice(0, 2) || null,
+  };
+}
+
 /** Usa campos estruturados do fornecedor; se vazios, interpreta `expedicao_padrao_linha`. */
 export function resolveExpedicaoEndereco(
   p: ExpedicaoEnderecoParts & { expedicao_padrao_linha?: string | null }
 ): ExpedicaoEnderecoParts {
-  if (structTemAlgumCampo(p)) {
-    return {
-      expedicao_cep: trimPart(p.expedicao_cep).replace(/\D/g, "").slice(0, 8) || null,
-      expedicao_logradouro: trimPart(p.expedicao_logradouro) || null,
-      expedicao_numero: trimPart(p.expedicao_numero) || null,
-      expedicao_complemento: trimPart(p.expedicao_complemento) || null,
-      expedicao_bairro: trimPart(p.expedicao_bairro) || null,
-      expedicao_cidade: trimPart(p.expedicao_cidade) || null,
-      expedicao_uf: trimPart(p.expedicao_uf)
-        .toUpperCase()
-        .replace(/[^A-Z]/g, "")
-        .slice(0, 2) || null,
-    };
-  }
   const leg = trimPart(p.expedicao_padrao_linha);
-  if (!leg) {
-    return {
-      expedicao_cep: null,
-      expedicao_logradouro: null,
-      expedicao_numero: null,
-      expedicao_complemento: null,
-      expedicao_bairro: null,
-      expedicao_cidade: null,
-      expedicao_uf: null,
-    };
-  }
-  return (
-    parseExpedicaoPadraoLinha(leg) ?? {
-      expedicao_cep: null,
-      expedicao_logradouro: leg,
-      expedicao_numero: null,
-      expedicao_complemento: null,
-      expedicao_bairro: null,
-      expedicao_cidade: null,
-      expedicao_uf: null,
+  const logStruct = trimPart(p.expedicao_logradouro);
+
+  if (leg) {
+    const parsed = parseExpedicaoPadraoLinha(leg);
+    if (parsed && enderecoParseadoTemDetalhe(parsed)) {
+      return normalizarStruct(parsed);
     }
-  );
+  }
+
+  if (linhaPareceEnderecoFormatado(logStruct)) {
+    const parsed = parseExpedicaoPadraoLinha(logStruct);
+    if (parsed) return normalizarStruct(parsed);
+  }
+
+  if (structTemAlgumCampo(p)) {
+    const norm = normalizarStruct(p);
+    if (!enderecoParseadoTemDetalhe(norm) && leg) {
+      const parsed = parseExpedicaoPadraoLinha(leg);
+      if (parsed && enderecoParseadoTemDetalhe(parsed)) return normalizarStruct(parsed);
+    }
+    return norm;
+  }
+
+  if (leg) {
+    return normalizarStruct(
+      parseExpedicaoPadraoLinha(leg) ?? {
+        expedicao_cep: null,
+        expedicao_logradouro: leg,
+        expedicao_numero: null,
+        expedicao_complemento: null,
+        expedicao_bairro: null,
+        expedicao_cidade: null,
+        expedicao_uf: null,
+      }
+    );
+  }
+
+  return {
+    expedicao_cep: null,
+    expedicao_logradouro: null,
+    expedicao_numero: null,
+    expedicao_complemento: null,
+    expedicao_bairro: null,
+    expedicao_cidade: null,
+    expedicao_uf: null,
+  };
 }
 
 /** Partes normalizadas para formulários (criar variantes / cadastro). */
