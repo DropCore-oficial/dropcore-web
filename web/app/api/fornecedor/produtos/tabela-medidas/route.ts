@@ -4,6 +4,11 @@
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  fornecedorPossuiGrupoSku,
+  getProdutoTabelaMedidas,
+  upsertProdutoTabelaMedidas,
+} from "@/lib/produtoTabelaMedidasDb";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -49,13 +54,17 @@ export async function GET(req: Request) {
     const grupoKey = (searchParams.get("grupoKey") ?? "").trim().toUpperCase();
     if (!grupoKey) return NextResponse.json({ error: "grupoKey é obrigatório." }, { status: 400 });
 
-    const { data: aprovada } = await supabaseAdmin
-      .from("produto_tabela_medidas")
-      .select("tipo_produto, medidas")
-      .eq("org_id", ctx.org_id)
-      .eq("fornecedor_id", ctx.fornecedor_id)
-      .eq("grupo_sku", grupoKey)
-      .maybeSingle();
+    const possui = await fornecedorPossuiGrupoSku(
+      supabaseAdmin,
+      ctx.org_id,
+      ctx.fornecedor_id,
+      grupoKey
+    );
+    if (!possui) {
+      return NextResponse.json({ error: "Grupo não encontrado ou não pertence a você." }, { status: 404 });
+    }
+
+    const aprovada = await getProdutoTabelaMedidas(supabaseAdmin, grupoKey);
 
     let pendente: { tipo_produto: string; medidas: Record<string, Record<string, number>> } | null = null;
     const prefix = grupoKey.length >= 6 ? grupoKey.slice(0, -3) : grupoKey;
@@ -87,9 +96,7 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({
-      aprovada: aprovada
-        ? { tipo_produto: aprovada.tipo_produto ?? "generico", medidas: aprovada.medidas ?? {} }
-        : null,
+      aprovada: aprovada ? { tipo_produto: aprovada.tipo_produto, medidas: aprovada.medidas } : null,
       pendente,
     });
   } catch (e: unknown) {
@@ -126,20 +133,22 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Informe ao menos uma linha de medida." }, { status: 400 });
     }
 
-    const { error } = await supabaseAdmin.from("produto_tabela_medidas").upsert(
-      {
-        org_id: ctx.org_id,
-        fornecedor_id: ctx.fornecedor_id,
-        grupo_sku: grupoKey,
-        tipo_produto: tipo,
-        medidas,
-        atualizado_em: new Date().toISOString(),
-      },
-      { onConflict: "org_id,fornecedor_id,grupo_sku" }
+    const possui = await fornecedorPossuiGrupoSku(
+      supabaseAdmin,
+      ctx.org_id,
+      ctx.fornecedor_id,
+      grupoKey
     );
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!possui) {
+      return NextResponse.json({ error: "Grupo não encontrado ou não pertence a você." }, { status: 404 });
+    }
 
-    return NextResponse.json({ ok: true, grupo_sku: grupoKey });
+    await upsertProdutoTabelaMedidas(supabaseAdmin, grupoKey, {
+      tipo_produto: tipo,
+      medidas,
+    });
+
+    return NextResponse.json({ ok: true, grupo_key: grupoKey });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro inesperado" }, { status: 500 });
   }

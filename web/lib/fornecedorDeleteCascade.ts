@@ -83,12 +83,15 @@ export async function deleteFornecedorCascade(
     .eq("fornecedor_id", fornecedorId);
   if (altErr && !isMissingRelation(altErr)) return { ok: false, message: altErr.message };
 
-  const { error: tabErr } = await sb
-    .from("produto_tabela_medidas")
-    .delete()
-    .eq("org_id", orgId)
-    .eq("fornecedor_id", fornecedorId);
-  if (tabErr && !isMissingRelation(tabErr)) return { ok: false, message: tabErr.message };
+  try {
+    const { deleteProdutoTabelaMedidasForFornecedor } = await import("@/lib/produtoTabelaMedidasDb");
+    await deleteProdutoTabelaMedidasForFornecedor(sb, orgId, fornecedorId);
+  } catch (tabErr) {
+    const msg = tabErr instanceof Error ? tabErr.message : String(tabErr);
+    if (!msg.includes("does not exist") && !msg.includes("42P01")) {
+      return { ok: false, message: msg };
+    }
+  }
 
   const { error: skuErr } = await sb
     .from("skus")

@@ -4,6 +4,7 @@
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -48,18 +49,10 @@ export async function GET(req: Request) {
     }
     if (!fornecedorId) return NextResponse.json({ aprovada: null });
 
-    const { data: row } = await supabaseAdmin
-      .from("produto_tabela_medidas")
-      .select("tipo_produto, medidas")
-      .eq("org_id", seller.org_id)
-      .eq("fornecedor_id", fornecedorId)
-      .eq("grupo_sku", grupoKey)
-      .maybeSingle();
+    const row = await getProdutoTabelaMedidas(supabaseAdmin, grupoKey);
 
     return NextResponse.json({
-      aprovada: row
-        ? { tipo_produto: row.tipo_produto ?? "generico", medidas: row.medidas ?? {} }
-        : null,
+      aprovada: row ? { tipo_produto: row.tipo_produto, medidas: row.medidas } : null,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro inesperado" }, { status: 500 });

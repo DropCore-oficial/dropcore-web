@@ -21,6 +21,7 @@ import { assertPodeAtivarMaisSkus } from "@/lib/planos";
 import { chaveEstoqueVariante, normalizarChaveEstoqueVarianteApi } from "@/lib/estoqueVarianteKeys";
 import { linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
 import { fornecedorSkuCatalogExtrasFromBody } from "@/lib/fornecedorSkuCatalogExtras";
+import { upsertProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
 import type { TabelaMedidasPayload } from "@/lib/fornecedorTabelaMedidas";
 
 export const runtime = "nodejs";
@@ -473,18 +474,14 @@ export async function POST(req: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     if (tabelaMedidasPayload) {
-      const { error: tmErr } = await supabaseAdmin.from("produto_tabela_medidas").upsert(
-        {
-          org_id: ctx.org_id,
-          fornecedor_id: ctx.fornecedor_id,
-          grupo_sku: skuPai,
-          tipo_produto: tabelaMedidasPayload.tipo_produto,
-          medidas: tabelaMedidasPayload.medidas,
-          atualizado_em: new Date().toISOString(),
-        },
-        { onConflict: "org_id,fornecedor_id,grupo_sku" }
-      );
-      if (tmErr) console.error("[multivariante] produto_tabela_medidas:", tmErr.message);
+      try {
+        await upsertProdutoTabelaMedidas(supabaseAdmin, skuPai, tabelaMedidasPayload);
+      } catch (tmErr) {
+        console.error(
+          "[multivariante] produto_tabela_medidas:",
+          tmErr instanceof Error ? tmErr.message : tmErr
+        );
+      }
     }
 
     const fiscalPatch: Record<string, unknown> = {};

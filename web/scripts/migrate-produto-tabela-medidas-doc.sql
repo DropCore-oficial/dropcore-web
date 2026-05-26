@@ -1,0 +1,14 @@
+-- Documentação: schema REAL em produção (Supabase DropCore)
+--
+-- public.produto_tabela_medidas
+--   grupo_key      text PRIMARY KEY
+--   tipo_produto   text
+--   medidas        jsonb
+--   criado_em      timestamptz
+--   atualizado_em  timestamptz
+--
+-- O script create-produto-tabela-medidas.sql descreve um schema futuro/alternativo
+-- (org_id, fornecedor_id, grupo_sku). NÃO execute CREATE IF NOT EXISTS em produção
+-- sem revisar — a tabela já existe com grupo_key.
+--
+-- O app usa web/lib/produtoTabelaMedidasDb.ts (grupo_key + onConflict grupo_key).

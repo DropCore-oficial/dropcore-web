@@ -6,6 +6,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { toTitleCase } from "@/lib/formatText";
 import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
+import { upsertProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -181,19 +182,17 @@ export async function POST(
         return m ? `${m[1]}${m[2]}000` : s;
       })();
       const tipoProduto = typeof tabelaMedidas.tipo_produto === "string" ? tabelaMedidas.tipo_produto.trim() || "generico" : "generico";
-      const { error: upsertErr } = await supabaseAdmin
-        .from("produto_tabela_medidas")
-        .upsert(
-          {
-            org_id,
-            fornecedor_id: alteracao.fornecedor_id,
-            grupo_sku: grupoSku,
-            tipo_produto: tipoProduto,
-            medidas: tabelaMedidas.medidas as Record<string, unknown>,
-          },
-          { onConflict: "org_id,fornecedor_id,grupo_sku" }
+      try {
+        await upsertProdutoTabelaMedidas(supabaseAdmin, grupoSku, {
+          tipo_produto: tipoProduto,
+          medidas: tabelaMedidas.medidas as Record<string, Record<string, number>>,
+        });
+      } catch (upsertErr) {
+        return NextResponse.json(
+          { error: upsertErr instanceof Error ? upsertErr.message : "Erro ao salvar tabela de medidas." },
+          { status: 500 }
         );
-      if (upsertErr) return NextResponse.json({ error: upsertErr.message }, { status: 500 });
+      }
     }
 
     const { data: member } = await supabaseAdmin
