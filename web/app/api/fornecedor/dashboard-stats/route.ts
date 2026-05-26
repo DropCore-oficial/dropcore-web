@@ -5,8 +5,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { syncMensalidadeNotifications } from "@/lib/syncMensalidadeNotifications";
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -44,8 +42,6 @@ export async function GET(req: Request) {
 
     const { fornecedor_id, org_id, user_id } = ctx;
 
-    await syncMensalidadeNotifications(user_id);
-
     // Pedidos aguardando postagem — buscar IDs para criar notificações faltando
     const { data: pedidosParaPostar } = await supabaseAdmin
       .from("pedidos")
@@ -78,18 +74,18 @@ export async function GET(req: Request) {
         .eq("user_id", user_id)
         .eq("tipo", "pedido_para_postar");
       const idsComNotif = new Set((notifsExistentes ?? []).map((n) => (n.metadata as { pedido_id?: string })?.pedido_id).filter(Boolean));
-      for (const p of pedidosParaPostar) {
-        if (!idsComNotif.has(p.id)) {
-          const valorBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(p.valor_fornecedor ?? 0));
-          await supabaseAdmin.from("notifications").insert({
-            user_id,
-            tipo: "pedido_para_postar",
-            titulo: "Novo pedido para postar",
-            mensagem: `Você tem um novo pedido de ${valorBRL} aguardando envio.`,
-            metadata: { pedido_id: p.id },
-          });
-          idsComNotif.add(p.id);
-        }
+      const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+      const inserts = pedidosParaPostar
+        .filter((p) => !idsComNotif.has(p.id))
+        .map((p) => ({
+          user_id,
+          tipo: "pedido_para_postar",
+          titulo: "Novo pedido para postar",
+          mensagem: `Você tem um novo pedido de ${BRL.format(Number(p.valor_fornecedor ?? 0))} aguardando envio.`,
+          metadata: { pedido_id: p.id },
+        }));
+      if (inserts.length > 0) {
+        await supabaseAdmin.from("notifications").insert(inserts);
       }
     }
 

@@ -5,16 +5,12 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { isPortalTrialAtivo } from "@/lib/portalTrial";
-import { marcarInadimplentes, reverterInadimplentesDuranteTrial } from "@/lib/inadimplencia";
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
     const { org_id } = await requireAdmin(req);
-    await reverterInadimplentesDuranteTrial(supabaseAdmin, org_id);
-    await marcarInadimplentes(supabaseAdmin, org_id);
 
     const { searchParams } = new URL(req.url);
     const ciclo = searchParams.get("ciclo")?.trim().slice(0, 7);

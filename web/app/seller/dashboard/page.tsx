@@ -502,7 +502,7 @@ export default function SellerDashboardPage() {
       const json = await res.json();
       if (json.ok && json.aprovados > 0) load();
     };
-    const id = setInterval(sync, 10000);
+    const id = setInterval(sync, 30_000);
     sync();
     return () => clearInterval(id);
   }, [pendentesCount, seller?.id]);

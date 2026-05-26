@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useVisibilityAwareInterval } from "@/lib/useVisibilityAwareInterval";
 import {
   filterNotificationsForContext,
   type NotificationPortalContext,
@@ -15,7 +16,7 @@ type Notif = {
   tipo: string;
 };
 
-const POLL_MS = 15000;
+const POLL_MS = 60_000;
 
 export function NotificationToasts({ context = "admin" }: { context?: NotificationPortalContext }) {
   const [toasts, setToasts] = useState<Notif[]>([]);
@@ -54,12 +55,12 @@ export function NotificationToasts({ context = "admin" }: { context?: Notificati
     }
   };
 
-  useEffect(() => {
-    if (portalBloqueado || verificando) return;
-    fetchAndShow();
-    const t = setInterval(fetchAndShow, POLL_MS);
-    return () => clearInterval(t);
+  const pollDisabled = portalBloqueado || verificando;
+  const pollToasts = useCallback(() => {
+    void fetchAndShow();
   }, [context, portalBloqueado, verificando]);
+
+  useVisibilityAwareInterval(pollToasts, POLL_MS, pollDisabled);
 
   useEffect(() => {
     if (toasts.length === 0) return;

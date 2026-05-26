@@ -10,8 +10,6 @@ import {
   filterNotificationsForContext,
   type NotificationPortalContext,
 } from "@/lib/notificationContextFilter";
-import { syncMensalidadeNotifications } from "@/lib/syncMensalidadeNotifications";
-
 function parseNotificationContext(raw: string | null): NotificationPortalContext | null {
   if (raw === "admin" || raw === "seller" || raw === "fornecedor") return raw;
   return null;
@@ -38,8 +36,6 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Token inválido" }, { status: 401 });
     }
     const userId = userData.user.id;
-
-    await syncMensalidadeNotifications(userId);
 
     const { searchParams } = new URL(req.url);
     const markRead = searchParams.get("mark_read") === "1";

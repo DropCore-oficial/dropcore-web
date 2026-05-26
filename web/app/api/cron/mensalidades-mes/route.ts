@@ -7,7 +7,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { gerarMensalidadesParaOrgCiclo } from "@/lib/gerarMensalidadesCicloOrg";
-import { marcarInadimplentes, reverterInadimplentesDuranteTrial } from "@/lib/inadimplencia";
+import { contarInadimplentes, marcarInadimplentes, reverterInadimplentesDuranteTrial } from "@/lib/inadimplencia";
+import { syncInadimplentesOrgAdminNotifications } from "@/lib/inadimplenciaOrgNotifications";
 import { cicloMesAtualSaoPaulo } from "@/lib/mensalidadeDiaVencimento";
 
 export const runtime = "nodejs";
@@ -58,6 +59,8 @@ export async function GET(req: Request) {
     try {
       await reverterInadimplentesDuranteTrial(supabaseAdmin, org_id);
       await marcarInadimplentes(supabaseAdmin, org_id);
+      const inad = await contarInadimplentes(supabaseAdmin, org_id);
+      await syncInadimplentesOrgAdminNotifications(supabaseAdmin, org_id, inad);
       const g = await gerarMensalidadesParaOrgCiclo(org_id, ciclo);
       if (g.ok) {
         detalhes.push({ org_id, ok: true, geradas: g.geradas });

@@ -671,7 +671,7 @@ export default function DashboardPage() {
 
       {/* Barra superior desktop — mesmo trio que o fornecedor (sino + tema + Sair) */}
       <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/98 dark:bg-neutral-950/98 backdrop-blur-xl shadow-sm">
-        <div className="max-w-4xl mx-auto flex w-full min-w-0 items-center justify-between gap-4 px-4 sm:px-6">
+        <div className="dropcore-shell-4xl flex w-full min-w-0 items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-6">
             <DropCoreLogo variant="horizontal" href="/dashboard" className="shrink-0" />
             <Link
@@ -887,6 +887,39 @@ export default function DashboardPage() {
                     })
                   )}
                 </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Treinamento: integração Olist/Tiny (abaixo do operacional do dia) */}
+        {isAdmin && (
+          <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
+            <div className="relative p-4 sm:p-5">
+              <div
+                className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-emerald-500 to-emerald-600 opacity-90"
+                aria-hidden
+              />
+              <div className="flex flex-col gap-4 pl-4 sm:flex-row sm:items-center sm:justify-between sm:pl-5">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                    Treinamento · onboarding
+                  </p>
+                  <h2 className="mt-1 text-base font-semibold text-[var(--foreground)]">Integrar seller na Olist/Tiny</h2>
+                  <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-[var(--muted)]">
+                    Roteiro para call com o seller: token, webhook, SKU e teste —{" "}
+                    <Link href="/admin/guia-integracao-tiny" className="font-medium text-emerald-600 hover:underline dark:text-emerald-400">
+                      abrir guia
+                    </Link>
+                    .
+                  </p>
+                </div>
+                <Link
+                  href="/admin/guia-integracao-tiny"
+                  className="inline-flex shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:bg-emerald-800"
+                >
+                  Guia completo →
+                </Link>
               </div>
             </div>
           </section>

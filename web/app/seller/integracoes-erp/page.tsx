@@ -12,6 +12,7 @@ import {
   DANGER_PREMIUM_SURFACE_TRANSPARENT,
   DANGER_PREMIUM_TEXT_BODY,
 } from "@/lib/semanticPremium";
+import { SellerOlistIntegracaoChecklist } from "@/components/seller/SellerOlistIntegracaoChecklist";
 import { cn } from "@/lib/utils";
 
 export default function SellerIntegracoesErpPage() {
@@ -33,6 +34,7 @@ export default function SellerIntegracoesErpPage() {
   const [olistSyncWarnings, setOlistSyncWarnings] = useState<number | null>(null);
   const [olistWebhookPedidosUrl, setOlistWebhookPedidosUrl] = useState<string | null>(null);
   const [olistWebhookCnpjReady, setOlistWebhookCnpjReady] = useState(false);
+  const [olistWebhookLastAt, setOlistWebhookLastAt] = useState<string | null>(null);
   const [olistTokenInput, setOlistTokenInput] = useState("");
   const [olistSaving, setOlistSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -57,6 +59,9 @@ export default function SellerIntegracoesErpPage() {
 
     setOlistWebhookPedidosUrl(typeof json.webhook_pedidos_url === "string" ? json.webhook_pedidos_url : null);
     setOlistWebhookCnpjReady(Boolean(json.olist_webhook_cnpj_ready));
+    setOlistWebhookLastAt(
+      typeof json.webhook_last_received_at === "string" ? json.webhook_last_received_at : null
+    );
   }, []);
 
   const loadOlist = useCallback(async (token: string) => {
@@ -251,6 +256,7 @@ export default function SellerIntegracoesErpPage() {
       olistSyncWarnings={olistSyncWarnings}
       olistWebhookPedidosUrl={olistWebhookPedidosUrl}
       olistWebhookCnpjReady={olistWebhookCnpjReady}
+      olistWebhookLastAt={olistWebhookLastAt}
       olistTokenInput={olistTokenInput}
       setOlistTokenInput={setOlistTokenInput}
       olistSaving={olistSaving}
@@ -282,6 +288,7 @@ type IntegracoesPageProps = {
   olistSyncWarnings: number | null;
   olistWebhookPedidosUrl: string | null;
   olistWebhookCnpjReady: boolean;
+  olistWebhookLastAt: string | null;
   olistTokenInput: string;
   setOlistTokenInput: (value: string) => void;
   olistSaving: boolean;
@@ -393,6 +400,15 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                     </p>
                   </AmberPremiumCallout>
                 ) : null}
+
+                <SellerOlistIntegracaoChecklist
+                  connected={props.olistConnected}
+                  tokenUsable={props.olistTokenUsable}
+                  cnpjReady={props.olistWebhookCnpjReady}
+                  webhookUrl={props.olistWebhookPedidosUrl}
+                  webhookLastReceivedAt={props.olistWebhookLastAt}
+                  syncLastAt={props.olistSyncLastAt}
+                />
 
                 <OlistWebhookPedidosPanel
                   webhookUrl={props.olistWebhookPedidosUrl}

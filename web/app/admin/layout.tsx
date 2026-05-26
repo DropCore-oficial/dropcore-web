@@ -87,7 +87,7 @@ export default function AdminLayout({
     <>
       {!hasOwnHeader && (
         <header className="border-b border-[var(--border-subtle)] bg-[var(--card)]/80 backdrop-blur-sm pt-[env(safe-area-inset-top,0px)]">
-          <div className="mx-auto flex max-w-5xl min-w-0 items-center justify-between py-3 pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))]">
+          <div className="dropcore-shell-4xl flex min-w-0 items-center justify-between py-3">
             <DropCoreLogo variant="horizontal" href="/dashboard" className="shrink-0 overflow-visible py-0.5" />
             <div className="flex items-center gap-2">
               <Link

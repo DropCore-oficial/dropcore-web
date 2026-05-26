@@ -3,7 +3,11 @@ import { shouldImportSituacaoText } from "@/lib/olistPedidoImportPolicy";
 import { pesquisarPedidosOlist, type OlistPedidoResumo } from "@/lib/olistTinyApi";
 import { processOlistPedidoImport } from "@/lib/sellerOlistPedidoImport";
 import { decryptSellerErpSecret, describeSellerErpSecretDecryptFailure } from "@/lib/sellerErpSecretBox";
+import { mapWithConcurrency } from "@/lib/mapWithConcurrency";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+
+/** Sellers processados em paralelo no cron (mantém intervalo de 1 min; reduz duração total). */
+const OLIST_SYNC_CONCURRENCY = 3;
 
 const SYNC_OVERLAP_MS = 2 * 60 * 1000;
 const DEFAULT_LOOKBACK_MS = 24 * 60 * 60 * 1000;
@@ -313,11 +317,9 @@ export async function runSellerOlistSyncForSellerId(
 export async function runSellerOlistSync(): Promise<SellerOlistSyncRunResult> {
   const started = new Date();
   const rows = await listSellerOlistIntegrations();
-  const sellers: SellerOlistSyncSellerResult[] = [];
-
-  for (const row of rows) {
-    sellers.push(await syncSellerOlistOrders(row, started));
-  }
+  const sellers = await mapWithConcurrency(rows, OLIST_SYNC_CONCURRENCY, (row) =>
+    syncSellerOlistOrders(row, started)
+  );
 
   return {
     started_at: started.toISOString(),

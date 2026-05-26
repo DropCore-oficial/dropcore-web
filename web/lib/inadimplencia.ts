@@ -126,16 +126,29 @@ export async function isInadimplente(
     return false;
   }
 
-  const { count, error } = await supabase
-    .from("financial_mensalidades")
-    .select("id", { count: "exact", head: true })
-    .eq("org_id", orgId)
-    .eq("tipo", tipo)
-    .eq("entidade_id", entidadeId)
-    .eq("status", "inadimplente");
+  const hoje = new Date().toISOString().slice(0, 10);
 
-  if (error) return false;
-  return (count ?? 0) > 0;
+  const [{ count: inadCount, error: inadErr }, { count: vencCount, error: vencErr }] = await Promise.all([
+    supabase
+      .from("financial_mensalidades")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", orgId)
+      .eq("tipo", tipo)
+      .eq("entidade_id", entidadeId)
+      .eq("status", "inadimplente"),
+    supabase
+      .from("financial_mensalidades")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", orgId)
+      .eq("tipo", tipo)
+      .eq("entidade_id", entidadeId)
+      .eq("status", "pendente")
+      .not("vencimento_em", "is", null)
+      .lt("vencimento_em", hoje),
+  ]);
+
+  if (inadErr || vencErr) return false;
+  return (inadCount ?? 0) > 0 || (vencCount ?? 0) > 0;
 }
 
 /**

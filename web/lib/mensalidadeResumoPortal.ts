@@ -13,15 +13,25 @@ export async function resumoMensalidadePortal(
   supabase: SupabaseClient,
   orgId: string
 ): Promise<{ sellers: MensalidadePortalContagem; fornecedores: MensalidadePortalContagem }> {
-  const [{ data: sellers }, { data: forns }, { data: inadRows }] = await Promise.all([
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  const [{ data: sellers }, { data: forns }, { data: mensalRows }] = await Promise.all([
     supabase.from("sellers").select("id, trial_valido_ate").eq("org_id", orgId).ilike("status", "ativo"),
     supabase.from("fornecedores").select("id, trial_valido_ate").eq("org_id", orgId).ilike("status", "ativo"),
-    supabase.from("financial_mensalidades").select("tipo, entidade_id").eq("org_id", orgId).eq("status", "inadimplente"),
+    supabase
+      .from("financial_mensalidades")
+      .select("tipo, entidade_id, status, vencimento_em")
+      .eq("org_id", orgId)
+      .in("status", ["pendente", "inadimplente"]),
   ]);
 
   const inadSeller = new Set<string>();
   const inadForn = new Set<string>();
-  for (const r of inadRows ?? []) {
+  for (const r of mensalRows ?? []) {
+    const venc = r.vencimento_em as string | null;
+    const efetivoInad =
+      r.status === "inadimplente" || (r.status === "pendente" && !!venc && venc < hoje);
+    if (!efetivoInad) continue;
     if (r.tipo === "seller") inadSeller.add(r.entidade_id as string);
     else if (r.tipo === "fornecedor") inadForn.add(r.entidade_id as string);
   }

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { OrgAuthError, requireAdmin } from "@/lib/apiOrgAuth";
-import { marcarInadimplentes, contarInadimplentes, reverterInadimplentesDuranteTrial } from "@/lib/inadimplencia";
+import { contarInadimplentes } from "@/lib/inadimplencia";
 import { resumoMensalidadePortal } from "@/lib/mensalidadeResumoPortal";
+import { diasAteVencimentoFromMin, fetchOrgDashboardStatsAgg } from "@/lib/orgDashboardRpc";
 import { portalTrialDays } from "@/lib/portalTrial";
 
 export const runtime = "nodejs";
@@ -38,99 +39,162 @@ export async function GET(req: Request) {
     const { data: org } = await supabase.from("orgs").select("plano").eq("id", org_id).maybeSingle();
     const plano = org?.plano ?? "starter";
 
-    // Trial ativo: não é inadimplência — corrige linhas antigas e só então marca vencidos fora do trial
-    await reverterInadimplentesDuranteTrial(supabase, org_id);
-    await marcarInadimplentes(supabase, org_id);
-
     const now = new Date();
     const primeiroDiaMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const ultimoDiaMes = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).toISOString();
     const hojeInicio = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const hojeFim = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
 
-    const [fornAll, fornAtivos, skusAll, skusAtivos, skusBaixo, sellersAtivosRes, sellersSaldos, pixPendentes, repassesPendentes, entradaMesRes, ciclosRepasse, pedidosHojeRes, mensalSellersRes, mensalFornRes, pedidosAguardandoRes, mensalPendentesComVenc, vendasMesRes, produtoCorRes, alteracoesPendentesRes] = await Promise.allSettled([
-      supabase.from("fornecedores").select("id", { count: "exact", head: true }).eq("org_id", org_id),
-      supabase.from("fornecedores").select("id", { count: "exact", head: true }).eq("org_id", org_id).ilike("status", "ativo"),
-      supabase.from("skus").select("id", { count: "exact", head: true }).eq("org_id", org_id).not("sku", "ilike", `${PREFIXO_OCULTO}%`),
-      supabase.from("skus").select("id", { count: "exact", head: true }).eq("org_id", org_id).ilike("status", "ativo").not("sku", "ilike", `${PREFIXO_OCULTO}%`),
-      supabase.from("skus").select("id, estoque_atual, estoque_minimo").eq("org_id", org_id).not("sku", "ilike", `${PREFIXO_OCULTO}%`).limit(2000),
-      supabase.from("sellers").select("id", { count: "exact", head: true }).eq("org_id", org_id).ilike("status", "ativo"),
-      supabase.from("sellers").select("saldo_atual").eq("org_id", org_id),
-      supabase.from("seller_depositos_pix").select("id", { count: "exact", head: true }).eq("org_id", org_id).eq("status", "pendente"),
-      supabase.from("financial_repasse_fornecedor").select("id", { count: "exact", head: true }).eq("org_id", org_id).eq("status", "pendente"),
-      supabase
-        .from("seller_depositos_pix")
-        .select("valor")
-        .eq("org_id", org_id)
-        .eq("status", "aprovado")
-        .not("aprovado_em", "is", null)
-        .gte("aprovado_em", primeiroDiaMes)
-        .lte("aprovado_em", ultimoDiaMes),
-      supabase.from("financial_ciclos_repasse").select("total_dropcore").eq("org_id", org_id).eq("status", "fechado"),
-      supabase
-        .from("pedidos")
-        .select("id", { count: "exact", head: true })
-        .eq("org_id", org_id)
-        .gte("criado_em", hojeInicio)
-        .lte("criado_em", hojeFim),
-      supabase
-        .from("financial_mensalidades")
-        .select("valor")
-        .eq("org_id", org_id)
-        .eq("tipo", "seller")
-        .eq("status", "pendente"),
-      supabase
-        .from("financial_mensalidades")
-        .select("valor")
-        .eq("org_id", org_id)
-        .eq("tipo", "fornecedor")
-        .eq("status", "pendente"),
-      supabase
-        .from("financial_mensalidades")
-        .select("id, vencimento_em, ciclo")
-        .eq("org_id", org_id)
-        .eq("status", "pendente")
-        .not("vencimento_em", "is", null),
-      supabase
-        .from("pedidos")
-        .select("id", { count: "exact", head: true })
-        .eq("org_id", org_id)
-        .eq("status", "enviado"),
-      supabase
-        .from("pedidos")
-        .select("id", { count: "exact", head: true })
-        .eq("org_id", org_id)
-        .gte("criado_em", primeiroDiaMes)
-        .or("status.eq.enviado,status.eq.aguardando_repasse,status.eq.entregue,status.eq.devolvido"),
-      supabase
-        .from("skus")
-        .select("nome_produto, cor")
-        .eq("org_id", org_id)
-        .ilike("status", "ativo")
-        .not("sku", "ilike", `${PREFIXO_OCULTO}%`),
-      supabase.from("sku_alteracoes_pendentes").select("id", { count: "exact", head: true }).eq("org_id", org_id).eq("status", "pendente"),
+    const [rpcAgg, countsSettled] = await Promise.all([
+      fetchOrgDashboardStatsAgg(org_id, primeiroDiaMes, ultimoDiaMes).catch(() => null),
+      Promise.allSettled([
+        supabase.from("fornecedores").select("id", { count: "exact", head: true }).eq("org_id", org_id),
+        supabase.from("fornecedores").select("id", { count: "exact", head: true }).eq("org_id", org_id).ilike("status", "ativo"),
+        supabase.from("skus").select("id", { count: "exact", head: true }).eq("org_id", org_id).not("sku", "ilike", `${PREFIXO_OCULTO}%`),
+        supabase.from("skus").select("id", { count: "exact", head: true }).eq("org_id", org_id).ilike("status", "ativo").not("sku", "ilike", `${PREFIXO_OCULTO}%`),
+        supabase.from("sellers").select("id", { count: "exact", head: true }).eq("org_id", org_id).ilike("status", "ativo"),
+        supabase.from("seller_depositos_pix").select("id", { count: "exact", head: true }).eq("org_id", org_id).eq("status", "pendente"),
+        supabase.from("financial_repasse_fornecedor").select("id", { count: "exact", head: true }).eq("org_id", org_id).eq("status", "pendente"),
+        supabase.from("financial_ciclos_repasse").select("total_dropcore").eq("org_id", org_id).eq("status", "fechado"),
+        supabase
+          .from("pedidos")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", org_id)
+          .gte("criado_em", hojeInicio)
+          .lte("criado_em", hojeFim),
+        supabase
+          .from("pedidos")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", org_id)
+          .eq("status", "enviado"),
+        supabase
+          .from("pedidos")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", org_id)
+          .gte("criado_em", primeiroDiaMes)
+          .or("status.eq.enviado,status.eq.aguardando_repasse,status.eq.entregue,status.eq.devolvido"),
+        supabase.from("sku_alteracoes_pendentes").select("id", { count: "exact", head: true }).eq("org_id", org_id).eq("status", "pendente"),
+      ]),
     ]);
+
+    let agg = rpcAgg;
+    if (!agg) {
+      const [skusBaixo, sellersSaldos, entradaMesRes, mensalSellersRes, mensalFornRes, produtoCorRes] =
+        await Promise.allSettled([
+          supabase
+            .from("skus")
+            .select("id, estoque_atual, estoque_minimo")
+            .eq("org_id", org_id)
+            .not("sku", "ilike", `${PREFIXO_OCULTO}%`)
+            .limit(2000),
+          supabase.from("sellers").select("saldo_atual").eq("org_id", org_id),
+          supabase
+            .from("seller_depositos_pix")
+            .select("valor")
+            .eq("org_id", org_id)
+            .eq("status", "aprovado")
+            .not("aprovado_em", "is", null)
+            .gte("aprovado_em", primeiroDiaMes)
+            .lte("aprovado_em", ultimoDiaMes),
+          supabase
+            .from("financial_mensalidades")
+            .select("valor")
+            .eq("org_id", org_id)
+            .eq("tipo", "seller")
+            .eq("status", "pendente"),
+          supabase
+            .from("financial_mensalidades")
+            .select("valor")
+            .eq("org_id", org_id)
+            .eq("tipo", "fornecedor")
+            .eq("status", "pendente"),
+          supabase
+            .from("skus")
+            .select("nome_produto, cor")
+            .eq("org_id", org_id)
+            .ilike("status", "ativo")
+            .not("sku", "ilike", `${PREFIXO_OCULTO}%`),
+        ]);
+
+      const skusBaixoData =
+        skusBaixo.status === "fulfilled" ? (skusBaixo.value as { data?: unknown[] }).data ?? [] : [];
+      const estoque_baixo_fb = (
+        skusBaixoData as { estoque_atual?: number | null; estoque_minimo?: number | null }[]
+      ).filter((r) => {
+        const min = r.estoque_minimo;
+        const atual = r.estoque_atual;
+        return min != null && atual != null && Number(atual) < Number(min);
+      }).length;
+
+      const saldo_fb =
+        sellersSaldos.status === "fulfilled" &&
+        Array.isArray((sellersSaldos.value as { data?: { saldo_atual: number }[] }).data)
+          ? ((sellersSaldos.value as { data: { saldo_atual: number }[] }).data || []).reduce(
+              (s, r) => s + Number(r.saldo_atual || 0),
+              0
+            )
+          : 0;
+
+      const entradaMesData =
+        entradaMesRes.status === "fulfilled" &&
+        Array.isArray((entradaMesRes.value as { data?: { valor: number }[] }).data)
+          ? (entradaMesRes.value as { data: { valor: number }[] }).data || []
+          : [];
+      const entrada_fb = entradaMesData.reduce((s, r) => s + Number(r.valor || 0), 0);
+
+      const mensalSellersData =
+        mensalSellersRes.status === "fulfilled" &&
+        Array.isArray((mensalSellersRes.value as { data?: { valor: number }[] }).data)
+          ? (mensalSellersRes.value as { data: { valor: number }[] }).data ?? []
+          : [];
+      const mensalFornData =
+        mensalFornRes.status === "fulfilled" &&
+        Array.isArray((mensalFornRes.value as { data?: { valor: number }[] }).data)
+          ? (mensalFornRes.value as { data: { valor: number }[] }).data ?? []
+          : [];
+
+      const produtoCorData =
+        produtoCorRes.status === "fulfilled" &&
+        Array.isArray((produtoCorRes.value as { data?: { nome_produto?: string | null; cor?: string | null }[] }).data)
+          ? (produtoCorRes.value as { data: { nome_produto?: string | null; cor?: string | null }[] }).data ?? []
+          : [];
+      const produto_cor_fb = new Set(
+        produtoCorData.map((r) => `${String(r.nome_produto ?? "").trim()}::${String(r.cor ?? "").trim()}`)
+      ).size;
+
+      agg = {
+        saldo_sellers_total: saldo_fb,
+        estoque_baixo: estoque_baixo_fb,
+        entrada_mes: entrada_fb,
+        mensalidades_sellers_pendente: mensalSellersData.reduce((s, r) => s + Number(r.valor || 0), 0),
+        mensalidades_fornecedores_pendente: mensalFornData.reduce((s, r) => s + Number(r.valor || 0), 0),
+        produto_cor_count: produto_cor_fb,
+        min_vencimento_pendente: null,
+      };
+    }
+
+    const [
+      fornAll,
+      fornAtivos,
+      skusAll,
+      skusAtivos,
+      sellersAtivosRes,
+      pixPendentes,
+      repassesPendentes,
+      ciclosRepasse,
+      pedidosHojeRes,
+      pedidosAguardandoRes,
+      vendasMesRes,
+      alteracoesPendentesRes,
+    ] = countsSettled;
 
     const fornecedores_total = fornAll.status === "fulfilled" ? (fornAll.value as { count?: number }).count ?? 0 : 0;
     const fornecedores_ativos = fornAtivos.status === "fulfilled" ? (fornAtivos.value as { count?: number }).count ?? 0 : 0;
     const skus_total = skusAll.status === "fulfilled" ? (skusAll.value as { count?: number }).count ?? 0 : 0;
     const skus_ativos = skusAtivos.status === "fulfilled" ? (skusAtivos.value as { count?: number }).count ?? 0 : 0;
-    const skusBaixoData = skusBaixo.status === "fulfilled" ? (skusBaixo.value as { data?: unknown[] }).data ?? [] : [];
-
-    const estoque_baixo = (skusBaixoData as { estoque_atual?: number | null; estoque_minimo?: number | null }[]).filter(
-      (r) => {
-        const min = r.estoque_minimo;
-        const atual = r.estoque_atual;
-        return min != null && atual != null && Number(atual) < Number(min);
-      }
-    ).length;
-
+    const estoque_baixo = agg.estoque_baixo;
     const sellers_ativos = sellersAtivosRes.status === "fulfilled" ? (sellersAtivosRes.value as { count?: number }).count ?? 0 : 0;
-
-    const saldo_sellers_total =
-      sellersSaldos.status === "fulfilled" && Array.isArray((sellersSaldos.value as { data?: { saldo_atual: number }[] }).data)
-        ? ((sellersSaldos.value as { data: { saldo_atual: number }[] }).data || []).reduce((s, r) => s + Number(r.saldo_atual || 0), 0)
-        : 0;
+    const saldo_sellers_total = agg.saldo_sellers_total;
 
     const depositos_pix_pendentes =
       pixPendentes.status === "fulfilled" ? (pixPendentes.value as { count?: number }).count ?? 0 : 0;
@@ -138,10 +202,7 @@ export async function GET(req: Request) {
     const repasses_pendentes =
       repassesPendentes.status === "fulfilled" ? (repassesPendentes.value as { count?: number }).count ?? 0 : 0;
 
-    const entradaMesData = entradaMesRes.status === "fulfilled" && Array.isArray((entradaMesRes.value as { data?: { valor: number }[] }).data)
-      ? (entradaMesRes.value as { data: { valor: number }[] }).data || []
-      : [];
-    const entrada_mes = entradaMesData.reduce((s, r) => s + Number(r.valor || 0), 0);
+    const entrada_mes = agg.entrada_mes;
 
     const ciclosData = ciclosRepasse.status === "fulfilled" && Array.isArray((ciclosRepasse.value as { data?: { total_dropcore: number }[] }).data)
       ? (ciclosRepasse.value as { data: { total_dropcore: number }[] }).data ?? []
@@ -153,79 +214,29 @@ export async function GET(req: Request) {
         ? ((pedidosHojeRes.value as { count?: number }).count ?? 0)
         : 0;
 
-    const mensalSellersData =
-      mensalSellersRes.status === "fulfilled" && Array.isArray((mensalSellersRes.value as { data?: { valor: number }[] }).data)
-        ? (mensalSellersRes.value as { data: { valor: number }[] }).data ?? []
-        : [];
-    const mensalFornData =
-      mensalFornRes.status === "fulfilled" && Array.isArray((mensalFornRes.value as { data?: { valor: number }[] }).data)
-        ? (mensalFornRes.value as { data: { valor: number }[] }).data ?? []
-        : [];
-
-    const mensalidades_sellers_pendente = mensalSellersData.reduce((s, r) => s + Number(r.valor || 0), 0);
-    const mensalidades_fornecedores_pendente = mensalFornData.reduce((s, r) => s + Number(r.valor || 0), 0);
+    const mensalidades_sellers_pendente = agg.mensalidades_sellers_pendente;
+    const mensalidades_fornecedores_pendente = agg.mensalidades_fornecedores_pendente;
 
     const inadimplentes = await contarInadimplentes(supabase, org_id);
     const mensalidade_portal = await resumoMensalidadePortal(supabase, org_id);
 
-    // Notificação só para admins da org (tipo próprio — não misturar com mensalidade_vencida do painel seller/fornecedor)
-    const totalInadimplentes = inadimplentes.sellers + inadimplentes.fornecedores;
-    const { data: adminsInad } = await supabase
-      .from("org_members")
-      .select("user_id")
-      .eq("org_id", org_id)
-      .in("role_base", ["owner", "admin"]);
-    const tipoInadOrg = "mensalidade_inadimplentes_org";
-    if (totalInadimplentes > 0) {
-      const desde = new Date();
-      desde.setHours(desde.getHours() - 24);
-      const msg =
-        inadimplentes.sellers > 0 && inadimplentes.fornecedores > 0
-          ? `${inadimplentes.sellers} seller(s) e ${inadimplentes.fornecedores} fornecedor(es) inadimplentes. Verifique as mensalidades.`
-          : inadimplentes.sellers > 0
-            ? `${inadimplentes.sellers} seller(s) inadimplente(s). Verifique as mensalidades.`
-            : `${inadimplentes.fornecedores} fornecedor(es) inadimplente(s). Verifique as mensalidades.`;
-      for (const a of adminsInad ?? []) {
-        if (!a.user_id) continue;
-        const { data: jaExiste } = await supabase
-          .from("notifications")
-          .select("id")
-          .eq("user_id", a.user_id)
-          .eq("tipo", tipoInadOrg)
-          .gte("criado_em", desde.toISOString())
-          .limit(1)
-          .maybeSingle();
-        if (!jaExiste) {
-          await supabase.from("notifications").insert({
-            user_id: a.user_id,
-            tipo: tipoInadOrg,
-            titulo: "Mensalidades vencidas",
-            mensagem: msg,
-            metadata: {},
-          });
-        }
-      }
-    } else {
-      for (const a of adminsInad ?? []) {
-        if (!a.user_id) continue;
-        await supabase.from("notifications").delete().eq("user_id", a.user_id).eq("tipo", tipoInadOrg);
+    let dias_ate_vencimento = diasAteVencimentoFromMin(agg.min_vencimento_pendente);
+    if (dias_ate_vencimento === null && !rpcAgg) {
+      const { data: mensalVencRows } = await supabase
+        .from("financial_mensalidades")
+        .select("vencimento_em")
+        .eq("org_id", org_id)
+        .eq("status", "pendente")
+        .not("vencimento_em", "is", null);
+      for (const m of mensalVencRows ?? []) {
+        if (!m.vencimento_em || typeof m.vencimento_em !== "string") continue;
+        const d = diasAteVencimentoFromMin(m.vencimento_em);
+        if (d === null) continue;
+        if (dias_ate_vencimento === null || d < dias_ate_vencimento) dias_ate_vencimento = d;
       }
     }
-
-    const mensalPendentesData: Array<{ vencimento_em: string }> =
-      mensalPendentesComVenc.status === "fulfilled"
-        ? (((mensalPendentesComVenc.value as unknown as { data?: Array<{ vencimento_em: string }> })?.data ?? []).filter(
-            (m): m is { vencimento_em: string } => !!m && typeof m.vencimento_em === "string"
-          ))
-        : [];
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
-    let dias_ate_vencimento: number | null = null;
-    for (const m of mensalPendentesData) {
-      const v = new Date(m.vencimento_em + "T12:00:00");
-      const diff = Math.ceil((v.getTime() - hoje.getTime()) / 864e5);
-      if (dias_ate_vencimento === null || diff < dias_ate_vencimento) dias_ate_vencimento = diff;
-    }
     const diaAtual = hoje.getDate();
     const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
     const diasRestantesMes = ultimoDia - diaAtual;
@@ -239,13 +250,7 @@ export async function GET(req: Request) {
     const vendas_mes =
       vendasMesRes.status === "fulfilled" ? (vendasMesRes.value as { count?: number }).count ?? 0 : 0;
 
-    const produtoCorData =
-      produtoCorRes.status === "fulfilled" && Array.isArray((produtoCorRes.value as { data?: { nome_produto?: string | null; cor?: string | null }[] }).data)
-        ? (produtoCorRes.value as { data: { nome_produto?: string | null; cor?: string | null }[] }).data ?? []
-        : [];
-    const produto_cor_count = new Set(
-      produtoCorData.map((r) => `${String(r.nome_produto ?? "").trim()}::${String(r.cor ?? "").trim()}`)
-    ).size;
+    const produto_cor_count = agg.produto_cor_count;
 
     const isStarter = String(plano ?? "").toLowerCase() !== "pro";
 

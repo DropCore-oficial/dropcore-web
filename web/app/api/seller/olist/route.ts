@@ -10,6 +10,7 @@ import { buildOlistPedidosWebhookUrl } from "@/lib/olistWebhookUrl";
 import { ensureSellerOlistIngestToken } from "@/lib/olistIngestToken";
 import { normalizeOlistCnpjDigits } from "@/lib/olistPedidoImportPolicy";
 import { encryptSellerErpSecret, maskErpSecret, decryptSellerErpSecret, describeSellerErpSecretDecryptFailure } from "@/lib/sellerErpSecretBox";
+import { fetchSellerOlistWebhookLastAt } from "@/lib/sellerOlistWebhookStatus";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 
 export const runtime = "nodejs";
@@ -86,6 +87,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Não autenticado." }, { status: 401, headers: NO_STORE_JSON_HEADERS });
     }
 
+    const webhook_last_received_at = await fetchSellerOlistWebhookLastAt(seller.id);
+
     const { data: rows, error } = await supabaseAdmin
       .from("seller_olist_integrations")
       .select(OLIST_SELECT_WITH_SYNC)
@@ -109,6 +112,7 @@ export async function GET(req: Request) {
             updated_at: null,
             webhook_pedidos_url,
             olist_webhook_cnpj_ready: false,
+            webhook_last_received_at,
             sync: {
               last_at: null,
               status: null,
@@ -173,6 +177,7 @@ export async function GET(req: Request) {
             updated_at: row?.updated_at ?? null,
             webhook_pedidos_url,
             olist_webhook_cnpj_ready: cnpjNorm.length >= 11,
+            webhook_last_received_at,
             sync: buildSyncPayload(row),
           },
           { headers: NO_STORE_JSON_HEADERS },
@@ -217,6 +222,7 @@ export async function GET(req: Request) {
         updated_at: row?.updated_at ?? null,
         webhook_pedidos_url,
         olist_webhook_cnpj_ready: cnpjNorm.length >= 11,
+        webhook_last_received_at,
         sync: buildSyncPayload(row),
       },
       { headers: NO_STORE_JSON_HEADERS },

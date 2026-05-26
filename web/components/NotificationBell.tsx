@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { useVisibilityAwareInterval } from "@/lib/useVisibilityAwareInterval";
 import { AMBER_PREMIUM_LINK } from "@/lib/amberPremium";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import {
@@ -66,12 +67,12 @@ export function NotificationBell({
     }
   };
 
-  useEffect(() => {
-    if (portalBloqueado || verificando) return;
-    fetchNotifs();
-    const t = setInterval(() => fetchNotifs(), 20000);
-    return () => clearInterval(t);
+  const pollDisabled = portalBloqueado || verificando;
+  const pollNotifs = useCallback(() => {
+    void fetchNotifs();
   }, [context, portalBloqueado, verificando]);
+
+  useVisibilityAwareInterval(pollNotifs, 60_000, pollDisabled);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

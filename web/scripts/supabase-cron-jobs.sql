@@ -103,11 +103,19 @@ WHERE jobname LIKE 'dropcore-%';
 -- -----------------------------------------------------------------------------
 -- 4) Agendar (UTC)
 -- -----------------------------------------------------------------------------
--- Olist sync automático — a cada 1 minuto (UTC)
+-- Olist sync automático — a cada 1 minuto (UTC). Caminho rápido: webhook /api/webhooks/olist (?w= token do seller).
+-- Não aumentar o intervalo sem webhook ativo: o cron é rede de segurança, não a única via de pedido.
 SELECT cron.schedule(
   'dropcore-olist-sync',
   '* * * * *',
   $$SELECT public.dropcore_cron_http_post('/api/cron/olist-sync');$$
+);
+
+-- Inadimplência + notificação admin org — a cada hora (UTC), em vez de em cada GET de dashboard
+SELECT cron.schedule(
+  'dropcore-inadimplencia',
+  '0 * * * *',
+  $$SELECT public.dropcore_cron_http_post('/api/cron/inadimplencia');$$
 );
 
 -- Mensalidades do mês + inadimplência — 09:00 UTC
