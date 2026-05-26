@@ -120,6 +120,8 @@ type Props = {
   editHref: string;
   /** Seller no catálogo: mesmo layout, sem CTAs de edição do fornecedor; medidas via API do seller. */
   somenteLeitura?: boolean;
+  /** Armazém ligado do seller (query `fornecedor_id` na API de medidas). */
+  fornecedorId?: string | null;
 };
 
 export function ProdutoResumoListaGrupo({
@@ -130,6 +132,7 @@ export function ProdutoResumoListaGrupo({
   linkAlbum,
   editHref,
   somenteLeitura = false,
+  fornecedorId = null,
 }: Props) {
   const base = pai ?? representante;
   const [mostrarDetalhes, setMostrarDetalhes] = useState(false);
@@ -155,8 +158,12 @@ export function ProdutoResumoListaGrupo({
       try {
         const { data: { session } } = await supabaseBrowser.auth.getSession();
         if (!session?.access_token || cancel) return;
+        const tmParams = new URLSearchParams({ grupoKey });
+        if (somenteLeitura && fornecedorId?.trim()) {
+          tmParams.set("fornecedor_id", fornecedorId.trim());
+        }
         const url = somenteLeitura
-          ? `/api/seller/catalogo/tabela-medidas?grupoKey=${encodeURIComponent(grupoKey)}`
+          ? `/api/seller/catalogo/tabela-medidas?${tmParams.toString()}`
           : `/api/fornecedor/produtos/tabela-medidas?grupoKey=${encodeURIComponent(grupoKey)}`;
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${session.access_token}` },
@@ -197,7 +204,7 @@ export function ProdutoResumoListaGrupo({
     return () => {
       cancel = true;
     };
-  }, [grupoKey, somenteLeitura, base.detalhes_produto_json, base.nome_produto, base.categoria]);
+  }, [grupoKey, somenteLeitura, fornecedorId, base.detalhes_produto_json, base.nome_produto, base.categoria]);
 
   const detalhes = asObj(base.detalhes_produto_json);
   const infoBasica = asObj(detalhes?.infoBasica);

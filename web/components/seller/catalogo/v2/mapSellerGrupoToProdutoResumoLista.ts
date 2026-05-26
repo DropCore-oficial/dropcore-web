@@ -28,8 +28,9 @@ export function sellerItemToProdutoResumoLista(it: SellerCatalogoItem): ProdutoR
     cfop: it.cfop ?? null,
     peso_liquido_kg: null,
     peso_bruto_kg: null,
-    expedicao_override_linha: null,
-    detalhes_produto_json: null,
+    marca: it.marca ?? null,
+    expedicao_override_linha: it.expedicao_override_linha ?? null,
+    detalhes_produto_json: it.detalhes_produto_json ?? null,
   };
 }
 
@@ -44,7 +45,10 @@ function primeiroLinkAlbum(items: SellerCatalogoItem[]): string | null {
   return null;
 }
 
-export function sellerGrupoToProdutoResumoListaGrupoProps(grupo: GrupoCatalogoV2) {
+export function sellerGrupoToProdutoResumoListaGrupoProps(
+  grupo: GrupoCatalogoV2,
+  fornecedorLigadoId?: string | null
+) {
   const pai = grupo.pai ? sellerItemToProdutoResumoLista(grupo.pai) : null;
   const filhosVariantes = grupo.filhos.map(sellerItemToProdutoResumoLista);
   const repSource = grupo.pai ?? grupo.filhos[0];
@@ -52,13 +56,20 @@ export function sellerGrupoToProdutoResumoListaGrupoProps(grupo: GrupoCatalogoV2
     throw new Error("sellerGrupoToProdutoResumoListaGrupoProps: grupo sem SKU representativo.");
   }
   const representante = sellerItemToProdutoResumoLista(repSource);
-  const linkAlbum = primeiroLinkAlbum(linhasGrupo(grupo.pai, grupo.filhos));
+  const linhas = linhasGrupo(grupo.pai, grupo.filhos);
+  const linkAlbum = primeiroLinkAlbum(linhas);
+  const repDetalhes =
+    (grupo.pai?.detalhes_produto_json as Record<string, unknown> | null | undefined) ??
+    representante.detalhes_produto_json;
   return {
     grupoKey: grupo.paiKey,
-    pai,
+    pai: pai
+      ? { ...pai, detalhes_produto_json: (grupo.pai?.detalhes_produto_json as Record<string, unknown> | null) ?? pai.detalhes_produto_json }
+      : null,
     filhosVariantes,
-    representante,
+    representante: repDetalhes ? { ...representante, detalhes_produto_json: repDetalhes } : representante,
     linkAlbum,
     editHref: "/seller/produtos",
+    fornecedorId: fornecedorLigadoId,
   };
 }

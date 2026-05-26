@@ -49,6 +49,9 @@ export type SellerCatalogoItem = {
   origem: string | null;
   cest: string | null;
   cfop: string | null;
+  marca?: string | null;
+  expedicao_override_linha?: string | null;
+  detalhes_produto_json?: Record<string, unknown> | null;
   habilitado_venda?: boolean;
 };
 
@@ -110,6 +113,15 @@ export function normalizarItemsSellerCatalogo(raw: unknown): SellerCatalogoItem[
           origem: row?.origem != null ? str(row.origem) : null,
           cest: row?.cest != null ? str(row.cest) : null,
           cfop: row?.cfop != null ? str(row.cfop) : null,
+          marca: row?.marca != null ? str(row.marca) : null,
+          expedicao_override_linha:
+            row?.expedicao_override_linha != null ? str(row.expedicao_override_linha) : null,
+          detalhes_produto_json:
+            row?.detalhes_produto_json != null &&
+            typeof row.detalhes_produto_json === "object" &&
+            !Array.isArray(row.detalhes_produto_json)
+              ? (row.detalhes_produto_json as Record<string, unknown>)
+              : null,
           habilitado_venda: row?.habilitado_venda === true,
         } as SellerCatalogoItem;
       } catch {

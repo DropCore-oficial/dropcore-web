@@ -4,7 +4,7 @@
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { getProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
+import { getProdutoTabelaMedidas, orgPossuiGrupoSku } from "@/lib/produtoTabelaMedidasDb";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -35,19 +35,20 @@ export async function GET(req: Request) {
     const grupoKey = (searchParams.get("grupoKey") ?? "").trim().toUpperCase();
     if (!grupoKey) return NextResponse.json({ error: "grupoKey é obrigatório." }, { status: 400 });
 
-    const fornecedorParam = (searchParams.get("fornecedor_id") ?? "").trim();
-    let fornecedorId = (seller as { fornecedor_id?: string }).fornecedor_id ?? null;
-    if (fornecedorParam) {
-      const { data: okForn, error: fe } = await supabaseAdmin
-        .from("fornecedores")
-        .select("id")
-        .eq("id", fornecedorParam)
-        .eq("org_id", seller.org_id)
-        .maybeSingle();
-      if (fe) throw fe;
-      if (okForn) fornecedorId = fornecedorParam;
+    const acesso = await orgPossuiGrupoSku(supabaseAdmin, seller.org_id, grupoKey);
+    if (!acesso.ok) {
+      return NextResponse.json({ error: "Grupo não encontrado no catálogo." }, { status: 404 });
     }
-    if (!fornecedorId) return NextResponse.json({ aprovada: null });
+
+    const fornecedorParam = (searchParams.get("fornecedor_id") ?? "").trim();
+    const sellerForn = (seller as { fornecedor_id?: string | null }).fornecedor_id ?? null;
+    const fornecedorGrupo = acesso.fornecedor_id;
+    if (sellerForn && fornecedorGrupo && sellerForn !== fornecedorGrupo) {
+      return NextResponse.json({ aprovada: null });
+    }
+    if (fornecedorParam && fornecedorGrupo && fornecedorParam !== fornecedorGrupo) {
+      return NextResponse.json({ aprovada: null });
+    }
 
     const row = await getProdutoTabelaMedidas(supabaseAdmin, grupoKey);
 

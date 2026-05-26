@@ -82,7 +82,7 @@ export async function GET(req: Request) {
       .from("skus")
       // custo_dropcore / custo_base só no servidor para calcular custo_total; nunca expor ao client
       .select(
-        "id, sku, nome_produto, cor, tamanho, status, fornecedor_id, estoque_atual, estoque_minimo, custo_dropcore, custo_base, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, peso_kg, imagem_url, link_fotos, descricao, ncm, origem, cest, cfop",
+        "id, sku, nome_produto, cor, tamanho, status, fornecedor_id, estoque_atual, estoque_minimo, custo_dropcore, custo_base, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, peso_kg, imagem_url, link_fotos, descricao, ncm, origem, cest, cfop, marca, expedicao_override_linha, detalhes_produto_json",
       )
       .eq("org_id", seller.org_id)
       .ilike("status", "ativo")

@@ -179,6 +179,7 @@ type Props = {
   exportandoOlist?: boolean;
   onExportOlist?: () => void;
   exportOlistDisabled?: boolean;
+  fornecedorLigadoId?: string | null;
 };
 
 export function SellerListaGrupoArmazem({
@@ -202,6 +203,7 @@ export function SellerListaGrupoArmazem({
   exportandoOlist = false,
   onExportOlist,
   exportOlistDisabled = false,
+  fornecedorLigadoId = null,
 }: Props) {
   const bulkRef = useRef<HTMLDetailsElement>(null);
   const fecharBulk = () => {
@@ -221,11 +223,11 @@ export function SellerListaGrupoArmazem({
 
   const resumoCadastroProps = useMemo(() => {
     try {
-      return sellerGrupoToProdutoResumoListaGrupoProps(grupo);
+      return sellerGrupoToProdutoResumoListaGrupoProps(grupo, fornecedorLigadoId);
     } catch {
       return null;
     }
-  }, [grupo]);
+  }, [grupo, fornecedorLigadoId]);
 
   const linhasToggle = useMemo(() => linhas.map(toLinhaCatalogo), [linhas]);
 

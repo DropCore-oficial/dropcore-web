@@ -35,6 +35,33 @@ export async function fornecedorPossuiGrupoSku(
   return (skus ?? []).some((r) => paiKey(String(r.sku ?? "")) === gk);
 }
 
+/** Confirma que o grupo existe no catálogo da org (seller ou fornecedor). */
+export async function orgPossuiGrupoSku(
+  sb: SupabaseClient,
+  orgId: string,
+  grupoKey: string
+): Promise<{ ok: boolean; fornecedor_id: string | null }> {
+  const gk = grupoKey.trim().toUpperCase();
+  const { data: pai } = await sb
+    .from("skus")
+    .select("fornecedor_id")
+    .eq("org_id", orgId)
+    .eq("sku", gk)
+    .maybeSingle();
+  if (pai?.fornecedor_id) return { ok: true, fornecedor_id: String(pai.fornecedor_id) };
+
+  const prefix = gk.length >= 6 ? gk.slice(0, -3) : gk;
+  const { data: anyRow } = await sb
+    .from("skus")
+    .select("fornecedor_id")
+    .eq("org_id", orgId)
+    .ilike("sku", `${prefix}%`)
+    .limit(1)
+    .maybeSingle();
+  if (!anyRow?.fornecedor_id) return { ok: false, fornecedor_id: null };
+  return { ok: true, fornecedor_id: String(anyRow.fornecedor_id) };
+}
+
 export async function getProdutoTabelaMedidas(
   sb: SupabaseClient,
   grupoKey: string

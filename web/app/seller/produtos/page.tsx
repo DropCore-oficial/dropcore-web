@@ -516,7 +516,9 @@ export default function SellerProdutosPage() {
         data: { session },
       } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) return;
-      const res = await fetch(`/api/seller/catalogo/tabela-medidas?grupoKey=${encodeURIComponent(grupoKey)}`, {
+      const u = new URLSearchParams({ grupoKey });
+      if (fornecedorLigadoId?.trim()) u.set("fornecedor_id", fornecedorLigadoId.trim());
+      const res = await fetch(`/api/seller/catalogo/tabela-medidas?${u.toString()}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       const json = await res.json();
@@ -527,7 +529,7 @@ export default function SellerProdutosPage() {
     } finally {
       setLoadingTabela(false);
     }
-  }, []);
+  }, [fornecedorLigadoId]);
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
@@ -897,6 +899,7 @@ export default function SellerProdutosPage() {
                   exportandoOlist={exportandoOlistGrupo === grupo.paiKey}
                   onExportOlist={() => void baixarCsvOlistGrupo(grupo.paiKey)}
                   exportOlistDisabled={catalogMeta.sem_armazem_ligado}
+                  fornecedorLigadoId={fornecedorLigadoId}
                 />
               ))}
           </div>
