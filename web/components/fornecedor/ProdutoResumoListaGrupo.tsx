@@ -11,6 +11,8 @@ import {
   AMBER_PREMIUM_TEXT_SECONDARY,
 } from "@/lib/amberPremium";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { ncmOrigemFromSkuRow } from "@/lib/fornecedorSkuCatalogExtras";
+import { tabelaMedidasFromDetalhesJson } from "@/lib/fornecedorTabelaMedidas";
 import { cn } from "@/lib/utils";
 import {
   CadastroResumoShell,
@@ -162,7 +164,15 @@ export function ProdutoResumoListaGrupo({
         });
         if (!res.ok || cancel) return;
         const data = await res.json();
-        const fonte = somenteLeitura ? (data.aprovada ?? null) : (data.pendente ?? data.aprovada ?? null);
+        let fonte = somenteLeitura ? (data.aprovada ?? null) : (data.pendente ?? data.aprovada ?? null);
+        if (!fonte && base.detalhes_produto_json) {
+          const fromJson = tabelaMedidasFromDetalhesJson(
+            base.detalhes_produto_json,
+            base.nome_produto ?? "",
+            base.categoria
+          );
+          if (fromJson) fonte = fromJson;
+        }
         const medidas = fonte?.medidas ?? {};
         let preenchidas = 0;
         let total = 0;
@@ -197,10 +207,11 @@ export function ProdutoResumoListaGrupo({
   const guiado = asObj(detalhes?.guiado);
   const logisticaExtra = asObj(detalhes?.logistica);
   const medidasExtra = asObj(detalhes?.medidas);
+  const fiscalCols = ncmOrigemFromSkuRow(base);
 
   const descOk = filled(base.descricao);
   const albumOk = filled(linkAlbum);
-  const fiscalCoreOk = filled(base.ncm) && filled(base.origem);
+  const fiscalCoreOk = filled(fiscalCols.ncm) && filled(fiscalCols.origem);
   const dimsOk = Boolean(fmtCmDim(base));
   const pesoOk = filled(base.peso_kg);
   const custoCompleto = statsVar.total > 0 && statsVar.comCusto === statsVar.total;
@@ -467,10 +478,28 @@ export function ProdutoResumoListaGrupo({
             </MiniCard>
 
             <MiniCard title="Fiscal" subtitle="NF-e e impostos">
-              <FieldRow label="NCM" ok={filled(base.ncm)} value={filled(base.ncm) ? String(base.ncm) : "Pendente"} />
-              <FieldRow label="Origem" ok={filled(base.origem)} value={filled(base.origem) ? String(base.origem) : "Pendente"} />
-              <FieldRow label="CEST" ok={filled(base.cest)} value={filled(base.cest) ? String(base.cest) : "Opcional"} optional />
-              <FieldRow label="CFOP" ok={filled(base.cfop)} value={filled(base.cfop) ? String(base.cfop) : "Opcional"} optional />
+              <FieldRow
+                label="NCM"
+                ok={filled(fiscalCols.ncm)}
+                value={filled(fiscalCols.ncm) ? String(fiscalCols.ncm) : "Pendente"}
+              />
+              <FieldRow
+                label="Origem"
+                ok={filled(fiscalCols.origem)}
+                value={filled(fiscalCols.origem) ? String(fiscalCols.origem) : "Pendente"}
+              />
+              <FieldRow
+                label="CEST"
+                ok={filled(base.cest ?? logisticaExtra?.cest)}
+                value={filled(base.cest ?? logisticaExtra?.cest) ? String(base.cest ?? logisticaExtra?.cest) : "Opcional"}
+                optional
+              />
+              <FieldRow
+                label="CFOP"
+                ok={filled(base.cfop ?? logisticaExtra?.cfop)}
+                value={filled(base.cfop ?? logisticaExtra?.cfop) ? String(base.cfop ?? logisticaExtra?.cfop) : "Opcional"}
+                optional
+              />
               <FieldRow
                 label="Tabela de medidas"
                 ok={medidasOk}

@@ -20,6 +20,8 @@ import { toTitleCase } from "@/lib/formatText";
 import { assertPodeAtivarMaisSkus } from "@/lib/planos";
 import { chaveEstoqueVariante, normalizarChaveEstoqueVarianteApi } from "@/lib/estoqueVarianteKeys";
 import { linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
+import { fornecedorSkuCatalogExtrasFromBody } from "@/lib/fornecedorSkuCatalogExtras";
+import type { TabelaMedidasPayload } from "@/lib/fornecedorTabelaMedidas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,7 +39,8 @@ function iniciaisFromNome(nome: string | null | undefined): string {
 const SKU_FIELDS = `
   id, sku, nome_produto, cor, tamanho, status, fornecedor_id, fornecedor_org_id, org_id,
   estoque_atual, estoque_minimo, custo_base, custo_dropcore, peso_kg, categoria,
-  dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao, criado_em,
+  dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao,
+  ncm, origem, cest, cfop, expedicao_override_linha, criado_em,
   detalhes_produto_json
 `;
 
@@ -84,6 +87,27 @@ function parseList(v: unknown): string[] {
 function jsonObjectOrNull(v: unknown): Record<string, unknown> | null {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
   return v as Record<string, unknown>;
+}
+
+function parseTabelaMedidasBody(body: Record<string, unknown>): TabelaMedidasPayload | null {
+  const raw = body.tabela_medidas;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const tm = raw as Record<string, unknown>;
+  const tipo = typeof tm.tipo_produto === "string" ? tm.tipo_produto.trim() || "generico" : "generico";
+  const med = tm.medidas;
+  if (!med || typeof med !== "object" || Array.isArray(med)) return null;
+  const medidas: Record<string, Record<string, number>> = {};
+  for (const [tamanho, vals] of Object.entries(med)) {
+    if (!vals || typeof vals !== "object" || Array.isArray(vals)) continue;
+    const row: Record<string, number> = {};
+    for (const [k, v] of Object.entries(vals)) {
+      const n = typeof v === "number" ? v : parseFloat(String(v));
+      if (Number.isFinite(n)) row[k] = n;
+    }
+    if (Object.keys(row).length > 0) medidas[tamanho.trim().toUpperCase()] = row;
+  }
+  if (Object.keys(medidas).length === 0) return null;
+  return { tipo_produto: tipo, medidas };
 }
 
 export async function POST(req: Request) {
@@ -227,6 +251,8 @@ export async function POST(req: Request) {
     const peso_g = body?.peso_kg != null ? (typeof body.peso_kg === "number" ? body.peso_kg : parseFloat(String(body.peso_kg).replace(",", "."))) : null;
     const peso_kg = Number.isFinite(peso_g) ? peso_g / 1000 : null;
     const data_lancamento = typeof body?.data_lancamento === "string" && body.data_lancamento.trim() ? body.data_lancamento.trim() : null;
+    const catalogExtras = fornecedorSkuCatalogExtrasFromBody(body as Record<string, unknown>);
+    const tabelaMedidasPayload = parseTabelaMedidasBody(body as Record<string, unknown>);
 
     if (!nome_produto) {
       return NextResponse.json({ error: "Nome do produto é obrigatório." }, { status: 400 });
@@ -366,6 +392,7 @@ export async function POST(req: Request) {
 
     const extrasBase: Record<string, unknown> = {
       peso_kg: Number.isFinite(peso_kg) ? peso_kg : null,
+      ...catalogExtras,
     };
     if (marca) extrasBase.marca = marca;
     if (data_lancamento) extrasBase.data_lancamento = data_lancamento;
@@ -444,6 +471,35 @@ export async function POST(req: Request) {
       .select(SKU_FIELDS);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    if (tabelaMedidasPayload) {
+      const { error: tmErr } = await supabaseAdmin.from("produto_tabela_medidas").upsert(
+        {
+          org_id: ctx.org_id,
+          fornecedor_id: ctx.fornecedor_id,
+          grupo_sku: skuPai,
+          tipo_produto: tabelaMedidasPayload.tipo_produto,
+          medidas: tabelaMedidasPayload.medidas,
+          atualizado_em: new Date().toISOString(),
+        },
+        { onConflict: "org_id,fornecedor_id,grupo_sku" }
+      );
+      if (tmErr) console.error("[multivariante] produto_tabela_medidas:", tmErr.message);
+    }
+
+    const fiscalPatch: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(catalogExtras)) {
+      if (v != null && v !== "") fiscalPatch[k] = v;
+    }
+    if (Object.keys(fiscalPatch).length > 0) {
+      const blocoPrefix = `${prefixo}${String(bloco).padStart(3, "0")}`;
+      await supabaseAdmin
+        .from("skus")
+        .update(fiscalPatch)
+        .eq("fornecedor_id", ctx.fornecedor_id)
+        .eq("org_id", ctx.org_id)
+        .like("sku", `${blocoPrefix}%`);
+    }
 
     return NextResponse.json({
       ok: true,

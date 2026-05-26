@@ -96,3 +96,51 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro inesperado" }, { status: 500 });
   }
 }
+
+/** PUT — grava tabela aprovada (uso na criação do produto; edições seguem via PATCH do SKU + aprovação admin). */
+export async function PUT(req: Request) {
+  try {
+    const ctx = await getFornecedorFromToken(req);
+    if (!ctx) return NextResponse.json({ error: "Não autenticado como fornecedor." }, { status: 401 });
+
+    const body = await req.json().catch(() => ({}));
+    const grupoKey = typeof body?.grupoKey === "string" ? body.grupoKey.trim().toUpperCase() : "";
+    const tipo = typeof body?.tipo_produto === "string" ? body.tipo_produto.trim() || "generico" : "generico";
+    const med = body?.medidas;
+    if (!grupoKey) return NextResponse.json({ error: "grupoKey é obrigatório." }, { status: 400 });
+    if (!med || typeof med !== "object" || Array.isArray(med)) {
+      return NextResponse.json({ error: "medidas inválido." }, { status: 400 });
+    }
+
+    const medidas: Record<string, Record<string, number>> = {};
+    for (const [tamanho, vals] of Object.entries(med as Record<string, unknown>)) {
+      if (!vals || typeof vals !== "object" || Array.isArray(vals)) continue;
+      const row: Record<string, number> = {};
+      for (const [k, v] of Object.entries(vals)) {
+        const n = typeof v === "number" ? v : parseFloat(String(v));
+        if (Number.isFinite(n)) row[k] = n;
+      }
+      if (Object.keys(row).length > 0) medidas[tamanho.trim().toUpperCase()] = row;
+    }
+    if (Object.keys(medidas).length === 0) {
+      return NextResponse.json({ error: "Informe ao menos uma linha de medida." }, { status: 400 });
+    }
+
+    const { error } = await supabaseAdmin.from("produto_tabela_medidas").upsert(
+      {
+        org_id: ctx.org_id,
+        fornecedor_id: ctx.fornecedor_id,
+        grupo_sku: grupoKey,
+        tipo_produto: tipo,
+        medidas,
+        atualizado_em: new Date().toISOString(),
+      },
+      { onConflict: "org_id,fornecedor_id,grupo_sku" }
+    );
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    return NextResponse.json({ ok: true, grupo_sku: grupoKey });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Erro inesperado" }, { status: 500 });
+  }
+}

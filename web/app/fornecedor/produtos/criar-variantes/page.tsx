@@ -16,6 +16,7 @@ import {
   transparenciaOptions,
 } from "@/lib/fornecedorVariantesUi";
 import { chaveEstoqueVariante } from "@/lib/estoqueVarianteKeys";
+import { medidasFormToTabelaMedidas } from "@/lib/fornecedorTabelaMedidas";
 import {
   LS_RASCUNHO_CRIAR_VARIANTES,
   type Medida,
@@ -1692,8 +1693,15 @@ export default function CriarVariantesPage() {
         medidas: {
           topicosSelecionados: [...topicosMedidaSelecionados],
           topicosCustom: topicosMedidaCustom.trim() || null,
+          linhas: medidas.filter((m) => m.tamanho.trim()),
         },
       };
+      const tabelaMedidasPayload = medidasFormToTabelaMedidas(
+        medidas,
+        topicosMedidaFinais,
+        nomeProduto.trim(),
+        categoria
+      );
       const body: Record<string, unknown> = {
         nome_produto: nomeProduto.trim(),
         cores,
@@ -1707,7 +1715,14 @@ export default function CriarVariantesPage() {
         peso_kg: peso.trim() ? parseFloat(peso.replace(",", ".")) : undefined,
         data_lancamento: dataLancamento || null,
         detalhes_produto_json: detalhesProdutoJson,
+        categoria: categoria.trim() || null,
+        ncm: ncm.trim() || null,
+        origem: origemProduto.trim() || null,
+        cest: cest.trim() || null,
+        cfop: cfop.trim() || null,
+        expedicao_override_linha: cdLinhaFormatada || null,
       };
+      if (tabelaMedidasPayload) body.tabela_medidas = tabelaMedidasPayload;
       if (cores.length > 0 && tamanhos.length > 0) {
         const por: Record<string, number> = {};
         for (const cor of cores) {
@@ -1883,6 +1898,15 @@ export default function CriarVariantesPage() {
             const j = await r.json().catch(() => ({}));
             throw new Error(j?.error ?? "Erro ao salvar alterações do produto.");
           }
+        }
+        if (tabelaMedidasPayload && grupoEdicao) {
+          const tmRes = await fetch("/api/fornecedor/produtos/tabela-medidas", {
+            method: "PUT",
+            headers,
+            body: JSON.stringify({ grupoKey: grupoEdicao, ...tabelaMedidasPayload }),
+          });
+          const tmJson = await tmRes.json().catch(() => ({}));
+          if (!tmRes.ok) throw new Error(tmJson?.error ?? "Erro ao salvar tabela de medidas.");
         }
       } else {
         const res = await fetch("/api/fornecedor/produtos/multivariante", {
