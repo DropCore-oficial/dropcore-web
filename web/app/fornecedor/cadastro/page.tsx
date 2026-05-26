@@ -8,6 +8,7 @@ import { FornecedorNav } from "../FornecedorNav";
 import { BankCombobox } from "@/components/fornecedor/BankCombobox";
 import { isValidCnpjDigits, normalizeCnpjInput } from "@/lib/fornecedorCadastro";
 import { cepParaConsultaViaCep } from "@/lib/cepViaCep";
+import { enderecoCdFormFromExpedicao } from "@/lib/expedicaoFornecedorFormat";
 import {
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
   AMBER_PREMIUM_TEXT_PRIMARY,
@@ -168,16 +169,16 @@ export default function FornecedorCadastroPage() {
       const json = await res.json();
       const f = json.fornecedor ?? {};
       const cnpjDigits = normalizeCnpjInput(f.cnpj ?? "");
-      const legExpLinha = String(f.expedicao_padrao_linha ?? "").trim();
-      const expCep = String(f.expedicao_cep ?? "").replace(/\D/g, "").slice(0, 8);
-      const expLog = upper(String(f.expedicao_logradouro ?? ""));
-      const expNum = upper(String(f.expedicao_numero ?? ""));
-      const expComp = upper(String(f.expedicao_complemento ?? ""));
-      const expBai = upper(String(f.expedicao_bairro ?? ""));
-      const expCid = upper(String(f.expedicao_cidade ?? ""));
-      const expUf = upper(String(f.expedicao_uf ?? "")).replace(/[^A-Z]/g, "").slice(0, 2);
-      const structVazio =
-        !expCep && !expLog && !expNum && !expComp && !expBai && !expCid && !expUf;
+      const expPartes = enderecoCdFormFromExpedicao({
+        expedicao_padrao_linha: f.expedicao_padrao_linha ?? null,
+        expedicao_cep: f.expedicao_cep ?? null,
+        expedicao_logradouro: f.expedicao_logradouro ?? null,
+        expedicao_numero: f.expedicao_numero ?? null,
+        expedicao_complemento: f.expedicao_complemento ?? null,
+        expedicao_bairro: f.expedicao_bairro ?? null,
+        expedicao_cidade: f.expedicao_cidade ?? null,
+        expedicao_uf: f.expedicao_uf ?? null,
+      });
       const nextForm: FormState = {
         nome: upper(String(f.nome ?? "")),
         cnpj: formatCnpjDisplay(cnpjDigits),
@@ -190,13 +191,13 @@ export default function FornecedorCadastroPage() {
         endereco_bairro: upper(String(f.endereco_bairro ?? "")),
         endereco_cidade: upper(String(f.endereco_cidade ?? "")),
         endereco_uf: upper(String(f.endereco_uf ?? "")).replace(/[^A-Z]/g, "").slice(0, 2),
-        expedicao_cep: expCep,
-        expedicao_logradouro: structVazio && legExpLinha ? legExpLinha : expLog,
-        expedicao_numero: expNum,
-        expedicao_complemento: expComp,
-        expedicao_bairro: expBai,
-        expedicao_cidade: expCid,
-        expedicao_uf: expUf,
+        expedicao_cep: expPartes.cep,
+        expedicao_logradouro: upper(expPartes.logradouro),
+        expedicao_numero: upper(expPartes.numero),
+        expedicao_complemento: upper(expPartes.complemento),
+        expedicao_bairro: upper(expPartes.bairro),
+        expedicao_cidade: upper(expPartes.cidade),
+        expedicao_uf: expPartes.uf,
         chave_pix: upper(String(f.chave_pix ?? "")),
         nome_banco: upper(String(f.nome_banco ?? "")),
         nome_no_banco: upper(String(f.nome_no_banco ?? "")),

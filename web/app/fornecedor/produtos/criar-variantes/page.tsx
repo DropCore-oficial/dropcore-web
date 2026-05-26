@@ -33,7 +33,11 @@ import {
   mergeCriarVariantesDrafts,
   rascunhoLeveParaEspelhoLocal,
 } from "@/lib/fornecedorCriarVariantesRascunho";
-import { buildExpedicaoPadraoLinha } from "@/lib/expedicaoFornecedorFormat";
+import {
+  buildExpedicaoPadraoLinha,
+  enderecoCdFormFromExpedicao,
+  type EnderecoCdFormParts,
+} from "@/lib/expedicaoFornecedorFormat";
 import { cepParaConsultaViaCep } from "@/lib/cepViaCep";
 import {
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
@@ -118,6 +122,58 @@ function asObj(v: unknown): Record<string, unknown> | null {
 
 function pairKeyFromValues(cor: string | null | undefined, tamanho: string | null | undefined): string {
   return `${String(cor ?? "").trim().toLowerCase()}|${String(tamanho ?? "").trim().toUpperCase()}`;
+}
+
+function aplicarPartesCdNoEstado(partes: EnderecoCdFormParts) {
+  return {
+    cep: partes.cep,
+    logradouro: upperBr(partes.logradouro),
+    numero: upperBr(partes.numero),
+    complemento: upperBr(partes.complemento),
+    bairro: upperBr(partes.bairro),
+    cidade: upperBr(partes.cidade),
+    uf: partes.uf,
+  };
+}
+
+function partesCdFromRascunhoLogistica(p: RascunhoCriarVariantesV1): EnderecoCdFormParts | null {
+  const direto = enderecoCdFormFromExpedicao({
+    expedicao_cep: p.cdSaidaCep ?? null,
+    expedicao_logradouro: p.cdSaidaLogradouro ?? null,
+    expedicao_numero: p.cdSaidaNumero ?? null,
+    expedicao_complemento: p.cdSaidaComplemento ?? null,
+    expedicao_bairro: p.cdSaidaBairro ?? null,
+    expedicao_cidade: p.cdSaidaCidade ?? null,
+    expedicao_uf: p.cdSaidaUf ?? null,
+    expedicao_padrao_linha: null,
+  });
+  const temDireto = Object.values(direto).some((v) => v.length > 0);
+  if (temDireto) {
+    const soLogradouro =
+      direto.logradouro.length > 0 &&
+      !direto.cep &&
+      !direto.numero &&
+      !direto.bairro &&
+      !direto.cidade &&
+      !direto.uf &&
+      (direto.logradouro.includes("·") || /cep\s*\d/i.test(direto.logradouro));
+    if (soLogradouro) {
+      return enderecoCdFormFromExpedicao({ expedicao_padrao_linha: direto.logradouro, expedicao_cep: null, expedicao_logradouro: null, expedicao_numero: null, expedicao_complemento: null, expedicao_bairro: null, expedicao_cidade: null, expedicao_uf: null });
+    }
+    return direto;
+  }
+  const legado = (p.cdSaida ?? p.produto?.logistica?.cdSaida ?? "").trim();
+  if (!legado) return null;
+  return enderecoCdFormFromExpedicao({
+    expedicao_padrao_linha: legado,
+    expedicao_cep: null,
+    expedicao_logradouro: null,
+    expedicao_numero: null,
+    expedicao_complemento: null,
+    expedicao_bairro: null,
+    expedicao_cidade: null,
+    expedicao_uf: null,
+  });
 }
 
 function montarRascunhoEdicao(
@@ -260,6 +316,31 @@ function montarRascunhoEdicao(
     cfop: String(pai.cfop ?? "").trim(),
     unidadeComercial: typeof logistica?.unidadeComercial === "string" ? logistica.unidadeComercial : "UN",
     cdSaida: typeof logistica?.cdSaida === "string" ? logistica.cdSaida : String(pai.expedicao_override_linha ?? "").trim(),
+    ...(() => {
+      const cd = enderecoCdFormFromExpedicao({
+        expedicao_cep: typeof logistica?.cdSaidaCep === "string" ? logistica.cdSaidaCep : null,
+        expedicao_logradouro: typeof logistica?.cdSaidaLogradouro === "string" ? logistica.cdSaidaLogradouro : null,
+        expedicao_numero: typeof logistica?.cdSaidaNumero === "string" ? logistica.cdSaidaNumero : null,
+        expedicao_complemento: typeof logistica?.cdSaidaComplemento === "string" ? logistica.cdSaidaComplemento : null,
+        expedicao_bairro: typeof logistica?.cdSaidaBairro === "string" ? logistica.cdSaidaBairro : null,
+        expedicao_cidade: typeof logistica?.cdSaidaCidade === "string" ? logistica.cdSaidaCidade : null,
+        expedicao_uf: typeof logistica?.cdSaidaUf === "string" ? logistica.cdSaidaUf : null,
+        expedicao_padrao_linha:
+          typeof logistica?.cdSaida === "string"
+            ? logistica.cdSaida
+            : String(pai.expedicao_override_linha ?? "").trim() || null,
+      });
+      return {
+        cdSaidaCep: cd.cep,
+        cdSaidaLogradouro: cd.logradouro,
+        cdSaidaNumero: cd.numero,
+        cdSaidaComplemento: cd.complemento,
+        cdSaidaBairro: cd.bairro,
+        cdSaidaCidade: cd.cidade,
+        cdSaidaUf: cd.uf,
+        cdUsarDespachoCadastro: logistica?.cdUsarDespachoCadastro === true,
+      };
+    })(),
     produto: {
       infoBasica: {
         nomeProduto: String(pai.nome_produto ?? "").trim(),
@@ -1285,37 +1366,25 @@ export default function CriarVariantesPage() {
     const usarCadastro = p.cdUsarDespachoCadastro ?? false;
     setCdUsarDespachoCadastro(usarCadastro);
 
-    const temPartesSalvas =
-      String(p.cdSaidaCep ?? "").trim() ||
-      String(p.cdSaidaLogradouro ?? "").trim() ||
-      String(p.cdSaidaNumero ?? "").trim() ||
-      String(p.cdSaidaComplemento ?? "").trim() ||
-      String(p.cdSaidaBairro ?? "").trim() ||
-      String(p.cdSaidaCidade ?? "").trim() ||
-      String(p.cdSaidaUf ?? "").trim();
-
     if (!usarCadastro) {
-      if (temPartesSalvas) {
-        setCdCep(String(p.cdSaidaCep ?? "").replace(/\D/g, "").slice(0, 8));
-        setCdLogradouro(upperBr(String(p.cdSaidaLogradouro ?? "")));
-        setCdNumero(upperBr(String(p.cdSaidaNumero ?? "")));
-        setCdComplemento(upperBr(String(p.cdSaidaComplemento ?? "")));
-        setCdBairro(upperBr(String(p.cdSaidaBairro ?? "")));
-        setCdCidade(upperBr(String(p.cdSaidaCidade ?? "")));
-        setCdUf(String(p.cdSaidaUf ?? "")
-          .trim()
-          .toUpperCase()
-          .replace(/[^A-Z]/g, "")
-          .slice(0, 2));
+      const partes = partesCdFromRascunhoLogistica(p);
+      if (partes) {
+        const cd = aplicarPartesCdNoEstado(partes);
+        setCdCep(cd.cep);
+        setCdLogradouro(cd.logradouro);
+        setCdNumero(cd.numero);
+        setCdComplemento(cd.complemento);
+        setCdBairro(cd.bairro);
+        setCdCidade(cd.cidade);
+        setCdUf(cd.uf);
       } else {
-        const legado = (p.cdSaida ?? p.produto?.logistica?.cdSaida ?? "").trim();
         setCdCep("");
+        setCdLogradouro("");
         setCdNumero("");
         setCdComplemento("");
         setCdBairro("");
         setCdCidade("");
         setCdUf("");
-        setCdLogradouro(legado ? upperBr(legado) : "");
       }
     } else {
       setCdCep("");
@@ -1590,26 +1659,17 @@ export default function CriarVariantesPage() {
         if (!res.ok || cancelled) return;
         const json = (await res.json().catch(() => ({}))) as { fornecedor?: Record<string, unknown> };
         const f = json.fornecedor ?? {};
-        const legExpLinha = String(f.expedicao_padrao_linha ?? "").trim();
-        const expCep = String(f.expedicao_cep ?? "").replace(/\D/g, "").slice(0, 8);
-        const expLog = upperBr(String(f.expedicao_logradouro ?? ""));
-        const expNum = upperBr(String(f.expedicao_numero ?? ""));
-        const expComp = upperBr(String(f.expedicao_complemento ?? ""));
-        const expBai = upperBr(String(f.expedicao_bairro ?? ""));
-        const expCid = upperBr(String(f.expedicao_cidade ?? ""));
-        const expUf = upperBr(String(f.expedicao_uf ?? ""))
-          .replace(/[^A-Z]/g, "")
-          .slice(0, 2);
-        const structVazio = !expCep && !expLog && !expNum && !expComp && !expBai && !expCid && !expUf;
-        const perfil: PartesEnderecoCd = {
-          cep: expCep,
-          logradouro: structVazio && legExpLinha ? upperBr(legExpLinha) : expLog,
-          numero: expNum,
-          complemento: expComp,
-          bairro: expBai,
-          cidade: expCid,
-          uf: expUf,
-        };
+        const partes = enderecoCdFormFromExpedicao({
+          expedicao_padrao_linha: typeof f.expedicao_padrao_linha === "string" ? f.expedicao_padrao_linha : null,
+          expedicao_cep: typeof f.expedicao_cep === "string" ? f.expedicao_cep : null,
+          expedicao_logradouro: typeof f.expedicao_logradouro === "string" ? f.expedicao_logradouro : null,
+          expedicao_numero: typeof f.expedicao_numero === "string" ? f.expedicao_numero : null,
+          expedicao_complemento: typeof f.expedicao_complemento === "string" ? f.expedicao_complemento : null,
+          expedicao_bairro: typeof f.expedicao_bairro === "string" ? f.expedicao_bairro : null,
+          expedicao_cidade: typeof f.expedicao_cidade === "string" ? f.expedicao_cidade : null,
+          expedicao_uf: typeof f.expedicao_uf === "string" ? f.expedicao_uf : null,
+        });
+        const perfil: PartesEnderecoCd = aplicarPartesCdNoEstado(partes);
         if (!cancelled) setPerfilExpedicao(perfil);
       } catch {
         /* ignore */
