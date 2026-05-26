@@ -16,7 +16,12 @@ import {
   transparenciaOptions,
 } from "@/lib/fornecedorVariantesUi";
 import { chaveEstoqueVariante } from "@/lib/estoqueVarianteKeys";
-import { medidasFormToTabelaMedidas } from "@/lib/fornecedorTabelaMedidas";
+import {
+  medidasFormToTabelaMedidas,
+  medidasLinhasFromTabelaPayload,
+  tabelaMedidasFromDetalhesJson,
+  type TabelaMedidasPayload,
+} from "@/lib/fornecedorTabelaMedidas";
 import {
   LS_RASCUNHO_CRIAR_VARIANTES,
   type Medida,
@@ -134,6 +139,19 @@ function montarRascunhoEdicao(
   const guiado = asObj(detalhes?.guiado);
   const logistica = asObj(detalhes?.logistica);
   const midia = asObj(detalhes?.midia);
+  const medidasDet = asObj(detalhes?.medidas);
+  const topicosFromDb: string[] = [];
+  if (Array.isArray(medidasDet?.topicosSelecionados)) {
+    for (const t of medidasDet.topicosSelecionados) {
+      if (typeof t === "string" && t.trim()) topicosFromDb.push(t.trim());
+    }
+  }
+  if (typeof medidasDet?.topicosCustom === "string" && medidasDet.topicosCustom.trim()) {
+    for (const part of medidasDet.topicosCustom.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean)) {
+      topicosFromDb.push(part);
+    }
+  }
+  const topicosMedidaInicial = topicosFromDb.length > 0 ? topicosFromDb : ["Comprimento"];
   const variantesBase = grupoRows.filter((r) => r.sku.trim().toUpperCase() !== pk);
   const variantes = variantesBase.length > 0 ? variantesBase : grupoRows;
 
@@ -163,10 +181,21 @@ function montarRascunhoEdicao(
   }
 
   const tamanhosOrdenados = ordenarTamanhosLista(Array.from(tamanhosSelecionados));
+  const fromJsonPayload = tabelaMedidasFromDetalhesJson(
+    detalhes,
+    String(pai.nome_produto ?? "").trim(),
+    pai.categoria
+  );
+  const linhasFromJson =
+    fromJsonPayload && Object.keys(fromJsonPayload.medidas).length > 0
+      ? medidasLinhasFromTabelaPayload(fromJsonPayload, topicosMedidaInicial)
+      : [];
   const medidasBase: Medida[] =
-    tamanhosOrdenados.length > 0
-      ? tamanhosOrdenados.map((tamanho) => ({ tamanho }))
-      : [{ tamanho: "" }];
+    linhasFromJson.length > 0
+      ? linhasFromJson
+      : tamanhosOrdenados.length > 0
+        ? tamanhosOrdenados.map((tamanho) => ({ tamanho }))
+        : [{ tamanho: "" }];
 
   return {
     v: 1,
@@ -191,8 +220,8 @@ function montarRascunhoEdicao(
     tamanhosSelecionados: Array.from(tamanhosSelecionados),
     tamanhoCustom: "",
     medidas: medidasBase,
-    topicosMedidaSelecionados: ["Comprimento"],
-    topicosMedidaCustom: "",
+    topicosMedidaSelecionados: topicosMedidaInicial,
+    topicosMedidaCustom: typeof medidasDet?.topicosCustom === "string" ? medidasDet.topicosCustom : "",
     dataLancamento: String(pai.data_lancamento ?? "").slice(0, 10),
     custoPorTamanho: {},
     custoMatriz,
@@ -512,6 +541,7 @@ export default function CriarVariantesPage() {
   const tabsNavRef = useRef<HTMLDivElement | null>(null);
   const [tabAtiva, setTabAtiva] = useState<TabId>("info-basica");
   const [formLoading, setFormLoading] = useState(false);
+  const [tabelaMedidasSaving, setTabelaMedidasSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [carregandoEdicao, setCarregandoEdicao] = useState(false);
 
@@ -778,6 +808,45 @@ export default function CriarVariantesPage() {
         return { ...it, [k]: parsed } as Medida;
       })
     );
+  }
+
+  async function salvarSomenteTabelaMedidas() {
+    if (!modoEdicao || !grupoEdicao) return;
+    const payload = medidasFormToTabelaMedidas(medidas, topicosMedidaFinais, nomeProduto.trim(), categoria);
+    if (!payload) {
+      setFormError(
+        "Preencha os valores em centímetros na tabela (cada tamanho precisa de ao menos uma medida numérica)."
+      );
+      setTabAtiva("medidas");
+      return;
+    }
+    setTabelaMedidasSaving(true);
+    setFormError(null);
+    try {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/fornecedor/login");
+        return;
+      }
+      const tmRes = await fetch("/api/fornecedor/produtos/tabela-medidas", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ grupoKey: grupoEdicao, ...payload }),
+      });
+      const tmJson = await tmRes.json().catch(() => ({}));
+      if (!tmRes.ok) throw new Error(tmJson?.error ?? "Erro ao salvar tabela de medidas.");
+      setMsgRascunho("Tabela de medidas salva. O resumo do produto será atualizado.");
+      setTimeout(() => setMsgRascunho(null), 5000);
+    } catch (e: unknown) {
+      setFormError(e instanceof Error ? e.message : "Erro ao salvar tabela de medidas.");
+    } finally {
+      setTabelaMedidasSaving(false);
+    }
   }
 
   function labelSelecionado<T extends { value: string; label: string }>(opts: readonly T[], value: string): string {
@@ -1475,9 +1544,21 @@ export default function CriarVariantesPage() {
         if (!res.ok) {
           throw new Error((j as { error?: string })?.error ?? "Erro ao carregar produto para edição.");
         }
-        const payload = montarRascunhoEdicao(grupoEdicao, Array.isArray(j) ? (j as ProdutoExistenteEdicao[]) : []);
+        let payload = montarRascunhoEdicao(grupoEdicao, Array.isArray(j) ? (j as ProdutoExistenteEdicao[]) : []);
         if (!payload) {
           throw new Error("Produto não encontrado para edição.");
+        }
+        const tmRes = await fetch(
+          `/api/fornecedor/produtos/tabela-medidas?grupoKey=${encodeURIComponent(grupoEdicao)}`,
+          { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
+        );
+        if (tmRes.ok) {
+          const tmData = await tmRes.json().catch(() => ({}));
+          const fonte = (tmData.aprovada ?? tmData.pendente) as TabelaMedidasPayload | null;
+          if (fonte?.medidas && Object.keys(fonte.medidas).length > 0) {
+            const linhas = medidasLinhasFromTabelaPayload(fonte, payload.topicosMedidaSelecionados);
+            if (linhas.length > 0) payload = { ...payload, medidas: linhas };
+          }
         }
         if (cancelled) return;
         aplicarPayloadRascunho(payload);
@@ -1623,6 +1704,19 @@ export default function CriarVariantesPage() {
       setTabAtiva("medidas");
       return;
     }
+    const tabelaMedidasPreview = medidasFormToTabelaMedidas(
+      medidas,
+      topicosMedidaFinais,
+      nomeProduto.trim(),
+      categoria
+    );
+    if (exigeMedidas && !tabelaMedidasPreview) {
+      setFormError(
+        "Preencha os valores em centímetros na tabela de medidas (cada tamanho precisa de ao menos uma medida numérica)."
+      );
+      setTabAtiva("medidas");
+      return;
+    }
     setFormLoading(true);
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
@@ -1696,12 +1790,9 @@ export default function CriarVariantesPage() {
           linhas: medidas.filter((m) => m.tamanho.trim()),
         },
       };
-      const tabelaMedidasPayload = medidasFormToTabelaMedidas(
-        medidas,
-        topicosMedidaFinais,
-        nomeProduto.trim(),
-        categoria
-      );
+      const tabelaMedidasPayload =
+        tabelaMedidasPreview ??
+        medidasFormToTabelaMedidas(medidas, topicosMedidaFinais, nomeProduto.trim(), categoria);
       const body: Record<string, unknown> = {
         nome_produto: nomeProduto.trim(),
         cores,
@@ -2088,16 +2179,33 @@ export default function CriarVariantesPage() {
 
             {tabAtiva === "medidas" && (
               <div className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm p-5 sm:p-5.5 space-y-3.5">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Medidas</h2>
-                  <button
-                    type="button"
-                    onClick={() => setMedidas((prev) => [...prev, { tamanho: "", largura: undefined, comprimento: undefined, ombro: undefined, manga: undefined }])}
-                    className="rounded-lg border border-neutral-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
-                  >
-                    Adicionar tamanho
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {modoEdicao ? (
+                      <button
+                        type="button"
+                        onClick={() => void salvarSomenteTabelaMedidas()}
+                        disabled={tabelaMedidasSaving || carregandoEdicao}
+                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
+                      >
+                        {tabelaMedidasSaving ? "Salvando tabela…" : "Salvar só tabela de medidas"}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setMedidas((prev) => [...prev, { tamanho: "", largura: undefined, comprimento: undefined, ombro: undefined, manga: undefined }])}
+                      className="rounded-lg border border-neutral-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
+                    >
+                      Adicionar tamanho
+                    </button>
+                  </div>
                 </div>
+                {modoEdicao ? (
+                  <p className="text-[11px] text-neutral-600 dark:text-neutral-400">
+                    Use <strong className="font-semibold">Salvar só tabela de medidas</strong> para gravar sem enviar o formulário inteiro. Os valores em cm precisam estar preenchidos.
+                  </p>
+                ) : null}
                 <div className="space-y-2">
                   <div>
                     <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">Preset rápido</label>

@@ -527,27 +527,37 @@ export default function EditarVariantesPage() {
 
   async function salvarTabelaMedidas(e: React.FormEvent) {
     e.preventDefault();
-    if (!representante) return;
+    if (!representante || !grupoKey) return;
+    const medidas: Record<string, Record<string, number>> = {};
+    for (const [tamanho, vals] of Object.entries(tabelaMedidasLocal)) {
+      const row: Record<string, number> = {};
+      for (const [k, v] of Object.entries(vals ?? {})) {
+        if (v != null && Number.isFinite(v)) row[k] = v;
+      }
+      if (Object.keys(row).length > 0) medidas[tamanho.trim().toUpperCase()] = row;
+    }
+    if (Object.keys(medidas).length === 0) {
+      setFormError("Preencha ao menos um valor numérico na tabela antes de salvar.");
+      return;
+    }
     setTabelaMedidasSaving(true);
     setFormError(null);
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) throw new Error("Sessão expirada.");
-      const res = await fetch(`/api/fornecedor/produtos/${representante.id}`, {
-        method: "PATCH",
+      const res = await fetch("/api/fornecedor/produtos/tabela-medidas", {
+        method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({
-          tabela_medidas: {
-            tipo_produto: tipoProduto,
-            medidas: tabelaMedidasLocal,
-          },
+          grupoKey: grupoKey.trim().toUpperCase(),
+          tipo_produto: tipoProduto,
+          medidas,
         }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j?.error ?? "Erro ao salvar.");
-      setSuccessMessage(j?.mensagem ?? "Enviado para análise.");
+      setSuccessMessage("Tabela de medidas salva.");
       setTimeout(() => setSuccessMessage(null), 4000);
-      load();
       loadTabelaMedidas();
     } catch (e: unknown) {
       setFormError(e instanceof Error ? e.message : "Erro ao salvar.");
@@ -1421,7 +1431,7 @@ export default function EditarVariantesPage() {
                   </span>
                 </div>
                 <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                  Linhas preenchidas com os tamanhos do produto. Preencha as medidas em centímetros e envie para análise.
+                  Linhas preenchidas com os tamanhos do produto. Preencha as medidas em centímetros e salve — a tabela fica visível no resumo e no catálogo do seller.
                 </p>
               </div>
               <div className="p-6">

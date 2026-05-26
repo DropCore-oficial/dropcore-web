@@ -82,6 +82,31 @@ export function medidasFormToTabelaMedidas(
 }
 
 /** Fallback: tabela salva em `detalhes_produto_json.medidas.linhas` (cadastros antes do fix). */
+/** Reconstrói linhas do formulário a partir do JSON gravado em `produto_tabela_medidas`. */
+export function medidasLinhasFromTabelaPayload(
+  payload: TabelaMedidasPayload,
+  topicos: string[]
+): Medida[] {
+  const out: Medida[] = [];
+  for (const [tamanho, row] of Object.entries(payload.medidas ?? {})) {
+    const tam = tamanho.trim().toUpperCase();
+    if (!tam) continue;
+    const m: Medida = { tamanho: tam };
+    for (const topico of topicos) {
+      const val = row[topicoToStorageKey(topico)];
+      if (val == null || !Number.isFinite(val)) continue;
+      const k = chaveTopicoMedida(topico);
+      if (k === "extra") {
+        m.extras = { ...(m.extras ?? {}), [topico]: val };
+      } else {
+        m[k] = val;
+      }
+    }
+    out.push(m);
+  }
+  return out;
+}
+
 export function tabelaMedidasFromDetalhesJson(
   detalhes: unknown,
   nomeProduto: string,

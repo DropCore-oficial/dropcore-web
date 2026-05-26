@@ -197,7 +197,7 @@ export function ProdutoResumoListaGrupo({
     return () => {
       cancel = true;
     };
-  }, [grupoKey, somenteLeitura]);
+  }, [grupoKey, somenteLeitura, base.detalhes_produto_json, base.nome_produto, base.categoria]);
 
   const detalhes = asObj(base.detalhes_produto_json);
   const infoBasica = asObj(detalhes?.infoBasica);
