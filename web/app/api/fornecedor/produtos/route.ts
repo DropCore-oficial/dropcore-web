@@ -7,6 +7,8 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { toTitleCase } from "@/lib/formatText";
 import { assertPodeAtivarMaisSkus } from "@/lib/planos";
+import { mergeDetalhesProdutoJson, propagarDetalhesProdutoJsonNoGrupo } from "@/lib/detalhesProdutoJson";
+import { prepararDetalhesProdutoJsonCatalogo } from "@/lib/catalogoSkusDetalhesEspelho";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,7 +67,12 @@ function aplicarPropostosPendentes<T extends Record<string, unknown>>(
   if (!propostos || typeof propostos !== "object") return sku;
   const out = { ...sku } as Record<string, unknown>;
   for (const key of CAMPOS_PROPOSTOS_SKU) {
-    if (key in propostos) out[key] = propostos[key];
+    if (!(key in propostos)) continue;
+    if (key === "detalhes_produto_json") {
+      out[key] = mergeDetalhesProdutoJson(out[key], propostos[key]);
+    } else {
+      out[key] = propostos[key];
+    }
   }
   return out as T;
 }
@@ -138,7 +145,9 @@ export async function GET(req: Request) {
       return aplicarPropostosPendentes(sku as Record<string, unknown>, prop) as (typeof rows)[number];
     });
 
-    return NextResponse.json(merged);
+    return NextResponse.json(
+      prepararDetalhesProdutoJsonCatalogo(propagarDetalhesProdutoJsonNoGrupo(merged))
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

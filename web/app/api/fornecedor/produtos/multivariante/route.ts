@@ -22,7 +22,7 @@ import { chaveEstoqueVariante, normalizarChaveEstoqueVarianteApi } from "@/lib/e
 import { linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
 import { fornecedorSkuCatalogExtrasFromBody } from "@/lib/fornecedorSkuCatalogExtras";
 import { upsertProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
-import type { TabelaMedidasPayload } from "@/lib/fornecedorTabelaMedidas";
+import { parseTabelaMedidasRecord, type TabelaMedidasPayload } from "@/lib/fornecedorTabelaMedidas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,27 +88,6 @@ function parseList(v: unknown): string[] {
 function jsonObjectOrNull(v: unknown): Record<string, unknown> | null {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
   return v as Record<string, unknown>;
-}
-
-function parseTabelaMedidasBody(body: Record<string, unknown>): TabelaMedidasPayload | null {
-  const raw = body.tabela_medidas;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const tm = raw as Record<string, unknown>;
-  const tipo = typeof tm.tipo_produto === "string" ? tm.tipo_produto.trim() || "generico" : "generico";
-  const med = tm.medidas;
-  if (!med || typeof med !== "object" || Array.isArray(med)) return null;
-  const medidas: Record<string, Record<string, number>> = {};
-  for (const [tamanho, vals] of Object.entries(med)) {
-    if (!vals || typeof vals !== "object" || Array.isArray(vals)) continue;
-    const row: Record<string, number> = {};
-    for (const [k, v] of Object.entries(vals)) {
-      const n = typeof v === "number" ? v : parseFloat(String(v));
-      if (Number.isFinite(n)) row[k] = n;
-    }
-    if (Object.keys(row).length > 0) medidas[tamanho.trim().toUpperCase()] = row;
-  }
-  if (Object.keys(medidas).length === 0) return null;
-  return { tipo_produto: tipo, medidas };
 }
 
 export async function POST(req: Request) {
@@ -253,7 +232,7 @@ export async function POST(req: Request) {
     const peso_kg = Number.isFinite(peso_g) ? peso_g / 1000 : null;
     const data_lancamento = typeof body?.data_lancamento === "string" && body.data_lancamento.trim() ? body.data_lancamento.trim() : null;
     const catalogExtras = fornecedorSkuCatalogExtrasFromBody(body as Record<string, unknown>);
-    const tabelaMedidasPayload = parseTabelaMedidasBody(body as Record<string, unknown>);
+    const tabelaMedidasPayload = parseTabelaMedidasRecord((body as Record<string, unknown>).tabela_medidas);
 
     if (!nome_produto) {
       return NextResponse.json({ error: "Nome do produto é obrigatório." }, { status: 400 });
@@ -474,14 +453,7 @@ export async function POST(req: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     if (tabelaMedidasPayload) {
-      try {
-        await upsertProdutoTabelaMedidas(supabaseAdmin, skuPai, tabelaMedidasPayload);
-      } catch (tmErr) {
-        console.error(
-          "[multivariante] produto_tabela_medidas:",
-          tmErr instanceof Error ? tmErr.message : tmErr
-        );
-      }
+      await upsertProdutoTabelaMedidas(supabaseAdmin, skuPai, tabelaMedidasPayload);
     }
 
     const fiscalPatch: Record<string, unknown> = {};

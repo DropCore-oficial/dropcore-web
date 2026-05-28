@@ -1,5 +1,6 @@
 import type { Medida } from "@/lib/fornecedorCriarVariantesRascunho";
-import { inferirTipo, type TipoProduto } from "@/lib/tipoProduto";
+import { ordenarTamanhosLista } from "@/lib/fornecedorVariantesUi";
+import { getColunasTabelaMedidas, inferirTipo, type TipoProduto } from "@/lib/tipoProduto";
 
 export type TabelaMedidasPayload = {
   tipo_produto: string;
@@ -33,15 +34,20 @@ export function topicoToStorageKey(topico: string): string {
   return n.replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "extra";
 }
 
-function chaveTopicoMedida(topico: string): keyof Medida | "extra" {
+type MedidaCampoNumerico = Exclude<keyof Medida, "tamanho" | "extras">;
+
+/** Campos numéricos suportados em `Medida` (demais tópicos usam `extras`). */
+export function chaveTopicoMedida(topico: string): MedidaCampoNumerico | "extra" {
   const norm = normalizeTopico(topico);
   if (norm === "largura") return "largura";
-  if (norm === "comprimento") return "comprimento";
+  if (norm === "comprimento" || (norm.includes("comprimento") && !norm.includes("manga") && !norm.includes("perna")))
+    return "comprimento";
   if (norm === "ombro" || norm === "ombros") return "ombro";
   if (norm === "manga" || norm.includes("comprimento da manga")) return "manga";
   if (norm === "cintura") return "cintura";
   if (norm === "quadril") return "quadril";
   if (norm === "busto") return "busto";
+  if (norm.includes("entrepernas") || norm.includes("gancho") || norm.includes("bicep")) return "extra";
   return "extra";
 }
 
@@ -52,10 +58,70 @@ export function valorTopicoFromMedida(m: Medida, topico: string): number | null 
     return typeof v === "number" && Number.isFinite(v) ? v : null;
   }
   const v = m[k];
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  const legado = m.extras?.[topico];
+  return typeof legado === "number" && Number.isFinite(legado) ? legado : null;
 }
 
 /** Converte linhas do formulário para o JSON da tabela de medidas (seller + fornecedor). */
+/** Alinha linhas da aba Medidas com os tamanhos escolhidos em Variações (preserva valores já digitados). */
+export function syncMedidasLinhasComTamanhos(medidas: Medida[], tamanhosVariante: string[]): Medida[] {
+  const byTam = new Map<string, Medida>();
+  for (const m of medidas) {
+    const t = m.tamanho.trim().toUpperCase();
+    if (t) byTam.set(t, { ...m, tamanho: t });
+  }
+  if (tamanhosVariante.length === 0) {
+    return medidas.length > 0
+      ? medidas
+      : [{ tamanho: "", largura: undefined, comprimento: undefined, ombro: undefined, manga: undefined }];
+  }
+  return tamanhosVariante.map((tam) => {
+    const k = tam.toUpperCase();
+    return (
+      byTam.get(k) ?? {
+        tamanho: k,
+        largura: undefined,
+        comprimento: undefined,
+        ombro: undefined,
+        manga: undefined,
+      }
+    );
+  });
+}
+
+export function buildTabelaMedidasPayloadFromForm(
+  medidas: Medida[],
+  topicos: string[],
+  tamanhosVariante: string[],
+  nomeProduto: string,
+  categoria: string | null | undefined
+): TabelaMedidasPayload | null {
+  const linhas = syncMedidasLinhasComTamanhos(medidas, tamanhosVariante);
+  return medidasFormToTabelaMedidas(linhas, topicos, nomeProduto, categoria);
+}
+
+/** Converte `body.tabela_medidas` ou payload PUT em estrutura normalizada. */
+export function parseTabelaMedidasRecord(raw: unknown): TabelaMedidasPayload | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const tm = raw as Record<string, unknown>;
+  const tipo = typeof tm.tipo_produto === "string" ? tm.tipo_produto.trim() || "generico" : "generico";
+  const med = tm.medidas;
+  if (!med || typeof med !== "object" || Array.isArray(med)) return null;
+  const medidas: Record<string, Record<string, number>> = {};
+  for (const [tamanho, vals] of Object.entries(med as Record<string, unknown>)) {
+    if (!vals || typeof vals !== "object" || Array.isArray(vals)) continue;
+    const row: Record<string, number> = {};
+    for (const [k, v] of Object.entries(vals as Record<string, unknown>)) {
+      const n = typeof v === "number" ? v : parseFloat(String(v));
+      if (Number.isFinite(n)) row[k] = n;
+    }
+    if (Object.keys(row).length > 0) medidas[tamanho.trim().toUpperCase()] = row;
+  }
+  if (Object.keys(medidas).length === 0) return null;
+  return { tipo_produto: tipo, medidas };
+}
+
 export function medidasFormToTabelaMedidas(
   medidas: Medida[],
   topicos: string[],
@@ -128,4 +194,70 @@ export function tabelaMedidasFromDetalhesJson(
     }
   }
   return medidasFormToTabelaMedidas(linhas as Medida[], topicos, nomeProduto, categoria);
+}
+
+/** Mescla tabelas (banco + JSON legado); valores de `primaria` prevalecem por célula. */
+export function mergeTabelaMedidasPayload(
+  primaria: TabelaMedidasPayload | null,
+  secundaria: TabelaMedidasPayload | null
+): TabelaMedidasPayload | null {
+  const tipo =
+    primaria?.tipo_produto?.trim() ||
+    secundaria?.tipo_produto?.trim() ||
+    "generico";
+  const medidas: Record<string, Record<string, number>> = {};
+  for (const src of [secundaria, primaria]) {
+    if (!src?.medidas) continue;
+    for (const [tam, row] of Object.entries(src.medidas)) {
+      const k = tam.trim().toUpperCase();
+      if (!k) continue;
+      medidas[k] = { ...(medidas[k] ?? {}), ...row };
+    }
+  }
+  if (Object.keys(medidas).length === 0) return null;
+  return { tipo_produto: tipo, medidas };
+}
+
+/** Garante uma linha por tamanho do catálogo (linhas vazias viram `{}`). */
+export function padTabelaMedidasComTamanhos(
+  medidas: Record<string, Record<string, number>>,
+  tamanhosVariante: string[]
+): Record<string, Record<string, number>> {
+  const out: Record<string, Record<string, number>> = { ...medidas };
+  for (const tam of ordenarTamanhosLista(tamanhosVariante)) {
+    const k = tam.trim().toUpperCase();
+    if (!k) continue;
+    if (!out[k]) out[k] = {};
+  }
+  return out;
+}
+
+/** Colunas com ao menos um valor numérico, na ordem do tipo de produto. */
+export function chavesColunasTabelaMedidas(
+  tipo: TipoProduto,
+  medidas: Record<string, Record<string, number>>
+): string[] {
+  const colunas = getColunasTabelaMedidas(tipo);
+  const present = new Set<string>();
+  for (const row of Object.values(medidas)) {
+    for (const [k, v] of Object.entries(row ?? {})) {
+      if (Number.isFinite(v)) present.add(k);
+    }
+  }
+  if (present.size === 0) return colunas.map((c) => c.key);
+  const ordered: string[] = [];
+  for (const c of colunas) {
+    if (present.has(c.key)) {
+      ordered.push(c.key);
+      present.delete(c.key);
+    }
+  }
+  for (const k of [...present].sort()) ordered.push(k);
+  return ordered;
+}
+
+export function tamanhosOrdenadosTabelaMedidas(
+  medidas: Record<string, Record<string, number>>
+): string[] {
+  return ordenarTamanhosLista(Object.keys(medidas));
 }

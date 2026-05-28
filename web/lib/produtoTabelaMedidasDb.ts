@@ -95,7 +95,15 @@ export async function upsertProdutoTabelaMedidas(
     },
     { onConflict: "grupo_key" }
   );
-  if (error) throw error;
+  if (error) {
+    const msg = error.message ?? "";
+    if (msg.includes("fornecedor_id") && msg.includes("produto_tabela_medidas")) {
+      throw new Error(
+        "O servidor ainda está com código antigo (coluna fornecedor_id). Atualize a página com Ctrl+Shift+R. Em localhost, pare e rode de novo: npm run dev na pasta web. Em produção, aguarde 2 min o deploy do dropcore-web."
+      );
+    }
+    throw error;
+  }
 }
 
 /** Remove tabelas cujo `grupo_key` corresponde a SKUs do fornecedor. */

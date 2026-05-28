@@ -14,6 +14,7 @@ import { getResumoRascunhoCriarVariantes, type ResumoRascunhoCriarVariantes } fr
 import { ProdutoResumoListaGrupo } from "@/components/fornecedor/ProdutoResumoListaGrupo";
 import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_BODY, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
+import { parseDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { cn } from "@/lib/utils";
 
 const BRL_CUSTO_FORNECEDOR = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -272,7 +273,13 @@ export default function FornecedorProdutosPage() {
         throw new Error(j?.error ?? "Erro ao carregar produtos.");
       }
       const data = await res.json();
-      setProdutos(data ?? []);
+      const lista = Array.isArray(data) ? data : [];
+      setProdutos(
+        lista.map((p: Produto) => ({
+          ...p,
+          detalhes_produto_json: parseDetalhesProdutoJson(p.detalhes_produto_json),
+        }))
+      );
       const statusRes = await fetch("/api/fornecedor/alteracoes-status", { headers, cache: "no-store" });
       if (statusRes.ok) {
         const statusData = await statusRes.json();

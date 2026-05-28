@@ -10,7 +10,11 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createClient } from "@supabase/supabase-js";
 import { countHabilitadosQueContamNoLimite, isSellerPlanoPro } from "@/lib/sellerSkuHabilitado";
+import { pipelineDetalhesCatalogoEspelho, type SkuCatalogoDetalhesRow } from "@/lib/catalogoSkusDetalhesEspelho";
 import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
+
+const SKU_CATALOGO_FIELDS =
+  "id, sku, nome_produto, cor, tamanho, status, fornecedor_id, estoque_atual, estoque_minimo, custo_dropcore, custo_base, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, peso_kg, imagem_url, link_fotos, descricao, ncm, origem, cest, cfop, marca, expedicao_override_linha, detalhes_produto_json, data_lancamento";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,9 +85,7 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("skus")
       // custo_dropcore / custo_base só no servidor para calcular custo_total; nunca expor ao client
-      .select(
-        "id, sku, nome_produto, cor, tamanho, status, fornecedor_id, estoque_atual, estoque_minimo, custo_dropcore, custo_base, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, peso_kg, imagem_url, link_fotos, descricao, ncm, origem, cest, cfop, marca, expedicao_override_linha, detalhes_produto_json",
-      )
+      .select(SKU_CATALOGO_FIELDS)
       .eq("org_id", seller.org_id)
       .ilike("status", "ativo")
       .eq("fornecedor_id", fornecedorId)
@@ -95,19 +97,33 @@ export async function GET(req: Request) {
     const { data, error } = await query;
     if (error) throw error;
 
-    const items = (data ?? []).map((row) => {
-      const custoTotal = sellerCustoTotalPagoUnitario(
-        (row as { custo_base?: unknown }).custo_base,
-        (row as { custo_dropcore?: unknown }).custo_dropcore,
-      );
-      const { custo_dropcore: _cd, custo_base: _cb, ...rest } = row as Record<string, unknown> & { custo_dropcore?: unknown; custo_base?: unknown };
-      const id = String((row as { id?: string }).id ?? "");
-      return {
-        ...rest,
-        custo_total: custoTotal,
-        habilitado_venda: habilitadoSet.has(id),
-      };
+    const rawRows = (data ?? []) as Record<string, unknown>[];
+
+    /** Mesmo espelho do GET fornecedor: inclui SKU pai (…000) só para JSON, depois só devolve ativos. */
+    const rowsEspelho = await pipelineDetalhesCatalogoEspelho(supabaseAdmin, rawRows as SkuCatalogoDetalhesRow[], {
+      orgId: seller.org_id,
+      fornecedorId,
+      selectFields: SKU_CATALOGO_FIELDS,
     });
+
+    const items = rowsEspelho
+      .filter((row) => String(row.status ?? "").toLowerCase() === "ativo")
+      .map((row) => {
+        const custoTotal = sellerCustoTotalPagoUnitario(
+          (row as { custo_base?: unknown }).custo_base,
+          (row as { custo_dropcore?: unknown }).custo_dropcore,
+        );
+        const { custo_dropcore: _cd, custo_base: _cb, ...rest } = row as Record<string, unknown> & {
+          custo_dropcore?: unknown;
+          custo_base?: unknown;
+        };
+        const id = String((row as { id?: string }).id ?? "");
+        return {
+          ...rest,
+          custo_total: custoTotal,
+          habilitado_venda: habilitadoSet.has(id),
+        };
+      });
 
     return NextResponse.json({
       ok: true,

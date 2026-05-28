@@ -4,6 +4,10 @@
  * Plano Pro: sem esse teto. SKUs com prefixo PREFIXO_SKU_SISTEMA não entram no limite.
  */
 import { PREFIXO_SKU_SISTEMA } from "@/lib/planos";
+import {
+  MSG_COR_SEM_ESTOQUE_HABILITAR,
+  corGrupoTemEstoqueParaHabilitar,
+} from "@/lib/sellerSkuReadiness";
 
 export const MSG_SKU_NAO_HABILITADO_PLANO_STARTER =
   "Esta variação não está habilitada no seu plano; ative a cor no catálogo (até 15 produto+cor no Start). Ou faça upgrade para Pro.";
@@ -124,6 +128,34 @@ export async function assertSellerPodeVenderSkus(
   return { ok: true };
 }
 
+function skuPrefixBloco(sku: string): string {
+  const s = String(sku ?? "").trim().toUpperCase();
+  const m = s.match(/^([A-Z]+)(\d{3})\d{3}$/);
+  return m ? `${m[1]}${m[2]}` : s.slice(0, 6);
+}
+
+async function variantesAtivasMesmaCor(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  skuRow: { sku: string; cor: string | null; org_id: string; fornecedor_id: string }
+): Promise<{ estoque_atual: number | null }[]> {
+  const prefix = skuPrefixBloco(String(skuRow.sku ?? ""));
+  const { data, error } = await supabase
+    .from("skus")
+    .select("estoque_atual, cor, status")
+    .eq("org_id", skuRow.org_id)
+    .eq("fornecedor_id", skuRow.fornecedor_id)
+    .ilike("sku", `${prefix}%`);
+  if (error) throw error;
+  const corNorm = String(skuRow.cor ?? "").trim().toLowerCase();
+  return (data ?? []).filter((r: { cor?: string | null; status?: string | null }) => {
+    if (String(r.status ?? "").toLowerCase() !== "ativo") return false;
+    const c = String(r.cor ?? "").trim().toLowerCase();
+    if (!corNorm) return c === "";
+    return c === corNorm;
+  });
+}
+
 export async function assertPodeRegistrarHabilitacao(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
@@ -146,7 +178,7 @@ export async function assertPodeRegistrarHabilitacao(
 
   const { data: skuRow, error: skuErr } = await supabase
     .from("skus")
-    .select("id, sku, cor, org_id, fornecedor_id, status")
+    .select("id, sku, cor, org_id, fornecedor_id, status, estoque_atual")
     .eq("id", params.skuId)
     .maybeSingle();
 
@@ -158,6 +190,23 @@ export async function assertPodeRegistrarHabilitacao(
   }
   if (String(skuRow.status ?? "").toLowerCase() !== "ativo") {
     return { ok: false, error: "SKU inativo — não pode ser habilitado.", status: 400 };
+  }
+
+  try {
+    const irmaos = await variantesAtivasMesmaCor(supabase, {
+      sku: String(skuRow.sku ?? ""),
+      cor: skuRow.cor != null ? String(skuRow.cor) : null,
+      org_id: String(skuRow.org_id),
+      fornecedor_id: String(skuRow.fornecedor_id),
+    });
+    if (irmaos.length === 0) {
+      return { ok: false, error: "Nenhuma variação ativa nesta cor.", status: 400 };
+    }
+    if (!corGrupoTemEstoqueParaHabilitar(irmaos)) {
+      return { ok: false, error: MSG_COR_SEM_ESTOQUE_HABILITAR, status: 400 };
+    }
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro ao validar estoque." };
   }
 
   if (!skuContaLimiteHabilitacaoSeller(skuRow.sku)) {

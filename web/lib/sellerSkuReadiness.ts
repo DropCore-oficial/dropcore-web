@@ -17,6 +17,26 @@ export type SkuReadinessRow = {
   descricao: string | null | undefined;
 };
 
+export const MSG_COR_SEM_ESTOQUE_HABILITAR =
+  "Esta cor está sem estoque em todos os tamanhos. Só é possível ligar na API quando ao menos um tamanho tiver estoque.";
+
+/** Rótulo curto para badge na lista de cores. */
+export const LABEL_COR_SEM_ESTOQUE = "Sem estoque nesta cor";
+
+export type EstoqueHabilitacaoRow = {
+  estoque_atual?: number | null;
+};
+
+export function skuTemEstoquePositivo(estoque_atual: number | null | undefined): boolean {
+  const est = estoque_atual;
+  return typeof est === "number" && Number.isFinite(est) && est > 0;
+}
+
+/** Pelo menos uma variação da cor com estoque > 0 (ex.: P=100, M=200, G=0 → pode ligar a cor). */
+export function corGrupoTemEstoqueParaHabilitar(variantes: EstoqueHabilitacaoRow[]): boolean {
+  return variantes.some((v) => skuTemEstoquePositivo(v.estoque_atual));
+}
+
 function s(v: unknown): string {
   if (v == null) return "";
   if (typeof v === "string") return v;
@@ -49,7 +69,7 @@ export function skuReadinessChecks(item: SkuReadinessRow): ReadinessCheck[] {
     { id: "nome", ok: nome.length > 0, label: "Nome do produto" },
     { id: "foto", ok: temFoto, label: "Foto ou link de fotos" },
     { id: "custo", ok: custoOk, label: "Custo (o que você paga)" },
-    { id: "estoque", ok: estOk, label: "Estoque > 0" },
+    { id: "estoque", ok: estOk, label: "Estoque neste tamanho > 0" },
     { id: "medidas", ok: temMedidas, label: "Medidas do pacote" },
     { id: "ncm", ok: ncmOk, label: "NCM (8 dígitos)" },
     { id: "descricao", ok: descOk, label: "Descrição (mín. 20 caracteres)" },

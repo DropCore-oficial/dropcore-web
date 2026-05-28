@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SellerCatalogoItem } from "@/components/seller/SellerCatalogoGrupoUi";
 import { skuContaLimiteHabilitacaoSeller } from "@/lib/sellerSkuHabilitado";
-import { skuReadinessLabelsFalha } from "@/lib/sellerSkuReadiness";
+import {
+  corGrupoTemEstoqueParaHabilitar,
+  MSG_COR_SEM_ESTOQUE_HABILITAR,
+  skuReadinessLabelsFalha,
+} from "@/lib/sellerSkuReadiness";
 import type { LinhaCatalogoV2 } from "./aggregates";
 import { catalogoV2UrlImagem } from "./catalogoV2Imagem";
-import { cn } from "@/lib/utils";
 
 type Props = {
   linha: LinhaCatalogoV2;
@@ -70,9 +73,7 @@ function VendaSwitch({
   busy: boolean;
   onToggle: () => void;
   saleTone: "ok" | "stale" | "off";
-  /** Rótulo para leitores de tela (ex.: ação do switch por cor na API). */
   ariaLabel?: string;
-  /** Dica nativa do botão (quando não está no estado “cadastro incompleto”). */
   hintTitle?: string;
 }) {
   const track = !habilitado
@@ -106,18 +107,55 @@ function VendaSwitch({
   );
 }
 
+/** Faixa de aviso — sempre largura total do container pai (posição padronizada no card). */
+export function HintSemEstoqueLigarBanner() {
+  return (
+    <div
+      className="w-full rounded-lg border border-amber-200/85 bg-amber-50 px-2.5 py-2 text-left text-[10px] leading-snug text-amber-950 shadow-[0_2px_8px_-4px_rgba(15,23,42,0.18)] dark:border-amber-700/55 dark:bg-amber-950/95 dark:text-amber-50"
+      role="status"
+      aria-live="polite"
+    >
+      {MSG_COR_SEM_ESTOQUE_HABILITAR}
+    </div>
+  );
+}
+
+export function useHintSemEstoqueLigar() {
+  const [visible, setVisible] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const mostrar = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setVisible(true);
+    timerRef.current = setTimeout(() => {
+      setVisible(false);
+      timerRef.current = null;
+    }, 5500);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  return { visible, mostrar };
+}
+
 /** Um switch por cor no agrupamento — habilita/desabilita todas as numerações da cor de uma vez. */
 export function CatalogoV2CorGrupoApiToggle({
   linhas,
   busy,
   onToggleGrupo,
   bloqueioLigarMotivo,
+  onSemEstoqueAoLigar,
 }: {
   linhas: LinhaCatalogoV2[];
   busy: boolean;
   onToggleGrupo: () => void;
-  /** Impede ligar na API (ex.: sem armazém gravado); desligar continua permitido quando todas as elegíveis já estão on. */
   bloqueioLigarMotivo?: string | null;
+  /** Chamado ao tentar ligar sem estoque — o pai exibe {@link HintSemEstoqueLigarBanner} no slot fixo do card. */
+  onSemEstoqueAoLigar?: () => void;
 }) {
   const elegiveisLigar = linhas.filter((l) => skuContaLimiteHabilitacaoSeller(l.sku) && l.ativo);
   const habilitadosNaCor = elegiveisLigar.filter((l) => l.habilitado);
@@ -133,11 +171,11 @@ export function CatalogoV2CorGrupoApiToggle({
   const saleTone: "ok" | "stale" | "off" =
     !algumHabilitadoNaCor ? "off" : comHabilitado.some((l) => !l.prontoParaVender) ? "stale" : "ok";
 
+  const motivo = (bloqueioLigarMotivo ?? "").trim();
   const dicaToggle =
     elegiveisLigar.length === 0
       ? "Nenhuma variação ativa nesta cor para ligar na API."
       : "Liga ou desliga todas as numerações desta cor na API DropCore (pendências no cadastro não impedem ligar).";
-  const motivo = (bloqueioLigarMotivo ?? "").trim();
   const ariaVendaGrupo = busy
     ? "Atualizando venda na API…"
     : bloqueadoSohLigar && motivo
@@ -148,16 +186,23 @@ export function CatalogoV2CorGrupoApiToggle({
           ? "Desligar venda na API para todas as numerações desta cor"
           : "Ligar venda na API para todas as numerações desta cor";
 
-  const titleWrapper = bloqueadoSohLigar && motivo ? motivo : dicaToggle;
-  const hintSwitch = bloqueadoSohLigar && motivo ? motivo : dicaToggle;
+  const corComEstoque = corGrupoTemEstoqueParaHabilitar(elegiveisLigar.map((l) => ({ estoque_atual: l.estoque })));
+
+  const handleToggleGrupo = () => {
+    if (disabled || busy) return;
+    if (podeLigarAlgum && !corComEstoque) {
+      onSemEstoqueAoLigar?.();
+      return;
+    }
+    onToggleGrupo();
+  };
 
   return (
-    <div className="inline-flex shrink-0 max-w-full items-center gap-1.5 sm:gap-2" title={titleWrapper}>
+    <div className="inline-flex shrink-0 max-w-full items-center gap-1.5 sm:gap-2" title={dicaToggle}>
       <span
-        className={cn(
-          "select-none text-[10px] font-medium leading-tight sm:text-[11px]",
-          algumHabilitadoNaCor ? "text-emerald-700 dark:text-emerald-400" : "text-[var(--muted)]",
-        )}
+        className={`select-none text-[10px] font-medium leading-tight sm:text-[11px] ${
+          algumHabilitadoNaCor ? "text-emerald-700 dark:text-emerald-400" : "text-[var(--muted)]"
+        }`}
       >
         Venda na API
         {algumHabilitadoNaCor && !todosHabilitadosNaCor ? (
@@ -171,34 +216,33 @@ export function CatalogoV2CorGrupoApiToggle({
         disabled={disabled}
         busy={busy}
         saleTone={saleTone}
-        onToggle={onToggleGrupo}
+        onToggle={handleToggleGrupo}
         ariaLabel={ariaVendaGrupo}
         hintTitle={
           algumHabilitadoNaCor && !todosHabilitadosNaCor
             ? `${habilitadosNaCor.length}/${elegiveisLigar.length} numerações ligadas na API. Toque para ${podeLigarAlgum ? "ligar o restante ou desligar todas" : "desligar todas"}.`
-            : hintSwitch
+            : dicaToggle
         }
       />
     </div>
   );
 }
 
-/** Mesma regra do card completo — use onde o switch da API ERP fica fora do `CatalogoV2VariacaoRow`. */
 export function CatalogoV2VariacaoApiToggle({
   linha,
   onToggleOne,
   busy,
   bloqueioLigarMotivo,
-}: Props & { bloqueioLigarMotivo?: string | null }) {
+  onSemEstoqueAoLigar,
+}: Props & { bloqueioLigarMotivo?: string | null; onSemEstoqueAoLigar?: () => void }) {
   const { item } = linha;
   const ativo = linha.ativo;
   const pronto = linha.prontoParaVender;
   const habilitado = linha.habilitado;
   const contaLimite = skuContaLimiteHabilitacaoSeller(linha.sku);
-  const podeLigar = Boolean(contaLimite && ativo);
   const motivoBloqueio = (bloqueioLigarMotivo ?? "").trim();
   const bloqueadoArmazem = Boolean(motivoBloqueio) && !habilitado;
-  const switchDisabled = busy || !ativo || !contaLimite || bloqueadoArmazem || (!habilitado && !podeLigar);
+  const switchDisabled = busy || !ativo || !contaLimite || bloqueadoArmazem;
   const saleTone: "ok" | "stale" | "off" =
     !habilitado ? "off" : habilitado && !pronto ? "stale" : "ok";
   const falhas = ativo && !pronto ? skuReadinessLabelsFalha(item) : [];
@@ -213,13 +257,24 @@ export function CatalogoV2VariacaoApiToggle({
           : !habilitado && falhas.length > 0
             ? `Pode ligar na API. Pendências no cadastro (fornecedor): ${falhas.join(", ")}.`
             : "Liga ou desliga a venda deste SKU na API DropCore.";
+
+  const handleToggleOne = () => {
+    if (switchDisabled || busy) return;
+    const vaiLigar = !habilitado;
+    if (vaiLigar && !linha.corTemEstoqueParaHabilitar) {
+      onSemEstoqueAoLigar?.();
+      return;
+    }
+    onToggleOne(item, vaiLigar);
+  };
+
   return (
     <VendaSwitch
       habilitado={habilitado}
       busy={busy}
       disabled={switchDisabled}
       saleTone={saleTone}
-      onToggle={() => onToggleOne(item, !habilitado)}
+      onToggle={handleToggleOne}
       hintTitle={hintTitle}
       ariaLabel={hintTitle}
     />
@@ -227,6 +282,7 @@ export function CatalogoV2VariacaoApiToggle({
 }
 
 export function CatalogoV2VariacaoRow({ linha, onToggleOne, busy }: Props) {
+  const { visible: hintSemEstoque, mostrar: mostrarHintSemEstoque } = useHintSemEstoqueLigar();
   const { item } = linha;
   const ativo = linha.ativo;
   const pronto = linha.prontoParaVender;
@@ -243,14 +299,26 @@ export function CatalogoV2VariacaoRow({ linha, onToggleOne, busy }: Props) {
     <div
       className={`rounded-lg border border-[#e6eaee] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.035)] transition-all duration-200 ease-in-out hover:-translate-y-[1px] hover:shadow-[0_8px_16px_-12px_rgba(15,23,42,0.22)] dark:border-[#2c313a] dark:bg-[#1e222a] ${fraco ? "opacity-[0.82]" : ""}`}
     >
-      <div className="flex items-start justify-between gap-3 border-b border-[#e6eaee] px-3.5 py-2.5 dark:border-[#2c313a]">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-semibold leading-snug text-[#202223] dark:text-[#e8eaed]">{tituloVariacao}</p>
-          <p className={`mt-0.5 truncate font-mono text-[10px] tracking-wide ${muted}`}>{linha.sku}</p>
+      <div className="border-b border-[#e6eaee] px-3.5 py-2.5 dark:border-[#2c313a]">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-semibold leading-snug text-[#202223] dark:text-[#e8eaed]">{tituloVariacao}</p>
+            <p className={`mt-0.5 truncate font-mono text-[10px] tracking-wide ${muted}`}>{linha.sku}</p>
+          </div>
+          <div className="shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
+            <CatalogoV2VariacaoApiToggle
+              linha={linha}
+              onToggleOne={onToggleOne}
+              busy={busy}
+              onSemEstoqueAoLigar={mostrarHintSemEstoque}
+            />
+          </div>
         </div>
-        <div className="shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
-          <CatalogoV2VariacaoApiToggle linha={linha} onToggleOne={onToggleOne} busy={busy} />
-        </div>
+        {hintSemEstoque ? (
+          <div className="mt-2">
+            <HintSemEstoqueLigarBanner />
+          </div>
+        ) : null}
       </div>
       <div className="grid grid-cols-[80px_minmax(0,1fr)] items-start gap-3.5 p-3.5 sm:gap-4">
         <ThumbModal url={linha.imagemUrl} />

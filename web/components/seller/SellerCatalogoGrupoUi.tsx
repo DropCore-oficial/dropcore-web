@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SkuInlineSeller } from "@/components/seller/SkuInlineSeller";
+import { parseDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { formatPesoCatalogo } from "@/lib/formatPesoCatalogo";
 import { skuProntoParaVender, skuReadinessLabelsFalha } from "@/lib/sellerSkuReadiness";
 import {
@@ -50,6 +51,7 @@ export type SellerCatalogoItem = {
   cest: string | null;
   cfop: string | null;
   marca?: string | null;
+  data_lancamento?: string | null;
   expedicao_override_linha?: string | null;
   detalhes_produto_json?: Record<string, unknown> | null;
   habilitado_venda?: boolean;
@@ -114,14 +116,10 @@ export function normalizarItemsSellerCatalogo(raw: unknown): SellerCatalogoItem[
           cest: row?.cest != null ? str(row.cest) : null,
           cfop: row?.cfop != null ? str(row.cfop) : null,
           marca: row?.marca != null ? str(row.marca) : null,
+          data_lancamento: row?.data_lancamento != null ? str(row.data_lancamento) : null,
           expedicao_override_linha:
             row?.expedicao_override_linha != null ? str(row.expedicao_override_linha) : null,
-          detalhes_produto_json:
-            row?.detalhes_produto_json != null &&
-            typeof row.detalhes_produto_json === "object" &&
-            !Array.isArray(row.detalhes_produto_json)
-              ? (row.detalhes_produto_json as Record<string, unknown>)
-              : null,
+          detalhes_produto_json: parseDetalhesProdutoJson(row?.detalhes_produto_json),
           habilitado_venda: row?.habilitado_venda === true,
         } as SellerCatalogoItem;
       } catch {

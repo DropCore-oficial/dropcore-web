@@ -5,6 +5,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { toTitleCase } from "@/lib/formatText";
+import { mergeDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
+import { parseTabelaMedidasRecord } from "@/lib/fornecedorTabelaMedidas";
+import { upsertProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
 import { notifyAdminsAlteracaoProdutoPendente } from "@/lib/notifyAdminsAlteracaoProduto";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -155,27 +158,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
     }
 
-    // Tabela de medidas (por grupo): entra em dados_propostos para o admin aprovar
-    let tabelaMedidas: { tipo_produto: string; medidas: Record<string, Record<string, number>> } | null = null;
-    if (body.tabela_medidas != null && typeof body.tabela_medidas === "object") {
-      const tm = body.tabela_medidas as Record<string, unknown>;
-      const tipo = typeof tm.tipo_produto === "string" ? tm.tipo_produto.trim() || "generico" : "generico";
-      const med = tm.medidas;
-      if (med != null && typeof med === "object" && !Array.isArray(med)) {
-        const medidas: Record<string, Record<string, number>> = {};
-        for (const [tamanho, vals] of Object.entries(med)) {
-          if (vals != null && typeof vals === "object" && !Array.isArray(vals)) {
-            const row: Record<string, number> = {};
-            for (const [k, v] of Object.entries(vals)) {
-              const n = typeof v === "number" ? v : parseFloat(String(v));
-              if (Number.isFinite(n)) row[k] = n;
-            }
-            medidas[tamanho] = row;
-          }
-        }
-        tabelaMedidas = { tipo_produto: tipo, medidas };
-      }
-    }
+    const tabelaMedidas = parseTabelaMedidasRecord(body.tabela_medidas);
 
     // Verificar se o SKU existe e pertence ao fornecedor
     const { data: sku, error: skuErr } = await supabaseAdmin
@@ -202,12 +185,54 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         dadosPropostos[k] = v;
       }
     }
-    if (tabelaMedidas) dadosPropostos.tabela_medidas = tabelaMedidas;
+    /** Tabela de medidas: grava na hora em `produto_tabela_medidas` (seller e resumo leem daqui). */
+    let tabelaPublicada = false;
+    if (tabelaMedidas) {
+      const gk = skuPaiDoBloco(String(sku.sku ?? ""));
+      await upsertProdutoTabelaMedidas(supabaseAdmin, gk, tabelaMedidas);
+      tabelaPublicada = true;
+    }
+
+    /** Características / formulário completo: visíveis ao seller na hora (sem esperar admin). */
+    let detalhesPublicados = false;
+    if ("detalhes_produto_json" in dadosPropostos) {
+      const mergedDetalhes = mergeDetalhesProdutoJson(
+        (sku as Record<string, unknown>).detalhes_produto_json,
+        dadosPropostos.detalhes_produto_json
+      );
+      const { error: pubErr } = await supabaseAdmin
+        .from("skus")
+        .update({ detalhes_produto_json: mergedDetalhes })
+        .eq("id", skuId)
+        .eq("org_id", ctx.org_id);
+      if (pubErr) return NextResponse.json({ error: pubErr.message }, { status: 500 });
+
+      const skuU = String(sku.sku ?? "").trim().toUpperCase();
+      const paiSku = skuPaiDoBloco(skuU);
+      if (paiSku !== skuU) {
+        await supabaseAdmin
+          .from("skus")
+          .update({ detalhes_produto_json: mergedDetalhes })
+          .eq("org_id", ctx.org_id)
+          .eq("fornecedor_id", ctx.fornecedor_id)
+          .eq("sku", paiSku);
+      }
+      delete dadosPropostos.detalhes_produto_json;
+      detalhesPublicados = true;
+    }
 
     if (Object.keys(dadosPropostos).length === 0) {
+      const msgs: string[] = [];
+      if (tabelaPublicada) msgs.push("Tabela de medidas salva.");
+      if (detalhesPublicados) msgs.push("Características e dados do formulário publicados.");
       return NextResponse.json({
         ok: true,
-        mensagem: "Nenhuma alteração detectada.",
+        mensagem:
+          msgs.length > 0
+            ? msgs.join(" ")
+            : "Nenhuma alteração detectada.",
+        _detalhes_publicados: detalhesPublicados,
+        _tabela_publicada: tabelaPublicada,
       });
     }
 
@@ -224,6 +249,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (existente) {
       const prev = (existente.dados_propostos as Record<string, unknown> | null) ?? {};
       const merged: Record<string, unknown> = { ...prev, ...dadosPropostos };
+      if ("detalhes_produto_json" in merged) delete merged.detalhes_produto_json;
+      if ("tabela_medidas" in merged) delete merged.tabela_medidas;
       const { error: updErr } = await supabaseAdmin
         .from("sku_alteracoes_pendentes")
         .update({ dados_propostos: merged })
@@ -263,15 +290,40 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       });
     }
 
-    // Devolver o SKU atual para o front não quebrar
+    const { data: pendenteAtual } = await supabaseAdmin
+      .from("sku_alteracoes_pendentes")
+      .select("dados_propostos")
+      .eq("sku_id", skuId)
+      .eq("fornecedor_id", ctx.fornecedor_id)
+      .eq("org_id", ctx.org_id)
+      .eq("status", "pendente")
+      .maybeSingle();
+
+    const propostosExibicao =
+      (pendenteAtual?.dados_propostos as Record<string, unknown> | null | undefined) ?? dadosPropostos;
+
     const { data: skuAtual } = await supabaseAdmin
       .from("skus")
       .select(SKU_FIELDS)
       .eq("id", skuId)
       .single();
 
+    const skuExibicao = skuAtual
+      ? (() => {
+          const base = { ...(skuAtual as Record<string, unknown>) };
+          for (const [k, v] of Object.entries(propostosExibicao)) {
+            if (k === "detalhes_produto_json") {
+              base[k] = mergeDetalhesProdutoJson(base[k], v);
+            } else if (k !== "tabela_medidas") {
+              base[k] = v;
+            }
+          }
+          return base;
+        })()
+      : skuAtual;
+
     return NextResponse.json({
-      ...skuAtual,
+      ...skuExibicao,
       _enviado_para_analise: true,
       _alteracao_atualizada: !!existente,
       mensagem: existente

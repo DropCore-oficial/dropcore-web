@@ -15,10 +15,12 @@ import {
   isGrupoOcultoSellerCatalogo as isGrupoOculto,
   type SellerCatalogoItem,
 } from "@/components/seller/SellerCatalogoGrupoUi";
-import { skuContaLimiteHabilitacaoSeller } from "@/lib/sellerSkuHabilitado";
-import { skuProntoParaVender } from "@/lib/sellerSkuReadiness";
+import { paiKeySkuHabilitacao, skuContaLimiteHabilitacaoSeller } from "@/lib/sellerSkuHabilitado";
+import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
+import { corGrupoTemEstoqueParaHabilitar, skuProntoParaVender } from "@/lib/sellerSkuReadiness";
 import { toTitleCase } from "@/lib/formatText";
-import { getColunasTabelaMedidas, type TipoProduto } from "@/lib/tipoProduto";
+import { TabelaMedidasTabela } from "@/components/TabelaMedidasTabela";
+import type { TabelaMedidasPayload } from "@/lib/fornecedorTabelaMedidas";
 import { CatalogoV2ResumoTopo } from "@/components/seller/catalogo/v2/CatalogoV2ResumoTopo";
 import { SellerListaGrupoArmazem } from "@/components/seller/catalogo/v2/SellerListaGrupoArmazem";
 import { linhasGrupo, type GrupoCatalogoV2 } from "@/components/seller/catalogo/v2/aggregates";
@@ -74,7 +76,7 @@ export default function SellerProdutosPage() {
   const [fornecedoresLoadErr, setFornecedoresLoadErr] = useState<string | null>(null);
   const [vinculoMeta, setVinculoMeta] = useState<VinculoFornecedorMeta | null>(null);
   const [modalTabelaGrupoKey, setModalTabelaGrupoKey] = useState<string | null>(null);
-  const [tabelaMedidasData, setTabelaMedidasData] = useState<{ tipo_produto: string; medidas: Record<string, Record<string, number>> } | null>(null);
+  const [tabelaMedidasData, setTabelaMedidasData] = useState<TabelaMedidasPayload | null>(null);
   const [loadingTabela, setLoadingTabela] = useState(false);
 
   const precisaAceiteVinculo = useMemo(() => {
@@ -154,6 +156,17 @@ export default function SellerProdutosPage() {
   const setSkuHabilitado = useCallback(
     async (item: SellerCatalogoItem, ativar: boolean) => {
       if (!item.id) return;
+      if (ativar) {
+        const pai = paiKeySkuHabilitacao(item.sku);
+        const corK = (item.cor ?? "").trim().toLowerCase();
+        const mesmaCor = items.filter(
+          (it) =>
+            isAtivoItem(it) &&
+            paiKeySkuHabilitacao(it.sku) === pai &&
+            (it.cor ?? "").trim().toLowerCase() === corK
+        );
+        if (!corGrupoTemEstoqueParaHabilitar(mesmaCor)) return;
+      }
       setToggleLoadingId(item.id);
       try {
         const {
@@ -175,7 +188,7 @@ export default function SellerProdutosPage() {
         setToggleLoadingId(null);
       }
     },
-    [router, postHabilitar, deleteHabilitar],
+    [router, postHabilitar, deleteHabilitar, items],
   );
 
   const toggleHabilitacaoPorCor = useCallback(
@@ -207,9 +220,8 @@ export default function SellerProdutosPage() {
             }
           }
         } else {
-          const targets = items.filter(
-            (it) => skuContaLimiteHabilitacaoSeller(it.sku) && isAtivoItem(it) && !it.habilitado_venda,
-          );
+          if (!corGrupoTemEstoqueParaHabilitar(elegiveis)) return;
+          const targets = elegiveis.filter((it) => !it.habilitado_venda);
           if (targets.length === 0) {
             setError("Nenhum SKU ativo desta cor para ligar na API. Confira se o armazém está gravado.");
             return;
@@ -245,10 +257,16 @@ export default function SellerProdutosPage() {
           router.replace("/seller/login");
           return;
         }
-        const targets = linhasGrupo(grupo.pai, grupo.filhos).filter(
-          (it) =>
-            skuContaLimiteHabilitacaoSeller(it.sku) && isAtivoItem(it) && skuProntoParaVender(it) && !it.habilitado_venda,
-        );
+        const linhas = linhasGrupo(grupo.pai, grupo.filhos);
+        const targets: SellerCatalogoItem[] = [];
+        for (const g of agruparVariantesPorCor(linhas.filter(isAtivoItem))) {
+          if (!corGrupoTemEstoqueParaHabilitar(g.itens)) continue;
+          for (const it of g.itens) {
+            if (skuContaLimiteHabilitacaoSeller(it.sku) && !it.habilitado_venda) {
+              targets.push(it);
+            }
+          }
+        }
         for (const it of targets) {
           const r = await postHabilitar(session.access_token, it.id);
           if (!r.ok) throw new Error(r.error || "Erro ao habilitar em lote");
@@ -263,7 +281,7 @@ export default function SellerProdutosPage() {
         setBulkPaiKey(null);
       }
     },
-    [router, postHabilitar],
+    [router, postHabilitar, items],
   );
 
   const bulkDisableAll = useCallback(
@@ -931,44 +949,7 @@ export default function SellerProdutosPage() {
                 </div>
               )}
               {!loadingTabela && !tabelaMedidasData && <p className="text-sm text-muted">Nenhuma tabela de medidas cadastrada para este grupo.</p>}
-              {!loadingTabela && tabelaMedidasData && (() => {
-                const tipo = (tabelaMedidasData.tipo_produto ?? "generico") as TipoProduto;
-                const colunas = getColunasTabelaMedidas(tipo);
-                const medidas = tabelaMedidasData.medidas ?? {};
-                const firstRow = Object.values(medidas)[0];
-                const colKeys = firstRow ? Object.keys(firstRow) : colunas.map((c) => c.key);
-                return (
-                  <div className="dropcore-scroll-x rounded-lg border border-card-border">
-                    <table className="w-full min-w-[280px] border-collapse text-xs">
-                      <thead>
-                        <tr className="border-b border-card-border bg-background">
-                          <th className="px-3 py-2 text-left font-medium text-muted">Tamanho</th>
-                          {colKeys.map((col) => {
-                            const label = colunas.find((c) => c.key === col)?.label ?? `${col.replace(/_/g, " ")} (cm)`;
-                            return (
-                              <th key={col} className="px-3 py-2 text-left font-medium text-muted">
-                                {label}
-                              </th>
-                            );
-                          })}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.entries(medidas).map(([tam, row]) => (
-                          <tr key={tam} className="border-b border-card-border">
-                            <td className="px-3 py-2 font-medium text-foreground">{tam}</td>
-                            {colKeys.map((col) => (
-                              <td key={col} className="px-3 py-2 text-muted">
-                                {row && Number.isFinite(row[col]) ? row[col] : "—"}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })()}
+              {!loadingTabela && tabelaMedidasData && <TabelaMedidasTabela data={tabelaMedidasData} />}
             </div>
           </div>
         </div>

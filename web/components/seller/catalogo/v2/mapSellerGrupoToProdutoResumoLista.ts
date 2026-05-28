@@ -1,5 +1,7 @@
 import type { ProdutoResumoLista } from "@/components/fornecedor/ProdutoResumoListaGrupo";
 import type { SellerCatalogoItem } from "@/components/seller/SellerCatalogoGrupoUi";
+import { resolverDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
+import { linkFotosFromDetalhesJson, resolverLinkFotosProduto } from "@/lib/fornecedorCriarVariantesRascunho";
 import type { GrupoCatalogoV2 } from "./aggregates";
 import { linhasGrupo } from "./aggregates";
 import { parseLinkFotosLista } from "./parseLinkFotosLista";
@@ -12,8 +14,7 @@ export function sellerItemToProdutoResumoLista(it: SellerCatalogoItem): ProdutoR
     tamanho: it.tamanho?.trim() ? it.tamanho : null,
     descricao: it.descricao ?? null,
     categoria: it.categoria ?? null,
-    marca: null,
-    data_lancamento: null,
+    data_lancamento: it.data_lancamento ?? null,
     link_fotos: it.link_fotos ?? null,
     imagem_url: it.imagem_url ?? null,
     comprimento_cm: it.comprimento_cm ?? null,
@@ -41,6 +42,10 @@ function primeiroLinkAlbum(items: SellerCatalogoItem[]): string | null {
       const u = chunk.trim();
       if (u && /^https?:\/\//i.test(u)) return u;
     }
+    const doJson = linkFotosFromDetalhesJson(it.detalhes_produto_json);
+    if (doJson && /^https?:\/\//i.test(doJson)) return doJson;
+    const img = String(it.imagem_url ?? "").trim();
+    if (img && /^https?:\/\//i.test(img)) return img;
   }
   return null;
 }
@@ -57,15 +62,18 @@ export function sellerGrupoToProdutoResumoListaGrupoProps(
   }
   const representante = sellerItemToProdutoResumoLista(repSource);
   const linhas = linhasGrupo(grupo.pai, grupo.filhos);
-  const linkAlbum = primeiroLinkAlbum(linhas);
-  const repDetalhes =
-    (grupo.pai?.detalhes_produto_json as Record<string, unknown> | null | undefined) ??
-    representante.detalhes_produto_json;
+  const repDetalhes = resolverDetalhesProdutoJson(
+    grupo.pai?.detalhes_produto_json,
+    ...grupo.filhos.map((f) => f.detalhes_produto_json)
+  );
+  const linkAlbum =
+    primeiroLinkAlbum(linhas) ||
+    (repDetalhes ? linkFotosFromDetalhesJson(repDetalhes) : null) ||
+    resolverLinkFotosProduto(repSource.link_fotos) ||
+    null;
   return {
     grupoKey: grupo.paiKey,
-    pai: pai
-      ? { ...pai, detalhes_produto_json: (grupo.pai?.detalhes_produto_json as Record<string, unknown> | null) ?? pai.detalhes_produto_json }
-      : null,
+    pai: pai ? { ...pai, detalhes_produto_json: repDetalhes ?? pai.detalhes_produto_json } : null,
     filhosVariantes,
     representante: repDetalhes ? { ...representante, detalhes_produto_json: repDetalhes } : representante,
     linkAlbum,

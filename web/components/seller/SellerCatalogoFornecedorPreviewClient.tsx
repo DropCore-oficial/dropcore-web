@@ -7,7 +7,8 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "@/app/seller/SellerNav";
 import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
 import { toTitleCase } from "@/lib/formatText";
-import { getColunasTabelaMedidas, type TipoProduto } from "@/lib/tipoProduto";
+import { TabelaMedidasTabela } from "@/components/TabelaMedidasTabela";
+import type { TabelaMedidasPayload } from "@/lib/fornecedorTabelaMedidas";
 import type { SellerCatalogoItem } from "@/components/seller/SellerCatalogoGrupoUi";
 import {
   agruparPaiFilhosSeller as agruparPaiFilhos,
@@ -31,7 +32,7 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
   const [error, setError] = useState<string | null>(null);
   const [gruposExpandidos, setGruposExpandidos] = useState<Set<string>>(new Set());
   const [modalTabelaGrupoKey, setModalTabelaGrupoKey] = useState<string | null>(null);
-  const [tabelaMedidasData, setTabelaMedidasData] = useState<{ tipo_produto: string; medidas: Record<string, Record<string, number>> } | null>(null);
+  const [tabelaMedidasData, setTabelaMedidasData] = useState<TabelaMedidasPayload | null>(null);
   const [loadingTabela, setLoadingTabela] = useState(false);
   const [descricaoExpandidaPorGrupo, setDescricaoExpandidaPorGrupo] = useState<Set<string>>(new Set());
 
@@ -290,44 +291,13 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
                 </div>
               )}
               {!loadingTabela && !tabelaMedidasData && <p className="text-sm text-neutral-500">Nenhuma tabela de medidas cadastrada para este grupo.</p>}
-              {!loadingTabela && tabelaMedidasData && (() => {
-                const tipo = (tabelaMedidasData.tipo_produto ?? "generico") as TipoProduto;
-                const colunas = getColunasTabelaMedidas(tipo);
-                const medidas = tabelaMedidasData.medidas ?? {};
-                const firstRow = Object.values(medidas)[0];
-                const colKeys = firstRow ? Object.keys(firstRow) : colunas.map((c) => c.key);
-                return (
-                  <div className="overflow-x-auto rounded-lg border border-neutral-200 dark:border-[var(--card-border)]">
-                    <table className="w-full text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-neutral-100 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-[var(--card-border)]">
-                          <th className="px-2 py-1.5 text-left font-medium text-neutral-600 dark:text-neutral-400">Tamanho</th>
-                          {colKeys.map((col) => {
-                            const label = colunas.find((c) => c.key === col)?.label ?? `${col.replace(/_/g, " ")} (cm)`;
-                            return (
-                              <th key={col} className="px-2 py-1.5 text-left font-medium text-neutral-600 dark:text-neutral-400">
-                                {label}
-                              </th>
-                            );
-                          })}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.entries(medidas).map(([tam, row]) => (
-                          <tr key={tam} className="border-b border-neutral-200/60 dark:border-[var(--card-border)]/60">
-                            <td className="px-2 py-1.5 font-medium text-neutral-900 dark:text-neutral-100">{tam}</td>
-                            {colKeys.map((col) => (
-                              <td key={col} className="px-2 py-1.5 text-neutral-700 dark:text-neutral-300">
-                                {row && Number.isFinite(row[col]) ? row[col] : "—"}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })()}
+              {!loadingTabela && tabelaMedidasData && (
+                <TabelaMedidasTabela
+                  data={tabelaMedidasData}
+                  className="overflow-x-auto rounded-lg border border-neutral-200 dark:border-[var(--card-border)]"
+                  tableClassName="w-full text-xs border-collapse"
+                />
+              )}
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import type { SellerCatalogoItem } from "@/components/seller/SellerCatalogoGrupoUi";
-import { skuProntoParaVender } from "@/lib/sellerSkuReadiness";
+import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
+import { corGrupoTemEstoqueParaHabilitar, skuProntoParaVender } from "@/lib/sellerSkuReadiness";
 
 export type GrupoCatalogoV2 = {
   paiKey: string;
@@ -19,6 +20,8 @@ export type LinhaCatalogoV2 = {
   ativo: boolean;
   prontoParaVender: boolean;
   habilitado: boolean;
+  /** True se a cor (todas numerações do grupo) tem ao menos um tamanho com estoque. */
+  corTemEstoqueParaHabilitar: boolean;
 };
 
 export type StatusGeralGrupo = "pronto" | "pendencias" | "sem_estoque" | "pausado";
@@ -42,11 +45,47 @@ export function linhasGrupo(pai: SellerCatalogoItem | null, filhos: SellerCatalo
   return out;
 }
 
+function toLinhaCatalogoBase(it: SellerCatalogoItem): Omit<LinhaCatalogoV2, "corTemEstoqueParaHabilitar"> {
+  const ativo = isAtivo(it);
+  const est = it.estoque_atual;
+  const custo = it.custo_total;
+  return {
+    item: it,
+    sku: it.sku,
+    imagemUrl: it.imagem_url,
+    cor: it.cor ?? "",
+    tamanho: it.tamanho ?? "",
+    estoque: typeof est === "number" && Number.isFinite(est) ? est : 0,
+    custo: typeof custo === "number" && Number.isFinite(custo) ? custo : 0,
+    ativo,
+    prontoParaVender: skuProntoParaVender(it),
+    habilitado: it.habilitado_venda === true,
+  };
+}
+
+/** Mapeia itens do catálogo e calcula se a cor pode ser ligada na API (estoque em algum tamanho). */
+export function mapLinhasCatalogoV2(items: SellerCatalogoItem[]): LinhaCatalogoV2[] {
+  const gruposCor = agruparVariantesPorCor(items);
+  const corComEstoque = new Map<string, boolean>();
+  for (const g of gruposCor) {
+    const ativos = g.itens.filter((it) => isAtivo(it as SellerCatalogoItem));
+    corComEstoque.set(g.key, corGrupoTemEstoqueParaHabilitar(ativos));
+  }
+  return items.map((it) => {
+    const corKey = (it.cor ?? "").trim().toLowerCase() || "__sem_cor__";
+    return {
+      ...toLinhaCatalogoBase(it),
+      corTemEstoqueParaHabilitar: corComEstoque.get(corKey) ?? false,
+    };
+  });
+}
+
 export function statusGeralGrupo(pai: SellerCatalogoItem | null, filhos: SellerCatalogoItem[]): StatusGeralGrupo {
   const linhas = linhasGrupo(pai, filhos);
   const ativos = linhas.filter(isAtivo);
   if (ativos.length === 0) return "pausado";
-  if (ativos.every((it) => (it.estoque_atual ?? 0) <= 0)) return "sem_estoque";
+  const porCor = agruparVariantesPorCor(ativos);
+  if (porCor.every((g) => !corGrupoTemEstoqueParaHabilitar(g.itens))) return "sem_estoque";
   if (ativos.some((it) => !skuProntoParaVender(it))) return "pendencias";
   return "pronto";
 }

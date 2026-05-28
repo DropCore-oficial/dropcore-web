@@ -4,6 +4,7 @@
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { parseTabelaMedidasRecord } from "@/lib/fornecedorTabelaMedidas";
 import {
   fornecedorPossuiGrupoSku,
   getProdutoTabelaMedidas,
@@ -112,25 +113,10 @@ export async function PUT(req: Request) {
 
     const body = await req.json().catch(() => ({}));
     const grupoKey = typeof body?.grupoKey === "string" ? body.grupoKey.trim().toUpperCase() : "";
-    const tipo = typeof body?.tipo_produto === "string" ? body.tipo_produto.trim() || "generico" : "generico";
-    const med = body?.medidas;
+    const payload = parseTabelaMedidasRecord(body);
     if (!grupoKey) return NextResponse.json({ error: "grupoKey é obrigatório." }, { status: 400 });
-    if (!med || typeof med !== "object" || Array.isArray(med)) {
-      return NextResponse.json({ error: "medidas inválido." }, { status: 400 });
-    }
-
-    const medidas: Record<string, Record<string, number>> = {};
-    for (const [tamanho, vals] of Object.entries(med as Record<string, unknown>)) {
-      if (!vals || typeof vals !== "object" || Array.isArray(vals)) continue;
-      const row: Record<string, number> = {};
-      for (const [k, v] of Object.entries(vals)) {
-        const n = typeof v === "number" ? v : parseFloat(String(v));
-        if (Number.isFinite(n)) row[k] = n;
-      }
-      if (Object.keys(row).length > 0) medidas[tamanho.trim().toUpperCase()] = row;
-    }
-    if (Object.keys(medidas).length === 0) {
-      return NextResponse.json({ error: "Informe ao menos uma linha de medida." }, { status: 400 });
+    if (!payload) {
+      return NextResponse.json({ error: "Informe ao menos uma linha de medida com valores numéricos." }, { status: 400 });
     }
 
     const possui = await fornecedorPossuiGrupoSku(
@@ -143,10 +129,7 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Grupo não encontrado ou não pertence a você." }, { status: 404 });
     }
 
-    await upsertProdutoTabelaMedidas(supabaseAdmin, grupoKey, {
-      tipo_produto: tipo,
-      medidas,
-    });
+    await upsertProdutoTabelaMedidas(supabaseAdmin, grupoKey, payload);
 
     return NextResponse.json({ ok: true, grupo_key: grupoKey });
   } catch (e: unknown) {

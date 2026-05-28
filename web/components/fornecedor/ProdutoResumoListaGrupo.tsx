@@ -2,6 +2,8 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { resolverDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
+import { enriquecerDetalhesProdutoLegado } from "@/lib/enriquecerDetalhesProdutoLegado";
 import Link from "next/link";
 import {
   AMBER_PREMIUM_ACCENT_BAR,
@@ -13,6 +15,16 @@ import {
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { ncmOrigemFromSkuRow } from "@/lib/fornecedorSkuCatalogExtras";
 import { tabelaMedidasFromDetalhesJson } from "@/lib/fornecedorTabelaMedidas";
+import {
+  caimentoOptions,
+  climaOptions,
+  elasticidadeOptions,
+  formatAmassaCaracteristica,
+  formatOcasioesCaracteristicas,
+  labelCaracteristicaValor,
+  posicionamentoOptions,
+  transparenciaOptions,
+} from "@/lib/fornecedorVariantesUi";
 import { cn } from "@/lib/utils";
 import {
   CadastroResumoShell,
@@ -135,6 +147,31 @@ export function ProdutoResumoListaGrupo({
   fornecedorId = null,
 }: Props) {
   const base = pai ?? representante;
+  const detalhesProdutoJson = useMemo(() => {
+    const resolvido = resolverDetalhesProdutoJson(
+      pai?.detalhes_produto_json,
+      representante.detalhes_produto_json,
+      ...filhosVariantes.map((f) => f.detalhes_produto_json)
+    );
+    return enriquecerDetalhesProdutoLegado(resolvido, {
+      nome_produto: base.nome_produto,
+      descricao: base.descricao,
+      categoria: base.categoria,
+      marca: base.marca,
+      data_lancamento: base.data_lancamento,
+      expedicao_override_linha: base.expedicao_override_linha,
+    });
+  }, [
+    pai?.detalhes_produto_json,
+    representante.detalhes_produto_json,
+    filhosVariantes,
+    base.nome_produto,
+    base.descricao,
+    base.categoria,
+    base.marca,
+    base.data_lancamento,
+    base.expedicao_override_linha,
+  ]);
   const [mostrarDetalhes, setMostrarDetalhes] = useState(false);
 
   const statsVar = useMemo(() => {
@@ -172,9 +209,9 @@ export function ProdutoResumoListaGrupo({
         if (!res.ok || cancel) return;
         const data = await res.json();
         let fonte = somenteLeitura ? (data.aprovada ?? null) : (data.pendente ?? data.aprovada ?? null);
-        if (!fonte && base.detalhes_produto_json) {
+        if (!fonte && detalhesProdutoJson) {
           const fromJson = tabelaMedidasFromDetalhesJson(
-            base.detalhes_produto_json,
+            detalhesProdutoJson,
             base.nome_produto ?? "",
             base.categoria
           );
@@ -204,9 +241,9 @@ export function ProdutoResumoListaGrupo({
     return () => {
       cancel = true;
     };
-  }, [grupoKey, somenteLeitura, fornecedorId, base.detalhes_produto_json, base.nome_produto, base.categoria]);
+  }, [grupoKey, somenteLeitura, fornecedorId, detalhesProdutoJson, base.nome_produto, base.categoria]);
 
-  const detalhes = asObj(base.detalhes_produto_json);
+  const detalhes = asObj(detalhesProdutoJson);
   const infoBasica = asObj(detalhes?.infoBasica);
   const caracteristicas = asObj(detalhes?.caracteristicas);
   const qualidade = asObj(detalhes?.qualidade);
@@ -216,8 +253,18 @@ export function ProdutoResumoListaGrupo({
   const medidasExtra = asObj(detalhes?.medidas);
   const fiscalCols = ncmOrigemFromSkuRow(base);
 
-  const descOk = filled(base.descricao);
+  const descricaoAnuncio = asText(base.descricao) || asText(infoBasica?.descricao);
+  const descOk = filled(descricaoAnuncio);
+  const caimentoLabel = labelCaracteristicaValor(caimentoOptions, caracteristicas?.caimento);
+  const elasticidadeLabel = labelCaracteristicaValor(elasticidadeOptions, caracteristicas?.elasticidade);
+  const transparenciaLabel = labelCaracteristicaValor(transparenciaOptions, caracteristicas?.transparencia);
+  const climaLabel = labelCaracteristicaValor(climaOptions, caracteristicas?.clima);
+  const posicionamentoLabel = labelCaracteristicaValor(posicionamentoOptions, caracteristicas?.posicionamento);
+  const ocasioesLabel = formatOcasioesCaracteristicas(caracteristicas?.ocasioes);
+  const amassaLabel = formatAmassaCaracteristica(caracteristicas?.amassa);
   const albumOk = filled(linkAlbum);
+  const videoUrl = asText(midiaExtra?.video);
+  const videoOk = filled(videoUrl);
   const fiscalCoreOk = filled(fiscalCols.ncm) && filled(fiscalCols.origem);
   const dimsOk = Boolean(fmtCmDim(base));
   const pesoOk = filled(base.peso_kg);
@@ -243,7 +290,7 @@ export function ProdutoResumoListaGrupo({
     filled(qualidade?.observacoes),
   ].some(Boolean);
   const guiadoOk = [filled(guiado?.diferencial), filled(guiado?.indicacao), filled(guiado?.observacoesSeller)].some(Boolean);
-  const midiaComplementarOk = [filled(midiaExtra?.video), filled(midiaExtra?.frente), filled(midiaExtra?.costas), filled(midiaExtra?.detalhe), filled(midiaExtra?.lifestyle)].some(Boolean);
+  const midiaComplementarOk = videoOk;
   const checks = [
     filled(base.nome_produto),
     filled(base.categoria),
@@ -422,7 +469,7 @@ export function ProdutoResumoListaGrupo({
               <FieldRow label="Categoria" ok={filled(base.categoria)} value={filled(base.categoria) ? String(base.categoria) : "Pendente"} />
               <FieldRow label="Marca" ok={filled(base.marca)} value={filled(base.marca) ? String(base.marca) : "Opcional"} optional />
               <FieldRow label="Modelo" ok={modeloOk} value={modeloOk ? String(infoBasica?.modelo) : "Pendente"} />
-              <FieldRow label="Descrição / anúncio" ok={descOk} value={descOk ? trunc(String(base.descricao), 120) : "Pendente"} />
+              <FieldRow label="Descrição / anúncio" ok={descOk} value={descOk ? trunc(descricaoAnuncio, 120) : "Pendente"} />
               <FieldRow
                 label="Data de lançamento"
                 ok={filled(base.data_lancamento)}
@@ -447,6 +494,25 @@ export function ProdutoResumoListaGrupo({
                     </a>
                   ) : (
                     "Pendente"
+                  )
+                }
+              />
+              <FieldRow
+                label="Link do vídeo"
+                ok={videoOk}
+                optional={!videoOk}
+                value={
+                  videoOk ? (
+                    <a
+                      href={videoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="break-all font-medium text-[var(--primary-blue)] underline decoration-[var(--primary-blue)]/25 underline-offset-2 transition hover:text-[var(--primary-blue-hover)] dark:text-[var(--primary-blue)] dark:decoration-[var(--primary-blue)]/30 dark:hover:text-[var(--primary-blue-hover)]"
+                    >
+                      Abrir vídeo
+                    </a>
+                  ) : (
+                    "Opcional"
                   )
                 }
               />
@@ -523,28 +589,13 @@ export function ProdutoResumoListaGrupo({
             <MiniCard title="Características e qualidade" subtitle="Dados preenchidos no formulário">
               <FieldRow label="Tecido" ok={filled(caracteristicas?.tecido)} value={filled(caracteristicas?.tecido) ? String(caracteristicas?.tecido) : "Pendente"} />
               <FieldRow label="Composição" ok={filled(caracteristicas?.composicao)} value={filled(caracteristicas?.composicao) ? String(caracteristicas?.composicao) : "Pendente"} />
-              <FieldRow
-                label="Caimento / elasticidade / transparência"
-                ok={filled(caracteristicas?.caimento) || filled(caracteristicas?.elasticidade) || filled(caracteristicas?.transparencia)}
-                value={
-                  [String(caracteristicas?.caimento ?? "").trim(), String(caracteristicas?.elasticidade ?? "").trim(), String(caracteristicas?.transparencia ?? "").trim()]
-                    .filter(Boolean)
-                    .join(" · ") || "Pendente"
-                }
-              />
-              <FieldRow
-                label="Clima / ocasiões / posicionamento"
-                ok={filled(caracteristicas?.clima) || (Array.isArray(caracteristicas?.ocasioes) && caracteristicas.ocasioes.length > 0) || filled(caracteristicas?.posicionamento)}
-                value={
-                  [
-                    String(caracteristicas?.clima ?? "").trim(),
-                    Array.isArray(caracteristicas?.ocasioes) ? caracteristicas.ocasioes.join(", ").trim() : "",
-                    String(caracteristicas?.posicionamento ?? "").trim(),
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || "Pendente"
-                }
-              />
+              <FieldRow label="Caimento" ok={filled(caimentoLabel)} value={filled(caimentoLabel) ? caimentoLabel : "Pendente"} />
+              <FieldRow label="Elasticidade" ok={filled(elasticidadeLabel)} value={filled(elasticidadeLabel) ? elasticidadeLabel : "Pendente"} />
+              <FieldRow label="Transparência" ok={filled(transparenciaLabel)} value={filled(transparenciaLabel) ? transparenciaLabel : "Pendente"} />
+              <FieldRow label="Clima ideal" ok={filled(climaLabel)} value={filled(climaLabel) ? climaLabel : "Pendente"} />
+              <FieldRow label="Posicionamento" ok={filled(posicionamentoLabel)} value={filled(posicionamentoLabel) ? posicionamentoLabel : "Pendente"} />
+              <FieldRow label="Amassa fácil" ok={caracteristicas?.amassa != null} value={amassaLabel || "Pendente"} />
+              <FieldRow label="Ocasiões de uso" ok={filled(ocasioesLabel)} value={filled(ocasioesLabel) ? ocasioesLabel : "Pendente"} />
               <FieldRow
                 label="Qualidade"
                 ok={qualidadeOk}
@@ -568,24 +619,6 @@ export function ProdutoResumoListaGrupo({
                 label="Observações para seller"
                 ok={filled(guiado?.observacoesSeller)}
                 value={filled(guiado?.observacoesSeller) ? trunc(String(guiado?.observacoesSeller), 120) : "Pendente"}
-              />
-              <FieldRow
-                label="Mídias complementares"
-                ok={midiaComplementarOk}
-                value={
-                  [String(midiaExtra?.video ?? "").trim(), String(midiaExtra?.frente ?? "").trim(), String(midiaExtra?.costas ?? "").trim(), String(midiaExtra?.detalhe ?? "").trim(), String(midiaExtra?.lifestyle ?? "").trim()]
-                    .filter(Boolean)
-                    .length > 0
-                    ? "Preenchidas"
-                    : "Pendente"
-                }
-                optional
-              />
-              <FieldRow
-                label="Link de fotos principal"
-                ok={filled(midiaExtra?.linkFotos) || albumOk}
-                value={asText(midiaExtra?.linkFotos) || (albumOk ? "Preenchido" : "Pendente")}
-                optional
               />
             </MiniCard>
 

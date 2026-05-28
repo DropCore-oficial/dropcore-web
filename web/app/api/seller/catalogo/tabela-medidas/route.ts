@@ -4,7 +4,13 @@
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  mergeTabelaMedidasPayload,
+  padTabelaMedidasComTamanhos,
+  tabelaMedidasFromDetalhesJson,
+} from "@/lib/fornecedorTabelaMedidas";
 import { getProdutoTabelaMedidas, orgPossuiGrupoSku } from "@/lib/produtoTabelaMedidasDb";
+import { resolverDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -52,8 +58,50 @@ export async function GET(req: Request) {
 
     const row = await getProdutoTabelaMedidas(supabaseAdmin, grupoKey);
 
+    const prefix = grupoKey.length >= 6 ? grupoKey.slice(0, -3) : grupoKey;
+    const { data: skusGrupo } = await supabaseAdmin
+      .from("skus")
+      .select("sku, tamanho, nome_produto, categoria, detalhes_produto_json, status")
+      .eq("org_id", seller.org_id)
+      .ilike("sku", `${prefix}%`)
+      .limit(200);
+
+    const tamanhosVariante = [
+      ...new Set(
+        (skusGrupo ?? [])
+          .map((s) => String(s.tamanho ?? "").trim().toUpperCase())
+          .filter(Boolean)
+      ),
+    ];
+
+    const detalhes = resolverDetalhesProdutoJson(
+      ...(skusGrupo ?? []).map((s) => s.detalhes_produto_json)
+    );
+    const nomeRef =
+      String(
+        (skusGrupo ?? []).find((s) => String(s.sku ?? "").trim().toUpperCase() === grupoKey)?.nome_produto ??
+          (skusGrupo ?? []).find((s) => String(s.nome_produto ?? "").trim())?.nome_produto ??
+          ""
+      ).trim();
+    const categoriaRef =
+      String(
+        (skusGrupo ?? []).find((s) => String(s.sku ?? "").trim().toUpperCase() === grupoKey)?.categoria ??
+          (skusGrupo ?? []).find((s) => String(s.categoria ?? "").trim())?.categoria ??
+          ""
+      ).trim() || null;
+
+    const fromJson = tabelaMedidasFromDetalhesJson(detalhes, nomeRef, categoriaRef);
+    const merged = mergeTabelaMedidasPayload(row, fromJson);
+    const medidasPad =
+      merged && tamanhosVariante.length > 0
+        ? padTabelaMedidasComTamanhos(merged.medidas, tamanhosVariante)
+        : merged?.medidas ?? null;
+
     return NextResponse.json({
-      aprovada: row ? { tipo_produto: row.tipo_produto, medidas: row.medidas } : null,
+      aprovada:
+        merged && medidasPad
+          ? { tipo_produto: merged.tipo_produto, medidas: medidasPad }
+          : null,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro inesperado" }, { status: 500 });

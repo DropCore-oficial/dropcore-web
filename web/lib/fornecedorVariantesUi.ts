@@ -8,6 +8,17 @@ export const TAMANHOS_PREDEFINIDOS = [
   "PP", "P", "M", "G", "GG", "L", "XL", "XXL", "XXXL", "Único",
 ] as const;
 
+/** Ordem estável para listar tamanhos (PP… depois extras). */
+export function ordenarTamanhosLista(tams: string[]): string[] {
+  const ordem = new Map(TAMANHOS_PREDEFINIDOS.map((t, i) => [t.toUpperCase(), i]));
+  return [...tams].sort((a, b) => {
+    const ia = ordem.get(a.toUpperCase()) ?? 999;
+    const ib = ordem.get(b.toUpperCase()) ?? 999;
+    if (ia !== ib) return ia - ib;
+    return a.localeCompare(b, undefined, { numeric: true });
+  });
+}
+
 export const caimentoOptions = [
   { value: "slim", label: "Slim" },
   { value: "regular", label: "Regular" },
@@ -44,3 +55,39 @@ export const posicionamentoOptions = [
   { value: "intermediario", label: "Intermediário" },
   { value: "premium", label: "Premium" },
 ] as const;
+
+type SelectOption = { readonly value: string; readonly label: string };
+
+/** Valor de enum/select → rótulo legível (seller e fornecedor no resumo expandido). */
+export function labelCaracteristicaValor(
+  options: readonly SelectOption[],
+  value: unknown
+): string {
+  if (value == null) return "";
+  const s = String(value).trim();
+  if (!s) return "";
+  const hit = options.find((o) => o.value === s);
+  return hit?.label ?? s;
+}
+
+export function formatOcasioesCaracteristicas(ocasioes: unknown): string {
+  if (!Array.isArray(ocasioes)) return "";
+  return ocasioes
+    .filter((x): x is string => typeof x === "string")
+    .map((raw) => {
+      const s = raw.trim();
+      if (!s) return "";
+      const hit = ocasiaoOptions.find(
+        (o) => o.value === s || o.label.localeCompare(s, "pt-BR", { sensitivity: "accent" }) === 0
+      );
+      return hit?.label ?? s;
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+export function formatAmassaCaracteristica(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "boolean") return value ? "Sim" : "Não";
+  return "";
+}

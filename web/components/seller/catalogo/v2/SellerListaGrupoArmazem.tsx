@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ProdutoResumoListaGrupo } from "@/components/fornecedor/ProdutoResumoListaGrupo";
 import { CorCelulaProduto } from "@/components/fornecedor/CorCelulaProduto";
 import type { SellerCatalogoItem } from "@/components/seller/SellerCatalogoGrupoUi";
@@ -9,14 +10,23 @@ import {
   isSementeSellerCatalogo as isSemente,
   strSellerCatalogo as str,
 } from "@/components/seller/SellerCatalogoGrupoUi";
-import { linhasGrupo, statusGeralGrupo, type GrupoCatalogoV2, type LinhaCatalogoV2 } from "./aggregates";
-import { CatalogoV2CorGrupoApiToggle, CatalogoV2VariacaoApiToggle } from "./CatalogoV2VariacaoRow";
+import {
+  linhasGrupo,
+  mapLinhasCatalogoV2,
+  statusGeralGrupo,
+  type GrupoCatalogoV2,
+  type LinhaCatalogoV2,
+} from "./aggregates";
+import {
+  CatalogoV2CorGrupoApiToggle,
+  CatalogoV2VariacaoApiToggle,
+  HintSemEstoqueLigarBanner,
+} from "./CatalogoV2VariacaoRow";
 import { catalogoV2UrlImagem } from "./catalogoV2Imagem";
 import { CatalogoV2FotoPreview } from "./CatalogoV2FotoPreview";
 import { sellerGrupoToProdutoResumoListaGrupoProps } from "./mapSellerGrupoToProdutoResumoLista";
 import { linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
 import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
-import { skuProntoParaVender } from "@/lib/sellerSkuReadiness";
 import {
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
   AMBER_PREMIUM_TEXT_PRIMARY,
@@ -24,6 +34,124 @@ import {
 import { cn } from "@/lib/utils";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+
+const BULK_MENU_WIDTH_PX = 216;
+
+function BulkAcoesLoteDropdown({
+  bulkLoading,
+  onEnableValidas,
+  onDisableAll,
+}: {
+  bulkLoading: boolean;
+  onEnableValidas: () => void;
+  onDisableAll: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const updatePos = useCallback(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const pad = 12;
+    let left = r.left;
+    if (left + BULK_MENU_WIDTH_PX > window.innerWidth - pad) {
+      left = window.innerWidth - BULK_MENU_WIDTH_PX - pad;
+    }
+    if (left < pad) left = pad;
+    setPos({ top: r.bottom + 6, left });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePos();
+    window.addEventListener("resize", updatePos);
+    window.addEventListener("scroll", updatePos, true);
+    return () => {
+      window.removeEventListener("resize", updatePos);
+      window.removeEventListener("scroll", updatePos, true);
+    };
+  }, [open, updatePos]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e: MouseEvent | TouchEvent) => {
+      const t = e.target as Node;
+      if (anchorRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("touchstart", onPointer);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("touchstart", onPointer);
+    };
+  }, [open]);
+
+  const menu =
+    open && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            className="fixed z-[200] rounded-xl border border-[var(--card-border)] bg-[var(--card)] py-1 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.35)] dark:shadow-[0_12px_40px_-12px_rgba(0,0,0,0.55)]"
+            style={{ top: pos.top, left: pos.left, width: BULK_MENU_WIDTH_PX }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              disabled={bulkLoading}
+              onClick={() => {
+                onEnableValidas();
+                setOpen(false);
+              }}
+              className="flex w-full whitespace-nowrap px-3.5 py-2.5 text-left text-[13px] text-[var(--foreground)] hover:bg-[var(--muted)]/12 disabled:opacity-50"
+            >
+              Habilitar válidas
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              disabled={bulkLoading}
+              onClick={() => {
+                onDisableAll();
+                setOpen(false);
+              }}
+              className="flex w-full whitespace-nowrap px-3.5 py-2.5 text-left text-[13px] text-[var(--foreground)] hover:bg-[var(--muted)]/12 disabled:opacity-50"
+            >
+              Desabilitar todas
+            </button>
+          </div>,
+          document.body
+        )
+      : null;
+
+  return (
+    <>
+      <button
+        ref={anchorRef}
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => {
+            const next = !v;
+            if (next) queueMicrotask(updatePos);
+            return next;
+          });
+        }}
+        className="shrink-0 cursor-pointer whitespace-nowrap rounded-md px-1 py-0.5 text-[12px] font-medium text-[var(--muted)] hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)]"
+      >
+        Ações em lote
+      </button>
+      {menu}
+    </>
+  );
+}
 
 function paiKeySku(sku: string): string {
   const s = (sku || "").trim().toUpperCase();
@@ -137,24 +265,6 @@ const ORDEM_TAMANHO: Record<string, number> = {
   "ÚNICO": 11,
 };
 
-function toLinhaCatalogo(it: SellerCatalogoItem) {
-  const ativo = str(it.status).toLowerCase() === "ativo";
-  const est = it.estoque_atual;
-  const custo = it.custo_total;
-  return {
-    item: it,
-    sku: it.sku,
-    imagemUrl: it.imagem_url,
-    cor: it.cor,
-    tamanho: it.tamanho,
-    estoque: typeof est === "number" && Number.isFinite(est) ? est : 0,
-    custo: typeof custo === "number" && Number.isFinite(custo) ? custo : 0,
-    ativo,
-    prontoParaVender: skuProntoParaVender(it),
-    habilitado: it.habilitado_venda === true,
-  };
-}
-
 type Props = {
   grupo: GrupoCatalogoV2;
   exp: boolean;
@@ -205,10 +315,35 @@ export function SellerListaGrupoArmazem({
   exportOlistDisabled = false,
   fornecedorLigadoId = null,
 }: Props) {
-  const bulkRef = useRef<HTMLDetailsElement>(null);
-  const fecharBulk = () => {
-    if (bulkRef.current) bulkRef.current.open = false;
-  };
+  const [hintSemEstoqueCorKey, setHintSemEstoqueCorKey] = useState<string | null>(null);
+  const [hintSemEstoqueSkuId, setHintSemEstoqueSkuId] = useState<string | null>(null);
+  const hintSemEstoqueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const avisarSemEstoqueCor = useCallback((corKey: string) => {
+    if (hintSemEstoqueTimerRef.current) clearTimeout(hintSemEstoqueTimerRef.current);
+    setHintSemEstoqueSkuId(null);
+    setHintSemEstoqueCorKey(corKey);
+    hintSemEstoqueTimerRef.current = setTimeout(() => {
+      setHintSemEstoqueCorKey(null);
+      hintSemEstoqueTimerRef.current = null;
+    }, 5500);
+  }, []);
+
+  const avisarSemEstoqueSku = useCallback((skuId: string) => {
+    if (hintSemEstoqueTimerRef.current) clearTimeout(hintSemEstoqueTimerRef.current);
+    setHintSemEstoqueCorKey(null);
+    setHintSemEstoqueSkuId(skuId);
+    hintSemEstoqueTimerRef.current = setTimeout(() => {
+      setHintSemEstoqueSkuId(null);
+      hintSemEstoqueTimerRef.current = null;
+    }, 5500);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (hintSemEstoqueTimerRef.current) clearTimeout(hintSemEstoqueTimerRef.current);
+    };
+  }, []);
 
   const representante = grupo.pai ?? grupo.filhos[0];
   const linhas = linhasGrupo(grupo.pai, grupo.filhos).filter((it) => !isSemente(it) && !isGrupoOculto(it.sku));
@@ -229,7 +364,7 @@ export function SellerListaGrupoArmazem({
     }
   }, [grupo, fornecedorLigadoId]);
 
-  const linhasToggle = useMemo(() => linhas.map(toLinhaCatalogo), [linhas]);
+  const linhasToggle = useMemo(() => mapLinhasCatalogoV2(linhas), [linhas]);
 
   const linhaPorId = useMemo(() => {
     const m = new Map<string, LinhaCatalogoV2>();
@@ -290,7 +425,7 @@ export function SellerListaGrupoArmazem({
   }, [linhas]);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm transition-colors hover:border-emerald-500/25 dark:shadow-none">
+    <div className="overflow-visible rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm transition-colors hover:border-emerald-500/25 dark:shadow-none">
       <div
         className="cursor-pointer px-3 py-3 transition-colors hover:bg-[var(--muted)]/[0.06] sm:px-4 sm:py-3.5"
         onClick={onToggleExpand}
@@ -323,7 +458,7 @@ export function SellerListaGrupoArmazem({
               <MiniaturaListaGrupoSeller g={grupo} />
             </div>
           </div>
-          <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="min-w-0 flex-1">
             <div className="min-w-0 space-y-1.5">
               <p className="text-[15px] font-semibold leading-snug text-[var(--foreground)] [overflow-wrap:anywhere] sm:text-base">
                 {representante?.nome_produto ?? nome}
@@ -388,8 +523,8 @@ export function SellerListaGrupoArmazem({
 
       {exp && linhas.length > 0 && (
         <>
-          <div className="border-t border-[var(--card-border)] bg-[var(--card)] px-3 py-2 sm:px-4 sm:py-2">
-            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-2.5">
+          <div className="relative z-20 overflow-visible border-t border-[var(--card-border)] bg-[var(--card)] px-3 py-2 sm:px-4 sm:py-2">
+            <div className="flex min-w-0 flex-col gap-2 overflow-visible sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-2.5">
               <div className="inline-flex h-8 w-full min-w-0 rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] p-px shadow-none ring-1 ring-[var(--foreground)]/[0.04] sm:h-7 sm:w-auto sm:flex-none sm:rounded-md">
                 <button
                   type="button"
@@ -426,7 +561,7 @@ export function SellerListaGrupoArmazem({
                   <span className="hidden sm:inline">Detalhado por SKU</span>
                 </button>
               </div>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <div className="relative flex flex-wrap items-center gap-x-3 gap-y-1.5 overflow-visible">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -474,35 +609,13 @@ export function SellerListaGrupoArmazem({
                 <span className="text-[var(--muted)]" aria-hidden>
                   ·
                 </span>
-                <details ref={bulkRef} className="relative" onClick={(e) => e.stopPropagation()}>
-                  <summary className="cursor-pointer list-none text-[12px] font-medium text-[var(--muted)] [&::-webkit-details-marker]:hidden">
-                    Ações em lote
-                  </summary>
-                  <div className="absolute left-0 top-full z-40 mt-2 min-w-[11rem] overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card)] py-1 shadow-lg">
-                    <button
-                      type="button"
-                      disabled={bulkLoading}
-                      onClick={() => {
-                        onBulkEnableValidas();
-                        fecharBulk();
-                      }}
-                      className="flex w-full px-3 py-2.5 text-left text-[13px] text-[var(--foreground)] hover:bg-[var(--muted)]/12 disabled:opacity-50"
-                    >
-                      Habilitar válidas
-                    </button>
-                    <button
-                      type="button"
-                      disabled={bulkLoading}
-                      onClick={() => {
-                        onBulkDisableAll();
-                        fecharBulk();
-                      }}
-                      className="flex w-full px-3 py-2.5 text-left text-[13px] text-[var(--foreground)] hover:bg-[var(--muted)]/12 disabled:opacity-50"
-                    >
-                      Desabilitar todas
-                    </button>
-                  </div>
-                </details>
+                <span className="inline-flex shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <BulkAcoesLoteDropdown
+                    bulkLoading={bulkLoading}
+                    onEnableValidas={onBulkEnableValidas}
+                    onDisableAll={onBulkDisableAll}
+                  />
+                </span>
               </div>
             </div>
           </div>
@@ -546,37 +659,41 @@ export function SellerListaGrupoArmazem({
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="min-w-0 space-y-2.5">
-                        <div className="flex min-w-0 flex-nowrap items-center justify-between gap-2">
-                          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-2">
+                          <div className="flex min-w-0 items-center gap-2">
                             <p className="min-w-0 truncate text-sm font-bold tracking-tight text-[var(--foreground)]">{gc.corLabel}</p>
                             <span className="inline-flex shrink-0 rounded-full bg-[var(--muted)]/12 px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">
                               {gc.itens.length} SKU(s)
                             </span>
-                            <div onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center">
-                              <CatalogoV2CorGrupoApiToggle
-                                linhas={
-                                  itensOrdenados
-                                    .map((p) => linhaPorId.get(p.id))
-                                    .filter((x): x is LinhaCatalogoV2 => x != null)
-                                }
-                                busy={bulkCorLoadingKey === `${grupo.paiKey}:${gc.key}`}
-                                onToggleGrupo={() => onToggleCorGrupo(grupo.paiKey, gc.key, gc.itens)}
-                                bloqueioLigarMotivo={habilitarVendaApiBloqueioLigar}
-                              />
-                            </div>
                           </div>
-                          {lfCor ? (
-                            <a
-                              href={lfCor}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-2.5 text-xs font-medium text-emerald-700 shadow-sm transition hover:bg-[var(--muted)]/10 dark:border-[var(--card-border)] dark:bg-[var(--card)] dark:text-emerald-400"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              Ver fotos
-                            </a>
-                          ) : null}
+                          <div
+                            className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <CatalogoV2CorGrupoApiToggle
+                              linhas={
+                                itensOrdenados
+                                  .map((p) => linhaPorId.get(p.id))
+                                  .filter((x): x is LinhaCatalogoV2 => x != null)
+                              }
+                              busy={bulkCorLoadingKey === `${grupo.paiKey}:${gc.key}`}
+                              onToggleGrupo={() => onToggleCorGrupo(grupo.paiKey, gc.key, gc.itens)}
+                              bloqueioLigarMotivo={habilitarVendaApiBloqueioLigar}
+                              onSemEstoqueAoLigar={() => avisarSemEstoqueCor(gc.key)}
+                            />
+                            {lfCor ? (
+                              <a
+                                href={lfCor}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-2.5 text-xs font-medium text-emerald-700 shadow-sm transition hover:bg-[var(--muted)]/10 dark:border-[var(--card-border)] dark:bg-[var(--card)] dark:text-emerald-400"
+                              >
+                                Ver fotos
+                              </a>
+                            ) : null}
+                          </div>
                         </div>
+                        {hintSemEstoqueCorKey === gc.key ? <HintSemEstoqueLigarBanner /> : null}
                         <div className="flex min-w-0 flex-row items-center justify-between gap-2 rounded-lg bg-[var(--muted)]/8 px-3 py-2 text-xs leading-snug sm:text-sm">
                           <span className="min-w-0 pr-1 text-[var(--foreground)]">
                             <span className="font-normal">Preço </span>
@@ -646,20 +763,24 @@ export function SellerListaGrupoArmazem({
                       className="mb-3 min-w-0 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 last:mb-0"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="mb-2 flex min-w-0 items-start justify-between gap-2">
-                        <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-[var(--foreground)]">
-                          <CorCelulaProduto cor={row.cor} />
-                          <span className="mx-1 text-[var(--muted)]">·</span>
-                          <span className="font-normal text-[var(--muted)]">{row.tamanho || "—"}</span>
-                        </p>
-                        {ltMob ? (
-                          <CatalogoV2VariacaoApiToggle
-                            linha={ltMob}
-                            onToggleOne={onToggleOne}
-                            busy={toggleLoadingId === row.id}
-                            bloqueioLigarMotivo={habilitarVendaApiBloqueioLigar}
-                          />
-                        ) : null}
+                      <div className="mb-2 min-w-0 space-y-2">
+                        <div className="flex min-w-0 items-start justify-between gap-2">
+                          <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-[var(--foreground)]">
+                            <CorCelulaProduto cor={row.cor} />
+                            <span className="mx-1 text-[var(--muted)]">·</span>
+                            <span className="font-normal text-[var(--muted)]">{row.tamanho || "—"}</span>
+                          </p>
+                          {ltMob ? (
+                            <CatalogoV2VariacaoApiToggle
+                              linha={ltMob}
+                              onToggleOne={onToggleOne}
+                              busy={toggleLoadingId === row.id}
+                              bloqueioLigarMotivo={habilitarVendaApiBloqueioLigar}
+                              onSemEstoqueAoLigar={() => avisarSemEstoqueSku(row.id)}
+                            />
+                          ) : null}
+                        </div>
+                        {hintSemEstoqueSkuId === row.id ? <HintSemEstoqueLigarBanner /> : null}
                       </div>
                       <div className="flex min-w-0 items-start gap-2.5">
                         <CatalogoV2FotoPreview
@@ -729,15 +850,19 @@ export function SellerListaGrupoArmazem({
                       const ltDesk = linhaPorId.get(row.id);
                       return (
                         <tr key={row.id} className="hover:bg-[var(--muted)]/8">
-                          <td className="px-1 py-1.5 align-middle text-center lg:px-2" onClick={(e) => e.stopPropagation()}>
+                          <td className="px-1 py-1.5 align-top text-center lg:px-2" onClick={(e) => e.stopPropagation()}>
                             {ltDesk ? (
-                              <div className="flex justify-center py-0.5">
-                                <CatalogoV2VariacaoApiToggle
-                                  linha={ltDesk}
-                                  onToggleOne={onToggleOne}
-                                  busy={toggleLoadingId === row.id}
-                                  bloqueioLigarMotivo={habilitarVendaApiBloqueioLigar}
-                                />
+                              <div className="mx-auto flex w-full max-w-[13.5rem] flex-col items-stretch gap-1.5 py-0.5">
+                                <div className="flex justify-center">
+                                  <CatalogoV2VariacaoApiToggle
+                                    linha={ltDesk}
+                                    onToggleOne={onToggleOne}
+                                    busy={toggleLoadingId === row.id}
+                                    bloqueioLigarMotivo={habilitarVendaApiBloqueioLigar}
+                                    onSemEstoqueAoLigar={() => avisarSemEstoqueSku(row.id)}
+                                  />
+                                </div>
+                                {hintSemEstoqueSkuId === row.id ? <HintSemEstoqueLigarBanner /> : null}
                               </div>
                             ) : (
                               <span className="text-[var(--muted)]">—</span>

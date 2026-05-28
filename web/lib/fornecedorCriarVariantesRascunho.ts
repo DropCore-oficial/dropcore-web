@@ -34,6 +34,7 @@ export type ProdutoQualidade = {
 
 export type ProdutoMidia = {
   principal?: string;
+  linkFotos?: string;
   frente?: string;
   costas?: string;
   detalhe?: string;
@@ -397,4 +398,28 @@ export async function getResumoRascunhoCriarVariantes(accessToken: string | unde
   const savedAt =
     m.draft.savedAt && String(m.draft.savedAt).trim() ? m.draft.savedAt : new Date().toISOString();
   return { savedAt, origem: m.origem, nomeResumo };
+}
+
+/** Primeiro link de fotos não vazio (coluna `link_fotos`, JSON `midia`, rascunho legado). */
+export function resolverLinkFotosProduto(...sources: (string | null | undefined)[]): string {
+  for (const s of sources) {
+    const t = String(s ?? "").trim();
+    if (t) return t;
+  }
+  return "";
+}
+
+export function linkFotosFromDetalhesJson(detalhes: unknown): string {
+  if (!detalhes || typeof detalhes !== "object" || Array.isArray(detalhes)) return "";
+  const midia = (detalhes as Record<string, unknown>).midia;
+  if (!midia || typeof midia !== "object" || Array.isArray(midia)) return "";
+  const m = midia as Record<string, unknown>;
+  return resolverLinkFotosProduto(
+    m.linkFotos as string | undefined,
+    m.principal as string | undefined,
+    m.frente as string | undefined,
+    m.costas as string | undefined,
+    m.detalhe as string | undefined,
+    m.lifestyle as string | undefined
+  );
 }

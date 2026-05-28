@@ -12,14 +12,19 @@ import {
   caimentoOptions,
   climaOptions,
   elasticidadeOptions,
+  ordenarTamanhosLista,
   posicionamentoOptions,
   transparenciaOptions,
 } from "@/lib/fornecedorVariantesUi";
 import { chaveEstoqueVariante } from "@/lib/estoqueVarianteKeys";
+import { resolverDetalhesProdutoJson, skuRowDestinoDetalhesGrupo } from "@/lib/detalhesProdutoJson";
 import {
-  medidasFormToTabelaMedidas,
+  buildTabelaMedidasPayloadFromForm,
+  chaveTopicoMedida,
   medidasLinhasFromTabelaPayload,
+  syncMedidasLinhasComTamanhos,
   tabelaMedidasFromDetalhesJson,
+  valorTopicoFromMedida,
   type TabelaMedidasPayload,
 } from "@/lib/fornecedorTabelaMedidas";
 import {
@@ -31,6 +36,7 @@ import {
   parseLocalCriarVariantesDraft,
   fetchServerCriarVariantesDraft,
   mergeCriarVariantesDrafts,
+  resolverLinkFotosProduto,
   rascunhoLeveParaEspelhoLocal,
 } from "@/lib/fornecedorCriarVariantesRascunho";
 import {
@@ -190,7 +196,7 @@ function montarRascunhoEdicao(
   if (grupoRows.length === 0) return null;
 
   const pai = grupoRows.find((r) => r.sku.trim().toUpperCase() === pk) ?? grupoRows[0];
-  const detalhes = asObj(pai.detalhes_produto_json);
+  const detalhes = resolverDetalhesProdutoJson(...grupoRows.map((r) => r.detalhes_produto_json));
   const infoBasica = asObj(detalhes?.infoBasica);
   const caracteristicas = asObj(detalhes?.caracteristicas);
   const qualidade = asObj(detalhes?.qualidade);
@@ -294,13 +300,16 @@ function montarRascunhoEdicao(
     comp: numToStr(pai.comprimento_cm),
     largura: numToStr(pai.largura_cm),
     altura: numToStr(pai.altura_cm),
-    linkFotos: String(pai.link_fotos ?? "").trim(),
+    linkFotos: resolverLinkFotosProduto(
+      pai.link_fotos,
+      typeof midia?.linkFotos === "string" ? midia.linkFotos : "",
+      typeof midia?.principal === "string" ? midia.principal : "",
+      typeof midia?.frente === "string" ? midia.frente : "",
+      typeof midia?.costas === "string" ? midia.costas : "",
+      typeof midia?.detalhe === "string" ? midia.detalhe : "",
+      typeof midia?.lifestyle === "string" ? midia.lifestyle : ""
+    ),
     linkVideo: typeof midia?.video === "string" ? midia.video : "",
-    midiaPrincipal: typeof midia?.principal === "string" ? midia.principal : "",
-    midiaFrente: typeof midia?.frente === "string" ? midia.frente : "",
-    midiaCostas: typeof midia?.costas === "string" ? midia.costas : "",
-    midiaDetalhe: typeof midia?.detalhe === "string" ? midia.detalhe : "",
-    midiaLifestyle: typeof midia?.lifestyle === "string" ? midia.lifestyle : "",
     naoDesbota: typeof qualidade?.naoDesbota === "boolean" ? qualidade.naoDesbota : null,
     encolhe: typeof qualidade?.encolhe === "boolean" ? qualidade.encolhe : null,
     costuraReforcada: typeof qualidade?.costuraReforcada === "boolean" ? qualidade.costuraReforcada : null,
@@ -377,16 +386,6 @@ function montarRascunhoEdicao(
   };
 }
 
-/** Ordem estável para listar tamanhos (PP... depois extras). */
-function ordenarTamanhosLista(tams: string[]): string[] {
-  const ordem = new Map(TAMANHOS_PREDEFINIDOS.map((t, i) => [t.toUpperCase(), i]));
-  return [...tams].sort((a, b) => {
-    const ia = ordem.get(a.toUpperCase()) ?? 999;
-    const ib = ordem.get(b.toUpperCase()) ?? 999;
-    if (ia !== ib) return ia - ib;
-    return a.localeCompare(b, undefined, { numeric: true });
-  });
-}
 import { VarianteExtrasTagInput } from "@/components/VarianteExtrasTagInput";
 
 type TabId = CriarVariantesTabId;
@@ -576,11 +575,6 @@ function estadoInicialRascunhoVazio(): RascunhoCriarVariantesV1 {
     altura: "",
     linkFotos: "",
     linkVideo: "",
-    midiaPrincipal: "",
-    midiaFrente: "",
-    midiaCostas: "",
-    midiaDetalhe: "",
-    midiaLifestyle: "",
     naoDesbota: null,
     encolhe: null,
     costuraReforcada: null,
@@ -689,11 +683,6 @@ export default function CriarVariantesPage() {
   // Mídia
   const [linkFotos, setLinkFotos] = useState("");
   const [linkVideo, setLinkVideo] = useState("");
-  const [midiaPrincipal, setMidiaPrincipal] = useState("");
-  const [midiaFrente, setMidiaFrente] = useState("");
-  const [midiaCostas, setMidiaCostas] = useState("");
-  const [midiaDetalhe, setMidiaDetalhe] = useState("");
-  const [midiaLifestyle, setMidiaLifestyle] = useState("");
 
   // Qualidade
   const [naoDesbota, setNaoDesbota] = useState<boolean | null>(null);
@@ -857,23 +846,14 @@ export default function CriarVariantesPage() {
     return Array.from(set);
   }, [topicosMedidaSelecionados, topicosMedidaCustom, tipoMedida]);
 
-  function chaveTopico(topico: string): keyof Medida | "extra" {
-    const norm = topico.toLowerCase();
-    if (norm === "largura") return "largura";
-    if (norm === "comprimento") return "comprimento";
-    if (norm === "ombro" || norm === "ombros") return "ombro";
-    if (norm === "manga") return "manga";
-    if (norm === "cintura") return "cintura";
-    if (norm === "quadril") return "quadril";
-    if (norm === "busto") return "busto";
-    return "extra";
-  }
+  useEffect(() => {
+    if (tamanhosFinais.length === 0) return;
+    setMedidas((prev) => syncMedidasLinhasComTamanhos(prev, tamanhosFinais));
+  }, [tamanhosFinais.join("|")]);
 
   function getValorTopico(m: Medida, topico: string): string {
-    const k = chaveTopico(topico);
-    if (k === "extra") return m.extras?.[topico] != null ? String(m.extras[topico]) : "";
-    const val = m[k];
-    return typeof val === "number" ? String(val) : "";
+    const v = valorTopicoFromMedida(m, topico);
+    return v != null ? String(v) : "";
   }
 
   function setValorTopico(idx: number, topico: string, raw: string) {
@@ -881,21 +861,33 @@ export default function CriarVariantesPage() {
     setMedidas((prev) =>
       prev.map((it, i) => {
         if (i !== idx) return it;
-        const k = chaveTopico(topico);
+        const k = chaveTopicoMedida(topico);
         if (k === "extra") {
           const nextExtras = { ...(it.extras ?? {}) };
           if (parsed == null) delete nextExtras[topico];
           else nextExtras[topico] = parsed;
           return { ...it, extras: nextExtras };
         }
-        return { ...it, [k]: parsed } as Medida;
+        const nextExtras = { ...(it.extras ?? {}) };
+        if (nextExtras[topico] != null) delete nextExtras[topico];
+        return {
+          ...it,
+          [k]: parsed ?? undefined,
+          extras: Object.keys(nextExtras).length > 0 ? nextExtras : undefined,
+        } as Medida;
       })
     );
   }
 
   async function salvarSomenteTabelaMedidas() {
     if (!modoEdicao || !grupoEdicao) return;
-    const payload = medidasFormToTabelaMedidas(medidas, topicosMedidaFinais, nomeProduto.trim(), categoria);
+    const payload = buildTabelaMedidasPayloadFromForm(
+      medidas,
+      topicosMedidaFinais,
+      tamanhosFinais,
+      nomeProduto.trim(),
+      categoria
+    );
     if (!payload) {
       setFormError(
         "Preencha os valores em centímetros na tabela (cada tamanho precisa de ao menos uma medida numérica)."
@@ -923,7 +915,7 @@ export default function CriarVariantesPage() {
       });
       const tmJson = await tmRes.json().catch(() => ({}));
       if (!tmRes.ok) throw new Error(tmJson?.error ?? "Erro ao salvar tabela de medidas.");
-      setMsgRascunho("Tabela de medidas salva. O resumo do produto será atualizado.");
+      setMsgRascunho({ tipo: "sucesso", text: "Tabela de medidas salva. O resumo do produto será atualizado." });
       setTimeout(() => setMsgRascunho(null), 5000);
     } catch (e: unknown) {
       setFormError(e instanceof Error ? e.message : "Erro ao salvar tabela de medidas.");
@@ -1210,12 +1202,10 @@ export default function CriarVariantesPage() {
       costuraReforcada: costuraReforcada ?? undefined,
       observacoes: obsQualidade.trim() || undefined,
     };
+    const linkFotosTrim = linkFotos.trim();
     const midia = {
-      principal: midiaPrincipal.trim() || undefined,
-      frente: midiaFrente.trim() || undefined,
-      costas: midiaCostas.trim() || undefined,
-      detalhe: midiaDetalhe.trim() || undefined,
-      lifestyle: midiaLifestyle.trim() || undefined,
+      linkFotos: linkFotosTrim || undefined,
+      principal: linkFotosTrim || undefined,
       video: linkVideo.trim() || undefined,
     };
     const guiado = {
@@ -1274,11 +1264,6 @@ export default function CriarVariantesPage() {
       altura,
       linkFotos,
       linkVideo,
-      midiaPrincipal,
-      midiaFrente,
-      midiaCostas,
-      midiaDetalhe,
-      midiaLifestyle,
       naoDesbota,
       encolhe,
       costuraReforcada,
@@ -1344,13 +1329,19 @@ export default function CriarVariantesPage() {
     setComp(p.comp ?? "");
     setLargura(p.largura ?? "");
     setAltura(p.altura ?? "");
-    setLinkFotos(p.linkFotos ?? "");
-    setLinkVideo(p.linkVideo ?? "");
-    setMidiaPrincipal(p.midiaPrincipal ?? p.produto?.midia?.principal ?? "");
-    setMidiaFrente(p.midiaFrente ?? p.produto?.midia?.frente ?? "");
-    setMidiaCostas(p.midiaCostas ?? p.produto?.midia?.costas ?? "");
-    setMidiaDetalhe(p.midiaDetalhe ?? p.produto?.midia?.detalhe ?? "");
-    setMidiaLifestyle(p.midiaLifestyle ?? p.produto?.midia?.lifestyle ?? "");
+    setLinkFotos(
+      resolverLinkFotosProduto(
+        p.linkFotos,
+        p.midiaPrincipal,
+        p.produto?.midia?.linkFotos,
+        p.produto?.midia?.principal,
+        p.produto?.midia?.frente,
+        p.produto?.midia?.costas,
+        p.produto?.midia?.detalhe,
+        p.produto?.midia?.lifestyle
+      )
+    );
+    setLinkVideo(p.linkVideo ?? p.produto?.midia?.video ?? "");
     setNaoDesbota(p.naoDesbota ?? p.produto?.qualidade?.naoDesbota ?? null);
     setEncolhe(p.encolhe ?? p.produto?.qualidade?.encolhe ?? null);
     setCosturaReforcada(p.costuraReforcada ?? p.produto?.qualidade?.costuraReforcada ?? null);
@@ -1627,7 +1618,7 @@ export default function CriarVariantesPage() {
           const tmData = await tmRes.json().catch(() => ({}));
           const fonte = (tmData.aprovada ?? tmData.pendente) as TabelaMedidasPayload | null;
           if (fonte?.medidas && Object.keys(fonte.medidas).length > 0) {
-            const linhas = medidasLinhasFromTabelaPayload(fonte, payload.topicosMedidaSelecionados);
+            const linhas = medidasLinhasFromTabelaPayload(fonte, payload.topicosMedidaSelecionados ?? []);
             if (linhas.length > 0) payload = { ...payload, medidas: linhas };
           }
         }
@@ -1766,15 +1757,27 @@ export default function CriarVariantesPage() {
       setTabAtiva("medidas");
       return;
     }
-    const tabelaMedidasPreview = medidasFormToTabelaMedidas(
-      medidas,
+    const medidasSincronizadas = syncMedidasLinhasComTamanhos(medidas, tamanhosFinais);
+    const tabelaMedidasPreview = buildTabelaMedidasPayloadFromForm(
+      medidasSincronizadas,
       topicosMedidaFinais,
+      tamanhosFinais,
       nomeProduto.trim(),
       categoria
     );
     if (exigeMedidas && !tabelaMedidasPreview) {
       setFormError(
         "Preencha os valores em centímetros na tabela de medidas (cada tamanho precisa de ao menos uma medida numérica)."
+      );
+      setTabAtiva("medidas");
+      return;
+    }
+    const temValoresMedida = topicosMedidaFinais.some((topico) =>
+      medidasSincronizadas.some((m) => valorTopicoFromMedida(m, topico) != null)
+    );
+    if (temValoresMedida && !tabelaMedidasPreview) {
+      setFormError(
+        "As medidas não puderam ser gravadas: confira se cada tamanho em Variações tem ao menos um valor numérico (cm) na aba Medidas."
       );
       setTabAtiva("medidas");
       return;
@@ -1817,12 +1820,8 @@ export default function CriarVariantesPage() {
         },
         midia: {
           linkFotos: linkFotos.trim() || null,
+          principal: linkFotos.trim() || null,
           video: linkVideo.trim() || null,
-          principal: midiaPrincipal.trim() || null,
-          frente: midiaFrente.trim() || null,
-          costas: midiaCostas.trim() || null,
-          detalhe: midiaDetalhe.trim() || null,
-          lifestyle: midiaLifestyle.trim() || null,
         },
         guiado: {
           diferencial: diferencial.trim() || null,
@@ -1849,17 +1848,15 @@ export default function CriarVariantesPage() {
         medidas: {
           topicosSelecionados: [...topicosMedidaSelecionados],
           topicosCustom: topicosMedidaCustom.trim() || null,
-          linhas: medidas.filter((m) => m.tamanho.trim()),
+          linhas: medidasSincronizadas.filter((m) => m.tamanho.trim()),
         },
       };
-      const tabelaMedidasPayload =
-        tabelaMedidasPreview ??
-        medidasFormToTabelaMedidas(medidas, topicosMedidaFinais, nomeProduto.trim(), categoria);
+      const tabelaMedidasPayload = tabelaMedidasPreview;
       const body: Record<string, unknown> = {
         nome_produto: nomeProduto.trim(),
         cores,
         tamanhos,
-        link_fotos: (midiaPrincipal || linkFotos).trim() || null,
+        link_fotos: linkFotos.trim() || null,
         descricao: descricaoGuiada || descricao.trim() || null,
         marca: marca.trim() || null,
         comprimento_cm: comp.trim() ? parseFloat(comp.replace(",", ".")) : undefined,
@@ -1971,7 +1968,7 @@ export default function CriarVariantesPage() {
           throw new Error("Grupo não encontrado para edição.");
         }
 
-        const pai = grupoRows.find((r) => r.sku.trim().toUpperCase() === grupoEdicao) ?? null;
+        const skuDestinoDetalhes = skuRowDestinoDetalhesGrupo(grupoEdicao, grupoRows);
         const variantes = grupoRows.filter((r) => r.sku.trim().toUpperCase() !== grupoEdicao);
         const mapVariante = new Map<string, ProdutoExistenteEdicao>();
         for (const row of variantes) {
@@ -1987,7 +1984,7 @@ export default function CriarVariantesPage() {
           largura_cm: largura.trim() ? parseFloat(largura.replace(",", ".")) : null,
           altura_cm: altura.trim() ? parseFloat(altura.replace(",", ".")) : null,
           peso_kg: peso.trim() ? parseFloat(peso.replace(",", ".")) : null,
-          link_fotos: (midiaPrincipal || linkFotos).trim() || null,
+          link_fotos: linkFotos.trim() || null,
           ncm: ncm.trim() || null,
           origem: origemProduto.trim() || null,
           cest: cest.trim() || null,
@@ -1995,11 +1992,12 @@ export default function CriarVariantesPage() {
           expedicao_override_linha: cdLinhaFormatada || null,
           detalhes_produto_json: detalhesProdutoJson,
         };
+        if (tabelaMedidasPayload) patchPai.tabela_medidas = tabelaMedidasPayload;
 
         const reqs: Promise<Response>[] = [];
-        if (pai?.id) {
+        if (skuDestinoDetalhes?.id) {
           reqs.push(
-            fetch(`/api/fornecedor/produtos/${pai.id}`, {
+            fetch(`/api/fornecedor/produtos/${skuDestinoDetalhes.id}`, {
               method: "PATCH",
               headers,
               body: JSON.stringify(patchPai),
@@ -2060,6 +2058,7 @@ export default function CriarVariantesPage() {
           });
           const tmJson = await tmRes.json().catch(() => ({}));
           if (!tmRes.ok) throw new Error(tmJson?.error ?? "Erro ao salvar tabela de medidas.");
+          setMedidas(medidasSincronizadas);
         }
       } else {
         const res = await fetch("/api/fornecedor/produtos/multivariante", {
@@ -3139,46 +3138,54 @@ export default function CriarVariantesPage() {
             {tabAtiva === "midia" && (
               <div className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm p-5 sm:p-5.5 space-y-4">
                 <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Mídia</h2>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Imagem principal (obrigatória)</label>
-                    <input type="url" value={midiaPrincipal} onChange={(e) => setMidiaPrincipal(e.target.value)} placeholder="https://..." className={inputDelicado} required />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Imagem frente</label>
-                    <input type="url" value={midiaFrente} onChange={(e) => setMidiaFrente(e.target.value)} placeholder="https://..." className={inputDelicado} />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Imagem costas</label>
-                    <input type="url" value={midiaCostas} onChange={(e) => setMidiaCostas(e.target.value)} placeholder="https://..." className={inputDelicado} />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Detalhe do tecido</label>
-                    <input type="url" value={midiaDetalhe} onChange={(e) => setMidiaDetalhe(e.target.value)} placeholder="https://..." className={inputDelicado} />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Lifestyle (opcional)</label>
-                    <input type="url" value={midiaLifestyle} onChange={(e) => setMidiaLifestyle(e.target.value)} placeholder="https://..." className={inputDelicado} />
-                  </div>
-                </div>
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                  Um link para o álbum ou pasta de fotos (Drive, etc.) e outro para vídeo, se houver. O seller usa o link de fotos na coluna «Ver» do catálogo.
+                </p>
                 <div>
-                  <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Link do Vídeo</label>
+                  <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">Link de fotos</label>
                   <div className="flex gap-2">
                     <input
                       type="url"
-                      value={linkVideo}
-                      onChange={(e) => setLinkVideo(e.target.value)}
-                      placeholder="URL do vídeo"
+                      value={linkFotos}
+                      onChange={(e) => setLinkFotos(e.target.value)}
+                      placeholder="https://drive.google.com/..."
                       className={`${inputDelicado} flex-1`}
                     />
-                    <button type="button" className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2.5 text-sm text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                    <button
+                      type="button"
+                      disabled={!linkFotos.trim()}
+                      onClick={() => {
+                        const u = linkFotos.trim();
+                        if (u) window.open(u, "_blank", "noopener,noreferrer");
+                      }}
+                      className="rounded-lg border border-neutral-300 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-100 disabled:opacity-40 dark:border-neutral-600 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                    >
                       Visitar
                     </button>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Link geral de fotos (legado)</label>
-                  <input type="url" value={linkFotos} onChange={(e) => setLinkFotos(e.target.value)} placeholder="https://drive.google.com/..." className={inputDelicado} />
+                  <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">Link do vídeo (opcional)</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={linkVideo}
+                      onChange={(e) => setLinkVideo(e.target.value)}
+                      placeholder="https://..."
+                      className={`${inputDelicado} flex-1`}
+                    />
+                    <button
+                      type="button"
+                      disabled={!linkVideo.trim()}
+                      onClick={() => {
+                        const u = linkVideo.trim();
+                        if (u) window.open(u, "_blank", "noopener,noreferrer");
+                      }}
+                      className="rounded-lg border border-neutral-300 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-100 disabled:opacity-40 dark:border-neutral-600 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                    >
+                      Visitar
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
