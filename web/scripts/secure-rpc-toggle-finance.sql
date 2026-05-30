@@ -1,10 +1,16 @@
--- Segurança: revogar execução da RPC rpc_toggle_finance_access do role authenticated.
--- Assim apenas o backend (service role) pode chamá-la; a API /api/org/toggle-finance já valida owner/admin.
+-- Segurança: só o backend (service_role) pode executar rpc_toggle_finance_access.
+-- A API /api/org/toggle-finance usa supabaseAdmin (service role) + valida owner/admin.
 --
 -- Execute no Supabase SQL Editor.
 
 REVOKE EXECUTE ON FUNCTION rpc_toggle_finance_access(UUID, UUID, BOOLEAN) FROM authenticated;
+REVOKE EXECUTE ON FUNCTION rpc_toggle_finance_access(UUID, UUID, BOOLEAN) FROM anon;
+REVOKE EXECUTE ON FUNCTION rpc_toggle_finance_access(UUID, UUID, BOOLEAN) FROM PUBLIC;
 
--- Opcional: garantir que apenas service_role e o usuário do backend possam executar
--- (no Supabase, as funções são executadas pelo role do cliente que chama; o Next.js usa service_role no servidor)
--- GRANT EXECUTE ON FUNCTION rpc_toggle_finance_access(UUID, UUID, BOOLEAN) TO service_role;
+GRANT EXECUTE ON FUNCTION rpc_toggle_finance_access(UUID, UUID, BOOLEAN) TO service_role;
+
+-- Conferir (esperado: postgres + service_role; sem anon/authenticated):
+-- SELECT grantee, privilege_type
+-- FROM information_schema.routine_privileges
+-- WHERE routine_schema = 'public'
+--   AND routine_name = 'rpc_toggle_finance_access';
