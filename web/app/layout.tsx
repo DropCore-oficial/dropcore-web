@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { AppVersionUpdateBanner } from "@/components/AppVersionUpdateBanner";
 import { getSiteUrl } from "@/lib/siteUrl";
 
 const geistSans = Geist({
@@ -82,6 +83,7 @@ export default function RootLayout({
         style={{ background: "var(--background)", color: "var(--foreground)" }}
       >
         <ThemeProvider>
+          <AppVersionUpdateBanner />
           {children}
         </ThemeProvider>
       </body>

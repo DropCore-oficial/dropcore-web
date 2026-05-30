@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 import path from "path";
 
+const appBuildId =
+  process.env.VERCEL_GIT_COMMIT_SHA?.trim()?.slice(0, 12) ||
+  process.env.VERCEL_DEPLOYMENT_ID?.trim() ||
+  (process.env.NODE_ENV === "development" ? "dev" : `local-${Date.now()}`);
+
 const securityHeaders = [
   // Impede que a página seja carregada em iframes (clickjacking)
   { key: "X-Frame-Options", value: "DENY" },
@@ -32,6 +37,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_BUILD_ID: appBuildId,
+  },
   eslint: {
     ignoreDuringBuilds: true,
   },
