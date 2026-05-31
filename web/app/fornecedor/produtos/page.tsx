@@ -7,6 +7,7 @@ import Link from "next/link";
 import { FornecedorNav } from "../FornecedorNav";
 import { CorCelulaProduto } from "@/components/fornecedor/CorCelulaProduto";
 import { AlteracoesCatalogoInfoBanner } from "@/components/fornecedor/AlteracoesCatalogoInfoBanner";
+import { FornecedorImportEstoquePanel } from "@/components/fornecedor/FornecedorImportEstoquePanel";
 import { FotoVariacaoCell, type FotoVariacaoCellHandle } from "@/components/FotoVariacaoCell";
 import { toTitleCase } from "@/lib/formatText";
 import { fornecedorProdutoImagemSrc } from "@/lib/fornecedorProdutoImagemSrc";
@@ -233,6 +234,7 @@ export default function FornecedorProdutosPage() {
     por_sku: Record<string, { status: "aprovado" | "rejeitado"; motivo_rejeicao?: string; analisado_em: string }>;
   }>({ pendentes: [], por_sku: {} });
   const [rascunhoCriarVariantes, setRascunhoCriarVariantes] = useState<ResumoRascunhoCriarVariantes | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
   function fecharMenusAcoesAbertos() {
     if (typeof document === "undefined") return;
@@ -259,6 +261,7 @@ export default function FornecedorProdutosPage() {
         return;
       }
       const token = session.access_token;
+      setAccessToken(token);
       const headers = { Authorization: `Bearer ${token}` };
       const resumo = await getResumoRascunhoCriarVariantes(token);
       setRascunhoCriarVariantes(resumo);
@@ -607,6 +610,16 @@ export default function FornecedorProdutosPage() {
           </div>
         </div>
         </header>
+
+        <FornecedorImportEstoquePanel
+          produtos={produtos.map((p) => ({
+            sku: p.sku,
+            estoque_atual: p.estoque_atual,
+            estoque_minimo: p.estoque_minimo,
+          }))}
+          accessToken={accessToken}
+          onImported={load}
+        />
 
         {error && (
           <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-100 dark:bg-red-950 p-4 text-sm text-red-800 dark:text-red-300">

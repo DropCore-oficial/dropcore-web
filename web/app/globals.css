@@ -5,6 +5,13 @@ html {
   overflow-x: hidden;
   overscroll-behavior-x: none;
   -webkit-text-size-adjust: 100%;
+  --app-version-banner-offset: 0px;
+}
+
+/* Faixa “nova versão” (MyLine): barras fixas no topo descem junto */
+nav.fixed.top-0.left-0.right-0.z-40,
+header.fixed.top-0.left-0.right-0.z-40 {
+  top: var(--app-version-banner-offset);
 }
 /* Tabelas / blocos largos: scroll horizontal com inércia no iOS */
 .dropcore-scroll-x {
