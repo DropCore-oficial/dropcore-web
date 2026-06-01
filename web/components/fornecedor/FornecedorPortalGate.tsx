@@ -76,7 +76,7 @@ export function FornecedorPortalGate({ children }: { children: ReactNode }) {
   if (!ok) {
     return (
       <div
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--background)]"
+        className="fixed inset-0 z-[90] flex items-center justify-center bg-[var(--background)]"
         aria-live="polite"
         aria-busy="true"
       >

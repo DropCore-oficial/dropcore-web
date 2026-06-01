@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const CLIENT_BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID ?? "dev";
-const POLL_MS = 90_000;
+const POLL_MS = 30_000;
+const FIRST_RECHECK_MS = 5_000;
 const SNOOZE_MS = 2 * 60 * 60 * 1000;
 const SNOOZE_KEY = "dropcore-version-snooze-until";
+const SNOOZE_BUILD_KEY = "dropcore-version-snooze-build";
 const PREVIEW_KEY = "dropcore-version-banner-preview";
 
 function isDevBuildId(id: string): boolean {
@@ -21,14 +23,25 @@ function isPreviewForced(): boolean {
   return sessionStorage.getItem(PREVIEW_KEY) === "1";
 }
 
-function isSnoozed(): boolean {
-  if (typeof window === "undefined") return false;
-  const until = Number(sessionStorage.getItem(SNOOZE_KEY) ?? 0);
-  return Number.isFinite(until) && Date.now() < until;
+function getLoadedBuildId(): string {
+  return CLIENT_BUILD_ID;
 }
 
-function snoozeBanner(): void {
+function isSnoozedFor(serverId: string): boolean {
+  if (typeof window === "undefined") return false;
+  const until = Number(sessionStorage.getItem(SNOOZE_KEY) ?? 0);
+  if (!Number.isFinite(until) || Date.now() >= until) return false;
+  return sessionStorage.getItem(SNOOZE_BUILD_KEY) === serverId;
+}
+
+function snoozeBanner(serverId: string): void {
   sessionStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_MS));
+  sessionStorage.setItem(SNOOZE_BUILD_KEY, serverId);
+}
+
+function clearSnooze(): void {
+  sessionStorage.removeItem(SNOOZE_KEY);
+  sessionStorage.removeItem(SNOOZE_BUILD_KEY);
 }
 
 function setBannerOffset(px: number): void {
@@ -38,7 +51,10 @@ function setBannerOffset(px: number): void {
 
 async function fetchServerBuildId(): Promise<string | null> {
   try {
-    const res = await fetch("/api/app-version", { cache: "no-store" });
+    const res = await fetch(`/api/app-version?t=${Date.now()}`, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache" },
+    });
     if (!res.ok) return null;
     const json = (await res.json()) as { buildId?: string };
     return typeof json.buildId === "string" && json.buildId.trim() ? json.buildId.trim() : null;
@@ -48,12 +64,13 @@ async function fetchServerBuildId(): Promise<string | null> {
 }
 
 /**
- * Faixa fixa no topo (estilo MyLine) quando há deploy novo (buildId do servidor ≠ build do browser).
- * Mede a altura real para o menu fixo descer junto. Em dev: ?versionBannerPreview=1
+ * Faixa fixa no topo quando há deploy novo (buildId do servidor ≠ build carregado no browser).
+ * Produção: ?versionBannerPreview=1 para testar layout. Snooze não bloqueia deploy posterior.
  */
 export function AppVersionUpdateBanner() {
   const [show, setShow] = useState(false);
   const bannerRef = useRef<HTMLDivElement>(null);
+  const pendingServerIdRef = useRef<string | null>(null);
 
   const checkVersion = useCallback(async () => {
     if (isPreviewForced()) {
@@ -66,23 +83,27 @@ export function AppVersionUpdateBanner() {
       return;
     }
 
-    if (isSnoozed()) {
-      setShow(false);
-      return;
-    }
-
     const serverId = await fetchServerBuildId();
-    if (!serverId || serverId === CLIENT_BUILD_ID) {
+    const loadedId = CLIENT_BUILD_ID;
+
+    if (!serverId || serverId === loadedId) {
       setShow(false);
       return;
     }
 
+    if (isSnoozedFor(serverId)) {
+      setShow(false);
+      return;
+    }
+
+    pendingServerIdRef.current = serverId;
     setShow(true);
   }, []);
 
   useEffect(() => {
     void checkVersion();
 
+    const firstRecheck = window.setTimeout(() => void checkVersion(), FIRST_RECHECK_MS);
     const interval = window.setInterval(() => void checkVersion(), POLL_MS);
 
     const onFocus = () => void checkVersion();
@@ -94,6 +115,7 @@ export function AppVersionUpdateBanner() {
     document.addEventListener("visibilitychange", onVisible);
 
     return () => {
+      window.clearTimeout(firstRecheck);
       window.clearInterval(interval);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
@@ -135,7 +157,7 @@ export function AppVersionUpdateBanner() {
     <>
       <div
         ref={bannerRef}
-        className="fixed top-0 left-0 right-0 z-[100] border-b border-emerald-500/30 bg-emerald-950 px-3 py-2.5 text-center text-sm text-emerald-50 shadow-sm sm:px-4 dark:border-emerald-400/25 dark:bg-neutral-950"
+        className="fixed top-0 left-0 right-0 z-[200] border-b border-emerald-500/30 bg-emerald-950 px-3 py-2.5 text-center text-sm text-emerald-50 shadow-sm sm:px-4 dark:border-emerald-400/25 dark:bg-neutral-950"
         role="status"
         aria-live="polite"
       >
@@ -146,7 +168,10 @@ export function AppVersionUpdateBanner() {
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                clearSnooze();
+                window.location.reload();
+              }}
               className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500 sm:text-sm"
             >
               <svg
@@ -169,7 +194,8 @@ export function AppVersionUpdateBanner() {
             <button
               type="button"
               onClick={() => {
-                snoozeBanner();
+                const sid = pendingServerIdRef.current;
+                if (sid) snoozeBanner(sid);
                 setShow(false);
               }}
               className="rounded-md px-2 py-1.5 text-xs font-medium text-emerald-200/80 underline-offset-2 transition hover:text-emerald-50 hover:underline dark:text-neutral-400 dark:hover:text-neutral-200 sm:text-sm"
@@ -179,7 +205,6 @@ export function AppVersionUpdateBanner() {
           </div>
         </div>
       </div>
-      {/* Reserva espaço no fluxo do documento (padding das páginas usa a mesma variável) */}
       <div aria-hidden className="pointer-events-none shrink-0" style={{ height: offset }} />
     </>
   );
