@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const CLIENT_BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID ?? "dev";
 const POLL_MS = 90_000;
 const SNOOZE_MS = 2 * 60 * 60 * 1000;
 const SNOOZE_KEY = "dropcore-version-snooze-until";
 const PREVIEW_KEY = "dropcore-version-banner-preview";
-const BANNER_HEIGHT_PX = 52;
 
 function isDevBuildId(id: string): boolean {
   return id === "dev" || id === "local" || id.startsWith("local-");
@@ -32,6 +31,11 @@ function snoozeBanner(): void {
   sessionStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_MS));
 }
 
+function setBannerOffset(px: number): void {
+  document.documentElement.style.setProperty("--app-version-banner-offset", `${px}px`);
+  document.documentElement.toggleAttribute("data-version-banner", px > 0);
+}
+
 async function fetchServerBuildId(): Promise<string | null> {
   try {
     const res = await fetch("/api/app-version", { cache: "no-store" });
@@ -45,10 +49,11 @@ async function fetchServerBuildId(): Promise<string | null> {
 
 /**
  * Faixa fixa no topo (estilo MyLine) quando há deploy novo (buildId do servidor ≠ build do browser).
- * Em dev não aparece, salvo ?versionBannerPreview=1 para testar layout.
+ * Mede a altura real para o menu fixo descer junto. Em dev: ?versionBannerPreview=1
  */
 export function AppVersionUpdateBanner() {
   const [show, setShow] = useState(false);
+  const bannerRef = useRef<HTMLDivElement>(null);
 
   const checkVersion = useCallback(async () => {
     if (isPreviewForced()) {
@@ -96,28 +101,46 @@ export function AppVersionUpdateBanner() {
   }, [checkVersion]);
 
   useEffect(() => {
-    if (typeof document === "undefined") return;
-    document.documentElement.style.setProperty(
-      "--app-version-banner-offset",
-      show ? `${BANNER_HEIGHT_PX}px` : "0px",
-    );
+    if (!show) {
+      setBannerOffset(0);
+      return;
+    }
+
+    const el = bannerRef.current;
+    if (!el) return;
+
+    const syncHeight = () => {
+      const h = Math.ceil(el.getBoundingClientRect().height);
+      setBannerOffset(h > 0 ? h : 0);
+    };
+
+    syncHeight();
+
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncHeight) : null;
+    ro?.observe(el);
+    window.addEventListener("resize", syncHeight);
+
     return () => {
-      document.documentElement.style.setProperty("--app-version-banner-offset", "0px");
+      ro?.disconnect();
+      window.removeEventListener("resize", syncHeight);
+      setBannerOffset(0);
     };
   }, [show]);
 
   if (!show) return null;
 
+  const offset = "var(--app-version-banner-offset, 0px)";
+
   return (
     <>
       <div
-        className="fixed top-0 left-0 right-0 z-[9999] border-b border-emerald-900/30 bg-[#0f172a] px-3 py-2.5 text-center text-sm text-white shadow-md sm:px-4"
+        ref={bannerRef}
+        className="fixed top-0 left-0 right-0 z-[100] border-b border-emerald-500/30 bg-emerald-950 px-3 py-2.5 text-center text-sm text-emerald-50 shadow-sm sm:px-4 dark:border-emerald-400/25 dark:bg-neutral-950"
         role="status"
         aria-live="polite"
-        style={{ minHeight: BANNER_HEIGHT_PX }}
       >
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-center gap-2 sm:flex-row sm:gap-4">
-          <p className="leading-snug text-white/95">
+          <p className="leading-snug text-emerald-50/95 dark:text-neutral-200">
             Nova versão do DropCore disponível. Atualize para usar as últimas melhorias e correções.
           </p>
           <div className="flex shrink-0 items-center gap-2">
@@ -149,15 +172,15 @@ export function AppVersionUpdateBanner() {
                 snoozeBanner();
                 setShow(false);
               }}
-              className="rounded-md px-2 py-1.5 text-xs font-medium text-white/75 underline-offset-2 transition hover:text-white hover:underline sm:text-sm"
+              className="rounded-md px-2 py-1.5 text-xs font-medium text-emerald-200/80 underline-offset-2 transition hover:text-emerald-50 hover:underline dark:text-neutral-400 dark:hover:text-neutral-200 sm:text-sm"
             >
               Lembrar mais tarde
             </button>
           </div>
         </div>
       </div>
-      {/* Empurra conteúdo fixo (nav top) para baixo da faixa */}
-      <div aria-hidden className="pointer-events-none" style={{ height: BANNER_HEIGHT_PX }} />
+      {/* Reserva espaço no fluxo do documento (padding das páginas usa a mesma variável) */}
+      <div aria-hidden className="pointer-events-none shrink-0" style={{ height: offset }} />
     </>
   );
 }

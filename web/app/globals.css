@@ -8,10 +8,20 @@ html {
   --app-version-banner-offset: 0px;
 }
 
-/* Faixa “nova versão” (MyLine): barras fixas no topo descem junto */
+/* Faixa “nova versão”: barras fixas no topo descem junto com a altura medida */
 nav.fixed.top-0.left-0.right-0.z-40,
 header.fixed.top-0.left-0.right-0.z-40 {
   top: var(--app-version-banner-offset);
+}
+
+/* Shell das páginas (fornecedor/seller/admin): padding extra quando a faixa está visível */
+html[data-version-banner] .min-h-screen.app-bg {
+  padding-top: calc(3.5rem + env(safe-area-inset-top, 0px) + var(--app-version-banner-offset, 0px)) !important;
+}
+@media (min-width: 768px) {
+  html[data-version-banner] .min-h-screen.app-bg {
+    padding-top: calc(3.5rem + var(--app-version-banner-offset, 0px)) !important;
+  }
 }
 /* Tabelas / blocos largos: scroll horizontal com inércia no iOS */
 .dropcore-scroll-x {
