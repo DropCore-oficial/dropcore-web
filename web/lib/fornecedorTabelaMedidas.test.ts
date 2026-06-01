@@ -7,6 +7,7 @@ import {
   mergeTabelaMedidasPayload,
   padTabelaMedidasComTamanhos,
   syncMedidasLinhasComTamanhos,
+  tamanhosFaltantesNaTabelaMedidas,
   tamanhosOrdenadosTabelaMedidas,
   valorTopicoFromMedida,
 } from "./fornecedorTabelaMedidas";
@@ -95,5 +96,13 @@ describe("medidasFormToTabelaMedidas", () => {
     );
     expect(merged?.medidas.M).toEqual({ cintura: 40, busto: 50 });
     expect(merged?.medidas.P).toEqual({ busto: 48 });
+  });
+
+  it("lista tamanhos sem nenhuma medida numérica", () => {
+    const faltando = tamanhosFaltantesNaTabelaMedidas(
+      { P: { busto: 50 }, M: {} },
+      ["P", "M", "G"]
+    );
+    expect(faltando).toEqual(["M", "G"]);
   });
 });

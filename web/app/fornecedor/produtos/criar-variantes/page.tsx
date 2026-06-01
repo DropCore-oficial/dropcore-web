@@ -24,6 +24,7 @@ import {
   medidasLinhasFromTabelaPayload,
   syncMedidasLinhasComTamanhos,
   tabelaMedidasFromDetalhesJson,
+  tamanhosFaltantesNaTabelaMedidas,
   valorTopicoFromMedida,
   type TabelaMedidasPayload,
 } from "@/lib/fornecedorTabelaMedidas";
@@ -891,6 +892,14 @@ export default function CriarVariantesPage() {
     if (!payload) {
       setFormError(
         "Preencha os valores em centímetros na tabela (cada tamanho precisa de ao menos uma medida numérica)."
+      );
+      setTabAtiva("medidas");
+      return;
+    }
+    const faltando = tamanhosFaltantesNaTabelaMedidas(payload.medidas, tamanhosFinais);
+    if (faltando.length > 0) {
+      setFormError(
+        `Preencha medidas para todos os tamanhos antes de salvar. Faltam: ${faltando.join(", ")}.`
       );
       setTabAtiva("medidas");
       return;
@@ -1771,6 +1780,16 @@ export default function CriarVariantesPage() {
       );
       setTabAtiva("medidas");
       return;
+    }
+    if (exigeMedidas && tabelaMedidasPreview && tamanhosFinais.length > 0) {
+      const faltando = tamanhosFaltantesNaTabelaMedidas(tabelaMedidasPreview.medidas, tamanhosFinais);
+      if (faltando.length > 0) {
+        setFormError(
+          `Preencha medidas para todos os tamanhos na aba Medidas. Faltam: ${faltando.join(", ")}.`
+        );
+        setTabAtiva("medidas");
+        return;
+      }
     }
     const temValoresMedida = topicosMedidaFinais.some((topico) =>
       medidasSincronizadas.some((m) => valorTopicoFromMedida(m, topico) != null)

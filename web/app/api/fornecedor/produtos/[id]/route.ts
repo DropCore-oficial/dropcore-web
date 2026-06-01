@@ -189,7 +189,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     let tabelaPublicada = false;
     if (tabelaMedidas) {
       const gk = skuPaiDoBloco(String(sku.sku ?? ""));
-      await upsertProdutoTabelaMedidas(supabaseAdmin, gk, tabelaMedidas);
+      await upsertProdutoTabelaMedidas(supabaseAdmin, gk, tabelaMedidas, {
+        org_id: ctx.org_id,
+        fornecedor_id: ctx.fornecedor_id,
+      });
       tabelaPublicada = true;
     }
 

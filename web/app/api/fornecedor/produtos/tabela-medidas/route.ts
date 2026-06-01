@@ -4,7 +4,9 @@
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { parseTabelaMedidasRecord } from "@/lib/fornecedorTabelaMedidas";
+import { parseTabelaMedidasRecord, tamanhosFaltantesNaTabelaMedidas } from "@/lib/fornecedorTabelaMedidas";
+import { mergeDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
+import { ordenarTamanhosLista } from "@/lib/fornecedorVariantesUi";
 import {
   fornecedorPossuiGrupoSku,
   getProdutoTabelaMedidas,
@@ -129,9 +131,60 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Grupo não encontrado ou não pertence a você." }, { status: 404 });
     }
 
-    await upsertProdutoTabelaMedidas(supabaseAdmin, grupoKey, payload);
+    const prefix = grupoKey.length >= 6 ? grupoKey.slice(0, -3) : grupoKey;
+    const { data: skusGrupo } = await supabaseAdmin
+      .from("skus")
+      .select("tamanho")
+      .eq("org_id", ctx.org_id)
+      .eq("fornecedor_id", ctx.fornecedor_id)
+      .ilike("sku", `${prefix}%`);
+    const tamanhosEsperados = ordenarTamanhosLista(
+      [...new Set((skusGrupo ?? []).map((s) => String(s.tamanho ?? "").trim().toUpperCase()).filter(Boolean))]
+    );
+    const faltando = tamanhosFaltantesNaTabelaMedidas(payload.medidas, tamanhosEsperados);
+    if (faltando.length > 0) {
+      return NextResponse.json(
+        {
+          error: `Preencha medidas para todos os tamanhos do produto. Faltam: ${faltando.join(", ")}.`,
+          tamanhos_faltando: faltando,
+        },
+        { status: 400 }
+      );
+    }
 
-    return NextResponse.json({ ok: true, grupo_key: grupoKey });
+    await upsertProdutoTabelaMedidas(supabaseAdmin, grupoKey, payload, {
+      org_id: ctx.org_id,
+      fornecedor_id: ctx.fornecedor_id,
+    });
+
+    const linhasMedidas = tamanhosEsperados.map((tam) => ({
+      tamanho: tam,
+      ...(payload.medidas[tam] ?? {}),
+    }));
+    const { data: paiSku } = await supabaseAdmin
+      .from("skus")
+      .select("id, detalhes_produto_json")
+      .eq("org_id", ctx.org_id)
+      .eq("fornecedor_id", ctx.fornecedor_id)
+      .eq("sku", grupoKey)
+      .maybeSingle();
+    if (paiSku?.id) {
+      const detalhesAtual = (paiSku.detalhes_produto_json as Record<string, unknown> | null) ?? {};
+      const medidasAtual = (detalhesAtual.medidas as Record<string, unknown> | undefined) ?? {};
+      const detalhesNovos = mergeDetalhesProdutoJson(detalhesAtual, {
+        medidas: {
+          ...medidasAtual,
+          linhas: linhasMedidas,
+        },
+      });
+      await supabaseAdmin
+        .from("skus")
+        .update({ detalhes_produto_json: detalhesNovos })
+        .eq("id", paiSku.id)
+        .eq("org_id", ctx.org_id);
+    }
+
+    return NextResponse.json({ ok: true, grupo_key: grupoKey, tamanhos: tamanhosEsperados });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro inesperado" }, { status: 500 });
   }

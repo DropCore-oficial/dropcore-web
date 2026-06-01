@@ -183,10 +183,15 @@ export async function POST(
       })();
       const tipoProduto = typeof tabelaMedidas.tipo_produto === "string" ? tabelaMedidas.tipo_produto.trim() || "generico" : "generico";
       try {
-        await upsertProdutoTabelaMedidas(supabaseAdmin, grupoSku, {
-          tipo_produto: tipoProduto,
-          medidas: tabelaMedidas.medidas as Record<string, Record<string, number>>,
-        });
+        await upsertProdutoTabelaMedidas(
+          supabaseAdmin,
+          grupoSku,
+          {
+            tipo_produto: tipoProduto,
+            medidas: tabelaMedidas.medidas as Record<string, Record<string, number>>,
+          },
+          { org_id, fornecedor_id: alteracao.fornecedor_id }
+        );
       } catch (upsertErr) {
         return NextResponse.json(
           { error: upsertErr instanceof Error ? upsertErr.message : "Erro ao salvar tabela de medidas." },

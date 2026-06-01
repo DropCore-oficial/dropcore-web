@@ -12,6 +12,7 @@ import { toTitleCase } from "@/lib/formatText";
 import { CORES_PREDEFINIDAS, TAMANHOS_PREDEFINIDOS } from "@/lib/fornecedorVariantesUi";
 import { VarianteExtrasTagInput } from "@/components/VarianteExtrasTagInput";
 import { inferirTipo, getColunasTabelaMedidas } from "@/lib/tipoProduto";
+import { tamanhosFaltantesNaTabelaMedidas } from "@/lib/fornecedorTabelaMedidas";
 import {
   AMBER_PREMIUM_LINK,
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
@@ -538,6 +539,13 @@ export default function EditarVariantesPage() {
     }
     if (Object.keys(medidas).length === 0) {
       setFormError("Preencha ao menos um valor numérico na tabela antes de salvar.");
+      return;
+    }
+    const faltando = tamanhosFaltantesNaTabelaMedidas(medidas, tamanhosOrdenados);
+    if (faltando.length > 0) {
+      setFormError(
+        `Preencha medidas para todos os tamanhos antes de salvar. Faltam: ${faltando.join(", ")}.`
+      );
       return;
     }
     setTabelaMedidasSaving(true);
@@ -1427,7 +1435,7 @@ export default function EditarVariantesPage() {
                     Tipo inferido: {tipoProduto}
                   </span>
                   <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                    Alterações passam por aprovação do admin
+                    Salva na hora — visível no catálogo do seller
                   </span>
                 </div>
                 <p className="text-xs text-neutral-600 dark:text-neutral-400">

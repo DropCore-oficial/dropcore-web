@@ -261,3 +261,19 @@ export function tamanhosOrdenadosTabelaMedidas(
 ): string[] {
   return ordenarTamanhosLista(Object.keys(medidas));
 }
+
+/** Tamanhos do catálogo sem nenhum valor numérico na tabela (para validar save completo). */
+export function tamanhosFaltantesNaTabelaMedidas(
+  medidas: Record<string, Record<string, number>>,
+  tamanhosEsperados: string[]
+): string[] {
+  const faltando: string[] = [];
+  for (const tam of tamanhosEsperados) {
+    const k = tam.trim().toUpperCase();
+    if (!k) continue;
+    const row = medidas[k] ?? {};
+    const temValor = Object.values(row).some((v) => typeof v === "number" && Number.isFinite(v));
+    if (!temValor) faltando.push(k);
+  }
+  return ordenarTamanhosLista(faltando);
+}

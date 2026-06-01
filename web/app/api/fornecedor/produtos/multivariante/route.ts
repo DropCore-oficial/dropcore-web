@@ -453,7 +453,10 @@ export async function POST(req: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     if (tabelaMedidasPayload) {
-      await upsertProdutoTabelaMedidas(supabaseAdmin, skuPai, tabelaMedidasPayload);
+      await upsertProdutoTabelaMedidas(supabaseAdmin, skuPai, tabelaMedidasPayload, {
+        org_id: ctx.org_id,
+        fornecedor_id: ctx.fornecedor_id,
+      });
     }
 
     const fiscalPatch: Record<string, unknown> = {};

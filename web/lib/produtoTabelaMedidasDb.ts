@@ -1,6 +1,5 @@
 /**
- * Acesso a `produto_tabela_medidas` — schema de produção usa `grupo_key` (PK),
- * sem `org_id` / `fornecedor_id` / `grupo_sku`.
+ * Acesso a produto_tabela_medidas — schema de produção: PK grupo_key, tipo_produto, medidas.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -9,10 +8,20 @@ export type TabelaMedidasRow = {
   medidas: Record<string, Record<string, number>>;
 };
 
+export type TabelaMedidasUpsertContext = {
+  org_id?: string;
+  fornecedor_id?: string;
+};
+
 function paiKey(sku: string): string {
   const s = (sku || "").trim().toUpperCase();
   const m = s.match(/^([A-Z]+)(\d{3})(\d{3})$/);
   return m ? `${m[1]}${m[2]}000` : s;
+}
+
+function isNullConstraintOnColumn(msg: string, column: string): boolean {
+  const lower = msg.toLowerCase();
+  return lower.includes("null value") && lower.includes(column.toLowerCase());
 }
 
 /** Confirma que o grupo pertence ao fornecedor (via SKUs do catálogo). */
@@ -83,30 +92,45 @@ export async function getProdutoTabelaMedidas(
 export async function upsertProdutoTabelaMedidas(
   sb: SupabaseClient,
   grupoKey: string,
-  payload: TabelaMedidasRow
+  payload: TabelaMedidasRow,
+  ctx?: TabelaMedidasUpsertContext
 ): Promise<void> {
   const gk = grupoKey.trim().toUpperCase();
-  const { error } = await sb.from("produto_tabela_medidas").upsert(
-    {
+  const base = {
+    tipo_produto: payload.tipo_produto,
+    medidas: payload.medidas,
+    atualizado_em: new Date().toISOString(),
+  };
+
+  const canonical = { grupo_key: gk, ...base };
+  const { error: canonicalErr } = await sb
+    .from("produto_tabela_medidas")
+    .upsert(canonical, { onConflict: "grupo_key" });
+  if (!canonicalErr) return;
+
+  const msg = canonicalErr.message ?? "";
+
+  if (
+    ctx?.fornecedor_id &&
+    isNullConstraintOnColumn(msg, "fornecedor_id")
+  ) {
+    const legacy = {
       grupo_key: gk,
-      tipo_produto: payload.tipo_produto,
-      medidas: payload.medidas,
-      atualizado_em: new Date().toISOString(),
-    },
-    { onConflict: "grupo_key" }
-  );
-  if (error) {
-    const msg = error.message ?? "";
-    if (msg.includes("fornecedor_id") && msg.includes("produto_tabela_medidas")) {
-      throw new Error(
-        "O servidor ainda está com código antigo (coluna fornecedor_id). Atualize a página com Ctrl+Shift+R. Em localhost, pare e rode de novo: npm run dev na pasta web. Em produção, aguarde 2 min o deploy do dropcore-web."
-      );
-    }
-    throw error;
+      fornecedor_id: ctx.fornecedor_id,
+      org_id: ctx.org_id ?? null,
+      ...base,
+    };
+    const { error: legacyErr } = await sb
+      .from("produto_tabela_medidas")
+      .upsert(legacy, { onConflict: "grupo_key" });
+    if (!legacyErr) return;
+    throw legacyErr;
   }
+
+  throw canonicalErr;
 }
 
-/** Remove tabelas cujo `grupo_key` corresponde a SKUs do fornecedor. */
+/** Remove tabelas cujo grupo_key corresponde a SKUs do fornecedor. */
 export async function deleteProdutoTabelaMedidasForFornecedor(
   sb: SupabaseClient,
   orgId: string,
