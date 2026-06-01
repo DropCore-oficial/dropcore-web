@@ -23,10 +23,6 @@ function isPreviewForced(): boolean {
   return sessionStorage.getItem(PREVIEW_KEY) === "1";
 }
 
-function getLoadedBuildId(): string {
-  return CLIENT_BUILD_ID;
-}
-
 function isSnoozedFor(serverId: string): boolean {
   if (typeof window === "undefined") return false;
   const until = Number(sessionStorage.getItem(SNOOZE_KEY) ?? 0);
