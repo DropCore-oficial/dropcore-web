@@ -22,8 +22,12 @@ export function normalizarFornecedoresSellerApi(raw: unknown): FornecedorSellerL
 
 /** Linha vinda do Supabase (lista) → payload seguro para o painel seller */
 export function mapFornecedorRowSellerPublico(row: Record<string, unknown>) {
-  const cidade = row.endereco_cidade != null ? String(row.endereco_cidade).trim() : "";
-  const uf = row.endereco_uf != null ? String(row.endereco_uf).trim() : "";
+  const cidadeExpedicao = row.expedicao_cidade != null ? String(row.expedicao_cidade).trim() : "";
+  const ufExpedicao = row.expedicao_uf != null ? String(row.expedicao_uf).trim() : "";
+  const cidadeMatriz = row.endereco_cidade != null ? String(row.endereco_cidade).trim() : "";
+  const ufMatriz = row.endereco_uf != null ? String(row.endereco_uf).trim() : "";
+  const cidade = cidadeExpedicao || cidadeMatriz;
+  const uf = ufExpedicao || ufMatriz;
   const local = [cidade, uf].filter(Boolean).join("/");
   return {
     id: String(row.id ?? ""),

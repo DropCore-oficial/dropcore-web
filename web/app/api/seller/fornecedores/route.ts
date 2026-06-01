@@ -68,8 +68,9 @@ export async function GET(req: Request) {
 
     /** Lista sem CNPJ/e-mail/telefone — só nome público e local resumido (vários SELECT por compatibilidade de colunas). */
     const selectTries: string[] = [
-      "id, nome, nome_exibicao, status, premium, endereco_cidade, endereco_uf, criado_em, sla_postagem_dias, janela_validacao_dias",
-      "id, nome, status, premium, endereco_cidade, endereco_uf, criado_em, sla_postagem_dias, janela_validacao_dias",
+      "id, nome, nome_exibicao, status, premium, endereco_cidade, endereco_uf, expedicao_cidade, expedicao_uf, criado_em, sla_postagem_dias, janela_validacao_dias",
+      "id, nome, status, premium, endereco_cidade, endereco_uf, expedicao_cidade, expedicao_uf, criado_em, sla_postagem_dias, janela_validacao_dias",
+      "id, nome, status, premium, endereco_cidade, endereco_uf, expedicao_cidade, expedicao_uf",
       "id, nome, status, premium, endereco_cidade, endereco_uf",
       "id, nome, status",
     ];
