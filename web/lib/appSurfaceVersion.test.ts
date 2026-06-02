@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import path from "path";
-import { computeSurfaceBuildIds } from "./appSurfaceVersion";
+import { computeSurfaceBuildIds } from "./computeSurfaceBuildIds.server";
 
 describe("computeSurfaceBuildIds", () => {
   it("gera ids distintos por portal quando as pastas existem", () => {

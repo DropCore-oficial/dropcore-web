@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 import path from "path";
-import { computeSurfaceBuildIds } from "./lib/appSurfaceVersion";
+import { computeSurfaceBuildIds } from "./lib/computeSurfaceBuildIds.server";
 
 const appBuildId =
   process.env.VERCEL_GIT_COMMIT_SHA?.trim()?.slice(0, 12) ||
