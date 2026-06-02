@@ -37,6 +37,8 @@ export async function GET(req: Request) {
       (url.searchParams.get("grupo") ?? url.searchParams.get("pai_key") ?? url.searchParams.get("grupoKey") ?? "")
         .trim()
         .toUpperCase() || null;
+    const categoriaOlistParam = (url.searchParams.get("categoria") ?? url.searchParams.get("categoria_olist") ?? "")
+      .trim() || null;
 
     const { data: sellerRow, error: sellerErr } = await supabaseAdmin
       .from("sellers")
@@ -133,6 +135,10 @@ export async function GET(req: Request) {
         },
         { status: 400 },
       );
+    }
+
+    if (categoriaOlistParam) {
+      filtered = filtered.map((item) => ({ ...item, categoria: categoriaOlistParam }));
     }
 
     if (filtered.length > MAX_ROWS) {

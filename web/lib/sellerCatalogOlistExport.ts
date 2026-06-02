@@ -28,7 +28,8 @@ export type CatalogSkuForOlistExport = {
 /** @deprecated Use OLIST_TINY_PRODUTOS_IMPORT_HEADERS */
 export const OLIST_PRODUTOS_CSV_HEADERS = OLIST_TINY_PRODUTOS_IMPORT_HEADERS;
 
-const SEP = ";";
+/** Planilha oficial Olist/Tiny: vírgula + campos entre aspas. */
+const SEP = ",";
 
 function str(v: unknown): string {
   if (v == null) return "";
@@ -37,10 +38,22 @@ function str(v: unknown): string {
 
 function csvCampo(v: unknown): string {
   const s = v == null ? "" : String(v);
-  if (s.includes('"') || s.includes(SEP) || s.includes("\n") || s.includes("\r")) {
-    return `"${s.replace(/"/g, '""')}"`;
-  }
-  return s;
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+function isDirectImageUrl(url: string): boolean {
+  return /^https?:\/\/.+\.(jpe?g|png|webp|gif)(\?.*)?$/i.test(url.trim());
+}
+
+/** Olist só aceita categoria com caminho `Nível 1 > Nível 2` já existente no ERP. */
+export function categoriaOlist(categoria: string | null): string {
+  const c = str(categoria);
+  if (!c || !c.includes(">")) return "";
+  return c
+    .split(">")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" > ");
 }
 
 function isSementeSku(sku: string, nome: string, cor: string, tam: string): boolean {
@@ -64,11 +77,11 @@ export function paiKeyFromSku(sku: string): string {
 function parseFotoUrls(imagem_url: string | null, link_fotos: string | null): string[] {
   const out: string[] = [];
   const main = str(imagem_url);
-  if (main && /^https?:\/\//i.test(main)) out.push(main);
+  if (main && isDirectImageUrl(main)) out.push(main);
   const raw = str(link_fotos);
   if (raw) {
     for (const chunk of raw.split(/(?:\r?\n|[,;|])+/).map((x) => x.trim()).filter(Boolean)) {
-      if (/^https?:\/\//i.test(chunk)) out.push(chunk);
+      if (isDirectImageUrl(chunk)) out.push(chunk);
     }
   }
   return [...new Set(out)].slice(0, 10);
@@ -203,9 +216,8 @@ function applyFotosToRow(row: OlistTinyProdutosImportRow, fotos: string[]): void
 }
 
 function permitirVendasCell(item: CatalogSkuForOlistExport): string {
-  if (item.habilitado_venda === true) return "Sim";
   if (item.habilitado_venda === false) return "Não";
-  return "";
+  return "Sim";
 }
 
 function baseCells(item: CatalogSkuForOlistExport, opts?: { margemPct?: number; fallbackCusto?: number | null }): OlistTinyProdutosImportRow {
@@ -237,9 +249,10 @@ function baseCells(item: CatalogSkuForOlistExport, opts?: { margemPct?: number; 
   row["Código do pai"] = "";
   row.Variações = buildAtributos(item.cor, item.tamanho);
   row.Marca = "";
-  row.Categoria = str(item.categoria);
+  row.Categoria = categoriaOlist(item.categoria);
   row["Sob encomenda"] = "Não";
   row["Preço promocional"] = "";
+  row["Controlar lotes"] = "Não";
   row["Permitir inclusão nas vendas"] = permitirVendasCell(item);
   applyFotosToRow(row, fotos);
   return row;
@@ -255,7 +268,7 @@ export function buildOlistProdutosCsvLines(
 ): string[] {
   const margemPct = opts?.margemPct ?? 0;
   const grupos = agruparItens(items);
-  const lines: string[] = [OLIST_TINY_PRODUTOS_IMPORT_HEADERS.join(SEP)];
+  const lines: string[] = [OLIST_TINY_PRODUTOS_IMPORT_HEADERS.map((h) => csvCampo(h)).join(SEP)];
 
   for (const g of grupos) {
     const paiSku = g.pai?.sku ? str(g.pai.sku) : g.paiKey;
@@ -282,6 +295,8 @@ export function buildOlistProdutosCsvLines(
       paiCells["Tipo do produto"] = "V";
       paiCells.Variações = "";
       paiCells.Estoque = "0";
+      paiCells["Preço de custo"] = "0";
+      paiCells["Permitir inclusão nas vendas"] = "Sim";
       lines.push(rowToCells(paiCells).join(SEP));
 
       for (const filho of g.filhos) {
@@ -289,6 +304,7 @@ export function buildOlistProdutosCsvLines(
         child["Tipo do produto"] = "S";
         child["Código do pai"] = paiSku;
         child.Variações = buildAtributos(filho.cor, filho.tamanho);
+        child["Preço de custo"] = "";
         lines.push(rowToCells(child).join(SEP));
       }
       continue;

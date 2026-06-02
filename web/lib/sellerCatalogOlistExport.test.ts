@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildOlistProdutosCsvLines,
+  categoriaOlist,
   filterSkusByGrupo,
   filterSkusForOlistExport,
   formatNcmOlist,
@@ -8,13 +9,46 @@ import {
 } from "./sellerCatalogOlistExport";
 import { OLIST_TINY_PRODUTOS_IMPORT_HEADERS } from "./olistTinyProdutosImportTemplate";
 
+function parseOlistCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]!;
+    if (c === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (c === "," && !inQuotes) {
+      out.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
+function col(line: string, header: (typeof OLIST_TINY_PRODUTOS_IMPORT_HEADERS)[number]): string {
+  const cols = parseOlistCsvLine(line);
+  return cols[OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf(header)] ?? "";
+}
+
 describe("sellerCatalogOlistExport", () => {
-  it("formata NCM e descrição no padrão Olist", () => {
+  it("formata NCM, descrição e categoria no padrão Olist", () => {
     expect(formatNcmOlist("61052000")).toBe("6105.20.00");
     expect(formatNcmOlist("95030080")).toBe("9503.00.80");
     expect(sanitizeDescricaoOlist("Gola Padre | Para Os Dias Quentes")).toBe(
       "Gola Padre — Para Os Dias Quentes",
     );
+    expect(categoriaOlist("Camisa Social")).toBe("");
+    expect(categoriaOlist("Vestuários > Camisetas")).toBe("Vestuários > Camisetas");
   });
 
   it("usa cabeçalhos do modelo Olist ERP (64 colunas, imagens e variações)", () => {
@@ -101,28 +135,21 @@ describe("sellerCatalogOlistExport", () => {
       },
     ]);
     expect(lines.length).toBe(3);
-    expect(lines[0]).toBe(OLIST_TINY_PRODUTOS_IMPORT_HEADERS.join(";"));
-    const headerCount = OLIST_TINY_PRODUTOS_IMPORT_HEADERS.length;
-    const paiCols = lines[1]!.split(";");
-    const filhoCols = lines[2]!.split(";");
-    expect(paiCols).toHaveLength(headerCount);
-    expect(filhoCols).toHaveLength(headerCount);
-    expect(paiCols[29]).toBe("V");
-    expect(filhoCols[29]).toBe("S");
-    expect(filhoCols[37]).toBe("CAM000");
-    expect(filhoCols[38]).toContain("Cor:Azul");
-    expect(filhoCols[30]).toBe("https://cdn.example.com/f.jpg");
-    expect(paiCols[OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Unidade")]).toBe("Un");
-    expect(paiCols[OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("NCM (Classificação fiscal)")]).toBe(
-      "6109.10.00",
-    );
-    const precoIdx = OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Preço");
-    const custoIdx = OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Preço de custo");
-    expect(precoIdx).toBeGreaterThanOrEqual(0);
-    expect(filhoCols[precoIdx]).toBe("12.00");
-    expect(filhoCols[custoIdx]).toBe("12.00");
-    const origemIdx = OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Origem");
-    expect(filhoCols[origemIdx]).toBe("0");
+    expect(lines[0]).toBe(OLIST_TINY_PRODUTOS_IMPORT_HEADERS.map((h) => `"${h}"`).join(","));
+    expect(parseOlistCsvLine(lines[1]!)).toHaveLength(OLIST_TINY_PRODUTOS_IMPORT_HEADERS.length);
+    expect(col(lines[1]!, "Tipo do produto")).toBe("V");
+    expect(col(lines[2]!, "Tipo do produto")).toBe("S");
+    expect(col(lines[2]!, "Código do pai")).toBe("CAM000");
+    expect(col(lines[2]!, "Variações")).toContain("Cor:Azul");
+    expect(col(lines[2]!, "URL imagem 1")).toBe("https://cdn.example.com/f.jpg");
+    expect(col(lines[1]!, "Unidade")).toBe("Un");
+    expect(col(lines[1]!, "NCM (Classificação fiscal)")).toBe("6109.10.00");
+    expect(col(lines[2]!, "Preço")).toBe("12.00");
+    expect(col(lines[1]!, "Preço de custo")).toBe("0");
+    expect(col(lines[2]!, "Preço de custo")).toBe("");
+    expect(col(lines[2]!, "Origem")).toBe("0");
+    expect(col(lines[1]!, "Categoria")).toBe("");
+    expect(col(lines[1]!, "Controlar lotes")).toBe("Não");
   });
 
   it("remove pipe da descrição longa do fornecedor", () => {
@@ -158,7 +185,7 @@ describe("sellerCatalogOlistExport", () => {
         origem: "0",
       },
     ]);
-    const desc = lines[2]!.split(";")[OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Descrição")];
+    const desc = col(lines[2]!, "Descrição");
     expect(desc).not.toContain("|");
     expect(desc).toContain("Gola Padre — Para Os Dias Quentes");
   });
@@ -181,9 +208,8 @@ describe("sellerCatalogOlistExport", () => {
         origem: "Nacional",
       },
     ]);
-    const cols = lines[1]!.split(";");
-    expect(cols[OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Origem")]).toBe("0");
-    expect(cols[OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Preço")]).toBe("10.00");
+    expect(col(lines[1]!, "Origem")).toBe("0");
+    expect(col(lines[1]!, "Preço")).toBe("10.00");
   });
 
   it("aplica margem de markup no preço de venda", () => {
@@ -207,8 +233,6 @@ describe("sellerCatalogOlistExport", () => {
       ],
       { margemPct: 50 },
     );
-    const cols = lines[1]!.split(";");
-    const precoIdx = OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Preço");
-    expect(cols[precoIdx]).toBe("150.00");
+    expect(col(lines[1]!, "Preço")).toBe("150.00");
   });
 });
