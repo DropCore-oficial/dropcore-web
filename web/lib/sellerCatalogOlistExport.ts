@@ -114,10 +114,10 @@ export function normalizeOrigemOlist(origem: string | null): string {
   return "0";
 }
 
-/** Decimais no padrão da planilha modelo Olist (ponto: ex. 79.99). */
+/** Decimais BR na importação Olist (vírgula: ex. 34,50). Ponto quebra com "Preço inválido". */
 function formatDecimalOlist(value: number): string {
   const n = Math.round(value * 100) / 100;
-  return n.toFixed(2);
+  return n.toFixed(2).replace(".", ",");
 }
 
 function resolveCustoUnit(item: CatalogSkuForOlistExport, fallbackCusto?: number | null): number | null {
@@ -295,7 +295,7 @@ export function buildOlistProdutosCsvLines(
       paiCells["Tipo do produto"] = "V";
       paiCells.Variações = "";
       paiCells.Estoque = "0";
-      paiCells["Preço de custo"] = "0";
+      paiCells["Preço de custo"] = "0,00";
       paiCells["Permitir inclusão nas vendas"] = "Sim";
       lines.push(rowToCells(paiCells).join(SEP));
 
