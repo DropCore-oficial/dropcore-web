@@ -146,7 +146,7 @@ describe("sellerCatalogOlistExport", () => {
     expect(col(lines[1]!, "NCM (Classificação fiscal)")).toBe("6109.10.00");
     expect(col(lines[2]!, "Preço")).toBe("0,00");
     expect(col(lines[1]!, "Preço")).toBe("0,00");
-    expect(col(lines[1]!, "Preço de custo")).toBe("0,00");
+    expect(col(lines[1]!, "Preço de custo")).toBe("12,00");
     expect(col(lines[2]!, "Preço de custo")).toBe("12,00");
     expect(col(lines[2]!, "Origem")).toBe("0");
     expect(col(lines[1]!, "Categoria")).toBe("");

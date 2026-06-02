@@ -299,7 +299,6 @@ export function buildOlistProdutosCsvLines(
       paiCells.Variações = "";
       paiCells.Estoque = "0";
       paiCells.Preço = PRECO_VENDA_ZERADO_OLIST;
-      paiCells["Preço de custo"] = PRECO_VENDA_ZERADO_OLIST;
       paiCells["Permitir inclusão nas vendas"] = "Sim";
       lines.push(rowToCells(paiCells).join(SEP));
 
