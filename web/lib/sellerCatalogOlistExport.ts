@@ -79,18 +79,22 @@ function normalizeNcm(ncm: string | null): string {
   return digits.slice(0, 8);
 }
 
-function normalizeOrigem(origem: string | null): string {
+/** Código de origem NF-e (0–8) — planilha Olist não aceita só o texto "Nacional". */
+export function normalizeOrigemOlist(origem: string | null): string {
   const o = str(origem);
   if (!o) return "0";
-  if (/^\d$/.test(o)) return o;
-  if (o.startsWith("0")) return o;
-  return o;
+  if (/^[0-8]$/.test(o)) return o;
+  const prefixo = o.match(/^([0-8])\s*-/);
+  if (prefixo) return prefixo[1];
+  const lower = o.toLowerCase();
+  if (lower.includes("nacional") && !lower.includes("estrangeir")) return "0";
+  return "0";
 }
 
-/** Formato brasileiro para planilha Olist (vírgula decimal). */
-function formatDecimalBr(value: number): string {
+/** Decimais no padrão da planilha modelo Olist (ponto: ex. 79.99). */
+function formatDecimalOlist(value: number): string {
   const n = Math.round(value * 100) / 100;
-  return String(n).replace(".", ",");
+  return n.toFixed(2);
 }
 
 function resolveCustoUnit(item: CatalogSkuForOlistExport, fallbackCusto?: number | null): number | null {
@@ -107,7 +111,7 @@ function resolveCustoUnit(item: CatalogSkuForOlistExport, fallbackCusto?: number
 export function precoVendaOlistFromCusto(custo: number, margemPct = 0): string {
   if (!Number.isFinite(custo) || custo <= 0) return "";
   const mult = 1 + Math.max(0, margemPct) / 100;
-  return formatDecimalBr(custo * mult);
+  return formatDecimalOlist(custo * mult);
 }
 
 function buildAtributos(cor: string, tamanho: string): string {
@@ -199,7 +203,7 @@ function baseCells(item: CatalogSkuForOlistExport, opts?: { margemPct?: number; 
   const fotos = parseFotoUrls(item.imagem_url, item.link_fotos);
   const margemPct = opts?.margemPct ?? 0;
   const custoNum = resolveCustoUnit(item, opts?.fallbackCusto);
-  const custo = custoNum != null ? formatDecimalBr(custoNum) : "";
+  const custo = custoNum != null ? formatDecimalOlist(custoNum) : "";
   const preco = custoNum != null ? precoVendaOlistFromCusto(custoNum, margemPct) : "";
   const estoque =
     item.estoque_atual != null && Number.isFinite(item.estoque_atual)
@@ -211,7 +215,7 @@ function baseCells(item: CatalogSkuForOlistExport, opts?: { margemPct?: number; 
   row.Descrição = descricaoLinha(item, str(item.nome_produto));
   row.Unidade = "UN";
   row["NCM (Classificação fiscal)"] = normalizeNcm(item.ncm);
-  row.Origem = normalizeOrigem(item.origem);
+  row.Origem = normalizeOrigemOlist(item.origem);
   row.Preço = preco;
   row["Valor IPI fixo"] = "";
   row.Observações = "";
