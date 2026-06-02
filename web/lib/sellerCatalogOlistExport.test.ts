@@ -102,5 +102,36 @@ describe("sellerCatalogOlistExport", () => {
     expect(filhoCols[37]).toBe("CAM000");
     expect(filhoCols[38]).toContain("Cor:Azul");
     expect(filhoCols[30]).toBe("https://cdn.example.com/f.jpg");
+    const precoIdx = OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Preço");
+    const custoIdx = OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Preço de custo");
+    expect(precoIdx).toBeGreaterThanOrEqual(0);
+    expect(filhoCols[precoIdx]).toBe("12");
+    expect(filhoCols[custoIdx]).toBe("12");
+  });
+
+  it("aplica margem de markup no preço de venda", () => {
+    const lines = buildOlistProdutosCsvLines(
+      [
+        {
+          sku: "X001",
+          nome_produto: "Item",
+          cor: "",
+          tamanho: "",
+          status: "ativo",
+          categoria: null,
+          estoque_atual: 1,
+          custo_total: 100,
+          imagem_url: null,
+          link_fotos: null,
+          descricao: null,
+          ncm: null,
+          origem: "0",
+        },
+      ],
+      { margemPct: 50 },
+    );
+    const cols = lines[1]!.split(";");
+    const precoIdx = OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Preço");
+    expect(cols[precoIdx]).toBe("150");
   });
 });

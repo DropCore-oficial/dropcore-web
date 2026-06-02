@@ -87,6 +87,29 @@ function normalizeOrigem(origem: string | null): string {
   return o;
 }
 
+/** Formato brasileiro para planilha Olist (vírgula decimal). */
+function formatDecimalBr(value: number): string {
+  const n = Math.round(value * 100) / 100;
+  return String(n).replace(".", ",");
+}
+
+function resolveCustoUnit(item: CatalogSkuForOlistExport, fallbackCusto?: number | null): number | null {
+  const c = item.custo_total;
+  if (c != null && Number.isFinite(c) && c > 0) return c;
+  if (fallbackCusto != null && Number.isFinite(fallbackCusto) && fallbackCusto > 0) return fallbackCusto;
+  return null;
+}
+
+/**
+ * Preço de venda na Olist — obrigatório na importação.
+ * Base: custo DropCore (fornecedor + taxa); `margemPct` aplica markup opcional (ex.: 30 → +30%).
+ */
+export function precoVendaOlistFromCusto(custo: number, margemPct = 0): string {
+  if (!Number.isFinite(custo) || custo <= 0) return "";
+  const mult = 1 + Math.max(0, margemPct) / 100;
+  return formatDecimalBr(custo * mult);
+}
+
 function buildAtributos(cor: string, tamanho: string): string {
   const parts: string[] = [];
   const c = str(cor);
@@ -171,11 +194,13 @@ function permitirVendasCell(item: CatalogSkuForOlistExport): string {
   return "";
 }
 
-function baseCells(item: CatalogSkuForOlistExport): OlistTinyProdutosImportRow {
+function baseCells(item: CatalogSkuForOlistExport, opts?: { margemPct?: number; fallbackCusto?: number | null }): OlistTinyProdutosImportRow {
   const row = emptyOlistTinyProdutosImportRow();
   const fotos = parseFotoUrls(item.imagem_url, item.link_fotos);
-  const custo =
-    item.custo_total != null && Number.isFinite(item.custo_total) ? String(item.custo_total).replace(".", ",") : "";
+  const margemPct = opts?.margemPct ?? 0;
+  const custoNum = resolveCustoUnit(item, opts?.fallbackCusto);
+  const custo = custoNum != null ? formatDecimalBr(custoNum) : "";
+  const preco = custoNum != null ? precoVendaOlistFromCusto(custoNum, margemPct) : "";
   const estoque =
     item.estoque_atual != null && Number.isFinite(item.estoque_atual)
       ? String(Math.max(0, Math.floor(item.estoque_atual)))
@@ -187,7 +212,7 @@ function baseCells(item: CatalogSkuForOlistExport): OlistTinyProdutosImportRow {
   row.Unidade = "UN";
   row["NCM (Classificação fiscal)"] = normalizeNcm(item.ncm);
   row.Origem = normalizeOrigem(item.origem);
-  row.Preço = "";
+  row.Preço = preco;
   row["Valor IPI fixo"] = "";
   row.Observações = "";
   row.Situação = situacaoFromStatus(item.status);
@@ -210,31 +235,43 @@ function baseCells(item: CatalogSkuForOlistExport): OlistTinyProdutosImportRow {
  * Gera linhas CSV (sem BOM) para importação Olist.
  * Com variações: linha pai (V) + filhos (S) ligados por Código do Pai.
  */
-export function buildOlistProdutosCsvLines(items: CatalogSkuForOlistExport[]): string[] {
+export function buildOlistProdutosCsvLines(
+  items: CatalogSkuForOlistExport[],
+  opts?: { margemPct?: number },
+): string[] {
+  const margemPct = opts?.margemPct ?? 0;
   const grupos = agruparItens(items);
   const lines: string[] = [OLIST_TINY_PRODUTOS_IMPORT_HEADERS.join(SEP)];
 
   for (const g of grupos) {
     const paiSku = g.pai?.sku ? str(g.pai.sku) : g.paiKey;
     const nomeGrupo = str(g.pai?.nome_produto) || str(g.filhos[0]?.nome_produto) || paiSku;
+    const custoGrupo = g.filhos.reduce<number | null>((acc, f) => {
+      const c = resolveCustoUnit(f);
+      if (c == null) return acc;
+      return acc == null ? c : Math.max(acc, c);
+    }, resolveCustoUnit(g.pai ?? g.filhos[0]!));
 
     if (g.filhos.length > 0) {
       const paiRef = g.pai ?? g.filhos[0]!;
-      const paiCells = baseCells({
-        ...paiRef,
-        sku: paiSku,
-        nome_produto: nomeGrupo,
-        cor: "",
-        tamanho: "",
-        estoque_atual: null,
-      });
+      const paiCells = baseCells(
+        {
+          ...paiRef,
+          sku: paiSku,
+          nome_produto: nomeGrupo,
+          cor: "",
+          tamanho: "",
+          estoque_atual: null,
+        },
+        { margemPct, fallbackCusto: custoGrupo },
+      );
       paiCells["Tipo do produto"] = "V";
       paiCells.Variações = "";
       paiCells.Estoque = "0";
       lines.push(rowToCells(paiCells).join(SEP));
 
       for (const filho of g.filhos) {
-        const child = baseCells(filho);
+        const child = baseCells(filho, { margemPct, fallbackCusto: custoGrupo });
         child["Tipo do produto"] = "S";
         child["Código do pai"] = paiSku;
         child.Variações = buildAtributos(filho.cor, filho.tamanho);
@@ -244,7 +281,7 @@ export function buildOlistProdutosCsvLines(items: CatalogSkuForOlistExport[]): s
     }
 
     if (g.pai) {
-      const simple = baseCells(g.pai);
+      const simple = baseCells(g.pai, { margemPct });
       simple["Tipo do produto"] = "S";
       simple["Código do pai"] = "";
       lines.push(rowToCells(simple).join(SEP));
@@ -254,8 +291,8 @@ export function buildOlistProdutosCsvLines(items: CatalogSkuForOlistExport[]): s
   return lines;
 }
 
-export function buildOlistProdutosCsv(items: CatalogSkuForOlistExport[]): string {
-  return "\uFEFF" + buildOlistProdutosCsvLines(items).join("\n");
+export function buildOlistProdutosCsv(items: CatalogSkuForOlistExport[], opts?: { margemPct?: number }): string {
+  return "\uFEFF" + buildOlistProdutosCsvLines(items, opts).join("\n");
 }
 
 export function filterSkusForOlistExport(

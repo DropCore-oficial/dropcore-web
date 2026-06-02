@@ -28,6 +28,11 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const scopeRaw = (url.searchParams.get("scope") ?? "todos").trim().toLowerCase();
     const scope = scopeRaw === "habilitados" ? "habilitados" : "todos";
+    const margemRaw = url.searchParams.get("margem") ?? url.searchParams.get("markup");
+    const margemPct =
+      margemRaw != null && margemRaw.trim() !== ""
+        ? Math.max(0, Math.min(500, Number.parseFloat(margemRaw.replace(",", ".")) || 0))
+        : 0;
     const grupoRaw =
       (url.searchParams.get("grupo") ?? url.searchParams.get("pai_key") ?? url.searchParams.get("grupoKey") ?? "")
         .trim()
@@ -141,7 +146,7 @@ export async function GET(req: Request) {
       );
     }
 
-    const csv = buildOlistProdutosCsv(filtered);
+    const csv = buildOlistProdutosCsv(filtered, { margemPct });
     const date = new Date().toISOString().slice(0, 10);
     const filename = `dropcore-olist-${grupoRaw}-${scope}-${date}.csv`;
 
