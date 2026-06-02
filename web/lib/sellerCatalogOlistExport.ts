@@ -127,14 +127,18 @@ function resolveCustoUnit(item: CatalogSkuForOlistExport, fallbackCusto?: number
   return null;
 }
 
-/**
- * Preço de venda na Olist — obrigatório na importação.
- * Base: custo DropCore (fornecedor + taxa); `margemPct` aplica markup opcional (ex.: 30 → +30%).
- */
-export function precoVendaOlistFromCusto(custo: number, margemPct = 0): string {
+const PRECO_VENDA_ZERADO_OLIST = "0,00";
+
+/** Custo na coluna Preço de custo; `margemPct` opcional (ex.: 30 → +30% no custo). */
+export function precoCustoOlistFromCusto(custo: number, margemPct = 0): string {
   if (!Number.isFinite(custo) || custo <= 0) return "";
   const mult = 1 + Math.max(0, margemPct) / 100;
   return formatDecimalOlist(custo * mult);
+}
+
+/** @deprecated Use precoCustoOlistFromCusto — mantido para testes legados. */
+export function precoVendaOlistFromCusto(custo: number, margemPct = 0): string {
+  return precoCustoOlistFromCusto(custo, margemPct);
 }
 
 function buildAtributos(cor: string, tamanho: string): string {
@@ -225,8 +229,7 @@ function baseCells(item: CatalogSkuForOlistExport, opts?: { margemPct?: number; 
   const fotos = parseFotoUrls(item.imagem_url, item.link_fotos);
   const margemPct = opts?.margemPct ?? 0;
   const custoNum = resolveCustoUnit(item, opts?.fallbackCusto);
-  const custo = custoNum != null ? formatDecimalOlist(custoNum) : "";
-  const preco = custoNum != null ? precoVendaOlistFromCusto(custoNum, margemPct) : "";
+  const precoCusto = custoNum != null ? precoCustoOlistFromCusto(custoNum, margemPct) : "";
   const estoque =
     item.estoque_atual != null && Number.isFinite(item.estoque_atual)
       ? String(Math.max(0, Math.floor(item.estoque_atual)))
@@ -238,12 +241,12 @@ function baseCells(item: CatalogSkuForOlistExport, opts?: { margemPct?: number; 
   row.Unidade = "Un";
   row["NCM (Classificação fiscal)"] = formatNcmOlist(item.ncm);
   row.Origem = normalizeOrigemOlist(item.origem);
-  row.Preço = preco;
+  row.Preço = custoNum != null ? PRECO_VENDA_ZERADO_OLIST : "";
   row["Valor IPI fixo"] = "";
   row.Observações = "";
   row.Situação = situacaoFromStatus(item.status);
   row.Estoque = estoque;
-  row["Preço de custo"] = custo;
+  row["Preço de custo"] = precoCusto;
   row["GTIN/EAN"] = "";
   row["Tipo do produto"] = "S";
   row["Código do pai"] = "";
@@ -295,7 +298,8 @@ export function buildOlistProdutosCsvLines(
       paiCells["Tipo do produto"] = "V";
       paiCells.Variações = "";
       paiCells.Estoque = "0";
-      paiCells["Preço de custo"] = "0,00";
+      paiCells.Preço = PRECO_VENDA_ZERADO_OLIST;
+      paiCells["Preço de custo"] = PRECO_VENDA_ZERADO_OLIST;
       paiCells["Permitir inclusão nas vendas"] = "Sim";
       lines.push(rowToCells(paiCells).join(SEP));
 
@@ -304,7 +308,6 @@ export function buildOlistProdutosCsvLines(
         child["Tipo do produto"] = "S";
         child["Código do pai"] = paiSku;
         child.Variações = buildAtributos(filho.cor, filho.tamanho);
-        child["Preço de custo"] = "";
         lines.push(rowToCells(child).join(SEP));
       }
       continue;

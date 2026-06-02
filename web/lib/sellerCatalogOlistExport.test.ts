@@ -144,9 +144,10 @@ describe("sellerCatalogOlistExport", () => {
     expect(col(lines[2]!, "URL imagem 1")).toBe("https://cdn.example.com/f.jpg");
     expect(col(lines[1]!, "Unidade")).toBe("Un");
     expect(col(lines[1]!, "NCM (Classificação fiscal)")).toBe("6109.10.00");
-    expect(col(lines[2]!, "Preço")).toBe("12,00");
+    expect(col(lines[2]!, "Preço")).toBe("0,00");
+    expect(col(lines[1]!, "Preço")).toBe("0,00");
     expect(col(lines[1]!, "Preço de custo")).toBe("0,00");
-    expect(col(lines[2]!, "Preço de custo")).toBe("");
+    expect(col(lines[2]!, "Preço de custo")).toBe("12,00");
     expect(col(lines[2]!, "Origem")).toBe("0");
     expect(col(lines[1]!, "Categoria")).toBe("");
     expect(col(lines[1]!, "Controlar lotes")).toBe("Não");
@@ -193,10 +194,25 @@ describe("sellerCatalogOlistExport", () => {
   it("converte Origem Nacional para código 0", () => {
     const lines = buildOlistProdutosCsvLines([
       {
-        sku: "X001",
+        sku: "X000",
         nome_produto: "Item",
         cor: "",
         tamanho: "",
+        status: "ativo",
+        categoria: null,
+        estoque_atual: 0,
+        custo_total: 10,
+        imagem_url: null,
+        link_fotos: null,
+        descricao: null,
+        ncm: null,
+        origem: "Nacional",
+      },
+      {
+        sku: "X001",
+        nome_produto: "Item",
+        cor: "Azul",
+        tamanho: "M",
         status: "ativo",
         categoria: null,
         estoque_atual: 1,
@@ -208,18 +224,34 @@ describe("sellerCatalogOlistExport", () => {
         origem: "Nacional",
       },
     ]);
-    expect(col(lines[1]!, "Origem")).toBe("0");
-    expect(col(lines[1]!, "Preço")).toBe("10,00");
+    expect(col(lines[2]!, "Origem")).toBe("0");
+    expect(col(lines[2]!, "Preço")).toBe("0,00");
+    expect(col(lines[2]!, "Preço de custo")).toBe("10,00");
   });
 
-  it("aplica margem de markup no preço de venda", () => {
+  it("aplica margem de markup no preço de custo", () => {
     const lines = buildOlistProdutosCsvLines(
       [
         {
-          sku: "X001",
+          sku: "X000",
           nome_produto: "Item",
           cor: "",
           tamanho: "",
+          status: "ativo",
+          categoria: null,
+          estoque_atual: 0,
+          custo_total: 100,
+          imagem_url: null,
+          link_fotos: null,
+          descricao: null,
+          ncm: null,
+          origem: "0",
+        },
+        {
+          sku: "X001",
+          nome_produto: "Item",
+          cor: "Azul",
+          tamanho: "M",
           status: "ativo",
           categoria: null,
           estoque_atual: 1,
@@ -233,6 +265,7 @@ describe("sellerCatalogOlistExport", () => {
       ],
       { margemPct: 50 },
     );
-    expect(col(lines[1]!, "Preço")).toBe("150,00");
+    expect(col(lines[2]!, "Preço")).toBe("0,00");
+    expect(col(lines[2]!, "Preço de custo")).toBe("150,00");
   });
 });
