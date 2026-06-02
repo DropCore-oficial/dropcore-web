@@ -74,9 +74,19 @@ function parseFotoUrls(imagem_url: string | null, link_fotos: string | null): st
   return [...new Set(out)].slice(0, 10);
 }
 
-function normalizeNcm(ncm: string | null): string {
-  const digits = str(ncm).replace(/\D/g, "");
-  return digits.slice(0, 8);
+/** Modelo Olist: `6109.10.00` (8 dígitos com pontos), não só `61091000`. */
+export function formatNcmOlist(ncm: string | null): string {
+  const digits = str(ncm).replace(/\D/g, "").slice(0, 8);
+  if (digits.length !== 8) return digits;
+  return `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6, 8)}`;
+}
+
+/** Pipe (`|`) na descrição conflita com o separador de variações da Olist. */
+export function sanitizeDescricaoOlist(text: string): string {
+  return text
+    .replace(/\|/g, " — ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Código de origem NF-e (0–8) — planilha Olist não aceita só o texto "Nacional". */
@@ -129,12 +139,12 @@ function situacaoFromStatus(status: string): string {
 
 function descricaoLinha(item: CatalogSkuForOlistExport, fallbackNome: string): string {
   const desc = str(item.descricao);
-  if (desc.length >= 3) return desc;
+  if (desc.length >= 3) return sanitizeDescricaoOlist(desc);
   const nome = str(item.nome_produto) || fallbackNome;
   const cor = str(item.cor);
   const tam = str(item.tamanho);
   const bits = [nome, cor, tam].filter(Boolean);
-  return bits.join(" — ") || nome;
+  return sanitizeDescricaoOlist(bits.join(" — ") || nome);
 }
 
 type Grupo = { paiKey: string; pai: CatalogSkuForOlistExport | null; filhos: CatalogSkuForOlistExport[] };
@@ -213,8 +223,8 @@ function baseCells(item: CatalogSkuForOlistExport, opts?: { margemPct?: number; 
   row.ID = "";
   row["Código (SKU)"] = str(item.sku);
   row.Descrição = descricaoLinha(item, str(item.nome_produto));
-  row.Unidade = "UN";
-  row["NCM (Classificação fiscal)"] = normalizeNcm(item.ncm);
+  row.Unidade = "Un";
+  row["NCM (Classificação fiscal)"] = formatNcmOlist(item.ncm);
   row.Origem = normalizeOrigemOlist(item.origem);
   row.Preço = preco;
   row["Valor IPI fixo"] = "";

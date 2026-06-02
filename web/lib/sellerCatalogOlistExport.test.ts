@@ -3,10 +3,20 @@ import {
   buildOlistProdutosCsvLines,
   filterSkusByGrupo,
   filterSkusForOlistExport,
+  formatNcmOlist,
+  sanitizeDescricaoOlist,
 } from "./sellerCatalogOlistExport";
 import { OLIST_TINY_PRODUTOS_IMPORT_HEADERS } from "./olistTinyProdutosImportTemplate";
 
 describe("sellerCatalogOlistExport", () => {
+  it("formata NCM e descrição no padrão Olist", () => {
+    expect(formatNcmOlist("61052000")).toBe("6105.20.00");
+    expect(formatNcmOlist("95030080")).toBe("9503.00.80");
+    expect(sanitizeDescricaoOlist("Gola Padre | Para Os Dias Quentes")).toBe(
+      "Gola Padre — Para Os Dias Quentes",
+    );
+  });
+
   it("usa cabeçalhos do modelo Olist ERP (64 colunas, imagens e variações)", () => {
     expect(OLIST_TINY_PRODUTOS_IMPORT_HEADERS).toHaveLength(64);
     expect(OLIST_TINY_PRODUTOS_IMPORT_HEADERS).toContain("URL imagem externa 7");
@@ -102,6 +112,10 @@ describe("sellerCatalogOlistExport", () => {
     expect(filhoCols[37]).toBe("CAM000");
     expect(filhoCols[38]).toContain("Cor:Azul");
     expect(filhoCols[30]).toBe("https://cdn.example.com/f.jpg");
+    expect(paiCols[OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Unidade")]).toBe("Un");
+    expect(paiCols[OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("NCM (Classificação fiscal)")]).toBe(
+      "6109.10.00",
+    );
     const precoIdx = OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Preço");
     const custoIdx = OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Preço de custo");
     expect(precoIdx).toBeGreaterThanOrEqual(0);
@@ -109,6 +123,44 @@ describe("sellerCatalogOlistExport", () => {
     expect(filhoCols[custoIdx]).toBe("12.00");
     const origemIdx = OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Origem");
     expect(filhoCols[origemIdx]).toBe("0");
+  });
+
+  it("remove pipe da descrição longa do fornecedor", () => {
+    const lines = buildOlistProdutosCsvLines([
+      {
+        sku: "DJU001000",
+        nome_produto: "Gola",
+        cor: "",
+        tamanho: "",
+        status: "ativo",
+        categoria: "Camisa Social",
+        estoque_atual: 0,
+        custo_total: 34.5,
+        imagem_url: null,
+        link_fotos: null,
+        descricao: "Gola Padre | Para Os Dias Quentes | Lavar A Mão",
+        ncm: "61052000",
+        origem: "0",
+      },
+      {
+        sku: "DJU001001",
+        nome_produto: "Gola",
+        cor: "Branco",
+        tamanho: "P",
+        status: "ativo",
+        categoria: "Camisa Social",
+        estoque_atual: 1,
+        custo_total: 34.5,
+        imagem_url: null,
+        link_fotos: null,
+        descricao: "Gola Padre | Para Os Dias Quentes | Lavar A Mão",
+        ncm: "61052000",
+        origem: "0",
+      },
+    ]);
+    const desc = lines[2]!.split(";")[OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf("Descrição")];
+    expect(desc).not.toContain("|");
+    expect(desc).toContain("Gola Padre — Para Os Dias Quentes");
   });
 
   it("converte Origem Nacional para código 0", () => {
