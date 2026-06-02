@@ -19,17 +19,14 @@ function snoozeBuildKey(surface: AppSurface): string {
   return `dropcore-version-snooze-build-${surface}`;
 }
 
-function previewKey(surface: AppSurface): string {
-  return `dropcore-version-banner-preview-${surface}`;
+function ackKey(surface: AppSurface): string {
+  return `dropcore-version-ack-${surface}`;
 }
 
-function isPreviewForced(surface: AppSurface): boolean {
+/** Só com ?versionBannerPreview=1 na URL — não persiste (evita banner eterno após teste). */
+function isPreviewForced(): boolean {
   if (typeof window === "undefined") return false;
-  if (window.location.search.includes("versionBannerPreview=1")) {
-    sessionStorage.setItem(previewKey(surface), "1");
-    return true;
-  }
-  return sessionStorage.getItem(previewKey(surface)) === "1";
+  return new URLSearchParams(window.location.search).get("versionBannerPreview") === "1";
 }
 
 function isSnoozedFor(surface: AppSurface, serverId: string): boolean {
@@ -47,6 +44,19 @@ function snoozeBanner(surface: AppSurface, serverId: string): void {
 function clearSnooze(surface: AppSurface): void {
   sessionStorage.removeItem(snoozeKey(surface));
   sessionStorage.removeItem(snoozeBuildKey(surface));
+}
+
+function clearLegacyPreviewKeys(surface: AppSurface): void {
+  sessionStorage.removeItem(`dropcore-version-banner-preview-${surface}`);
+  sessionStorage.removeItem("dropcore-version-banner-preview");
+}
+
+function setAcknowledgedBuild(surface: AppSurface, serverId: string): void {
+  sessionStorage.setItem(ackKey(surface), serverId);
+}
+
+function isAcknowledged(surface: AppSurface, serverId: string): boolean {
+  return sessionStorage.getItem(ackKey(surface)) === serverId;
 }
 
 function setBannerOffset(px: number): void {
@@ -68,6 +78,12 @@ async function fetchServerBuildId(surface: AppSurface): Promise<string | null> {
   }
 }
 
+function reloadPortalWithoutPreview(): void {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("versionBannerPreview");
+  window.location.replace(url.toString());
+}
+
 type Props = {
   /** Portal onde o banner está montado — nunca usar na landing pública. */
   surface: AppSurface;
@@ -75,8 +91,7 @@ type Props = {
 
 /**
  * Faixa fixa no topo quando há deploy novo na área do portal (seller, fornecedor, etc.).
- * Cada portal compara só o hash dos seus arquivos — mudança no fornecedor não avisa o seller.
- * Preview: ?versionBannerPreview=1 dentro do portal (não funciona na landing).
+ * Em dev o banner fica desligado (hash muda a cada save); use ?versionBannerPreview=1 para testar layout.
  */
 export function AppVersionUpdateBanner({ surface }: Props) {
   const [show, setShow] = useState(false);
@@ -84,19 +99,34 @@ export function AppVersionUpdateBanner({ surface }: Props) {
   const pendingServerIdRef = useRef<string | null>(null);
   const clientBuildId = getClientSurfaceBuildId(surface);
 
+  useEffect(() => {
+    clearLegacyPreviewKeys(surface);
+  }, [surface]);
+
   const checkVersion = useCallback(async () => {
-    if (isPreviewForced(surface)) {
+    if (isPreviewForced()) {
       setShow(true);
       return;
     }
 
-    if (isDevBuildId(clientBuildId)) {
+    if (process.env.NODE_ENV === "development" || isDevBuildId(clientBuildId)) {
       setShow(false);
       return;
     }
 
     const serverId = await fetchServerBuildId(surface);
-    if (!serverId || serverId === clientBuildId) {
+    if (!serverId) {
+      setShow(false);
+      return;
+    }
+
+    if (serverId === clientBuildId) {
+      setAcknowledgedBuild(surface, serverId);
+      setShow(false);
+      return;
+    }
+
+    if (isAcknowledged(surface, serverId)) {
       setShow(false);
       return;
     }
@@ -179,8 +209,13 @@ export function AppVersionUpdateBanner({ surface }: Props) {
             <button
               type="button"
               onClick={() => {
-                clearSnooze(surface);
-                window.location.reload();
+                void (async () => {
+                  const sid = pendingServerIdRef.current ?? (await fetchServerBuildId(surface));
+                  if (sid) setAcknowledgedBuild(surface, sid);
+                  clearSnooze(surface);
+                  clearLegacyPreviewKeys(surface);
+                  reloadPortalWithoutPreview();
+                })();
               }}
               className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500 sm:text-sm"
             >
