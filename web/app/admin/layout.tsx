@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationToasts } from "@/components/NotificationToasts";
 import { AdminMobileBottomNav } from "@/components/AdminMobileBottomNav";
 import { NotificationBell } from "@/components/NotificationBell";
+import { AppVersionUpdateBanner } from "@/components/AppVersionUpdateBanner";
 
 export default function AdminLayout({
   children,
@@ -85,6 +86,7 @@ export default function AdminLayout({
 
   return (
     <>
+      <AppVersionUpdateBanner surface="admin" />
       {!hasOwnHeader && (
         <header className="border-b border-[var(--border-subtle)] bg-[var(--card)]/80 backdrop-blur-sm pt-[env(safe-area-inset-top,0px)]">
           <div className="dropcore-shell-4xl flex min-w-0 items-center justify-between py-3">

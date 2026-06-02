@@ -1,43 +1,52 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type AppSurface,
+  getClientSurfaceBuildId,
+  isDevBuildId,
+} from "@/lib/appSurfaceVersion";
 
-const CLIENT_BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID ?? "dev";
 const POLL_MS = 30_000;
 const FIRST_RECHECK_MS = 5_000;
 const SNOOZE_MS = 2 * 60 * 60 * 1000;
-const SNOOZE_KEY = "dropcore-version-snooze-until";
-const SNOOZE_BUILD_KEY = "dropcore-version-snooze-build";
-const PREVIEW_KEY = "dropcore-version-banner-preview";
 
-function isDevBuildId(id: string): boolean {
-  return id === "dev" || id === "local" || id.startsWith("local-");
+function snoozeKey(surface: AppSurface): string {
+  return `dropcore-version-snooze-until-${surface}`;
 }
 
-function isPreviewForced(): boolean {
+function snoozeBuildKey(surface: AppSurface): string {
+  return `dropcore-version-snooze-build-${surface}`;
+}
+
+function previewKey(surface: AppSurface): string {
+  return `dropcore-version-banner-preview-${surface}`;
+}
+
+function isPreviewForced(surface: AppSurface): boolean {
   if (typeof window === "undefined") return false;
   if (window.location.search.includes("versionBannerPreview=1")) {
-    sessionStorage.setItem(PREVIEW_KEY, "1");
+    sessionStorage.setItem(previewKey(surface), "1");
     return true;
   }
-  return sessionStorage.getItem(PREVIEW_KEY) === "1";
+  return sessionStorage.getItem(previewKey(surface)) === "1";
 }
 
-function isSnoozedFor(serverId: string): boolean {
+function isSnoozedFor(surface: AppSurface, serverId: string): boolean {
   if (typeof window === "undefined") return false;
-  const until = Number(sessionStorage.getItem(SNOOZE_KEY) ?? 0);
+  const until = Number(sessionStorage.getItem(snoozeKey(surface)) ?? 0);
   if (!Number.isFinite(until) || Date.now() >= until) return false;
-  return sessionStorage.getItem(SNOOZE_BUILD_KEY) === serverId;
+  return sessionStorage.getItem(snoozeBuildKey(surface)) === serverId;
 }
 
-function snoozeBanner(serverId: string): void {
-  sessionStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_MS));
-  sessionStorage.setItem(SNOOZE_BUILD_KEY, serverId);
+function snoozeBanner(surface: AppSurface, serverId: string): void {
+  sessionStorage.setItem(snoozeKey(surface), String(Date.now() + SNOOZE_MS));
+  sessionStorage.setItem(snoozeBuildKey(surface), serverId);
 }
 
-function clearSnooze(): void {
-  sessionStorage.removeItem(SNOOZE_KEY);
-  sessionStorage.removeItem(SNOOZE_BUILD_KEY);
+function clearSnooze(surface: AppSurface): void {
+  sessionStorage.removeItem(snoozeKey(surface));
+  sessionStorage.removeItem(snoozeBuildKey(surface));
 }
 
 function setBannerOffset(px: number): void {
@@ -45,9 +54,9 @@ function setBannerOffset(px: number): void {
   document.documentElement.toggleAttribute("data-version-banner", px > 0);
 }
 
-async function fetchServerBuildId(): Promise<string | null> {
+async function fetchServerBuildId(surface: AppSurface): Promise<string | null> {
   try {
-    const res = await fetch(`/api/app-version?t=${Date.now()}`, {
+    const res = await fetch(`/api/app-version?surface=${surface}&t=${Date.now()}`, {
       cache: "no-store",
       headers: { "Cache-Control": "no-cache" },
     });
@@ -59,42 +68,47 @@ async function fetchServerBuildId(): Promise<string | null> {
   }
 }
 
+type Props = {
+  /** Portal onde o banner está montado — nunca usar na landing pública. */
+  surface: AppSurface;
+};
+
 /**
- * Faixa fixa no topo quando há deploy novo (buildId do servidor ≠ build carregado no browser).
- * Produção: ?versionBannerPreview=1 para testar layout. Snooze não bloqueia deploy posterior.
+ * Faixa fixa no topo quando há deploy novo na área do portal (seller, fornecedor, etc.).
+ * Cada portal compara só o hash dos seus arquivos — mudança no fornecedor não avisa o seller.
+ * Preview: ?versionBannerPreview=1 dentro do portal (não funciona na landing).
  */
-export function AppVersionUpdateBanner() {
+export function AppVersionUpdateBanner({ surface }: Props) {
   const [show, setShow] = useState(false);
   const bannerRef = useRef<HTMLDivElement>(null);
   const pendingServerIdRef = useRef<string | null>(null);
+  const clientBuildId = getClientSurfaceBuildId(surface);
 
   const checkVersion = useCallback(async () => {
-    if (isPreviewForced()) {
+    if (isPreviewForced(surface)) {
       setShow(true);
       return;
     }
 
-    if (isDevBuildId(CLIENT_BUILD_ID)) {
+    if (isDevBuildId(clientBuildId)) {
       setShow(false);
       return;
     }
 
-    const serverId = await fetchServerBuildId();
-    const loadedId = CLIENT_BUILD_ID;
-
-    if (!serverId || serverId === loadedId) {
+    const serverId = await fetchServerBuildId(surface);
+    if (!serverId || serverId === clientBuildId) {
       setShow(false);
       return;
     }
 
-    if (isSnoozedFor(serverId)) {
+    if (isSnoozedFor(surface, serverId)) {
       setShow(false);
       return;
     }
 
     pendingServerIdRef.current = serverId;
     setShow(true);
-  }, []);
+  }, [clientBuildId, surface]);
 
   useEffect(() => {
     void checkVersion();
@@ -165,7 +179,7 @@ export function AppVersionUpdateBanner() {
             <button
               type="button"
               onClick={() => {
-                clearSnooze();
+                clearSnooze(surface);
                 window.location.reload();
               }}
               className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500 sm:text-sm"
@@ -191,7 +205,7 @@ export function AppVersionUpdateBanner() {
               type="button"
               onClick={() => {
                 const sid = pendingServerIdRef.current;
-                if (sid) snoozeBanner(sid);
+                if (sid) snoozeBanner(surface, sid);
                 setShow(false);
               }}
               className="rounded-md px-2 py-1.5 text-xs font-medium text-emerald-200/80 underline-offset-2 transition hover:text-emerald-50 hover:underline dark:text-neutral-400 dark:hover:text-neutral-200 sm:text-sm"

@@ -1,10 +1,13 @@
 import type { NextConfig } from "next";
 import path from "path";
+import { computeSurfaceBuildIds } from "./lib/appSurfaceVersion";
 
 const appBuildId =
   process.env.VERCEL_GIT_COMMIT_SHA?.trim()?.slice(0, 12) ||
   process.env.VERCEL_DEPLOYMENT_ID?.trim() ||
   (process.env.NODE_ENV === "development" ? "dev" : `local-${Date.now()}`);
+
+const surfaceBuildIds = computeSurfaceBuildIds(process.cwd());
 
 const securityHeaders = [
   // Impede que a página seja carregada em iframes (clickjacking)
@@ -39,6 +42,10 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_BUILD_ID: appBuildId,
+    NEXT_PUBLIC_BUILD_ID_SELLER: surfaceBuildIds.seller,
+    NEXT_PUBLIC_BUILD_ID_FORNECEDOR: surfaceBuildIds.fornecedor,
+    NEXT_PUBLIC_BUILD_ID_ADMIN: surfaceBuildIds.admin,
+    NEXT_PUBLIC_BUILD_ID_ORG: surfaceBuildIds.org,
   },
   eslint: {
     ignoreDuringBuilds: true,

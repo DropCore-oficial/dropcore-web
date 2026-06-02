@@ -7,6 +7,7 @@ import { SellerCadastroRedirect } from "@/components/seller/SellerCadastroRedire
 import { NotificationToasts } from "@/components/NotificationToasts";
 import { SellerLayoutWhatsAppSupportFab } from "@/components/seller/SellerLayoutWhatsAppSupportFab";
 import { SellerPortalGate } from "@/components/seller/SellerPortalGate";
+import { AppVersionUpdateBanner } from "@/components/AppVersionUpdateBanner";
 
 export default function SellerLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -15,6 +16,7 @@ export default function SellerLayout({ children }: { children: ReactNode }) {
   if (pathname.startsWith("/seller/calculadora")) {
     return (
       <>
+        <AppVersionUpdateBanner surface="seller" />
         {children}
         <SellerLayoutWhatsAppSupportFab />
       </>
@@ -23,6 +25,7 @@ export default function SellerLayout({ children }: { children: ReactNode }) {
 
   return (
     <SellerPortalGate>
+      <AppVersionUpdateBanner surface="seller" />
       <MensalidadeBloqueioGate context="seller" logoHref="/seller/dashboard">
         <SellerCadastroRedirect>{children}</SellerCadastroRedirect>
         <SellerLayoutWhatsAppSupportFab />

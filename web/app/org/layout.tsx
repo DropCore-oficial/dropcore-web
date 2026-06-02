@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { AppVersionUpdateBanner } from "@/components/AppVersionUpdateBanner";
 
 export default function OrgLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -66,5 +67,10 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <AppVersionUpdateBanner surface="org" />
+      {children}
+    </>
+  );
 }
