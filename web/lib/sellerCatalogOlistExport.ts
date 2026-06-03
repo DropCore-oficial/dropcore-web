@@ -94,10 +94,20 @@ export function paiKeyFromSku(sku: string): string {
   return s.length >= 3 ? s.slice(0, -3) + "000" : s;
 }
 
+/** Olist importa só URL http(s) curta — `data:image/base64` estoura limite de 2 MB. */
+export function urlImagemExportOlist(url: string | null | undefined): string | null {
+  const s = typeof url === "string" ? url.trim() : "";
+  if (!s || s.startsWith("data:")) return null;
+  const u = linkFotosComoSrcMiniatura(s);
+  if (!u || u.startsWith("data:")) return null;
+  if (u.length > 2048) return null;
+  return u;
+}
+
 function parseFotoUrls(imagem_url: string | null, link_fotos: string | null): string[] {
   const out: string[] = [];
   const tryAdd = (raw: string) => {
-    const u = linkFotosComoSrcMiniatura(raw);
+    const u = urlImagemExportOlist(raw);
     if (u) out.push(u);
   };
   tryAdd(str(imagem_url));
@@ -107,7 +117,20 @@ function parseFotoUrls(imagem_url: string | null, link_fotos: string | null): st
       tryAdd(chunk);
     }
   }
-  return [...new Set(out)].slice(0, 10);
+  return [...new Set(out)].slice(0, 6);
+}
+
+function collectDescricaoComplementarGrupo(
+  pai: CatalogSkuForOlistExport | null,
+  filhos: CatalogSkuForOlistExport[],
+  nomeGrupo: string,
+): string {
+  for (const item of [pai, ...filhos]) {
+    if (!item) continue;
+    const d = descricaoComplementarOlist(item, nomeGrupo);
+    if (d) return d;
+  }
+  return "";
 }
 
 function collectFotosGrupo(pai: CatalogSkuForOlistExport | null, filhos: CatalogSkuForOlistExport[]): string[] {
@@ -116,7 +139,7 @@ function collectFotosGrupo(pai: CatalogSkuForOlistExport | null, filhos: Catalog
     if (!item) continue;
     for (const u of parseFotoUrls(item.imagem_url, item.link_fotos)) {
       if (!out.includes(u)) out.push(u);
-      if (out.length >= 10) return out;
+      if (out.length >= 6) return out;
     }
   }
   return out;
@@ -298,14 +321,26 @@ function permitirVendasCell(item: CatalogSkuForOlistExport): string {
   return "Sim";
 }
 
+
 function baseCells(
   item: CatalogSkuForOlistExport,
-  opts?: { margemPct?: number; fallbackCusto?: number | null; fallbackFotos?: string[]; nomeGrupo?: string },
+  opts?: {
+    margemPct?: number;
+    fallbackCusto?: number | null;
+    fallbackFotos?: string[];
+    nomeGrupo?: string;
+    incluirFotos?: boolean;
+    incluirDescricaoComplementar?: boolean;
+  },
 ): OlistTinyProdutosImportRow {
   const row = emptyOlistTinyProdutosImportRow();
   const nomeGrupo = opts?.nomeGrupo ?? str(item.nome_produto);
-  let fotos = parseFotoUrls(item.imagem_url, item.link_fotos);
-  if (fotos.length === 0 && opts?.fallbackFotos?.length) fotos = opts.fallbackFotos;
+  const incluirFotos = opts?.incluirFotos !== false;
+  let fotos: string[] = [];
+  if (incluirFotos) {
+    fotos = parseFotoUrls(item.imagem_url, item.link_fotos);
+    if (fotos.length === 0 && opts?.fallbackFotos?.length) fotos = opts.fallbackFotos;
+  }
   const margemPct = opts?.margemPct ?? 0;
   const custoNum = resolveCustoUnit(item, opts?.fallbackCusto);
   const precoCusto = custoNum != null ? precoCustoOlistFromCusto(custoNum, margemPct) : "";
@@ -335,9 +370,10 @@ function baseCells(
   row["Preço promocional"] = "";
   row["Controlar lotes"] = "Não";
   row["Permitir inclusão nas vendas"] = permitirVendasCell(item);
-  row["Descrição complementar"] = descricaoComplementarOlist(item, nomeGrupo);
+  row["Descrição complementar"] =
+    opts?.incluirDescricaoComplementar === false ? "" : descricaoComplementarOlist(item, nomeGrupo);
   applyLogisticaToRow(row, item);
-  applyFotosToRow(row, fotos);
+  if (incluirFotos) applyFotosToRow(row, fotos);
   return row;
 }
 
@@ -362,6 +398,7 @@ export function buildOlistProdutosCsvLines(
       return acc == null ? c : Math.max(acc, c);
     }, resolveCustoUnit(g.pai ?? g.filhos[0]!));
     const fotosGrupo = collectFotosGrupo(g.pai, g.filhos);
+    const descricaoComplementarGrupo = collectDescricaoComplementarGrupo(g.pai, g.filhos, nomeGrupo);
 
     if (g.filhos.length > 0) {
       const paiRef = g.pai ?? g.filhos[0]!;
@@ -375,21 +412,23 @@ export function buildOlistProdutosCsvLines(
           estoque_atual: null,
           custo_total: custoGrupo,
         },
-        { margemPct, fallbackCusto: custoGrupo, fallbackFotos: fotosGrupo, nomeGrupo },
+        { margemPct, fallbackCusto: custoGrupo, fallbackFotos: fotosGrupo, nomeGrupo, incluirFotos: true, incluirDescricaoComplementar: true },
       );
       paiCells["Tipo do produto"] = "V";
       paiCells.Variações = "";
       paiCells.Estoque = "0";
       paiCells.Preço = PRECO_VENDA_ZERADO_OLIST;
       paiCells["Permitir inclusão nas vendas"] = "Sim";
+      if (descricaoComplementarGrupo) paiCells["Descrição complementar"] = descricaoComplementarGrupo;
       lines.push(rowToCells(paiCells).join(SEP));
 
       for (const filho of g.filhos) {
         const child = baseCells(filho, {
           margemPct,
           fallbackCusto: custoGrupo,
-          fallbackFotos: fotosGrupo,
           nomeGrupo,
+          incluirFotos: false,
+          incluirDescricaoComplementar: false,
         });
         child["Tipo do produto"] = "S";
         child["Código do pai"] = paiSku;

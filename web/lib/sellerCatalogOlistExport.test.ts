@@ -8,6 +8,7 @@ import {
   formatMedidaOlist,
   formatNcmOlist,
   sanitizeDescricaoOlist,
+  urlImagemExportOlist,
 } from "./sellerCatalogOlistExport";
 import { OLIST_TINY_PRODUTOS_IMPORT_HEADERS } from "./olistTinyProdutosImportTemplate";
 
@@ -152,7 +153,8 @@ describe("sellerCatalogOlistExport", () => {
     expect(col(lines[2]!, "Tipo do produto")).toBe("S");
     expect(col(lines[2]!, "Código do pai")).toBe("CAM000");
     expect(col(lines[2]!, "Variações")).toContain("Cor:Azul");
-    expect(col(lines[2]!, "URL imagem 1")).toBe("https://cdn.example.com/f.jpg");
+    expect(col(lines[1]!, "URL imagem 1")).toBe("https://cdn.example.com/f.jpg");
+    expect(col(lines[2]!, "URL imagem 1")).toBe("");
     expect(col(lines[1]!, "Unidade")).toBe("Un");
     expect(col(lines[1]!, "NCM (Classificação fiscal)")).toBe("6109.10.00");
     expect(col(lines[2]!, "Preço")).toBe("0,00");
@@ -166,8 +168,33 @@ describe("sellerCatalogOlistExport", () => {
     expect(col(lines[1]!, "CEST")).toBe("01.003.00");
     expect(col(lines[1]!, "Peso líquido (Kg)")).toBe("0,250");
     expect(col(lines[1]!, "Formato embalagem")).toBe("Pacote / Caixa");
-    expect(col(lines[2]!, "Descrição complementar")).toBe("Desc longa do produto");
-    expect(col(lines[1]!, "URL imagem 1")).toBe("https://cdn.example.com/f.jpg");
+    expect(col(lines[1]!, "Descrição complementar")).toBe("Desc longa do produto");
+    expect(col(lines[2]!, "Descrição complementar")).toBe("");
+  });
+
+  it("rejeita data URL base64 e mantém CSV leve", () => {
+    const b64 = `data:image/jpeg;base64,${"A".repeat(50000)}`;
+    expect(urlImagemExportOlist(b64)).toBeNull();
+    const lines = buildOlistProdutosCsvLines([
+      {
+        sku: "CAM000",
+        nome_produto: "Camiseta",
+        cor: "",
+        tamanho: "",
+        status: "ativo",
+        ...olistSkuBase({ estoque_atual: 0, imagem_url: b64 }),
+      },
+      {
+        sku: "CAM001",
+        nome_produto: "Camiseta",
+        cor: "Azul",
+        tamanho: "M",
+        status: "ativo",
+        ...olistSkuBase({ imagem_url: b64 }),
+      },
+    ]);
+    expect(col(lines[1]!, "URL imagem 1")).toBe("");
+    expect(lines.join("\n").length).toBeLessThan(500_000);
   });
 
   it("aceita URL Supabase storage e herda fotos do grupo no pai", () => {
@@ -191,7 +218,7 @@ describe("sellerCatalogOlistExport", () => {
       },
     ]);
     expect(col(lines[1]!, "URL imagem 1")).toBe(supa);
-    expect(col(lines[2]!, "URL imagem 1")).toBe(supa);
+    expect(col(lines[2]!, "URL imagem 1")).toBe("");
   });
 
   it("separa título e descrição complementar", () => {
@@ -228,9 +255,9 @@ describe("sellerCatalogOlistExport", () => {
       },
     ]);
     expect(col(lines[2]!, "Descrição")).toBe("Gola Padre");
-    const comp = col(lines[2]!, "Descrição complementar");
-    expect(comp).not.toContain("|");
-    expect(comp).toContain("Gola Padre — Para Os Dias Quentes");
+    const compPai = col(lines[1]!, "Descrição complementar");
+    expect(compPai).toContain("Gola Padre — Para Os Dias Quentes");
+    expect(col(lines[2]!, "Descrição complementar")).toBe("");
   });
 
   it("converte Origem Nacional para código 0", () => {
