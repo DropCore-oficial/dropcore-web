@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   type AppSurface,
   getClientSurfaceBuildId,
   isDevBuildId,
 } from "@/lib/appSurfaceVersion";
+import { isDropcoreLoginPath, isPortalPublicPath } from "@/lib/portalPublicPaths";
+import { usePortalAuthSession } from "@/lib/usePortalAuthSession";
 
 const POLL_MS = 30_000;
 const FIRST_RECHECK_MS = 5_000;
@@ -87,23 +90,36 @@ function reloadPortalWithoutPreview(): void {
 type Props = {
   /** Portal onde o banner está montado — nunca usar na landing pública. */
   surface: AppSurface;
+  /** Só exibe com sessão Supabase (login, cadastro e rotas públicas ficam sem banner). */
+  requireAuth?: boolean;
 };
 
 /**
  * Faixa fixa no topo quando há deploy novo na área do portal (seller, fornecedor, etc.).
  * Em dev o banner fica desligado (hash muda a cada save); use ?versionBannerPreview=1 para testar layout.
  */
-export function AppVersionUpdateBanner({ surface }: Props) {
+export function AppVersionUpdateBanner({ surface, requireAuth = false }: Props) {
   const [show, setShow] = useState(false);
   const bannerRef = useRef<HTMLDivElement>(null);
   const pendingServerIdRef = useRef<string | null>(null);
   const clientBuildId = getClientSurfaceBuildId(surface);
+  const pathname = usePathname() ?? "";
+  const hasSession = usePortalAuthSession();
+  const onLoginPage = isDropcoreLoginPath(pathname);
+  const onPublicPortalRoute = requireAuth && isPortalPublicPath(pathname, surface);
+  const mayShowPortalChrome =
+    !onLoginPage && (!requireAuth || (hasSession && !onPublicPortalRoute));
 
   useEffect(() => {
     clearLegacyPreviewKeys(surface);
   }, [surface]);
 
   const checkVersion = useCallback(async () => {
+    if (!mayShowPortalChrome) {
+      setShow(false);
+      return;
+    }
+
     if (isPreviewForced()) {
       setShow(true);
       return;
@@ -138,7 +154,7 @@ export function AppVersionUpdateBanner({ surface }: Props) {
 
     pendingServerIdRef.current = serverId;
     setShow(true);
-  }, [clientBuildId, surface]);
+  }, [clientBuildId, mayShowPortalChrome, surface]);
 
   useEffect(() => {
     void checkVersion();
@@ -189,6 +205,7 @@ export function AppVersionUpdateBanner({ surface }: Props) {
     };
   }, [show]);
 
+  if (!mayShowPortalChrome) return null;
   if (!show) return null;
 
   const offset = "var(--app-version-banner-offset, 0px)";

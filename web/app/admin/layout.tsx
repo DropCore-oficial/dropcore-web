@@ -86,7 +86,7 @@ export default function AdminLayout({
 
   return (
     <>
-      <AppVersionUpdateBanner surface="admin" />
+      <AppVersionUpdateBanner surface="admin" requireAuth />
       {!hasOwnHeader && (
         <header className="border-b border-[var(--border-subtle)] bg-[var(--card)]/80 backdrop-blur-sm pt-[env(safe-area-inset-top,0px)]">
           <div className="dropcore-shell-4xl flex min-w-0 items-center justify-between py-3">

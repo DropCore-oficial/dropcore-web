@@ -69,7 +69,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <AppVersionUpdateBanner surface="org" />
+      <AppVersionUpdateBanner surface="org" requireAuth />
       {children}
     </>
   );

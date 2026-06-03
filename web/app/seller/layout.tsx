@@ -16,7 +16,7 @@ export default function SellerLayout({ children }: { children: ReactNode }) {
   if (pathname.startsWith("/seller/calculadora")) {
     return (
       <>
-        <AppVersionUpdateBanner surface="seller" />
+        <AppVersionUpdateBanner surface="seller" requireAuth />
         {children}
         <SellerLayoutWhatsAppSupportFab />
       </>
@@ -25,7 +25,7 @@ export default function SellerLayout({ children }: { children: ReactNode }) {
 
   return (
     <SellerPortalGate>
-      <AppVersionUpdateBanner surface="seller" />
+      <AppVersionUpdateBanner surface="seller" requireAuth />
       <MensalidadeBloqueioGate context="seller" logoHref="/seller/dashboard">
         <SellerCadastroRedirect>{children}</SellerCadastroRedirect>
         <SellerLayoutWhatsAppSupportFab />

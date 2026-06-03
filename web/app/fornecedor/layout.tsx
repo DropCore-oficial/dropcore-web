@@ -8,7 +8,7 @@ import { AppVersionUpdateBanner } from "@/components/AppVersionUpdateBanner";
 export default function FornecedorLayout({ children }: { children: React.ReactNode }) {
   return (
     <FornecedorPortalGate>
-      <AppVersionUpdateBanner surface="fornecedor" />
+      <AppVersionUpdateBanner surface="fornecedor" requireAuth />
       <MensalidadeBloqueioGate context="fornecedor" logoHref="/fornecedor/dashboard">
         {children}
         <NotificationToasts context="fornecedor" />
