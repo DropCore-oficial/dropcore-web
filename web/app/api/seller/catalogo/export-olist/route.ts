@@ -75,7 +75,7 @@ export async function GET(req: Request) {
     const { data: rows, error } = await supabaseAdmin
       .from("skus")
       .select(
-        "id, sku, nome_produto, cor, tamanho, status, categoria, estoque_atual, custo_dropcore, custo_base, imagem_url, link_fotos, descricao, ncm, origem",
+        "id, sku, nome_produto, cor, tamanho, status, categoria, estoque_atual, custo_dropcore, custo_base, imagem_url, link_fotos, descricao, ncm, origem, marca, cest, peso_kg, peso_liquido_kg, peso_bruto_kg, comprimento_cm, largura_cm, altura_cm",
       )
       .eq("org_id", seller.org_id)
       .eq("fornecedor_id", fornecedorId)
@@ -111,6 +111,25 @@ export async function GET(req: Request) {
         descricao: (row as { descricao?: string | null }).descricao ?? null,
         ncm: (row as { ncm?: string | null }).ncm ?? null,
         origem: (row as { origem?: string | null }).origem ?? null,
+        marca: (row as { marca?: string | null }).marca ?? null,
+        cest: (row as { cest?: string | null }).cest ?? null,
+        peso_kg: typeof (row as { peso_kg?: number }).peso_kg === "number" ? (row as { peso_kg: number }).peso_kg : null,
+        peso_liquido_kg:
+          typeof (row as { peso_liquido_kg?: number }).peso_liquido_kg === "number"
+            ? (row as { peso_liquido_kg: number }).peso_liquido_kg
+            : null,
+        peso_bruto_kg:
+          typeof (row as { peso_bruto_kg?: number }).peso_bruto_kg === "number"
+            ? (row as { peso_bruto_kg: number }).peso_bruto_kg
+            : null,
+        comprimento_cm:
+          typeof (row as { comprimento_cm?: number }).comprimento_cm === "number"
+            ? (row as { comprimento_cm: number }).comprimento_cm
+            : null,
+        largura_cm:
+          typeof (row as { largura_cm?: number }).largura_cm === "number" ? (row as { largura_cm: number }).largura_cm : null,
+        altura_cm:
+          typeof (row as { altura_cm?: number }).altura_cm === "number" ? (row as { altura_cm: number }).altura_cm : null,
         habilitado_venda: habilitadoSet.has(id),
       };
     });

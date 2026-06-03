@@ -2,6 +2,7 @@
  * Monta CSV para importação de produtos no ERP Olist/Tiny (planilha modelo).
  * Ref.: https://ajuda.olist.com/produtos/importar-planilha-de-produtos
  */
+import { linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
 import {
   emptyOlistTinyProdutosImportRow,
   OLIST_TINY_PRODUTOS_IMPORT_HEADERS,
@@ -22,6 +23,14 @@ export type CatalogSkuForOlistExport = {
   descricao: string | null;
   ncm: string | null;
   origem: string | null;
+  marca: string | null;
+  cest: string | null;
+  peso_kg: number | null;
+  peso_liquido_kg: number | null;
+  peso_bruto_kg: number | null;
+  comprimento_cm: number | null;
+  largura_cm: number | null;
+  altura_cm: number | null;
   habilitado_venda?: boolean;
 };
 
@@ -41,8 +50,21 @@ function csvCampo(v: unknown): string {
   return `"${s.replace(/"/g, '""')}"`;
 }
 
-function isDirectImageUrl(url: string): boolean {
-  return /^https?:\/\/.+\.(jpe?g|png|webp|gif)(\?.*)?$/i.test(url.trim());
+/** CEST no padrão Olist (ex.: 28.038.00). */
+export function formatCestOlist(cest: string | null): string {
+  const raw = str(cest);
+  if (!raw) return "";
+  if (/^\d{2}\.\d{3}\.\d{2}$/.test(raw)) return raw;
+  const digits = raw.replace(/\D/g, "").slice(0, 7);
+  if (digits.length !== 7) return raw;
+  return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 7)}`;
+}
+
+/** Peso/dimensão com vírgula decimal (ex.: 0,350). */
+export function formatMedidaOlist(value: number, casas = 3): string {
+  if (!Number.isFinite(value) || value <= 0) return "";
+  const n = Math.round(value * 10 ** casas) / 10 ** casas;
+  return n.toFixed(casas).replace(".", ",");
 }
 
 /** Olist só aceita categoria com caminho `Nível 1 > Nível 2` já existente no ERP. */
@@ -56,11 +78,9 @@ export function categoriaOlist(categoria: string | null): string {
     .join(" > ");
 }
 
-function isSementeSku(sku: string, nome: string, cor: string, tam: string): boolean {
+function isSementeSku(sku: string, nome: string): boolean {
   if (sku === "DJU999000") return true;
-  if (!sku.endsWith("000")) return false;
   if (nome.toLowerCase().includes("semente")) return true;
-  if (!cor && !tam) return true;
   return false;
 }
 
@@ -76,15 +96,30 @@ export function paiKeyFromSku(sku: string): string {
 
 function parseFotoUrls(imagem_url: string | null, link_fotos: string | null): string[] {
   const out: string[] = [];
-  const main = str(imagem_url);
-  if (main && isDirectImageUrl(main)) out.push(main);
+  const tryAdd = (raw: string) => {
+    const u = linkFotosComoSrcMiniatura(raw);
+    if (u) out.push(u);
+  };
+  tryAdd(str(imagem_url));
   const raw = str(link_fotos);
   if (raw) {
     for (const chunk of raw.split(/(?:\r?\n|[,;|])+/).map((x) => x.trim()).filter(Boolean)) {
-      if (isDirectImageUrl(chunk)) out.push(chunk);
+      tryAdd(chunk);
     }
   }
   return [...new Set(out)].slice(0, 10);
+}
+
+function collectFotosGrupo(pai: CatalogSkuForOlistExport | null, filhos: CatalogSkuForOlistExport[]): string[] {
+  const out: string[] = [];
+  for (const item of [pai, ...filhos]) {
+    if (!item) continue;
+    for (const u of parseFotoUrls(item.imagem_url, item.link_fotos)) {
+      if (!out.includes(u)) out.push(u);
+      if (out.length >= 10) return out;
+    }
+  }
+  return out;
 }
 
 /** Modelo Olist: `6109.10.00` (8 dígitos com pontos), não só `61091000`. */
@@ -154,14 +189,53 @@ function situacaoFromStatus(status: string): string {
   return str(status).toLowerCase() === "ativo" ? "Ativo" : "Inativo";
 }
 
-function descricaoLinha(item: CatalogSkuForOlistExport, fallbackNome: string): string {
-  const desc = str(item.descricao);
-  if (desc.length >= 3) return sanitizeDescricaoOlist(desc);
+function descricaoTituloOlist(item: CatalogSkuForOlistExport, fallbackNome: string): string {
   const nome = str(item.nome_produto) || fallbackNome;
-  const cor = str(item.cor);
-  const tam = str(item.tamanho);
-  const bits = [nome, cor, tam].filter(Boolean);
-  return sanitizeDescricaoOlist(bits.join(" — ") || nome);
+  return sanitizeDescricaoOlist(nome);
+}
+
+function descricaoComplementarOlist(item: CatalogSkuForOlistExport, fallbackNome: string): string {
+  const desc = sanitizeDescricaoOlist(str(item.descricao));
+  const titulo = descricaoTituloOlist(item, fallbackNome);
+  if (desc.length >= 10 && desc !== titulo) return desc;
+  return "";
+}
+
+function resolvePesoLiquido(item: CatalogSkuForOlistExport): number | null {
+  const pl = item.peso_liquido_kg ?? item.peso_kg;
+  return pl != null && Number.isFinite(pl) && pl > 0 ? pl : null;
+}
+
+function resolvePesoBruto(item: CatalogSkuForOlistExport): number | null {
+  const pb = item.peso_bruto_kg ?? item.peso_kg;
+  return pb != null && Number.isFinite(pb) && pb > 0 ? pb : null;
+}
+
+function temDimensoesPacote(item: CatalogSkuForOlistExport): boolean {
+  return [item.comprimento_cm, item.largura_cm, item.altura_cm].some(
+    (v) => v != null && Number.isFinite(v) && v > 0,
+  );
+}
+
+function applyLogisticaToRow(row: OlistTinyProdutosImportRow, item: CatalogSkuForOlistExport): void {
+  const pl = resolvePesoLiquido(item);
+  const pb = resolvePesoBruto(item);
+  if (pl != null) row["Peso líquido (Kg)"] = formatMedidaOlist(pl);
+  if (pb != null) row["Peso bruto (Kg)"] = formatMedidaOlist(pb);
+
+  const larg = item.largura_cm;
+  const alt = item.altura_cm;
+  const comp = item.comprimento_cm;
+  if (larg != null && Number.isFinite(larg) && larg > 0) row["Largura embalagem"] = formatMedidaOlist(larg, 1);
+  if (alt != null && Number.isFinite(alt) && alt > 0) row["Altura Embalagem"] = formatMedidaOlist(alt, 1);
+  if (comp != null && Number.isFinite(comp) && comp > 0) row["Comprimento embalagem"] = formatMedidaOlist(comp, 1);
+
+  if (temDimensoesPacote(item) || pl != null || pb != null) {
+    row["Formato embalagem"] = "Pacote / Caixa";
+  }
+
+  row.CEST = formatCestOlist(item.cest);
+  row.Marca = str(item.marca);
 }
 
 type Grupo = { paiKey: string; pai: CatalogSkuForOlistExport | null; filhos: CatalogSkuForOlistExport[] };
@@ -170,7 +244,7 @@ function agruparItens(items: CatalogSkuForOlistExport[]): Grupo[] {
   const filtrados = items.filter((i) => {
     const sku = str(i.sku);
     if (!sku || isGrupoOculto(sku)) return false;
-    if (isSementeSku(sku, str(i.nome_produto), str(i.cor), str(i.tamanho))) return false;
+    if (isSementeSku(sku, str(i.nome_produto))) return false;
     return true;
   });
 
@@ -224,9 +298,14 @@ function permitirVendasCell(item: CatalogSkuForOlistExport): string {
   return "Sim";
 }
 
-function baseCells(item: CatalogSkuForOlistExport, opts?: { margemPct?: number; fallbackCusto?: number | null }): OlistTinyProdutosImportRow {
+function baseCells(
+  item: CatalogSkuForOlistExport,
+  opts?: { margemPct?: number; fallbackCusto?: number | null; fallbackFotos?: string[]; nomeGrupo?: string },
+): OlistTinyProdutosImportRow {
   const row = emptyOlistTinyProdutosImportRow();
-  const fotos = parseFotoUrls(item.imagem_url, item.link_fotos);
+  const nomeGrupo = opts?.nomeGrupo ?? str(item.nome_produto);
+  let fotos = parseFotoUrls(item.imagem_url, item.link_fotos);
+  if (fotos.length === 0 && opts?.fallbackFotos?.length) fotos = opts.fallbackFotos;
   const margemPct = opts?.margemPct ?? 0;
   const custoNum = resolveCustoUnit(item, opts?.fallbackCusto);
   const precoCusto = custoNum != null ? precoCustoOlistFromCusto(custoNum, margemPct) : "";
@@ -237,7 +316,7 @@ function baseCells(item: CatalogSkuForOlistExport, opts?: { margemPct?: number; 
 
   row.ID = "";
   row["Código (SKU)"] = str(item.sku);
-  row.Descrição = descricaoLinha(item, str(item.nome_produto));
+  row.Descrição = descricaoTituloOlist(item, nomeGrupo);
   row.Unidade = "Un";
   row["NCM (Classificação fiscal)"] = formatNcmOlist(item.ncm);
   row.Origem = normalizeOrigemOlist(item.origem);
@@ -251,12 +330,13 @@ function baseCells(item: CatalogSkuForOlistExport, opts?: { margemPct?: number; 
   row["Tipo do produto"] = "S";
   row["Código do pai"] = "";
   row.Variações = buildAtributos(item.cor, item.tamanho);
-  row.Marca = "";
   row.Categoria = categoriaOlist(item.categoria);
   row["Sob encomenda"] = "Não";
   row["Preço promocional"] = "";
   row["Controlar lotes"] = "Não";
   row["Permitir inclusão nas vendas"] = permitirVendasCell(item);
+  row["Descrição complementar"] = descricaoComplementarOlist(item, nomeGrupo);
+  applyLogisticaToRow(row, item);
   applyFotosToRow(row, fotos);
   return row;
 }
@@ -281,6 +361,7 @@ export function buildOlistProdutosCsvLines(
       if (c == null) return acc;
       return acc == null ? c : Math.max(acc, c);
     }, resolveCustoUnit(g.pai ?? g.filhos[0]!));
+    const fotosGrupo = collectFotosGrupo(g.pai, g.filhos);
 
     if (g.filhos.length > 0) {
       const paiRef = g.pai ?? g.filhos[0]!;
@@ -292,8 +373,9 @@ export function buildOlistProdutosCsvLines(
           cor: "",
           tamanho: "",
           estoque_atual: null,
+          custo_total: custoGrupo,
         },
-        { margemPct, fallbackCusto: custoGrupo },
+        { margemPct, fallbackCusto: custoGrupo, fallbackFotos: fotosGrupo, nomeGrupo },
       );
       paiCells["Tipo do produto"] = "V";
       paiCells.Variações = "";
@@ -303,7 +385,12 @@ export function buildOlistProdutosCsvLines(
       lines.push(rowToCells(paiCells).join(SEP));
 
       for (const filho of g.filhos) {
-        const child = baseCells(filho, { margemPct, fallbackCusto: custoGrupo });
+        const child = baseCells(filho, {
+          margemPct,
+          fallbackCusto: custoGrupo,
+          fallbackFotos: fotosGrupo,
+          nomeGrupo,
+        });
         child["Tipo do produto"] = "S";
         child["Código do pai"] = paiSku;
         child.Variações = buildAtributos(filho.cor, filho.tamanho);

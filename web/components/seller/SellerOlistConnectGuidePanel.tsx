@@ -87,8 +87,15 @@ export function SellerOlistConnectGuidePanel({ id = "guia-olist" }: { id?: strin
             <p>
               Em <strong className="text-neutral-900 dark:text-neutral-100">Mais → Produtos</strong>, clique em{" "}
               <strong className="text-neutral-900 dark:text-neutral-100">Exportar para Olist</strong> em cada produto da lista (expandir o
-              card) para baixar o CSV daquele grupo — pai, variações, estoque, NCM e fotos. Importe em Cadastros → Produtos → Importar
-              planilha na Olist/Tiny.
+              card) para baixar o CSV daquele grupo — pai, variações, estoque, NCM, peso, dimensões, marca, CEST e fotos. Importe em
+              Cadastros → Produtos → Importar planilha na Olist/Tiny.
+            </p>
+            <p className="mt-2 text-pretty leading-relaxed">
+              Na confirmação da importação, marque{" "}
+              <strong className="text-neutral-900 dark:text-neutral-100">Atualizar preço de custo e estoque</strong> para o custo
+              DropCore ir para a aba Custos. Categoria na planilha só entra se já existir na Olist no formato{" "}
+              <code className="text-xs">Departamento &gt; Subcategoria</code> (ex.:{" "}
+              <code className="text-xs">Vestuários &gt; Camisetas</code>).
             </p>
           </StepBlock>
           <StepBlock n="6" title="Webhook de pedidos (opcional)">

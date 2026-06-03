@@ -4,6 +4,8 @@ import {
   categoriaOlist,
   filterSkusByGrupo,
   filterSkusForOlistExport,
+  formatCestOlist,
+  formatMedidaOlist,
   formatNcmOlist,
   sanitizeDescricaoOlist,
 } from "./sellerCatalogOlistExport";
@@ -40,10 +42,34 @@ function col(line: string, header: (typeof OLIST_TINY_PRODUTOS_IMPORT_HEADERS)[n
   return cols[OLIST_TINY_PRODUTOS_IMPORT_HEADERS.indexOf(header)] ?? "";
 }
 
+function olistSkuBase(overrides: Partial<import("./sellerCatalogOlistExport").CatalogSkuForOlistExport> = {}) {
+  return {
+    categoria: null,
+    estoque_atual: 1,
+    custo_total: 10,
+    imagem_url: null,
+    link_fotos: null,
+    descricao: null,
+    ncm: null,
+    origem: null,
+    marca: null,
+    cest: null,
+    peso_kg: null,
+    peso_liquido_kg: null,
+    peso_bruto_kg: null,
+    comprimento_cm: null,
+    largura_cm: null,
+    altura_cm: null,
+    ...overrides,
+  };
+}
+
 describe("sellerCatalogOlistExport", () => {
-  it("formata NCM, descrição e categoria no padrão Olist", () => {
+  it("formata NCM, CEST, descrição e categoria no padrão Olist", () => {
     expect(formatNcmOlist("61052000")).toBe("6105.20.00");
     expect(formatNcmOlist("95030080")).toBe("9503.00.80");
+    expect(formatCestOlist("2803800")).toBe("28.038.00");
+    expect(formatMedidaOlist(0.35)).toBe("0,350");
     expect(sanitizeDescricaoOlist("Gola Padre | Para Os Dias Quentes")).toBe(
       "Gola Padre — Para Os Dias Quentes",
     );
@@ -60,16 +86,7 @@ describe("sellerCatalogOlistExport", () => {
   });
 
   it("filtra só habilitados quando scope habilitados", () => {
-    const base = {
-      categoria: null,
-      estoque_atual: 1,
-      custo_total: 10,
-      imagem_url: null,
-      link_fotos: null,
-      descricao: null,
-      ncm: null,
-      origem: null,
-    };
+    const base = olistSkuBase();
     const items = [
       { sku: "A001", nome_produto: "A", cor: "", tamanho: "", status: "ativo", habilitado_venda: true, ...base },
       { sku: "B001", nome_produto: "B", cor: "", tamanho: "", status: "ativo", habilitado_venda: false, ...base },
@@ -79,22 +96,11 @@ describe("sellerCatalogOlistExport", () => {
   });
 
   it("filtra por grupo pai", () => {
-    const base = {
-      categoria: null,
-      estoque_atual: 1,
-      custo_total: 10,
-      imagem_url: null,
-      link_fotos: null,
-      descricao: null,
-      ncm: null,
-      origem: null,
-      status: "ativo",
-      nome_produto: "X",
-    };
+    const base = olistSkuBase();
     const items = [
-      { sku: "CAM000", cor: "", tamanho: "", ...base },
-      { sku: "CAM001", cor: "Azul", tamanho: "M", ...base },
-      { sku: "OUT001", cor: "", tamanho: "", ...base },
+      { sku: "CAM000", cor: "", tamanho: "", status: "ativo", nome_produto: "X", ...base },
+      { sku: "CAM001", cor: "Azul", tamanho: "M", status: "ativo", nome_produto: "X", ...base },
+      { sku: "OUT001", cor: "", tamanho: "", status: "ativo", nome_produto: "X", ...base },
     ];
     const cam = filterSkusByGrupo(items, "CAM000");
     expect(cam.map((i) => i.sku).sort()).toEqual(["CAM000", "CAM001"]);
@@ -108,14 +114,18 @@ describe("sellerCatalogOlistExport", () => {
         cor: "",
         tamanho: "",
         status: "ativo",
-        categoria: "Roupas",
-        estoque_atual: 0,
-        custo_total: 10,
-        imagem_url: null,
-        link_fotos: null,
-        descricao: null,
-        ncm: "61091000",
-        origem: "0",
+        ...olistSkuBase({
+          categoria: "Roupas",
+          estoque_atual: 0,
+          ncm: "61091000",
+          origem: "0",
+          marca: "Insider",
+          cest: "0100300",
+          peso_kg: 0.25,
+          comprimento_cm: 40,
+          largura_cm: 15,
+          altura_cm: 10,
+        }),
       },
       {
         sku: "CAM001",
@@ -123,15 +133,16 @@ describe("sellerCatalogOlistExport", () => {
         cor: "Azul",
         tamanho: "M",
         status: "ativo",
-        categoria: "Roupas",
-        estoque_atual: 5,
-        custo_total: 12,
-        imagem_url: "https://cdn.example.com/f.jpg",
-        link_fotos: null,
-        descricao: "Desc",
-        ncm: "61091000",
-        origem: "0",
         habilitado_venda: true,
+        ...olistSkuBase({
+          categoria: "Roupas",
+          estoque_atual: 5,
+          custo_total: 12,
+          imagem_url: "https://cdn.example.com/f.jpg",
+          descricao: "Desc longa do produto",
+          ncm: "61091000",
+          origem: "0",
+        }),
       },
     ]);
     expect(lines.length).toBe(3);
@@ -151,44 +162,75 @@ describe("sellerCatalogOlistExport", () => {
     expect(col(lines[2]!, "Origem")).toBe("0");
     expect(col(lines[1]!, "Categoria")).toBe("");
     expect(col(lines[1]!, "Controlar lotes")).toBe("Não");
+    expect(col(lines[1]!, "Marca")).toBe("Insider");
+    expect(col(lines[1]!, "CEST")).toBe("01.003.00");
+    expect(col(lines[1]!, "Peso líquido (Kg)")).toBe("0,250");
+    expect(col(lines[1]!, "Formato embalagem")).toBe("Pacote / Caixa");
+    expect(col(lines[2]!, "Descrição complementar")).toBe("Desc longa do produto");
+    expect(col(lines[1]!, "URL imagem 1")).toBe("https://cdn.example.com/f.jpg");
   });
 
-  it("remove pipe da descrição longa do fornecedor", () => {
+  it("aceita URL Supabase storage e herda fotos do grupo no pai", () => {
+    const supa = "https://abc.supabase.co/storage/v1/object/public/fotos/cam.jpg";
     const lines = buildOlistProdutosCsvLines([
       {
-        sku: "DJU001000",
-        nome_produto: "Gola",
+        sku: "CAM000",
+        nome_produto: "Camiseta",
         cor: "",
         tamanho: "",
         status: "ativo",
-        categoria: "Camisa Social",
-        estoque_atual: 0,
-        custo_total: 34.5,
-        imagem_url: null,
-        link_fotos: null,
-        descricao: "Gola Padre | Para Os Dias Quentes | Lavar A Mão",
-        ncm: "61052000",
-        origem: "0",
+        ...olistSkuBase({ estoque_atual: 0 }),
+      },
+      {
+        sku: "CAM001",
+        nome_produto: "Camiseta",
+        cor: "Azul",
+        tamanho: "M",
+        status: "ativo",
+        ...olistSkuBase({ imagem_url: supa }),
+      },
+    ]);
+    expect(col(lines[1]!, "URL imagem 1")).toBe(supa);
+    expect(col(lines[2]!, "URL imagem 1")).toBe(supa);
+  });
+
+  it("separa título e descrição complementar", () => {
+    const lines = buildOlistProdutosCsvLines([
+      {
+        sku: "DJU001000",
+        nome_produto: "Gola Padre",
+        cor: "",
+        tamanho: "",
+        status: "ativo",
+        ...olistSkuBase({
+          categoria: "Camisa Social",
+          estoque_atual: 0,
+          custo_total: 34.5,
+          descricao: "Gola Padre | Para Os Dias Quentes | Lavar A Mão",
+          ncm: "61052000",
+          origem: "0",
+        }),
       },
       {
         sku: "DJU001001",
-        nome_produto: "Gola",
+        nome_produto: "Gola Padre",
         cor: "Branco",
         tamanho: "P",
         status: "ativo",
-        categoria: "Camisa Social",
-        estoque_atual: 1,
-        custo_total: 34.5,
-        imagem_url: null,
-        link_fotos: null,
-        descricao: "Gola Padre | Para Os Dias Quentes | Lavar A Mão",
-        ncm: "61052000",
-        origem: "0",
+        ...olistSkuBase({
+          categoria: "Camisa Social",
+          estoque_atual: 1,
+          custo_total: 34.5,
+          descricao: "Gola Padre | Para Os Dias Quentes | Lavar A Mão",
+          ncm: "61052000",
+          origem: "0",
+        }),
       },
     ]);
-    const desc = col(lines[2]!, "Descrição");
-    expect(desc).not.toContain("|");
-    expect(desc).toContain("Gola Padre — Para Os Dias Quentes");
+    expect(col(lines[2]!, "Descrição")).toBe("Gola Padre");
+    const comp = col(lines[2]!, "Descrição complementar");
+    expect(comp).not.toContain("|");
+    expect(comp).toContain("Gola Padre — Para Os Dias Quentes");
   });
 
   it("converte Origem Nacional para código 0", () => {
@@ -199,14 +241,7 @@ describe("sellerCatalogOlistExport", () => {
         cor: "",
         tamanho: "",
         status: "ativo",
-        categoria: null,
-        estoque_atual: 0,
-        custo_total: 10,
-        imagem_url: null,
-        link_fotos: null,
-        descricao: null,
-        ncm: null,
-        origem: "Nacional",
+        ...olistSkuBase({ estoque_atual: 0, origem: "Nacional" }),
       },
       {
         sku: "X001",
@@ -214,14 +249,7 @@ describe("sellerCatalogOlistExport", () => {
         cor: "Azul",
         tamanho: "M",
         status: "ativo",
-        categoria: null,
-        estoque_atual: 1,
-        custo_total: 10,
-        imagem_url: null,
-        link_fotos: null,
-        descricao: null,
-        ncm: null,
-        origem: "Nacional",
+        ...olistSkuBase({ origem: "Nacional" }),
       },
     ]);
     expect(col(lines[2]!, "Origem")).toBe("0");
@@ -238,14 +266,7 @@ describe("sellerCatalogOlistExport", () => {
           cor: "",
           tamanho: "",
           status: "ativo",
-          categoria: null,
-          estoque_atual: 0,
-          custo_total: 100,
-          imagem_url: null,
-          link_fotos: null,
-          descricao: null,
-          ncm: null,
-          origem: "0",
+          ...olistSkuBase({ estoque_atual: 0, custo_total: 100, origem: "0" }),
         },
         {
           sku: "X001",
@@ -253,14 +274,7 @@ describe("sellerCatalogOlistExport", () => {
           cor: "Azul",
           tamanho: "M",
           status: "ativo",
-          categoria: null,
-          estoque_atual: 1,
-          custo_total: 100,
-          imagem_url: null,
-          link_fotos: null,
-          descricao: null,
-          ncm: null,
-          origem: "0",
+          ...olistSkuBase({ custo_total: 100, origem: "0" }),
         },
       ],
       { margemPct: 50 },
