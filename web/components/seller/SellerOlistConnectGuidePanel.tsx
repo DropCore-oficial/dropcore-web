@@ -93,9 +93,15 @@ export function SellerOlistConnectGuidePanel({ id = "guia-olist" }: { id?: strin
             <p className="mt-2 text-pretty leading-relaxed">
               Na confirmação da importação, marque{" "}
               <strong className="text-neutral-900 dark:text-neutral-100">Atualizar preço de custo e estoque</strong> para o custo
-              DropCore ir para a aba Custos. Categoria na planilha só entra se já existir na Olist no formato{" "}
+              DropCore ir para a aba Custos. Peso, NCM, CEST e dimensões cadastrados no fornecedor (mesmo só no representante do
+              grupo) são herdados para o pai e para todas as variações na planilha. Categoria na planilha só entra se já existir na
+              Olist no formato{" "}
               <code className="text-xs">Departamento &gt; Subcategoria</code> (ex.:{" "}
               <code className="text-xs">Vestuários &gt; Camisetas</code>).
+            </p>
+            <p className="mt-2 text-pretty leading-relaxed">
+              Fotos só entram se forem <strong className="text-neutral-900 dark:text-neutral-100">URL pública</strong> (http/https) —
+              imagens em base64 no cadastro do fornecedor são ignoradas para não estourar o limite de 2&nbsp;MB da Olist.
             </p>
           </StepBlock>
           <StepBlock n="6" title="Webhook de pedidos (opcional)">

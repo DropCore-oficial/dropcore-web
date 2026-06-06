@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   buildOlistProdutosCsvLines,
   categoriaOlist,
+  collectLogisticaGrupo,
   filterSkusByGrupo,
   filterSkusForOlistExport,
   formatCestOlist,
   formatMedidaOlist,
   formatNcmOlist,
+  mergeComLogisticaGrupo,
   sanitizeDescricaoOlist,
   urlImagemExportOlist,
 } from "./sellerCatalogOlistExport";
@@ -308,5 +310,74 @@ describe("sellerCatalogOlistExport", () => {
     );
     expect(col(lines[2]!, "Preço")).toBe("0,00");
     expect(col(lines[2]!, "Preço de custo")).toBe("150,00");
+  });
+
+  it("herda peso e fiscal do representante/filho no pai e nas variações sem dado próprio", () => {
+    const basePai = {
+      sku: "DJU001000",
+      nome_produto: "Gola Padre",
+      cor: "",
+      tamanho: "",
+      status: "ativo",
+      ...olistSkuBase({
+        estoque_atual: 0,
+        custo_total: 34.5,
+        cest: "2803800",
+        comprimento_cm: 20,
+        largura_cm: 5,
+        altura_cm: 15,
+      }),
+    };
+    const baseFilho = {
+      sku: "DJU001001",
+      nome_produto: "Gola Padre",
+      cor: "Branco",
+      tamanho: "P",
+      status: "ativo",
+      ...olistSkuBase({
+        estoque_atual: 8,
+        custo_total: 34.5,
+        ncm: "61052000",
+        origem: "0",
+        marca: "Djulios",
+        peso_liquido_kg: 0.35,
+        peso_bruto_kg: 0.38,
+      }),
+    };
+    const lines = buildOlistProdutosCsvLines([basePai, baseFilho]);
+    expect(col(lines[1]!, "Peso líquido (Kg)")).toBe("0,350");
+    expect(col(lines[1]!, "Peso bruto (Kg)")).toBe("0,380");
+    expect(col(lines[1]!, "NCM (Classificação fiscal)")).toBe("6105.20.00");
+    expect(col(lines[1]!, "Marca")).toBe("Djulios");
+    expect(col(lines[1]!, "Comprimento embalagem")).toBe("20,0");
+    expect(col(lines[2]!, "Peso líquido (Kg)")).toBe("0,350");
+    expect(col(lines[2]!, "NCM (Classificação fiscal)")).toBe("6105.20.00");
+  });
+
+  it("collectLogisticaGrupo e mergeComLogisticaGrupo preenchem lacunas do SKU", () => {
+    const pai = {
+      sku: "DJU001000",
+      nome_produto: "Gola Padre",
+      cor: "",
+      tamanho: "",
+      status: "ativo",
+      ...olistSkuBase({ comprimento_cm: 20, largura_cm: 5, altura_cm: 15 }),
+    };
+    const filho = {
+      sku: "DJU001001",
+      nome_produto: "Gola Padre",
+      cor: "Branco",
+      tamanho: "P",
+      status: "ativo",
+      ...olistSkuBase({ peso_liquido_kg: 0.35, ncm: "61052000", marca: "Djulios" }),
+    };
+    const grupo = collectLogisticaGrupo(pai, [filho]);
+    expect(grupo.peso_liquido_kg).toBe(0.35);
+    expect(grupo.comprimento_cm).toBe(20);
+    expect(grupo.ncm).toBe("61052000");
+    const mergedPai = mergeComLogisticaGrupo(pai, grupo);
+    expect(mergedPai.peso_liquido_kg).toBe(0.35);
+    expect(mergedPai.comprimento_cm).toBe(20);
+    expect(mergedPai.ncm).toBe("61052000");
   });
 });

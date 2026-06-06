@@ -145,6 +145,68 @@ function collectFotosGrupo(pai: CatalogSkuForOlistExport | null, filhos: Catalog
   return out;
 }
 
+type LogisticaGrupoFields = Pick<
+  CatalogSkuForOlistExport,
+  | "ncm"
+  | "origem"
+  | "cest"
+  | "marca"
+  | "peso_kg"
+  | "peso_liquido_kg"
+  | "peso_bruto_kg"
+  | "comprimento_cm"
+  | "largura_cm"
+  | "altura_cm"
+>;
+
+function posNum(v: number | null | undefined): v is number {
+  return v != null && Number.isFinite(v) && v > 0;
+}
+
+/** Peso/NCM/dimensões do representante ou filho entram no pai e nos SKUs sem dado próprio. */
+export function collectLogisticaGrupo(
+  pai: CatalogSkuForOlistExport | null,
+  filhos: CatalogSkuForOlistExport[],
+): Partial<LogisticaGrupoFields> {
+  const out: Partial<LogisticaGrupoFields> = {};
+  for (const item of [pai, ...filhos]) {
+    if (!item) continue;
+    if (out.peso_liquido_kg == null && posNum(item.peso_liquido_kg)) out.peso_liquido_kg = item.peso_liquido_kg;
+    if (out.peso_bruto_kg == null && posNum(item.peso_bruto_kg)) out.peso_bruto_kg = item.peso_bruto_kg;
+    if (out.peso_kg == null && posNum(item.peso_kg)) out.peso_kg = item.peso_kg;
+    if (out.comprimento_cm == null && posNum(item.comprimento_cm)) out.comprimento_cm = item.comprimento_cm;
+    if (out.largura_cm == null && posNum(item.largura_cm)) out.largura_cm = item.largura_cm;
+    if (out.altura_cm == null && posNum(item.altura_cm)) out.altura_cm = item.altura_cm;
+    if (out.ncm == null && str(item.ncm)) out.ncm = item.ncm;
+    if (out.origem == null && str(item.origem)) out.origem = item.origem;
+    if (out.cest == null && str(item.cest)) out.cest = item.cest;
+    if (out.marca == null && str(item.marca)) out.marca = item.marca;
+  }
+  return out;
+}
+
+export function mergeComLogisticaGrupo(
+  item: CatalogSkuForOlistExport,
+  grupo: Partial<LogisticaGrupoFields>,
+): CatalogSkuForOlistExport {
+  const pickStr = (own: string | null, fallback: string | null | undefined) =>
+    str(own) ? own : fallback != null && str(fallback) ? fallback : own;
+
+  return {
+    ...item,
+    ncm: pickStr(item.ncm, grupo.ncm),
+    origem: pickStr(item.origem, grupo.origem),
+    cest: pickStr(item.cest, grupo.cest),
+    marca: pickStr(item.marca, grupo.marca),
+    peso_liquido_kg: posNum(item.peso_liquido_kg) ? item.peso_liquido_kg : (grupo.peso_liquido_kg ?? item.peso_liquido_kg),
+    peso_bruto_kg: posNum(item.peso_bruto_kg) ? item.peso_bruto_kg : (grupo.peso_bruto_kg ?? item.peso_bruto_kg),
+    peso_kg: posNum(item.peso_kg) ? item.peso_kg : (grupo.peso_kg ?? item.peso_kg),
+    comprimento_cm: posNum(item.comprimento_cm) ? item.comprimento_cm : (grupo.comprimento_cm ?? item.comprimento_cm),
+    largura_cm: posNum(item.largura_cm) ? item.largura_cm : (grupo.largura_cm ?? item.largura_cm),
+    altura_cm: posNum(item.altura_cm) ? item.altura_cm : (grupo.altura_cm ?? item.altura_cm),
+  };
+}
+
 /** Modelo Olist: `6109.10.00` (8 dígitos com pontos), não só `61091000`. */
 export function formatNcmOlist(ncm: string | null): string {
   const digits = str(ncm).replace(/\D/g, "").slice(0, 8);
@@ -399,19 +461,22 @@ export function buildOlistProdutosCsvLines(
     }, resolveCustoUnit(g.pai ?? g.filhos[0]!));
     const fotosGrupo = collectFotosGrupo(g.pai, g.filhos);
     const descricaoComplementarGrupo = collectDescricaoComplementarGrupo(g.pai, g.filhos, nomeGrupo);
+    const logisticaGrupo = collectLogisticaGrupo(g.pai, g.filhos);
 
     if (g.filhos.length > 0) {
-      const paiRef = g.pai ?? g.filhos[0]!;
       const paiCells = baseCells(
-        {
-          ...paiRef,
-          sku: paiSku,
-          nome_produto: nomeGrupo,
-          cor: "",
-          tamanho: "",
-          estoque_atual: null,
-          custo_total: custoGrupo,
-        },
+        mergeComLogisticaGrupo(
+          {
+            ...(g.pai ?? g.filhos[0]!),
+            sku: paiSku,
+            nome_produto: nomeGrupo,
+            cor: "",
+            tamanho: "",
+            estoque_atual: null,
+            custo_total: custoGrupo,
+          },
+          logisticaGrupo,
+        ),
         { margemPct, fallbackCusto: custoGrupo, fallbackFotos: fotosGrupo, nomeGrupo, incluirFotos: true, incluirDescricaoComplementar: true },
       );
       paiCells["Tipo do produto"] = "V";
@@ -423,7 +488,7 @@ export function buildOlistProdutosCsvLines(
       lines.push(rowToCells(paiCells).join(SEP));
 
       for (const filho of g.filhos) {
-        const child = baseCells(filho, {
+        const child = baseCells(mergeComLogisticaGrupo(filho, logisticaGrupo), {
           margemPct,
           fallbackCusto: custoGrupo,
           nomeGrupo,
@@ -439,7 +504,8 @@ export function buildOlistProdutosCsvLines(
     }
 
     if (g.pai) {
-      const simple = baseCells(g.pai, { margemPct });
+      const logisticaSolo = collectLogisticaGrupo(g.pai, g.filhos);
+      const simple = baseCells(mergeComLogisticaGrupo(g.pai, logisticaSolo), { margemPct });
       simple["Tipo do produto"] = "S";
       simple["Código do pai"] = "";
       lines.push(rowToCells(simple).join(SEP));
