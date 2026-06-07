@@ -3,10 +3,17 @@ import {
   paiKeyFromSku,
   type CatalogSkuForOlistExport,
 } from "@/lib/sellerCatalogOlistExport";
-import { alterarProdutosOlistLote, type OlistAlterarProdutoPayload } from "@/lib/olistTinyApi";
+import {
+  alterarProdutosOlistLote,
+  atualizarPrecosOlistLote,
+  obterProdutoOlistPorId,
+  resolverIdProdutoOlistPorCodigo,
+  type OlistAlterarProdutoPayload,
+} from "@/lib/olistTinyApi";
 
 const BATCH_SIZE = 12;
 const BATCH_PAUSE_MS = 400;
+const VARIACOES_POR_ALTER = 40;
 
 function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim();
@@ -34,32 +41,19 @@ function custoGrupoMax(items: CatalogSkuForOlistExport[]): number | null {
   return acc;
 }
 
-/** Pai + filhos — espelha o CSV (custo no pai e em cada variação). */
-export function buildSkusParaSyncCustoOlist(items: CatalogSkuForOlistExport[]): CatalogSkuForOlistExport[] {
-  if (items.length === 0) return [];
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-  const custoGrupo = custoGrupoMax(items);
-  const paiKey = paiKeyFromSku(str(items[0]!.sku));
-  const paiRow = items.find((i) => str(i.sku) === paiKey);
-  const nomeGrupo = str(paiRow?.nome_produto) || str(items[0]!.nome_produto) || paiKey;
-  const filhos = items.filter((i) => str(i.sku) !== paiKey);
-  const out: CatalogSkuForOlistExport[] = [];
-
-  if (filhos.length > 0 && paiKey) {
-    out.push({
-      ...(paiRow ?? items[0]!),
-      sku: paiKey,
-      nome_produto: nomeGrupo,
-      cor: "",
-      tamanho: "",
-      custo_total: custoGrupo,
-      estoque_atual: null,
-    });
-    out.push(...filhos);
-    return out;
+function custoPorSkuMap(items: CatalogSkuForOlistExport[], custoGrupo: number | null): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const item of items) {
+    const sku = str(item.sku).toUpperCase();
+    if (!sku) continue;
+    const custo = resolveCustoUnit(item, custoGrupo);
+    if (custo != null) map.set(sku, custo);
   }
-
-  return [...items];
+  return map;
 }
 
 function buildAlterPayload(
@@ -93,8 +87,28 @@ function buildAlterPayload(
   return out;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function countAlterOk(
+  payload: OlistAlterarProdutoPayload[],
+  registros: Array<{ registro?: { sequencia?: number; status?: string; erros?: Array<{ erro?: string }> } }> | undefined,
+): { ok: number; falhas: Array<{ sku: string; erro: string }> } {
+  const seqToSku = new Map(payload.map((p) => [p.sequencia, p.codigo]));
+  const falhas: Array<{ sku: string; erro: string }> = [];
+  let ok = 0;
+  if (!registros?.length) {
+    return { ok: payload.length, falhas };
+  }
+  for (const row of registros) {
+    const reg = row.registro;
+    if (!reg) continue;
+    const sku = seqToSku.get(Number(reg.sequencia)) ?? `#${reg.sequencia ?? "?"}`;
+    if (String(reg.status ?? "").toUpperCase() === "OK") {
+      ok += 1;
+    } else {
+      const msg = reg.erros?.map((e) => e.erro).filter(Boolean).join(" ") || "Erro ao atualizar na Olist.";
+      falhas.push({ sku, erro: msg.trim() });
+    }
+  }
+  return { ok, falhas };
 }
 
 export type SyncOlistCustosResult = {
@@ -103,24 +117,146 @@ export type SyncOlistCustosResult = {
   ok: number;
   falhas: Array<{ sku: string; erro: string }>;
   ignorados_sem_custo: number;
+  modo?: "variacoes_pai" | "sku_individual";
+  pai_id?: number;
 };
 
-/** Atualiza preço de custo na Olist via API (pai + filhos) — complementa a planilha CSV. */
-export async function syncOlistCustosGrupo(
+/** Produto pai + variações na Olist (tipoVariacao P) — preço/custo vão nas variações, não no SKU avulso. */
+async function syncOlistGrupoVariacoesPai(
   apiToken: string,
   items: CatalogSkuForOlistExport[],
-  opts?: { margemPct?: number },
-): Promise<SyncOlistCustosResult> {
-  const margemPct = opts?.margemPct ?? 0;
-  const skusSync = buildSkusParaSyncCustoOlist(items);
-  const custoGrupo = custoGrupoMax(items);
-  const comCusto = skusSync.filter((i) => resolveCustoUnit(i, custoGrupo) != null);
+  opts: { margemPct: number; paiKey: string; custoGrupo: number },
+): Promise<SyncOlistCustosResult | null> {
+  const paiKey = opts.paiKey;
+  const parentId = await resolverIdProdutoOlistPorCodigo(apiToken, paiKey);
+  if (!parentId) return null;
+
+  const produto = await obterProdutoOlistPorId(apiToken, parentId);
+  const variacoesOlist = produto?.variacoes ?? [];
+  if (!produto || String(produto.tipoVariacao ?? "").toUpperCase() !== "P" || variacoesOlist.length === 0) {
+    return null;
+  }
+
+  const custoMap = custoPorSkuMap(items, opts.custoGrupo);
+  const mult = 1 + Math.max(0, opts.margemPct) / 100;
+  const nomePai = str(produto.nome) || paiKey;
+  const origem = normalizeOrigemOlist(str(produto.origem) || items[0]?.origem || null);
+  const situacao = str(produto.situacao).toUpperCase() === "I" ? "I" : "A";
+
+  const variacoesPayload: Array<{ variacao: { id?: number; codigo?: string; preco?: string } }> = [];
+  const precosIds: Array<{ id: number; preco: string; sku: string }> = [];
+  const filhosAlter: OlistAlterarProdutoPayload[] = [];
+
+  for (const row of variacoesOlist) {
+    const v = row?.variacao;
+    if (!v) continue;
+    const codigo = str(v.codigo);
+    const idVar = typeof v.id === "number" ? v.id : Number.parseInt(String(v.id ?? ""), 10);
+    if (!codigo || !Number.isFinite(idVar) || idVar <= 0) continue;
+
+    const custo = custoMap.get(codigo.toUpperCase()) ?? opts.custoGrupo;
+    if (custo == null || !Number.isFinite(custo) || custo <= 0) continue;
+
+    const precoVenda = formatTinyDecimal(custo * mult);
+    const precoCusto = formatTinyDecimal(custo);
+
+    variacoesPayload.push({
+      variacao: { id: idVar, codigo, preco: precoVenda },
+    });
+    precosIds.push({ id: idVar, preco: precoVenda, sku: codigo });
+    filhosAlter.push({
+      sequencia: filhosAlter.length + 1,
+      id: idVar,
+      codigo,
+      nome: nomePai.slice(0, 120),
+      unidade: str(produto.unidade) || "UN",
+      preco: precoVenda,
+      preco_custo: precoCusto,
+      origem,
+      situacao,
+      tipo: "P",
+    });
+  }
+
+  if (variacoesPayload.length === 0) return null;
+
+  const precoPaiRef = formatTinyDecimal(opts.custoGrupo * mult);
+  const custoPaiRef = formatTinyDecimal(opts.custoGrupo);
   const result: SyncOlistCustosResult = {
-    total: skusSync.length,
+    total: variacoesPayload.length + 1,
+    com_custo: variacoesPayload.length + 1,
+    ok: 0,
+    falhas: [],
+    ignorados_sem_custo: 0,
+    modo: "variacoes_pai",
+    pai_id: parentId,
+  };
+
+  try {
+    const paiPayload: OlistAlterarProdutoPayload = {
+      sequencia: 1,
+      id: parentId,
+      codigo: paiKey,
+      nome: nomePai.slice(0, 120),
+      unidade: str(produto.unidade) || "UN",
+      preco: precoPaiRef,
+      preco_custo: custoPaiRef,
+      origem,
+      situacao,
+      tipo: "P",
+      variacoes: variacoesPayload.slice(0, VARIACOES_POR_ALTER),
+    };
+    const resPai = await alterarProdutosOlistLote(apiToken, [paiPayload]);
+    const parsedPai = countAlterOk([paiPayload], resPai.registros);
+    if (parsedPai.ok > 0) result.ok += 1;
+    else if (parsedPai.falhas.length) result.falhas.push(...parsedPai.falhas.map((f) => ({ sku: paiKey, erro: f.erro })));
+    else result.ok += 1;
+  } catch (e: unknown) {
+    result.falhas.push({ sku: paiKey, erro: e instanceof Error ? e.message : "Erro ao atualizar pai na Olist." });
+  }
+
+  try {
+    await atualizarPrecosOlistLote(apiToken, [{ id: parentId, preco: precoPaiRef }, ...precosIds.map((p) => ({ id: p.id, preco: p.preco }))]);
+  } catch (e: unknown) {
+    result.falhas.push({
+      sku: paiKey,
+      erro: `Preço de venda (atualizar.precos): ${e instanceof Error ? e.message : "erro"}`,
+    });
+  }
+
+  for (let i = 0; i < filhosAlter.length; i += BATCH_SIZE) {
+    const batch = filhosAlter.slice(i, i + BATCH_SIZE).map((p, idx) => ({ ...p, sequencia: idx + 1 }));
+    try {
+      const res = await alterarProdutosOlistLote(apiToken, batch);
+      const parsed = countAlterOk(batch, res.registros);
+      result.ok += parsed.ok;
+      result.falhas.push(...parsed.falhas);
+      if (parsed.ok === 0 && parsed.falhas.length === 0) result.ok += batch.length;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Erro na API Olist.";
+      for (const p of batch) result.falhas.push({ sku: p.codigo, erro: msg });
+    }
+    if (i + BATCH_SIZE < filhosAlter.length) await sleep(BATCH_PAUSE_MS);
+  }
+
+  return result;
+}
+
+async function syncOlistSkusIndividuais(
+  apiToken: string,
+  items: CatalogSkuForOlistExport[],
+  opts: { margemPct: number },
+): Promise<SyncOlistCustosResult> {
+  const margemPct = opts.margemPct;
+  const custoGrupo = custoGrupoMax(items);
+  const comCusto = items.filter((i) => resolveCustoUnit(i, custoGrupo) != null);
+  const result: SyncOlistCustosResult = {
+    total: items.length,
     com_custo: comCusto.length,
     ok: 0,
     falhas: [],
-    ignorados_sem_custo: skusSync.length - comCusto.length,
+    ignorados_sem_custo: items.length - comCusto.length,
+    modo: "sku_individual",
   };
 
   if (comCusto.length === 0) return result;
@@ -130,40 +266,46 @@ export async function syncOlistCustosGrupo(
     const batch = comCusto.slice(i, i + BATCH_SIZE);
     const payload = buildAlterPayload(batch, custoGrupo, margemPct, sequencia);
     sequencia = payload.length > 0 ? payload[payload.length - 1]!.sequencia : sequencia;
-
     if (payload.length === 0) continue;
-
-    const seqToSku = new Map(payload.map((p) => [p.sequencia, p.codigo]));
 
     try {
       const res = await alterarProdutosOlistLote(apiToken, payload);
-      const registros = res.registros ?? [];
-      if (registros.length === 0) {
-        result.ok += payload.length;
-      } else {
-        for (const row of registros) {
-          const reg = row.registro;
-          if (!reg) continue;
-          const sku = seqToSku.get(Number(reg.sequencia)) ?? `#${reg.sequencia ?? "?"}`;
-          if (String(reg.status ?? "").toUpperCase() === "OK") {
-            result.ok += 1;
-          } else {
-            const msg = reg.erros?.map((e) => e.erro).filter(Boolean).join(" ") || "Erro ao atualizar custo.";
-            result.falhas.push({ sku, erro: msg.trim() });
-          }
-        }
-      }
+      const parsed = countAlterOk(payload, res.registros);
+      result.ok += parsed.ok;
+      result.falhas.push(...parsed.falhas);
+      if (parsed.ok === 0 && parsed.falhas.length === 0) result.ok += payload.length;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Erro na API Olist.";
-      for (const p of payload) {
-        result.falhas.push({ sku: p.codigo, erro: msg });
-      }
+      for (const p of payload) result.falhas.push({ sku: p.codigo, erro: msg });
     }
 
-    if (i + BATCH_SIZE < comCusto.length) {
-      await sleep(BATCH_PAUSE_MS);
-    }
+    if (i + BATCH_SIZE < comCusto.length) await sleep(BATCH_PAUSE_MS);
   }
 
   return result;
+}
+
+/** Atualiza preço de venda e custo na Olist via API (pai com variações ou SKUs avulsos). */
+export async function syncOlistCustosGrupo(
+  apiToken: string,
+  items: CatalogSkuForOlistExport[],
+  opts?: { margemPct?: number },
+): Promise<SyncOlistCustosResult> {
+  const margemPct = opts?.margemPct ?? 0;
+  const custoGrupo = custoGrupoMax(items);
+  if (custoGrupo == null) {
+    return {
+      total: items.length,
+      com_custo: 0,
+      ok: 0,
+      falhas: [],
+      ignorados_sem_custo: items.length,
+    };
+  }
+
+  const paiKey = paiKeyFromSku(str(items[0]?.sku ?? ""));
+  const viaPai = await syncOlistGrupoVariacoesPai(apiToken, items, { margemPct, paiKey, custoGrupo });
+  if (viaPai) return viaPai;
+
+  return syncOlistSkusIndividuais(apiToken, items, { margemPct });
 }

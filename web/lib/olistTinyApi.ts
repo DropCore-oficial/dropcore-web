@@ -486,8 +486,15 @@ export async function fetchUrlAsPdfBase64(url: string, maxBytes = MAX_ETIQUETA_P
   }
 }
 
+export type OlistAlterarVariacaoPayload = {
+  id?: number;
+  codigo?: string;
+  preco?: string;
+};
+
 export type OlistAlterarProdutoPayload = {
   sequencia: number;
+  id?: number;
   codigo: string;
   nome: string;
   unidade: string;
@@ -496,6 +503,7 @@ export type OlistAlterarProdutoPayload = {
   origem: string;
   situacao: string;
   tipo: string;
+  variacoes?: Array<{ variacao: OlistAlterarVariacaoPayload }>;
 };
 
 type AlterarProdutosResponse = TinyRetornoBase & {
@@ -505,9 +513,101 @@ type AlterarProdutosResponse = TinyRetornoBase & {
       status?: string;
       id?: number;
       erros?: Array<{ erro?: string }>;
+      variacoes?: Array<{
+        variacao?: {
+          id?: number;
+          status?: string;
+          erros?: Array<{ erro?: string }>;
+        };
+      }>;
     };
   }>;
 };
+
+type ObterProdutoOlistResponse = TinyRetornoBase & {
+  produto?: {
+    id?: number;
+    codigo?: string;
+    nome?: string;
+    unidade?: string;
+    preco?: string | number;
+    preco_custo?: string | number;
+    origem?: string;
+    situacao?: string;
+    tipoVariacao?: string;
+    classe_produto?: string;
+    variacoes?: Array<{
+      variacao?: {
+        id?: number;
+        codigo?: string;
+        preco?: string | number;
+        grade?: Record<string, string> | Array<{ chave?: string; valor?: string }>;
+      };
+    }>;
+  };
+};
+
+export type OlistProdutoOlistDetalhe = NonNullable<ObterProdutoOlistResponse["produto"]>;
+
+/** Carrega produto na Olist/Tiny (inclui variações quando tipoVariacao = P). */
+export async function obterProdutoOlistPorId(apiToken: string, produtoId: number): Promise<OlistProdutoOlistDetalhe | null> {
+  if (!Number.isFinite(produtoId) || produtoId <= 0) return null;
+  try {
+    const json = await postTinyApi2Form<ObterProdutoOlistResponse>("produto.obter.php", apiToken, {
+      id: String(produtoId),
+    });
+    return json.produto ?? null;
+  } catch {
+    return null;
+  }
+}
+
+type AtualizarPrecosResponse = TinyRetornoBase & {
+  registros?: Array<{
+    registro?: {
+      sequencia?: number;
+      status?: string;
+      id?: number;
+      erros?: Array<{ erro?: string; campo?: string }>;
+    };
+  }>;
+};
+
+/** Atualiza preço de venda por id de produto/variação (produto.atualizar.precos.php). */
+export async function atualizarPrecosOlistLote(
+  apiToken: string,
+  precos: Array<{ id: number; preco: string }>,
+): Promise<AtualizarPrecosResponse> {
+  const token = apiToken.trim();
+  if (!token) throw new Error("Informe o token API da Olist/Tiny.");
+  if (precos.length === 0) return { status: "OK", status_processamento: 3, registros: [] };
+
+  const payload = {
+    precos: precos.map((p, idx) => ({
+      sequencia: idx + 1,
+      id: p.id,
+      preco: p.preco,
+    })),
+  };
+
+  const res = await fetch(`${TINY_API2_BASE}/produto.atualizar.precos.php?token=${encodeURIComponent(token)}&formato=JSON`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw new Error(`A Olist/Tiny respondeu com HTTP ${res.status} em produto.atualizar.precos.php.`);
+  }
+
+  const json = await readTinyHttpJson(res);
+  const retorno = unwrapTinyRetorno<AtualizarPrecosResponse>(json);
+  if (!retorno) throw new Error("Resposta inválida da Olist/Tiny.");
+  if ((retorno.registros ?? []).length > 0) return retorno;
+  if (!isTinyRetornoOk(retorno)) throw new Error(readTinyErrors(retorno));
+  return retorno;
+}
 
 /** Atualiza produtos em lote (ex.: preço de custo) via produto.alterar.php. */
 export async function alterarProdutosOlistLote(
@@ -523,8 +623,8 @@ export async function alterarProdutosOlistLote(
   }
 
   const payload = {
-    produtos: produtos.map((p) => ({
-      produto: {
+    produtos: produtos.map((p) => {
+      const produto: Record<string, unknown> = {
         sequencia: p.sequencia,
         codigo: p.codigo,
         nome: p.nome,
@@ -534,8 +634,11 @@ export async function alterarProdutosOlistLote(
         origem: p.origem,
         situacao: p.situacao,
         tipo: p.tipo,
-      },
-    })),
+      };
+      if (p.id != null && p.id > 0) produto.id = p.id;
+      if (p.variacoes?.length) produto.variacoes = p.variacoes;
+      return { produto };
+    }),
   };
 
   const body = new URLSearchParams({

@@ -533,18 +533,32 @@ export default function SellerProdutosPage() {
             ok?: number;
             com_custo?: number;
             falhas?: Array<{ sku: string; erro: string }>;
+            modo?: string;
           };
           const atualizados = typeof sync.ok === "number" ? sync.ok : 0;
-          if (atualizados > 0) {
-            const falhas = sync.falhas?.length ?? 0;
+          const falhas = sync.falhas ?? [];
+          if (atualizados > 0 && falhas.length === 0) {
             setOlistExportInfo(
-              falhas > 0
-                ? `Planilha baixada. ${atualizados} preço(s) enviado(s) para a Olist via API (${falhas} falha(s) — confira se o produto já existe na Olist com o mesmo SKU).`
-                : `Planilha baixada. ${atualizados} preço(s) atualizado(s) na Olist via API (venda + custo). Importe o CSV se ainda não cadastrou o produto.`,
+              `Planilha baixada. ${atualizados} preço(s) atualizado(s) na Olist via API (venda + custo).${sync.modo === "variacoes_pai" ? " Produto com variações — confira na lista e na aba Preços/Custos." : ""}`,
+            );
+          } else if (atualizados > 0) {
+            const detalhe = falhas
+              .slice(0, 3)
+              .map((f) => `${f.sku}: ${f.erro}`)
+              .join(" · ");
+            setOlistExportInfo(
+              `Planilha baixada. ${atualizados} atualizado(s), ${falhas.length} falha(s).${detalhe ? ` ${detalhe}` : ""}`,
+            );
+          } else if (falhas.length > 0) {
+            setOlistExportInfo(
+              `Planilha baixada, mas a Olist não aceitou os preços: ${falhas
+                .slice(0, 2)
+                .map((f) => f.erro)
+                .join(" · ")}`,
             );
           } else {
             setOlistExportInfo(
-              "Planilha baixada. Importe na Olist; venda e custo serão enviados via API assim que os SKUs existirem no ERP.",
+              "Planilha baixada. Importe na Olist se o produto ainda não existir; depois exporte de novo para enviar preços via API.",
             );
           }
         } else {
