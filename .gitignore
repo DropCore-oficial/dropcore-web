@@ -16,3 +16,7 @@ web/.vercel/
 web/coverage/
 .vercel
 .env*.local
+
+# Só local — nunca versionar
+.cursor/rules/jarvis-sr-stark.mdc
+web/scripts/delete-fornecedor-skus-reset.sql
