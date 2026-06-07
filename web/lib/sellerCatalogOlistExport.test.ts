@@ -159,8 +159,8 @@ describe("sellerCatalogOlistExport", () => {
     expect(col(lines[2]!, "URL imagem 1")).toBe("");
     expect(col(lines[1]!, "Unidade")).toBe("Un");
     expect(col(lines[1]!, "NCM (Classificação fiscal)")).toBe("6109.10.00");
-    expect(col(lines[2]!, "Preço")).toBe("0,00");
-    expect(col(lines[1]!, "Preço")).toBe("0,00");
+    expect(col(lines[2]!, "Preço")).toBe("12,00");
+    expect(col(lines[1]!, "Preço")).toBe("12,00");
     expect(col(lines[1]!, "Preço de custo")).toBe("12,00");
     expect(col(lines[2]!, "Preço de custo")).toBe("12,00");
     expect(col(lines[2]!, "Origem")).toBe("0");
@@ -349,11 +349,11 @@ describe("sellerCatalogOlistExport", () => {
       },
     ]);
     expect(col(lines[2]!, "Origem")).toBe("0");
-    expect(col(lines[2]!, "Preço")).toBe("0,00");
+    expect(col(lines[2]!, "Preço")).toBe("10,00");
     expect(col(lines[2]!, "Preço de custo")).toBe("10,00");
   });
 
-  it("aplica margem de markup no preço de custo", () => {
+  it("aplica margem de markup no preço de venda", () => {
     const lines = buildOlistProdutosCsvLines(
       [
         {
@@ -375,8 +375,8 @@ describe("sellerCatalogOlistExport", () => {
       ],
       { margemPct: 50 },
     );
-    expect(col(lines[2]!, "Preço")).toBe("0,00");
-    expect(col(lines[2]!, "Preço de custo")).toBe("150,00");
+    expect(col(lines[2]!, "Preço")).toBe("150,00");
+    expect(col(lines[2]!, "Preço de custo")).toBe("100,00");
   });
 
   it("herda peso e fiscal do representante/filho no pai e nas variações sem dado próprio", () => {

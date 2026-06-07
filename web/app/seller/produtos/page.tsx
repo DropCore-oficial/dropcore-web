@@ -539,12 +539,12 @@ export default function SellerProdutosPage() {
             const falhas = sync.falhas?.length ?? 0;
             setOlistExportInfo(
               falhas > 0
-                ? `Planilha baixada. ${atualizados} custo(s) enviado(s) para a Olist via API (${falhas} falha(s) — confira se o produto já existe na Olist com o mesmo SKU).`
-                : `Planilha baixada. ${atualizados} custo(s) atualizado(s) na Olist via API (aba Custos). Importe o CSV se ainda não cadastrou o produto.`,
+                ? `Planilha baixada. ${atualizados} preço(s) enviado(s) para a Olist via API (${falhas} falha(s) — confira se o produto já existe na Olist com o mesmo SKU).`
+                : `Planilha baixada. ${atualizados} preço(s) atualizado(s) na Olist via API (venda + custo). Importe o CSV se ainda não cadastrou o produto.`,
             );
           } else {
             setOlistExportInfo(
-              "Planilha baixada. Importe na Olist; os custos serão enviados via API assim que os SKUs existirem no ERP.",
+              "Planilha baixada. Importe na Olist; venda e custo serão enviados via API assim que os SKUs existirem no ERP.",
             );
           }
         } else {
@@ -553,7 +553,7 @@ export default function SellerProdutosPage() {
             const msg =
               typeof syncJson?.error === "string"
                 ? syncJson.error
-                : "Planilha baixada, mas não foi possível sincronizar custos na Olist.";
+                : "Planilha baixada, mas não foi possível sincronizar preços na Olist.";
             setOlistExportInfo(msg);
           }
         }
