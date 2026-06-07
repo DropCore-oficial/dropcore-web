@@ -492,7 +492,6 @@ export default function SellerProdutosPage() {
       if (!grupo) return;
       setExportandoOlistGrupo(grupo);
       setError(null);
-      setOlistExportInfo(null);
       try {
         const {
           data: { session },
@@ -501,11 +500,10 @@ export default function SellerProdutosPage() {
           router.replace("/seller/login");
           return;
         }
-        const authHeaders = { Authorization: `Bearer ${session.access_token}` };
         const res = await fetch(
           `/api/seller/catalogo/export-olist?grupo=${encodeURIComponent(grupo)}&scope=todos`,
           {
-            headers: authHeaders,
+            headers: { Authorization: `Bearer ${session.access_token}` },
             cache: "no-store",
           },
         );
@@ -523,54 +521,6 @@ export default function SellerProdutosPage() {
         a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
-
-        const syncRes = await fetch(
-          `/api/seller/catalogo/sync-olist-custos?grupo=${encodeURIComponent(grupo)}&scope=todos`,
-          { method: "POST", headers: authHeaders, cache: "no-store" },
-        );
-        if (syncRes.ok) {
-          const sync = (await syncRes.json()) as {
-            ok?: number;
-            com_custo?: number;
-            falhas?: Array<{ sku: string; erro: string }>;
-            modo?: string;
-          };
-          const atualizados = typeof sync.ok === "number" ? sync.ok : 0;
-          const falhas = sync.falhas ?? [];
-          if (atualizados > 0 && falhas.length === 0) {
-            setOlistExportInfo(
-              `Planilha baixada. ${atualizados} preço(s) atualizado(s) na Olist via API (venda + custo).${sync.modo === "variacoes_pai" ? " Produto com variações — confira na lista e na aba Preços/Custos." : ""}`,
-            );
-          } else if (atualizados > 0) {
-            const detalhe = falhas
-              .slice(0, 3)
-              .map((f) => `${f.sku}: ${f.erro}`)
-              .join(" · ");
-            setOlistExportInfo(
-              `Planilha baixada. ${atualizados} atualizado(s), ${falhas.length} falha(s).${detalhe ? ` ${detalhe}` : ""}`,
-            );
-          } else if (falhas.length > 0) {
-            setOlistExportInfo(
-              `Planilha baixada, mas a Olist não aceitou os preços: ${falhas
-                .slice(0, 2)
-                .map((f) => f.erro)
-                .join(" · ")}`,
-            );
-          } else {
-            setOlistExportInfo(
-              "Planilha baixada. Importe na Olist se o produto ainda não existir; depois exporte de novo para enviar preços via API.",
-            );
-          }
-        } else {
-          const syncJson = await syncRes.json().catch(() => ({}));
-          if (syncJson?.code !== "olist_not_connected") {
-            const msg =
-              typeof syncJson?.error === "string"
-                ? syncJson.error
-                : "Planilha baixada, mas não foi possível sincronizar preços na Olist.";
-            setOlistExportInfo(msg);
-          }
-        }
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Erro ao exportar planilha para a Olist.");
       } finally {
@@ -579,6 +529,56 @@ export default function SellerProdutosPage() {
     },
     [router],
   );
+
+  const OLIST_PRECO_AUTO_KEY = "dropcore-olist-precos-auto-v1";
+  const OLIST_PRECO_AUTO_MS = 15 * 60 * 1000;
+
+  useEffect(() => {
+    if (loading || !fornecedorLigadoId || gruposResumo.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const lastRaw = sessionStorage.getItem(OLIST_PRECO_AUTO_KEY);
+        const last = lastRaw ? Number.parseInt(lastRaw, 10) : 0;
+        if (Number.isFinite(last) && Date.now() - last < OLIST_PRECO_AUTO_MS) return;
+
+        const {
+          data: { session },
+        } = await supabaseBrowser.auth.getSession();
+        if (!session?.access_token || cancelled) return;
+
+        const res = await fetch("/api/seller/catalogo/sync-olist-custos?grupo=all&scope=todos", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: "no-store",
+        });
+
+        sessionStorage.setItem(OLIST_PRECO_AUTO_KEY, String(Date.now()));
+        if (cancelled) return;
+
+        if (res.status === 400) {
+          const j = await res.json().catch(() => ({}));
+          if (j?.code === "olist_not_connected") return;
+        }
+        if (!res.ok) return;
+
+        const sync = (await res.json()) as { ok?: number };
+        const ok = typeof sync.ok === "number" ? sync.ok : 0;
+        if (ok > 0) {
+          setOlistExportInfo(
+            `Preços sincronizados com a Olist automaticamente (${ok} SKU${ok === 1 ? "" : "s"}). O DropCore repete isso ao abrir Produtos e a cada ~30 min.`,
+          );
+        }
+      } catch {
+        /* sync silencioso em background */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, fornecedorLigadoId, gruposResumo.length]);
 
   const abrirTabelaMedidas = useCallback(async (grupoKey: string) => {
     setModalTabelaGrupoKey(grupoKey);

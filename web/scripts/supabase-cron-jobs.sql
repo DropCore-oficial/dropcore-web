@@ -111,6 +111,13 @@ SELECT cron.schedule(
   $$SELECT public.dropcore_cron_http_post('/api/cron/olist-sync');$$
 );
 
+-- Preços/custos Olist — a cada 30 min (UTC). Sellers com token + armazém ligado.
+SELECT cron.schedule(
+  'dropcore-olist-sync-precos',
+  '*/30 * * * *',
+  $$SELECT public.dropcore_cron_http_post('/api/cron/olist-sync-precos');$$
+);
+
 -- Inadimplência + notificação admin org — a cada hora (UTC), em vez de em cada GET de dashboard
 SELECT cron.schedule(
   'dropcore-inadimplencia',

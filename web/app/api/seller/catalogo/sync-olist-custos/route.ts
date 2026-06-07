@@ -1,6 +1,7 @@
 /**
- * POST /api/seller/catalogo/sync-olist-custos?grupo=PAI000
- * Envia preço de custo para a Olist via API (produto.alterar.php).
+ * POST /api/seller/catalogo/sync-olist-custos?grupo=PAI000|all
+ * Envia preço de venda e custo para a Olist via API (produto.alterar.php).
+ * Sem ?grupo= ou ?grupo=all → sincroniza todo o catálogo do armazém.
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -8,9 +9,11 @@ import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 import { getSellerOlistApiToken } from "@/lib/sellerOlistIntegration";
 import { loadCatalogSkusForOlistExport } from "@/lib/sellerCatalogOlistLoad";
 import { syncOlistCustosGrupo } from "@/lib/sellerOlistSyncCustos";
+import { syncOlistPrecosCatalogoSeller } from "@/lib/sellerOlistSyncPrecosCatalogo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 function parseQuery(req: Request) {
   const url = new URL(req.url);
@@ -21,11 +24,12 @@ function parseQuery(req: Request) {
     margemRaw != null && margemRaw.trim() !== ""
       ? Math.max(0, Math.min(500, Number.parseFloat(margemRaw.replace(",", ".")) || 0))
       : 0;
-  const grupoKey =
+  const grupoRaw =
     (url.searchParams.get("grupo") ?? url.searchParams.get("pai_key") ?? url.searchParams.get("grupoKey") ?? "")
       .trim()
       .toUpperCase() || "";
-  return { scope, margemPct, grupoKey };
+  const syncAll = !grupoRaw || grupoRaw === "ALL" || grupoRaw === "TODOS";
+  return { scope, margemPct, grupoKey: syncAll ? null : grupoRaw, syncAll };
 }
 
 export async function POST(req: Request) {
@@ -35,16 +39,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
     }
 
-    const { scope, margemPct, grupoKey } = parseQuery(req);
-    if (!grupoKey) {
-      return NextResponse.json({ error: "Informe o grupo do produto (ex.: ?grupo=DJU001000)." }, { status: 400 });
-    }
+    const { scope, margemPct, grupoKey, syncAll } = parseQuery(req);
 
     const apiToken = await getSellerOlistApiToken(seller.id);
     if (!apiToken) {
       return NextResponse.json(
         {
-          error: "Conecte a Olist em Integração ERP para sincronizar custos automaticamente.",
+          error: "Conecte a Olist em Integração ERP para sincronizar preços automaticamente.",
           code: "olist_not_connected",
         },
         { status: 400 },
@@ -64,16 +65,36 @@ export async function POST(req: Request) {
     const fornecedorId = (sellerRow as { fornecedor_id?: string | null }).fornecedor_id ?? null;
     if (!fornecedorId) {
       return NextResponse.json(
-        { error: "Configure o armazém em Produtos antes de sincronizar custos." },
+        { error: "Configure o armazém em Produtos antes de sincronizar preços." },
         { status: 400 },
       );
+    }
+
+    if (syncAll) {
+      const result = await syncOlistPrecosCatalogoSeller({
+        apiToken,
+        orgId: seller.org_id,
+        sellerId: seller.id,
+        fornecedorId,
+        scope: scope as "habilitados" | "todos",
+        margemPct,
+        supabase: supabaseAdmin,
+      });
+
+      return NextResponse.json({
+        scope: "catalogo_completo",
+        ...result,
+        com_custo: result.ok,
+        total: result.grupos,
+        sincronizado: result.ok > 0,
+      });
     }
 
     const loaded = await loadCatalogSkusForOlistExport({
       orgId: seller.org_id,
       sellerId: seller.id,
       fornecedorId,
-      grupoKey,
+      grupoKey: grupoKey!,
       scope: scope as "habilitados" | "todos",
       supabase: supabaseAdmin,
     });

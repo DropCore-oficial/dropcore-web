@@ -92,10 +92,10 @@ export function SellerOlistConnectGuidePanel({ id = "guia-olist" }: { id?: strin
             </p>
             <p className="mt-2 text-pretty leading-relaxed">
               Com a Olist conectada em <strong className="text-neutral-900 dark:text-neutral-100">Integração ERP</strong>, o DropCore
-              também envia o <strong className="text-neutral-900 dark:text-neutral-100">preço de venda</strong> e o{" "}
-              <strong className="text-neutral-900 dark:text-neutral-100">preço de custo</strong> automaticamente via API
-              logo após o download (pai + variações). Confira na aba Custos do produto na Olist — se o SKU ainda não existir no ERP, importe
-              o CSV primeiro e exporte de novo.
+              envia <strong className="text-neutral-900 dark:text-neutral-100">preço de venda e custo</strong> para a Olist{" "}
+              <strong className="text-neutral-900 dark:text-neutral-100">sozinho</strong> — ao abrir Produtos e a cada ~30 min (cron).
+              O botão <strong className="text-neutral-900 dark:text-neutral-100">Exportar para Olist</strong> é só para baixar a planilha
+              (cadastro inicial ou fotos/NCM); preço não depende mais desse clique.
             </p>
             <p className="mt-2 text-pretty leading-relaxed">
               Na confirmação da importação, marque{" "}
