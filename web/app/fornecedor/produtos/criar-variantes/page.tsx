@@ -17,7 +17,7 @@ import {
   transparenciaOptions,
 } from "@/lib/fornecedorVariantesUi";
 import { chaveEstoqueVariante } from "@/lib/estoqueVarianteKeys";
-import { FotoVariacaoCell } from "@/components/FotoVariacaoCell";
+import { capaImagemUrlProduto } from "@/lib/fornecedorCapaProduto";
 import { resolverDetalhesProdutoJson, skuRowDestinoDetalhesGrupo } from "@/lib/detalhesProdutoJson";
 import {
   buildTabelaMedidasPayloadFromForm,
@@ -668,8 +668,6 @@ export default function CriarVariantesPage() {
   const [massaEstoque, setMassaEstoque] = useState("");
   /** Foto principal por cor (URL ou data URL); chave = cor em minúsculas. */
   const [fotoUrlPorCor, setFotoUrlPorCor] = useState<Record<string, string>>({});
-  /** SKU pai em modo edição — capa do produto (DJU001000). */
-  const [paiEdicao, setPaiEdicao] = useState<{ id: string; sku: string; imagemUrl: string | null } | null>(null);
   const [avisoFoto, setAvisoFoto] = useState<string | null>(null);
   /** Aviso fino após aplicar rascunho ao abrir a página (o atalho principal fica em «Meus produtos»). */
   const [avisoRascunhoCarregado, setAvisoRascunhoCarregado] = useState<{
@@ -1636,17 +1634,6 @@ export default function CriarVariantesPage() {
         }
         if (cancelled) return;
         aplicarPayloadRascunho(payload);
-        const allRows = Array.isArray(j) ? (j as ProdutoExistenteEdicao[]) : [];
-        const paiRow = allRows.find((r) => r.sku.trim().toUpperCase() === grupoEdicao);
-        if (paiRow?.id) {
-          setPaiEdicao({
-            id: paiRow.id,
-            sku: paiRow.sku,
-            imagemUrl: paiRow.imagem_url ?? null,
-          });
-        } else {
-          setPaiEdicao(null);
-        }
       } catch (e: unknown) {
         if (cancelled) return;
         setFormError(e instanceof Error ? e.message : "Erro ao preparar edição.");
@@ -2015,11 +2002,11 @@ export default function CriarVariantesPage() {
         }
 
         const descricaoGuiada = [diferencial, indicacao, observacoesSeller].filter((t) => t.trim()).join(" | ");
-        const capaPaiFromCores = Object.values(fotoUrlPorCor)
-          .map((u) => u.trim())
-          .find((u) => u.startsWith("http://") || u.startsWith("https://"));
-        const imagemPaiAlvo =
-          (paiEdicao?.imagemUrl && paiEdicao.imagemUrl.trim()) || capaPaiFromCores || null;
+        const imagemPaiAlvo = capaImagemUrlProduto({
+          fotoUrlPorCor,
+          ordemCores: coresFinais,
+          linkFotos: linkFotos.trim() || null,
+        });
         const patchPai: Record<string, unknown> = {
           nome_produto: nomeProduto.trim(),
           categoria: categoria.trim() || null,
@@ -2655,12 +2642,9 @@ export default function CriarVariantesPage() {
                     <div>
                       <h2 className="text-[15px] font-semibold text-neutral-900 dark:text-neutral-100">Lista de variações</h2>
                       <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                        Foto por <strong className="font-medium text-neutral-700 dark:text-neutral-300">cor</strong> (SKUs filhos) — a mesma imagem vale para todos os tamanhos da cor.
-                        A capa do SKU pai (<span className="font-mono">{modoEdicao ? grupoEdicao : "…000"}</span>) usa essas fotos na Olist; capa dedicada opcional na aba{" "}
-                        <button type="button" onClick={() => setTabAtiva("midia")} className="font-medium text-blue-600 underline-offset-2 hover:underline dark:text-blue-400">
-                          Mídia
-                        </button>
-                        .
+                        Foto por <strong className="font-medium text-neutral-700 dark:text-neutral-300">cor</strong> (SKUs filhos). A{" "}
+                        <strong className="font-medium text-neutral-700 dark:text-neutral-300">primeira cor com foto</strong> vira capa do SKU pai (
+                        <span className="font-mono">{modoEdicao ? grupoEdicao : "…000"}</span>) no catálogo seller e na Olist — igual ao resto do DropCore.
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -3187,45 +3171,14 @@ export default function CriarVariantesPage() {
             )}
 
             {tabAtiva === "midia" && (
-              <div className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm p-5 sm:p-5.5 space-y-5">
-                <div>
-                  <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Mídia</h2>
-                  {modoEdicao && paiEdicao ? (
-                    <div className="mt-4 space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-900/40">
-                      <div>
-                        <p className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
-                          Foto de capa — SKU pai <span className="font-mono">{paiEdicao.sku}</span>{" "}
-                          <span className="font-normal text-neutral-500 dark:text-neutral-400">(opcional)</span>
-                        </p>
-                        <p className="mt-1 text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
-                          Se não enviar aqui, a exportação Olist usa as fotos por cor da{" "}
-                          <button type="button" onClick={() => setTabAtiva("lista-variacoes")} className="font-medium text-blue-600 hover:underline dark:text-blue-400">
-                            Lista de variações
-                          </button>
-                          .
-                        </p>
-                      </div>
-                      <FotoVariacaoCell
-                        skuId={paiEdicao.id}
-                        imagemUrl={paiEdicao.imagemUrl}
-                        variant="stacked"
-                        stackedSize="large"
-                        onUpdate={(url) => setPaiEdicao((prev) => (prev ? { ...prev, imagemUrl: url } : prev))}
-                        getToken={async () => {
-                          const { data } = await supabaseBrowser.auth.getSession();
-                          return data.session?.access_token ?? null;
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
-                      A capa do SKU pai será montada com as fotos por cor em <strong>Lista de variações</strong> ao salvar o produto.
-                    </p>
-                  )}
-                </div>
-                <div className="border-t border-[var(--card-border)] pt-4 space-y-4">
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                  Álbum externo (Drive, etc.) e vídeo — opcional. O seller vê o link de fotos na coluna «Ver» do catálogo.
+              <div className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm p-5 sm:p-5.5 space-y-4">
+                <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Mídia</h2>
+                <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                  A capa do SKU pai usa a <strong className="font-medium text-neutral-700 dark:text-neutral-300">primeira foto por cor</strong> da{" "}
+                  <button type="button" onClick={() => setTabAtiva("lista-variacoes")} className="font-medium text-blue-600 hover:underline dark:text-blue-400">
+                    Lista de variações
+                  </button>{" "}
+                  (mesma regra do catálogo seller). Aqui ficam só álbum externo e vídeo.
                 </p>
                 <div>
                   <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">Link de fotos</label>
@@ -3272,7 +3225,6 @@ export default function CriarVariantesPage() {
                       Visitar
                     </button>
                   </div>
-                </div>
                 </div>
               </div>
             )}

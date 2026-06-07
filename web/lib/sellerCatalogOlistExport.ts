@@ -135,7 +135,7 @@ function collectDescricaoComplementarGrupo(
   return "";
 }
 
-/** Foto de capa do produto (SKU pai); se vazio, usa miniaturas já cadastradas nas variantes (uma por cor). */
+/** Foto de capa do SKU pai; se vazio, usa a 1ª miniatura por cor (mesma regra do catálogo seller). */
 function collectFotosProdutoOlist(pai: CatalogSkuForOlistExport | null, filhos: CatalogSkuForOlistExport[]): string[] {
   const out: string[] = [];
   if (pai) {
@@ -144,8 +144,9 @@ function collectFotosProdutoOlist(pai: CatalogSkuForOlistExport | null, filhos: 
       if (out.length >= 6) return out;
     }
   }
-  const vistoCor = new Set<string>();
+  if (out.length > 0) return out;
   const filhosOrd = [...filhos].sort((a, b) => str(a.sku).localeCompare(str(b.sku)));
+  const vistoCor = new Set<string>();
   for (const item of filhosOrd) {
     const corKey = str(item.cor).trim().toLowerCase() || str(item.sku);
     if (vistoCor.has(corKey)) continue;
@@ -154,8 +155,8 @@ function collectFotosProdutoOlist(pai: CatalogSkuForOlistExport | null, filhos: 
     vistoCor.add(corKey);
     for (const u of urls) {
       if (!out.includes(u)) out.push(u);
-      if (out.length >= 6) return out;
     }
+    break;
   }
   return out;
 }

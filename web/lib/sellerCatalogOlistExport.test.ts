@@ -261,7 +261,7 @@ describe("sellerCatalogOlistExport", () => {
       },
     ]);
     expect(col(lines[1]!, "URL imagem 1")).toBe(capa);
-    expect(col(lines[1]!, "URL imagem 2")).toBe("https://cdn.example.com/azul.jpg");
+    expect(col(lines[1]!, "URL imagem 2")).toBe("");
     expect(col(lines[2]!, "URL imagem 1")).toBe(capa);
     expect(col(lines[4]!, "URL imagem 1")).toBe("https://cdn.example.com/azul.jpg");
   });
