@@ -4,7 +4,6 @@ import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { MensalidadeBloqueioGate } from "@/components/MensalidadeBloqueioGate";
 import { SellerCadastroRedirect } from "@/components/seller/SellerCadastroRedirect";
-import { NotificationToasts } from "@/components/NotificationToasts";
 import { SellerLayoutWhatsAppSupportFab } from "@/components/seller/SellerLayoutWhatsAppSupportFab";
 import { SellerPortalGate } from "@/components/seller/SellerPortalGate";
 import { AppVersionUpdateBanner } from "@/components/AppVersionUpdateBanner";
@@ -29,7 +28,6 @@ export default function SellerLayout({ children }: { children: ReactNode }) {
       <MensalidadeBloqueioGate context="seller" logoHref="/seller/dashboard">
         <SellerCadastroRedirect>{children}</SellerCadastroRedirect>
         <SellerLayoutWhatsAppSupportFab />
-        <NotificationToasts context="seller" />
       </MensalidadeBloqueioGate>
     </SellerPortalGate>
   );

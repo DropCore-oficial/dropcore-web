@@ -787,12 +787,12 @@ export default function FornecedorProdutosPage() {
                           </div>
                           <p className="mt-0.5 break-words text-sm text-[var(--muted)]">
                             <span className="font-mono text-[var(--muted)] break-all">{g.paiKey}</span>
-                            {linhas.length > 0 && (
-                              <span> · Variantes ({linhas.length})</span>
+                            {baseVariantes.length > 0 && (
+                              <span> · Variantes ({baseVariantes.length})</span>
                             )}
                           </p>
                           {(() => {
-                            const custos = linhas
+                            const custos = baseVariantes
                               .map((p) => p.custo_base)
                               .filter((c): c is number => c != null && Number.isFinite(c) && c > 0);
                             if (custos.length === 0) return null;

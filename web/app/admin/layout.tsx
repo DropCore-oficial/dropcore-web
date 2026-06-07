@@ -6,7 +6,6 @@ import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { NotificationToasts } from "@/components/NotificationToasts";
 import { AdminMobileBottomNav } from "@/components/AdminMobileBottomNav";
 import { NotificationBell } from "@/components/NotificationBell";
 import { AppVersionUpdateBanner } from "@/components/AppVersionUpdateBanner";
@@ -116,7 +115,6 @@ export default function AdminLayout({
         <NotificationBell context="admin" />
       </div>
       <AdminMobileBottomNav />
-      <NotificationToasts context="admin" />
     </>
   );
 }
