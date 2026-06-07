@@ -1,12 +1,13 @@
 /**
  * POST /api/org/alteracoes-pendentes/[id]/aprovar — aprova alterações e aplica no SKU
  */
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { toTitleCase } from "@/lib/formatText";
 import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
 import { upsertProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
+import { grupoKeyFromSkuString, syncOlistPrecosFornecedorGrupo } from "@/lib/sellerOlistSyncPrecosOnCustoChange";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -152,6 +153,17 @@ export async function POST(
         .single();
 
       if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
+
+      if (("custo_base" in clean || "custo_dropcore" in clean) && skuAtual?.sku) {
+        const grupoKey = grupoKeyFromSkuString(String(skuAtual.sku));
+        after(() =>
+          syncOlistPrecosFornecedorGrupo({
+            orgId: org_id,
+            fornecedorId: alteracao.fornecedor_id,
+            grupoKey,
+          }).catch((e) => console.error("[aprovar alteracao olist precos]", e)),
+        );
+      }
 
       const atualizaEstoque = "estoque_atual" in clean || "estoque_minimo" in clean;
       if (atualizaEstoque && skuAtual) {

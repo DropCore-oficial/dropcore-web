@@ -93,7 +93,8 @@ export function SellerOlistConnectGuidePanel({ id = "guia-olist" }: { id?: strin
             <p className="mt-2 text-pretty leading-relaxed">
               Com a Olist conectada em <strong className="text-neutral-900 dark:text-neutral-100">Integração ERP</strong>, o DropCore
               envia <strong className="text-neutral-900 dark:text-neutral-100">preço de venda e custo</strong> para a Olist{" "}
-              <strong className="text-neutral-900 dark:text-neutral-100">sozinho</strong> — ao abrir Produtos e a cada ~30 min (cron).
+              <strong className="text-neutral-900 dark:text-neutral-100">sozinho</strong> — na hora em que a DropCore aprova alteração de
+              custo, ao abrir Produtos (~5 min) e a cada ~10 min (cron).
               O botão <strong className="text-neutral-900 dark:text-neutral-100">Exportar para Olist</strong> é só para baixar a planilha
               (cadastro inicial ou fotos/NCM); preço não depende mais desse clique.
             </p>

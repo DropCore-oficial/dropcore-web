@@ -531,7 +531,7 @@ export default function SellerProdutosPage() {
   );
 
   const OLIST_PRECO_AUTO_KEY = "dropcore-olist-precos-auto-v1";
-  const OLIST_PRECO_AUTO_MS = 15 * 60 * 1000;
+  const OLIST_PRECO_AUTO_MS = 5 * 60 * 1000;
 
   useEffect(() => {
     if (loading || !fornecedorLigadoId || gruposResumo.length === 0) return;
@@ -567,7 +567,7 @@ export default function SellerProdutosPage() {
         const ok = typeof sync.ok === "number" ? sync.ok : 0;
         if (ok > 0) {
           setOlistExportInfo(
-            `Preços sincronizados com a Olist automaticamente (${ok} SKU${ok === 1 ? "" : "s"}). O DropCore repete isso ao abrir Produtos e a cada ~30 min.`,
+            `Preços sincronizados com a Olist automaticamente (${ok} SKU${ok === 1 ? "" : "s"}). O DropCore repete isso ao abrir Produtos (~5 min) e a cada ~10 min.`,
           );
         }
       } catch {
