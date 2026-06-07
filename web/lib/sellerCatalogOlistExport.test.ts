@@ -120,6 +120,7 @@ describe("sellerCatalogOlistExport", () => {
         ...olistSkuBase({
           categoria: "Roupas",
           estoque_atual: 0,
+          imagem_url: "https://cdn.example.com/f.jpg",
           ncm: "61091000",
           origem: "0",
           marca: "Insider",
@@ -141,7 +142,6 @@ describe("sellerCatalogOlistExport", () => {
           categoria: "Roupas",
           estoque_atual: 5,
           custo_total: 12,
-          imagem_url: "https://cdn.example.com/f.jpg",
           descricao: "Desc longa do produto",
           ncm: "61091000",
           origem: "0",
@@ -199,8 +199,33 @@ describe("sellerCatalogOlistExport", () => {
     expect(lines.join("\n").length).toBeLessThan(500_000);
   });
 
-  it("aceita URL Supabase storage e herda fotos do grupo no pai", () => {
+  it("aceita URL Supabase storage no pai e não usa foto de variante", () => {
     const supa = "https://abc.supabase.co/storage/v1/object/public/fotos/cam.jpg";
+    const lines = buildOlistProdutosCsvLines([
+      {
+        sku: "CAM000",
+        nome_produto: "Camiseta",
+        cor: "",
+        tamanho: "",
+        status: "ativo",
+        ...olistSkuBase({ estoque_atual: 0, imagem_url: supa }),
+      },
+      {
+        sku: "CAM001",
+        nome_produto: "Camiseta",
+        cor: "Azul",
+        tamanho: "M",
+        status: "ativo",
+        imagem_url: "https://example.com/variante.jpg",
+        ...olistSkuBase(),
+      },
+    ]);
+    expect(col(lines[1]!, "URL imagem 1")).toBe(supa);
+    expect(col(lines[2]!, "URL imagem 1")).toBe("");
+  });
+
+  it("usa miniatura da variante na capa do pai quando pai sem foto", () => {
+    const capa = "https://cdn.example.com/branco.jpg";
     const lines = buildOlistProdutosCsvLines([
       {
         sku: "CAM000",
@@ -213,14 +238,56 @@ describe("sellerCatalogOlistExport", () => {
       {
         sku: "CAM001",
         nome_produto: "Camiseta",
+        cor: "Branco",
+        tamanho: "M",
+        status: "ativo",
+        ...olistSkuBase({ imagem_url: capa }),
+      },
+      {
+        sku: "CAM002",
+        nome_produto: "Camiseta",
+        cor: "Branco",
+        tamanho: "G",
+        status: "ativo",
+        ...olistSkuBase({ imagem_url: capa }),
+      },
+      {
+        sku: "CAM003",
+        nome_produto: "Camiseta",
         cor: "Azul",
         tamanho: "M",
         status: "ativo",
-        ...olistSkuBase({ imagem_url: supa }),
+        ...olistSkuBase({ imagem_url: "https://cdn.example.com/azul.jpg" }),
       },
     ]);
-    expect(col(lines[1]!, "URL imagem 1")).toBe(supa);
-    expect(col(lines[2]!, "URL imagem 1")).toBe("");
+    expect(col(lines[1]!, "URL imagem 1")).toBe(capa);
+    expect(col(lines[1]!, "URL imagem 2")).toBe("https://cdn.example.com/azul.jpg");
+    expect(col(lines[2]!, "URL imagem 1")).toBe(capa);
+    expect(col(lines[4]!, "URL imagem 1")).toBe("https://cdn.example.com/azul.jpg");
+  });
+
+  it("exporta foto pública da variante na linha filho S", () => {
+    const filhoFoto = "https://cdn.example.com/azul-m.jpg";
+    const lines = buildOlistProdutosCsvLines([
+      {
+        sku: "CAM000",
+        nome_produto: "Camiseta",
+        cor: "",
+        tamanho: "",
+        status: "ativo",
+        ...olistSkuBase({ estoque_atual: 0, imagem_url: "https://cdn.example.com/capa-dedicada.jpg" }),
+      },
+      {
+        sku: "CAM001",
+        nome_produto: "Camiseta",
+        cor: "Azul",
+        tamanho: "M",
+        status: "ativo",
+        ...olistSkuBase({ imagem_url: filhoFoto }),
+      },
+    ]);
+    expect(col(lines[1]!, "URL imagem 1")).toBe("https://cdn.example.com/capa-dedicada.jpg");
+    expect(col(lines[2]!, "URL imagem 1")).toBe(filhoFoto);
   });
 
   it("separa título e descrição complementar", () => {

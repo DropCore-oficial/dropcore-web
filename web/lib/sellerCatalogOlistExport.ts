@@ -10,6 +10,8 @@ import {
 } from "@/lib/olistTinyProdutosImportTemplate";
 
 export type CatalogSkuForOlistExport = {
+  /** ID interno (opcional) — usado na rota de export para migrar base64 → URL pública. */
+  id?: string;
   sku: string;
   nome_produto: string;
   cor: string;
@@ -133,11 +135,24 @@ function collectDescricaoComplementarGrupo(
   return "";
 }
 
-function collectFotosGrupo(pai: CatalogSkuForOlistExport | null, filhos: CatalogSkuForOlistExport[]): string[] {
+/** Foto de capa do produto (SKU pai); se vazio, usa miniaturas já cadastradas nas variantes (uma por cor). */
+function collectFotosProdutoOlist(pai: CatalogSkuForOlistExport | null, filhos: CatalogSkuForOlistExport[]): string[] {
   const out: string[] = [];
-  for (const item of [pai, ...filhos]) {
-    if (!item) continue;
-    for (const u of parseFotoUrls(item.imagem_url, item.link_fotos)) {
+  if (pai) {
+    for (const u of parseFotoUrls(pai.imagem_url, pai.link_fotos)) {
+      if (!out.includes(u)) out.push(u);
+      if (out.length >= 6) return out;
+    }
+  }
+  const vistoCor = new Set<string>();
+  const filhosOrd = [...filhos].sort((a, b) => str(a.sku).localeCompare(str(b.sku)));
+  for (const item of filhosOrd) {
+    const corKey = str(item.cor).trim().toLowerCase() || str(item.sku);
+    if (vistoCor.has(corKey)) continue;
+    const urls = parseFotoUrls(item.imagem_url, null);
+    if (urls.length === 0) continue;
+    vistoCor.add(corKey);
+    for (const u of urls) {
       if (!out.includes(u)) out.push(u);
       if (out.length >= 6) return out;
     }
@@ -459,7 +474,7 @@ export function buildOlistProdutosCsvLines(
       if (c == null) return acc;
       return acc == null ? c : Math.max(acc, c);
     }, resolveCustoUnit(g.pai ?? g.filhos[0]!));
-    const fotosGrupo = collectFotosGrupo(g.pai, g.filhos);
+    const fotosGrupo = collectFotosProdutoOlist(g.pai, g.filhos);
     const descricaoComplementarGrupo = collectDescricaoComplementarGrupo(g.pai, g.filhos, nomeGrupo);
     const logisticaGrupo = collectLogisticaGrupo(g.pai, g.filhos);
 
@@ -492,7 +507,7 @@ export function buildOlistProdutosCsvLines(
           margemPct,
           fallbackCusto: custoGrupo,
           nomeGrupo,
-          incluirFotos: false,
+          incluirFotos: true,
           incluirDescricaoComplementar: false,
         });
         child["Tipo do produto"] = "S";

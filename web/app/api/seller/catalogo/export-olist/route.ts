@@ -12,6 +12,7 @@ import {
   filterSkusForOlistExport,
   type CatalogSkuForOlistExport,
 } from "@/lib/sellerCatalogOlistExport";
+import { normalizeImagensForOlistExport } from "@/lib/fornecedorImagemPublicaOlist";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,6 +96,7 @@ export async function GET(req: Request) {
         (row as { custo_dropcore?: unknown }).custo_dropcore,
       );
       return {
+        id,
         sku: String((row as { sku?: string }).sku ?? ""),
         nome_produto: String((row as { nome_produto?: string }).nome_produto ?? ""),
         cor: String((row as { cor?: string }).cor ?? ""),
@@ -171,7 +173,16 @@ export async function GET(req: Request) {
       );
     }
 
-    const csv = buildOlistProdutosCsv(filtered, { margemPct });
+    const withPublicImagens = await normalizeImagensForOlistExport(
+      filtered.map((item) => ({
+        ...item,
+        id: item.id ?? "",
+      })),
+      { supabase: supabaseAdmin, orgId: seller.org_id, fornecedorId },
+    );
+    const filteredForCsv: CatalogSkuForOlistExport[] = withPublicImagens.map(({ id: _id, ...rest }) => rest);
+
+    const csv = buildOlistProdutosCsv(filteredForCsv, { margemPct });
     const date = new Date().toISOString().slice(0, 10);
     const filename = `dropcore-olist-${grupoRaw}-${scope}-${date}.csv`;
 

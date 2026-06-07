@@ -160,6 +160,14 @@ export default function EditarVariantesPage() {
     [grupoProdutos]
   );
 
+  /** Linha do SKU pai (*000) — foto de capa do produto (export Olist). */
+  const skuPaiRow = useMemo(() => {
+    const pk = grupoKey.trim().toUpperCase();
+    return grupoProdutos.find((p) => p.sku.trim().toUpperCase() === pk) ?? null;
+  }, [grupoProdutos, grupoKey]);
+
+  const alvoMidiaProduto = skuPaiRow ?? grupoProdutos[0] ?? null;
+
   /** 1ª variante (não-pai, menor SKU) com foto — usada como miniatura do SKU pai quando ele não tem imagem. */
   const imagemUrlFallbackPai = useMemo(() => {
     const pk = grupoKey.trim().toUpperCase();
@@ -330,9 +338,9 @@ export default function EditarVariantesPage() {
   }, [representante?.nome_produto, representante?.descricao, editNomeBasico, editDescricaoGrupo]);
 
   const dirtyMidia = useMemo(() => {
-    if (!representante) return false;
-    return editLinkFotosGrupo !== (representante.link_fotos ?? "");
-  }, [representante?.link_fotos, editLinkFotosGrupo]);
+    if (!alvoMidiaProduto) return false;
+    return editLinkFotosGrupo !== (alvoMidiaProduto.link_fotos ?? "");
+  }, [alvoMidiaProduto?.link_fotos, editLinkFotosGrupo]);
 
   const dirtyImpostos = useMemo(() => {
     if (!representante) return false;
@@ -491,7 +499,7 @@ export default function EditarVariantesPage() {
       setEditNomeBasico(representante.nome_produto ?? "");
       setEditDescricaoGrupo(representante.descricao ?? "");
     }
-    if (tabAtiva === "midia") setEditLinkFotosGrupo(representante.link_fotos ?? "");
+    if (tabAtiva === "midia" && alvoMidiaProduto) setEditLinkFotosGrupo(alvoMidiaProduto.link_fotos ?? "");
     if (tabAtiva === "info-impostos") {
       setEditNcm(representante.ncm ?? "");
       setEditOrigem(representante.origem ?? "");
@@ -500,16 +508,17 @@ export default function EditarVariantesPage() {
       setEditPesoLiquido(representante.peso_liquido_kg != null ? String(representante.peso_liquido_kg) : "");
       setEditPesoBruto(representante.peso_bruto_kg != null ? String(representante.peso_bruto_kg) : "");
     }
-  }, [tabAtiva, representante?.id, representante?.nome_produto, representante?.descricao, representante?.link_fotos, representante?.ncm, representante?.origem, representante?.cest, representante?.cfop, representante?.peso_liquido_kg, representante?.peso_bruto_kg]);
+  }, [tabAtiva, representante?.id, representante?.nome_produto, representante?.descricao, alvoMidiaProduto?.link_fotos, representante?.ncm, representante?.origem, representante?.cest, representante?.cfop, representante?.peso_liquido_kg, representante?.peso_bruto_kg]);
 
-  async function salvarTab(extra: Record<string, unknown>) {
-    if (!representante) return;
+  async function salvarTab(extra: Record<string, unknown>, alvo?: Produto) {
+    const produto = alvo ?? representante;
+    if (!produto) return;
     setLoadingOutros(true);
     setFormError(null);
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) throw new Error("Sessão expirada.");
-      const res = await fetch(`/api/fornecedor/produtos/${representante.id}`, {
+      const res = await fetch(`/api/fornecedor/produtos/${produto.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify(extra),
@@ -1359,16 +1368,82 @@ export default function EditarVariantesPage() {
             </div>
           )}
           {tabAtiva === "midia" && (
-            <div className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm p-6">
-              <form onSubmit={(e) => { e.preventDefault(); salvarTab({ link_fotos: editLinkFotosGrupo.trim() || null }); }} className="space-y-4">
+            <div className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm p-6 space-y-6">
+              <section className="space-y-3">
                 <div>
-                  <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Link das fotos (Drive, Dropbox, etc.)</label>
-                  <input type="url" value={editLinkFotosGrupo} onChange={(e) => setEditLinkFotosGrupo(e.target.value)} placeholder="https://..." className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Foto principal do produto <span className="font-normal text-neutral-500 dark:text-neutral-400">(opcional)</span></h3>
+                  <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                    Se não enviar aqui, a exportação Olist usa as miniaturas que você já subiu em{" "}
+                    <strong className="font-medium">Info. de Variantes</strong> (uma foto por cor na capa do SKU pai{" "}
+                    <span className="font-mono">{grupoKey.toUpperCase()}</span> e a mesma foto em cada SKU filho).
+                  </p>
                 </div>
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">As fotos por variação ficam na tabela de variantes.</p>
-                {formError && <p className="text-sm text-red-400">{formError}</p>}
-                <button type="submit" disabled={loadingOutros || !dirtyMidia} className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyMidia ? "bg-[var(--primary-blue)] text-white hover:bg-[var(--primary-blue-hover)]" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}>{loadingOutros ? "Salvando..." : "Salvar"}</button>
-              </form>
+                {skuPaiRow ? (
+                  <div className="flex flex-wrap items-start gap-4">
+                    <FotoVariacaoCell
+                      skuId={skuPaiRow.id}
+                      imagemUrl={skuPaiRow.imagem_url}
+                      linkFotosUrl={skuPaiRow.link_fotos}
+                      variant="stacked"
+                      stackedSize="large"
+                      onUpdate={(url) => {
+                        setProdutos((prev) =>
+                          prev.map((p) => (p.id === skuPaiRow.id ? { ...p, imagem_url: url } : p))
+                        );
+                        load();
+                      }}
+                      getToken={async () => {
+                        const { data } = await supabaseBrowser.auth.getSession();
+                        return data.session?.access_token ?? null;
+                      }}
+                    />
+                    <div className={cn("rounded-lg border px-3 py-2.5 text-xs max-w-md", AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_BODY)}>
+                      <p className={cn("font-medium", AMBER_PREMIUM_TEXT_PRIMARY)}>Olist e URL pública</p>
+                      <p className="mt-1 leading-relaxed">
+                        Basta enviar a imagem aqui — não precisa colar link. O upload gera URL pública no DropCore e exporta para a Olist.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                    SKU pai <span className="font-mono">{grupoKey.toUpperCase()}</span> não encontrado neste grupo. Crie a variante pai ou use o cadastro multivariante para habilitar a foto de capa.
+                  </p>
+                )}
+              </section>
+              <section className="border-t border-[var(--card-border)] pt-6">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!alvoMidiaProduto) return;
+                    salvarTab({ link_fotos: editLinkFotosGrupo.trim() || null }, alvoMidiaProduto);
+                  }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">
+                      Links extras de fotos <span className="text-neutral-400 dark:text-neutral-500">(opcional)</span>
+                    </label>
+                    <textarea
+                      value={editLinkFotosGrupo}
+                      onChange={(e) => setEditLinkFotosGrupo(e.target.value)}
+                      placeholder="Só se quiser mais fotos além do upload — uma URL http(s) por linha"
+                      rows={3}
+                      className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono text-[12px]"
+                    />
+                  </div>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    Até 6 URLs públicas no total (upload + links). Álbum Drive genérico não entra na Olist — prefira o upload acima.
+                  </p>
+                  {formError && <p className="text-sm text-red-400">{formError}</p>}
+                  <button
+                    type="submit"
+                    disabled={loadingOutros || !dirtyMidia}
+                    className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyMidia ? "bg-[var(--primary-blue)] text-white hover:bg-[var(--primary-blue-hover)]" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}
+                  >
+                    {loadingOutros ? "Salvando..." : "Salvar links"}
+                  </button>
+                </form>
+              </section>
             </div>
           )}
           {tabAtiva === "info-impostos" && (

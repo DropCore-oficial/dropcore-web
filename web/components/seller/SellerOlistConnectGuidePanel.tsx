@@ -100,8 +100,10 @@ export function SellerOlistConnectGuidePanel({ id = "guia-olist" }: { id?: strin
               <code className="text-xs">Vestuários &gt; Camisetas</code>).
             </p>
             <p className="mt-2 text-pretty leading-relaxed">
-              Fotos só entram se forem <strong className="text-neutral-900 dark:text-neutral-100">URL pública</strong> (http/https) —
-              imagens em base64 no cadastro do fornecedor são ignoradas para não estourar o limite de 2&nbsp;MB da Olist.
+              Fotos na Olist vêm das miniaturas que o fornecedor já sobe em{" "}
+              <strong className="text-neutral-900 dark:text-neutral-100">Info. de Variantes</strong> (por cor) — capa do pai usa
+              essas fotos automaticamente. A aba Mídia é só se quiser uma capa diferente. No export, base64 antigo vira URL pública
+              no Supabase. No catálogo DropCore o seller já vê as miniaturas antes de exportar.
             </p>
           </StepBlock>
           <StepBlock n="6" title="Webhook de pedidos (opcional)">
