@@ -30,6 +30,10 @@ import {
   AMBER_PREMIUM_TEXT_SOFT,
 } from "@/lib/amberPremium";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
+import {
+  SUCCESS_PREMIUM_SHELL,
+  SUCCESS_PREMIUM_TEXT_PRIMARY,
+} from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
 
 type VinculoFornecedorMeta = {
@@ -480,6 +484,7 @@ export default function SellerProdutosPage() {
   }, [gruposResumo.length, skusVisiveis]);
 
   const [exportandoOlistGrupo, setExportandoOlistGrupo] = useState<string | null>(null);
+  const [olistExportInfo, setOlistExportInfo] = useState<string | null>(null);
 
   const baixarCsvOlistGrupo = useCallback(
     async (grupoKey: string) => {
@@ -487,6 +492,7 @@ export default function SellerProdutosPage() {
       if (!grupo) return;
       setExportandoOlistGrupo(grupo);
       setError(null);
+      setOlistExportInfo(null);
       try {
         const {
           data: { session },
@@ -495,10 +501,11 @@ export default function SellerProdutosPage() {
           router.replace("/seller/login");
           return;
         }
+        const authHeaders = { Authorization: `Bearer ${session.access_token}` };
         const res = await fetch(
           `/api/seller/catalogo/export-olist?grupo=${encodeURIComponent(grupo)}&scope=todos`,
           {
-            headers: { Authorization: `Bearer ${session.access_token}` },
+            headers: authHeaders,
             cache: "no-store",
           },
         );
@@ -516,6 +523,40 @@ export default function SellerProdutosPage() {
         a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
+
+        const syncRes = await fetch(
+          `/api/seller/catalogo/sync-olist-custos?grupo=${encodeURIComponent(grupo)}&scope=todos`,
+          { method: "POST", headers: authHeaders, cache: "no-store" },
+        );
+        if (syncRes.ok) {
+          const sync = (await syncRes.json()) as {
+            ok?: number;
+            com_custo?: number;
+            falhas?: Array<{ sku: string; erro: string }>;
+          };
+          const atualizados = typeof sync.ok === "number" ? sync.ok : 0;
+          if (atualizados > 0) {
+            const falhas = sync.falhas?.length ?? 0;
+            setOlistExportInfo(
+              falhas > 0
+                ? `Planilha baixada. ${atualizados} custo(s) enviado(s) para a Olist via API (${falhas} falha(s) — confira se o produto já existe na Olist com o mesmo SKU).`
+                : `Planilha baixada. ${atualizados} custo(s) atualizado(s) na Olist via API (aba Custos). Importe o CSV se ainda não cadastrou o produto.`,
+            );
+          } else {
+            setOlistExportInfo(
+              "Planilha baixada. Importe na Olist; os custos serão enviados via API assim que os SKUs existirem no ERP.",
+            );
+          }
+        } else {
+          const syncJson = await syncRes.json().catch(() => ({}));
+          if (syncJson?.code !== "olist_not_connected") {
+            const msg =
+              typeof syncJson?.error === "string"
+                ? syncJson.error
+                : "Planilha baixada, mas não foi possível sincronizar custos na Olist.";
+            setOlistExportInfo(msg);
+          }
+        }
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Erro ao exportar planilha para a Olist.");
       } finally {
@@ -871,6 +912,11 @@ export default function SellerProdutosPage() {
             {error && (
               <div className="border-t border-red-200/90 bg-red-100 p-4 text-sm font-medium text-red-900 dark:border-red-900/45 dark:bg-red-950/45 dark:text-red-200">
                 {error}
+              </div>
+            )}
+            {olistExportInfo && !error && (
+              <div className={cn("border-t p-4 text-sm font-medium", SUCCESS_PREMIUM_SHELL, SUCCESS_PREMIUM_TEXT_PRIMARY)}>
+                {olistExportInfo}
               </div>
             )}
             {!loading && !error && grupos.length === 0 && (

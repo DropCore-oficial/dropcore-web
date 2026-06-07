@@ -486,6 +486,92 @@ export async function fetchUrlAsPdfBase64(url: string, maxBytes = MAX_ETIQUETA_P
   }
 }
 
+export type OlistAlterarProdutoPayload = {
+  sequencia: number;
+  codigo: string;
+  nome: string;
+  unidade: string;
+  preco: string;
+  preco_custo: string;
+  origem: string;
+  situacao: string;
+  tipo: string;
+};
+
+type AlterarProdutosResponse = TinyRetornoBase & {
+  registros?: Array<{
+    registro?: {
+      sequencia?: number;
+      status?: string;
+      id?: number;
+      erros?: Array<{ erro?: string }>;
+    };
+  }>;
+};
+
+/** Atualiza produtos em lote (ex.: preço de custo) via produto.alterar.php. */
+export async function alterarProdutosOlistLote(
+  apiToken: string,
+  produtos: OlistAlterarProdutoPayload[],
+): Promise<AlterarProdutosResponse> {
+  const token = apiToken.trim();
+  if (!token) {
+    throw new Error("Informe o token API da Olist/Tiny.");
+  }
+  if (produtos.length === 0) {
+    return { status: "OK", status_processamento: 3, registros: [] };
+  }
+
+  const payload = {
+    produtos: produtos.map((p) => ({
+      produto: {
+        sequencia: p.sequencia,
+        codigo: p.codigo,
+        nome: p.nome,
+        unidade: p.unidade,
+        preco: p.preco,
+        preco_custo: p.preco_custo,
+        origem: p.origem,
+        situacao: p.situacao,
+        tipo: p.tipo,
+      },
+    })),
+  };
+
+  const body = new URLSearchParams({
+    token,
+    formato: "JSON",
+    produto: JSON.stringify(payload),
+  });
+
+  const res = await fetch(`${TINY_API2_BASE}/produto.alterar.php`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw new Error(`A Olist/Tiny respondeu com HTTP ${res.status} em produto.alterar.php.`);
+  }
+
+  const json = await readTinyHttpJson(res);
+  const retorno = unwrapTinyRetorno<AlterarProdutosResponse>(json);
+  if (!retorno) {
+    throw new Error("Resposta inválida da Olist/Tiny.");
+  }
+
+  if ((retorno.registros ?? []).length > 0) {
+    return retorno;
+  }
+
+  if (!isTinyRetornoOk(retorno)) {
+    throw new Error(readTinyErrors(retorno));
+  }
+
+  return retorno;
+}
+
 export { formatTinyApiDateTime };
 
 export type OlistAccountInfo = {

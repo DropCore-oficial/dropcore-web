@@ -91,11 +91,16 @@ export function SellerOlistConnectGuidePanel({ id = "guia-olist" }: { id?: strin
               Cadastros → Produtos → Importar planilha na Olist/Tiny.
             </p>
             <p className="mt-2 text-pretty leading-relaxed">
+              Com a Olist conectada em <strong className="text-neutral-900 dark:text-neutral-100">Integração ERP</strong>, o DropCore
+              também envia o <strong className="text-neutral-900 dark:text-neutral-100">preço de custo</strong> automaticamente via API
+              logo após o download (pai + variações). Confira na aba Custos do produto na Olist — se o SKU ainda não existir no ERP, importe
+              o CSV primeiro e exporte de novo.
+            </p>
+            <p className="mt-2 text-pretty leading-relaxed">
               Na confirmação da importação, marque{" "}
-              <strong className="text-neutral-900 dark:text-neutral-100">Atualizar preço de custo e estoque</strong> para o custo
-              DropCore ir para a aba Custos. Peso, NCM, CEST e dimensões cadastrados no fornecedor (mesmo só no representante do
-              grupo) são herdados para o pai e para todas as variações na planilha. Categoria na planilha só entra se já existir na
-              Olist no formato{" "}
+              <strong className="text-neutral-900 dark:text-neutral-100">Atualizar preço de custo e estoque</strong> para reforçar custo e
+              estoque pela planilha. Peso, NCM, CEST e dimensões cadastrados no fornecedor (mesmo só no representante do grupo) são
+              herdados para o pai e para todas as variações na planilha. Categoria na planilha só entra se já existir na Olist no formato{" "}
               <code className="text-xs">Departamento &gt; Subcategoria</code> (ex.:{" "}
               <code className="text-xs">Vestuários &gt; Camisetas</code>).
             </p>
