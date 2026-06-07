@@ -18,11 +18,16 @@ export function getClientSurfaceBuildId(surface: AppSurface): string {
   return process.env.NEXT_PUBLIC_BUILD_ID?.trim() || "dev";
 }
 
-/** BuildId do portal no servidor (API). */
+/** BuildId do portal no servidor (API) — acesso estático para o Next inlined no build (evita `process.env[key]`). */
 export function getServerSurfaceBuildId(surface: AppSurface): string {
-  const key = surfaceBuildIdEnvKey(surface);
-  const fromEnv = process.env[key]?.trim();
-  if (fromEnv) return fromEnv;
+  const map: Record<AppSurface, string | undefined> = {
+    seller: process.env.NEXT_PUBLIC_BUILD_ID_SELLER,
+    fornecedor: process.env.NEXT_PUBLIC_BUILD_ID_FORNECEDOR,
+    admin: process.env.NEXT_PUBLIC_BUILD_ID_ADMIN,
+    org: process.env.NEXT_PUBLIC_BUILD_ID_ORG,
+  };
+  const id = map[surface]?.trim();
+  if (id) return id;
   return process.env.NEXT_PUBLIC_BUILD_ID?.trim() || "dev";
 }
 

@@ -81,9 +81,10 @@ async function fetchServerBuildId(surface: AppSurface): Promise<string | null> {
   }
 }
 
-function reloadPortalWithoutPreview(): void {
+function reloadPortalWithoutPreview(serverBuildId?: string | null): void {
   const url = new URL(window.location.href);
   url.searchParams.delete("versionBannerPreview");
+  if (serverBuildId) url.searchParams.set("_v", serverBuildId.slice(0, 12));
   window.location.replace(url.toString());
 }
 
@@ -231,7 +232,7 @@ export function AppVersionUpdateBanner({ surface, requireAuth = false }: Props) 
                   if (sid) setAcknowledgedBuild(surface, sid);
                   clearSnooze(surface);
                   clearLegacyPreviewKeys(surface);
-                  reloadPortalWithoutPreview();
+                  reloadPortalWithoutPreview(sid);
                 })();
               }}
               className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500 sm:text-sm"
