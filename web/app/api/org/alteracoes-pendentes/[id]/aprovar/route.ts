@@ -1,7 +1,7 @@
 /**
  * POST /api/org/alteracoes-pendentes/[id]/aprovar — aprova alterações e aplica no SKU
  */
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { toTitleCase } from "@/lib/formatText";
@@ -11,6 +11,7 @@ import { grupoKeyFromSkuString, syncOlistPrecosFornecedorGrupo } from "@/lib/sel
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 const TEXT_FIELDS = [
   "nome_produto",
@@ -42,6 +43,8 @@ export async function POST(
   try {
     const { org_id } = await requireAdmin(req);
     const { id } = await params;
+    const bodyReq = await req.json().catch(() => ({}));
+    const deferOlistSync = bodyReq?.defer_olist_sync === true;
 
     const { data: alteracao, error: fetchErr } = await supabaseAdmin
       .from("sku_alteracoes_pendentes")
@@ -156,13 +159,17 @@ export async function POST(
 
       if (("custo_base" in clean || "custo_dropcore" in clean) && skuAtual?.sku) {
         const grupoKey = grupoKeyFromSkuString(String(skuAtual.sku));
-        after(() =>
-          syncOlistPrecosFornecedorGrupo({
-            orgId: org_id,
-            fornecedorId: alteracao.fornecedor_id,
-            grupoKey,
-          }).catch((e) => console.error("[aprovar alteracao olist precos]", e)),
-        );
+        if (!deferOlistSync) {
+          try {
+            await syncOlistPrecosFornecedorGrupo({
+              orgId: org_id,
+              fornecedorId: alteracao.fornecedor_id,
+              grupoKey,
+            });
+          } catch (e) {
+            console.error("[aprovar alteracao olist precos]", e);
+          }
+        }
       }
 
       const atualizaEstoque = "estoque_atual" in clean || "estoque_minimo" in clean;

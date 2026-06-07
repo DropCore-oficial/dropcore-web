@@ -27,6 +27,18 @@ function formatDate(s: string | null) {
   return new Date(s).toLocaleDateString("pt-BR") + " " + new Date(s).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
+function grupoKeyFromSku(sku: string): string {
+  const s = (sku || "").trim().toUpperCase();
+  const m = s.match(/^([A-Z]+)(\d{3})(\d{3})$/);
+  if (!m) return s;
+  return `${m[1]}${m[2]}000`;
+}
+
+function alteracaoMudaCusto(a: Alteracao): boolean {
+  const d = a.dados_propostos ?? {};
+  return "custo_base" in d || "custo_dropcore" in d;
+}
+
 const LABEL: Record<string, string> = {
   nome_produto: "Nome",
   cor: "Cor",
@@ -194,15 +206,43 @@ export default function AdminAlteracoesProdutosPage() {
     setError(null);
     let ok = 0;
     const falhas: string[] = [];
+    const gruposOlist = new Set<string>();
+    let fornecedorSync: string | null = null;
     try {
       for (const id of ids) {
+        const item = filtradas.find((a) => a.id === id);
+        if (item?.sku?.sku && alteracaoMudaCusto(item)) {
+          gruposOlist.add(grupoKeyFromSku(item.sku.sku));
+          fornecedorSync = item.fornecedor_id;
+        }
         const res = await fetch(`/api/org/alteracoes-pendentes/${id}/aprovar`, {
           method: "POST",
-          headers: { Authorization: `Bearer ${session.access_token}` },
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ defer_olist_sync: ids.length > 1 }),
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) falhas.push(`${id.slice(0, 8)}...: ${json?.error ?? res.statusText}`);
         else ok += 1;
+      }
+      if (gruposOlist.size > 0 && fornecedorSync) {
+        const syncRes = await fetch("/api/org/olist/sync-precos", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            fornecedor_id: fornecedorSync,
+            grupo_keys: [...gruposOlist],
+          }),
+        });
+        const syncJson = await syncRes.json().catch(() => ({}));
+        if (!syncRes.ok) {
+          falhas.push(`Olist: ${syncJson?.error ?? syncRes.statusText}`);
+        }
       }
       if (falhas.length > 0) {
         setError(

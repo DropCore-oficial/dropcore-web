@@ -554,7 +554,6 @@ export default function SellerProdutosPage() {
           cache: "no-store",
         });
 
-        sessionStorage.setItem(OLIST_PRECO_AUTO_KEY, String(Date.now()));
         if (cancelled) return;
 
         if (res.status === 400) {
@@ -562,6 +561,8 @@ export default function SellerProdutosPage() {
           if (j?.code === "olist_not_connected") return;
         }
         if (!res.ok) return;
+
+        sessionStorage.setItem(OLIST_PRECO_AUTO_KEY, String(Date.now()));
 
         const sync = (await res.json()) as { ok?: number };
         const ok = typeof sync.ok === "number" ? sync.ok : 0;
