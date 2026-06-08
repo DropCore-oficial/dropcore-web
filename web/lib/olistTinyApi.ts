@@ -338,7 +338,14 @@ export async function lancarSaidaEstoqueOlistProduto(
 type PesquisaProdutosResponse = TinyRetornoBase & {
   pagina?: number;
   numero_paginas?: number;
-  produtos?: Array<{ produto?: { id?: number; codigo?: string } }>;
+  produtos?: Array<{
+    produto?: {
+      id?: number;
+      codigo?: string;
+      tipoVariacao?: string;
+      situacao?: string;
+    };
+  }>;
 };
 
 type ExpedicaoObterResponse = TinyRetornoBase & {
@@ -354,31 +361,113 @@ type EtiquetasImpressaoResponse = TinyRetornoBase & {
   links?: Array<{ link?: string } | string>;
 };
 
+/** Pesquisa produtos sem lançar erro quando a Olist não retorna registros. */
+async function pesquisarProdutosOlistPagina(
+  apiToken: string,
+  fields: Record<string, string>,
+): Promise<PesquisaProdutosResponse | null> {
+  const token = apiToken.trim();
+  if (!token) return null;
+
+  const body = new URLSearchParams({
+    token,
+    formato: "JSON",
+    ...fields,
+  });
+
+  try {
+    const res = await fetch(`${TINY_API2_BASE}/produtos.pesquisa.php`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+
+    const json = await readTinyHttpJson(res);
+    const retorno = unwrapTinyRetorno<PesquisaProdutosResponse>(json);
+    if (!retorno) return null;
+    if (isTinyNoRecords(retorno)) return { ...retorno, produtos: [] };
+    if (!isTinyRetornoOk(retorno)) return null;
+    return retorno;
+  } catch {
+    return null;
+  }
+}
+
+function idProdutoFromPesquisaRow(
+  row: NonNullable<PesquisaProdutosResponse["produtos"]>[number] | undefined,
+): number | null {
+  const p = row?.produto;
+  const id = typeof p?.id === "number" ? p.id : Number.parseInt(String(p?.id ?? ""), 10);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
 /** Resolve id do produto na Olist pelo código (SKU), quando o pedido não traz id_produto no item. */
 export async function resolverIdProdutoOlistPorCodigo(apiToken: string, codigo: string): Promise<number | null> {
   const c = codigo.trim();
   if (!c) return null;
-  try {
-    const retorno = await postTinyApi2Form<PesquisaProdutosResponse>("produtos.pesquisa.php", apiToken, {
-      pesquisa: c,
-      pagina: "1",
-      situacao: "A",
-    });
-    const rows = retorno.produtos ?? [];
-    const upper = c.toUpperCase();
-    for (const row of rows) {
-      const p = row?.produto;
-      if (!p || typeof p.id !== "number") continue;
-      if (String(p.codigo ?? "").trim().toUpperCase() === upper) {
-        return p.id;
+  const upper = c.toUpperCase();
+
+  const filtros: Array<Record<string, string>> = [{ pesquisa: c }, { pesquisa: c, situacao: "A" }, { pesquisa: c, situacao: "I" }];
+
+  for (const base of filtros) {
+    for (let pagina = 1; pagina <= 8; pagina += 1) {
+      const retorno = await pesquisarProdutosOlistPagina(apiToken, { ...base, pagina: String(pagina) });
+      const rows = retorno?.produtos ?? [];
+      if (rows.length === 0) break;
+
+      for (const row of rows) {
+        const id = idProdutoFromPesquisaRow(row);
+        if (id == null) continue;
+        const cod = String(row?.produto?.codigo ?? "").trim().toUpperCase();
+        if (cod === upper) return id;
       }
+
+      const numPages = retorno?.numero_paginas ?? 1;
+      if (pagina >= numPages) break;
     }
-    if (rows.length === 1 && rows[0]?.produto && typeof rows[0].produto.id === "number") {
-      return rows[0].produto.id;
-    }
-  } catch {
-    return null;
   }
+
+  return null;
+}
+
+/**
+ * Resolve o id do produto pai na Olist (grade). A pesquisa pelo SKU …000 às vezes não retorna o pai;
+ * nesse caso localiza uma variação filha e usa idProdutoPai do produto.obter.
+ */
+export async function resolverIdProdutoPaiOlistPorGrupo(
+  apiToken: string,
+  paiKey: string,
+  childSkus: string[],
+): Promise<number | null> {
+  const pai = paiKey.trim().toUpperCase();
+  if (!pai) return null;
+
+  const direct = await resolverIdProdutoOlistPorCodigo(apiToken, pai);
+  if (direct) return direct;
+
+  for (const raw of childSkus) {
+    const sku = raw.trim().toUpperCase();
+    if (!sku || sku.endsWith("000")) continue;
+
+    const childId = await resolverIdProdutoOlistPorCodigo(apiToken, sku);
+    if (!childId) continue;
+
+    const prod = await obterProdutoOlistPorId(apiToken, childId);
+    if (!prod) continue;
+
+    const tipo = String(prod.tipoVariacao ?? "").toUpperCase();
+    if (tipo === "P" && String(prod.codigo ?? "").trim().toUpperCase() === pai) {
+      const id = typeof prod.id === "number" ? prod.id : childId;
+      return id > 0 ? id : null;
+    }
+
+    const paiIdRaw = (prod as { idProdutoPai?: number | string }).idProdutoPai;
+    const paiId = typeof paiIdRaw === "number" ? paiIdRaw : Number.parseInt(String(paiIdRaw ?? ""), 10);
+    if (Number.isFinite(paiId) && paiId > 0) return paiId;
+  }
+
   return null;
 }
 
@@ -551,6 +640,7 @@ type ObterProdutoOlistResponse = TinyRetornoBase & {
     situacao?: string;
     tipoVariacao?: string;
     classe_produto?: string;
+    idProdutoPai?: number | string;
     variacoes?: Array<{
       variacao?: {
         id?: number;

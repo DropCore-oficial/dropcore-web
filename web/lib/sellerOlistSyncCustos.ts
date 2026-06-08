@@ -10,6 +10,7 @@ import {
   obterProdutoOlistPorId,
   parseTinyPreco,
   resolverIdProdutoOlistPorCodigo,
+  resolverIdProdutoPaiOlistPorGrupo,
   type OlistAlterarProdutoPayload,
   type OlistPrecoUpdateInput,
 } from "@/lib/olistTinyApi";
@@ -165,14 +166,59 @@ async function syncOlistGrupoVariacoesPai(
   opts: { margemPct: number; paiKey: string; custoGrupo: number },
 ): Promise<SyncOlistCustosResult | null> {
   const paiKey = opts.paiKey;
-  const parentId = await resolverIdProdutoOlistPorCodigo(apiToken, paiKey);
-  if (!parentId) return null;
+  const childSkus = items.filter((i) => !isSkuPaiInterno(str(i.sku))).map((i) => str(i.sku));
+  const hasFilhos = childSkus.length > 0;
+
+  const parentId = await resolverIdProdutoPaiOlistPorGrupo(apiToken, paiKey, childSkus);
+  if (!parentId) {
+    if (hasFilhos) {
+      return {
+        total: items.length,
+        com_custo: items.filter((i) => resolveCustoUnit(i, opts.custoGrupo) != null).length,
+        ok: 0,
+        falhas: [
+          {
+            sku: paiKey,
+            erro: "Produto pai não encontrado na Olist pela API (confira token ERP e SKU do grupo).",
+          },
+        ],
+        ignorados_sem_custo: 0,
+        modo: "variacoes_pai",
+      };
+    }
+    return null;
+  }
 
   const produto = await obterProdutoOlistPorId(apiToken, parentId);
   const variacoesOlist = produto?.variacoes ?? [];
-  if (!produto || String(produto.tipoVariacao ?? "").toUpperCase() !== "P" || variacoesOlist.length === 0) {
+  const tipoVar = String(produto?.tipoVariacao ?? "").toUpperCase();
+  const classeProduto = String(produto?.classe_produto ?? "").toUpperCase();
+  const isPaiComVariacoes =
+    Boolean(produto) &&
+    variacoesOlist.length > 0 &&
+    (tipoVar === "P" || classeProduto === "V" || hasFilhos);
+
+  if (!isPaiComVariacoes) {
+    if (hasFilhos) {
+      return {
+        total: items.length,
+        com_custo: items.filter((i) => resolveCustoUnit(i, opts.custoGrupo) != null).length,
+        ok: 0,
+        falhas: [
+          {
+            sku: paiKey,
+            erro: "Produto encontrado na Olist, mas sem variações na API — reimporte o grupo ou confira o cadastro.",
+          },
+        ],
+        ignorados_sem_custo: 0,
+        modo: "variacoes_pai",
+        pai_id: parentId,
+      };
+    }
     return null;
   }
+
+  if (!produto) return null;
 
   const custoMap = custoPorSkuMap(items, opts.custoGrupo);
   const mult = 1 + Math.max(0, opts.margemPct) / 100;
@@ -290,7 +336,9 @@ async function syncOlistSkusIndividuais(
 ): Promise<SyncOlistCustosResult> {
   const margemPct = opts.margemPct;
   const custoGrupo = custoGrupoMax(items);
-  const comCusto = items.filter((i) => resolveCustoUnit(i, custoGrupo) != null);
+  const comCusto = items.filter(
+    (i) => !isSkuPaiInterno(str(i.sku)) && resolveCustoUnit(i, custoGrupo) != null,
+  );
   const result: SyncOlistCustosResult = {
     total: items.length,
     com_custo: comCusto.length,
@@ -306,12 +354,12 @@ async function syncOlistSkusIndividuais(
   const precosParaOlist: OlistPrecoUpdateInput[] = [];
   for (const item of comCusto) {
     const sku = str(item.sku);
-    if (!sku) continue;
+    if (!sku || isSkuPaiInterno(sku)) continue;
     const custo = resolveCustoUnit(item, custoGrupo);
     if (custo == null) continue;
     const id = await resolverIdProdutoOlistPorCodigo(apiToken, sku);
     if (!id) {
-      result.falhas.push({ sku, erro: "SKU não encontrado na Olist para atualizar preço." });
+      result.falhas.push({ sku, erro: "Variação não encontrada na Olist para atualizar preço." });
       continue;
     }
     precosParaOlist.push({ id, preco: formatTinyDecimal(custo * mult), sku });
