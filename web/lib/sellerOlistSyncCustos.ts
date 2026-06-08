@@ -125,6 +125,20 @@ function buildAlterPayload(
   return out;
 }
 
+/** Erros de alterar em variação (nome duplicado) não invalidam preço já gravado via atualizar.precos. */
+function filtrarFalhasSyncOlist(
+  ok: number,
+  falhas: Array<{ sku: string; erro: string }>,
+): Array<{ sku: string; erro: string }> {
+  if (ok <= 0) return falhas;
+  return falhas.filter((f) => {
+    const msg = f.erro.toLowerCase();
+    if (msg.includes("duplicidade") && msg.includes("nome")) return false;
+    if (msg.includes("nome do produto já cadastrado")) return false;
+    return true;
+  });
+}
+
 function countAlterOk(
   payload: OlistAlterarProdutoPayload[],
   registros: Array<{ registro?: { sequencia?: number; status?: string; erros?: Array<{ erro?: string }> } }> | undefined,
@@ -203,38 +217,30 @@ async function syncOlistGrupoViaAlterarCodigo(
     result.falhas.push(...precosSync.falhas);
   }
 
-  const alterItems: OlistAlterarProdutoPayload[] = [
-    {
-      sequencia: 1,
-      codigo: opts.paiKey,
-      nome: nomeBase.slice(0, 120),
-      unidade: "UN",
-      preco: precoPai,
-      preco_custo: custoPai,
-      origem,
-      situacao: "A",
-      tipo: "P",
-    },
-    ...buildAlterPayload(comCusto, opts.custoGrupo, opts.margemPct, 1),
-  ];
+  const alterPai: OlistAlterarProdutoPayload = {
+    sequencia: 1,
+    codigo: opts.paiKey,
+    ...(paiId ? { id: paiId } : {}),
+    nome: nomeBase.slice(0, 120),
+    unidade: "UN",
+    preco: precoPai,
+    preco_custo: custoPai,
+    origem,
+    situacao: "A",
+    tipo: "P",
+  };
 
-  let alterOk = 0;
-  for (let i = 0; i < alterItems.length; i += BATCH_SIZE) {
-    const batch = alterItems.slice(i, i + BATCH_SIZE).map((p, idx) => ({ ...p, sequencia: idx + 1 }));
-    try {
-      const res = await alterarProdutosOlistLote(apiToken, batch);
-      const parsed = countAlterOk(batch, res.registros);
-      alterOk += parsed.ok;
-      result.falhas.push(...parsed.falhas);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Erro na API Olist.";
-      for (const p of batch) result.falhas.push({ sku: p.codigo, erro: msg });
-    }
-    if (i + BATCH_SIZE < alterItems.length) await sleep(BATCH_PAUSE_MS);
+  try {
+    const res = await alterarProdutosOlistLote(apiToken, [alterPai]);
+    const parsed = countAlterOk([alterPai], res.registros);
+    if (result.ok === 0 && parsed.ok > 0) result.ok = parsed.ok;
+    result.falhas.push(...parsed.falhas);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Erro na API Olist.";
+    result.falhas.push({ sku: opts.paiKey, erro: msg });
   }
 
-  if (result.ok === 0 && alterOk > 0) result.ok = alterOk;
-  else if (alterOk > result.ok) result.ok = alterOk;
+  result.falhas = filtrarFalhasSyncOlist(result.ok, result.falhas);
 
   if (result.ok === 0 && result.falhas.length === 0) {
     result.falhas.push({
@@ -303,7 +309,6 @@ async function syncOlistGrupoVariacoesPai(
 
   const variacoesPayload: Array<{ variacao: { id?: number; codigo?: string; preco?: string } }> = [];
   const precosIds: OlistPrecoUpdateInput[] = [];
-  const filhosAlter: OlistAlterarProdutoPayload[] = [];
 
   for (const row of variacoesOlist) {
     const v = row?.variacao;
@@ -317,24 +322,11 @@ async function syncOlistGrupoVariacoesPai(
     if (custo == null || !Number.isFinite(custo) || custo <= 0) continue;
 
     const precoVenda = formatTinyDecimal(custo * mult);
-    const precoCusto = formatTinyDecimal(custo);
 
     variacoesPayload.push({
       variacao: { id: idVar, codigo, preco: precoVenda },
     });
     precosIds.push({ id: idVar, preco: precoVenda, sku: codigo });
-    filhosAlter.push({
-      sequencia: filhosAlter.length + 1,
-      id: idVar,
-      codigo,
-      nome: nomePai.slice(0, 120),
-      unidade: str(produto.unidade) || "UN",
-      preco: precoVenda,
-      preco_custo: precoCusto,
-      origem,
-      situacao,
-      tipo: "P",
-    });
   }
 
   if (variacoesPayload.length === 0) return null;
@@ -382,24 +374,13 @@ async function syncOlistGrupoVariacoesPai(
     result.falhas.push({ sku: paiKey, erro: e instanceof Error ? e.message : "Erro ao atualizar pai na Olist." });
   }
 
-  for (let i = 0; i < filhosAlter.length; i += BATCH_SIZE) {
-    const batch = filhosAlter.slice(i, i + BATCH_SIZE).map((p, idx) => ({ ...p, sequencia: idx + 1 }));
-    try {
-      const res = await alterarProdutosOlistLote(apiToken, batch);
-      const parsed = countAlterOk(batch, res.registros);
-      result.falhas.push(...parsed.falhas);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Erro na API Olist.";
-      for (const p of batch) result.falhas.push({ sku: p.codigo, erro: msg });
-    }
-    if (i + BATCH_SIZE < filhosAlter.length) await sleep(BATCH_PAUSE_MS);
-  }
-
   const verificacao = await verificarPrecoListaOlist(apiToken, parentId, paiKey, precoPaiRef);
   if (verificacao) {
     result.falhas.push(verificacao);
     if (result.ok > 0) result.ok = Math.max(0, result.ok - 1);
   }
+
+  result.falhas = filtrarFalhasSyncOlist(result.ok, result.falhas);
 
   return result;
 }
@@ -464,6 +445,8 @@ async function syncOlistSkusIndividuais(
 
     if (i + BATCH_SIZE < comCusto.length) await sleep(BATCH_PAUSE_MS);
   }
+
+  result.falhas = filtrarFalhasSyncOlist(result.ok, result.falhas);
 
   return result;
 }
