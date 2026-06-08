@@ -403,33 +403,98 @@ function idProdutoFromPesquisaRow(
   return Number.isFinite(id) && id > 0 ? id : null;
 }
 
-/** Resolve id do produto na Olist pelo código (SKU), quando o pedido não traz id_produto no item. */
-export async function resolverIdProdutoOlistPorCodigo(apiToken: string, codigo: string): Promise<number | null> {
-  const c = codigo.trim();
-  if (!c) return null;
-  const upper = c.toUpperCase();
+function normalizarCodigoOlist(v: unknown): string {
+  return String(v ?? "").trim().toUpperCase();
+}
 
-  const filtros: Array<Record<string, string>> = [{ pesquisa: c }, { pesquisa: c, situacao: "A" }, { pesquisa: c, situacao: "I" }];
+/** Termos alternativos — a pesquisa Tiny/Olist às vezes não acha o SKU completo …000. */
+export function termosPesquisaOlistPorCodigo(codigo: string): string[] {
+  const c = codigo.trim().toUpperCase();
+  if (!c) return [];
+  const out = new Set<string>([c]);
+  if (c.length > 3 && c.endsWith("000")) {
+    out.add(c.slice(0, -3));
+  }
+  const m = c.match(/^([A-Z]+)(\d+)$/);
+  if (m) {
+    const prefix = m[1];
+    const digits = m[2];
+    if (digits.length >= 3) out.add(`${prefix}${digits.slice(0, 3)}`);
+    if (digits.length >= 6) out.add(`${prefix}${digits.slice(0, 6)}`);
+  }
+  return [...out];
+}
 
-  for (const base of filtros) {
-    for (let pagina = 1; pagina <= 8; pagina += 1) {
-      const retorno = await pesquisarProdutosOlistPagina(apiToken, { ...base, pagina: String(pagina) });
-      const rows = retorno?.produtos ?? [];
-      if (rows.length === 0) break;
+export function codigoOlistMatchesSku(codigoApi: unknown, sku: string): boolean {
+  const a = normalizarCodigoOlist(codigoApi);
+  const b = normalizarCodigoOlist(sku);
+  if (!a || !b) return false;
+  return a === b;
+}
 
-      for (const row of rows) {
-        const id = idProdutoFromPesquisaRow(row);
-        if (id == null) continue;
-        const cod = String(row?.produto?.codigo ?? "").trim().toUpperCase();
-        if (cod === upper) return id;
+function lerIdProdutoPaiOlist(prod: OlistProdutoOlistDetalhe | null | undefined): number | null {
+  if (!prod) return null;
+  const rec = prod as Record<string, unknown>;
+  const raw = prod.idProdutoPai ?? rec.id_produto_pai;
+  const n = typeof raw === "number" ? raw : Number.parseInt(String(raw ?? ""), 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+async function pesquisarIdProdutoOlistPorTermos(
+  apiToken: string,
+  skuAlvo: string,
+  termos: string[],
+): Promise<number | null> {
+  const upper = normalizarCodigoOlist(skuAlvo);
+  const filtros: Array<Record<string, string>> = [{}, { situacao: "A" }, { situacao: "I" }];
+
+  for (const termo of termos) {
+    if (!termo.trim()) continue;
+    for (const extra of filtros) {
+      for (let pagina = 1; pagina <= 8; pagina += 1) {
+        const retorno = await pesquisarProdutosOlistPagina(apiToken, {
+          pesquisa: termo,
+          pagina: String(pagina),
+          ...extra,
+        });
+        const rows = retorno?.produtos ?? [];
+        if (rows.length === 0) break;
+
+        let candidatoP: number | null = null;
+        for (const row of rows) {
+          const id = idProdutoFromPesquisaRow(row);
+          if (id == null) continue;
+          const p = row?.produto;
+          const cod = normalizarCodigoOlist(p?.codigo);
+          if (codigoOlistMatchesSku(cod, upper)) return id;
+          const tipo = normalizarCodigoOlist(p?.tipoVariacao);
+          if (tipo === "P" && cod === upper) return id;
+          if (tipo === "P" && cod && codigoOlistMatchesSku(cod, upper)) return id;
+          if (tipo === "P" && termo === upper && cod === upper) return id;
+          if (tipo === "P" && !candidatoP) candidatoP = id;
+        }
+
+        if (rows.length === 1) {
+          const only = idProdutoFromPesquisaRow(rows[0]);
+          if (only != null) return only;
+        }
+
+        if (termo === upper && candidatoP != null && rows.length <= 3) return candidatoP;
+
+        const numPages = retorno?.numero_paginas ?? 1;
+        if (pagina >= numPages) break;
       }
-
-      const numPages = retorno?.numero_paginas ?? 1;
-      if (pagina >= numPages) break;
     }
   }
 
   return null;
+}
+
+/** Resolve id do produto na Olist pelo código (SKU), quando o pedido não traz id_produto no item. */
+export async function resolverIdProdutoOlistPorCodigo(apiToken: string, codigo: string): Promise<number | null> {
+  const c = codigo.trim();
+  if (!c) return null;
+  return pesquisarIdProdutoOlistPorTermos(apiToken, c, termosPesquisaOlistPorCodigo(c));
 }
 
 /**
@@ -444,7 +509,7 @@ export async function resolverIdProdutoPaiOlistPorGrupo(
   const pai = paiKey.trim().toUpperCase();
   if (!pai) return null;
 
-  const direct = await resolverIdProdutoOlistPorCodigo(apiToken, pai);
+  const direct = await pesquisarIdProdutoOlistPorTermos(apiToken, pai, termosPesquisaOlistPorCodigo(pai));
   if (direct) return direct;
 
   for (const raw of childSkus) {
@@ -458,14 +523,13 @@ export async function resolverIdProdutoPaiOlistPorGrupo(
     if (!prod) continue;
 
     const tipo = String(prod.tipoVariacao ?? "").toUpperCase();
-    if (tipo === "P" && String(prod.codigo ?? "").trim().toUpperCase() === pai) {
+    if (tipo === "P" && codigoOlistMatchesSku(prod.codigo, pai)) {
       const id = typeof prod.id === "number" ? prod.id : childId;
       return id > 0 ? id : null;
     }
 
-    const paiIdRaw = (prod as { idProdutoPai?: number | string }).idProdutoPai;
-    const paiId = typeof paiIdRaw === "number" ? paiIdRaw : Number.parseInt(String(paiIdRaw ?? ""), 10);
-    if (Number.isFinite(paiId) && paiId > 0) return paiId;
+    const paiId = lerIdProdutoPaiOlist(prod);
+    if (paiId) return paiId;
   }
 
   return null;

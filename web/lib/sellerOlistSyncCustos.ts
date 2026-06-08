@@ -155,9 +155,96 @@ export type SyncOlistCustosResult = {
   ok: number;
   falhas: Array<{ sku: string; erro: string }>;
   ignorados_sem_custo: number;
-  modo?: "variacoes_pai" | "sku_individual";
+  modo?: "variacoes_pai" | "sku_individual" | "alterar_codigo";
   pai_id?: number;
 };
+
+/** Fallback quando produto.obter/pesquisa não resolve id — produto.alterar aceita só codigo (SKU). */
+async function syncOlistGrupoViaAlterarCodigo(
+  apiToken: string,
+  items: CatalogSkuForOlistExport[],
+  opts: { margemPct: number; paiKey: string; custoGrupo: number },
+): Promise<SyncOlistCustosResult> {
+  const mult = 1 + Math.max(0, opts.margemPct) / 100;
+  const filhos = items.filter((i) => !isSkuPaiInterno(str(i.sku)));
+  const comCusto = filhos.filter((i) => resolveCustoUnit(i, opts.custoGrupo) != null);
+  const result: SyncOlistCustosResult = {
+    total: filhos.length + 1,
+    com_custo: comCusto.length + 1,
+    ok: 0,
+    falhas: [],
+    ignorados_sem_custo: items.length - comCusto.length,
+    modo: "alterar_codigo",
+  };
+
+  const precoPai = formatTinyDecimal(opts.custoGrupo * mult);
+  const custoPai = formatTinyDecimal(opts.custoGrupo);
+  const nomeBase =
+    str(filhos.find((i) => str(i.nome_produto))?.nome_produto) ||
+    str(items[0]?.nome_produto) ||
+    opts.paiKey;
+  const origem = normalizeOrigemOlist(filhos[0]?.origem ?? items[0]?.origem ?? null);
+
+  const precosIds: OlistPrecoUpdateInput[] = [];
+  for (const item of comCusto) {
+    const sku = str(item.sku);
+    const custo = resolveCustoUnit(item, opts.custoGrupo);
+    if (!sku || custo == null) continue;
+    const id = await resolverIdProdutoOlistPorCodigo(apiToken, sku);
+    if (!id) continue;
+    precosIds.push({ id, preco: formatTinyDecimal(custo * mult), sku });
+  }
+  const paiId = await resolverIdProdutoOlistPorCodigo(apiToken, opts.paiKey);
+  if (paiId) precosIds.unshift({ id: paiId, preco: precoPai, sku: opts.paiKey });
+
+  if (precosIds.length > 0) {
+    const precosSync = await atualizarPrecosOlistEmBatches(apiToken, precosIds);
+    result.ok = precosSync.ok;
+    result.falhas.push(...precosSync.falhas);
+  }
+
+  const alterItems: OlistAlterarProdutoPayload[] = [
+    {
+      sequencia: 1,
+      codigo: opts.paiKey,
+      nome: nomeBase.slice(0, 120),
+      unidade: "UN",
+      preco: precoPai,
+      preco_custo: custoPai,
+      origem,
+      situacao: "A",
+      tipo: "P",
+    },
+    ...buildAlterPayload(comCusto, opts.custoGrupo, opts.margemPct, 1),
+  ];
+
+  let alterOk = 0;
+  for (let i = 0; i < alterItems.length; i += BATCH_SIZE) {
+    const batch = alterItems.slice(i, i + BATCH_SIZE).map((p, idx) => ({ ...p, sequencia: idx + 1 }));
+    try {
+      const res = await alterarProdutosOlistLote(apiToken, batch);
+      const parsed = countAlterOk(batch, res.registros);
+      alterOk += parsed.ok;
+      result.falhas.push(...parsed.falhas);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Erro na API Olist.";
+      for (const p of batch) result.falhas.push({ sku: p.codigo, erro: msg });
+    }
+    if (i + BATCH_SIZE < alterItems.length) await sleep(BATCH_PAUSE_MS);
+  }
+
+  if (result.ok === 0 && alterOk > 0) result.ok = alterOk;
+  else if (alterOk > result.ok) result.ok = alterOk;
+
+  if (result.ok === 0 && result.falhas.length === 0) {
+    result.falhas.push({
+      sku: opts.paiKey,
+      erro: "Não foi possível atualizar preços na Olist (pesquisa e alterar por SKU falharam).",
+    });
+  }
+
+  return result;
+}
 
 /** Produto pai + variações na Olist (tipoVariacao P) — preço/custo vão nas variações, não no SKU avulso. */
 async function syncOlistGrupoVariacoesPai(
@@ -172,19 +259,7 @@ async function syncOlistGrupoVariacoesPai(
   const parentId = await resolverIdProdutoPaiOlistPorGrupo(apiToken, paiKey, childSkus);
   if (!parentId) {
     if (hasFilhos) {
-      return {
-        total: items.length,
-        com_custo: items.filter((i) => resolveCustoUnit(i, opts.custoGrupo) != null).length,
-        ok: 0,
-        falhas: [
-          {
-            sku: paiKey,
-            erro: "Produto pai não encontrado na Olist pela API (confira token ERP e SKU do grupo).",
-          },
-        ],
-        ignorados_sem_custo: 0,
-        modo: "variacoes_pai",
-      };
+      return syncOlistGrupoViaAlterarCodigo(apiToken, items, opts);
     }
     return null;
   }
