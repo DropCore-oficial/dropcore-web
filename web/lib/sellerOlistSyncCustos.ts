@@ -5,7 +5,7 @@ import {
 } from "@/lib/sellerCatalogOlistExport";
 import {
   alterarProdutosOlistLote,
-  atualizarPrecosOlistLote,
+  atualizarPrecosOlistEmBatches,
   obterProdutoOlistPorId,
   resolverIdProdutoOlistPorCodigo,
   type OlistAlterarProdutoPayload,
@@ -95,7 +95,7 @@ function countAlterOk(
   const falhas: Array<{ sku: string; erro: string }> = [];
   let ok = 0;
   if (!registros?.length) {
-    return { ok: payload.length, falhas };
+    return { ok: 0, falhas: payload.map((p) => ({ sku: p.codigo, erro: "Olist não confirmou alteração do produto." })) };
   }
   for (const row of registros) {
     const reg = row.registro;
@@ -192,6 +192,16 @@ async function syncOlistGrupoVariacoesPai(
     pai_id: parentId,
   };
 
+  // 1) Preço de venda na lista da Olist — produto.atualizar.precos (fonte do que aparece em Produtos)
+  const precosParaOlist = [
+    { id: parentId, preco: precoPaiRef, sku: paiKey },
+    ...precosIds.map((p) => ({ id: p.id, preco: p.preco, sku: p.sku })),
+  ];
+  const precosSync = await atualizarPrecosOlistEmBatches(apiToken, precosParaOlist);
+  result.ok = precosSync.ok;
+  result.falhas.push(...precosSync.falhas);
+
+  // 2) Custo / cadastro — produto.alterar (não atualiza sozinho o preço da grade)
   try {
     const paiPayload: OlistAlterarProdutoPayload = {
       sequencia: 1,
@@ -208,20 +218,9 @@ async function syncOlistGrupoVariacoesPai(
     };
     const resPai = await alterarProdutosOlistLote(apiToken, [paiPayload]);
     const parsedPai = countAlterOk([paiPayload], resPai.registros);
-    if (parsedPai.ok > 0) result.ok += 1;
-    else if (parsedPai.falhas.length) result.falhas.push(...parsedPai.falhas.map((f) => ({ sku: paiKey, erro: f.erro })));
-    else result.ok += 1;
+    result.falhas.push(...parsedPai.falhas.map((f) => ({ sku: paiKey, erro: f.erro })));
   } catch (e: unknown) {
     result.falhas.push({ sku: paiKey, erro: e instanceof Error ? e.message : "Erro ao atualizar pai na Olist." });
-  }
-
-  try {
-    await atualizarPrecosOlistLote(apiToken, [{ id: parentId, preco: precoPaiRef }, ...precosIds.map((p) => ({ id: p.id, preco: p.preco }))]);
-  } catch (e: unknown) {
-    result.falhas.push({
-      sku: paiKey,
-      erro: `Preço de venda (atualizar.precos): ${e instanceof Error ? e.message : "erro"}`,
-    });
   }
 
   for (let i = 0; i < filhosAlter.length; i += BATCH_SIZE) {
@@ -229,9 +228,7 @@ async function syncOlistGrupoVariacoesPai(
     try {
       const res = await alterarProdutosOlistLote(apiToken, batch);
       const parsed = countAlterOk(batch, res.registros);
-      result.ok += parsed.ok;
       result.falhas.push(...parsed.falhas);
-      if (parsed.ok === 0 && parsed.falhas.length === 0) result.ok += batch.length;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Erro na API Olist.";
       for (const p of batch) result.falhas.push({ sku: p.codigo, erro: msg });
@@ -273,7 +270,6 @@ async function syncOlistSkusIndividuais(
       const parsed = countAlterOk(payload, res.registros);
       result.ok += parsed.ok;
       result.falhas.push(...parsed.falhas);
-      if (parsed.ok === 0 && parsed.falhas.length === 0) result.ok += payload.length;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Erro na API Olist.";
       for (const p of payload) result.falhas.push({ sku: p.codigo, erro: msg });

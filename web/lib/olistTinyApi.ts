@@ -574,6 +574,53 @@ type AtualizarPrecosResponse = TinyRetornoBase & {
 };
 
 /** Atualiza preço de venda por id de produto/variação (produto.atualizar.precos.php). */
+export type OlistPrecoUpdateInput = { id: number; preco: string; sku?: string };
+
+export function countAtualizarPrecosOk(
+  items: OlistPrecoUpdateInput[],
+  registros: AtualizarPrecosResponse["registros"],
+): { ok: number; falhas: Array<{ sku: string; erro: string }> } {
+  const idToSku = new Map(items.map((p) => [p.id, p.sku ?? String(p.id)]));
+  const falhas: Array<{ sku: string; erro: string }> = [];
+  let ok = 0;
+
+  if (!registros?.length) {
+    return {
+      ok: 0,
+      falhas: items.map((p) => ({
+        sku: p.sku ?? String(p.id),
+        erro: "Olist não confirmou a atualização de preço.",
+      })),
+    };
+  }
+
+  const seenIds = new Set<number>();
+  for (const row of registros) {
+    const reg = row.registro;
+    if (!reg) continue;
+    const id = typeof reg.id === "number" ? reg.id : Number.parseInt(String(reg.id ?? ""), 10);
+    if (!Number.isFinite(id) || id <= 0) continue;
+    seenIds.add(id);
+    const sku = idToSku.get(id) ?? String(id);
+    if (String(reg.status ?? "").toUpperCase() === "OK") {
+      ok += 1;
+    } else {
+      const msg =
+        reg.erros?.map((e) => e.erro).filter(Boolean).join(" ") ||
+        (reg.codigo_erro != null ? `Código erro Olist: ${reg.codigo_erro}` : "Erro ao atualizar preço na Olist.");
+      falhas.push({ sku, erro: msg.trim() });
+    }
+  }
+
+  for (const p of items) {
+    if (!seenIds.has(p.id)) {
+      falhas.push({ sku: p.sku ?? String(p.id), erro: "Preço não confirmado pela Olist (sem retorno do id)." });
+    }
+  }
+
+  return { ok, falhas };
+}
+
 export async function atualizarPrecosOlistLote(
   apiToken: string,
   precos: Array<{ id: number; preco: string }>,
@@ -583,10 +630,9 @@ export async function atualizarPrecosOlistLote(
   if (precos.length === 0) return { status: "OK", status_processamento: 3, registros: [] };
 
   const payload = {
-    precos: precos.map((p, idx) => ({
-      sequencia: idx + 1,
+    precos: precos.map((p) => ({
       id: p.id,
-      preco: p.preco,
+      preco: parseFloat(p.preco.replace(",", ".")),
     })),
   };
 
@@ -607,6 +653,36 @@ export async function atualizarPrecosOlistLote(
   if ((retorno.registros ?? []).length > 0) return retorno;
   if (!isTinyRetornoOk(retorno)) throw new Error(readTinyErrors(retorno));
   return retorno;
+}
+
+const PRECO_BATCH_SIZE = 20;
+
+/** Atualiza preços em lotes e valida cada registro retornado pela Olist. */
+export async function atualizarPrecosOlistEmBatches(
+  apiToken: string,
+  items: OlistPrecoUpdateInput[],
+  batchSize = PRECO_BATCH_SIZE,
+): Promise<{ ok: number; falhas: Array<{ sku: string; erro: string }> }> {
+  let ok = 0;
+  const falhas: Array<{ sku: string; erro: string }> = [];
+
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    try {
+      const res = await atualizarPrecosOlistLote(
+        apiToken,
+        batch.map((p) => ({ id: p.id, preco: p.preco })),
+      );
+      const parsed = countAtualizarPrecosOk(batch, res.registros);
+      ok += parsed.ok;
+      falhas.push(...parsed.falhas);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Erro ao atualizar preços na Olist.";
+      for (const p of batch) falhas.push({ sku: p.sku ?? String(p.id), erro: msg });
+    }
+  }
+
+  return { ok, falhas };
 }
 
 /** Atualiza produtos em lote (ex.: preço de custo) via produto.alterar.php. */

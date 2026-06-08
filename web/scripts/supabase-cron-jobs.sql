@@ -32,7 +32,12 @@ CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
 -- -----------------------------------------------------------------------------
 -- 2) Função auxiliar: POST autenticado nas rotas de cron do app
 -- -----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.dropcore_cron_http_post(p_path text)
+DROP FUNCTION IF EXISTS public.dropcore_cron_http_post(text);
+
+CREATE OR REPLACE FUNCTION public.dropcore_cron_http_post(
+  p_path text,
+  p_timeout_ms int DEFAULT 300000
+)
 RETURNS bigint
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -58,7 +63,8 @@ BEGIN
       'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || trim(v_secret)
     ),
-    body := '{}'::jsonb
+    body := '{}'::jsonb,
+    timeout_milliseconds := GREATEST(p_timeout_ms, 5000)
   ) INTO v_request_id;
 
   RETURN v_request_id;
@@ -66,7 +72,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.dropcore_cron_http_post IS
-  'Chama rota /api/cron/* em produção com CRON_SECRET do Vault. Usado por pg_cron.';
+  'Chama rota /api/cron/* em produção com CRON_SECRET do Vault. timeout padrão 5 min (sync preços Olist demora).';
 
 REVOKE ALL ON FUNCTION public.dropcore_cron_http_post(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.dropcore_cron_http_post(text) TO postgres;

@@ -564,12 +564,15 @@ export default function SellerProdutosPage() {
 
         sessionStorage.setItem(OLIST_PRECO_AUTO_KEY, String(Date.now()));
 
-        const sync = (await res.json()) as { ok?: number };
+        const sync = (await res.json()) as { ok?: number; falhas?: Array<{ sku?: string; erro?: string }> };
         const ok = typeof sync.ok === "number" ? sync.ok : 0;
+        const falhas = Array.isArray(sync.falhas) ? sync.falhas : [];
         if (ok > 0) {
           setOlistExportInfo(
-            `Preços sincronizados com a Olist automaticamente (${ok} SKU${ok === 1 ? "" : "s"}). O DropCore repete isso ao abrir Produtos (~5 min) e a cada ~10 min.`,
+            `Preços sincronizados com a Olist (${ok} SKU${ok === 1 ? "" : "s"}).${falhas.length ? ` ${falhas.length} falha(s) — recarregue em instantes ou tente de novo.` : ""}`,
           );
+        } else if (falhas.length > 0) {
+          setError(`Sync Olist: ${falhas[0]?.erro ?? "não foi possível atualizar preços."}`);
         }
       } catch {
         /* sync silencioso em background */
