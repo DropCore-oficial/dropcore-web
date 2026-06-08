@@ -182,6 +182,21 @@ function toTinyDecimal(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Preço retornado/enviado à API Tiny (aceita `35.65` ou `35,65`). */
+export function parseTinyPreco(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  const n = parseFloat(String(v).trim().replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+}
+
+export function precoTinyMatches(esperado: string, retornado: unknown, tolerancia = 0.02): boolean {
+  const a = parseTinyPreco(esperado);
+  const b = parseTinyPreco(retornado);
+  if (a == null || b == null) return false;
+  return Math.abs(a - b) <= tolerancia;
+}
+
 function mapPedidoResumo(raw: OlistPedidoResumo | undefined): OlistPedidoResumo | null {
   const idRaw = raw?.id;
   const id = typeof idRaw === "number" ? idRaw : typeof idRaw === "string" ? Number.parseInt(idRaw, 10) : Number.NaN;
@@ -568,6 +583,9 @@ type AtualizarPrecosResponse = TinyRetornoBase & {
       sequencia?: number;
       status?: string;
       id?: number;
+      preco?: string | number;
+      preco_promocional?: string | number;
+      codigo_erro?: number | string;
       erros?: Array<{ erro?: string; campo?: string }>;
     };
   }>;
@@ -580,7 +598,7 @@ export function countAtualizarPrecosOk(
   items: OlistPrecoUpdateInput[],
   registros: AtualizarPrecosResponse["registros"],
 ): { ok: number; falhas: Array<{ sku: string; erro: string }> } {
-  const idToSku = new Map(items.map((p) => [p.id, p.sku ?? String(p.id)]));
+  const idToItem = new Map(items.map((p) => [p.id, p]));
   const falhas: Array<{ sku: string; erro: string }> = [];
   let ok = 0;
 
@@ -601,9 +619,18 @@ export function countAtualizarPrecosOk(
     const id = typeof reg.id === "number" ? reg.id : Number.parseInt(String(reg.id ?? ""), 10);
     if (!Number.isFinite(id) || id <= 0) continue;
     seenIds.add(id);
-    const sku = idToSku.get(id) ?? String(id);
+    const item = idToItem.get(id);
+    const sku = item?.sku ?? String(id);
     if (String(reg.status ?? "").toUpperCase() === "OK") {
-      ok += 1;
+      const esperado = item?.preco;
+      if (esperado && reg.preco != null && !precoTinyMatches(esperado, reg.preco)) {
+        falhas.push({
+          sku,
+          erro: `Olist respondeu OK mas manteve preço ${String(reg.preco)} (esperado ${esperado}).`,
+        });
+      } else {
+        ok += 1;
+      }
     } else {
       const msg =
         reg.erros?.map((e) => e.erro).filter(Boolean).join(" ") ||
@@ -619,6 +646,17 @@ export function countAtualizarPrecosOk(
   }
 
   return { ok, falhas };
+}
+
+/** Menor preço de venda entre variações (grade) — costuma ser o valor da lista na Olist. */
+export function menorPrecoVariacoesOlist(produto: OlistProdutoOlistDetalhe | null | undefined): number | null {
+  let min: number | null = null;
+  for (const row of produto?.variacoes ?? []) {
+    const p = parseTinyPreco(row?.variacao?.preco);
+    if (p == null) continue;
+    min = min == null ? p : Math.min(min, p);
+  }
+  return min;
 }
 
 export async function atualizarPrecosOlistLote(

@@ -6,9 +6,12 @@ import {
 import {
   alterarProdutosOlistLote,
   atualizarPrecosOlistEmBatches,
+  menorPrecoVariacoesOlist,
   obterProdutoOlistPorId,
+  parseTinyPreco,
   resolverIdProdutoOlistPorCodigo,
   type OlistAlterarProdutoPayload,
+  type OlistPrecoUpdateInput,
 } from "@/lib/olistTinyApi";
 
 const BATCH_SIZE = 12;
@@ -31,9 +34,16 @@ function resolveCustoUnit(item: CatalogSkuForOlistExport, fallbackCusto?: number
   return null;
 }
 
+function isSkuPaiInterno(sku: string): boolean {
+  const s = str(sku).toUpperCase();
+  return s.length >= 3 && s.endsWith("000");
+}
+
 function custoGrupoMax(items: CatalogSkuForOlistExport[]): number | null {
+  const filhos = items.filter((i) => !isSkuPaiInterno(str(i.sku)));
+  const pool = filhos.length > 0 ? filhos : items;
   let acc: number | null = null;
-  for (const item of items) {
+  for (const item of pool) {
     const c = resolveCustoUnit(item);
     if (c == null) continue;
     acc = acc == null ? c : Math.max(acc, c);
@@ -48,12 +58,39 @@ function sleep(ms: number): Promise<void> {
 function custoPorSkuMap(items: CatalogSkuForOlistExport[], custoGrupo: number | null): Map<string, number> {
   const map = new Map<string, number>();
   for (const item of items) {
+    if (isSkuPaiInterno(str(item.sku))) continue;
     const sku = str(item.sku).toUpperCase();
     if (!sku) continue;
     const custo = resolveCustoUnit(item, custoGrupo);
     if (custo != null) map.set(sku, custo);
   }
   return map;
+}
+
+async function verificarPrecoListaOlist(
+  apiToken: string,
+  parentId: number,
+  paiKey: string,
+  precoEsperado: string,
+): Promise<{ sku: string; erro: string } | null> {
+  const depois = await obterProdutoOlistPorId(apiToken, parentId);
+  if (!depois) {
+    return { sku: paiKey, erro: "Não foi possível reler o produto na Olist após o sync de preço." };
+  }
+  const esperado = parseTinyPreco(precoEsperado);
+  if (esperado == null) return null;
+  const minVar = menorPrecoVariacoesOlist(depois);
+  const precoPai = parseTinyPreco(depois.preco);
+  const precoLista = minVar ?? precoPai;
+  if (precoLista == null || Math.abs(precoLista - esperado) >= 0.02) {
+    const visto = precoLista != null ? precoLista.toFixed(2).replace(".", ",") : "—";
+    const alvo = precoEsperado.replace(".", ",");
+    return {
+      sku: paiKey,
+      erro: `Preço na lista da Olist ainda ${visto} (esperado ${alvo}). Recarregue a Olist ou tente de novo em instantes.`,
+    };
+  }
+  return null;
 }
 
 function buildAlterPayload(
@@ -144,7 +181,7 @@ async function syncOlistGrupoVariacoesPai(
   const situacao = str(produto.situacao).toUpperCase() === "I" ? "I" : "A";
 
   const variacoesPayload: Array<{ variacao: { id?: number; codigo?: string; preco?: string } }> = [];
-  const precosIds: Array<{ id: number; preco: string; sku: string }> = [];
+  const precosIds: OlistPrecoUpdateInput[] = [];
   const filhosAlter: OlistAlterarProdutoPayload[] = [];
 
   for (const row of variacoesOlist) {
@@ -154,7 +191,8 @@ async function syncOlistGrupoVariacoesPai(
     const idVar = typeof v.id === "number" ? v.id : Number.parseInt(String(v.id ?? ""), 10);
     if (!codigo || !Number.isFinite(idVar) || idVar <= 0) continue;
 
-    const custo = custoMap.get(codigo.toUpperCase()) ?? opts.custoGrupo;
+    const custoFilho = custoMap.get(codigo.toUpperCase());
+    const custo = custoFilho ?? opts.custoGrupo;
     if (custo == null || !Number.isFinite(custo) || custo <= 0) continue;
 
     const precoVenda = formatTinyDecimal(custo * mult);
@@ -236,6 +274,12 @@ async function syncOlistGrupoVariacoesPai(
     if (i + BATCH_SIZE < filhosAlter.length) await sleep(BATCH_PAUSE_MS);
   }
 
+  const verificacao = await verificarPrecoListaOlist(apiToken, parentId, paiKey, precoPaiRef);
+  if (verificacao) {
+    result.falhas.push(verificacao);
+    if (result.ok > 0) result.ok = Math.max(0, result.ok - 1);
+  }
+
   return result;
 }
 
@@ -258,6 +302,27 @@ async function syncOlistSkusIndividuais(
 
   if (comCusto.length === 0) return result;
 
+  const mult = 1 + Math.max(0, margemPct) / 100;
+  const precosParaOlist: OlistPrecoUpdateInput[] = [];
+  for (const item of comCusto) {
+    const sku = str(item.sku);
+    if (!sku) continue;
+    const custo = resolveCustoUnit(item, custoGrupo);
+    if (custo == null) continue;
+    const id = await resolverIdProdutoOlistPorCodigo(apiToken, sku);
+    if (!id) {
+      result.falhas.push({ sku, erro: "SKU não encontrado na Olist para atualizar preço." });
+      continue;
+    }
+    precosParaOlist.push({ id, preco: formatTinyDecimal(custo * mult), sku });
+  }
+
+  if (precosParaOlist.length > 0) {
+    const precosSync = await atualizarPrecosOlistEmBatches(apiToken, precosParaOlist);
+    result.ok = precosSync.ok;
+    result.falhas.push(...precosSync.falhas);
+  }
+
   let sequencia = 0;
   for (let i = 0; i < comCusto.length; i += BATCH_SIZE) {
     const batch = comCusto.slice(i, i + BATCH_SIZE);
@@ -268,7 +333,6 @@ async function syncOlistSkusIndividuais(
     try {
       const res = await alterarProdutosOlistLote(apiToken, payload);
       const parsed = countAlterOk(payload, res.registros);
-      result.ok += parsed.ok;
       result.falhas.push(...parsed.falhas);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Erro na API Olist.";

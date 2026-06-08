@@ -562,17 +562,18 @@ export default function SellerProdutosPage() {
         }
         if (!res.ok) return;
 
-        sessionStorage.setItem(OLIST_PRECO_AUTO_KEY, String(Date.now()));
-
         const sync = (await res.json()) as { ok?: number; falhas?: Array<{ sku?: string; erro?: string }> };
         const ok = typeof sync.ok === "number" ? sync.ok : 0;
         const falhas = Array.isArray(sync.falhas) ? sync.falhas : [];
-        if (ok > 0) {
+        if (ok > 0 && falhas.length === 0) {
+          sessionStorage.setItem(OLIST_PRECO_AUTO_KEY, String(Date.now()));
           setOlistExportInfo(
-            `Preços sincronizados com a Olist (${ok} SKU${ok === 1 ? "" : "s"}).${falhas.length ? ` ${falhas.length} falha(s) — recarregue em instantes ou tente de novo.` : ""}`,
+            `Preços sincronizados com a Olist (${ok} SKU${ok === 1 ? "" : "s"}).`,
           );
         } else if (falhas.length > 0) {
-          setError(`Sync Olist: ${falhas[0]?.erro ?? "não foi possível atualizar preços."}`);
+          setError(`Sync Olist (${falhas[0]?.sku ?? "?"}): ${falhas[0]?.erro ?? "não foi possível atualizar preços."}`);
+        } else if (ok === 0) {
+          setError("Sync Olist: nenhum preço confirmado pela Olist.");
         }
       } catch {
         /* sync silencioso em background */
