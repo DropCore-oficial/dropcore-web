@@ -1,7 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { paiKeyFromSku } from "@/lib/sellerCatalogOlistExport";
 import { loadCatalogSkusForOlistExport } from "@/lib/sellerCatalogOlistLoad";
-import { syncOlistCustosGrupo, type SyncOlistCustosResult } from "@/lib/sellerOlistSyncCustos";
+import {
+  filtrarFalhasSyncOlist,
+  syncOlistCustosGrupo,
+  type SyncOlistCustosResult,
+} from "@/lib/sellerOlistSyncCustos";
 
 const GRUPO_PAUSE_MS = 600;
 
@@ -121,5 +125,6 @@ export async function syncOlistPrecosCatalogoSeller(opts: {
     if (i + 1 < grupoKeys.length) await sleep(GRUPO_PAUSE_MS);
   }
 
+  result.falhas = filtrarFalhasSyncOlist(result.ok, result.falhas);
   return result;
 }

@@ -125,16 +125,27 @@ function buildAlterPayload(
   return out;
 }
 
-/** Erros de alterar em variação (nome duplicado) não invalidam preço já gravado via atualizar.precos. */
-function filtrarFalhasSyncOlist(
+/** Grupo ainda não exportado/cadastrado na Olist — não é falha de sync de preço. */
+export function erroGrupoAusenteNaOlist(msg: string): boolean {
+  const m = msg.toLowerCase();
+  if (m.includes("produto não localizado") || m.includes("produto nao localizado")) return true;
+  if (m.includes("não localizado") || m.includes("nao localizado")) return true;
+  if (m.includes("não encontrado na olist") || m.includes("nao encontrado na olist")) return true;
+  if (m.includes("sku não encontrado na olist") || m.includes("sku nao encontrado na olist")) return true;
+  if (m.includes("variação não encontrada na olist") || m.includes("variacao nao encontrada na olist")) return true;
+  return false;
+}
+
+/** Falhas que não devem bloquear o seller (nome duplicado em variação, grupo ausente na Olist). */
+export function filtrarFalhasSyncOlist(
   ok: number,
   falhas: Array<{ sku: string; erro: string }>,
 ): Array<{ sku: string; erro: string }> {
-  if (ok <= 0) return falhas;
   return falhas.filter((f) => {
+    if (erroGrupoAusenteNaOlist(f.erro)) return false;
     const msg = f.erro.toLowerCase();
-    if (msg.includes("duplicidade") && msg.includes("nome")) return false;
-    if (msg.includes("nome do produto já cadastrado")) return false;
+    if (ok > 0 && msg.includes("duplicidade") && msg.includes("nome")) return false;
+    if (ok > 0 && msg.includes("nome do produto já cadastrado")) return false;
     return true;
   });
 }
@@ -169,7 +180,7 @@ export type SyncOlistCustosResult = {
   ok: number;
   falhas: Array<{ sku: string; erro: string }>;
   ignorados_sem_custo: number;
-  modo?: "variacoes_pai" | "sku_individual" | "alterar_codigo";
+  modo?: "variacoes_pai" | "sku_individual" | "alterar_codigo" | "olist_ausente";
   pai_id?: number;
 };
 
@@ -211,44 +222,40 @@ async function syncOlistGrupoViaAlterarCodigo(
   const paiId = await resolverIdProdutoOlistPorCodigo(apiToken, opts.paiKey);
   if (paiId) precosIds.unshift({ id: paiId, preco: precoPai, sku: opts.paiKey });
 
-  if (precosIds.length > 0) {
-    const precosSync = await atualizarPrecosOlistEmBatches(apiToken, precosIds);
-    result.ok = precosSync.ok;
-    result.falhas.push(...precosSync.falhas);
+  if (precosIds.length === 0) {
+    result.modo = "olist_ausente";
+    return result;
   }
 
-  const alterPai: OlistAlterarProdutoPayload = {
-    sequencia: 1,
-    codigo: opts.paiKey,
-    ...(paiId ? { id: paiId } : {}),
-    nome: nomeBase.slice(0, 120),
-    unidade: "UN",
-    preco: precoPai,
-    preco_custo: custoPai,
-    origem,
-    situacao: "A",
-    tipo: "P",
-  };
+  const precosSync = await atualizarPrecosOlistEmBatches(apiToken, precosIds);
+  result.ok = precosSync.ok;
+  result.falhas.push(...precosSync.falhas);
 
-  try {
-    const res = await alterarProdutosOlistLote(apiToken, [alterPai]);
-    const parsed = countAlterOk([alterPai], res.registros);
-    if (result.ok === 0 && parsed.ok > 0) result.ok = parsed.ok;
-    result.falhas.push(...parsed.falhas);
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Erro na API Olist.";
-    result.falhas.push({ sku: opts.paiKey, erro: msg });
+  if (paiId) {
+    const alterPai: OlistAlterarProdutoPayload = {
+      sequencia: 1,
+      id: paiId,
+      codigo: opts.paiKey,
+      nome: nomeBase.slice(0, 120),
+      unidade: "UN",
+      preco: precoPai,
+      preco_custo: custoPai,
+      origem,
+      situacao: "A",
+      tipo: "P",
+    };
+
+    try {
+      const res = await alterarProdutosOlistLote(apiToken, [alterPai]);
+      const parsed = countAlterOk([alterPai], res.registros);
+      result.falhas.push(...parsed.falhas);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Erro na API Olist.";
+      result.falhas.push({ sku: opts.paiKey, erro: msg });
+    }
   }
 
   result.falhas = filtrarFalhasSyncOlist(result.ok, result.falhas);
-
-  if (result.ok === 0 && result.falhas.length === 0) {
-    result.falhas.push({
-      sku: opts.paiKey,
-      erro: "Não foi possível atualizar preços na Olist (pesquisa e alterar por SKU falharam).",
-    });
-  }
-
   return result;
 }
 
