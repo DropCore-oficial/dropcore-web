@@ -460,26 +460,12 @@ async function pesquisarIdProdutoOlistPorTermos(
         const rows = retorno?.produtos ?? [];
         if (rows.length === 0) break;
 
-        let candidatoP: number | null = null;
         for (const row of rows) {
           const id = idProdutoFromPesquisaRow(row);
           if (id == null) continue;
-          const p = row?.produto;
-          const cod = normalizarCodigoOlist(p?.codigo);
+          const cod = normalizarCodigoOlist(row?.produto?.codigo);
           if (codigoOlistMatchesSku(cod, upper)) return id;
-          const tipo = normalizarCodigoOlist(p?.tipoVariacao);
-          if (tipo === "P" && cod === upper) return id;
-          if (tipo === "P" && cod && codigoOlistMatchesSku(cod, upper)) return id;
-          if (tipo === "P" && termo === upper && cod === upper) return id;
-          if (tipo === "P" && !candidatoP) candidatoP = id;
         }
-
-        if (rows.length === 1) {
-          const only = idProdutoFromPesquisaRow(rows[0]);
-          if (only != null) return only;
-        }
-
-        if (termo === upper && candidatoP != null && rows.length <= 3) return candidatoP;
 
         const numPages = retorno?.numero_paginas ?? 1;
         if (pagina >= numPages) break;
@@ -510,7 +496,10 @@ export async function resolverIdProdutoPaiOlistPorGrupo(
   if (!pai) return null;
 
   const direct = await pesquisarIdProdutoOlistPorTermos(apiToken, pai, termosPesquisaOlistPorCodigo(pai));
-  if (direct) return direct;
+  if (direct) {
+    const prodPai = await obterProdutoOlistPorId(apiToken, direct);
+    if (prodPai && codigoOlistMatchesSku(prodPai.codigo, pai)) return direct;
+  }
 
   for (const raw of childSkus) {
     const sku = raw.trim().toUpperCase();

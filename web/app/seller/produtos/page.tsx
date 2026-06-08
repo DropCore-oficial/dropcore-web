@@ -564,7 +564,13 @@ export default function SellerProdutosPage() {
 
         const sync = (await res.json()) as { ok?: number; falhas?: Array<{ sku?: string; erro?: string }> };
         const ok = typeof sync.ok === "number" ? sync.ok : 0;
-        const falhas = Array.isArray(sync.falhas) ? sync.falhas : [];
+        const falhasBrutas = Array.isArray(sync.falhas) ? sync.falhas : [];
+        const falhas = falhasBrutas.filter((f) => {
+          const m = String(f.erro ?? "").toLowerCase();
+          if (m.includes("produto não localizado") || m.includes("produto nao localizado")) return false;
+          if (m.includes("não localizado") || m.includes("nao localizado")) return false;
+          return true;
+        });
         if (ok > 0) {
           sessionStorage.setItem(OLIST_PRECO_AUTO_KEY, String(Date.now()));
           setError(null);

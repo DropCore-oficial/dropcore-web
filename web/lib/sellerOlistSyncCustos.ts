@@ -6,6 +6,7 @@ import {
 import {
   alterarProdutosOlistLote,
   atualizarPrecosOlistEmBatches,
+  codigoOlistMatchesSku,
   menorPrecoVariacoesOlist,
   obterProdutoOlistPorId,
   parseTinyPreco,
@@ -168,7 +169,9 @@ function countAlterOk(
       ok += 1;
     } else {
       const msg = reg.erros?.map((e) => e.erro).filter(Boolean).join(" ") || "Erro ao atualizar na Olist.";
-      falhas.push({ sku, erro: msg.trim() });
+      if (!erroGrupoAusenteNaOlist(msg)) {
+        falhas.push({ sku, erro: msg.trim() });
+      }
     }
   }
   return { ok, falhas };
@@ -217,10 +220,17 @@ async function syncOlistGrupoViaAlterarCodigo(
     if (!sku || custo == null) continue;
     const id = await resolverIdProdutoOlistPorCodigo(apiToken, sku);
     if (!id) continue;
+    const prodFilho = await obterProdutoOlistPorId(apiToken, id);
+    if (!prodFilho || !codigoOlistMatchesSku(prodFilho.codigo, sku)) continue;
     precosIds.push({ id, preco: formatTinyDecimal(custo * mult), sku });
   }
   const paiId = await resolverIdProdutoOlistPorCodigo(apiToken, opts.paiKey);
-  if (paiId) precosIds.unshift({ id: paiId, preco: precoPai, sku: opts.paiKey });
+  if (paiId) {
+    const prodPai = await obterProdutoOlistPorId(apiToken, paiId);
+    if (prodPai && codigoOlistMatchesSku(prodPai.codigo, opts.paiKey)) {
+      precosIds.unshift({ id: paiId, preco: precoPai, sku: opts.paiKey });
+    }
+  }
 
   if (precosIds.length === 0) {
     result.modo = "olist_ausente";
@@ -278,6 +288,12 @@ async function syncOlistGrupoVariacoesPai(
   }
 
   const produto = await obterProdutoOlistPorId(apiToken, parentId);
+  if (!produto || !codigoOlistMatchesSku(produto.codigo, paiKey)) {
+    if (hasFilhos) {
+      return syncOlistGrupoViaAlterarCodigo(apiToken, items, opts);
+    }
+    return null;
+  }
   const variacoesOlist = produto?.variacoes ?? [];
   const tipoVar = String(produto?.tipoVariacao ?? "").toUpperCase();
   const classeProduto = String(produto?.classe_produto ?? "").toUpperCase();
