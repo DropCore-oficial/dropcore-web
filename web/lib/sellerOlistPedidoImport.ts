@@ -4,8 +4,6 @@ import {
   obterExpedicaoPorPedidoVenda,
   obterLinksEtiquetasImpressaoOlist,
   obterPedidoOlist,
-  lancarSaidaEstoqueOlistProduto,
-  resolverIdProdutoOlistPorCodigo,
   type OlistPedidoDetalhe,
 } from "@/lib/olistTinyApi";
 import { shouldImportCodigoSituacao, shouldImportSituacaoText } from "@/lib/olistPedidoImportPolicy";
@@ -27,21 +25,8 @@ function mapPedidoItems(pedido: OlistPedidoDetalhe) {
     .map((item) => ({
       sku: item.codigo?.trim() ?? "",
       quantidade: item.quantidade,
-      id_produto: item.id_produto,
     }))
     .filter((item) => item.sku);
-}
-
-async function enrichItensComIdProdutoOlist(
-  token: string,
-  items: Array<{ sku: string; quantidade: number; id_produto: number | null }>
-): Promise<void> {
-  for (const item of items) {
-    if (item.id_produto) continue;
-    const id = await resolverIdProdutoOlistPorCodigo(token, item.sku);
-    await sleep(OLIST_API_PAUSE_MS);
-    if (id) item.id_produto = id;
-  }
 }
 
 async function tryAttachOlistEtiquetaPdf(params: {
@@ -111,35 +96,6 @@ async function tryAttachOlistEtiquetaPdf(params: {
   return warnings;
 }
 
-async function pushOlistStockForItems(
-  token: string,
-  pedidoId: number,
-  items: Array<{ sku: string; quantidade: number; id_produto: number | null }>
-): Promise<string[]> {
-  const warnings: string[] = [];
-
-  for (const item of items) {
-    if (!item.id_produto) {
-      warnings.push(`SKU ${item.sku}: sem id_produto na Olist/Tiny para baixa de estoque.`);
-      continue;
-    }
-    try {
-      await lancarSaidaEstoqueOlistProduto(token, {
-        idProduto: item.id_produto,
-        quantidade: item.quantidade,
-        observacoes: `DropCore pedido olist:${pedidoId}`,
-      });
-      await sleep(OLIST_API_PAUSE_MS);
-    } catch (e: unknown) {
-      warnings.push(
-        `SKU ${item.sku}: falha ao atualizar estoque na Olist/Tiny (${e instanceof Error ? e.message : "erro desconhecido"}).`
-      );
-    }
-  }
-
-  return warnings;
-}
-
 export type ProcessOlistPedidoImportInput = {
   org_id: string;
   seller_id: string;
@@ -198,8 +154,6 @@ export async function processOlistPedidoImport(
       warnings: [`Pedido ${pedido.id}: sem itens com SKU mapeável.`],
     };
   }
-
-  await enrichItensComIdProdutoOlist(token, items);
 
   const { data: sellerRow, error: sellerErr } = await supabaseAdmin
     .from("sellers")
@@ -263,7 +217,6 @@ export async function processOlistPedidoImport(
     return { ok: false, error: submit.error_message };
   }
 
-  const stockWarnings = await pushOlistStockForItems(token, pedido.id, items);
   const labelWarnings = await tryAttachOlistEtiquetaPdf({
     org_id: input.org_id,
     pedido_id: submit.pedido_id,
@@ -275,6 +228,6 @@ export async function processOlistPedidoImport(
     ok: true,
     outcome: "imported",
     pedido_id_dropcore: submit.pedido_id,
-    warnings: [...stockWarnings, ...labelWarnings],
+    warnings: labelWarnings,
   };
 }

@@ -19,6 +19,7 @@ import { resolveLedgerIdForPedido } from "@/lib/resolveLedgerForPedido";
 import { fireErpEstoqueWebhook } from "@/lib/erpEstoqueOutbound";
 import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
+import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -678,6 +679,12 @@ export async function POST(req: Request) {
           estoque_atual_dropcore: skuRows[i].estoque_atual - it.quantidade,
         })),
       },
+    });
+
+    dispararSyncEstoqueOlistFornecedorSkus({
+      orgId: org_id,
+      fornecedorId: fornecedor_id,
+      skuCodes: items.map((it, i) => skuRows[i].sku).filter(Boolean),
     });
 
     await addPedidoEvento({

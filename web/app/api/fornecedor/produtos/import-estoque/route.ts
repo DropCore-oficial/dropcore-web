@@ -10,6 +10,7 @@ import {
   type FornecedorEstoqueImportRow,
 } from "@/lib/fornecedorEstoqueImport";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -127,6 +128,7 @@ export async function POST(req: Request) {
     let updated = 0;
     let unchanged = 0;
     const unknownSkus: string[] = [];
+    const updatedSkus: string[] = [];
 
     for (const row of normalized) {
       const existing = bySku.get(row.sku);
@@ -152,12 +154,23 @@ export async function POST(req: Request) {
 
       if (!upErr) {
         updated++;
+        if ("estoque_atual" in patch) {
+          updatedSkus.push(row.sku);
+        }
         await limparEstoqueDeAlteracaoPendente({
           sku_id: existing.id,
           fornecedor_id: ctx.fornecedor_id,
           org_id: ctx.org_id,
         });
       }
+    }
+
+    if (updatedSkus.length > 0) {
+      dispararSyncEstoqueOlistFornecedorSkus({
+        orgId: ctx.org_id,
+        fornecedorId: ctx.fornecedor_id,
+        skuCodes: updatedSkus,
+      });
     }
 
     return NextResponse.json({

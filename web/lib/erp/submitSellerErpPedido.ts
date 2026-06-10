@@ -4,7 +4,7 @@ import { isInadimplente } from "@/lib/inadimplencia";
 import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
 import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
 
 export type SubmitSellerErpPedidoItem = {
   sku: string;
@@ -499,6 +499,14 @@ export async function submitSellerErpPedido(
     descricao: "Pedido criado via integração ERP.",
     metadata: { referencia_externa },
   });
+
+  if (fornecedor_id) {
+    dispararSyncEstoqueOlistFornecedorSkus({
+      orgId: org_id,
+      fornecedorId: fornecedor_id,
+      skuCodes: items.map((it) => it.sku).filter(Boolean),
+    });
+  }
 
   return {
     ok: true,

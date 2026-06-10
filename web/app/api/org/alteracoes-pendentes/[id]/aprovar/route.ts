@@ -7,7 +7,9 @@ import { requireAdmin } from "@/lib/apiOrgAuth";
 import { toTitleCase } from "@/lib/formatText";
 import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
 import { upsertProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
-import { grupoKeyFromSkuString, syncOlistPrecosFornecedorGrupo } from "@/lib/sellerOlistSyncPrecosOnCustoChange";
+import { grupoKeyFromSkuString, syncOlistImagensFornecedorGrupo } from "@/lib/sellerOlistSyncImagensOnChange";
+import { syncOlistPrecosFornecedorGrupo } from "@/lib/sellerOlistSyncPrecosOnCustoChange";
+import { dispararSyncEstoqueOlistFornecedorGrupo } from "@/lib/sellerOlistSyncEstoqueOnChange";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -172,6 +174,21 @@ export async function POST(
         }
       }
 
+      if (("imagem_url" in clean || "link_fotos" in clean) && skuAtual?.sku) {
+        const grupoKey = grupoKeyFromSkuString(String(skuAtual.sku));
+        if (!deferOlistSync) {
+          try {
+            await syncOlistImagensFornecedorGrupo({
+              orgId: org_id,
+              fornecedorId: alteracao.fornecedor_id,
+              grupoKey,
+            });
+          } catch (e) {
+            console.error("[aprovar alteracao olist imagens]", e);
+          }
+        }
+      }
+
       const atualizaEstoque = "estoque_atual" in clean || "estoque_minimo" in clean;
       if (atualizaEstoque && skuAtual) {
         const atual = skuAtual.estoque_atual != null ? Number(skuAtual.estoque_atual) : null;
@@ -181,6 +198,13 @@ export async function POST(
             org_id,
             fornecedor_id: alteracao.fornecedor_id,
             produtos: [{ sku: skuAtual.sku ?? "", nome: skuAtual.nome_produto ?? undefined }],
+          });
+        }
+        if ("estoque_atual" in clean && skuAtual.sku && !deferOlistSync) {
+          dispararSyncEstoqueOlistFornecedorGrupo({
+            orgId: org_id,
+            fornecedorId: alteracao.fornecedor_id,
+            grupoKey: grupoKeyFromSkuString(String(skuAtual.sku)),
           });
         }
       }

@@ -301,20 +301,20 @@ export async function obterPedidoOlist(apiToken: string, pedidoId: number): Prom
   };
 }
 
-export async function lancarSaidaEstoqueOlistProduto(
+async function lancarEstoqueOlistProduto(
   apiToken: string,
-  params: { idProduto: number; quantidade: number; observacoes?: string | null }
+  params: { idProduto: number; tipo: "B" | "S" | "E"; quantidade: number; observacoes?: string | null },
 ): Promise<{ saldoEstoque: number | null }> {
   const quantidade = Math.max(0, params.quantidade);
-  if (quantidade <= 0) {
+  if (params.tipo !== "B" && quantidade <= 0) {
     return { saldoEstoque: null };
   }
 
   const estoquePayload = {
     estoque: {
       idProduto: params.idProduto,
-      tipo: "S",
-      quantidade: String(quantidade),
+      tipo: params.tipo,
+      quantidade: formatTinyEstoqueQuantidade(quantidade),
       observacoes: params.observacoes?.trim()?.slice(0, 100) || "DropCore sync Olist/Tiny",
     },
   };
@@ -333,6 +333,38 @@ export async function lancarSaidaEstoqueOlistProduto(
   return {
     saldoEstoque: saldo == null ? null : toTinyDecimal(saldo),
   };
+}
+
+/** Quantidade para API Tiny (estoque usa ponto decimal; balanço aceita inteiro). */
+export function formatTinyEstoqueQuantidade(value: number): string {
+  const n = Math.max(0, value);
+  if (Number.isInteger(n)) return String(n);
+  return n.toFixed(3).replace(/\.?0+$/, "");
+}
+
+/** Define saldo absoluto na Olist (tipo B — fonte: estoque central DropCore). */
+export async function definirSaldoEstoqueOlistProduto(
+  apiToken: string,
+  params: { idProduto: number; saldo: number; observacoes?: string | null },
+): Promise<{ saldoEstoque: number | null }> {
+  return lancarEstoqueOlistProduto(apiToken, {
+    idProduto: params.idProduto,
+    tipo: "B",
+    quantidade: params.saldo,
+    observacoes: params.observacoes,
+  });
+}
+
+export async function lancarSaidaEstoqueOlistProduto(
+  apiToken: string,
+  params: { idProduto: number; quantidade: number; observacoes?: string | null },
+): Promise<{ saldoEstoque: number | null }> {
+  return lancarEstoqueOlistProduto(apiToken, {
+    idProduto: params.idProduto,
+    tipo: "S",
+    quantidade: params.quantidade,
+    observacoes: params.observacoes,
+  });
 }
 
 type PesquisaProdutosResponse = TinyRetornoBase & {
@@ -661,6 +693,8 @@ export type OlistAlterarProdutoPayload = {
   situacao: string;
   tipo: string;
   variacoes?: Array<{ variacao: OlistAlterarVariacaoPayload }>;
+  /** URLs públicas — Olist baixa via imagens_externas no produto.alterar. */
+  imagens_externas?: string[];
 };
 
 type AlterarProdutosResponse = TinyRetornoBase & {
@@ -894,6 +928,11 @@ export async function alterarProdutosOlistLote(
       };
       if (p.id != null && p.id > 0) produto.id = p.id;
       if (p.variacoes?.length) produto.variacoes = p.variacoes;
+      if (p.imagens_externas?.length) {
+        produto.imagens_externas = p.imagens_externas.map((url) => ({
+          imagem_externa: { url },
+        }));
+      }
       return { produto };
     }),
   };

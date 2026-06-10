@@ -106,7 +106,7 @@ export function urlImagemExportOlist(url: string | null | undefined): string | n
   return u;
 }
 
-function parseFotoUrls(imagem_url: string | null, link_fotos: string | null): string[] {
+export function parseFotoUrlsOlist(imagem_url: string | null, link_fotos: string | null): string[] {
   const out: string[] = [];
   const tryAdd = (raw: string) => {
     const u = urlImagemExportOlist(raw);
@@ -135,11 +135,21 @@ function collectDescricaoComplementarGrupo(
   return "";
 }
 
+/** URLs exportáveis de um SKU (miniatura + links extras). */
+export function fotosExportOlistSku(
+  item: Pick<CatalogSkuForOlistExport, "imagem_url" | "link_fotos">,
+): string[] {
+  return parseFotoUrlsOlist(item.imagem_url, item.link_fotos);
+}
+
 /** Foto de capa do SKU pai; se vazio, usa a 1ª miniatura por cor (mesma regra do catálogo seller). */
-function collectFotosProdutoOlist(pai: CatalogSkuForOlistExport | null, filhos: CatalogSkuForOlistExport[]): string[] {
+export function collectFotosProdutoOlist(
+  pai: CatalogSkuForOlistExport | null,
+  filhos: CatalogSkuForOlistExport[],
+): string[] {
   const out: string[] = [];
   if (pai) {
-    for (const u of parseFotoUrls(pai.imagem_url, pai.link_fotos)) {
+    for (const u of parseFotoUrlsOlist(pai.imagem_url, pai.link_fotos)) {
       if (!out.includes(u)) out.push(u);
       if (out.length >= 6) return out;
     }
@@ -150,7 +160,7 @@ function collectFotosProdutoOlist(pai: CatalogSkuForOlistExport | null, filhos: 
   for (const item of filhosOrd) {
     const corKey = str(item.cor).trim().toLowerCase() || str(item.sku);
     if (vistoCor.has(corKey)) continue;
-    const urls = parseFotoUrls(item.imagem_url, null);
+    const urls = parseFotoUrlsOlist(item.imagem_url, null);
     if (urls.length === 0) continue;
     vistoCor.add(corKey);
     for (const u of urls) {
@@ -415,7 +425,7 @@ function baseCells(
   const incluirFotos = opts?.incluirFotos !== false;
   let fotos: string[] = [];
   if (incluirFotos) {
-    fotos = parseFotoUrls(item.imagem_url, item.link_fotos);
+    fotos = parseFotoUrlsOlist(item.imagem_url, item.link_fotos);
     if (fotos.length === 0 && opts?.fallbackFotos?.length) fotos = opts.fallbackFotos;
   }
   const margemPct = opts?.margemPct ?? 0;
