@@ -226,11 +226,14 @@ export async function syncOlistImagensCatalogoSeller(opts: {
       continue;
     }
 
-    const withPublicImagens = await normalizeImagensForOlistExport(loaded.items, {
-      supabase: opts.supabase,
-      orgId: opts.orgId,
-      fornecedorId: opts.fornecedorId,
-    });
+    const withPublicImagens = await normalizeImagensForOlistExport(
+      loaded.items.map((item) => ({ ...item, id: item.id ?? "" })),
+      {
+        supabase: opts.supabase,
+        orgId: opts.orgId,
+        fornecedorId: opts.fornecedorId,
+      },
+    );
 
     const sync = await syncOlistImagensGrupo(opts.apiToken, withPublicImagens);
     result.ok += sync.ok;

@@ -5,6 +5,7 @@ import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
 import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export type SubmitSellerErpPedidoItem = {
   sku: string;
