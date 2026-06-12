@@ -189,6 +189,19 @@ function posNum(v: number | null | undefined): v is number {
   return v != null && Number.isFinite(v) && v > 0;
 }
 
+/** Abaixo de 10 g em kg — lixo de cadastro (ex.: 0,25 digitado virou 0,00025 no multivariante). */
+const PESO_KG_MIN_PLAUSIVEL = 0.01;
+
+function pesoKgPlausivel(v: number | null | undefined): v is number {
+  return posNum(v) && v >= PESO_KG_MIN_PLAUSIVEL;
+}
+
+function melhorPesoKg(atual: number | null | undefined, candidato: number | null | undefined): number | null {
+  if (!pesoKgPlausivel(candidato)) return atual ?? null;
+  if (!pesoKgPlausivel(atual)) return candidato;
+  return Math.max(atual, candidato);
+}
+
 /** Peso/NCM/dimensões do representante ou filho entram no pai e nos SKUs sem dado próprio. */
 export function collectLogisticaGrupo(
   pai: CatalogSkuForOlistExport | null,
@@ -197,9 +210,9 @@ export function collectLogisticaGrupo(
   const out: Partial<LogisticaGrupoFields> = {};
   for (const item of [pai, ...filhos]) {
     if (!item) continue;
-    if (out.peso_liquido_kg == null && posNum(item.peso_liquido_kg)) out.peso_liquido_kg = item.peso_liquido_kg;
-    if (out.peso_bruto_kg == null && posNum(item.peso_bruto_kg)) out.peso_bruto_kg = item.peso_bruto_kg;
-    if (out.peso_kg == null && posNum(item.peso_kg)) out.peso_kg = item.peso_kg;
+    if (out.peso_liquido_kg == null && pesoKgPlausivel(item.peso_liquido_kg)) out.peso_liquido_kg = item.peso_liquido_kg;
+    if (out.peso_bruto_kg == null && pesoKgPlausivel(item.peso_bruto_kg)) out.peso_bruto_kg = item.peso_bruto_kg;
+    out.peso_kg = melhorPesoKg(out.peso_kg, item.peso_kg);
     if (out.comprimento_cm == null && posNum(item.comprimento_cm)) out.comprimento_cm = item.comprimento_cm;
     if (out.largura_cm == null && posNum(item.largura_cm)) out.largura_cm = item.largura_cm;
     if (out.altura_cm == null && posNum(item.altura_cm)) out.altura_cm = item.altura_cm;
@@ -224,9 +237,13 @@ export function mergeComLogisticaGrupo(
     origem: pickStr(item.origem, grupo.origem),
     cest: pickStr(item.cest, grupo.cest),
     marca: pickStr(item.marca, grupo.marca),
-    peso_liquido_kg: posNum(item.peso_liquido_kg) ? item.peso_liquido_kg : (grupo.peso_liquido_kg ?? item.peso_liquido_kg),
-    peso_bruto_kg: posNum(item.peso_bruto_kg) ? item.peso_bruto_kg : (grupo.peso_bruto_kg ?? item.peso_bruto_kg),
-    peso_kg: posNum(item.peso_kg) ? item.peso_kg : (grupo.peso_kg ?? item.peso_kg),
+    peso_liquido_kg: pesoKgPlausivel(item.peso_liquido_kg)
+      ? item.peso_liquido_kg
+      : (grupo.peso_liquido_kg ?? item.peso_liquido_kg),
+    peso_bruto_kg: pesoKgPlausivel(item.peso_bruto_kg)
+      ? item.peso_bruto_kg
+      : (grupo.peso_bruto_kg ?? item.peso_bruto_kg),
+    peso_kg: pesoKgPlausivel(item.peso_kg) ? item.peso_kg : (grupo.peso_kg ?? item.peso_kg),
     comprimento_cm: posNum(item.comprimento_cm) ? item.comprimento_cm : (grupo.comprimento_cm ?? item.comprimento_cm),
     largura_cm: posNum(item.largura_cm) ? item.largura_cm : (grupo.largura_cm ?? item.largura_cm),
     altura_cm: posNum(item.altura_cm) ? item.altura_cm : (grupo.altura_cm ?? item.altura_cm),
@@ -312,13 +329,15 @@ function descricaoComplementarOlist(item: CatalogSkuForOlistExport, fallbackNome
 }
 
 function resolvePesoLiquido(item: CatalogSkuForOlistExport): number | null {
-  const pl = item.peso_liquido_kg ?? item.peso_kg;
-  return pl != null && Number.isFinite(pl) && pl > 0 ? pl : null;
+  if (pesoKgPlausivel(item.peso_liquido_kg)) return item.peso_liquido_kg;
+  if (pesoKgPlausivel(item.peso_kg)) return item.peso_kg;
+  return null;
 }
 
 function resolvePesoBruto(item: CatalogSkuForOlistExport): number | null {
-  const pb = item.peso_bruto_kg ?? item.peso_kg;
-  return pb != null && Number.isFinite(pb) && pb > 0 ? pb : null;
+  if (pesoKgPlausivel(item.peso_bruto_kg)) return item.peso_bruto_kg;
+  if (pesoKgPlausivel(item.peso_kg)) return item.peso_kg;
+  return null;
 }
 
 function temDimensoesPacote(item: CatalogSkuForOlistExport): boolean {

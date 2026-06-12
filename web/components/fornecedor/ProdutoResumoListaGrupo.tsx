@@ -469,7 +469,15 @@ export function ProdutoResumoListaGrupo({
               <FieldRow label="Categoria" ok={filled(base.categoria)} value={filled(base.categoria) ? String(base.categoria) : "Pendente"} />
               <FieldRow label="Marca" ok={filled(base.marca)} value={filled(base.marca) ? String(base.marca) : "Opcional"} optional />
               <FieldRow label="Modelo" ok={modeloOk} value={modeloOk ? String(infoBasica?.modelo) : "Pendente"} />
-              <FieldRow label="Descrição / anúncio" ok={descOk} value={descOk ? trunc(descricaoAnuncio, 120) : "Pendente"} />
+              <FieldRow
+                label="Resumo guiado (seller)"
+                ok={descOk}
+                value={
+                  descOk
+                    ? trunc(descricaoAnuncio, 120)
+                    : "Pendente — preencha Diferencial, Indicação e Observações no cadastro"
+                }
+              />
               <FieldRow
                 label="Data de lançamento"
                 ok={filled(base.data_lancamento)}

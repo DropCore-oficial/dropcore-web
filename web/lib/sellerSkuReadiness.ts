@@ -72,7 +72,7 @@ export function skuReadinessChecks(item: SkuReadinessRow): ReadinessCheck[] {
     { id: "estoque", ok: estOk, label: "Estoque neste tamanho > 0" },
     { id: "medidas", ok: temMedidas, label: "Medidas do pacote" },
     { id: "ncm", ok: ncmOk, label: "NCM (8 dígitos)" },
-    { id: "descricao", ok: descOk, label: "Descrição (mín. 20 caracteres)" },
+    { id: "descricao", ok: descOk, label: "Dados guiados (diferencial + indicação + cuidados)" },
   ];
 }
 

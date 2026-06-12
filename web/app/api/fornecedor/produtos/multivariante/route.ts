@@ -228,8 +228,13 @@ export async function POST(req: Request) {
     }
 
     const custo_base = body?.custo_base != null ? (typeof body.custo_base === "number" ? body.custo_base : parseFloat(String(body.custo_base).replace(",", "."))) : null;
-    const peso_g = body?.peso_kg != null ? (typeof body.peso_kg === "number" ? body.peso_kg : parseFloat(String(body.peso_kg).replace(",", "."))) : null;
-    const peso_kg = Number.isFinite(peso_g) ? peso_g / 1000 : null;
+    const pesoRaw =
+      body?.peso_kg != null
+        ? typeof body.peso_kg === "number"
+          ? body.peso_kg
+          : parseFloat(String(body.peso_kg).replace(",", "."))
+        : null;
+    const peso_kg = pesoRaw != null && Number.isFinite(pesoRaw) && pesoRaw > 0 ? pesoRaw : null;
     const data_lancamento = typeof body?.data_lancamento === "string" && body.data_lancamento.trim() ? body.data_lancamento.trim() : null;
     const catalogExtras = fornecedorSkuCatalogExtrasFromBody(body as Record<string, unknown>);
     const tabelaMedidasPayload = parseTabelaMedidasRecord((body as Record<string, unknown>).tabela_medidas);

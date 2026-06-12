@@ -447,4 +447,26 @@ describe("sellerCatalogOlistExport", () => {
     expect(mergedPai.comprimento_cm).toBe(20);
     expect(mergedPai.ncm).toBe("61052000");
   });
+
+  it("ignora peso_kg implausível (<10g) e herda do grupo no export Olist", () => {
+    const pai = {
+      sku: "DJU001000",
+      nome_produto: "Gola Padre",
+      cor: "",
+      tamanho: "",
+      status: "ativo",
+      ...olistSkuBase({ peso_kg: 0.25, comprimento_cm: 15, largura_cm: 20, altura_cm: 5 }),
+    };
+    const filho = {
+      sku: "DJU001001",
+      nome_produto: "Gola Padre",
+      cor: "Branco",
+      tamanho: "P",
+      status: "ativo",
+      ...olistSkuBase({ peso_kg: 0.00025, estoque_atual: 1, custo_total: 34.5 }),
+    };
+    const lines = buildOlistProdutosCsvLines([pai, filho]);
+    expect(col(lines[1]!, "Peso líquido (Kg)")).toBe("0,250");
+    expect(col(lines[2]!, "Peso líquido (Kg)")).toBe("0,250");
+  });
 });
