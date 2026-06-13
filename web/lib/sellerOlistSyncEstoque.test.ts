@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { formatTinyEstoqueQuantidade } from "@/lib/olistTinyApi";
-import { estoqueOlistFromDropCore, skusParaSyncEstoqueOlist } from "@/lib/sellerOlistSyncEstoque";
+import {
+  estoqueOlistFromDropCore,
+  skusParaSyncEstoqueOlist,
+  skusParaSyncEstoqueOlistComPaiSoma,
+} from "@/lib/sellerOlistSyncEstoque";
 import type { CatalogSkuForOlistExport } from "@/lib/sellerCatalogOlistExport";
 
 function sku(partial: Partial<CatalogSkuForOlistExport> & Pick<CatalogSkuForOlistExport, "sku">): CatalogSkuForOlistExport {
@@ -53,5 +57,16 @@ describe("skusParaSyncEstoqueOlist", () => {
       sku({ sku: "DJU001002", estoque_atual: 3 }),
     ];
     expect(skusParaSyncEstoqueOlist(items)).toEqual(["DJU001001", "DJU001002"]);
+  });
+
+  it("inclui pai com saldo somado das variações", () => {
+    const items = [
+      sku({ sku: "DJU001000", estoque_atual: 0 }),
+      sku({ sku: "DJU001001", estoque_atual: 50 }),
+      sku({ sku: "DJU001002", estoque_atual: 50 }),
+    ];
+    const { skuCodes, saldoOverrides } = skusParaSyncEstoqueOlistComPaiSoma(items, "DJU001000");
+    expect(skuCodes).toEqual(["DJU001000", "DJU001001", "DJU001002"]);
+    expect(saldoOverrides.get("DJU001000")).toBe(100);
   });
 });

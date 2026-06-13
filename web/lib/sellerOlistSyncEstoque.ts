@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadCatalogSkusForOlistExport } from "@/lib/sellerCatalogOlistLoad";
-import { paiKeyFromSku, type CatalogSkuForOlistExport } from "@/lib/sellerCatalogOlistExport";
+import {
+  estoqueOlistSomaFilhos,
+  paiKeyFromSku,
+  type CatalogSkuForOlistExport,
+} from "@/lib/sellerCatalogOlistExport";
 import {
   definirSaldoEstoqueOlistProduto,
   resolverIdProdutoOlistPorCodigo,
@@ -35,6 +39,22 @@ export function skusParaSyncEstoqueOlist(items: CatalogSkuForOlistExport[]): str
   const filhos = items.filter((i) => !isSkuPaiInterno(str(i.sku)));
   const pool = filhos.length > 0 ? filhos : items;
   return [...new Set(pool.map((i) => str(i.sku).toUpperCase()).filter(Boolean))];
+}
+
+/** Pai (soma das variações) + filhos — grade Olist nem sempre agrega muitas variações na listagem. */
+export function skusParaSyncEstoqueOlistComPaiSoma(
+  items: CatalogSkuForOlistExport[],
+  grupoKey: string,
+): { skuCodes: string[]; saldoOverrides: Map<string, number> } {
+  const filhos = items.filter((i) => !isSkuPaiInterno(str(i.sku)));
+  const skuCodes = skusParaSyncEstoqueOlist(items);
+  const saldoOverrides = new Map<string, number>();
+  const paiKey = str(grupoKey).toUpperCase();
+  if (filhos.length > 0 && paiKey) {
+    saldoOverrides.set(paiKey, parseInt(estoqueOlistSomaFilhos(filhos), 10) || 0);
+    if (!skuCodes.includes(paiKey)) skuCodes.unshift(paiKey);
+  }
+  return { skuCodes, saldoOverrides };
 }
 
 export type SyncOlistEstoqueResult = {
@@ -72,6 +92,7 @@ export async function syncOlistEstoqueSkusSeller(opts: {
   fornecedorId: string;
   supabase: SupabaseClient;
   skuCodes: string[];
+  saldoOverrides?: Map<string, number>;
 }): Promise<SyncOlistEstoqueResult> {
   const codes = [...new Set(opts.skuCodes.map((s) => str(s).toUpperCase()).filter(Boolean))];
   const result: SyncOlistEstoqueResult = {
@@ -104,7 +125,7 @@ export async function syncOlistEstoqueSkusSeller(opts: {
 
   for (let i = 0; i < codes.length; i += 1) {
     const codigo = codes[i]!;
-    const saldo = saldoPorSku.get(codigo) ?? 0;
+    const saldo = opts.saldoOverrides?.get(codigo) ?? saldoPorSku.get(codigo) ?? 0;
     const r = await syncOlistEstoqueSkuCodigo(opts.apiToken, codigo, saldo);
     if (r.ok) {
       result.ok += 1;
@@ -146,13 +167,14 @@ export async function syncOlistEstoqueGrupoSeller(opts: {
     };
   }
 
-  const skuCodes = skusParaSyncEstoqueOlist(loaded.items);
+  const { skuCodes, saldoOverrides } = skusParaSyncEstoqueOlistComPaiSoma(loaded.items, opts.grupoKey);
   return syncOlistEstoqueSkusSeller({
     apiToken: opts.apiToken,
     orgId: opts.orgId,
     fornecedorId: opts.fornecedorId,
     supabase: opts.supabase,
     skuCodes,
+    saldoOverrides,
   });
 }
 
