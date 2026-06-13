@@ -3,6 +3,7 @@ import {
   buildOlistProdutosCsvLines,
   categoriaOlist,
   collectLogisticaGrupo,
+  estoqueOlistSomaFilhos,
   filterSkusByGrupo,
   filterSkusForOlistExport,
   formatCestOlist,
@@ -172,6 +173,50 @@ describe("sellerCatalogOlistExport", () => {
     expect(col(lines[1]!, "Formato embalagem")).toBe("Pacote / Caixa");
     expect(col(lines[1]!, "Descrição complementar")).toBe("Desc longa do produto");
     expect(col(lines[2]!, "Descrição complementar")).toBe("");
+    expect(col(lines[1]!, "Estoque")).toBe("5");
+    expect(col(lines[2]!, "Estoque")).toBe("5");
+  });
+
+  it("linha pai V leva soma do estoque das variações", () => {
+    const base = olistSkuBase();
+    expect(estoqueOlistSomaFilhos([])).toBe("0");
+    expect(
+      estoqueOlistSomaFilhos([
+        { sku: "A", nome_produto: "X", cor: "A", tamanho: "P", status: "ativo", ...base, estoque_atual: 50 },
+        { sku: "B", nome_produto: "X", cor: "B", tamanho: "M", status: "ativo", ...base, estoque_atual: 100 },
+      ]),
+    ).toBe("150");
+
+    const lines = buildOlistProdutosCsvLines([
+      {
+        sku: "DJU001000",
+        nome_produto: "Grupo",
+        cor: "",
+        tamanho: "",
+        status: "ativo",
+        ...base,
+        estoque_atual: 0,
+      },
+      {
+        sku: "DJU001001",
+        nome_produto: "Grupo",
+        cor: "Branco",
+        tamanho: "P",
+        status: "ativo",
+        ...base,
+        estoque_atual: 50,
+      },
+      {
+        sku: "DJU001002",
+        nome_produto: "Grupo",
+        cor: "Branco",
+        tamanho: "M",
+        status: "ativo",
+        ...base,
+        estoque_atual: 50,
+      },
+    ]);
+    expect(col(lines[1]!, "Estoque")).toBe("100");
   });
 
   it("rejeita data URL base64 e mantém CSV leve", () => {

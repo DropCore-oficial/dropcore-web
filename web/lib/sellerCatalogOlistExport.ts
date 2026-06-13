@@ -484,6 +484,16 @@ function baseCells(
   return row;
 }
 
+/** Soma estoque das variações para a linha pai (V) no CSV Olist — exibição na grade do ERP. */
+export function estoqueOlistSomaFilhos(filhos: CatalogSkuForOlistExport[]): string {
+  const sum = filhos.reduce((acc, f) => {
+    const n = f.estoque_atual;
+    if (n == null || !Number.isFinite(n)) return acc;
+    return acc + Math.max(0, Math.floor(n));
+  }, 0);
+  return String(sum);
+}
+
 /**
  * Gera linhas CSV (sem BOM) para importação Olist.
  * Com variações: linha pai (V) + filhos (S) ligados por Código do Pai.
@@ -526,7 +536,7 @@ export function buildOlistProdutosCsvLines(
       );
       paiCells["Tipo do produto"] = "V";
       paiCells.Variações = "";
-      paiCells.Estoque = "0";
+      paiCells.Estoque = estoqueOlistSomaFilhos(g.filhos);
       paiCells["Permitir inclusão nas vendas"] = "Sim";
       if (descricaoComplementarGrupo) paiCells["Descrição complementar"] = descricaoComplementarGrupo;
       lines.push(rowToCells(paiCells).join(SEP));
