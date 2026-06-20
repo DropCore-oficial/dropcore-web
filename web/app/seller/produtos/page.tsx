@@ -23,6 +23,7 @@ import { TabelaMedidasTabela } from "@/components/TabelaMedidasTabela";
 import type { TabelaMedidasPayload } from "@/lib/fornecedorTabelaMedidas";
 import { CatalogoV2ResumoTopo } from "@/components/seller/catalogo/v2/CatalogoV2ResumoTopo";
 import { SellerListaGrupoArmazem } from "@/components/seller/catalogo/v2/SellerListaGrupoArmazem";
+import { SellerOlistEstoqueGradeCallout } from "@/components/seller/SellerOlistEstoqueGradeCallout";
 import { linhasGrupo, type GrupoCatalogoV2 } from "@/components/seller/catalogo/v2/aggregates";
 import {
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
@@ -659,6 +660,7 @@ export default function SellerProdutosPage() {
                 estar em <strong className="text-[var(--foreground)]">Manual</strong> (Configurações → Cadastros → Código SKU).
               </p>
             </AmberPremiumCallout>
+            <SellerOlistEstoqueGradeCallout className="mt-3 rounded-2xl px-4 py-3.5 sm:px-5" compact />
           </div>
           <div className="mt-3.5 flex flex-nowrap gap-2 sm:mt-5">
             <input

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
+import { SellerOlistEstoqueGradeCallout } from "@/components/seller/SellerOlistEstoqueGradeCallout";
 import { cn } from "@/lib/utils";
 
 const stepShell =
@@ -112,6 +113,7 @@ export function SellerOlistConnectGuidePanel({ id = "guia-olist" }: { id?: strin
               essas fotos automaticamente. A aba Mídia é só se quiser uma capa diferente. No export, base64 antigo vira URL pública
               no Supabase. No catálogo DropCore o seller já vê as miniaturas antes de exportar.
             </p>
+            <SellerOlistEstoqueGradeCallout className="mt-3 rounded-xl px-3 py-3 sm:px-4" compact />
           </StepBlock>
           <StepBlock n="6" title="Webhook de pedidos (opcional)">
             <p>

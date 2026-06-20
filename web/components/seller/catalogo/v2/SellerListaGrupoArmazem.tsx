@@ -30,7 +30,12 @@ import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
 import {
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
   AMBER_PREMIUM_TEXT_PRIMARY,
+  AMBER_PREMIUM_TEXT_SECONDARY,
 } from "@/lib/amberPremium";
+import {
+  deveAvisarOlistEstoqueGradePai,
+  OLIST_ESTOQUE_GRADE_PAI_HINT_CURTO,
+} from "@/lib/sellerOlistEstoqueGradeUi";
 import { cn } from "@/lib/utils";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -346,6 +351,7 @@ export function SellerListaGrupoArmazem({
   }, []);
 
   const representante = grupo.pai ?? grupo.filhos[0];
+  const avisoOlistEstoqueGrade = onExportOlist && deveAvisarOlistEstoqueGradePai(grupo.filhos.length);
   const linhas = linhasGrupo(grupo.pai, grupo.filhos).filter((it) => !isSemente(it) && !isGrupoOculto(it.sku));
   const todosParaLink = linhasGrupo(grupo.pai, grupo.filhos);
 
@@ -618,6 +624,11 @@ export function SellerListaGrupoArmazem({
                 </span>
               </div>
             </div>
+            {avisoOlistEstoqueGrade ? (
+              <p className={cn("text-[11px] leading-snug sm:text-xs", AMBER_PREMIUM_TEXT_SECONDARY)}>
+                {OLIST_ESTOQUE_GRADE_PAI_HINT_CURTO}
+              </p>
+            ) : null}
           </div>
 
           {!mostrarFotosVariantes ? (
