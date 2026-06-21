@@ -5,7 +5,6 @@ export type FornecedorSkuCatalogExtras = {
   ncm: string | null;
   origem: string | null;
   cest: string | null;
-  cfop: string | null;
   expedicao_override_linha: string | null;
 };
 
@@ -58,7 +57,6 @@ export function fornecedorSkuCatalogExtrasFromBody(body: Record<string, unknown>
     ncm: pickString(body, log, ["ncm"]),
     origem: pickString(body, log, ["origem", "origem_produto", "origemProduto"]),
     cest: pickString(body, log, ["cest"]),
-    cfop: pickString(body, log, ["cfop"]),
     expedicao_override_linha: pickString(body, log, ["expedicao_override_linha", "cdSaida"]),
   };
 }

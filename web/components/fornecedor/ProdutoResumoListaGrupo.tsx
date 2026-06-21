@@ -57,7 +57,6 @@ export type ProdutoResumoLista = {
   ncm?: string | null;
   origem?: string | null;
   cest?: string | null;
-  cfop?: string | null;
   peso_liquido_kg?: number | null;
   peso_bruto_kg?: number | null;
   expedicao_override_linha?: string | null;
@@ -573,12 +572,6 @@ export function ProdutoResumoListaGrupo({
                 label="CEST"
                 ok={filled(base.cest ?? logisticaExtra?.cest)}
                 value={filled(base.cest ?? logisticaExtra?.cest) ? String(base.cest ?? logisticaExtra?.cest) : "Opcional"}
-                optional
-              />
-              <FieldRow
-                label="CFOP"
-                ok={filled(base.cfop ?? logisticaExtra?.cfop)}
-                value={filled(base.cfop ?? logisticaExtra?.cfop) ? String(base.cfop ?? logisticaExtra?.cfop) : "Opcional"}
                 optional
               />
               <FieldRow

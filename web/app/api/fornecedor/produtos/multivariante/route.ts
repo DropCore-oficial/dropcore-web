@@ -41,7 +41,7 @@ const SKU_FIELDS = `
   id, sku, nome_produto, cor, tamanho, status, fornecedor_id, fornecedor_org_id, org_id,
   estoque_atual, estoque_minimo, custo_base, custo_dropcore, peso_kg, categoria,
   dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao,
-  ncm, origem, cest, cfop, expedicao_override_linha, criado_em,
+  ncm, origem, cest, expedicao_override_linha, criado_em,
   detalhes_produto_json
 `;
 

@@ -44,7 +44,6 @@ type Produto = {
   ncm?: string | null;
   origem?: string | null;
   cest?: string | null;
-  cfop?: string | null;
   peso_liquido_kg?: number | null;
   peso_bruto_kg?: number | null;
   criado_em: string;
@@ -117,7 +116,6 @@ export default function EditarVariantesPage() {
   const [editNcm, setEditNcm] = useState("");
   const [editOrigem, setEditOrigem] = useState("");
   const [editCest, setEditCest] = useState("");
-  const [editCfop, setEditCfop] = useState("");
   const [editPesoLiquido, setEditPesoLiquido] = useState("");
   const [editPesoBruto, setEditPesoBruto] = useState("");
   const [loadingOutros, setLoadingOutros] = useState(false);
@@ -348,11 +346,10 @@ export default function EditarVariantesPage() {
       (editNcm ?? "") !== (representante.ncm ?? "") ||
       (editOrigem ?? "") !== (representante.origem ?? "") ||
       (editCest ?? "") !== (representante.cest ?? "") ||
-      (editCfop ?? "") !== (representante.cfop ?? "") ||
       (editPesoLiquido ?? "") !== (representante.peso_liquido_kg != null ? String(representante.peso_liquido_kg) : "") ||
       (editPesoBruto ?? "") !== (representante.peso_bruto_kg != null ? String(representante.peso_bruto_kg) : "")
     );
-  }, [representante?.ncm, representante?.origem, representante?.cest, representante?.cfop, representante?.peso_liquido_kg, representante?.peso_bruto_kg, editNcm, editOrigem, editCest, editCfop, editPesoLiquido, editPesoBruto]);
+  }, [representante?.ncm, representante?.origem, representante?.cest, representante?.peso_liquido_kg, representante?.peso_bruto_kg, editNcm, editOrigem, editCest, editPesoLiquido, editPesoBruto]);
 
   const dirtyModal = useMemo(() => {
     if (!editando) return false;
@@ -504,11 +501,10 @@ export default function EditarVariantesPage() {
       setEditNcm(representante.ncm ?? "");
       setEditOrigem(representante.origem ?? "");
       setEditCest(representante.cest ?? "");
-      setEditCfop(representante.cfop ?? "");
       setEditPesoLiquido(representante.peso_liquido_kg != null ? String(representante.peso_liquido_kg) : "");
       setEditPesoBruto(representante.peso_bruto_kg != null ? String(representante.peso_bruto_kg) : "");
     }
-  }, [tabAtiva, representante?.id, representante?.nome_produto, representante?.descricao, alvoMidiaProduto?.link_fotos, representante?.ncm, representante?.origem, representante?.cest, representante?.cfop, representante?.peso_liquido_kg, representante?.peso_bruto_kg]);
+  }, [tabAtiva, representante?.id, representante?.nome_produto, representante?.descricao, alvoMidiaProduto?.link_fotos, representante?.ncm, representante?.origem, representante?.cest, representante?.peso_liquido_kg, representante?.peso_bruto_kg]);
 
   async function salvarTab(extra: Record<string, unknown>, alvo?: Produto) {
     const produto = alvo ?? representante;
@@ -1454,7 +1450,6 @@ export default function EditarVariantesPage() {
                 if (editNcm.trim()) body.ncm = editNcm.trim();
                 if (editOrigem.trim()) body.origem = editOrigem.trim();
                 if (editCest.trim()) body.cest = editCest.trim();
-                if (editCfop.trim()) body.cfop = editCfop.trim();
                 if (editPesoLiquido.trim()) body.peso_liquido_kg = editPesoLiquido.trim();
                 if (editPesoBruto.trim()) body.peso_bruto_kg = editPesoBruto.trim();
                 if (Object.keys(body).length === 0) { setFormError("Preencha pelo menos um campo."); return; }
@@ -1483,9 +1478,10 @@ export default function EditarVariantesPage() {
                   <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">CEST (opcional)</label>
                   <input type="text" value={editCest} onChange={(e) => setEditCest(e.target.value)} placeholder="Ex: 01.001.00" className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
                 </div>
-                <div>
-                  <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">CFOP (opcional)</label>
-                  <input type="text" value={editCfop} onChange={(e) => setEditCfop(e.target.value)} placeholder="Ex: 5102" className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                <div className="sm:col-span-2">
+                  <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                    CFOP não é cadastrado no DropCore — configure na Olist (natureza de operação) com sua contabilidade.
+                  </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>

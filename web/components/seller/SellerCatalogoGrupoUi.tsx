@@ -49,7 +49,6 @@ export type SellerCatalogoItem = {
   ncm: string | null;
   origem: string | null;
   cest: string | null;
-  cfop: string | null;
   marca?: string | null;
   data_lancamento?: string | null;
   expedicao_override_linha?: string | null;
@@ -114,7 +113,6 @@ export function normalizarItemsSellerCatalogo(raw: unknown): SellerCatalogoItem[
           ncm: row?.ncm != null ? str(row.ncm) : null,
           origem: row?.origem != null ? str(row.origem) : null,
           cest: row?.cest != null ? str(row.cest) : null,
-          cfop: row?.cfop != null ? str(row.cfop) : null,
           marca: row?.marca != null ? str(row.marca) : null,
           data_lancamento: row?.data_lancamento != null ? str(row.data_lancamento) : null,
           expedicao_override_linha:

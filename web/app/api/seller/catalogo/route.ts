@@ -14,7 +14,7 @@ import { pipelineDetalhesCatalogoEspelho, type SkuCatalogoDetalhesRow } from "@/
 import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
 
 const SKU_CATALOGO_FIELDS =
-  "id, sku, nome_produto, cor, tamanho, status, fornecedor_id, estoque_atual, estoque_minimo, custo_dropcore, custo_base, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, peso_kg, imagem_url, link_fotos, descricao, ncm, origem, cest, cfop, marca, expedicao_override_linha, detalhes_produto_json, data_lancamento";
+  "id, sku, nome_produto, cor, tamanho, status, fornecedor_id, estoque_atual, estoque_minimo, custo_dropcore, custo_base, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, peso_kg, imagem_url, link_fotos, descricao, ncm, origem, cest, marca, expedicao_override_linha, detalhes_produto_json, data_lancamento";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

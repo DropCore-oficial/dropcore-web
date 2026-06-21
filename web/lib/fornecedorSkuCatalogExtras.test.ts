@@ -8,14 +8,13 @@ describe("fornecedorSkuCatalogExtrasFromBody", () => {
       ncm: "6109.10.00",
       origem: "0",
       detalhes_produto_json: {
-        logistica: { cest: "28.038.00", cfop: "5102", cdSaida: "CD SP" },
+        logistica: { cest: "28.038.00", cdSaida: "CD SP" },
       },
     });
     expect(extras.categoria).toBe("Camiseta");
     expect(extras.ncm).toBe("6109.10.00");
     expect(extras.origem).toBe("0");
     expect(extras.cest).toBe("28.038.00");
-    expect(extras.cfop).toBe("5102");
     expect(extras.expedicao_override_linha).toBe("CD SP");
   });
 

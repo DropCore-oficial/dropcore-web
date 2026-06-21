@@ -96,7 +96,6 @@ type ProdutoExistenteEdicao = {
   ncm?: string | null;
   origem?: string | null;
   cest?: string | null;
-  cfop?: string | null;
   comprimento_cm?: number | null;
   largura_cm?: number | null;
   altura_cm?: number | null;
@@ -326,7 +325,6 @@ function montarRascunhoEdicao(
     ncm: String(pai.ncm ?? "").trim(),
     cest: String(pai.cest ?? "").trim(),
     origemProduto: String(pai.origem ?? "").trim(),
-    cfop: String(pai.cfop ?? "").trim(),
     unidadeComercial: typeof logistica?.unidadeComercial === "string" ? logistica.unidadeComercial : "UN",
     cdSaida: typeof logistica?.cdSaida === "string" ? logistica.cdSaida : String(pai.expedicao_override_linha ?? "").trim(),
     ...(() => {
@@ -380,7 +378,6 @@ function montarRascunhoEdicao(
         ncm: String(pai.ncm ?? "").trim() || undefined,
         cest: String(pai.cest ?? "").trim() || undefined,
         origemProduto: String(pai.origem ?? "").trim() || undefined,
-        cfop: String(pai.cfop ?? "").trim() || undefined,
         unidadeComercial: "UN",
         cdSaida: String(pai.expedicao_override_linha ?? "").trim() || undefined,
       },
@@ -404,14 +401,13 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "logistica", label: "Fiscal e despacho" },
 ];
 
-/** Preenchimento rápido — NCM/CEST/CFOP usuais em vestuário nacional (conferir com seu contador). CD de saída não vem no modelo. */
+/** Preenchimento rápido — NCM/CEST usuais em vestuário nacional (conferir com seu contador). CD de saída não vem no modelo. */
 const PRESETS_FISCAL_DESPACHO: {
   id: string;
   label: string;
   ncm: string;
   cest: string;
   origemProduto: string;
-  cfop: string;
   unidadeComercial: string;
   slaEnvio: "24h" | "48h" | "72h";
 }[] = [
@@ -421,7 +417,6 @@ const PRESETS_FISCAL_DESPACHO: {
     ncm: "6105.20.00",
     cest: "28.038.00",
     origemProduto: "Nacional",
-    cfop: "5102",
     unidadeComercial: "UN",
     slaEnvio: "24h",
   },
@@ -431,7 +426,6 @@ const PRESETS_FISCAL_DESPACHO: {
     ncm: "6103.42.00",
     cest: "28.038.00",
     origemProduto: "Nacional",
-    cfop: "5102",
     unidadeComercial: "UN",
     slaEnvio: "24h",
   },
@@ -441,7 +435,6 @@ const PRESETS_FISCAL_DESPACHO: {
     ncm: "6104.43.00",
     cest: "28.038.00",
     origemProduto: "Nacional",
-    cfop: "5102",
     unidadeComercial: "UN",
     slaEnvio: "48h",
   },
@@ -451,7 +444,6 @@ const PRESETS_FISCAL_DESPACHO: {
     ncm: "6101.20.00",
     cest: "28.038.00",
     origemProduto: "Nacional",
-    cfop: "5102",
     unidadeComercial: "UN",
     slaEnvio: "48h",
   },
@@ -461,7 +453,6 @@ const PRESETS_FISCAL_DESPACHO: {
     ncm: "6117.80.00",
     cest: "28.038.00",
     origemProduto: "Nacional",
-    cfop: "5102",
     unidadeComercial: "UN",
     slaEnvio: "24h",
   },
@@ -588,7 +579,6 @@ function estadoInicialRascunhoVazio(): RascunhoCriarVariantesV1 {
     ncm: "",
     cest: "",
     origemProduto: "",
-    cfop: "",
     unidadeComercial: "",
     cdSaida: "",
     cdSaidaCep: "",
@@ -702,7 +692,6 @@ export default function CriarVariantesPage() {
   const [ncm, setNcm] = useState("");
   const [cest, setCest] = useState("");
   const [origemProduto, setOrigemProduto] = useState("");
-  const [cfop, setCfop] = useState("");
   const [unidadeComercial, setUnidadeComercial] = useState("");
   const [cdCep, setCdCep] = useState("");
   const [cdLogradouro, setCdLogradouro] = useState("");
@@ -788,7 +777,6 @@ export default function CriarVariantesPage() {
     setNcm(p.ncm);
     setCest(p.cest);
     setOrigemProduto(p.origemProduto);
-    setCfop(p.cfop);
     setUnidadeComercial(p.unidadeComercial);
     setSlaEnvio(p.slaEnvio);
   }
@@ -1228,7 +1216,6 @@ export default function CriarVariantesPage() {
       ncm: ncm.trim() || undefined,
       cest: cest.trim() || undefined,
       origemProduto: origemProduto.trim() || undefined,
-      cfop: cfop.trim() || undefined,
       unidadeComercial: unidadeComercial.trim() || undefined,
       cdSaida: cdLinhaFormatada || undefined,
     };
@@ -1285,7 +1272,6 @@ export default function CriarVariantesPage() {
       ncm,
       cest,
       origemProduto,
-      cfop,
       unidadeComercial,
       cdSaida: cdLinhaFormatada,
       produto: {
@@ -1363,7 +1349,6 @@ export default function CriarVariantesPage() {
     setNcm(p.ncm ?? p.produto?.logistica?.ncm ?? "");
     setCest(p.cest ?? p.produto?.logistica?.cest ?? "");
     setOrigemProduto(p.origemProduto ?? p.produto?.logistica?.origemProduto ?? "");
-    setCfop(p.cfop ?? p.produto?.logistica?.cfop ?? "");
     setUnidadeComercial(p.unidadeComercial ?? p.produto?.logistica?.unidadeComercial ?? "");
 
     const usarCadastro = p.cdUsarDespachoCadastro ?? false;
@@ -1859,7 +1844,6 @@ export default function CriarVariantesPage() {
           ncm: ncm.trim() || null,
           cest: cest.trim() || null,
           origemProduto: origemProduto.trim() || null,
-          cfop: cfop.trim() || null,
           unidadeComercial: unidadeComercial.trim() || null,
           cdSaida: cdLinhaFormatada || null,
           cdUsarDespachoCadastro,
@@ -1895,7 +1879,6 @@ export default function CriarVariantesPage() {
         ncm: ncm.trim() || null,
         origem: origemProduto.trim() || null,
         cest: cest.trim() || null,
-        cfop: cfop.trim() || null,
         expedicao_override_linha: cdLinhaFormatada || null,
       };
       if (tabelaMedidasPayload) body.tabela_medidas = tabelaMedidasPayload;
@@ -2019,7 +2002,6 @@ export default function CriarVariantesPage() {
           ncm: ncm.trim() || null,
           origem: origemProduto.trim() || null,
           cest: cest.trim() || null,
-          cfop: cfop.trim() || null,
           expedicao_override_linha: cdLinhaFormatada || null,
           detalhes_produto_json: detalhesProdutoJson,
         };
@@ -3265,7 +3247,7 @@ export default function CriarVariantesPage() {
                     ))}
                   </div>
                   <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
-                    NCM, CEST e CFOP são referências comuns para vestuário nacional — confira sempre com a sua contabilidade. O local de saída fica no bloco «Despacho / CD padrão» abaixo.
+                    NCM e CEST são referências comuns para vestuário nacional — confira sempre com a sua contabilidade. CFOP fica na Olist (natureza de operação). O local de saída fica no bloco «Despacho / CD padrão» abaixo.
                   </p>
                 </div>
                 <div className="grid gap-2.5 sm:grid-cols-2">
@@ -3293,9 +3275,10 @@ export default function CriarVariantesPage() {
                     </div>
                     <input value={origemProduto} onChange={(e) => setOrigemProduto(e.target.value)} placeholder="Ex.: Nacional" className={inputDelicado} />
                   </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">CFOP</label>
-                    <input value={cfop} onChange={(e) => setCfop(e.target.value)} placeholder="Ex.: 5102" className={inputDelicado} />
+                  <div className="sm:col-span-2">
+                    <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                      CFOP não é cadastrado no DropCore — configure na Olist (natureza de operação) com sua contabilidade.
+                    </p>
                   </div>
                   <div>
                     <label className="mb-1 block text-xs text-neutral-600 dark:text-neutral-400">Unidade comercial</label>

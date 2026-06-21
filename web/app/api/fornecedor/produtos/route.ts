@@ -26,7 +26,7 @@ const SKU_FIELDS = `
   estoque_atual, estoque_minimo, custo_base, custo_dropcore, peso_kg, categoria,
   dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao,
   marca, data_lancamento,
-  ncm, origem, cest, cfop, peso_liquido_kg, peso_bruto_kg, criado_em,
+  ncm, origem, cest, peso_liquido_kg, peso_bruto_kg, criado_em,
   expedicao_override_linha, detalhes_produto_json
 `;
 
@@ -53,7 +53,6 @@ const CAMPOS_PROPOSTOS_SKU = new Set([
   "ncm",
   "origem",
   "cest",
-  "cfop",
   "peso_liquido_kg",
   "peso_bruto_kg",
   "expedicao_override_linha",

@@ -75,7 +75,6 @@ type Produto = {
   ncm?: string | null;
   origem?: string | null;
   cest?: string | null;
-  cfop?: string | null;
   peso_liquido_kg?: number | null;
   peso_bruto_kg?: number | null;
   criado_em: string;

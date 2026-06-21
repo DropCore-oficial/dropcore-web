@@ -26,7 +26,6 @@ export function sellerItemToProdutoResumoLista(it: SellerCatalogoItem): ProdutoR
     ncm: it.ncm ?? null,
     origem: it.origem ?? null,
     cest: it.cest ?? null,
-    cfop: it.cfop ?? null,
     peso_liquido_kg: null,
     peso_bruto_kg: null,
     marca: it.marca ?? null,
