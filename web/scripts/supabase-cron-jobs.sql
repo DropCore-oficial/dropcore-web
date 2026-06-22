@@ -124,6 +124,13 @@ SELECT cron.schedule(
   $$SELECT public.dropcore_cron_http_post('/api/cron/olist-sync-precos');$$
 );
 
+-- Estoque fornecedor Olist → DropCore → sellers — a cada 15 min (UTC).
+SELECT cron.schedule(
+  'dropcore-fornecedor-olist-sync-estoque',
+  '*/15 * * * *',
+  $$SELECT public.dropcore_cron_http_post('/api/cron/fornecedor-olist-sync-estoque');$$
+);
+
 -- Inadimplência + notificação admin org — a cada hora (UTC), em vez de em cada GET de dashboard
 SELECT cron.schedule(
   'dropcore-inadimplencia',

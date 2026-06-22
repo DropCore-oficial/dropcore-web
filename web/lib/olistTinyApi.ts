@@ -733,9 +733,15 @@ type ObterProdutoOlistResponse = TinyRetornoBase & {
         id?: number;
         codigo?: string;
         preco?: string | number;
+        saldo?: string | number;
+        saldoEstoque?: string | number;
+        estoque?: string | number;
         grade?: Record<string, string> | Array<{ chave?: string; valor?: string }>;
       };
     }>;
+    saldo?: string | number;
+    saldoEstoque?: string | number;
+    estoque?: string | number;
   };
 };
 
@@ -752,6 +758,42 @@ export async function obterProdutoOlistPorId(apiToken: string, produtoId: number
   } catch {
     return null;
   }
+}
+
+function extrairSaldoEstoqueOlistRow(row: Record<string, unknown> | null | undefined): number | null {
+  if (!row) return null;
+  for (const key of ["saldo", "saldoEstoque", "estoque", "estoque_atual"]) {
+    const raw = row[key];
+    if (raw == null || raw === "") continue;
+    const n = toTinyDecimal(raw);
+    if (Number.isFinite(n)) return Math.max(0, Math.floor(n));
+  }
+  return null;
+}
+
+/** Lê saldo de estoque na Olist pelo código SKU (produto ou variação). */
+export async function lerSaldoEstoqueOlistPorCodigo(apiToken: string, codigo: string): Promise<number | null> {
+  const codigoNorm = codigo.trim().toUpperCase();
+  if (!codigoNorm) return null;
+
+  const id = await resolverIdProdutoOlistPorCodigo(apiToken, codigoNorm);
+  if (!id) return null;
+
+  const prod = await obterProdutoOlistPorId(apiToken, id);
+  if (!prod) return null;
+
+  if (codigoOlistMatchesSku(prod.codigo, codigoNorm)) {
+    return extrairSaldoEstoqueOlistRow(prod as Record<string, unknown>);
+  }
+
+  for (const row of prod.variacoes ?? []) {
+    const v = row.variacao;
+    if (!v || !codigoOlistMatchesSku(v.codigo, codigoNorm)) continue;
+    const fromVar = extrairSaldoEstoqueOlistRow(v as Record<string, unknown>);
+    if (fromVar != null) return fromVar;
+  }
+
+  return extrairSaldoEstoqueOlistRow(prod as Record<string, unknown>);
 }
 
 type AtualizarPrecosResponse = TinyRetornoBase & {

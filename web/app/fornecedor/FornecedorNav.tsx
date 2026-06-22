@@ -66,19 +66,30 @@ function NavIconMobile({ children }: { children: ReactNode }) {
   );
 }
 
-export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "pedidos" | "cadastro" }) {
+function IconPlug({ active }: { active: boolean }) {
+  return (
+    <svg className={`h-5 w-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22v-5" />
+      <path d="M9 8V2" />
+      <path d="M15 8V2" />
+      <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+    </svg>
+  );
+}
+
+export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "pedidos" | "cadastro" | "integracoes" }) {
   const router = useRouter();
   async function sair() {
     await supabaseBrowser.auth.signOut();
     router.replace("/fornecedor/login");
   }
 
-  const linkClass = (key: "dashboard" | "produtos" | "pedidos" | "cadastro") =>
+  const linkClass = (key: "dashboard" | "produtos" | "pedidos" | "cadastro" | "integracoes") =>
     `flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ${
       active === key ? activeClass + " hover:bg-emerald-100 dark:hover:bg-emerald-900" : inactiveDesktop
     }`;
 
-  const mobileLinkClass = (key: "dashboard" | "produtos" | "pedidos" | "cadastro") =>
+  const mobileLinkClass = (key: "dashboard" | "produtos" | "pedidos" | "cadastro" | "integracoes") =>
     `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 overflow-visible px-1.5 py-2.5 transition-all duration-200 border-t-2 touch-manipulation relative ${
       active === key ? activeClass + " bg-emerald-100 dark:bg-emerald-900" : inactiveMobile
     }`;
@@ -108,6 +119,12 @@ export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "
                 </NavIconDesktop>
                 Pedidos
               </Link>
+              <Link href="/fornecedor/integracoes-erp" className={linkClass("integracoes")}>
+                <NavIconDesktop>
+                  <IconPlug active={active === "integracoes"} />
+                </NavIconDesktop>
+                ERP
+              </Link>
               <Link href="/fornecedor/cadastro" className={linkClass("cadastro")}>
                 <NavIconDesktop>
                   <IconCreditCard active={active === "cadastro"} />
@@ -126,7 +143,7 @@ export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "
       />
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto grid w-full max-w-4xl grid-cols-4 items-stretch min-h-[56px]">
+        <div className="mx-auto grid w-full max-w-4xl grid-cols-5 items-stretch min-h-[56px]">
           <Link href="/fornecedor/dashboard" className={mobileLinkClass("dashboard")}>
             <NavIconMobile>
               <IconHome active={active === "dashboard"} />
@@ -143,7 +160,13 @@ export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "
             <NavIconMobile>
               <IconTruck active={active === "pedidos"} />
             </NavIconMobile>
-            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Pedidos</span>
+            <span className="max-w-[4.5rem] text-center text-[10px] font-medium leading-tight tracking-tight">Pedidos</span>
+          </Link>
+          <Link href="/fornecedor/integracoes-erp" className={mobileLinkClass("integracoes")}>
+            <NavIconMobile>
+              <IconPlug active={active === "integracoes"} />
+            </NavIconMobile>
+            <span className="max-w-[4.5rem] text-center text-[10px] font-medium leading-tight tracking-tight">ERP</span>
           </Link>
           <Link href="/fornecedor/cadastro" className={mobileLinkClass("cadastro")}>
             <NavIconMobile>
