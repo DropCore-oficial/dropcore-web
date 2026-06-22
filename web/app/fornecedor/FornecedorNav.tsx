@@ -1,8 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { AppBarEndDesktopAuth, AppBarEndMobileAuth } from "@/components/AppBarEndAuth";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { MobileAppBar } from "@/components/MobileAppBar";
@@ -39,33 +39,6 @@ function IconTruck({ active }: { active: boolean }) {
     </svg>
   );
 }
-function IconCreditCard({ active }: { active: boolean }) {
-  return (
-    <svg className={`h-5 w-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect width="20" height="14" x="2" y="5" rx="2" />
-      <line x1="2" x2="22" y1="10" y2="10" />
-    </svg>
-  );
-}
-
-/** Área fixa para ícones da nav desktop — mesmo “peso” visual entre rotas. */
-function NavIconDesktop({ children }: { children: ReactNode }) {
-  return (
-    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center [&_svg]:block [&_svg]:h-5 [&_svg]:w-5">
-      {children}
-    </span>
-  );
-}
-
-/** Área fixa para ícones da tab bar mobile. */
-function NavIconMobile({ children }: { children: ReactNode }) {
-  return (
-    <span className="flex h-9 w-full shrink-0 items-center justify-center [&_svg]:block [&_svg]:h-5 [&_svg]:w-5">
-      {children}
-    </span>
-  );
-}
-
 function IconPlug({ active }: { active: boolean }) {
   return (
     <svg className={`h-5 w-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -76,104 +49,258 @@ function IconPlug({ active }: { active: boolean }) {
     </svg>
   );
 }
+function IconCadastro({ active }: { active: boolean }) {
+  return (
+    <svg className={`h-5 w-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="20" height="14" x="2" y="5" rx="2" />
+      <line x1="2" x2="22" y1="10" y2="10" />
+    </svg>
+  );
+}
 
-export function FornecedorNav({ active }: { active: "dashboard" | "produtos" | "pedidos" | "cadastro" | "integracoes" }) {
+type NavKey = "dashboard" | "produtos" | "pedidos" | "cadastro" | "integracoes";
+
+const NAV_MAIS_MENU_KEYS = ["integracoes", "cadastro"] as const satisfies readonly NavKey[];
+
+function FornecedorNavDesktopMais({ active }: { active: NavKey }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const maisActive = (NAV_MAIS_MENU_KEYS as readonly string[]).includes(active);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [active]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (rootRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const btnClass =
+    `flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ` +
+    (maisActive ? activeClass + " hover:bg-emerald-100 dark:hover:bg-emerald-900" : inactiveDesktop);
+
+  return (
+    <div className="relative shrink-0" ref={rootRef}>
+      <button
+        type="button"
+        className={btnClass}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        id="fornecedor-nav-mais-trigger"
+        onClick={() => setOpen((o) => !o)}
+      >
+        Mais
+        <svg
+          className={`h-4 w-4 shrink-0 opacity-70 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      {open ? (
+        <div
+          className="absolute left-0 top-full z-[100] mt-1 w-[min(calc(100vw-2rem),16rem)] rounded-xl border border-[var(--card-border)] bg-[var(--card)] py-1 shadow-lg ring-1 ring-[var(--foreground)]/[0.06]"
+          role="menu"
+          aria-labelledby="fornecedor-nav-mais-trigger"
+        >
+          <Link
+            href="/fornecedor/integracoes-erp"
+            role="menuitem"
+            className={`mx-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              active === "integracoes"
+                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+            }`}
+            onClick={() => setOpen(false)}
+          >
+            <IconPlug active={active === "integracoes"} />
+            ERP
+          </Link>
+          <Link
+            href="/fornecedor/cadastro"
+            role="menuitem"
+            className={`mx-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              active === "cadastro"
+                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+            }`}
+            onClick={() => setOpen(false)}
+          >
+            <IconCadastro active={active === "cadastro"} />
+            Cadastro
+          </Link>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function FornecedorNav({ active }: { active: NavKey }) {
   const router = useRouter();
+  const [mobileMaisOpen, setMobileMaisOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileMaisOpen(false);
+  }, [active]);
+
+  useEffect(() => {
+    if (!mobileMaisOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMobileMaisOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileMaisOpen]);
+
   async function sair() {
     await supabaseBrowser.auth.signOut();
     router.replace("/fornecedor/login");
   }
 
-  const linkClass = (key: "dashboard" | "produtos" | "pedidos" | "cadastro" | "integracoes") =>
-    `flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ${
+  const linkClass = (key: NavKey) =>
+    `flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ${
       active === key ? activeClass + " hover:bg-emerald-100 dark:hover:bg-emerald-900" : inactiveDesktop
     }`;
 
-  const mobileLinkClass = (key: "dashboard" | "produtos" | "pedidos" | "cadastro" | "integracoes") =>
-    `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 overflow-visible px-1.5 py-2.5 transition-all duration-200 border-t-2 touch-manipulation relative ${
+  const mobileLinkClass = (key: NavKey) =>
+    `flex min-w-0 flex-1 flex-row items-center justify-center gap-1 overflow-hidden px-0.5 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ${
       active === key ? activeClass + " bg-emerald-100 dark:bg-emerald-900" : inactiveMobile
     }`;
 
+  const mobileMaisActive = (NAV_MAIS_MENU_KEYS as readonly string[]).includes(active);
+  const mobileMaisBtnClass =
+    `flex min-w-0 flex-1 flex-row items-center justify-center gap-1 overflow-hidden px-0.5 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ` +
+    (mobileMaisActive
+      ? activeClass + " bg-emerald-100 dark:bg-emerald-900"
+      : inactiveMobile + (mobileMaisOpen ? " bg-[var(--surface-hover)]" : ""));
+
   return (
     <>
+      <MobileAppBar
+        logoHref="/fornecedor/dashboard"
+        end={<AppBarEndMobileAuth context="fornecedor" onLogout={sair} />}
+      />
       <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
-        <div className="dropcore-shell-4xl flex items-center justify-between gap-2 sm:gap-3">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <div className="dropcore-shell-4xl flex w-full min-w-0 items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4 md:gap-6">
             <DropCoreLogo variant="horizontal" href="/fornecedor/dashboard" className="shrink-0" />
-            <div className="flex min-w-0 items-center justify-start gap-0 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex shrink-0 items-center gap-0.5">
               <Link href="/fornecedor/dashboard" className={linkClass("dashboard")}>
-                <NavIconDesktop>
-                  <IconHome active={active === "dashboard"} />
-                </NavIconDesktop>
+                <IconHome active={active === "dashboard"} />
                 Dashboard
               </Link>
               <Link href="/fornecedor/produtos" className={linkClass("produtos")}>
-                <NavIconDesktop>
-                  <IconPackage active={active === "produtos"} />
-                </NavIconDesktop>
+                <IconPackage active={active === "produtos"} />
                 Produtos
               </Link>
               <Link href="/fornecedor/pedidos" className={linkClass("pedidos")}>
-                <NavIconDesktop>
-                  <IconTruck active={active === "pedidos"} />
-                </NavIconDesktop>
+                <IconTruck active={active === "pedidos"} />
                 Pedidos
               </Link>
-              <Link href="/fornecedor/integracoes-erp" className={linkClass("integracoes")}>
-                <NavIconDesktop>
-                  <IconPlug active={active === "integracoes"} />
-                </NavIconDesktop>
-                ERP
-              </Link>
-              <Link href="/fornecedor/cadastro" className={linkClass("cadastro")}>
-                <NavIconDesktop>
-                  <IconCreditCard active={active === "cadastro"} />
-                </NavIconDesktop>
-                Cadastro
-              </Link>
+              <FornecedorNavDesktopMais active={active} />
             </div>
           </div>
           <AppBarEndDesktopAuth context="fornecedor" onLogout={sair} />
         </div>
       </nav>
 
-      <MobileAppBar
-        logoHref="/fornecedor/dashboard"
-        end={<AppBarEndMobileAuth context="fornecedor" onLogout={sair} />}
-      />
+      {mobileMaisOpen ? (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-[85] md:hidden bg-[var(--foreground)]/20"
+            aria-label="Fechar menu"
+            onClick={() => setMobileMaisOpen(false)}
+          />
+          <div
+            className="fixed left-3 right-3 bottom-[calc(3.75rem+env(safe-area-inset-bottom,0px))] z-[95] rounded-2xl border border-[var(--card-border)] bg-[var(--card)] py-2 shadow-xl ring-1 ring-[var(--foreground)]/[0.06] md:hidden"
+            role="menu"
+            aria-label="Mais opções do fornecedor"
+          >
+            <Link
+              href="/fornecedor/integracoes-erp"
+              role="menuitem"
+              className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+                active === "integracoes"
+                  ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                  : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
+              }`}
+              onClick={() => setMobileMaisOpen(false)}
+            >
+              <IconPlug active={active === "integracoes"} />
+              ERP
+            </Link>
+            <Link
+              href="/fornecedor/cadastro"
+              role="menuitem"
+              className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+                active === "cadastro"
+                  ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                  : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
+              }`}
+              onClick={() => setMobileMaisOpen(false)}
+            >
+              <IconCadastro active={active === "cadastro"} />
+              Cadastro
+            </Link>
+          </div>
+        </>
+      ) : null}
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto grid w-full max-w-4xl grid-cols-5 items-stretch min-h-[56px]">
+        <div className="mx-auto grid w-full max-w-4xl grid-cols-4 items-stretch min-h-[52px]">
           <Link href="/fornecedor/dashboard" className={mobileLinkClass("dashboard")}>
-            <NavIconMobile>
-              <IconHome active={active === "dashboard"} />
-            </NavIconMobile>
-            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Dashboard</span>
+            <IconHome active={active === "dashboard"} />
+            <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Painel</span>
           </Link>
           <Link href="/fornecedor/produtos" className={mobileLinkClass("produtos")}>
-            <NavIconMobile>
-              <IconPackage active={active === "produtos"} />
-            </NavIconMobile>
-            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Produtos</span>
+            <IconPackage active={active === "produtos"} />
+            <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Produtos</span>
           </Link>
           <Link href="/fornecedor/pedidos" className={mobileLinkClass("pedidos")}>
-            <NavIconMobile>
-              <IconTruck active={active === "pedidos"} />
-            </NavIconMobile>
-            <span className="max-w-[4.5rem] text-center text-[10px] font-medium leading-tight tracking-tight">Pedidos</span>
+            <IconTruck active={active === "pedidos"} />
+            <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Pedidos</span>
           </Link>
-          <Link href="/fornecedor/integracoes-erp" className={mobileLinkClass("integracoes")}>
-            <NavIconMobile>
-              <IconPlug active={active === "integracoes"} />
-            </NavIconMobile>
-            <span className="max-w-[4.5rem] text-center text-[10px] font-medium leading-tight tracking-tight">ERP</span>
-          </Link>
-          <Link href="/fornecedor/cadastro" className={mobileLinkClass("cadastro")}>
-            <NavIconMobile>
-              <IconCreditCard active={active === "cadastro"} />
-            </NavIconMobile>
-            <span className="max-w-[5.25rem] text-center text-[10px] font-medium leading-tight tracking-tight">Cadastro</span>
-          </Link>
+          <button
+            type="button"
+            className={mobileMaisBtnClass}
+            aria-expanded={mobileMaisOpen}
+            aria-haspopup="menu"
+            onClick={() => setMobileMaisOpen((o) => !o)}
+          >
+            <svg
+              className={`h-5 w-5 shrink-0 transition-transform duration-200 ${mobileMaisOpen ? "rotate-180 text-emerald-500" : "text-current"}`}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+            <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Mais</span>
+          </button>
         </div>
       </nav>
     </>
