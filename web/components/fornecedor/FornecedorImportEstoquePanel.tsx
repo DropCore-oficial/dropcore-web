@@ -92,8 +92,10 @@ export function FornecedorImportEstoquePanel({ produtos, accessToken, onImported
             CSV com colunas <strong className="text-[var(--foreground)]">SKU</strong>,{" "}
             <strong className="text-[var(--foreground)]">Estoque atual</strong> e opcional{" "}
             <strong className="text-[var(--foreground)]">Est. mínimo</strong>. Separador{" "}
-            <strong className="text-[var(--foreground)]">;</strong> (Excel pt-BR). Aplica na hora — não passa por
-            alterações pendentes.
+            <strong className="text-[var(--foreground)]">;</strong> (Excel pt-BR).{" "}
+            <strong className="text-[var(--foreground)]">Exportar</strong> → edite no Excel →{" "}
+            <strong className="text-[var(--foreground)]">Importar CSV</strong> aqui no DropCore (não é planilha da
+            Olist). Com Olist conectada em Integrações ERP, o saldo vai para a Olist dos sellers e do armazém na hora.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
@@ -120,7 +122,7 @@ export function FornecedorImportEstoquePanel({ produtos, accessToken, onImported
             }
             className="rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
           >
-            Exportar estoque atual
+            Exportar para editar no DropCore
           </button>
           <button
             type="button"

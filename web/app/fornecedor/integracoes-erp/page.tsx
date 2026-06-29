@@ -223,6 +223,8 @@ export default function FornecedorIntegracoesErpPage() {
             Gere o <strong className="text-[var(--foreground)]">token API</strong> na Olist/Tiny do Djulios (não use o token do seller),
             cole abaixo e cadastre a <strong className="text-[var(--foreground)]">URL de notificações do estoque</strong> na Olist.
             Você <strong className="text-[var(--foreground)]">não precisa</strong> ficar clicando em sincronizar — webhook + cron automático cuidam disso.
+            Para cadastrar ou alinhar produtos na Olist, use{" "}
+            <strong className="text-[var(--foreground)]">Produtos → ⋮ → Exportar para Olist</strong> (planilha oficial de 64 colunas).
           </p>
         </AmberPremiumCallout>
 

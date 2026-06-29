@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
@@ -234,6 +234,48 @@ export default function FornecedorProdutosPage() {
   }>({ pendentes: [], por_sku: {} });
   const [rascunhoCriarVariantes, setRascunhoCriarVariantes] = useState<ResumoRascunhoCriarVariantes | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [exportandoOlistGrupo, setExportandoOlistGrupo] = useState<string | null>(null);
+
+  const baixarCsvOlistGrupo = useCallback(
+    async (grupoKey: string) => {
+      const grupo = grupoKey.trim().toUpperCase();
+      if (!grupo) return;
+      setExportandoOlistGrupo(grupo);
+      setFormError(null);
+      try {
+        const {
+          data: { session },
+        } = await supabaseBrowser.auth.getSession();
+        if (!session?.access_token) {
+          router.replace("/fornecedor/login");
+          return;
+        }
+        const res = await fetch(`/api/fornecedor/catalogo/export-olist?grupo=${encodeURIComponent(grupo)}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          throw new Error(typeof json?.error === "string" ? json.error : "Erro ao exportar planilha para a Olist.");
+        }
+        const blob = await res.blob();
+        const disp = res.headers.get("Content-Disposition") ?? "";
+        const match = /filename="([^"]+)"/.exec(disp);
+        const filename = match?.[1] ?? `dropcore-olist-fornecedor-${grupo}.csv`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (e: unknown) {
+        setFormError(e instanceof Error ? e.message : "Erro ao exportar planilha para a Olist.");
+      } finally {
+        setExportandoOlistGrupo(null);
+      }
+    },
+    [router],
+  );
 
   function fecharMenusAcoesAbertos() {
     if (typeof document === "undefined") return;
@@ -757,6 +799,19 @@ export default function FornecedorProdutosPage() {
                                   >
                                     Trocar foto
                                   </Link>
+                                  <button
+                                    type="button"
+                                    disabled={exportandoOlistGrupo === g.paiKey}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      fecharMenusAcoesAbertos();
+                                      void baixarCsvOlistGrupo(g.paiKey);
+                                    }}
+                                    className="block w-full rounded-md px-3 py-2 text-left text-sm text-[var(--primary-blue)] hover:bg-[var(--muted)]/12 disabled:cursor-wait disabled:opacity-60"
+                                    title="Baixa CSV deste produto (pai + variações) para importar na Olist/Tiny"
+                                  >
+                                    {exportandoOlistGrupo === g.paiKey ? "Exportando…" : "Exportar para Olist"}
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={(e) => {
