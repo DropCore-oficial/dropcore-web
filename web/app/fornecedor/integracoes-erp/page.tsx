@@ -29,6 +29,9 @@ export default function FornecedorIntegracoesErpPage() {
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncUpdated, setSyncUpdated] = useState<number | null>(null);
+  const [syncUnchanged, setSyncUnchanged] = useState<number | null>(null);
+  const [syncMissingOlist, setSyncMissingOlist] = useState<number | null>(null);
+  const [syncErrors, setSyncErrors] = useState<number | null>(null);
   const [webhookEstoqueUrl, setWebhookEstoqueUrl] = useState<string | null>(null);
   const [webhookCnpjReady, setWebhookCnpjReady] = useState(false);
   const [webhookEstoqueLastAt, setWebhookEstoqueLastAt] = useState<string | null>(null);
@@ -56,6 +59,9 @@ export default function FornecedorIntegracoesErpPage() {
     setSyncStatus(sync && typeof sync.status === "string" ? sync.status : null);
     setSyncError(sync && typeof sync.error === "string" ? sync.error : null);
     setSyncUpdated(sync && typeof sync.updated === "number" ? sync.updated : null);
+    setSyncUnchanged(sync && typeof sync.unchanged === "number" ? sync.unchanged : null);
+    setSyncMissingOlist(sync && typeof sync.missing_olist === "number" ? sync.missing_olist : null);
+    setSyncErrors(sync && typeof sync.errors === "number" ? sync.errors : null);
   }, []);
 
   const loadOlist = useCallback(async (token: string) => {
@@ -346,10 +352,39 @@ export default function FornecedorIntegracoesErpPage() {
                     </div>
                     {syncUpdated != null && syncStatus && syncStatus !== "webhook" ? (
                       <p className="mt-2 text-xs text-[var(--muted)]">
-                        Último resultado: {syncUpdated} SKU(s) alterado(s)
+                        Último resultado: <strong className="text-[var(--foreground)]">{syncUpdated}</strong> alterado(s)
+                        {syncUnchanged != null ? (
+                          <>
+                            {" "}
+                            · {syncUnchanged} já igual(is)
+                          </>
+                        ) : null}
+                        {syncMissingOlist != null && syncMissingOlist > 0 ? (
+                          <>
+                            {" "}
+                            · {syncMissingOlist} sem cadastro na Olist
+                          </>
+                        ) : null}
+                        {syncErrors != null && syncErrors > 0 ? (
+                          <>
+                            {" "}
+                            · {syncErrors} erro(s) de API
+                          </>
+                        ) : null}
                       </p>
                     ) : null}
-                    {syncError && syncStatus !== "webhook" ? (
+                    {syncMissingOlist != null && syncMissingOlist > 0 && syncStatus !== "webhook" ? (
+                      <p className={cn("mt-2 text-xs leading-relaxed", AMBER_PREMIUM_TEXT_SOFT)}>
+                        SKU(s) existem no DropCore mas ainda não foram encontrados na Olist (código diferente ou produto
+                        não importado). Use <strong className="text-[var(--foreground)]">Produtos → ⋮ → Exportar para Olist</strong>.
+                      </p>
+                    ) : null}
+                    {syncErrors != null && syncErrors > 0 && syncStatus !== "webhook" ? (
+                      <p className={cn("mt-2 text-xs", DANGER_PREMIUM_TEXT_BODY)}>
+                        {syncErrors} SKU(s) falharam na consulta à API da Olist — tente de novo em alguns minutos.
+                      </p>
+                    ) : null}
+                    {syncError && syncStatus !== "webhook" && (syncMissingOlist ?? 0) === 0 && (syncErrors ?? 0) === 0 ? (
                       <p className={cn("mt-2 text-xs", DANGER_PREMIUM_TEXT_BODY)}>{syncError}</p>
                     ) : null}
                     {webhookEstoqueLastAt ? (

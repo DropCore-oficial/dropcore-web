@@ -15,9 +15,13 @@ function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim();
 }
 
-function isSkuPaiInterno(sku: string): boolean {
+function isSkuIgnoradoPullEstoque(sku: string): boolean {
   const s = str(sku).toUpperCase();
-  return s.length >= 3 && s.endsWith("000");
+  if (!s || isSkuPaiInterno(s)) return true;
+  // Semente / grupo interno DropCore — não existe na Olist do armazém.
+  const grupoKey = s.length >= 3 ? `${s.slice(0, -3)}000` : s;
+  if (grupoKey === "DJU999000") return true;
+  return false;
 }
 
 export type PullFornecedorEstoqueOlistResult = FornecedorOlistEstoqueSyncSummary & {
@@ -47,6 +51,7 @@ export async function pullFornecedorEstoqueFromOlist(opts: {
     .select("id, sku, estoque_atual")
     .eq("org_id", opts.orgId)
     .eq("fornecedor_id", opts.fornecedorId)
+    .eq("status", "ativo")
     .order("sku", { ascending: true })
     .limit(MAX_SKUS_PER_RUN);
 
@@ -68,7 +73,7 @@ export async function pullFornecedorEstoqueFromOlist(opts: {
 
   for (const row of rows ?? []) {
     const sku = str((row as { sku?: string }).sku).toUpperCase();
-    if (!sku || isSkuPaiInterno(sku)) continue;
+    if (isSkuIgnoradoPullEstoque(sku)) continue;
 
     summary.total += 1;
 
@@ -127,14 +132,19 @@ export async function pullFornecedorEstoqueFromOlist(opts: {
   const status: PullFornecedorEstoqueOlistResult["status"] =
     summary.errors > 0 && summary.updated === 0
       ? "erro"
-      : summary.errors > 0 || summary.missing_olist > 0
+      : summary.errors > 0
         ? "parcial"
         : "ok";
 
   const result: PullFornecedorEstoqueOlistResult = {
     ...summary,
     status,
-    error: status === "ok" ? null : "Alguns SKUs não sincronizaram — veja o resumo.",
+    error:
+      status === "erro"
+        ? "Falha ao consultar estoque na Olist."
+        : status === "parcial"
+          ? `${summary.errors} SKU(s) com erro de API na Olist.`
+          : null,
   };
 
   await saveFornecedorOlistEstoqueSyncResult(opts.fornecedorId, {
