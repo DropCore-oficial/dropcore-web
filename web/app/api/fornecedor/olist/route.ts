@@ -49,14 +49,28 @@ function isMissingTableError(error: { message?: string; code?: string }) {
 
 function buildEstoqueSyncPayload(row: OlistRow | null | undefined) {
   const summary = row?.olist_last_estoque_sync_summary;
+  const errors = typeof summary?.errors === "number" ? summary.errors : 0;
+  const missingOlist = typeof summary?.missing_olist === "number" ? summary.missing_olist : 0;
+  let status = row?.olist_last_estoque_sync_status ?? null;
+  let error = row?.olist_last_estoque_sync_error ?? null;
+
+  // Cron antigo marcava parcial + mensagem genérica só por SKU ausente na Olist (sem falha de API).
+  if (errors === 0 && status === "parcial") {
+    status = "ok";
+    error = null;
+  }
+  if (status === "ok" || (errors === 0 && missingOlist > 0)) {
+    error = null;
+  }
+
   return {
     last_at: row?.olist_last_estoque_sync_at ?? null,
-    status: row?.olist_last_estoque_sync_status ?? null,
-    error: row?.olist_last_estoque_sync_error ?? null,
+    status,
+    error,
     updated: typeof summary?.updated === "number" ? summary.updated : null,
     unchanged: typeof summary?.unchanged === "number" ? summary.unchanged : null,
-    missing_olist: typeof summary?.missing_olist === "number" ? summary.missing_olist : null,
-    errors: typeof summary?.errors === "number" ? summary.errors : null,
+    missing_olist: missingOlist > 0 ? missingOlist : null,
+    errors: errors > 0 ? errors : null,
   };
 }
 

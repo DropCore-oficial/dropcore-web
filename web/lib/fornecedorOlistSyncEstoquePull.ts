@@ -15,6 +15,11 @@ function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim();
 }
 
+function isSkuPaiInterno(sku: string): boolean {
+  const s = str(sku).toUpperCase();
+  return s.length >= 3 && s.endsWith("000");
+}
+
 function isSkuIgnoradoPullEstoque(sku: string): boolean {
   const s = str(sku).toUpperCase();
   if (!s || isSkuPaiInterno(s)) return true;

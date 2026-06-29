@@ -384,7 +384,7 @@ export default function FornecedorIntegracoesErpPage() {
                         {syncErrors} SKU(s) falharam na consulta à API da Olist — tente de novo em alguns minutos.
                       </p>
                     ) : null}
-                    {syncError && syncStatus !== "webhook" && (syncMissingOlist ?? 0) === 0 && (syncErrors ?? 0) === 0 ? (
+                    {syncError && syncStatus !== "webhook" && syncStatus !== "ok" && (syncErrors ?? 0) > 0 ? (
                       <p className={cn("mt-2 text-xs", DANGER_PREMIUM_TEXT_BODY)}>{syncError}</p>
                     ) : null}
                     {webhookEstoqueLastAt ? (
