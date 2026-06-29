@@ -15,6 +15,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { executeBlockSale } from "@/lib/blockSale";
 import { isInadimplente } from "@/lib/inadimplencia";
 import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
+import { notifyFornecedorPedidoParaPostar } from "@/lib/notifyFornecedorPedidoParaPostar";
 import { resolveLedgerIdForPedido } from "@/lib/resolveLedgerForPedido";
 import { fireErpEstoqueWebhook } from "@/lib/erpEstoqueOutbound";
 import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
@@ -698,35 +699,12 @@ export async function POST(req: Request) {
       metadata: { referencia_externa: referencia_externa ?? null },
     });
 
-    // Notificação para fornecedor: novo pedido para postar
-    let memberUserId: string | null = null;
-    const { data: member } = await supabaseAdmin
-      .from("org_members")
-      .select("user_id")
-      .eq("org_id", org_id)
-      .eq("fornecedor_id", fornecedor_id)
-      .limit(1)
-      .maybeSingle();
-    memberUserId = member?.user_id ?? null;
-    if (!memberUserId) {
-      const { data: fallback } = await supabaseAdmin
-        .from("org_members")
-        .select("user_id")
-        .eq("fornecedor_id", fornecedor_id)
-        .limit(1)
-        .maybeSingle();
-      memberUserId = fallback?.user_id ?? null;
-    }
-    if (memberUserId) {
-      const valorBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor_fornecedor);
-      await supabaseAdmin.from("notifications").insert({
-        user_id: memberUserId,
-        tipo: "pedido_para_postar",
-        titulo: "Novo pedido para postar",
-        mensagem: `Você tem um novo pedido de ${valorBRL} aguardando envio.`,
-        metadata: { pedido_id: pedido.id },
-      });
-    }
+    await notifyFornecedorPedidoParaPostar({
+      org_id,
+      fornecedor_id,
+      pedido_id: pedido.id,
+      valor_fornecedor,
+    });
 
     return NextResponse.json({
       ok: true,

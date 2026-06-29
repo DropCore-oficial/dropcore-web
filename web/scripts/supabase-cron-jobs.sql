@@ -125,6 +125,8 @@ SELECT cron.schedule(
 );
 
 -- Estoque fornecedor Olist → DropCore → sellers — a cada 15 min (UTC).
+-- Canal principal: webhook /api/webhooks/olist-fornecedor-estoque (?w= token do fornecedor).
+-- O cron consulta a API só como rede de segurança se o webhook não disparar.
 SELECT cron.schedule(
   'dropcore-fornecedor-olist-sync-estoque',
   '*/15 * * * *',

@@ -1,5 +1,5 @@
 /**
- * POST /api/org/olist/sync-estoque — admin: empurra saldo para a Olist (sellers do armazém).
+ * POST /api/org/olist/sync-estoque — admin: empurra saldo para Olist do armazém e dos sellers.
  * Body opcional: { fornecedor_id, grupo_keys: ["DJU001000", ...] }
  */
 import { NextResponse } from "next/server";

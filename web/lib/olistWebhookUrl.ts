@@ -47,3 +47,10 @@ export function buildOlistPedidosWebhookUrl(params?: BuildOlistPedidosWebhookUrl
   }
   return url;
 }
+
+/** URL para colar na Olist → Webhooks → URL de notificações do estoque (fornecedor). */
+export function buildOlistFornecedorEstoqueWebhookUrl(ingestToken: string): string {
+  const base = webhookCallbackBase();
+  const token = ingestToken.trim();
+  return `${base}/api/webhooks/olist-fornecedor-estoque?w=${encodeURIComponent(token)}`;
+}

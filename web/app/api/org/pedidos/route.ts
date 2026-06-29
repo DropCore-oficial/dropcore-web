@@ -15,6 +15,8 @@ import {
 } from "@/lib/sellerSkuHabilitado";
 import { createOrderCore } from "@/lib/order/createOrderCore";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
+import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
+import { notifyFornecedorPedidoParaPostar } from "@/lib/notifyFornecedorPedidoParaPostar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -490,35 +492,19 @@ export async function POST(req: Request) {
       .update({ ledger_id: blockResult.ledger_id, atualizado_em: new Date().toISOString() })
       .eq("id", pedido.id);
 
-    // 4) Notificação para fornecedor: novo pedido para postar
-    let memberUserId: string | null = null;
-    const { data: member } = await supabaseAdmin
-      .from("org_members")
-      .select("user_id")
-      .eq("org_id", org_id)
-      .eq("fornecedor_id", fornecedor_id)
-      .limit(1)
-      .maybeSingle();
-    memberUserId = member?.user_id ?? null;
-    if (!memberUserId) {
-      const { data: fallback } = await supabaseAdmin
-        .from("org_members")
-        .select("user_id")
-        .eq("fornecedor_id", fornecedor_id)
-        .limit(1)
-        .maybeSingle();
-      memberUserId = fallback?.user_id ?? null;
-    }
-    if (memberUserId) {
-      const valorBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-        valorFornecedorCore
-      );
-      await supabaseAdmin.from("notifications").insert({
-        user_id: memberUserId,
-        tipo: "pedido_para_postar",
-        titulo: "Novo pedido para postar",
-        mensagem: `Você tem um novo pedido de ${valorBRL} aguardando envio.`,
-        metadata: { pedido_id: pedido.id },
+    await notifyFornecedorPedidoParaPostar({
+      org_id,
+      fornecedor_id,
+      pedido_id: pedido.id,
+      valor_fornecedor: valorFornecedorCore,
+    });
+
+    const skuCodesOlist = estoqueDebitos.map((d) => d.sku).filter((s): s is string => Boolean(s?.trim()));
+    if (skuCodesOlist.length > 0) {
+      dispararSyncEstoqueOlistFornecedorSkus({
+        orgId: org_id,
+        fornecedorId: fornecedor_id,
+        skuCodes: skuCodesOlist,
       });
     }
 

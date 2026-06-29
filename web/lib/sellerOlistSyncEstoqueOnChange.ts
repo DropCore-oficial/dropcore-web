@@ -1,14 +1,25 @@
+import { getFornecedorOlistApiToken } from "@/lib/fornecedorOlistIntegration";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSellerOlistApiToken } from "@/lib/sellerOlistIntegration";
-import { syncOlistEstoqueGrupoSeller, syncOlistEstoqueSkusSeller } from "@/lib/sellerOlistSyncEstoque";
+import type { CatalogSkuForOlistExport } from "@/lib/sellerCatalogOlistExport";
+import {
+  skusParaSyncEstoqueOlistComPaiSoma,
+  syncOlistEstoqueGrupoSeller,
+  syncOlistEstoqueSkusSeller,
+} from "@/lib/sellerOlistSyncEstoque";
 import { grupoKeyFromSkuString } from "@/lib/sellerOlistSyncPrecosOnCustoChange";
 
-/** Dispara sync de estoque na Olist em background (não bloqueia pedido/upload). */
-export function dispararSyncEstoqueOlistFornecedorSkus(opts: {
+export type SyncOlistEstoqueOutboundOpts = {
   orgId: string;
   fornecedorId: string;
-  skuCodes: string[];
-}): void {
+  /** Quando true, não empurra de volta para a Olist do armazém (mudança veio do webhook/cron do fornecedor). */
+  skipFornecedorPush?: boolean;
+};
+
+/** Dispara sync de estoque na Olist em background (não bloqueia pedido/upload). */
+export function dispararSyncEstoqueOlistFornecedorSkus(
+  opts: SyncOlistEstoqueOutboundOpts & { skuCodes: string[] },
+): void {
   const skuCodes = opts.skuCodes.map((s) => s.trim().toUpperCase()).filter(Boolean);
   if (skuCodes.length === 0) return;
 
@@ -16,16 +27,15 @@ export function dispararSyncEstoqueOlistFornecedorSkus(opts: {
     orgId: opts.orgId,
     fornecedorId: opts.fornecedorId,
     skuCodes,
+    skipFornecedorPush: opts.skipFornecedorPush,
   }).catch((e: unknown) => {
     console.error("[dispararSyncEstoqueOlistFornecedorSkus]", skuCodes.join(","), e);
   });
 }
 
-export function dispararSyncEstoqueOlistFornecedorGrupo(opts: {
-  orgId: string;
-  fornecedorId: string;
-  grupoKey: string;
-}): void {
+export function dispararSyncEstoqueOlistFornecedorGrupo(
+  opts: SyncOlistEstoqueOutboundOpts & { grupoKey: string },
+): void {
   const grupoKey = opts.grupoKey.trim().toUpperCase();
   if (!grupoKey) return;
 
@@ -33,19 +43,98 @@ export function dispararSyncEstoqueOlistFornecedorGrupo(opts: {
     orgId: opts.orgId,
     fornecedorId: opts.fornecedorId,
     grupoKey,
+    skipFornecedorPush: opts.skipFornecedorPush,
   }).catch((e: unknown) => {
     console.error("[dispararSyncEstoqueOlistFornecedorGrupo]", grupoKey, e);
   });
 }
 
-/** Após venda ou reposição — empurra saldo DropCore para a Olist de todos os sellers do armazém. */
-export async function syncOlistEstoqueFornecedorSkus(opts: {
+async function pushEstoqueToFornecedorOlist(opts: {
   orgId: string;
   fornecedorId: string;
   skuCodes: string[];
-}): Promise<{ sellers: number; ok: number }> {
+  saldoOverrides?: Map<string, number>;
+}): Promise<number> {
+  const apiToken = await getFornecedorOlistApiToken(opts.fornecedorId);
+  if (!apiToken) return 0;
+
+  try {
+    const result = await syncOlistEstoqueSkusSeller({
+      apiToken,
+      orgId: opts.orgId,
+      fornecedorId: opts.fornecedorId,
+      supabase: supabaseAdmin,
+      skuCodes: opts.skuCodes,
+      saldoOverrides: opts.saldoOverrides,
+    });
+    return result.ok;
+  } catch (e: unknown) {
+    console.error("[pushEstoqueToFornecedorOlist]", opts.fornecedorId, e);
+    return 0;
+  }
+}
+
+async function loadSkusGrupoFornecedorForOlistSync(opts: {
+  orgId: string;
+  fornecedorId: string;
+  grupoKey: string;
+}): Promise<{ skuCodes: string[]; saldoOverrides: Map<string, number> } | null> {
+  const grupoKey = opts.grupoKey.trim().toUpperCase();
+  const prefix = grupoKey.length >= 3 ? grupoKey.slice(0, -3) : grupoKey;
+
+  const { data: rows, error } = await supabaseAdmin
+    .from("skus")
+    .select("sku, estoque_atual")
+    .eq("org_id", opts.orgId)
+    .eq("fornecedor_id", opts.fornecedorId)
+    .like("sku", `${prefix}%`);
+
+  if (error || !rows?.length) return null;
+
+  const items: CatalogSkuForOlistExport[] = rows.map((row) => ({
+    id: "",
+    sku: String((row as { sku?: string }).sku ?? ""),
+    nome_produto: "",
+    cor: "",
+    tamanho: "",
+    status: "ativo",
+    categoria: null,
+    estoque_atual: (row as { estoque_atual?: number | null }).estoque_atual ?? null,
+    custo_total: null,
+    imagem_url: null,
+    link_fotos: null,
+    descricao: null,
+    ncm: null,
+    origem: null,
+    marca: null,
+    cest: null,
+    peso_kg: null,
+    peso_liquido_kg: null,
+    peso_bruto_kg: null,
+    comprimento_cm: null,
+    largura_cm: null,
+    altura_cm: null,
+    habilitado_venda: false,
+  }));
+
+  return skusParaSyncEstoqueOlistComPaiSoma(items, grupoKey);
+}
+
+/** Após venda ou reposição — empurra saldo DropCore para Olist do armazém e de todos os sellers. */
+export async function syncOlistEstoqueFornecedorSkus(
+  opts: SyncOlistEstoqueOutboundOpts & { skuCodes: string[] },
+): Promise<{ sellers: number; ok: number; fornecedorOk: number }> {
   const skuCodes = opts.skuCodes.map((s) => s.trim().toUpperCase()).filter(Boolean);
-  if (skuCodes.length === 0) return { sellers: 0, ok: 0 };
+  if (skuCodes.length === 0) return { sellers: 0, ok: 0, fornecedorOk: 0 };
+
+  let fornecedorOk = 0;
+  if (!opts.skipFornecedorPush) {
+    fornecedorOk = await pushEstoqueToFornecedorOlist({
+      orgId: opts.orgId,
+      fornecedorId: opts.fornecedorId,
+      skuCodes,
+    });
+  }
 
   const { data: sellers, error } = await supabaseAdmin
     .from("sellers")
@@ -55,7 +144,7 @@ export async function syncOlistEstoqueFornecedorSkus(opts: {
 
   if (error) {
     console.error("[syncOlistEstoqueFornecedorSkus] sellers:", error.message);
-    return { sellers: 0, ok: 0 };
+    return { sellers: 0, ok: 0, fornecedorOk };
   }
 
   let okTotal = 0;
@@ -81,16 +170,31 @@ export async function syncOlistEstoqueFornecedorSkus(opts: {
     }
   }
 
-  return { sellers: synced, ok: okTotal };
+  return { sellers: synced, ok: okTotal, fornecedorOk };
 }
 
-export async function syncOlistEstoqueFornecedorGrupo(opts: {
-  orgId: string;
-  fornecedorId: string;
-  grupoKey: string;
-}): Promise<{ sellers: number; ok: number }> {
+export async function syncOlistEstoqueFornecedorGrupo(
+  opts: SyncOlistEstoqueOutboundOpts & { grupoKey: string },
+): Promise<{ sellers: number; ok: number; fornecedorOk: number }> {
   const grupoKey = opts.grupoKey.trim().toUpperCase();
-  if (!grupoKey) return { sellers: 0, ok: 0 };
+  if (!grupoKey) return { sellers: 0, ok: 0, fornecedorOk: 0 };
+
+  let fornecedorOk = 0;
+  if (!opts.skipFornecedorPush) {
+    const loaded = await loadSkusGrupoFornecedorForOlistSync({
+      orgId: opts.orgId,
+      fornecedorId: opts.fornecedorId,
+      grupoKey,
+    });
+    if (loaded?.skuCodes.length) {
+      fornecedorOk = await pushEstoqueToFornecedorOlist({
+        orgId: opts.orgId,
+        fornecedorId: opts.fornecedorId,
+        skuCodes: loaded.skuCodes,
+        saldoOverrides: loaded.saldoOverrides,
+      });
+    }
+  }
 
   const { data: sellers, error } = await supabaseAdmin
     .from("sellers")
@@ -100,7 +204,7 @@ export async function syncOlistEstoqueFornecedorGrupo(opts: {
 
   if (error) {
     console.error("[syncOlistEstoqueFornecedorGrupo] sellers:", error.message);
-    return { sellers: 0, ok: 0 };
+    return { sellers: 0, ok: 0, fornecedorOk };
   }
 
   let okTotal = 0;
@@ -127,7 +231,7 @@ export async function syncOlistEstoqueFornecedorGrupo(opts: {
     }
   }
 
-  return { sellers: synced, ok: okTotal };
+  return { sellers: synced, ok: okTotal, fornecedorOk };
 }
 
 export { grupoKeyFromSkuString };

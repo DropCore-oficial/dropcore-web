@@ -119,6 +119,7 @@ export async function pullFornecedorEstoqueFromOlist(opts: {
       orgId: opts.orgId,
       fornecedorId: opts.fornecedorId,
       skuCodes: changedSkuCodes,
+      skipFornecedorPush: true,
     });
     summary.pushed_sellers = push.sellers;
   }

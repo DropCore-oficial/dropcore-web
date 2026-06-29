@@ -2,6 +2,7 @@ import { executeBlockSale } from "@/lib/blockSale";
 import { fireErpEstoqueWebhook } from "@/lib/erpEstoqueOutbound";
 import { isInadimplente } from "@/lib/inadimplencia";
 import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
+import { notifyFornecedorPedidoParaPostar } from "@/lib/notifyFornecedorPedidoParaPostar";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
 import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
@@ -505,9 +506,16 @@ export async function submitSellerErpPedido(
     dispararSyncEstoqueOlistFornecedorSkus({
       orgId: org_id,
       fornecedorId: fornecedor_id,
-      skuCodes: items.map((it) => it.sku).filter(Boolean),
+      skuCodes: skuRows.map((r) => r.sku).filter(Boolean),
     });
   }
+
+  await notifyFornecedorPedidoParaPostar({
+    org_id,
+    fornecedor_id,
+    pedido_id: pedido.id,
+    valor_fornecedor,
+  });
 
   return {
     ok: true,
