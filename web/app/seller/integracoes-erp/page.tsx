@@ -33,6 +33,12 @@ export default function SellerIntegracoesErpPage() {
   const [olistSyncImported, setOlistSyncImported] = useState<number | null>(null);
   const [olistSyncSkipped, setOlistSyncSkipped] = useState<number | null>(null);
   const [olistSyncWarnings, setOlistSyncWarnings] = useState<number | null>(null);
+  const [catalogoProbeLastAt, setCatalogoProbeLastAt] = useState<string | null>(null);
+  const [catalogoProbeTotal, setCatalogoProbeTotal] = useState<number | null>(null);
+  const [catalogoProbeEncontrados, setCatalogoProbeEncontrados] = useState<number | null>(null);
+  const [catalogoProbeAusentes, setCatalogoProbeAusentes] = useState<number | null>(null);
+  const [catalogoProbeAmostra, setCatalogoProbeAmostra] = useState<string[]>([]);
+  const [catalogoVerificando, setCatalogoVerificando] = useState(false);
   const [olistWebhookPedidosUrl, setOlistWebhookPedidosUrl] = useState<string | null>(null);
   const [olistWebhookCnpjReady, setOlistWebhookCnpjReady] = useState(false);
   const [olistWebhookLastAt, setOlistWebhookLastAt] = useState<string | null>(null);
@@ -57,6 +63,20 @@ export default function SellerIntegracoesErpPage() {
     setOlistSyncImported(sync && typeof sync.imported === "number" ? sync.imported : null);
     setOlistSyncSkipped(sync && typeof sync.skipped === "number" ? sync.skipped : null);
     setOlistSyncWarnings(sync && typeof sync.warnings === "number" ? sync.warnings : null);
+
+    const probe =
+      json.catalogo_probe && typeof json.catalogo_probe === "object"
+        ? (json.catalogo_probe as Record<string, unknown>)
+        : null;
+    setCatalogoProbeLastAt(probe && typeof probe.last_at === "string" ? probe.last_at : null);
+    setCatalogoProbeTotal(probe && typeof probe.total === "number" ? probe.total : null);
+    setCatalogoProbeEncontrados(probe && typeof probe.encontrados === "number" ? probe.encontrados : null);
+    setCatalogoProbeAusentes(probe && typeof probe.ausentes === "number" ? probe.ausentes : null);
+    setCatalogoProbeAmostra(
+      probe && Array.isArray(probe.amostra_ausentes)
+        ? probe.amostra_ausentes.filter((s): s is string => typeof s === "string")
+        : [],
+    );
 
     setOlistWebhookPedidosUrl(typeof json.webhook_pedidos_url === "string" ? json.webhook_pedidos_url : null);
     setOlistWebhookCnpjReady(Boolean(json.olist_webhook_cnpj_ready));
@@ -235,6 +255,31 @@ export default function SellerIntegracoesErpPage() {
     }
   }
 
+  async function verificarCatalogoOlist() {
+    setCatalogoVerificando(true);
+    setError(null);
+    try {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const res = await fetch("/api/seller/olist/verificar-catalogo", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? "Erro ao verificar catálogo na Olist.");
+      await loadOlist(session.access_token);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao verificar catálogo.");
+    } finally {
+      setCatalogoVerificando(false);
+    }
+  }
+
   return (
     <IntegracoesErpPageView
       loading={loading}
@@ -252,6 +297,13 @@ export default function SellerIntegracoesErpPage() {
       olistSyncImported={olistSyncImported}
       olistSyncSkipped={olistSyncSkipped}
       olistSyncWarnings={olistSyncWarnings}
+      catalogoProbeLastAt={catalogoProbeLastAt}
+      catalogoProbeTotal={catalogoProbeTotal}
+      catalogoProbeEncontrados={catalogoProbeEncontrados}
+      catalogoProbeAusentes={catalogoProbeAusentes}
+      catalogoProbeAmostra={catalogoProbeAmostra}
+      catalogoVerificando={catalogoVerificando}
+      onVerificarCatalogoOlist={() => void verificarCatalogoOlist()}
       olistWebhookPedidosUrl={olistWebhookPedidosUrl}
       olistWebhookCnpjReady={olistWebhookCnpjReady}
       olistWebhookLastAt={olistWebhookLastAt}
@@ -284,6 +336,13 @@ type IntegracoesPageProps = {
   olistSyncImported: number | null;
   olistSyncSkipped: number | null;
   olistSyncWarnings: number | null;
+  catalogoProbeLastAt: string | null;
+  catalogoProbeTotal: number | null;
+  catalogoProbeEncontrados: number | null;
+  catalogoProbeAusentes: number | null;
+  catalogoProbeAmostra: string[];
+  catalogoVerificando: boolean;
+  onVerificarCatalogoOlist: () => void;
   olistWebhookPedidosUrl: string | null;
   olistWebhookCnpjReady: boolean;
   olistWebhookLastAt: string | null;
@@ -476,6 +535,68 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                       {props.olistSyncError ? (
                         <p className={cn("mt-2 text-xs", DANGER_PREMIUM_TEXT_BODY)}>{props.olistSyncError}</p>
                       ) : null}
+                    </div>
+
+                    <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
+                      <p className="font-medium text-[var(--foreground)]">Catálogo na Olist (SKUs)</p>
+                      <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+                        Confere se os SKUs ativos do DropCore existem na Olist deste seller — o mesmo tipo de checagem
+                        do armazém. Use depois de{" "}
+                        <strong className="text-[var(--foreground)]">Exportar para Olist</strong> e importar a planilha.
+                      </p>
+                      {props.catalogoProbeLastAt ? (
+                        <p className="mt-2 text-xs text-[var(--muted)]">
+                          Última verificação: {new Date(props.catalogoProbeLastAt).toLocaleString("pt-BR")}
+                        </p>
+                      ) : null}
+                      {props.catalogoProbeTotal != null ? (
+                        <p className="mt-2 text-xs text-[var(--muted)]">
+                          Resultado:{" "}
+                          <strong className="text-[var(--foreground)]">{props.catalogoProbeEncontrados ?? 0}</strong>{" "}
+                          encontrado(s)
+                          {props.catalogoProbeAusentes != null && props.catalogoProbeAusentes > 0 ? (
+                            <>
+                              {" "}
+                              ·{" "}
+                              <strong className="text-[var(--foreground)]">{props.catalogoProbeAusentes}</strong> sem
+                              par na Olist
+                            </>
+                          ) : props.catalogoProbeAusentes === 0 ? (
+                            <> · todos com par na Olist</>
+                          ) : null}
+                        </p>
+                      ) : null}
+                      {props.catalogoProbeAusentes != null && props.catalogoProbeAusentes > 0 ? (
+                        <p className={cn("mt-2 text-xs leading-relaxed", AMBER_PREMIUM_TEXT_SOFT)}>
+                          {props.catalogoProbeEncontrados === 0 ? (
+                            <>
+                              A API não listou produtos nesta conta Olist — confira se importou o CSV na mesma conta do
+                              token.
+                            </>
+                          ) : (
+                            <>
+                              Exemplos sem par:{" "}
+                              <span className="font-mono text-[11px]">
+                                {props.catalogoProbeAmostra.join(", ") || "—"}
+                              </span>
+                              . Reexporte o grupo e importe na Olist.
+                            </>
+                          )}
+                        </p>
+                      ) : null}
+                      {props.catalogoProbeAusentes === 0 && props.catalogoProbeTotal != null && props.catalogoProbeTotal > 0 ? (
+                        <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
+                          Catálogo alinhado — sync de estoque e preços pode usar estes SKUs.
+                        </p>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={props.catalogoVerificando || props.olistSaving || !props.olistTokenUsable}
+                        onClick={props.onVerificarCatalogoOlist}
+                        className="mt-3 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-subtle)] disabled:opacity-50"
+                      >
+                        {props.catalogoVerificando ? "Verificando na Olist…" : "Verificar SKUs na Olist"}
+                      </button>
                     </div>
                   </div>
                 )}

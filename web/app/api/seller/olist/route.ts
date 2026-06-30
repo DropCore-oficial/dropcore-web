@@ -41,10 +41,14 @@ type OlistRow = {
   olist_last_sync_status: string | null;
   olist_last_sync_error: string | null;
   olist_last_sync_summary: Record<string, unknown> | null;
+  olist_last_catalogo_probe_at?: string | null;
+  olist_last_catalogo_probe_summary?: Record<string, unknown> | null;
 };
 
+const OLIST_PROBE_COLUMNS = "olist_last_catalogo_probe_at, olist_last_catalogo_probe_summary";
+
 const OLIST_SELECT_WITH_SYNC =
-  "olist_token_ciphertext, olist_token_prefix, olist_account_name, olist_account_cnpj_normalized, olist_token_validated_at, updated_at, olist_last_sync_at, olist_last_sync_status, olist_last_sync_error, olist_last_sync_summary";
+  "olist_token_ciphertext, olist_token_prefix, olist_account_name, olist_account_cnpj_normalized, olist_token_validated_at, updated_at, olist_last_sync_at, olist_last_sync_status, olist_last_sync_error, olist_last_sync_summary, olist_last_catalogo_probe_at, olist_last_catalogo_probe_summary";
 const OLIST_SELECT_BASE =
   "olist_token_ciphertext, olist_token_prefix, olist_account_name, olist_account_cnpj_normalized, olist_token_validated_at, updated_at";
 const OLIST_SELECT_LEGACY =
@@ -67,6 +71,31 @@ function buildSyncPayload(row: OlistRow | null | undefined) {
     skipped,
     warnings,
   };
+}
+
+function buildCatalogoProbePayload(row: OlistRow | null | undefined) {
+  const summary = row?.olist_last_catalogo_probe_summary;
+  const total = typeof summary?.total === "number" ? summary.total : null;
+  const encontrados = typeof summary?.encontrados === "number" ? summary.encontrados : null;
+  const ausentes = typeof summary?.ausentes === "number" ? summary.ausentes : null;
+  const amostra = Array.isArray(summary?.amostra_ausentes)
+    ? summary.amostra_ausentes.filter((s): s is string => typeof s === "string").slice(0, 8)
+    : null;
+
+  return {
+    last_at: row?.olist_last_catalogo_probe_at ?? null,
+    total,
+    encontrados,
+    ausentes,
+    amostra_ausentes: amostra,
+    index_pais: typeof summary?.index_pais === "number" ? summary.index_pais : null,
+    index_codigos: typeof summary?.index_codigos === "number" ? summary.index_codigos : null,
+  };
+}
+
+function isMissingProbeColumnsError(error: { message?: string; code?: string }) {
+  const msg = String(error.message ?? "").toLowerCase();
+  return msg.includes("olist_last_catalogo_probe") || error.code === "42703";
 }
 
 function isMissingTableError(error: { message?: string; code?: string }) {
@@ -109,6 +138,52 @@ export async function GET(req: Request) {
       .eq("seller_id", seller.id)
       .limit(1);
 
+    if (error && isMissingProbeColumnsError(error)) {
+      const fb = await supabaseAdmin
+        .from("seller_olist_integrations")
+        .select(OLIST_SELECT_WITH_SYNC.replace(`, ${OLIST_PROBE_COLUMNS}`, ""))
+        .eq("seller_id", seller.id)
+        .limit(1);
+      if (!fb.error) {
+        const row = fb.data?.[0] as OlistRow | null | undefined;
+        const connected = Boolean(row?.olist_token_ciphertext?.trim());
+        let token_usable = connected;
+        let token_error: string | null = null;
+        if (connected && row?.olist_token_ciphertext) {
+          try {
+            decryptSellerErpSecret(row.olist_token_ciphertext);
+          } catch (e: unknown) {
+            token_usable = false;
+            token_error = describeSellerErpSecretDecryptFailure(e);
+          }
+        }
+        const cnpjNorm = row?.olist_account_cnpj_normalized?.trim() ?? "";
+        const webhook_pedidos_url = await webhookPedidosUrlForSeller(seller.id, {
+          connected,
+          tokenUsable: token_usable,
+          cnpjLen: cnpjNorm.length,
+        });
+        return NextResponse.json(
+          {
+            olist_unavailable: false,
+            connected,
+            token_usable,
+            token_error,
+            token_prefix: row?.olist_token_prefix ?? null,
+            account_name: row?.olist_account_name ?? null,
+            validated_at: row?.olist_token_validated_at ?? null,
+            updated_at: row?.updated_at ?? null,
+            webhook_pedidos_url,
+            olist_webhook_cnpj_ready: cnpjNorm.length >= 11,
+            webhook_last_received_at,
+            sync: buildSyncPayload(row),
+            catalogo_probe: buildCatalogoProbePayload(null),
+          },
+          { headers: NO_STORE_JSON_HEADERS },
+        );
+      }
+    }
+
     if (error) {
       if (isMissingTableError(error)) {
         const webhook_pedidos_url = await webhookPedidosUrlForSeller(seller.id, {
@@ -135,6 +210,7 @@ export async function GET(req: Request) {
               skipped: null,
               warnings: null,
             },
+            catalogo_probe: buildCatalogoProbePayload(null),
           },
           { headers: NO_STORE_JSON_HEADERS },
         );
@@ -193,6 +269,7 @@ export async function GET(req: Request) {
             olist_webhook_cnpj_ready: cnpjNorm.length >= 11,
             webhook_last_received_at,
             sync: buildSyncPayload(row),
+            catalogo_probe: buildCatalogoProbePayload(null),
           },
           { headers: NO_STORE_JSON_HEADERS },
         );
@@ -238,6 +315,7 @@ export async function GET(req: Request) {
         olist_webhook_cnpj_ready: cnpjNorm.length >= 11,
         webhook_last_received_at,
         sync: buildSyncPayload(row),
+        catalogo_probe: buildCatalogoProbePayload(row),
       },
       { headers: NO_STORE_JSON_HEADERS },
     );
