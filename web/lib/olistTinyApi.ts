@@ -564,14 +564,15 @@ export function extrairSaldoEstoqueSkuDoProdutoOlist(
   if (!sku) return null;
 
   if (codigoOlistMatchesSku(prod.codigo, sku)) {
-    return extrairSaldoEstoqueOlistRow(prod as Record<string, unknown>);
+    const saldo = extrairSaldoEstoqueOlistRow(prod as Record<string, unknown>);
+    return saldo ?? 0;
   }
 
   for (const row of prod.variacoes ?? []) {
     const v = row.variacao as Record<string, unknown> | undefined;
     if (!v || !variacaoOlistMatchesFilho(v, opts)) continue;
     const fromVar = extrairSaldoEstoqueOlistRow(v);
-    if (fromVar != null) return fromVar;
+    return fromVar ?? 0;
   }
 
   return null;
@@ -909,6 +910,131 @@ function extrairSaldoEstoqueOlistRow(row: Record<string, unknown> | null | undef
     if (Number.isFinite(n)) return Math.max(0, Math.floor(n));
   }
   return null;
+}
+
+function paiKeyDropCore(codigo: string): string {
+  const s = normalizarCodigoOlist(codigo);
+  return s.length >= 3 ? `${s.slice(0, -3)}000` : s;
+}
+
+function prefixosPesquisaDeSkus(skus: string[]): string[] {
+  const out = new Set<string>();
+  for (const raw of skus) {
+    const s = normalizarCodigoOlist(raw);
+    if (!s) continue;
+    const m = s.match(/^([A-Z]+)/);
+    if (m?.[1]) out.add(m[1]);
+    if (s.length >= 6) out.add(s.slice(0, 6));
+    out.add(paiKeyDropCore(s));
+  }
+  return [...out];
+}
+
+function sleepOlistApi(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export type OlistIndiceEstoqueCatalogo = {
+  saldoPorCodigo: Map<string, number>;
+  paisPorGrupo: Map<string, OlistProdutoOlistDetalhe>;
+};
+
+/** Monta índice SKU→saldo listando catálogo na Olist (menos chamadas que resolver SKU a SKU). */
+export async function montarIndiceEstoqueOlistCatalogo(
+  apiToken: string,
+  opts: { skusAlvo: string[]; pauseMs?: number },
+): Promise<OlistIndiceEstoqueCatalogo> {
+  const pauseMs = opts.pauseMs ?? 220;
+  const saldoPorCodigo = new Map<string, number>();
+  const paisPorGrupo = new Map<string, OlistProdutoOlistDetalhe>();
+  const idPorCodigo = new Map<string, number>();
+  const parentIds = new Set<number>();
+  const alvos = new Set(opts.skusAlvo.map((s) => normalizarCodigoOlist(s)).filter(Boolean));
+  const paiKeys = new Set([...alvos].map(paiKeyDropCore));
+
+  for (const termo of prefixosPesquisaDeSkus(opts.skusAlvo)) {
+    for (const extra of [{ situacao: "A" }, { situacao: "I" }, {}]) {
+      for (let pagina = 1; pagina <= 25; pagina += 1) {
+        const retorno = await pesquisarProdutosOlistPagina(apiToken, {
+          pesquisa: termo,
+          pagina: String(pagina),
+          ...extra,
+        });
+        const rows = retorno?.produtos ?? [];
+        if (rows.length === 0) break;
+
+        for (const row of rows) {
+          const id = idProdutoFromPesquisaRow(row);
+          const cod = normalizarCodigoOlist(row?.produto?.codigo);
+          const tipoVar = String(row?.produto?.tipoVariacao ?? "").toUpperCase();
+          if (id == null || !cod) continue;
+          idPorCodigo.set(cod, id);
+          if (paiKeys.has(cod) || cod.endsWith("000") || tipoVar === "P") parentIds.add(id);
+        }
+
+        const numPages = retorno?.numero_paginas ?? 1;
+        if (pagina >= numPages) break;
+        await sleepOlistApi(pauseMs);
+      }
+    }
+  }
+
+  for (const id of parentIds) {
+    const prod = await obterProdutoOlistPorId(apiToken, id);
+    if (!prod) {
+      await sleepOlistApi(pauseMs);
+      continue;
+    }
+    const paiCod = normalizarCodigoOlist(prod.codigo);
+    if (paiCod) {
+      paisPorGrupo.set(paiKeyDropCore(paiCod), prod);
+      idPorCodigo.set(paiCod, id);
+      const saldoPai = extrairSaldoEstoqueOlistRow(prod as Record<string, unknown>);
+      if (saldoPai != null) saldoPorCodigo.set(paiCod, saldoPai);
+    }
+
+    for (const row of prod.variacoes ?? []) {
+      const v = row.variacao as Record<string, unknown> | undefined;
+      const codVar = normalizarCodigoOlist(v?.codigo);
+      if (!codVar) continue;
+      const idVar = typeof v?.id === "number" ? v.id : Number.parseInt(String(v?.id ?? ""), 10);
+      if (Number.isFinite(idVar) && idVar > 0) idPorCodigo.set(codVar, idVar);
+      saldoPorCodigo.set(codVar, extrairSaldoEstoqueOlistRow(v) ?? 0);
+    }
+    await sleepOlistApi(pauseMs);
+  }
+
+  for (const sku of alvos) {
+    if (saldoPorCodigo.has(sku)) continue;
+    const id = idPorCodigo.get(sku);
+    if (!id || parentIds.has(id)) continue;
+    const prod = await obterProdutoOlistPorId(apiToken, id);
+    if (prod && codigoOlistMatchesSku(prod.codigo, sku)) {
+      saldoPorCodigo.set(sku, extrairSaldoEstoqueOlistRow(prod as Record<string, unknown>) ?? 0);
+    }
+    await sleepOlistApi(pauseMs);
+  }
+
+  return { saldoPorCodigo, paisPorGrupo };
+}
+
+export function resolverSaldoIndiceEstoqueOlist(
+  indice: OlistIndiceEstoqueCatalogo,
+  row: { sku: string; cor?: string | null; tamanho?: string | null },
+): number | null {
+  const sku = normalizarCodigoOlist(row.sku);
+  if (!sku) return null;
+  const direto = indice.saldoPorCodigo.get(sku);
+  if (direto != null) return direto;
+
+  const prodPai = indice.paisPorGrupo.get(paiKeyDropCore(sku));
+  if (!prodPai) return null;
+
+  return extrairSaldoEstoqueSkuDoProdutoOlist(prodPai, {
+    sku,
+    cor: row.cor,
+    tamanho: row.tamanho,
+  });
 }
 
 /** Lê saldo de estoque na Olist pelo código SKU (produto ou variação). */

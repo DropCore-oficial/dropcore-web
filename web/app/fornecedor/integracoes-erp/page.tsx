@@ -32,6 +32,8 @@ export default function FornecedorIntegracoesErpPage() {
   const [syncUnchanged, setSyncUnchanged] = useState<number | null>(null);
   const [syncMissingOlist, setSyncMissingOlist] = useState<number | null>(null);
   const [syncErrors, setSyncErrors] = useState<number | null>(null);
+  const [syncIndexCodigos, setSyncIndexCodigos] = useState<number | null>(null);
+  const [syncPullNow, setSyncPullNow] = useState(false);
   const [webhookEstoqueUrl, setWebhookEstoqueUrl] = useState<string | null>(null);
   const [webhookCnpjReady, setWebhookCnpjReady] = useState(false);
   const [webhookEstoqueLastAt, setWebhookEstoqueLastAt] = useState<string | null>(null);
@@ -62,6 +64,7 @@ export default function FornecedorIntegracoesErpPage() {
     setSyncUnchanged(sync && typeof sync.unchanged === "number" ? sync.unchanged : null);
     setSyncMissingOlist(sync && typeof sync.missing_olist === "number" ? sync.missing_olist : null);
     setSyncErrors(sync && typeof sync.errors === "number" ? sync.errors : null);
+    setSyncIndexCodigos(sync && typeof sync.index_codigos === "number" ? sync.index_codigos : null);
   }, []);
 
   const loadOlist = useCallback(async (token: string) => {
@@ -207,6 +210,26 @@ export default function FornecedorIntegracoesErpPage() {
       setError(e instanceof Error ? e.message : "Erro ao gerar novo link do webhook.");
     } finally {
       setIngestRegenerating(false);
+    }
+  }
+
+  async function sincronizarEstoqueAgora() {
+    setSyncPullNow(true);
+    setError(null);
+    try {
+      await withSession(async (accessToken) => {
+        const res = await fetch("/api/fornecedor/olist/sync-estoque", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.error ?? "Erro ao sincronizar estoque.");
+        await loadOlist(accessToken);
+      });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao sincronizar estoque.");
+    } finally {
+      setSyncPullNow(false);
     }
   }
 
@@ -375,9 +398,29 @@ export default function FornecedorIntegracoesErpPage() {
                     ) : null}
                     {syncMissingOlist != null && syncMissingOlist > 0 && syncStatus !== "webhook" ? (
                       <p className={cn("mt-2 text-xs leading-relaxed", AMBER_PREMIUM_TEXT_SOFT)}>
-                        SKU(s) existem no DropCore mas ainda não foram encontrados na Olist (código diferente ou produto
-                        não importado). Use <strong className="text-[var(--foreground)]">Produtos → ⋮ → Exportar para Olist</strong>.
+                        {syncIndexCodigos === 0 ? (
+                          <>
+                            A API da Olist <strong className="text-[var(--foreground)]">não listou nenhum produto</strong> nesta
+                            conta (token DJULIOS). Confira se o CSV foi importado nesta mesma conta Olist do token salvo.
+                          </>
+                        ) : (
+                          <>
+                            SKU(s) existem no DropCore mas ainda não foram encontrados na Olist (código diferente ou produto
+                            não importado). Use{" "}
+                            <strong className="text-[var(--foreground)]">Produtos → ⋮ → Exportar para Olist</strong>.
+                          </>
+                        )}
                       </p>
+                    ) : null}
+                    {connected && tokenUsable ? (
+                      <button
+                        type="button"
+                        disabled={syncPullNow || saving}
+                        onClick={() => void sincronizarEstoqueAgora()}
+                        className="mt-3 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-subtle)] disabled:opacity-50"
+                      >
+                        {syncPullNow ? "Consultando Olist…" : "Rodar rede de segurança agora"}
+                      </button>
                     ) : null}
                     {syncErrors != null && syncErrors > 0 && syncStatus !== "webhook" ? (
                       <p className={cn("mt-2 text-xs", DANGER_PREMIUM_TEXT_BODY)}>

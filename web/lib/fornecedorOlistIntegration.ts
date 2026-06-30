@@ -8,6 +8,9 @@ export type FornecedorOlistEstoqueSyncSummary = {
   missing_olist: number;
   errors: number;
   pushed_sellers?: number;
+  /** Diagnóstico cron: quantos códigos/pais a API listou no índice. */
+  index_codigos?: number;
+  index_pais?: number;
 };
 
 export async function getFornecedorOlistApiToken(fornecedorId: string): Promise<string | null> {

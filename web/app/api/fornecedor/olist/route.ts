@@ -71,6 +71,8 @@ function buildEstoqueSyncPayload(row: OlistRow | null | undefined) {
     unchanged: typeof summary?.unchanged === "number" ? summary.unchanged : null,
     missing_olist: missingOlist > 0 ? missingOlist : null,
     errors: errors > 0 ? errors : null,
+    index_codigos: typeof summary?.index_codigos === "number" ? summary.index_codigos : null,
+    index_pais: typeof summary?.index_pais === "number" ? summary.index_pais : null,
   };
 }
 

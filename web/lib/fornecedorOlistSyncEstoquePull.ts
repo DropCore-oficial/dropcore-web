@@ -1,12 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { saveFornecedorOlistEstoqueSyncResult, type FornecedorOlistEstoqueSyncSummary } from "@/lib/fornecedorOlistIntegration";
 import {
-  extrairSaldoEstoqueSkuDoProdutoOlist,
-  lerSaldoEstoqueOlistPorCodigo,
-  obterProdutoOlistPorId,
-  resolverIdProdutoPaiOlistPorGrupo,
+  montarIndiceEstoqueOlistCatalogo,
+  resolverSaldoIndiceEstoqueOlist,
 } from "@/lib/olistTinyApi";
-import { paiKeyFromSku } from "@/lib/sellerCatalogOlistExport";
 import { syncOlistEstoqueFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -29,7 +26,6 @@ function isSkuPaiInterno(sku: string): boolean {
 function isSkuIgnoradoPullEstoque(sku: string): boolean {
   const s = str(sku).toUpperCase();
   if (!s || isSkuPaiInterno(s)) return true;
-  // Semente / grupo interno DropCore — não existe na Olist do armazém.
   const grupoKey = s.length >= 3 ? `${s.slice(0, -3)}000` : s;
   if (grupoKey === "DJU999000") return true;
   return false;
@@ -47,26 +43,6 @@ type PullSkuRow = {
   cor: string | null;
   tamanho: string | null;
 };
-
-async function lerSaldoPullSku(opts: {
-  apiToken: string;
-  paiKey: string;
-  grupoRows: PullSkuRow[];
-  produtoGrupo: Awaited<ReturnType<typeof obterProdutoOlistPorId>> | undefined;
-  row: PullSkuRow;
-}): Promise<number | null> {
-  const fromGrupo = extrairSaldoEstoqueSkuDoProdutoOlist(opts.produtoGrupo, {
-    sku: opts.row.sku,
-    cor: opts.row.cor,
-    tamanho: opts.row.tamanho,
-  });
-  if (fromGrupo != null) return fromGrupo;
-
-  return lerSaldoEstoqueOlistPorCodigo(opts.apiToken, opts.row.sku, {
-    cor: opts.row.cor,
-    tamanho: opts.row.tamanho,
-  });
-}
 
 /** Pull estoque da Olist do fornecedor → skus no DropCore → push para sellers ligados. */
 export async function pullFornecedorEstoqueFromOlist(opts: {
@@ -125,75 +101,62 @@ export async function pullFornecedorEstoqueFromOlist(opts: {
     });
   }
 
-  const grupos = new Map<string, PullSkuRow[]>();
+  let indice;
+  try {
+    indice = await montarIndiceEstoqueOlistCatalogo(opts.apiToken, {
+      skusAlvo: pullRows.map((r) => r.sku),
+      pauseMs: API_PAUSE_MS,
+    });
+  } catch {
+    const result: PullFornecedorEstoqueOlistResult = {
+      ...summary,
+      status: "erro",
+      error: "Falha ao listar catálogo na Olist.",
+    };
+    await saveFornecedorOlistEstoqueSyncResult(opts.fornecedorId, {
+      status: "erro",
+      error: result.error,
+      summary,
+    });
+    return result;
+  }
+
   for (const row of pullRows) {
-    const paiKey = paiKeyFromSku(row.sku);
-    const list = grupos.get(paiKey) ?? [];
-    list.push(row);
-    grupos.set(paiKey, list);
-  }
+    summary.total += 1;
 
-  const produtoPorGrupo = new Map<string, Awaited<ReturnType<typeof obterProdutoOlistPorId>> | null>();
-  for (const [paiKey, grupoRows] of grupos) {
-    const parentId = await resolverIdProdutoPaiOlistPorGrupo(
-      opts.apiToken,
-      paiKey,
-      grupoRows.map((r) => r.sku),
-    );
-    produtoPorGrupo.set(paiKey, parentId ? await obterProdutoOlistPorId(opts.apiToken, parentId) : null);
-    await sleep(API_PAUSE_MS);
-  }
-
-  for (const [paiKey, grupoRows] of grupos) {
-    const produtoGrupo = produtoPorGrupo.get(paiKey) ?? null;
-
-    for (const row of grupoRows) {
-      summary.total += 1;
-
-      let saldoOlist: number | null;
-      try {
-        saldoOlist = await lerSaldoPullSku({
-          apiToken: opts.apiToken,
-          paiKey,
-          grupoRows,
-          produtoGrupo,
-          row,
-        });
-      } catch {
-        summary.errors += 1;
-        await sleep(API_PAUSE_MS);
-        continue;
-      }
-
-      if (saldoOlist == null) {
-        summary.missing_olist += 1;
-        await sleep(API_PAUSE_MS);
-        continue;
-      }
-
-      const atual = row.estoque_atual;
-
-      if (atual === saldoOlist) {
-        summary.unchanged += 1;
-        await sleep(API_PAUSE_MS);
-        continue;
-      }
-
-      const { error: upErr } = await db
-        .from("skus")
-        .update({ estoque_atual: saldoOlist })
-        .eq("id", row.id)
-        .eq("org_id", opts.orgId)
-        .eq("fornecedor_id", opts.fornecedorId);
-
-      if (upErr) {
-        summary.errors += 1;
-      } else {
-        summary.updated += 1;
-        changedSkuCodes.push(row.sku);
-      }
-
+    let saldoOlist: number | null;
+    try {
+      saldoOlist = resolverSaldoIndiceEstoqueOlist(indice, row);
+    } catch {
+      summary.errors += 1;
       await sleep(API_PAUSE_MS);
+      continue;
+    }
+
+    if (saldoOlist == null) {
+      summary.missing_olist += 1;
+      continue;
+    }
+
+    const atual = row.estoque_atual;
+
+    if (atual === saldoOlist) {
+      summary.unchanged += 1;
+      continue;
+    }
+
+    const { error: upErr } = await db
+      .from("skus")
+      .update({ estoque_atual: saldoOlist })
+      .eq("id", row.id)
+      .eq("org_id", opts.orgId)
+      .eq("fornecedor_id", opts.fornecedorId);
+
+    if (upErr) {
+      summary.errors += 1;
+    } else {
+      summary.updated += 1;
+      changedSkuCodes.push(row.sku);
     }
   }
 
@@ -228,7 +191,11 @@ export async function pullFornecedorEstoqueFromOlist(opts: {
   await saveFornecedorOlistEstoqueSyncResult(opts.fornecedorId, {
     status,
     error: result.error,
-    summary,
+    summary: {
+      ...summary,
+      index_codigos: indice.saldoPorCodigo.size,
+      index_pais: indice.paisPorGrupo.size,
+    },
   });
 
   return result;
