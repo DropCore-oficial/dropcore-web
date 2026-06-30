@@ -464,6 +464,36 @@ export function codigoOlistMatchesSku(codigoApi: unknown, sku: string): boolean 
   return a === b;
 }
 
+/** Mesmo grupo de grade DropCore/Olist (prefixo antes dos 3 últimos dígitos). */
+function mesmoGrupoSkuOlist(a: string, b: string): boolean {
+  const x = normalizarCodigoOlist(a);
+  const y = normalizarCodigoOlist(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  if (x.length >= 3 && y.length >= 3) return x.slice(0, -3) === y.slice(0, -3);
+  return false;
+}
+
+function produtoOlistContemCodigoSku(
+  prod: OlistProdutoOlistDetalhe | null | undefined,
+  sku: string,
+): boolean {
+  if (!prod) return false;
+  const upper = normalizarCodigoOlist(sku);
+  if (!upper) return false;
+  if (codigoOlistMatchesSku(prod.codigo, upper)) return true;
+  for (const row of prod.variacoes ?? []) {
+    if (codigoOlistMatchesSku(row.variacao?.codigo, upper)) return true;
+  }
+  return false;
+}
+
+function paiKeyFromCodigoOlist(codigo: string): string | null {
+  const upper = normalizarCodigoOlist(codigo);
+  if (!upper || upper.endsWith("000") || upper.length <= 3) return null;
+  return `${upper.slice(0, -3)}000`;
+}
+
 function lerIdProdutoPaiOlist(prod: OlistProdutoOlistDetalhe | null | undefined): number | null {
   if (!prod) return null;
   const rec = prod as Record<string, unknown>;
@@ -497,6 +527,11 @@ async function pesquisarIdProdutoOlistPorTermos(
           if (id == null) continue;
           const cod = normalizarCodigoOlist(row?.produto?.codigo);
           if (codigoOlistMatchesSku(cod, upper)) return id;
+          // Import Olist (tipo V + filhos S): pesquisa lista o pai …000; o alvo pode ser variação …001.
+          if (mesmoGrupoSkuOlist(cod, upper)) {
+            const prod = await obterProdutoOlistPorId(apiToken, id);
+            if (produtoOlistContemCodigoSku(prod, upper)) return id;
+          }
         }
 
         const numPages = retorno?.numero_paginas ?? 1;
@@ -512,7 +547,16 @@ async function pesquisarIdProdutoOlistPorTermos(
 export async function resolverIdProdutoOlistPorCodigo(apiToken: string, codigo: string): Promise<number | null> {
   const c = codigo.trim();
   if (!c) return null;
-  return pesquisarIdProdutoOlistPorTermos(apiToken, c, termosPesquisaOlistPorCodigo(c));
+  const upper = normalizarCodigoOlist(c);
+  const fromSearch = await pesquisarIdProdutoOlistPorTermos(apiToken, c, termosPesquisaOlistPorCodigo(c));
+  if (fromSearch) return fromSearch;
+
+  const paiKey = paiKeyFromCodigoOlist(upper);
+  if (!paiKey) return null;
+  const paiId = await pesquisarIdProdutoOlistPorTermos(apiToken, paiKey, termosPesquisaOlistPorCodigo(paiKey));
+  if (!paiId) return null;
+  const prod = await obterProdutoOlistPorId(apiToken, paiId);
+  return produtoOlistContemCodigoSku(prod, upper) ? paiId : null;
 }
 
 /**
