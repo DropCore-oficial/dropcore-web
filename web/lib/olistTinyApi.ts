@@ -488,6 +488,95 @@ function produtoOlistContemCodigoSku(
   return false;
 }
 
+function produtoOlistParecePaiGrade(prod: OlistProdutoOlistDetalhe | null | undefined): boolean {
+  if (!prod) return false;
+  const tipo = String(prod.tipoVariacao ?? "").toUpperCase();
+  const classe = String(prod.classe_produto ?? "").toUpperCase();
+  return tipo === "P" || classe === "V" || (prod.variacoes?.length ?? 0) > 0;
+}
+
+function normalizarGradeOlistValor(v: unknown): string {
+  return String(v ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+}
+
+function gradeMapFromOlistVariacao(v: Record<string, unknown> | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  const grade = v?.grade;
+  if (Array.isArray(grade)) {
+    for (const row of grade) {
+      const chave = normalizarGradeOlistValor((row as { chave?: string }).chave);
+      const valor = normalizarGradeOlistValor((row as { valor?: string }).valor);
+      if (chave && valor) map.set(chave, valor);
+    }
+  } else if (grade && typeof grade === "object") {
+    for (const [k, val] of Object.entries(grade as Record<string, string>)) {
+      const chave = normalizarGradeOlistValor(k);
+      const valor = normalizarGradeOlistValor(val);
+      if (chave && valor) map.set(chave, valor);
+    }
+  }
+  return map;
+}
+
+function gradeValorCompat(grade: Map<string, string>, alvo: string, chaves: string[]): boolean {
+  const want = normalizarGradeOlistValor(alvo);
+  if (!want) return true;
+  for (const key of chaves) {
+    const got = grade.get(key) ?? "";
+    if (!got) continue;
+    if (got === want || got.includes(want) || want.includes(got)) return true;
+  }
+  for (const got of grade.values()) {
+    if (got === want || got.includes(want) || want.includes(got)) return true;
+  }
+  return false;
+}
+
+function variacaoOlistMatchesFilho(
+  v: Record<string, unknown> | undefined,
+  opts: { sku: string; cor?: string | null; tamanho?: string | null },
+): boolean {
+  if (!v) return false;
+  if (codigoOlistMatchesSku(v.codigo, opts.sku)) return true;
+  const grade = gradeMapFromOlistVariacao(v);
+  if (grade.size === 0) return false;
+  const cor = str(opts.cor);
+  const tam = str(opts.tamanho);
+  if (!cor && !tam) return false;
+  return gradeValorCompat(grade, cor, ["cor"]) && gradeValorCompat(grade, tam, ["tamanho", "tam", "size"]);
+}
+
+function str(v: unknown): string {
+  return typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim();
+}
+
+/** Saldo de um SKU filho dentro de um produto Olist já carregado (pai ou avulso). */
+export function extrairSaldoEstoqueSkuDoProdutoOlist(
+  prod: OlistProdutoOlistDetalhe | null | undefined,
+  opts: { sku: string; cor?: string | null; tamanho?: string | null },
+): number | null {
+  if (!prod) return null;
+  const sku = normalizarCodigoOlist(opts.sku);
+  if (!sku) return null;
+
+  if (codigoOlistMatchesSku(prod.codigo, sku)) {
+    return extrairSaldoEstoqueOlistRow(prod as Record<string, unknown>);
+  }
+
+  for (const row of prod.variacoes ?? []) {
+    const v = row.variacao as Record<string, unknown> | undefined;
+    if (!v || !variacaoOlistMatchesFilho(v, opts)) continue;
+    const fromVar = extrairSaldoEstoqueOlistRow(v);
+    if (fromVar != null) return fromVar;
+  }
+
+  return null;
+}
+
 function paiKeyFromCodigoOlist(codigo: string): string | null {
   const upper = normalizarCodigoOlist(codigo);
   if (!upper || upper.endsWith("000") || upper.length <= 3) return null;
@@ -574,14 +663,21 @@ export async function resolverIdProdutoPaiOlistPorGrupo(
   const direct = await pesquisarIdProdutoOlistPorTermos(apiToken, pai, termosPesquisaOlistPorCodigo(pai));
   if (direct) {
     const prodPai = await obterProdutoOlistPorId(apiToken, direct);
-    if (prodPai && codigoOlistMatchesSku(prodPai.codigo, pai)) return direct;
+    if (
+      prodPai &&
+      (codigoOlistMatchesSku(prodPai.codigo, pai) || produtoOlistParecePaiGrade(prodPai))
+    ) {
+      return direct;
+    }
   }
 
   for (const raw of childSkus) {
     const sku = raw.trim().toUpperCase();
     if (!sku || sku.endsWith("000")) continue;
 
-    const childId = await resolverIdProdutoOlistPorCodigo(apiToken, sku);
+    const childId =
+      (await pesquisarIdProdutoOlistPorTermos(apiToken, sku, [sku])) ??
+      (await resolverIdProdutoOlistPorCodigo(apiToken, sku));
     if (!childId) continue;
 
     const prod = await obterProdutoOlistPorId(apiToken, childId);
@@ -816,7 +912,11 @@ function extrairSaldoEstoqueOlistRow(row: Record<string, unknown> | null | undef
 }
 
 /** Lê saldo de estoque na Olist pelo código SKU (produto ou variação). */
-export async function lerSaldoEstoqueOlistPorCodigo(apiToken: string, codigo: string): Promise<number | null> {
+export async function lerSaldoEstoqueOlistPorCodigo(
+  apiToken: string,
+  codigo: string,
+  opts?: { cor?: string | null; tamanho?: string | null },
+): Promise<number | null> {
   const codigoNorm = codigo.trim().toUpperCase();
   if (!codigoNorm) return null;
 
@@ -826,16 +926,12 @@ export async function lerSaldoEstoqueOlistPorCodigo(apiToken: string, codigo: st
   const prod = await obterProdutoOlistPorId(apiToken, id);
   if (!prod) return null;
 
-  if (codigoOlistMatchesSku(prod.codigo, codigoNorm)) {
-    return extrairSaldoEstoqueOlistRow(prod as Record<string, unknown>);
-  }
-
-  for (const row of prod.variacoes ?? []) {
-    const v = row.variacao;
-    if (!v || !codigoOlistMatchesSku(v.codigo, codigoNorm)) continue;
-    const fromVar = extrairSaldoEstoqueOlistRow(v as Record<string, unknown>);
-    if (fromVar != null) return fromVar;
-  }
+  const fromProd = extrairSaldoEstoqueSkuDoProdutoOlist(prod, {
+    sku: codigoNorm,
+    cor: opts?.cor,
+    tamanho: opts?.tamanho,
+  });
+  if (fromProd != null) return fromProd;
 
   return extrairSaldoEstoqueOlistRow(prod as Record<string, unknown>);
 }

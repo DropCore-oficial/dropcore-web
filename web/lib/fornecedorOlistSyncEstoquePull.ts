@@ -1,6 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { saveFornecedorOlistEstoqueSyncResult, type FornecedorOlistEstoqueSyncSummary } from "@/lib/fornecedorOlistIntegration";
-import { lerSaldoEstoqueOlistPorCodigo } from "@/lib/olistTinyApi";
+import {
+  extrairSaldoEstoqueSkuDoProdutoOlist,
+  lerSaldoEstoqueOlistPorCodigo,
+  obterProdutoOlistPorId,
+  resolverIdProdutoPaiOlistPorGrupo,
+} from "@/lib/olistTinyApi";
+import { paiKeyFromSku } from "@/lib/sellerCatalogOlistExport";
 import { syncOlistEstoqueFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -34,6 +40,34 @@ export type PullFornecedorEstoqueOlistResult = FornecedorOlistEstoqueSyncSummary
   error: string | null;
 };
 
+type PullSkuRow = {
+  id: string;
+  sku: string;
+  estoque_atual: number | null;
+  cor: string | null;
+  tamanho: string | null;
+};
+
+async function lerSaldoPullSku(opts: {
+  apiToken: string;
+  paiKey: string;
+  grupoRows: PullSkuRow[];
+  produtoGrupo: Awaited<ReturnType<typeof obterProdutoOlistPorId>> | undefined;
+  row: PullSkuRow;
+}): Promise<number | null> {
+  const fromGrupo = extrairSaldoEstoqueSkuDoProdutoOlist(opts.produtoGrupo, {
+    sku: opts.row.sku,
+    cor: opts.row.cor,
+    tamanho: opts.row.tamanho,
+  });
+  if (fromGrupo != null) return fromGrupo;
+
+  return lerSaldoEstoqueOlistPorCodigo(opts.apiToken, opts.row.sku, {
+    cor: opts.row.cor,
+    tamanho: opts.row.tamanho,
+  });
+}
+
 /** Pull estoque da Olist do fornecedor → skus no DropCore → push para sellers ligados. */
 export async function pullFornecedorEstoqueFromOlist(opts: {
   fornecedorId: string;
@@ -53,7 +87,7 @@ export async function pullFornecedorEstoqueFromOlist(opts: {
 
   const { data: rows, error } = await db
     .from("skus")
-    .select("id, sku, estoque_atual")
+    .select("id, sku, estoque_atual, cor, tamanho")
     .eq("org_id", opts.orgId)
     .eq("fornecedor_id", opts.fornecedorId)
     .eq("status", "ativo")
@@ -75,53 +109,92 @@ export async function pullFornecedorEstoqueFromOlist(opts: {
   }
 
   const changedSkuCodes: string[] = [];
-
+  const pullRows: PullSkuRow[] = [];
   for (const row of rows ?? []) {
     const sku = str((row as { sku?: string }).sku).toUpperCase();
     if (isSkuIgnoradoPullEstoque(sku)) continue;
+    pullRows.push({
+      id: str((row as { id?: string }).id),
+      sku,
+      estoque_atual:
+        (row as { estoque_atual?: number | null }).estoque_atual == null
+          ? null
+          : Math.max(0, Math.floor(Number((row as { estoque_atual?: number | null }).estoque_atual))),
+      cor: str((row as { cor?: string | null }).cor) || null,
+      tamanho: str((row as { tamanho?: string | null }).tamanho) || null,
+    });
+  }
 
-    summary.total += 1;
+  const grupos = new Map<string, PullSkuRow[]>();
+  for (const row of pullRows) {
+    const paiKey = paiKeyFromSku(row.sku);
+    const list = grupos.get(paiKey) ?? [];
+    list.push(row);
+    grupos.set(paiKey, list);
+  }
 
-    let saldoOlist: number | null;
-    try {
-      saldoOlist = await lerSaldoEstoqueOlistPorCodigo(opts.apiToken, sku);
-    } catch {
-      summary.errors += 1;
-      await sleep(API_PAUSE_MS);
-      continue;
-    }
-
-    if (saldoOlist == null) {
-      summary.missing_olist += 1;
-      await sleep(API_PAUSE_MS);
-      continue;
-    }
-
-    const atualRaw = (row as { estoque_atual?: number | null }).estoque_atual;
-    const atual = atualRaw == null ? null : Math.max(0, Math.floor(Number(atualRaw)));
-
-    if (atual === saldoOlist) {
-      summary.unchanged += 1;
-      await sleep(API_PAUSE_MS);
-      continue;
-    }
-
-    const skuId = str((row as { id?: string }).id);
-    const { error: upErr } = await db
-      .from("skus")
-      .update({ estoque_atual: saldoOlist })
-      .eq("id", skuId)
-      .eq("org_id", opts.orgId)
-      .eq("fornecedor_id", opts.fornecedorId);
-
-    if (upErr) {
-      summary.errors += 1;
-    } else {
-      summary.updated += 1;
-      changedSkuCodes.push(sku);
-    }
-
+  const produtoPorGrupo = new Map<string, Awaited<ReturnType<typeof obterProdutoOlistPorId>> | null>();
+  for (const [paiKey, grupoRows] of grupos) {
+    const parentId = await resolverIdProdutoPaiOlistPorGrupo(
+      opts.apiToken,
+      paiKey,
+      grupoRows.map((r) => r.sku),
+    );
+    produtoPorGrupo.set(paiKey, parentId ? await obterProdutoOlistPorId(opts.apiToken, parentId) : null);
     await sleep(API_PAUSE_MS);
+  }
+
+  for (const [paiKey, grupoRows] of grupos) {
+    const produtoGrupo = produtoPorGrupo.get(paiKey) ?? null;
+
+    for (const row of grupoRows) {
+      summary.total += 1;
+
+      let saldoOlist: number | null;
+      try {
+        saldoOlist = await lerSaldoPullSku({
+          apiToken: opts.apiToken,
+          paiKey,
+          grupoRows,
+          produtoGrupo,
+          row,
+        });
+      } catch {
+        summary.errors += 1;
+        await sleep(API_PAUSE_MS);
+        continue;
+      }
+
+      if (saldoOlist == null) {
+        summary.missing_olist += 1;
+        await sleep(API_PAUSE_MS);
+        continue;
+      }
+
+      const atual = row.estoque_atual;
+
+      if (atual === saldoOlist) {
+        summary.unchanged += 1;
+        await sleep(API_PAUSE_MS);
+        continue;
+      }
+
+      const { error: upErr } = await db
+        .from("skus")
+        .update({ estoque_atual: saldoOlist })
+        .eq("id", row.id)
+        .eq("org_id", opts.orgId)
+        .eq("fornecedor_id", opts.fornecedorId);
+
+      if (upErr) {
+        summary.errors += 1;
+      } else {
+        summary.updated += 1;
+        changedSkuCodes.push(row.sku);
+      }
+
+      await sleep(API_PAUSE_MS);
+    }
   }
 
   if (changedSkuCodes.length > 0) {
