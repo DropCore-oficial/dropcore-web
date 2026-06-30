@@ -33,6 +33,7 @@ export default function FornecedorIntegracoesErpPage() {
   const [syncMissingOlist, setSyncMissingOlist] = useState<number | null>(null);
   const [syncErrors, setSyncErrors] = useState<number | null>(null);
   const [syncIndexCodigos, setSyncIndexCodigos] = useState<number | null>(null);
+  const [syncIndexPais, setSyncIndexPais] = useState<number | null>(null);
   const [syncPullNow, setSyncPullNow] = useState(false);
   const [webhookEstoqueUrl, setWebhookEstoqueUrl] = useState<string | null>(null);
   const [webhookCnpjReady, setWebhookCnpjReady] = useState(false);
@@ -65,6 +66,7 @@ export default function FornecedorIntegracoesErpPage() {
     setSyncMissingOlist(sync && typeof sync.missing_olist === "number" ? sync.missing_olist : null);
     setSyncErrors(sync && typeof sync.errors === "number" ? sync.errors : null);
     setSyncIndexCodigos(sync && typeof sync.index_codigos === "number" ? sync.index_codigos : null);
+    setSyncIndexPais(sync && typeof sync.index_pais === "number" ? sync.index_pais : null);
   }, []);
 
   const loadOlist = useCallback(async (token: string) => {
@@ -398,10 +400,16 @@ export default function FornecedorIntegracoesErpPage() {
                     ) : null}
                     {syncMissingOlist != null && syncMissingOlist > 0 && syncStatus !== "webhook" ? (
                       <p className={cn("mt-2 text-xs leading-relaxed", AMBER_PREMIUM_TEXT_SOFT)}>
-                        {syncIndexCodigos === 0 ? (
+                        {syncIndexCodigos === 0 && syncIndexPais === 0 ? (
                           <>
-                            A API da Olist <strong className="text-[var(--foreground)]">não listou nenhum produto</strong> nesta
-                            conta (token DJULIOS). Confira se o CSV foi importado nesta mesma conta Olist do token salvo.
+                            A API da Olist <strong className="text-[var(--foreground)]">não encontrou produtos</strong> com
+                            estes SKUs nesta conta (token {accountName ?? "salvo"}). Confira se o CSV foi importado na{" "}
+                            <strong className="text-[var(--foreground)]">mesma conta Olist</strong> deste token.
+                          </>
+                        ) : syncIndexPais != null && syncIndexPais > 0 && syncMissingOlist != null && syncMissingOlist > 0 ? (
+                          <>
+                            A Olist listou {syncIndexPais} produto(s) pai, mas {syncMissingOlist} variação(ões) ainda não
+                            casaram (código ou cor/tamanho). Confira um SKU filho na Olist vs DropCore.
                           </>
                         ) : (
                           <>

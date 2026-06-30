@@ -104,7 +104,7 @@ export async function pullFornecedorEstoqueFromOlist(opts: {
   let indice;
   try {
     indice = await montarIndiceEstoqueOlistCatalogo(opts.apiToken, {
-      skusAlvo: pullRows.map((r) => r.sku),
+      itens: pullRows.map((r) => ({ sku: r.sku, cor: r.cor, tamanho: r.tamanho })),
       pauseMs: API_PAUSE_MS,
     });
   } catch {

@@ -420,6 +420,8 @@ async function pesquisarProdutosOlistPagina(
     const retorno = unwrapTinyRetorno<PesquisaProdutosResponse>(json);
     if (!retorno) return null;
     if (isTinyNoRecords(retorno)) return { ...retorno, produtos: [] };
+    const codigoErro = Number(retorno.codigo_erro);
+    if (codigoErro === 21 && (retorno.produtos?.length ?? 0) > 0) return retorno;
     if (!isTinyRetornoOk(retorno)) return null;
     return retorno;
   } catch {
@@ -922,10 +924,9 @@ function prefixosPesquisaDeSkus(skus: string[]): string[] {
   for (const raw of skus) {
     const s = normalizarCodigoOlist(raw);
     if (!s) continue;
-    const m = s.match(/^([A-Z]+)/);
-    if (m?.[1]) out.add(m[1]);
-    if (s.length >= 6) out.add(s.slice(0, 6));
+    out.add(s);
     out.add(paiKeyDropCore(s));
+    if (s.length >= 6) out.add(s.slice(0, 6));
   }
   return [...out];
 }
@@ -939,79 +940,92 @@ export type OlistIndiceEstoqueCatalogo = {
   paisPorGrupo: Map<string, OlistProdutoOlistDetalhe>;
 };
 
-/** Monta índice SKU→saldo listando catálogo na Olist (menos chamadas que resolver SKU a SKU). */
+export type OlistIndiceEstoqueItem = {
+  sku: string;
+  cor?: string | null;
+  tamanho?: string | null;
+};
+
+/** Monta índice SKU→saldo: busca por pai …000 (grade CSV) e fallback por SKU avulso. */
 export async function montarIndiceEstoqueOlistCatalogo(
   apiToken: string,
-  opts: { skusAlvo: string[]; pauseMs?: number },
+  opts: { itens: OlistIndiceEstoqueItem[]; pauseMs?: number },
 ): Promise<OlistIndiceEstoqueCatalogo> {
   const pauseMs = opts.pauseMs ?? 220;
   const saldoPorCodigo = new Map<string, number>();
   const paisPorGrupo = new Map<string, OlistProdutoOlistDetalhe>();
-  const idPorCodigo = new Map<string, number>();
-  const parentIds = new Set<number>();
-  const alvos = new Set(opts.skusAlvo.map((s) => normalizarCodigoOlist(s)).filter(Boolean));
-  const paiKeys = new Set([...alvos].map(paiKeyDropCore));
+  const itens = opts.itens
+    .map((i) => ({
+      sku: normalizarCodigoOlist(i.sku),
+      cor: i.cor ?? null,
+      tamanho: i.tamanho ?? null,
+    }))
+    .filter((i) => i.sku);
 
-  for (const termo of prefixosPesquisaDeSkus(opts.skusAlvo)) {
-    for (const extra of [{ situacao: "A" }, { situacao: "I" }, {}]) {
-      for (let pagina = 1; pagina <= 25; pagina += 1) {
-        const retorno = await pesquisarProdutosOlistPagina(apiToken, {
-          pesquisa: termo,
-          pagina: String(pagina),
-          ...extra,
-        });
-        const rows = retorno?.produtos ?? [];
-        if (rows.length === 0) break;
-
-        for (const row of rows) {
-          const id = idProdutoFromPesquisaRow(row);
-          const cod = normalizarCodigoOlist(row?.produto?.codigo);
-          const tipoVar = String(row?.produto?.tipoVariacao ?? "").toUpperCase();
-          if (id == null || !cod) continue;
-          idPorCodigo.set(cod, id);
-          if (paiKeys.has(cod) || cod.endsWith("000") || tipoVar === "P") parentIds.add(id);
-        }
-
-        const numPages = retorno?.numero_paginas ?? 1;
-        if (pagina >= numPages) break;
-        await sleepOlistApi(pauseMs);
-      }
-    }
+  const filhosPorPai = new Map<string, Array<{ sku: string; cor: string | null; tamanho: string | null }>>();
+  for (const item of itens) {
+    const pai = paiKeyDropCore(item.sku);
+    const list = filhosPorPai.get(pai) ?? [];
+    list.push(item);
+    filhosPorPai.set(pai, list);
   }
 
-  for (const id of parentIds) {
-    const prod = await obterProdutoOlistPorId(apiToken, id);
-    if (!prod) {
-      await sleepOlistApi(pauseMs);
-      continue;
-    }
+  async function indexarProdutoPai(paiKey: string, childSkus: string[]): Promise<void> {
+    if (paisPorGrupo.has(paiKey)) return;
+    const parentId = await resolverIdProdutoPaiOlistPorGrupo(apiToken, paiKey, childSkus);
+    if (!parentId) return;
+
+    const prod = await obterProdutoOlistPorId(apiToken, parentId);
+    if (!prod) return;
+
+    paisPorGrupo.set(paiKey, prod);
     const paiCod = normalizarCodigoOlist(prod.codigo);
     if (paiCod) {
-      paisPorGrupo.set(paiKeyDropCore(paiCod), prod);
-      idPorCodigo.set(paiCod, id);
-      const saldoPai = extrairSaldoEstoqueOlistRow(prod as Record<string, unknown>);
-      if (saldoPai != null) saldoPorCodigo.set(paiCod, saldoPai);
+      saldoPorCodigo.set(paiCod, extrairSaldoEstoqueOlistRow(prod as Record<string, unknown>) ?? 0);
     }
 
     for (const row of prod.variacoes ?? []) {
       const v = row.variacao as Record<string, unknown> | undefined;
-      const codVar = normalizarCodigoOlist(v?.codigo);
-      if (!codVar) continue;
-      const idVar = typeof v?.id === "number" ? v.id : Number.parseInt(String(v?.id ?? ""), 10);
-      if (Number.isFinite(idVar) && idVar > 0) idPorCodigo.set(codVar, idVar);
-      saldoPorCodigo.set(codVar, extrairSaldoEstoqueOlistRow(v) ?? 0);
+      if (!v) continue;
+      const codVar = normalizarCodigoOlist(v.codigo);
+      if (codVar) saldoPorCodigo.set(codVar, extrairSaldoEstoqueOlistRow(v) ?? 0);
     }
+
     await sleepOlistApi(pauseMs);
   }
 
-  for (const sku of alvos) {
-    if (saldoPorCodigo.has(sku)) continue;
-    const id = idPorCodigo.get(sku);
-    if (!id || parentIds.has(id)) continue;
-    const prod = await obterProdutoOlistPorId(apiToken, id);
-    if (prod && codigoOlistMatchesSku(prod.codigo, sku)) {
-      saldoPorCodigo.set(sku, extrairSaldoEstoqueOlistRow(prod as Record<string, unknown>) ?? 0);
+  for (const [paiKey, grupo] of filhosPorPai) {
+    await indexarProdutoPai(
+      paiKey,
+      grupo.map((g) => g.sku),
+    );
+  }
+
+  for (const item of itens) {
+    if (saldoPorCodigo.has(item.sku)) continue;
+
+    const paiKey = paiKeyDropCore(item.sku);
+    const fromPai = extrairSaldoEstoqueSkuDoProdutoOlist(paisPorGrupo.get(paiKey), item);
+    if (fromPai != null) {
+      saldoPorCodigo.set(item.sku, fromPai);
+      continue;
     }
+
+    const id =
+      (await pesquisarIdProdutoOlistPorTermos(apiToken, item.sku, [item.sku])) ??
+      (await resolverIdProdutoOlistPorCodigo(apiToken, item.sku));
+    if (!id) continue;
+
+    const prod = await obterProdutoOlistPorId(apiToken, id);
+    if (!prod) continue;
+
+    const saldo =
+      extrairSaldoEstoqueSkuDoProdutoOlist(prod, item) ??
+      (codigoOlistMatchesSku(prod.codigo, item.sku)
+        ? extrairSaldoEstoqueOlistRow(prod as Record<string, unknown>) ?? 0
+        : null);
+    if (saldo != null) saldoPorCodigo.set(item.sku, saldo);
+
     await sleepOlistApi(pauseMs);
   }
 
