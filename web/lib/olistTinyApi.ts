@@ -1051,6 +1051,33 @@ export function resolverSaldoIndiceEstoqueOlist(
   });
 }
 
+/** Id para produto.atualizar.estoque — variação filha em grade, senão o produto avulso. */
+export async function resolverIdEstoqueOlistPorCodigo(
+  apiToken: string,
+  codigo: string,
+  opts?: { cor?: string | null; tamanho?: string | null },
+): Promise<number | null> {
+  const upper = normalizarCodigoOlist(codigo);
+  if (!upper) return null;
+
+  const id = await resolverIdProdutoOlistPorCodigo(apiToken, upper);
+  if (!id) return null;
+
+  const prod = await obterProdutoOlistPorId(apiToken, id);
+  if (!prod) return id;
+
+  if (codigoOlistMatchesSku(prod.codigo, upper)) return id;
+
+  for (const row of prod.variacoes ?? []) {
+    const v = row.variacao as Record<string, unknown> | undefined;
+    if (!v || !variacaoOlistMatchesFilho(v, { sku: upper, cor: opts?.cor, tamanho: opts?.tamanho })) continue;
+    const idVar = typeof v.id === "number" ? v.id : Number.parseInt(String(v.id ?? ""), 10);
+    if (Number.isFinite(idVar) && idVar > 0) return idVar;
+  }
+
+  return id;
+}
+
 /** Lê saldo de estoque na Olist pelo código SKU (produto ou variação). */
 export async function lerSaldoEstoqueOlistPorCodigo(
   apiToken: string,

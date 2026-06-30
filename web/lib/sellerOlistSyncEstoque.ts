@@ -7,7 +7,7 @@ import {
 } from "@/lib/sellerCatalogOlistExport";
 import {
   definirSaldoEstoqueOlistProduto,
-  resolverIdProdutoOlistPorCodigo,
+  resolverIdEstoqueOlistPorCodigo,
 } from "@/lib/olistTinyApi";
 import { filtrarFalhasSyncOlist } from "@/lib/sellerOlistSyncCustos";
 
@@ -68,8 +68,9 @@ async function syncOlistEstoqueSkuCodigo(
   apiToken: string,
   codigo: string,
   saldo: number,
+  opts?: { cor?: string | null; tamanho?: string | null },
 ): Promise<{ ok: boolean; ausente?: boolean; erro?: string }> {
-  const id = await resolverIdProdutoOlistPorCodigo(apiToken, codigo);
+  const id = await resolverIdEstoqueOlistPorCodigo(apiToken, codigo, opts);
   if (!id) return { ok: false, ausente: true };
 
   try {
@@ -106,7 +107,7 @@ export async function syncOlistEstoqueSkusSeller(opts: {
 
   const { data: rows, error } = await opts.supabase
     .from("skus")
-    .select("sku, estoque_atual")
+    .select("sku, estoque_atual, cor, tamanho")
     .eq("org_id", opts.orgId)
     .eq("fornecedor_id", opts.fornecedorId)
     .in("sku", codes);
@@ -117,16 +118,22 @@ export async function syncOlistEstoqueSkusSeller(opts: {
   }
 
   const saldoPorSku = new Map<string, number>();
+  const metaPorSku = new Map<string, { cor: string | null; tamanho: string | null }>();
   for (const row of rows ?? []) {
     const sku = str((row as { sku?: string }).sku).toUpperCase();
     if (!sku) continue;
     saldoPorSku.set(sku, estoqueOlistFromDropCore((row as { estoque_atual?: unknown }).estoque_atual));
+    metaPorSku.set(sku, {
+      cor: str((row as { cor?: string | null }).cor) || null,
+      tamanho: str((row as { tamanho?: string | null }).tamanho) || null,
+    });
   }
 
   for (let i = 0; i < codes.length; i += 1) {
     const codigo = codes[i]!;
     const saldo = opts.saldoOverrides?.get(codigo) ?? saldoPorSku.get(codigo) ?? 0;
-    const r = await syncOlistEstoqueSkuCodigo(opts.apiToken, codigo, saldo);
+    const meta = metaPorSku.get(codigo);
+    const r = await syncOlistEstoqueSkuCodigo(opts.apiToken, codigo, saldo, meta);
     if (r.ok) {
       result.ok += 1;
     } else if (r.ausente) {
