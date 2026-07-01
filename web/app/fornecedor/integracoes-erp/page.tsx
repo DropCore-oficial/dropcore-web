@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { FornecedorNav } from "../FornecedorNav";
 import { FornecedorOlistIntegracaoChecklist } from "@/components/fornecedor/FornecedorOlistIntegracaoChecklist";
+import { OlistModoOperacaoPainel } from "@/components/olist/OlistModoOperacaoPainel";
+import { OLIST_CRON_ESTOQUE_FORNECEDOR_MIN } from "@/lib/olistModoOperacaoUi";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
 import {
@@ -251,11 +253,11 @@ export default function FornecedorIntegracoesErpPage() {
 
         <AmberPremiumCallout title="Olist do armazém (fornecedor)" className="rounded-2xl px-3 py-3.5 sm:px-5">
           <p className="text-pretty leading-relaxed text-sm">
-            Gere o <strong className="text-[var(--foreground)]">token API</strong> na Olist/Tiny do Djulios (não use o token do seller),
-            cole abaixo e cadastre a <strong className="text-[var(--foreground)]">URL de notificações do estoque</strong> na Olist.
-            Você <strong className="text-[var(--foreground)]">não precisa</strong> ficar clicando em sincronizar — webhook + cron automático cuidam disso.
-            Para cadastrar ou alinhar produtos na Olist, use{" "}
-            <strong className="text-[var(--foreground)]">Produtos → ⋮ → Exportar para Olist</strong> (planilha oficial de 64 colunas).
+            Gere o <strong className="text-[var(--foreground)]">token API</strong> na Olist/Tiny do Djulios (não use o token do seller)
+            e cole abaixo. Com extensão Webhooks (planos Impulsione+), cadastre também a URL de estoque;{" "}
+            <strong className="text-[var(--foreground)]">sem webhook</strong>, o cron consulta a API a cada ~1 min.
+            Para cadastrar produtos na Olist, use{" "}
+            <strong className="text-[var(--foreground)]">Produtos → ⋮ → Exportar para Olist</strong>.
           </p>
         </AmberPremiumCallout>
 
@@ -312,6 +314,16 @@ export default function FornecedorIntegracoesErpPage() {
                   <p className="text-pretty leading-relaxed">{tokenError}</p>
                 </AmberPremiumCallout>
               ) : null}
+
+              <OlistModoOperacaoPainel
+                papel="fornecedor"
+                connected={connected}
+                tokenUsable={tokenUsable}
+                webhookLastAt={webhookEstoqueLastAt}
+                syncLastAt={cronBackupLastAt}
+                syncIntervalMinutes={OLIST_CRON_ESTOQUE_FORNECEDOR_MIN}
+                syncLabel="Sync de estoque"
+              />
 
               <FornecedorOlistIntegracaoChecklist
                 connected={connected}

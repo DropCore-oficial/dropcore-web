@@ -1,5 +1,10 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSellerOlistApiToken } from "@/lib/sellerOlistIntegration";
+import {
+  deriveSellerOlistPrecosSyncStatus,
+  saveSellerOlistPrecosSyncResult,
+  summaryFromPrecosCatalogoResult,
+} from "@/lib/sellerOlistPrecosSyncPersistence";
 import { syncOlistPrecosCatalogoSeller } from "@/lib/sellerOlistSyncPrecosCatalogo";
 
 const SELLER_PAUSE_MS = 1500;
@@ -64,6 +69,15 @@ export async function runOlistSyncPrecosTodosSellers(): Promise<{
         ok: sync.ok,
         falhas: sync.falhas.length,
       });
+      const summary = summaryFromPrecosCatalogoResult(sync, "cron");
+      try {
+        await saveSellerOlistPrecosSyncResult(sellerId, {
+          status: deriveSellerOlistPrecosSyncStatus(summary),
+          summary,
+        });
+      } catch (e: unknown) {
+        console.warn("[runOlistSyncPrecosTodosSellers] persist:", sellerId, e);
+      }
     } catch (e: unknown) {
       falhasTotal += 1;
       detalhes.push({
@@ -72,6 +86,15 @@ export async function runOlistSyncPrecosTodosSellers(): Promise<{
         ok: 0,
         falhas: 1,
       });
+      try {
+        await saveSellerOlistPrecosSyncResult(sellerId, {
+          status: "erro",
+          error: e instanceof Error ? e.message : "Erro ao sincronizar preços na Olist.",
+          summary: { grupos: 0, grupos_ok: 0, ok: 0, falhas: 1, origem: "cron" },
+        });
+      } catch (persistErr: unknown) {
+        console.warn("[runOlistSyncPrecosTodosSellers] persist erro:", sellerId, persistErr);
+      }
       console.error("[runOlistSyncPrecosTodosSellers]", sellerId, e);
     }
 

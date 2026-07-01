@@ -43,12 +43,19 @@ type OlistRow = {
   olist_last_sync_summary: Record<string, unknown> | null;
   olist_last_catalogo_probe_at?: string | null;
   olist_last_catalogo_probe_summary?: Record<string, unknown> | null;
+  olist_last_precos_sync_at?: string | null;
+  olist_last_precos_sync_status?: string | null;
+  olist_last_precos_sync_error?: string | null;
+  olist_last_precos_sync_summary?: Record<string, unknown> | null;
 };
 
 const OLIST_PROBE_COLUMNS = "olist_last_catalogo_probe_at, olist_last_catalogo_probe_summary";
+const OLIST_PRECOS_COLUMNS =
+  "olist_last_precos_sync_at, olist_last_precos_sync_status, olist_last_precos_sync_error, olist_last_precos_sync_summary";
+const OLIST_OPTIONAL_COLUMNS = `${OLIST_PROBE_COLUMNS}, ${OLIST_PRECOS_COLUMNS}`;
 
 const OLIST_SELECT_WITH_SYNC =
-  "olist_token_ciphertext, olist_token_prefix, olist_account_name, olist_account_cnpj_normalized, olist_token_validated_at, updated_at, olist_last_sync_at, olist_last_sync_status, olist_last_sync_error, olist_last_sync_summary, olist_last_catalogo_probe_at, olist_last_catalogo_probe_summary";
+  "olist_token_ciphertext, olist_token_prefix, olist_account_name, olist_account_cnpj_normalized, olist_token_validated_at, updated_at, olist_last_sync_at, olist_last_sync_status, olist_last_sync_error, olist_last_sync_summary, olist_last_catalogo_probe_at, olist_last_catalogo_probe_summary, olist_last_precos_sync_at, olist_last_precos_sync_status, olist_last_precos_sync_error, olist_last_precos_sync_summary";
 const OLIST_SELECT_BASE =
   "olist_token_ciphertext, olist_token_prefix, olist_account_name, olist_account_cnpj_normalized, olist_token_validated_at, updated_at";
 const OLIST_SELECT_LEGACY =
@@ -93,9 +100,35 @@ function buildCatalogoProbePayload(row: OlistRow | null | undefined) {
   };
 }
 
-function isMissingProbeColumnsError(error: { message?: string; code?: string }) {
+function buildPrecosSyncPayload(row: OlistRow | null | undefined) {
+  const summary = row?.olist_last_precos_sync_summary;
+  const grupos = typeof summary?.grupos === "number" ? summary.grupos : null;
+  const gruposOk = typeof summary?.grupos_ok === "number" ? summary.grupos_ok : null;
+  const ok = typeof summary?.ok === "number" ? summary.ok : null;
+  const falhas = typeof summary?.falhas === "number" ? summary.falhas : null;
+
+  return {
+    last_at: row?.olist_last_precos_sync_at ?? null,
+    status: row?.olist_last_precos_sync_status ?? null,
+    error: row?.olist_last_precos_sync_error ?? null,
+    grupos,
+    grupos_ok: gruposOk,
+    ok,
+    falhas,
+  };
+}
+
+function isMissingOptionalOlistColumnsError(error: { message?: string; code?: string }) {
   const msg = String(error.message ?? "").toLowerCase();
-  return msg.includes("olist_last_catalogo_probe") || error.code === "42703";
+  return (
+    msg.includes("olist_last_catalogo_probe") ||
+    msg.includes("olist_last_precos_sync") ||
+    error.code === "42703"
+  );
+}
+
+function isMissingProbeColumnsError(error: { message?: string; code?: string }) {
+  return isMissingOptionalOlistColumnsError(error);
 }
 
 function isMissingTableError(error: { message?: string; code?: string }) {
@@ -141,7 +174,7 @@ export async function GET(req: Request) {
     if (error && isMissingProbeColumnsError(error)) {
       const fb = await supabaseAdmin
         .from("seller_olist_integrations")
-        .select(OLIST_SELECT_WITH_SYNC.replace(`, ${OLIST_PROBE_COLUMNS}`, ""))
+        .select(OLIST_SELECT_WITH_SYNC.replace(`, ${OLIST_OPTIONAL_COLUMNS}`, ""))
         .eq("seller_id", seller.id)
         .limit(1);
       if (!fb.error) {
@@ -178,6 +211,7 @@ export async function GET(req: Request) {
             webhook_last_received_at,
             sync: buildSyncPayload(row),
             catalogo_probe: buildCatalogoProbePayload(null),
+            precos_sync: buildPrecosSyncPayload(null),
           },
           { headers: NO_STORE_JSON_HEADERS },
         );
@@ -211,6 +245,7 @@ export async function GET(req: Request) {
               warnings: null,
             },
             catalogo_probe: buildCatalogoProbePayload(null),
+            precos_sync: buildPrecosSyncPayload(null),
           },
           { headers: NO_STORE_JSON_HEADERS },
         );
@@ -270,6 +305,7 @@ export async function GET(req: Request) {
             webhook_last_received_at,
             sync: buildSyncPayload(row),
             catalogo_probe: buildCatalogoProbePayload(null),
+            precos_sync: buildPrecosSyncPayload(null),
           },
           { headers: NO_STORE_JSON_HEADERS },
         );
@@ -316,6 +352,7 @@ export async function GET(req: Request) {
         webhook_last_received_at,
         sync: buildSyncPayload(row),
         catalogo_probe: buildCatalogoProbePayload(row),
+        precos_sync: buildPrecosSyncPayload(row),
       },
       { headers: NO_STORE_JSON_HEADERS },
     );

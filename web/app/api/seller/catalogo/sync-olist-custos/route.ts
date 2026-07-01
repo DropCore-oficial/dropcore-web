@@ -7,6 +7,11 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 import { getSellerOlistApiToken } from "@/lib/sellerOlistIntegration";
+import {
+  deriveSellerOlistPrecosSyncStatus,
+  saveSellerOlistPrecosSyncResult,
+  summaryFromPrecosCatalogoResult,
+} from "@/lib/sellerOlistPrecosSyncPersistence";
 import { loadCatalogSkusForOlistExport } from "@/lib/sellerCatalogOlistLoad";
 import { syncOlistCustosGrupo } from "@/lib/sellerOlistSyncCustos";
 import { syncOlistPrecosCatalogoSeller } from "@/lib/sellerOlistSyncPrecosCatalogo";
@@ -80,6 +85,16 @@ export async function POST(req: Request) {
         margemPct,
         supabase: supabaseAdmin,
       });
+
+      const summary = summaryFromPrecosCatalogoResult(result, "manual");
+      try {
+        await saveSellerOlistPrecosSyncResult(seller.id, {
+          status: deriveSellerOlistPrecosSyncStatus(summary),
+          summary,
+        });
+      } catch (e: unknown) {
+        console.warn("[catalogo/sync-olist-custos] persist:", e);
+      }
 
       return NextResponse.json({
         scope: "catalogo_completo",

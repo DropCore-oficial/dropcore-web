@@ -73,20 +73,20 @@ export function SellerOlistIntegracaoChecklist(props: Props) {
         />
         <StepRow
           ok={hasIngestUrl && props.cnpjReady}
-          label="URL do webhook com ?w= (só seu seller)"
+          label="Webhook de pedidos (opcional — plano Impulsione+)"
           detail={
             hasIngestUrl
-              ? "Copie a URL abaixo e cadastre em Configurações → Webhooks na Olist/Tiny."
-              : "Conecte o token para gerar o link com token próprio."
+              ? "Se tiver a extensão Webhooks na Olist, cadastre a URL abaixo. Sem ela, o sync a cada ~1 min basta."
+              : "Conecte o token para gerar o link — só necessário com extensão Webhooks na Olist."
           }
         />
         <StepRow
           ok={webhookTested}
-          label="Webhook testado (Tiny já chamou o DropCore)"
+          label="Webhook testado (opcional)"
           detail={
             webhookTested
               ? `Último evento: ${new Date(props.webhookLastReceivedAt!).toLocaleString("pt-BR")}`
-              : "Após cadastrar na Tiny, dispare um pedido de teste ou aguarde uma venda real."
+              : "Sem extensão Webhooks na Olist? Ignore — o cron de ~1 min cobre pedidos."
           }
         />
         <StepRow

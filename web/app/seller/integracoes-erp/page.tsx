@@ -13,6 +13,8 @@ import {
   DANGER_PREMIUM_TEXT_BODY,
 } from "@/lib/semanticPremium";
 import { SellerOlistIntegracaoChecklist } from "@/components/seller/SellerOlistIntegracaoChecklist";
+import { OlistModoOperacaoPainel } from "@/components/olist/OlistModoOperacaoPainel";
+import { OLIST_CRON_PEDIDOS_MIN, OLIST_CRON_PRECOS_MIN, isOlistSyncStale } from "@/lib/olistModoOperacaoUi";
 import { cn } from "@/lib/utils";
 import { useVisibilityAwareInterval } from "@/lib/useVisibilityAwareInterval";
 
@@ -39,6 +41,14 @@ export default function SellerIntegracoesErpPage() {
   const [catalogoProbeAusentes, setCatalogoProbeAusentes] = useState<number | null>(null);
   const [catalogoProbeAmostra, setCatalogoProbeAmostra] = useState<string[]>([]);
   const [catalogoVerificando, setCatalogoVerificando] = useState(false);
+  const [pedidosSyncNow, setPedidosSyncNow] = useState(false);
+  const [precosSyncLastAt, setPrecosSyncLastAt] = useState<string | null>(null);
+  const [precosSyncStatus, setPrecosSyncStatus] = useState<string | null>(null);
+  const [precosSyncError, setPrecosSyncError] = useState<string | null>(null);
+  const [precosSyncOk, setPrecosSyncOk] = useState<number | null>(null);
+  const [precosSyncFalhas, setPrecosSyncFalhas] = useState<number | null>(null);
+  const [precosSyncGruposOk, setPrecosSyncGruposOk] = useState<number | null>(null);
+  const [precosSyncNow, setPrecosSyncNow] = useState(false);
   const [olistWebhookPedidosUrl, setOlistWebhookPedidosUrl] = useState<string | null>(null);
   const [olistWebhookCnpjReady, setOlistWebhookCnpjReady] = useState(false);
   const [olistWebhookLastAt, setOlistWebhookLastAt] = useState<string | null>(null);
@@ -77,6 +87,17 @@ export default function SellerIntegracoesErpPage() {
         ? probe.amostra_ausentes.filter((s): s is string => typeof s === "string")
         : [],
     );
+
+    const precos =
+      json.precos_sync && typeof json.precos_sync === "object"
+        ? (json.precos_sync as Record<string, unknown>)
+        : null;
+    setPrecosSyncLastAt(precos && typeof precos.last_at === "string" ? precos.last_at : null);
+    setPrecosSyncStatus(precos && typeof precos.status === "string" ? precos.status : null);
+    setPrecosSyncError(precos && typeof precos.error === "string" ? precos.error : null);
+    setPrecosSyncOk(precos && typeof precos.ok === "number" ? precos.ok : null);
+    setPrecosSyncFalhas(precos && typeof precos.falhas === "number" ? precos.falhas : null);
+    setPrecosSyncGruposOk(precos && typeof precos.grupos_ok === "number" ? precos.grupos_ok : null);
 
     setOlistWebhookPedidosUrl(typeof json.webhook_pedidos_url === "string" ? json.webhook_pedidos_url : null);
     setOlistWebhookCnpjReady(Boolean(json.olist_webhook_cnpj_ready));
@@ -255,6 +276,56 @@ export default function SellerIntegracoesErpPage() {
     }
   }
 
+  async function sincronizarPrecosOlist() {
+    setPrecosSyncNow(true);
+    setError(null);
+    try {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const res = await fetch("/api/seller/catalogo/sync-olist-custos", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? "Erro ao sincronizar preços na Olist.");
+      await loadOlist(session.access_token);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao sincronizar preços.");
+    } finally {
+      setPrecosSyncNow(false);
+    }
+  }
+
+  async function sincronizarPedidosOlist() {
+    setPedidosSyncNow(true);
+    setError(null);
+    try {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const res = await fetch("/api/seller/olist/sync", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? "Erro ao sincronizar pedidos.");
+      await loadOlist(session.access_token);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao sincronizar pedidos.");
+    } finally {
+      setPedidosSyncNow(false);
+    }
+  }
+
   async function verificarCatalogoOlist() {
     setCatalogoVerificando(true);
     setError(null);
@@ -304,6 +375,16 @@ export default function SellerIntegracoesErpPage() {
       catalogoProbeAmostra={catalogoProbeAmostra}
       catalogoVerificando={catalogoVerificando}
       onVerificarCatalogoOlist={() => void verificarCatalogoOlist()}
+      pedidosSyncNow={pedidosSyncNow}
+      onSincronizarPedidosOlist={() => void sincronizarPedidosOlist()}
+      precosSyncLastAt={precosSyncLastAt}
+      precosSyncStatus={precosSyncStatus}
+      precosSyncError={precosSyncError}
+      precosSyncOk={precosSyncOk}
+      precosSyncFalhas={precosSyncFalhas}
+      precosSyncGruposOk={precosSyncGruposOk}
+      precosSyncNow={precosSyncNow}
+      onSincronizarPrecosOlist={() => void sincronizarPrecosOlist()}
       olistWebhookPedidosUrl={olistWebhookPedidosUrl}
       olistWebhookCnpjReady={olistWebhookCnpjReady}
       olistWebhookLastAt={olistWebhookLastAt}
@@ -343,6 +424,16 @@ type IntegracoesPageProps = {
   catalogoProbeAmostra: string[];
   catalogoVerificando: boolean;
   onVerificarCatalogoOlist: () => void;
+  pedidosSyncNow: boolean;
+  onSincronizarPedidosOlist: () => void;
+  precosSyncLastAt: string | null;
+  precosSyncStatus: string | null;
+  precosSyncError: string | null;
+  precosSyncOk: number | null;
+  precosSyncFalhas: number | null;
+  precosSyncGruposOk: number | null;
+  precosSyncNow: boolean;
+  onSincronizarPrecosOlist: () => void;
   olistWebhookPedidosUrl: string | null;
   olistWebhookCnpjReady: boolean;
   olistWebhookLastAt: string | null;
@@ -458,6 +549,16 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                   </AmberPremiumCallout>
                 ) : null}
 
+                <OlistModoOperacaoPainel
+                  papel="seller"
+                  connected={props.olistConnected}
+                  tokenUsable={props.olistTokenUsable}
+                  webhookLastAt={props.olistWebhookLastAt}
+                  syncLastAt={props.olistSyncLastAt}
+                  syncIntervalMinutes={OLIST_CRON_PEDIDOS_MIN}
+                  syncLabel="Sync de pedidos"
+                />
+
                 <SellerOlistIntegracaoChecklist
                   connected={props.olistConnected}
                   tokenUsable={props.olistTokenUsable}
@@ -500,9 +601,8 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                       <div>
                         <p className="font-medium text-[var(--foreground)]">Sincronização automática de pedidos</p>
                         <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
-                          O DropCore consulta a Olist/Tiny <strong className="text-[var(--foreground)]">a cada ~1 minuto</strong>{" "}
-                          (agendado no Supabase). Pedidos novos também podem entrar pelo webhook. Não é preciso clicar em
-                          sincronizar.
+                          O DropCore consulta a Olist/Tiny <strong className="text-[var(--foreground)]">a cada ~1 minuto</strong>.
+                          Com webhook (planos Impulsione+), pedidos entram na hora; sem webhook, este cron é a via principal.
                         </p>
                       </div>
 
@@ -534,6 +634,68 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
 
                       {props.olistSyncError ? (
                         <p className={cn("mt-2 text-xs", DANGER_PREMIUM_TEXT_BODY)}>{props.olistSyncError}</p>
+                      ) : null}
+                      {props.olistConnected && props.olistTokenUsable ? (
+                        <button
+                          type="button"
+                          disabled={props.pedidosSyncNow || props.olistSaving}
+                          onClick={props.onSincronizarPedidosOlist}
+                          className="mt-3 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-subtle)] disabled:opacity-50"
+                        >
+                          {props.pedidosSyncNow ? "Buscando pedidos na Olist…" : "Sincronizar pedidos agora"}
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
+                      <p className="font-medium text-[var(--foreground)]">Preços e custos na Olist</p>
+                      <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+                        O DropCore envia preço de venda e custo para a Olist{" "}
+                        <strong className="text-[var(--foreground)]">a cada ~10 minutos</strong> (cron). Quando o custo muda no
+                        catálogo, também dispara sync — pode levar alguns minutos sem webhook.
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <OlistSyncStatusBadge
+                          status={props.precosSyncStatus}
+                          hasLastSync={Boolean(props.precosSyncLastAt)}
+                        />
+                        {props.precosSyncLastAt ? (
+                          <span className="text-xs text-[var(--muted)]">
+                            Última execução: {new Date(props.precosSyncLastAt).toLocaleString("pt-BR")}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-[var(--muted)]">
+                            Aguardando primeira execução (até ~10 min após conectar o token).
+                          </span>
+                        )}
+                      </div>
+                      {isOlistSyncStale(props.precosSyncLastAt, OLIST_CRON_PRECOS_MIN) ? (
+                        <p className={cn("mt-2 text-xs", DANGER_PREMIUM_TEXT_BODY)}>
+                          Sync de preços não roda há mais de ~30 min — confira o cron no Supabase ou use o botão abaixo.
+                        </p>
+                      ) : null}
+                      {props.precosSyncOk != null || props.precosSyncFalhas != null ? (
+                        <p className="mt-2 text-xs text-[var(--muted)]">
+                          Último resultado:{" "}
+                          <strong className="text-[var(--foreground)]">{props.precosSyncOk ?? 0}</strong> SKU(s) ok
+                          {props.precosSyncGruposOk != null ? ` · ${props.precosSyncGruposOk} grupo(s) ok` : ""}
+                          {props.precosSyncFalhas != null && props.precosSyncFalhas > 0
+                            ? ` · ${props.precosSyncFalhas} falha(s)`
+                            : ""}
+                        </p>
+                      ) : null}
+                      {props.precosSyncError ? (
+                        <p className={cn("mt-2 text-xs", DANGER_PREMIUM_TEXT_BODY)}>{props.precosSyncError}</p>
+                      ) : null}
+                      {props.olistConnected && props.olistTokenUsable ? (
+                        <button
+                          type="button"
+                          disabled={props.precosSyncNow || props.olistSaving}
+                          onClick={props.onSincronizarPrecosOlist}
+                          className="mt-3 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-subtle)] disabled:opacity-50"
+                        >
+                          {props.precosSyncNow ? "Enviando preços para Olist…" : "Sincronizar preços agora"}
+                        </button>
                       ) : null}
                     </div>
 
