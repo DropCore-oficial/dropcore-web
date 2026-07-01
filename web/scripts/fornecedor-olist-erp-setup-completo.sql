@@ -4,7 +4,7 @@
 -- Rode no Supabase SQL Editor (projeto DropCore-oficial).
 --
 -- Fluxo principal: webhook de estoque Olist → DropCore → sellers (push automático).
--- Rede de segurança: cron a cada 15 min (consulta API se o webhook falhar) — ver seção 4.
+-- Sync automático: cron a cada 1 min (consulta API; sem webhook na Olist é a via principal) — ver seção 4.
 --
 -- Extensões: Database → Extensions → pg_cron, pg_net, supabase_vault (opcionais para outros crons).
 -- =============================================================================
@@ -70,14 +70,14 @@ CREATE TABLE IF NOT EXISTS public.fornecedor_olist_webhook_logs (
 CREATE INDEX IF NOT EXISTS idx_fornecedor_olist_webhook_logs_created
   ON public.fornecedor_olist_webhook_logs(created_at DESC);
 
--- 3) Cron: estoque fornecedor — rede de segurança (15 min UTC), além do webhook
+-- 3) Cron: estoque fornecedor — a cada 1 min UTC (principal sem webhook Olist)
 SELECT cron.unschedule(jobname)
 FROM cron.job
 WHERE jobname = 'dropcore-fornecedor-olist-sync-estoque';
 
 SELECT cron.schedule(
   'dropcore-fornecedor-olist-sync-estoque',
-  '*/15 * * * *',
+  '* * * * *',
   $$SELECT public.dropcore_cron_http_post('/api/cron/fornecedor-olist-sync-estoque');$$
 );
 

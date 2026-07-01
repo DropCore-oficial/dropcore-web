@@ -34,7 +34,7 @@ function StepRow(props: { ok: boolean; label: string; detail?: string }) {
   );
 }
 
-/** Checklist espelhando o seller — estoque via webhook + cron de rede de segurança. */
+/** Checklist — estoque via webhook (se plano Olist permitir) ou cron ~1 min. */
 export function FornecedorOlistIntegracaoChecklist(props: Props) {
   const url = props.webhookUrl?.trim() ?? "";
   const hasIngestUrl = url.includes("?w=");
@@ -51,9 +51,9 @@ export function FornecedorOlistIntegracaoChecklist(props: Props) {
       <div>
         <p className="font-medium text-[var(--foreground)]">Checklist — integração completa</p>
         <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
-          Estoque entra na hora pelo <strong className="text-[var(--foreground)]">webhook</strong> da Olist do armazém;
-          vendas e ajustes no DropCore atualizam a Olist do fornecedor e dos sellers. O sync a cada ~15 minutos é rede
-          de segurança se a Olist não avisar.
+          Com webhook na Olist (planos Impulsione+), estoque entra na hora. Sem webhook, o DropCore consulta a API a
+          cada <strong className="text-[var(--foreground)]">~1 minuto</strong>. Vendas no DropCore continuam empurrando
+          estoque para a Olist na hora.
         </p>
       </div>
 
@@ -88,11 +88,11 @@ export function FornecedorOlistIntegracaoChecklist(props: Props) {
         />
         <StepRow
           ok={cronBackupOk}
-          label="Sync automático de estoque (rede de segurança) já rodou"
+          label="Sync automático de estoque já rodou"
           detail={
             cronBackupOk
               ? `Última execução: ${new Date(props.syncLastAt!).toLocaleString("pt-BR")}`
-              : "Normal em até ~15 minutos após salvar o token (cron no Supabase)."
+              : "Normal em até ~1 minuto após salvar o token (cron no Supabase)."
           }
         />
       </ol>

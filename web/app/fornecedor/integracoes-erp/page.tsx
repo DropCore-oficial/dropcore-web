@@ -245,7 +245,7 @@ export default function FornecedorIntegracoesErpPage() {
         <div>
           <h1 className="text-xl font-bold text-[var(--foreground)] md:text-2xl">Integração ERP (Olist/Tiny)</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Conecte a Olist do armazém. Estoque entra pelo webhook; o cron no Supabase é rede de segurança se a Olist não avisar.
+            Conecte a Olist do armazém. Sem webhook na Olist, o estoque atualiza pelo cron a cada ~1 min; com webhook (planos Impulsione+), na hora.
           </p>
         </div>
 
@@ -353,11 +353,12 @@ export default function FornecedorIntegracoesErpPage() {
                   </div>
 
                   <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
-                    <p className="font-medium text-[var(--foreground)]">Sincronização automática de estoque (rede de segurança)</p>
+                    <p className="font-medium text-[var(--foreground)]">Sincronização automática de estoque</p>
                     <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
-                      O DropCore consulta a Olist do armazém <strong className="text-[var(--foreground)]">a cada ~15 minutos</strong>{" "}
-                      (cron no Supabase), caso o webhook não dispare. Movimentações normais entram pelo webhook na hora —{" "}
-                      <strong className="text-[var(--foreground)]">não é preciso clicar em sincronizar</strong>.
+                      O DropCore consulta a Olist do armazém <strong className="text-[var(--foreground)]">a cada ~1 minuto</strong>{" "}
+                      (cron no Supabase). Com extensão Webhooks na Olist (planos Impulsione+), entra na hora; sem webhook,
+                      este cron é a via principal — atraso máximo ~1 min, não 15. Use o botão abaixo só se quiser forçar
+                      agora.
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       {cronBackupLastAt ? (
@@ -371,7 +372,7 @@ export default function FornecedorIntegracoesErpPage() {
                         </>
                       ) : (
                         <span className="text-xs text-[var(--muted)]">
-                          Aguardando primeira execução do cron (até ~15 min após salvar o token).
+                          Aguardando primeira execução do cron (até ~1 min após salvar o token).
                         </span>
                       )}
                     </div>
@@ -427,7 +428,7 @@ export default function FornecedorIntegracoesErpPage() {
                         onClick={() => void sincronizarEstoqueAgora()}
                         className="mt-3 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-subtle)] disabled:opacity-50"
                       >
-                        {syncPullNow ? "Consultando Olist…" : "Rodar rede de segurança agora"}
+                        {syncPullNow ? "Consultando Olist…" : "Consultar estoque na Olist agora"}
                       </button>
                     ) : null}
                     {syncErrors != null && syncErrors > 0 && syncStatus !== "webhook" ? (

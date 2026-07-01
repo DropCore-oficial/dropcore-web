@@ -48,8 +48,8 @@ export function SellerOlistIntegracaoChecklist(props: Props) {
         <div>
           <p className="font-medium text-[var(--foreground)]">Checklist — integração completa</p>
           <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
-            Pedidos entram mais rápido pelo <strong className="text-[var(--foreground)]">webhook</strong>; o sync a cada ~1 minuto é
-            rede de segurança.
+            Pedidos entram mais rápido pelo <strong className="text-[var(--foreground)]">webhook</strong> (planos Olist com extensão);
+            sem webhook, o sync a cada ~1 minuto busca pedidos na API.
           </p>
         </div>
         <Link

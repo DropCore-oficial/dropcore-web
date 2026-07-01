@@ -1,5 +1,5 @@
 -- Webhook de estoque Olist → fornecedor DropCore (canal principal).
--- Rede de segurança: cron dropcore-fornecedor-olist-sync-estoque (15 min) — ver supabase-cron-jobs.sql.
+-- Sync automático: cron dropcore-fornecedor-olist-sync-estoque (1 min) — ver supabase-cron-jobs.sql.
 -- Execute no Supabase SQL Editor após add-fornecedor-olist-integration.sql.
 
 ALTER TABLE public.fornecedor_olist_integrations
@@ -34,4 +34,4 @@ CREATE TABLE IF NOT EXISTS public.fornecedor_olist_webhook_logs (
 CREATE INDEX IF NOT EXISTS idx_fornecedor_olist_webhook_logs_created
   ON public.fornecedor_olist_webhook_logs(created_at DESC);
 
--- Mantém o cron de estoque (15 min) como rede de segurança — não desligar ao migrar para webhook.
+-- Mantém o cron de estoque (1 min) — não desligar ao migrar para webhook (rede de segurança).

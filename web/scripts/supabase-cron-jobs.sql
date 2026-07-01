@@ -99,6 +99,28 @@ $$;
 GRANT EXECUTE ON FUNCTION public.dropcore_try_olist_sync_lock() TO postgres;
 GRANT EXECUTE ON FUNCTION public.dropcore_release_olist_sync_lock() TO postgres;
 
+-- Evita duas execuções do pull de estoque fornecedor ao mesmo tempo (cron a cada 1 min)
+CREATE OR REPLACE FUNCTION public.dropcore_try_fornecedor_olist_estoque_sync_lock()
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT pg_try_advisory_lock(913002);
+$$;
+
+CREATE OR REPLACE FUNCTION public.dropcore_release_fornecedor_olist_estoque_sync_lock()
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT pg_advisory_unlock(913002);
+$$;
+
+GRANT EXECUTE ON FUNCTION public.dropcore_try_fornecedor_olist_estoque_sync_lock() TO postgres;
+GRANT EXECUTE ON FUNCTION public.dropcore_release_fornecedor_olist_estoque_sync_lock() TO postgres;
+
 -- -----------------------------------------------------------------------------
 -- 3) Remover jobs antigos (re-rodar o script é seguro)
 -- -----------------------------------------------------------------------------
@@ -124,12 +146,12 @@ SELECT cron.schedule(
   $$SELECT public.dropcore_cron_http_post('/api/cron/olist-sync-precos');$$
 );
 
--- Estoque fornecedor Olist → DropCore → sellers — a cada 15 min (UTC).
--- Canal principal: webhook /api/webhooks/olist-fornecedor-estoque (?w= token do fornecedor).
--- O cron consulta a API só como rede de segurança se o webhook não disparar.
+-- Estoque fornecedor Olist → DropCore → sellers — a cada 1 min (UTC).
+-- Com webhook ativo na Olist: instantâneo + este cron como rede de segurança.
+-- Sem extensão Webhooks (planos básicos): este cron é a via principal (~1 min de atraso).
 SELECT cron.schedule(
   'dropcore-fornecedor-olist-sync-estoque',
-  '*/15 * * * *',
+  '* * * * *',
   $$SELECT public.dropcore_cron_http_post('/api/cron/fornecedor-olist-sync-estoque');$$
 );
 
