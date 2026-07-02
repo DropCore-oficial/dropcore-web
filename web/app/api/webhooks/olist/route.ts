@@ -4,11 +4,13 @@
  * Doc: https://tiny.com.br/api-docs/api2-webhooks-tiny
  *
  * Autenticação (preferencial): `?w=` — token opaco por seller (`olist_ingest_token`), com binding ao CNPJ do JSON.
- * Legado opcional: `?secret=` ou header `x-dropcore-olist-secret` = `OLIST_WEBHOOK_SECRET` na Vercel (mesmo URL para todos).
+ * Legado opcional: `?secret=` ou header `x-dropcore-olist-secret` = `OLIST_WEBHOOK_SECRET` na Vercel.
+ * Sem `?w=` e sem secret global configurado → 401 (não aceita só CNPJ).
  *
  * Rate limit: janela de 60s por IP e por `?w=` (env `OLIST_WEBHOOK_RL_IP_MAX`, `OLIST_WEBHOOK_RL_W_MAX`).
  */
 import { NextResponse } from "next/server";
+import { isOlistLegacyWebhookSecretConfigured, isOlistLegacyWebhookSecretValid } from "@/lib/olistWebhookAuth";
 import { normalizeOlistCnpjDigits } from "@/lib/olistPedidoImportPolicy";
 import { assertOlistWebhookRateLimit } from "@/lib/olistWebhookRateLimit";
 import { processOlistPedidoImport } from "@/lib/sellerOlistPedidoImport";
@@ -35,15 +37,6 @@ type OlistWebhookRow = {
   org_id: string;
   olist_token_ciphertext: string;
 };
-
-function verifyOptionalGlobalSecret(req: Request): boolean {
-  const expected = process.env.OLIST_WEBHOOK_SECRET?.trim();
-  if (!expected) return true;
-  const url = new URL(req.url);
-  const q = url.searchParams.get("secret")?.trim() ?? "";
-  const h = req.headers.get("x-dropcore-olist-secret")?.trim() ?? "";
-  return q === expected || h === expected;
-}
 
 async function tryAuthIngestToken(
   ingestToken: string,
@@ -173,7 +166,24 @@ export async function POST(req: Request) {
     }
     row = auth.row;
   } else {
-    if (!verifyOptionalGlobalSecret(req)) {
+    if (!isOlistLegacyWebhookSecretConfigured()) {
+      await logOlistWebhook({
+        seller_id: null,
+        org_id: null,
+        olist_cnpj_normalized: cnpjNorm || null,
+        tipo: body.tipo ?? null,
+        olist_pedido_id: Number.isFinite(pedidoId) ? pedidoId : null,
+        payload: body as unknown as Record<string, unknown>,
+        resultado: "rejeitado_sem_w",
+        error_detail: "Use URL com ?w= (Integrações ERP) ou configure OLIST_WEBHOOK_SECRET",
+      });
+      return NextResponse.json(
+        { error: "Não autorizado. Cadastre a URL do webhook com ?w= na Olist." },
+        { status: 401 },
+      );
+    }
+
+    if (!isOlistLegacyWebhookSecretValid(req)) {
       await logOlistWebhook({
         seller_id: null,
         org_id: null,

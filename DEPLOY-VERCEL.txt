@@ -113,4 +113,5 @@ Mercado Pago / PIX (dinheiro real)
 --------------------------------------------------------------------------------
 
 Para cobrança real: token de produção, MERCADOPAGO_TEST_MODE desligado, webhook
-na URL de produção. Ver regras do repo e web/lib/mercadopago.ts.
+na URL de produção. Copie o "secret" do painel MP → Webhooks para
+MERCADOPAGO_WEBHOOK_SECRET na Vercel (valida x-signature). Ver web/lib/mercadopago.ts.

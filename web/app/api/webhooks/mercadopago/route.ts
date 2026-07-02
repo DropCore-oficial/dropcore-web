@@ -6,6 +6,9 @@
  * - external_reference = mensalidade_id → marca mensalidade como paga
  * - external_reference = upgrade-pro-{id} → ativa Pro (não credita saldo)
  * - external_reference = deposito-{id} → aprova depósito e credita seller
+ *
+ * Assinatura: header `x-signature` + `MERCADOPAGO_WEBHOOK_SECRET` (painel MP → Webhooks).
+ * Se o secret estiver configurado, requisições sem assinatura válida retornam 401.
  */
 import { NextResponse } from "next/server";
 import { mercadoPagoOrderIndicaPagamentoCredito } from "@/lib/mercadoPagoOrderPaid";
@@ -13,6 +16,10 @@ import { processarDepositoAprovado } from "@/lib/depositoPixProcessor";
 import { processarMensalidadePaga } from "@/lib/mensalidadePixProcessor";
 import { processarUpgradeProAprovado } from "@/lib/upgradeProPixProcessor";
 import { processarCalculadoraRenovacaoPaga } from "@/lib/calculadoraRenovacaoPixProcessor";
+import {
+  resolveMercadoPagoWebhookDataId,
+  verifyMercadoPagoWebhookSignature,
+} from "@/lib/mercadoPagoWebhookSignature";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,10 +48,36 @@ async function processarPorExtRef(extRef: string, mpPaymentId?: string | null): 
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}));
+    const rawBody = await req.text();
+    let body: Record<string, unknown> = {};
+    try {
+      body = rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : {};
+    } catch {
+      return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
+    }
+
+    const webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim();
+    if (webhookSecret) {
+      const dataId = resolveMercadoPagoWebhookDataId(req, body);
+      const ok = verifyMercadoPagoWebhookSignature({
+        signatureHeader: req.headers.get("x-signature"),
+        requestId: req.headers.get("x-request-id"),
+        dataId,
+        secret: webhookSecret,
+      });
+      if (!ok) {
+        console.warn("[webhook mercadopago] assinatura inválida ou ausente");
+        return NextResponse.json({ error: "Assinatura inválida." }, { status: 401 });
+      }
+    } else if (process.env.VERCEL_ENV === "production") {
+      console.warn(
+        "[webhook mercadopago] MERCADOPAGO_WEBHOOK_SECRET ausente em produção — configure no painel MP e na Vercel",
+      );
+    }
+
     const type = String(body?.type ?? "");
     const action = String(body?.action ?? "");
-    const data = body?.data ?? {};
+    const data = (body?.data ?? {}) as Record<string, unknown>;
     const orderId = data?.id ?? data?.ID;
     const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
 
