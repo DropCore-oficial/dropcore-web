@@ -1,5 +1,6 @@
 "use client";
 
+import { isOlistSyncStale, OLIST_CRON_ESTOQUE_FORNECEDOR_MIN } from "@/lib/olistModoOperacaoUi";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -44,7 +45,8 @@ export function FornecedorOlistIntegracaoChecklist(props: Props) {
   const cronBackupOk =
     Boolean(props.syncLastAt) &&
     props.syncStatus != null &&
-    props.syncStatus !== "webhook";
+    props.syncStatus !== "webhook" &&
+    !isOlistSyncStale(props.syncLastAt, OLIST_CRON_ESTOQUE_FORNECEDOR_MIN);
 
   return (
     <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-3 sm:px-4">
@@ -88,11 +90,13 @@ export function FornecedorOlistIntegracaoChecklist(props: Props) {
         />
         <StepRow
           ok={cronBackupOk}
-          label="Sync automático de estoque já rodou"
+          label="Cron de backup rodando (~1 min)"
           detail={
             cronBackupOk
               ? `Última execução: ${new Date(props.syncLastAt!).toLocaleString("pt-BR")}`
-              : "Normal em até ~1 minuto após salvar o token (cron no Supabase)."
+              : props.syncLastAt && props.syncStatus !== "webhook"
+                ? "Cron atrasado — confira Supabase (quota/jobs) ou use consulta manual."
+                : "Aguardando primeira execução do cron (até ~1 min)."
           }
         />
       </ol>

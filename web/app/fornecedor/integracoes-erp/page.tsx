@@ -6,7 +6,11 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { FornecedorNav } from "../FornecedorNav";
 import { FornecedorOlistIntegracaoChecklist } from "@/components/fornecedor/FornecedorOlistIntegracaoChecklist";
 import { OlistModoOperacaoPainel } from "@/components/olist/OlistModoOperacaoPainel";
-import { OLIST_CRON_ESTOQUE_FORNECEDOR_MIN } from "@/lib/olistModoOperacaoUi";
+import {
+  buildFornecedorEstoqueSaudeLinhas,
+  OlistIntegracaoSaudeCard,
+} from "@/components/olist/OlistIntegracaoSaudeCard";
+import { OLIST_CRON_ESTOQUE_FORNECEDOR_MIN, resolveFornecedorEstoqueSaude } from "@/lib/olistModoOperacaoUi";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
 import {
@@ -240,6 +244,15 @@ export default function FornecedorIntegracoesErpPage() {
   const cronBackupLastAt =
     syncLastAt && syncStatus && syncStatus !== "webhook" ? syncLastAt : null;
 
+  const estoqueSaude =
+    connected && tokenUsable
+      ? resolveFornecedorEstoqueSaude({
+          webhookLastAt: webhookEstoqueLastAt,
+          syncLastAt,
+          cronLastAt: cronBackupLastAt,
+        })
+      : null;
+
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
       <FornecedorNav active="integracoes" />
@@ -313,6 +326,19 @@ export default function FornecedorIntegracoesErpPage() {
                 <AmberPremiumCallout title="Token salvo, mas inacessível neste servidor" className="rounded-2xl px-3 py-3.5 sm:px-5">
                   <p className="text-pretty leading-relaxed">{tokenError}</p>
                 </AmberPremiumCallout>
+              ) : null}
+
+              {estoqueSaude ? (
+                <OlistIntegracaoSaudeCard
+                  nivel={estoqueSaude.nivel}
+                  titulo={estoqueSaude.titulo}
+                  detalhe={estoqueSaude.detalhe}
+                  linhas={buildFornecedorEstoqueSaudeLinhas({
+                    webhookLastAt: webhookEstoqueLastAt,
+                    syncLastAt,
+                    cronLastAt: cronBackupLastAt,
+                  })}
+                />
               ) : null}
 
               <OlistModoOperacaoPainel

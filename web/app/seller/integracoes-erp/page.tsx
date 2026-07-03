@@ -14,7 +14,11 @@ import {
 } from "@/lib/semanticPremium";
 import { SellerOlistIntegracaoChecklist } from "@/components/seller/SellerOlistIntegracaoChecklist";
 import { OlistModoOperacaoPainel } from "@/components/olist/OlistModoOperacaoPainel";
-import { OLIST_CRON_PEDIDOS_MIN, OLIST_CRON_PRECOS_MIN, isOlistSyncStale } from "@/lib/olistModoOperacaoUi";
+import {
+  buildSellerPedidosSaudeLinhas,
+  OlistIntegracaoSaudeCard,
+} from "@/components/olist/OlistIntegracaoSaudeCard";
+import { OLIST_CRON_PEDIDOS_MIN, OLIST_CRON_PRECOS_MIN, isOlistSyncStale, resolveSellerPedidosSaude } from "@/lib/olistModoOperacaoUi";
 import { cn } from "@/lib/utils";
 import { useVisibilityAwareInterval } from "@/lib/useVisibilityAwareInterval";
 
@@ -449,6 +453,14 @@ type IntegracoesPageProps = {
 };
 
 function IntegracoesErpPageView(props: IntegracoesPageProps) {
+  const pedidosSaude =
+    props.olistConnected && props.olistTokenUsable
+      ? resolveSellerPedidosSaude({
+          webhookLastAt: props.olistWebhookLastAt,
+          syncLastAt: props.olistSyncLastAt,
+        })
+      : null;
+
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
       <SellerNav active="integracoes" />
@@ -547,6 +559,19 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                       atual; em seguida use <strong className="text-[var(--foreground)]">Atualizar</strong>.
                     </p>
                   </AmberPremiumCallout>
+                ) : null}
+
+                {pedidosSaude ? (
+                  <OlistIntegracaoSaudeCard
+                    nivel={pedidosSaude.nivel}
+                    titulo={pedidosSaude.titulo}
+                    detalhe={pedidosSaude.detalhe}
+                    linhas={buildSellerPedidosSaudeLinhas({
+                      webhookLastAt: props.olistWebhookLastAt,
+                      syncLastAt: props.olistSyncLastAt,
+                      precosLastAt: props.precosSyncLastAt,
+                    })}
+                  />
                 ) : null}
 
                 <OlistModoOperacaoPainel

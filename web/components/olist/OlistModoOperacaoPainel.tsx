@@ -1,6 +1,7 @@
 "use client";
 
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
+import { AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
 import {
   isOlistSyncStale,
   OLIST_CRON_ESTOQUE_FORNECEDOR_MIN,
@@ -25,15 +26,15 @@ export function OlistModoOperacaoPainel(props: Props) {
   if (!props.connected || !props.tokenUsable) return null;
 
   const modo = resolverOlistModoOperacao(props.webhookLastAt);
-  const stale = isOlistSyncStale(props.syncLastAt, props.syncIntervalMinutes);
+  const cronStale = isOlistSyncStale(props.syncLastAt, props.syncIntervalMinutes);
 
   if (modo === "webhook_ativo") {
     return (
       <div className="space-y-3">
-        {stale ? (
-          <p className={cn("rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-xs", DANGER_PREMIUM_TEXT_BODY)}>
-            {props.syncLabel} não roda há mais de ~{props.syncIntervalMinutes * 3} min — confira o cron no Supabase ou use o
-            botão manual abaixo.
+        {cronStale ? (
+          <p className={cn("rounded-xl border border-[var(--card-border)] px-3 py-2.5 text-xs leading-relaxed", AMBER_PREMIUM_TEXT_SOFT, "bg-[var(--surface-subtle)]")}>
+            O cron de backup não rodou há mais de ~{props.syncIntervalMinutes * 3} min — confira quota/cron no
+            Supabase. O estoque na hora continua pelo webhook quando a Olist avisar.
           </p>
         ) : null}
         <p className="text-xs text-emerald-700 dark:text-emerald-300">
@@ -87,7 +88,7 @@ export function OlistModoOperacaoPainel(props: Props) {
         </p>
       </AmberPremiumCallout>
 
-      {stale ? (
+      {cronStale ? (
         <p className={cn("rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-xs", DANGER_PREMIUM_TEXT_BODY)}>
           {props.syncLabel} não roda há mais de ~{props.syncIntervalMinutes * 3} min — o cron do Supabase pode estar parado.
           Rode <code className="font-mono text-[10px]">supabase-cron-jobs.sql</code> ou use o botão manual.

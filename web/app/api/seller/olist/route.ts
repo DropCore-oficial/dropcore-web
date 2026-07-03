@@ -49,6 +49,11 @@ type OlistRow = {
   olist_last_precos_sync_summary?: Record<string, unknown> | null;
 };
 
+function firstOlistRow(data: unknown): OlistRow | null | undefined {
+  if (!Array.isArray(data) || data.length === 0) return undefined;
+  return data[0] as OlistRow;
+}
+
 const OLIST_PROBE_COLUMNS = "olist_last_catalogo_probe_at, olist_last_catalogo_probe_summary";
 const OLIST_PRECOS_COLUMNS =
   "olist_last_precos_sync_at, olist_last_precos_sync_status, olist_last_precos_sync_error, olist_last_precos_sync_summary";
@@ -178,7 +183,7 @@ export async function GET(req: Request) {
         .eq("seller_id", seller.id)
         .limit(1);
       if (!fb.error) {
-        const row = fb.data?.[0] as OlistRow | null | undefined;
+        const row = firstOlistRow(fb.data);
         const connected = Boolean(row?.olist_token_ciphertext?.trim());
         let token_usable = connected;
         let token_error: string | null = null;
@@ -272,7 +277,7 @@ export async function GET(req: Request) {
             { status: 500, headers: NO_STORE_JSON_HEADERS },
           );
         }
-        const row = fb.data?.[0] as OlistRow | null | undefined;
+        const row = firstOlistRow(fb.data);
         const connected = Boolean(row?.olist_token_ciphertext?.trim());
         let token_usable = connected;
         let token_error: string | null = null;
@@ -318,7 +323,7 @@ export async function GET(req: Request) {
       );
     }
 
-    const row = rows?.[0] as OlistRow | null | undefined;
+    const row = firstOlistRow(rows);
     const connected = Boolean(row?.olist_token_ciphertext?.trim());
     let token_usable = connected;
     let token_error: string | null = null;
