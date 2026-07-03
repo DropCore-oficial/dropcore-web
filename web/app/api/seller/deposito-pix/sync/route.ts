@@ -1,14 +1,12 @@
 /**
  * POST /api/seller/deposito-pix/sync
  * Verifica depósitos pendentes no Mercado Pago e aprova automaticamente se já pagos.
- * Fallback quando o webhook não chega (ex: ngrok).
+ * Fallback quando o webhook não chega.
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { processarDepositoAprovado } from "@/lib/depositoPixProcessor";
-import { processarUpgradeProAprovado, SELLER_DEPOSITO_REF_UPGRADE_PRO } from "@/lib/upgradeProPixProcessor";
-import { mercadoPagoOrderIndicaPagamentoCredito, mercadoPagoOrderValorCompativel } from "@/lib/mercadoPagoOrderPaid";
+import { sincronizarDepositosPendentesSeller } from "@/lib/depositoPixMercadoPagoSync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,42 +43,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "MP não configurado" }, { status: 500 });
     }
 
-    const { data: pendentes } = await supabaseAdmin
-      .from("seller_depositos_pix")
-      .select("id, mp_order_id, referencia, valor")
-      .eq("seller_id", seller.id)
-      .eq("status", "pendente")
-      .not("mp_order_id", "is", null);
-
-    if (!pendentes?.length) {
-      return NextResponse.json({ ok: true, aprovados: 0 });
-    }
-
-    let aprovados = 0;
-    for (const d of pendentes) {
-      const orderId = d.mp_order_id;
-      if (!orderId) continue;
-
-      const res = await fetch(`https://api.mercadopago.com/v1/orders/${orderId}`, {
-        headers: { Authorization: `Bearer ${mpToken}` },
-      });
-      const order = (await res.json()) as Record<string, unknown>;
-
-      const valorDep = Number((d as { valor?: number }).valor ?? 0);
-      const isUpgrade = String(d.referencia ?? "") === SELLER_DEPOSITO_REF_UPGRADE_PRO;
-      const creditoOk =
-        res.ok &&
-        mercadoPagoOrderIndicaPagamentoCredito(order) &&
-        (isUpgrade || mercadoPagoOrderValorCompativel(order, valorDep));
-
-      if (creditoOk) {
-        const ok = isUpgrade
-          ? await processarUpgradeProAprovado(`upgrade-pro-${d.id}`)
-          : await processarDepositoAprovado(`deposito-${d.id}`);
-        if (ok) aprovados++;
-      }
-    }
-
+    const aprovados = await sincronizarDepositosPendentesSeller(seller.id);
     return NextResponse.json({ ok: true, aprovados });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro";

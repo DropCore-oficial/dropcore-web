@@ -108,11 +108,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: result.error }, { status: 502 });
     }
 
-    if (result.order_id) {
-      await supabaseAdmin
-        .from("seller_depositos_pix")
-        .update({ mp_order_id: result.order_id })
-        .eq("id", row.id);
+    if (result.order_id || result.payment_id) {
+      const updates: { mp_order_id?: string; mp_payment_id?: string } = {};
+      if (result.order_id) updates.mp_order_id = result.order_id;
+      if (result.payment_id) updates.mp_payment_id = result.payment_id;
+      await supabaseAdmin.from("seller_depositos_pix").update(updates).eq("id", row.id);
     }
 
     const expiraEm = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // PIX expira em 30 min

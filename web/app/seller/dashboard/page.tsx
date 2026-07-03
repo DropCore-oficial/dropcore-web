@@ -598,6 +598,28 @@ export default function SellerDashboardPage() {
     return () => clearInterval(id);
   }, [depositoExpiraEm, depositoQrCode]);
 
+  // Polling: fecha o modal quando o PIX de produção for aprovado (webhook ou sync).
+  useEffect(() => {
+    if (!depositoQrCode) return;
+    const poll = async () => {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/seller/deposito-pix/sync", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json.ok && json.aprovados > 0) {
+        fecharModal();
+        void load({ silent: true });
+      }
+    };
+    const id = setInterval(poll, 10_000);
+    void poll();
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [depositoQrCode]);
+
   async function abrirPixMensalidade(m: Mensalidade) {
     setModalPixMensalidade(m);
     setPixLoading(true);
