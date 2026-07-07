@@ -74,6 +74,14 @@ function buildSyncPayload(row: OlistRow | null | undefined) {
     summary && typeof summary.skipped === "number" && Number.isFinite(summary.skipped) ? summary.skipped : null;
   const warnings =
     summary && Array.isArray(summary.warnings) ? summary.warnings.length : null;
+  const warnings_list =
+    summary && Array.isArray(summary.warnings)
+      ? summary.warnings.filter((w): w is string => typeof w === "string").slice(0, 8)
+      : [];
+  const errors_list =
+    summary && Array.isArray(summary.errors)
+      ? summary.errors.filter((e): e is string => typeof e === "string").slice(0, 8)
+      : [];
 
   return {
     last_at: row?.olist_last_sync_at ?? null,
@@ -82,6 +90,8 @@ function buildSyncPayload(row: OlistRow | null | undefined) {
     imported,
     skipped,
     warnings,
+    warnings_list,
+    errors_list,
   };
 }
 

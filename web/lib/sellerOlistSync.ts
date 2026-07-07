@@ -1,5 +1,5 @@
 import { submitSellerErpPedido } from "@/lib/erp/submitSellerErpPedido";
-import { shouldImportSituacaoText } from "@/lib/olistPedidoImportPolicy";
+import { shouldSkipSituacaoTextOnPesquisa } from "@/lib/olistPedidoImportPolicy";
 import { pesquisarPedidosOlist, type OlistPedidoResumo } from "@/lib/olistTinyApi";
 import { processOlistPedidoImport } from "@/lib/sellerOlistPedidoImport";
 import { decryptSellerErpSecret, describeSellerErpSecretDecryptFailure } from "@/lib/sellerErpSecretBox";
@@ -225,7 +225,7 @@ async function syncSellerOlistOrders(row: SellerOlistSyncRow, now: Date): Promis
   }
 
   for (const resumo of pedidosResumo) {
-    if (!shouldImportSituacaoText(resumo.situacao)) {
+    if (shouldSkipSituacaoTextOnPesquisa(resumo.situacao)) {
       result.skipped += 1;
       continue;
     }

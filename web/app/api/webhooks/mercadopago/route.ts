@@ -43,7 +43,7 @@ async function processarPorExtRef(extRef: string, mpPaymentId?: string | null): 
   }
 
   // Mensalidade: id direto (UUID)
-  await processarMensalidadePaga(extRef);
+  await processarMensalidadePaga(extRef, mpPaymentId ?? null);
 }
 
 export async function POST(req: Request) {

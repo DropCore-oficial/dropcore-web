@@ -7,7 +7,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
 import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
-import { AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
+import { AMBER_PREMIUM_TEXT_BODY, AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
 import {
   DANGER_PREMIUM_SURFACE_TRANSPARENT,
   DANGER_PREMIUM_TEXT_BODY,
@@ -39,6 +39,8 @@ export default function SellerIntegracoesErpPage() {
   const [olistSyncImported, setOlistSyncImported] = useState<number | null>(null);
   const [olistSyncSkipped, setOlistSyncSkipped] = useState<number | null>(null);
   const [olistSyncWarnings, setOlistSyncWarnings] = useState<number | null>(null);
+  const [olistSyncWarningsList, setOlistSyncWarningsList] = useState<string[]>([]);
+  const [olistSyncErrorsList, setOlistSyncErrorsList] = useState<string[]>([]);
   const [catalogoProbeLastAt, setCatalogoProbeLastAt] = useState<string | null>(null);
   const [catalogoProbeTotal, setCatalogoProbeTotal] = useState<number | null>(null);
   const [catalogoProbeEncontrados, setCatalogoProbeEncontrados] = useState<number | null>(null);
@@ -77,6 +79,16 @@ export default function SellerIntegracoesErpPage() {
     setOlistSyncImported(sync && typeof sync.imported === "number" ? sync.imported : null);
     setOlistSyncSkipped(sync && typeof sync.skipped === "number" ? sync.skipped : null);
     setOlistSyncWarnings(sync && typeof sync.warnings === "number" ? sync.warnings : null);
+    setOlistSyncWarningsList(
+      sync && Array.isArray(sync.warnings_list)
+        ? sync.warnings_list.filter((w): w is string => typeof w === "string")
+        : []
+    );
+    setOlistSyncErrorsList(
+      sync && Array.isArray(sync.errors_list)
+        ? sync.errors_list.filter((e): e is string => typeof e === "string")
+        : []
+    );
 
     const probe =
       json.catalogo_probe && typeof json.catalogo_probe === "object"
@@ -372,6 +384,8 @@ export default function SellerIntegracoesErpPage() {
       olistSyncImported={olistSyncImported}
       olistSyncSkipped={olistSyncSkipped}
       olistSyncWarnings={olistSyncWarnings}
+      olistSyncWarningsList={olistSyncWarningsList}
+      olistSyncErrorsList={olistSyncErrorsList}
       catalogoProbeLastAt={catalogoProbeLastAt}
       catalogoProbeTotal={catalogoProbeTotal}
       catalogoProbeEncontrados={catalogoProbeEncontrados}
@@ -421,6 +435,8 @@ type IntegracoesPageProps = {
   olistSyncImported: number | null;
   olistSyncSkipped: number | null;
   olistSyncWarnings: number | null;
+  olistSyncWarningsList: string[];
+  olistSyncErrorsList: string[];
   catalogoProbeLastAt: string | null;
   catalogoProbeTotal: number | null;
   catalogoProbeEncontrados: number | null;
@@ -659,6 +675,20 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
 
                       {props.olistSyncError ? (
                         <p className={cn("mt-2 text-xs", DANGER_PREMIUM_TEXT_BODY)}>{props.olistSyncError}</p>
+                      ) : null}
+                      {props.olistSyncErrorsList.length > 0 ? (
+                        <ul className={cn("mt-2 space-y-1 text-xs list-disc pl-4", DANGER_PREMIUM_TEXT_BODY)}>
+                          {props.olistSyncErrorsList.map((msg) => (
+                            <li key={msg}>{msg}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                      {props.olistSyncWarningsList.length > 0 ? (
+                        <ul className={cn("mt-2 space-y-1 text-xs list-disc pl-4", AMBER_PREMIUM_TEXT_BODY)}>
+                          {props.olistSyncWarningsList.map((msg) => (
+                            <li key={msg}>{msg}</li>
+                          ))}
+                        </ul>
                       ) : null}
                       {props.olistConnected && props.olistTokenUsable ? (
                         <button

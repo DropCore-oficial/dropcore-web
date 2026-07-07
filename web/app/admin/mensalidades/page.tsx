@@ -142,8 +142,12 @@ function podeMarcarPagoManual(r: Mensalidade): boolean {
   return true;
 }
 
-/** Em trial ativo: data fim do trial; senão vencimento da mensalidade (ex. dia 10 do ciclo). */
-function vencimentoExibicaoAdmin(r: Mensalidade): string {
+/** Em trial ativo: fim do trial; se pago: data do pagamento; senão vencimento da mensalidade. */
+function prazoExibicaoAdmin(r: Mensalidade): string {
+  const st = statusExibicaoAdmin(r);
+  if (st === "pago" && r.pago_em) {
+    return formatDateLocalYmd(r.pago_em);
+  }
   if (r.em_teste_gratis && r.trial_valido_ate && isPortalTrialAtivo(r.trial_valido_ate)) {
     return formatDateLocalYmd(r.trial_valido_ate);
   }
@@ -184,6 +188,11 @@ export default function MensalidadesPage() {
   const [trialLoadingOpts, setTrialLoadingOpts] = useState(false);
   /** `add` = conceder dias; `remove` = limpar trial */
   const [trialBusy, setTrialBusy] = useState<false | "add" | "remove">(false);
+
+  const cicloUrl = searchParams.get("ciclo")?.trim().slice(0, 7) ?? "";
+  useEffect(() => {
+    if (/^\d{4}-\d{2}$/.test(cicloUrl)) setCiclo(cicloUrl);
+  }, [cicloUrl]);
 
   async function load() {
     setLoading(true);
@@ -465,7 +474,11 @@ export default function MensalidadesPage() {
   const tableActionBtnOutlineInadimplenteCompact = `${tableActionBtnBaseCompact} border border-red-300 bg-red-100 text-red-900 shadow-sm hover:bg-red-100 dark:border-red-800 dark:bg-red-950/50 dark:text-red-100 dark:hover:bg-red-950/70`;
 
   const pendentes = rows.filter((r) => statusExibicaoAdmin(r) === "pendente");
+  const pagas = rows.filter((r) => statusExibicaoAdmin(r) === "pago");
+  const inadimplentes = rows.filter((r) => statusExibicaoAdmin(r) === "inadimplente");
   const totalPendente = pendentes.reduce((s, r) => s + r.valor, 0);
+  const totalPago = pagas.reduce((s, r) => s + r.valor, 0);
+  const totalInadimplente = inadimplentes.reduce((s, r) => s + r.valor, 0);
   const pendenteEmTeste = pendentes.filter((r) => r.em_teste_gratis).reduce((s, r) => s + r.valor, 0);
   const pendenteCobravelPortal = totalPendente - pendenteEmTeste;
 
@@ -801,19 +814,41 @@ export default function MensalidadesPage() {
         </div>
       </div>
 
-      {totalPendente > 0 && (
+      {rows.length > 0 && (
         <div className="rounded-xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-sm dark:border-neutral-700 dark:bg-neutral-900/50">
-          <p className="m-0 text-sm text-neutral-800 dark:text-neutral-100">
-            <strong>Total pendente (lista):</strong> {formatMoney(totalPendente)}
+          <p className="m-0 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+            Totais da lista (filtros aplicados)
           </p>
-          {pendenteEmTeste > 0 && (
-            <p className="m-0 mt-3 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400 sm:text-sm">
-              <strong className="text-neutral-700 dark:text-neutral-300">Teste grátis</strong>{" "}
-              <span>({formatMoney(pendenteEmTeste)})</span>
-              <span className="mx-1.5 text-neutral-400 dark:text-neutral-500">·</span>
-              cobrança efetiva no portal: <strong className="text-neutral-800 dark:text-neutral-200">{formatMoney(pendenteCobravelPortal)}</strong>
-            </p>
-          )}
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-emerald-200/80 bg-emerald-50/80 px-3 py-2.5 dark:border-emerald-900/50 dark:bg-emerald-950/25">
+              <p className="text-[11px] font-medium text-emerald-800/80 dark:text-emerald-300/90">Recebido (pago)</p>
+              <p className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-800 dark:text-emerald-300">
+                {formatMoney(totalPago)}
+              </p>
+              <p className="mt-0.5 text-[11px] text-emerald-900/70 dark:text-emerald-400/80">
+                {pagas.length} mensalidade{pagas.length !== 1 ? "s" : ""}
+              </p>
+            </div>
+            <div className="rounded-lg border border-neutral-200 bg-neutral-50/90 px-3 py-2.5 dark:border-neutral-700 dark:bg-neutral-900/40">
+              <p className="text-[11px] font-medium text-neutral-600 dark:text-neutral-400">Pendente</p>
+              <p className="mt-0.5 text-lg font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">
+                {formatMoney(totalPendente)}
+              </p>
+              <p className="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+                {pendentes.length} em aberto
+                {pendenteEmTeste > 0 ? ` · ${formatMoney(pendenteCobravelPortal)} cobrável` : ""}
+              </p>
+            </div>
+            <div className="rounded-lg border border-red-200/80 bg-red-50/70 px-3 py-2.5 dark:border-red-900/50 dark:bg-red-950/25">
+              <p className="text-[11px] font-medium text-red-800/80 dark:text-red-300/90">Inadimplente</p>
+              <p className="mt-0.5 text-lg font-semibold tabular-nums text-red-800 dark:text-red-300">
+                {formatMoney(totalInadimplente)}
+              </p>
+              <p className="mt-0.5 text-[11px] text-red-900/70 dark:text-red-400/80">
+                {inadimplentes.length} em atraso
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -864,8 +899,10 @@ export default function MensalidadesPage() {
                 </div>
                 <dl className="mt-4 border-t border-neutral-100 pt-4 text-sm dark:border-neutral-700">
                   <div className="flex justify-between gap-3">
-                    <dt className="text-neutral-500">Vencimento</dt>
-                    <dd className="font-medium">{vencimentoExibicaoAdmin(r)}</dd>
+                    <dt className="text-neutral-500">
+                      {statusExibicaoAdmin(r) === "pago" ? "Pago em" : "Vencimento"}
+                    </dt>
+                    <dd className="font-medium">{prazoExibicaoAdmin(r)}</dd>
                   </div>
                 </dl>
                 {acoesLinha(r, "card")}
@@ -909,7 +946,7 @@ export default function MensalidadesPage() {
                     }
                     role="columnheader"
                   >
-                    Vencimento
+                    Venc./Pago
                   </div>
                   <div
                     className={
@@ -973,7 +1010,7 @@ export default function MensalidadesPage() {
                           : "min-w-0 whitespace-nowrap pl-2 pr-3 text-sm text-neutral-800 dark:text-neutral-200"
                       }
                     >
-                      {vencimentoExibicaoAdmin(r)}
+                      {prazoExibicaoAdmin(r)}
                     </div>
                     <div
                       className={

@@ -78,7 +78,7 @@ export async function criarPagamentoCartaoMensalidade(params: {
 
   let mensalidadeLiberada = false;
   if (status === "approved") {
-    mensalidadeLiberada = await processarMensalidadePaga(params.external_reference);
+    mensalidadeLiberada = await processarMensalidadePaga(params.external_reference, paymentId);
   }
 
   return {

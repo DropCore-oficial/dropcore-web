@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
+import { processarMensalidadePaga } from "@/lib/mensalidadePixProcessor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,13 +32,10 @@ export async function POST(
       return NextResponse.json({ error: "Mensalidade já está paga." }, { status: 400 });
     }
 
-    const { error: upErr } = await supabaseAdmin
-      .from("financial_mensalidades")
-      .update({ status: "pago", pago_em: new Date().toISOString() })
-      .eq("id", id)
-      .eq("org_id", org_id);
-
-    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+    const ok = await processarMensalidadePaga(id);
+    if (!ok) {
+      return NextResponse.json({ error: "Não foi possível marcar como paga." }, { status: 500 });
+    }
 
     return NextResponse.json({ ok: true, status: "pago" });
   } catch (e: unknown) {

@@ -155,6 +155,13 @@ SELECT cron.schedule(
   $$SELECT public.dropcore_cron_http_post('/api/cron/fornecedor-olist-sync-estoque');$$
 );
 
+-- Mensalidades MP — a cada 5 min (UTC). Fallback ao webhook: marca pago quando PIX/cartão aprovado.
+SELECT cron.schedule(
+  'dropcore-mensalidades-mp-sync',
+  '*/5 * * * *',
+  $$SELECT public.dropcore_cron_http_post('/api/cron/mensalidades-mp-sync');$$
+);
+
 -- Inadimplência + notificação admin org — a cada hora (UTC), em vez de em cada GET de dashboard
 SELECT cron.schedule(
   'dropcore-inadimplencia',

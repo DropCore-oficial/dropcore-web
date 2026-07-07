@@ -227,9 +227,11 @@ function MensalidadeBloqueioGateInner({
 
   useEffect(() => {
     if (skipGate || booting || !bloquearPorMensalidade) return;
-    const id = setInterval(() => void loadRef.current(), 60_000);
+    // Com portal bloqueado: consulta o MP (sync) e recarrega — não só lê o banco.
+    const intervalMs = pixQrCode || pixCopiaCola ? 15_000 : 30_000;
+    const id = setInterval(() => void loadRef.current({ doSync: true }), intervalMs);
     return () => clearInterval(id);
-  }, [skipGate, booting, bloquearPorMensalidade]);
+  }, [skipGate, booting, bloquearPorMensalidade, pixQrCode, pixCopiaCola]);
 
   const gerarPixMensalidade = async (m: Mensalidade) => {
     setPixLoading(true);

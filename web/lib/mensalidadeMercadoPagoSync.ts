@@ -87,22 +87,26 @@ export async function sincronizarMensalidadesPendentesEntidade(
   let pagas = 0;
   for (const m of pendentes as MensalidadePendente[]) {
     let aprovado = await pagamentoAprovadoPorIds(mpToken, m, isTestMode);
+    let paymentIdResolved = m.mp_payment_id?.trim() || null;
 
     if (!aprovado) {
       const busca = await pagamentoAprovadoPorBusca(mpToken, m.id);
       if (busca.aprovado) {
         aprovado = true;
-        if (busca.payment_id && !m.mp_payment_id) {
-          await supabaseAdmin
-            .from("financial_mensalidades")
-            .update({ mp_payment_id: busca.payment_id })
-            .eq("id", m.id);
+        if (busca.payment_id) {
+          paymentIdResolved = busca.payment_id;
+          if (!m.mp_payment_id) {
+            await supabaseAdmin
+              .from("financial_mensalidades")
+              .update({ mp_payment_id: busca.payment_id })
+              .eq("id", m.id);
+          }
         }
       }
     }
 
     if (aprovado) {
-      const ok = await processarMensalidadePaga(m.id);
+      const ok = await processarMensalidadePaga(m.id, paymentIdResolved);
       if (ok) pagas++;
     }
   }

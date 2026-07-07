@@ -2,23 +2,51 @@
  * Marca mensalidade como paga (usado por webhook e sync).
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  buscarPagamentoMpAprovado,
+  pagoEmFromMpPayment,
+  valorLiquidoRecebidoMp,
+} from "@/lib/mercadoPagoValorRecebido";
 
-export async function processarMensalidadePaga(mensalidadeId: string): Promise<boolean> {
+export async function processarMensalidadePaga(
+  mensalidadeId: string,
+  mpPaymentId?: string | null
+): Promise<boolean> {
   if (!mensalidadeId?.trim()) return false;
 
   const { data: row, error: fetchErr } = await supabaseAdmin
     .from("financial_mensalidades")
-    .select("id, tipo, entidade_id, org_id, valor")
+    .select("id, tipo, entidade_id, org_id, valor, mp_payment_id")
     .eq("id", mensalidadeId)
     .in("status", ["pendente", "inadimplente"])
     .maybeSingle();
 
   if (fetchErr || !row) return false;
 
-  const now = new Date().toISOString();
+  const mpId = (mpPaymentId?.trim() || (row as { mp_payment_id?: string | null }).mp_payment_id?.trim()) || null;
+  let valorLiquidoMp: number | null = null;
+  let pagoEm = new Date().toISOString();
+
+  if (mpId) {
+    const payment = await buscarPagamentoMpAprovado(mpId);
+    if (payment) {
+      valorLiquidoMp = valorLiquidoRecebidoMp(payment);
+      pagoEm = pagoEmFromMpPayment(payment) ?? pagoEm;
+    }
+  }
+
+  const patch: Record<string, unknown> = {
+    status: "pago",
+    pago_em: pagoEm,
+  };
+  if (mpId) patch.mp_payment_id = mpId;
+  if (valorLiquidoMp != null && Number.isFinite(valorLiquidoMp)) {
+    patch.valor_liquido_mp = valorLiquidoMp;
+  }
+
   const { error: updateErr } = await supabaseAdmin
     .from("financial_mensalidades")
-    .update({ status: "pago", pago_em: now })
+    .update(patch)
     .eq("id", mensalidadeId)
     .in("status", ["pendente", "inadimplente"]);
 
@@ -27,7 +55,9 @@ export async function processarMensalidadePaga(mensalidadeId: string): Promise<b
     return false;
   }
 
-  const valorBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(row.valor ?? 0));
+  const valorBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+    Number(row.valor ?? 0)
+  );
 
   // Notificação para quem pagou (seller ou fornecedor)
   if (row.tipo === "fornecedor") {

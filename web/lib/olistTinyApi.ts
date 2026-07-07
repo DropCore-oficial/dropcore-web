@@ -267,30 +267,51 @@ export async function pesquisarPedidosOlist(
   };
 }
 
+function parseTinyPedidoId(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const n = Number.parseInt(value.trim(), 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 export async function obterPedidoOlist(apiToken: string, pedidoId: number): Promise<OlistPedidoDetalhe> {
   const json = await postTinyApi2Form<ObterPedidoResponse>("pedido.obter.php", apiToken, {
     id: String(pedidoId),
   });
 
   const pedido = json.pedido;
-  if (!pedido || typeof pedido.id !== "number") {
+  const pedidoIdParsed = parseTinyPedidoId(pedido?.id);
+  if (!pedido || pedidoIdParsed == null) {
     throw new Error("Pedido não encontrado na Olist/Tiny.");
   }
 
-  const itens =
+  const itens: OlistPedidoItem[] = [];
+  const rawItens =
     pedido.itens
       ?.map((row) => row.item)
-      .filter((item): item is NonNullable<typeof item> => !!item)
-      .map((item) => ({
-        id_produto: typeof item.id_produto === "number" ? item.id_produto : null,
-        codigo: item.codigo?.trim() || null,
-        descricao: item.descricao?.trim() || null,
-        quantidade: Math.max(1, Math.floor(toTinyDecimal(item.quantidade))),
-      }))
-      .filter((item) => item.codigo) ?? [];
+      .filter((item): item is NonNullable<typeof item> => !!item) ?? [];
+
+  for (const item of rawItens) {
+    let codigo = item.codigo?.trim() || null;
+    const idProduto = typeof item.id_produto === "number" ? item.id_produto : null;
+    if (!codigo && idProduto) {
+      const prod = await obterProdutoOlistPorId(apiToken, idProduto);
+      codigo = prod?.codigo?.trim() || null;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    if (!codigo) continue;
+    itens.push({
+      id_produto: idProduto,
+      codigo,
+      descricao: item.descricao?.trim() || null,
+      quantidade: Math.max(1, Math.floor(toTinyDecimal(item.quantidade))),
+    });
+  }
 
   return {
-    id: pedido.id,
+    id: pedidoIdParsed,
     numero: typeof pedido.numero === "number" ? pedido.numero : null,
     numero_ecommerce: pedido.numero_ecommerce?.trim() || null,
     situacao: pedido.situacao?.trim() || null,

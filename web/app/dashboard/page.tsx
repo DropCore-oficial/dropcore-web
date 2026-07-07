@@ -17,6 +17,7 @@ import {
   AMBER_PREMIUM_TEXT_SOFT,
 } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
+import { MensalidadesResumoFinanceiro } from "@/components/admin/MensalidadesResumoFinanceiro";
 
 type MeResponse = {
   user_id: string;
@@ -781,44 +782,11 @@ export default function DashboardPage() {
           );
         })()}
 
-        {/* Mensalidades: quem está em teste grátis, em dia ou inadimplente */}
         {isAdmin && stats?.mensalidade_portal && (
-          <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
-            <div className="p-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-                <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Mensalidades DropCore</p>
-                <button
-                  type="button"
-                  onClick={() => router.push("/admin/mensalidades")}
-                  className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline shrink-0"
-                >
-                  Gerenciar mensalidades →
-                </button>
-              </div>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-3">
-                Ao gerar o convite (Sellers ou Empresas), você define quantos dias de teste grátis no painel — ou <strong>0</strong> para não dar período grátis (como na calculadora). Se não informar na API, vale o padrão{" "}
-                <code className="text-[11px]">PORTAL_TRIAL_DAYS</code> ({stats.portal_trial_days ?? 7} dias). &quot;Pagando&quot; = sem mensalidade inadimplente; &quot;Não pagou&quot; = bloqueio até regularizar.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="rounded-lg border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900/40 p-3">
-                  <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Sellers</p>
-                  <ul className="text-sm space-y-1.5 text-neutral-800 dark:text-neutral-200">
-                    <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Em teste grátis</span><span className="font-semibold tabular-nums">{stats.mensalidade_portal.sellers.em_teste}</span></li>
-                    <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Pagando (em dia)</span><span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{stats.mensalidade_portal.sellers.adimplentes}</span></li>
-                    <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Não pagou (inadimplente)</span><span className="font-semibold tabular-nums text-red-600 dark:text-red-400">{stats.mensalidade_portal.sellers.inadimplentes}</span></li>
-                  </ul>
-                </div>
-                <div className="rounded-lg border border-[var(--card-border)] bg-neutral-100 dark:bg-neutral-900/40 p-3">
-                  <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Fornecedores</p>
-                  <ul className="text-sm space-y-1.5 text-neutral-800 dark:text-neutral-200">
-                    <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Em teste grátis</span><span className="font-semibold tabular-nums">{stats.mensalidade_portal.fornecedores.em_teste}</span></li>
-                    <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Pagando (em dia)</span><span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{stats.mensalidade_portal.fornecedores.adimplentes}</span></li>
-                    <li className="flex justify-between gap-2"><span className="text-neutral-500 dark:text-neutral-400">Não pagou (inadimplente)</span><span className="font-semibold tabular-nums text-red-600 dark:text-red-400">{stats.mensalidade_portal.fornecedores.inadimplentes}</span></li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </section>
+          <MensalidadesResumoFinanceiro
+            portalTrialDays={stats.portal_trial_days}
+            mensalidadePortal={stats.mensalidade_portal}
+          />
         )}
 
         {/* Calculadora — receita PIX (assinatura calc-only) */}

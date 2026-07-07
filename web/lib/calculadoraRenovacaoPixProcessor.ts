@@ -6,6 +6,7 @@ import { randomBytes } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getCalculadoraRenovacaoValorBrl } from "@/lib/calculadoraRenovacaoConfig";
 import { computeCalculadoraRenovacaoValidoAte } from "@/lib/calculadoraRenovacaoValidoAte";
+import { valorLiquidoRecebidoMp } from "@/lib/mercadoPagoValorRecebido";
 
 /** Prefixo único (não colide com UUID de mensalidade nem upgrade-pro / deposito). */
 export const CALC_RENOV_EXT_PREFIX = "crcalc";
@@ -57,19 +58,8 @@ function valorCompativel(valorMp: unknown, esperado: number): boolean {
   return Math.abs(n - esperado) < 0.05;
 }
 
-/**
- * Valor para espelho interno de receita: **líquido na conta** (`transaction_details.net_received_amount`)
- * quando o MP envia; senão cai no valor total da transação (`transaction_amount`).
- */
 function valorRegistroRecebimentoMp(payment: Record<string, unknown>): number {
-  const td = payment.transaction_details as Record<string, unknown> | undefined;
-  const net = td?.net_received_amount;
-  if (typeof net === "number" && Number.isFinite(net) && net >= 0) return net;
-  const netParsed = parseFloat(String(net ?? ""));
-  if (Number.isFinite(netParsed) && netParsed >= 0) return netParsed;
-  const gross = payment.transaction_amount;
-  const g = typeof gross === "number" ? gross : parseFloat(String(gross ?? ""));
-  return Number.isFinite(g) && g >= 0 ? g : 0;
+  return valorLiquidoRecebidoMp(payment);
 }
 
 /**

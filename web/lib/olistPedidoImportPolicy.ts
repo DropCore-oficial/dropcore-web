@@ -41,6 +41,16 @@ export function shouldImportSituacaoText(situacao: string | null | undefined): b
   return false;
 }
 
+/**
+ * Na listagem `pedidos.pesquisa`, a situação às vezes vem vazia (marketplace/Shopee).
+ * Só ignoramos cedo quando a lista traz situação claramente não importável; senão buscamos o detalhe.
+ */
+export function shouldSkipSituacaoTextOnPesquisa(situacao: string | null | undefined): boolean {
+  const normalized = normalizeOlistSituacaoText(situacao);
+  if (!normalized) return false;
+  return OLIST_SKIP_SITUACOES.has(normalized);
+}
+
 export function shouldImportCodigoSituacao(codigo: string | null | undefined): boolean {
   const c = String(codigo ?? "")
     .trim()
