@@ -58,21 +58,28 @@ function resolveSyncFrom(row: SellerOlistSyncRow, now: Date, mode: SellerOlistSy
   }
 
   const cursor = row.olist_pedidos_sync_cursor_at ? new Date(row.olist_pedidos_sync_cursor_at) : null;
+  let from: Date;
   if (cursor && !Number.isNaN(cursor.getTime())) {
-    return new Date(cursor.getTime() - SYNC_OVERLAP_MS);
+    from = new Date(cursor.getTime() - SYNC_OVERLAP_MS);
+  } else {
+    const validated = row.olist_token_validated_at ? new Date(row.olist_token_validated_at) : null;
+    if (validated && !Number.isNaN(validated.getTime())) {
+      from = validated;
+    } else {
+      const updated = row.updated_at ? new Date(row.updated_at) : null;
+      if (updated && !Number.isNaN(updated.getTime())) {
+        from = updated;
+      } else {
+        from = new Date(now.getTime() - DEFAULT_LOOKBACK_MS);
+      }
+    }
   }
 
   const validated = row.olist_token_validated_at ? new Date(row.olist_token_validated_at) : null;
-  if (validated && !Number.isNaN(validated.getTime())) {
+  if (validated && !Number.isNaN(validated.getTime()) && validated < from) {
     return validated;
   }
-
-  const updated = row.updated_at ? new Date(row.updated_at) : null;
-  if (updated && !Number.isNaN(updated.getTime())) {
-    return updated;
-  }
-
-  return new Date(now.getTime() - DEFAULT_LOOKBACK_MS);
+  return from;
 }
 
 async function listSellerOlistIntegrations(): Promise<SellerOlistSyncRow[]> {
@@ -140,7 +147,6 @@ async function collectPedidosForSync(
   token: string,
   from: Date,
   now: Date,
-  mode: SellerOlistSyncMode,
   maxOrders: number
 ): Promise<OlistPedidoResumo[]> {
   const byId = new Map<number, OlistPedidoResumo>();
@@ -148,10 +154,7 @@ async function collectPedidosForSync(
   let numeroPaginas = 1;
 
   while (pagina <= numeroPaginas && byId.size < maxOrders) {
-    const page =
-      mode === "manual"
-        ? await pesquisarPedidosOlist(token, { dataInicial: from, dataFinal: now, pagina })
-        : await pesquisarPedidosOlist(token, { dataAtualizacao: from, pagina });
+    const page = await pesquisarPedidosOlist(token, { dataInicial: from, dataFinal: now, pagina });
     numeroPaginas = page.numero_paginas;
     for (const pedido of page.pedidos) {
       byId.set(pedido.id, pedido);
@@ -227,7 +230,7 @@ async function syncSellerOlistOrders(
   let pedidosResumo: OlistPedidoResumo[] = [];
 
   try {
-    pedidosResumo = await collectPedidosForSync(token, syncFrom, now, mode, MAX_ORDERS_PER_SELLER);
+    pedidosResumo = await collectPedidosForSync(token, syncFrom, now, MAX_ORDERS_PER_SELLER);
   } catch (e: unknown) {
     result.status = "erro";
     result.errors.push(e instanceof Error ? e.message : "Erro ao pesquisar pedidos na Olist/Tiny.");
@@ -245,7 +248,7 @@ async function syncSellerOlistOrders(
     result.warnings.push(
       mode === "manual"
         ? "Nenhum pedido cadastrado na Olist/Tiny no período consultado (desde validação do token)."
-        : "Nenhum pedido atualizado na Olist/Tiny nesta consulta."
+        : "Nenhum pedido cadastrado na Olist/Tiny no período consultado (cron)."
     );
   }
 
