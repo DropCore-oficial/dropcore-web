@@ -143,6 +143,10 @@ export type OlistPedidoItem = {
 export type OlistPedidoDetalhe = OlistPedidoResumo & {
   forma_envio: string | null;
   itens: OlistPedidoItem[];
+  comprador_nome: string | null;
+  comprador_cidade: string | null;
+  comprador_uf: string | null;
+  comprador_fone: string | null;
 };
 
 type PesquisaPedidosResponse = TinyRetornoBase & {
@@ -160,6 +164,18 @@ type ObterPedidoResponse = TinyRetornoBase & {
     codigo_rastreamento?: string;
     data_pedido?: string;
     forma_envio?: string;
+    cliente?: {
+      nome?: string;
+      cidade?: string;
+      uf?: string;
+      fone?: string;
+    };
+    endereco_entrega?: {
+      nome_destinatario?: string;
+      cidade?: string;
+      uf?: string;
+      fone?: string;
+    };
     itens?: Array<{
       item?: {
         id_produto?: number;
@@ -334,6 +350,14 @@ export async function obterPedidoOlist(apiToken: string, pedidoId: number): Prom
     data_pedido: pedido.data_pedido?.trim() || null,
     forma_envio: pedido.forma_envio?.trim() || null,
     itens,
+    comprador_nome:
+      pedido.endereco_entrega?.nome_destinatario?.trim() ||
+      pedido.cliente?.nome?.trim() ||
+      null,
+    comprador_cidade:
+      pedido.endereco_entrega?.cidade?.trim() || pedido.cliente?.cidade?.trim() || null,
+    comprador_uf: pedido.endereco_entrega?.uf?.trim() || pedido.cliente?.uf?.trim() || null,
+    comprador_fone: pedido.endereco_entrega?.fone?.trim() || pedido.cliente?.fone?.trim() || null,
   };
 }
 

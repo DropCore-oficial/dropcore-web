@@ -33,6 +33,7 @@ function formatDate(s: string) {
 }
 
 const statusLabel: Record<string, string> = {
+  pendente_estoque: "Aguardando estoque",
   enviado: "Aguardando postagem",
   aguardando_repasse: "Postado",
   entregue: "Entregue",
@@ -221,6 +222,7 @@ export default function FornecedorPedidosPage() {
                   className="min-h-10 flex-1 rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 text-sm text-[var(--foreground)] sm:min-w-[12rem] sm:flex-none"
                 >
                   <option value="">Todos</option>
+                  <option value="pendente_estoque">Aguardando estoque</option>
                   <option value="enviado">Aguardando postagem</option>
                   <option value="aguardando_repasse">Postados</option>
                   <option value="entregue">Entregues</option>
@@ -341,7 +343,9 @@ export default function FornecedorPedidosPage() {
                       <td className="px-4 py-3">
                         <span
                           className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium ${
-                            p.status === "enviado"
+                            p.status === "pendente_estoque"
+                              ? "border-rose-300 bg-rose-100 text-rose-800 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                            : p.status === "enviado"
                               ? FORN_PEDIDO_STATUS_ENVIADO
                             : p.status === "aguardando_repasse"
                               ? "border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-300"

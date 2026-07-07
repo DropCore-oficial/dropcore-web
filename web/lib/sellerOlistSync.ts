@@ -285,12 +285,15 @@ async function syncSellerOlistOrders(
       continue;
     }
 
-    if (proc.outcome === "imported") {
+    if (proc.outcome === "imported" || proc.outcome === "imported_pendente_estoque" || proc.outcome === "promoted_pendente_estoque") {
       if (proc.warnings.length > 0) {
         result.status = "parcial";
         result.warnings.push(...proc.warnings);
       }
       result.imported += 1;
+      if (proc.outcome === "imported_pendente_estoque") {
+        result.warnings.push(`Pedido ${resumo.id}: importado aguardando estoque no DropCore.`);
+      }
     }
   }
 

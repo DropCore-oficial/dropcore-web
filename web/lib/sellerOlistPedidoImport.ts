@@ -1,4 +1,4 @@
-import { submitSellerErpPedido } from "@/lib/erp/submitSellerErpPedido";
+import { submitSellerErpPedido, tryPromotePendenteEstoquePedido } from "@/lib/erp/submitSellerErpPedido";
 import {
   fetchUrlAsPdfBase64,
   obterExpedicaoPorPedidoVenda,
@@ -107,6 +107,8 @@ export type ProcessOlistPedidoImportInput = {
 
 export type ProcessOlistPedidoImportResult =
   | { ok: true; outcome: "imported"; pedido_id_dropcore: string; warnings: string[] }
+  | { ok: true; outcome: "imported_pendente_estoque"; pedido_id_dropcore: string; warnings: string[] }
+  | { ok: true; outcome: "promoted_pendente_estoque"; pedido_id_dropcore: string; warnings: string[] }
   | { ok: true; outcome: "skipped_duplicate"; pedido_id_dropcore?: string; warnings?: string[] }
   | { ok: true; outcome: "skipped_situacao" }
   | { ok: true; outcome: "skipped_sem_itens"; warnings: string[] }
@@ -167,6 +169,9 @@ export async function processOlistPedidoImport(
   }
 
   const referencia = buildReferenciaExterna(pedido.id);
+  const nomeProduto =
+    pedido.itens.map((i) => i.descricao?.trim()).find(Boolean) ??
+    items.map((i) => i.sku).join(", ");
   const submit = await submitSellerErpPedido({
     org_id: input.org_id,
     seller: {
@@ -180,23 +185,62 @@ export async function processOlistPedidoImport(
     tracking_codigo: pedido.codigo_rastreamento,
     metodo_envio: pedido.forma_envio,
     items: items.map((item) => ({ sku: item.sku, quantidade: item.quantidade })),
+    meta: {
+      nome_produto: nomeProduto,
+      marketplace_numero: pedido.numero_ecommerce,
+      comprador_nome: pedido.comprador_nome,
+      comprador_cidade: pedido.comprador_cidade,
+      comprador_uf: pedido.comprador_uf,
+      comprador_fone: pedido.comprador_fone,
+    },
   });
 
   if (!submit.ok) {
     if (submit.error_code === "PEDIDO_DUPLICADO") {
       let pedidoIdDup = submit.pedido_existente?.pedido_id ?? null;
+      let dupStatus = submit.pedido_existente?.status ?? null;
       if (!pedidoIdDup) {
         const ref = buildReferenciaExterna(pedido.id);
         const { data: rowDup, error: rowDupErr } = await supabaseAdmin
           .from("pedidos")
-          .select("id")
+          .select("id, status")
           .eq("org_id", input.org_id)
           .eq("seller_id", input.seller_id)
           .eq("referencia_externa", ref)
           .order("criado_em", { ascending: false })
           .limit(1)
           .maybeSingle();
-        if (!rowDupErr && rowDup?.id) pedidoIdDup = rowDup.id;
+        if (!rowDupErr && rowDup?.id) {
+          pedidoIdDup = rowDup.id;
+          dupStatus = rowDup.status ?? dupStatus;
+        }
+      }
+      if (pedidoIdDup && dupStatus === "pendente_estoque") {
+        const promote = await tryPromotePendenteEstoquePedido({
+          org_id: input.org_id,
+          pedido_id: pedidoIdDup,
+          seller: {
+            id: sellerRow.id,
+            fornecedor_id: sellerRow.fornecedor_id,
+            plano: sellerRow.plano,
+            erp_estoque_webhook_url: sellerRow.erp_estoque_webhook_url,
+            erp_estoque_webhook_secret: sellerRow.erp_estoque_webhook_secret,
+          },
+        });
+        if (promote.ok) {
+          const labelWarnings = await tryAttachOlistEtiquetaPdf({
+            org_id: input.org_id,
+            pedido_id: promote.pedido_id,
+            olist_pedido_id: pedido.id,
+            token,
+          });
+          return {
+            ok: true,
+            outcome: "promoted_pendente_estoque",
+            pedido_id_dropcore: promote.pedido_id,
+            warnings: labelWarnings,
+          };
+        }
       }
       if (pedidoIdDup) {
         const labelWarnings = await tryAttachOlistEtiquetaPdf({
@@ -223,6 +267,15 @@ export async function processOlistPedidoImport(
     olist_pedido_id: pedido.id,
     token,
   });
+
+  if (submit.status === "pendente_estoque") {
+    return {
+      ok: true,
+      outcome: "imported_pendente_estoque",
+      pedido_id_dropcore: submit.pedido_id,
+      warnings: labelWarnings,
+    };
+  }
 
   return {
     ok: true,

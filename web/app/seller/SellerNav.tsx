@@ -71,8 +71,19 @@ function IconCadastro({ active }: { active: boolean }) {
     </svg>
   );
 }
+function IconTruck({ active }: { active: boolean }) {
+  return (
+    <svg className={`w-5 h-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" />
+      <path d="M15 18H9" />
+      <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14" />
+      <circle cx="17" cy="18" r="2" />
+      <circle cx="7" cy="18" r="2" />
+    </svg>
+  );
+}
 
-type NavKey = "dashboard" | "produtos" | "calculadora" | "plano" | "cadastro" | "integracoes";
+type NavKey = "dashboard" | "pedidos" | "produtos" | "calculadora" | "plano" | "cadastro" | "integracoes";
 
 /** Rotas agrupadas no menu “Mais” (desktop e mobile). */
 const NAV_MAIS_MENU_KEYS = ["integracoes", "plano", "cadastro"] as const satisfies readonly NavKey[];
@@ -137,6 +148,19 @@ function SellerNavDesktopMais({ active }: { active: NavKey }) {
           role="menu"
           aria-labelledby="seller-nav-mais-trigger"
         >
+          <Link
+            href="/seller/pedidos"
+            role="menuitem"
+            className={`mx-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              active === "pedidos"
+                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+            }`}
+            onClick={() => setOpen(false)}
+          >
+            <IconTruck active={active === "pedidos"} />
+            Pedidos
+          </Link>
           <Link
             href="/seller/integracoes-erp"
             role="menuitem"
@@ -297,6 +321,10 @@ export function SellerNav({
                 <IconHome active={active === "dashboard"} />
                 Dashboard
               </Link>
+              <Link href="/seller/pedidos" className={linkClass("pedidos")}>
+                <IconTruck active={active === "pedidos"} />
+                Pedidos
+              </Link>
               <Link href="/seller/produtos" className={linkClass("produtos")}>
                 <IconPackage active={active === "produtos"} />
                 Produtos
@@ -325,6 +353,19 @@ export function SellerNav({
             role="menu"
             aria-label="Mais opções do seller"
           >
+            <Link
+              href="/seller/pedidos"
+              role="menuitem"
+              className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+                active === "pedidos"
+                  ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                  : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
+              }`}
+              onClick={() => setMobileMaisOpen(false)}
+            >
+              <IconTruck active={active === "pedidos"} />
+              Pedidos
+            </Link>
             <Link
               href="/seller/integracoes-erp"
               role="menuitem"

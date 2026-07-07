@@ -9,6 +9,7 @@ export async function notifyFornecedorPedidoParaPostar(params: {
   fornecedor_id: string;
   pedido_id: string;
   valor_fornecedor: number;
+  motivo?: "postar" | "estoque";
 }): Promise<void> {
   let memberUserId: string | null = null;
 
@@ -38,11 +39,15 @@ export async function notifyFornecedorPedidoParaPostar(params: {
     params.valor_fornecedor,
   );
 
+  const aguardandoEstoque = params.motivo === "estoque";
+
   await supabaseAdmin.from("notifications").insert({
     user_id: memberUserId,
-    tipo: "pedido_para_postar",
-    titulo: "Novo pedido para postar",
-    mensagem: `Você tem um novo pedido de ${valorBRL} aguardando envio.`,
+    tipo: aguardandoEstoque ? "pedido_pendente_estoque" : "pedido_para_postar",
+    titulo: aguardandoEstoque ? "Pedido aguardando estoque" : "Novo pedido para postar",
+    mensagem: aguardandoEstoque
+      ? `Pedido de ${valorBRL} importado, mas o estoque no DropCore está zerado. Reposição necessária antes do envio.`
+      : `Você tem um novo pedido de ${valorBRL} aguardando envio.`,
     metadata: { pedido_id: params.pedido_id },
   });
 }

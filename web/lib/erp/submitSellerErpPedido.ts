@@ -26,6 +26,14 @@ export type SubmitSellerErpPedidoInput = {
   tracking_codigo?: string | null;
   metodo_envio?: string | null;
   items: SubmitSellerErpPedidoItem[];
+  meta?: {
+    nome_produto?: string | null;
+    marketplace_numero?: string | null;
+    comprador_nome?: string | null;
+    comprador_cidade?: string | null;
+    comprador_uf?: string | null;
+    comprador_fone?: string | null;
+  };
 };
 
 export type SubmitSellerErpPedidoResult =
@@ -167,6 +175,7 @@ export async function submitSellerErpPedido(
 
   let valor_fornecedor = 0;
   let valor_dropcore = 0;
+  let pendenteEstoque = false;
   const skuRows: {
     id: string;
     sku: string;
@@ -201,12 +210,7 @@ export async function submitSellerErpPedido(
 
     const estoque = Number(sku.estoque_atual ?? 0);
     if (estoque < item.quantidade) {
-      return {
-        ok: false,
-        error_code: "ESTOQUE_INSUFICIENTE",
-        error_message: `Estoque insuficiente para SKU ${item.sku}. Disponível: ${estoque}, solicitado: ${item.quantidade}`,
-        http_status: 422,
-      };
+      pendenteEstoque = true;
     }
 
     const custoBase = toNum(sku.custo_base);
@@ -275,6 +279,122 @@ export async function submitSellerErpPedido(
       error_code: "SKU_NAO_HABILITADO_PLANO",
       error_message: vendaSkuCheck.error,
       http_status: 403,
+    };
+  }
+
+  if (pendenteEstoque) {
+    const meta = input.meta ?? {};
+    const { data: pedidoPendente, error: insertPendenteErr } = await supabaseAdmin
+      .from("pedidos")
+      .insert({
+        org_id,
+        seller_id: seller.id,
+        fornecedor_id,
+        valor_fornecedor,
+        valor_dropcore,
+        valor_total,
+        status: "pendente_estoque",
+        referencia_externa,
+        tracking_codigo,
+        metodo_envio,
+        sku_id: skuRows[0]?.id ?? null,
+        nome_produto: meta.nome_produto?.trim() || skuRows[0]?.nome_produto || null,
+        marketplace_numero: meta.marketplace_numero?.trim() || null,
+        comprador_nome: meta.comprador_nome?.trim() || null,
+        comprador_cidade: meta.comprador_cidade?.trim() || null,
+        comprador_uf: meta.comprador_uf?.trim() || null,
+        comprador_fone: meta.comprador_fone?.trim() || null,
+      })
+      .select("id, valor_total")
+      .single();
+
+    if (insertPendenteErr || !pedidoPendente) {
+      const isUniqueViolation =
+        insertPendenteErr?.code === "23505" ||
+        String(insertPendenteErr?.message ?? "").toLowerCase().includes("duplicate key");
+      if (isUniqueViolation && referencia_externa) {
+        const { data: pedidoPosRace } = await supabaseAdmin
+          .from("pedidos")
+          .select("id, status, referencia_externa")
+          .eq("org_id", org_id)
+          .eq("seller_id", seller.id)
+          .eq("referencia_externa", referencia_externa)
+          .order("criado_em", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (pedidoPosRace) {
+          return {
+            ok: false,
+            error_code: "PEDIDO_DUPLICADO",
+            error_message: "Já existe pedido com esta referência externa.",
+            http_status: 409,
+            pedido_existente: {
+              pedido_id: pedidoPosRace.id,
+              status: pedidoPosRace.status,
+              referencia_externa: pedidoPosRace.referencia_externa,
+            },
+          };
+        }
+      }
+      return {
+        ok: false,
+        error_code: "INTERNAL_ERROR",
+        error_message: insertPendenteErr?.message ?? "Erro ao criar pedido pendente de estoque.",
+        http_status: 500,
+      };
+    }
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const sku = skuRows[i];
+      const precoUnit = sku.custo_base + sku.custo_dropcore;
+      const valorItem = precoUnit * item.quantidade;
+      const { error: pedidoItemErr } = await supabaseAdmin.from("pedido_itens").insert({
+        pedido_id: pedidoPendente.id,
+        sku_id: sku.id,
+        quantidade: item.quantidade,
+        preco_unitario: precoUnit,
+        valor_total: valorItem,
+      });
+      if (pedidoItemErr) {
+        await supabaseAdmin.from("pedidos").update({ status: "cancelado" }).eq("id", pedidoPendente.id);
+        return {
+          ok: false,
+          error_code: "INTERNAL_ERROR",
+          error_message: "Erro ao criar itens do pedido.",
+          http_status: 500,
+        };
+      }
+    }
+
+    await addPedidoEvento({
+      org_id,
+      pedido_id: pedidoPendente.id,
+      tipo: "pedido_pendente_estoque",
+      origem: "erp",
+      actor_id: seller.id,
+      actor_tipo: "seller",
+      descricao: "Pedido importado aguardando reposição de estoque no DropCore.",
+      metadata: { referencia_externa },
+    });
+
+    await notifyFornecedorPedidoParaPostar({
+      org_id,
+      fornecedor_id,
+      pedido_id: pedidoPendente.id,
+      valor_fornecedor,
+      motivo: "estoque",
+    });
+
+    return {
+      ok: true,
+      pedido_id: pedidoPendente.id,
+      valor_total: Number(pedidoPendente.valor_total ?? valor_total),
+      status: "pendente_estoque",
+      estoque_atual_por_sku: skuRows.map((sku) => ({
+        sku: sku.sku,
+        estoque_atual: sku.estoque_atual,
+      })),
     };
   }
 
@@ -522,6 +642,199 @@ export async function submitSellerErpPedido(
     pedido_id: pedido.id,
     valor_total: blockResult.valor_total,
     status: blockResult.status,
+    estoque_atual_por_sku: items.map((it, i) => ({
+      sku: skuRows[i].sku,
+      estoque_atual: skuRows[i].estoque_atual - it.quantidade,
+    })),
+  };
+}
+
+/** Tenta liberar pedido `pendente_estoque` quando o estoque e o saldo passam a ser suficientes. */
+export async function tryPromotePendenteEstoquePedido(params: {
+  org_id: string;
+  pedido_id: string;
+  seller: SubmitSellerErpPedidoInput["seller"];
+}): Promise<SubmitSellerErpPedidoResult> {
+  const { data: pedido, error: pedidoErr } = await supabaseAdmin
+    .from("pedidos")
+    .select(
+      "id, org_id, seller_id, fornecedor_id, status, valor_fornecedor, valor_dropcore, valor_total, referencia_externa, tracking_codigo, metodo_envio"
+    )
+    .eq("id", params.pedido_id)
+    .eq("org_id", params.org_id)
+    .maybeSingle();
+
+  if (pedidoErr || !pedido) {
+    return {
+      ok: false,
+      error_code: "PEDIDO_NAO_ENCONTRADO",
+      error_message: "Pedido não encontrado.",
+      http_status: 404,
+    };
+  }
+
+  if (pedido.status !== "pendente_estoque") {
+    return {
+      ok: false,
+      error_code: "STATUS_INVALIDO",
+      error_message: `Pedido não está aguardando estoque (status: ${pedido.status}).`,
+      http_status: 409,
+    };
+  }
+
+  const { data: itens, error: itensErr } = await supabaseAdmin
+    .from("pedido_itens")
+    .select("quantidade, skus(id, sku, estoque_atual, estoque_minimo, nome_produto, custo_base, custo_dropcore, expedicao_override_linha)")
+    .eq("pedido_id", pedido.id);
+
+  if (itensErr || !itens?.length) {
+    return {
+      ok: false,
+      error_code: "ITENS_INVALIDOS",
+      error_message: "Pedido sem itens para liberar.",
+      http_status: 422,
+    };
+  }
+
+  const items: SubmitSellerErpPedidoItem[] = [];
+  const skuRows: {
+    id: string;
+    sku: string;
+    estoque_atual: number;
+    estoque_minimo: number | null;
+    nome_produto: string | null;
+    custo_base: number;
+    custo_dropcore: number;
+    expedicao_override_linha: string | null;
+  }[] = [];
+
+  for (const row of itens) {
+    const skusJoined = row.skus as unknown;
+    const skuRaw = (Array.isArray(skusJoined) ? skusJoined[0] : skusJoined) as
+      | {
+          id: string;
+          sku: string;
+          estoque_atual: unknown;
+          estoque_minimo: unknown;
+          nome_produto: string | null;
+          custo_base: unknown;
+          custo_dropcore: unknown;
+          expedicao_override_linha?: string | null;
+        }
+      | null
+      | undefined;
+    if (!skuRaw?.sku) {
+      return {
+        ok: false,
+        error_code: "SKU_NOT_FOUND",
+        error_message: "Item do pedido sem SKU válido.",
+        http_status: 404,
+      };
+    }
+    const quantidade = Math.max(1, Number(row.quantidade ?? 1));
+    const estoque = Number(skuRaw.estoque_atual ?? 0);
+    if (estoque < quantidade) {
+      return {
+        ok: false,
+        error_code: "ESTOQUE_INSUFICIENTE",
+        error_message: `Estoque insuficiente para SKU ${skuRaw.sku}. Disponível: ${estoque}, solicitado: ${quantidade}`,
+        http_status: 422,
+      };
+    }
+    items.push({ sku: skuRaw.sku, quantidade });
+    skuRows.push({
+      id: skuRaw.id,
+      sku: skuRaw.sku,
+      estoque_atual: estoque,
+      estoque_minimo: skuRaw.estoque_minimo != null ? Number(skuRaw.estoque_minimo) : null,
+      nome_produto: skuRaw.nome_produto ?? null,
+      custo_base: toNum(skuRaw.custo_base),
+      custo_dropcore: toNum(skuRaw.custo_dropcore),
+      expedicao_override_linha: skuRaw.expedicao_override_linha ?? null,
+    });
+  }
+
+  const debitoEstoque = await debitarEstoquePedido(
+    items.map((item, i) => ({
+      sku_id: skuRows[i].id,
+      sku: skuRows[i].sku,
+      quantidade: item.quantidade,
+    }))
+  );
+  if (!debitoEstoque.ok) {
+    return {
+      ok: false,
+      error_code: debitoEstoque.error_code ?? "ESTOQUE_DEBITO_FALHOU",
+      error_message: debitoEstoque.error_message ?? "Erro ao debitar estoque.",
+      http_status: 422,
+    };
+  }
+
+  const estoqueDebitos = debitoEstoque.debitos ?? [];
+  const tryReverterEstoque = async (): Promise<void> => {
+    if (estoqueDebitos.length === 0) return;
+    await reverterEstoquePedido(estoqueDebitos);
+  };
+
+  const blockResult = await executeBlockSale({
+    org_id: params.org_id,
+    seller_id: pedido.seller_id,
+    fornecedor_id: pedido.fornecedor_id,
+    pedido_id: pedido.id,
+    valor_fornecedor: Number(pedido.valor_fornecedor ?? 0),
+    valor_dropcore: Number(pedido.valor_dropcore ?? 0),
+  });
+
+  if (!blockResult.ok) {
+    await tryReverterEstoque();
+    if (blockResult.code === "SALDO_INSUFICIENTE") {
+      await supabaseAdmin.from("pedidos").update({ status: "erro_saldo" }).eq("id", pedido.id);
+      return {
+        ok: false,
+        error_code: "SALDO_INSUFICIENTE",
+        error_message: "Saldo insuficiente para liberar o pedido.",
+        http_status: 402,
+      };
+    }
+    return {
+      ok: false,
+      error_code: blockResult.code ?? "BLOCK_SALE_FAILED",
+      error_message: "Erro ao bloquear saldo do pedido.",
+      http_status: 500,
+    };
+  }
+
+  await supabaseAdmin
+    .from("pedidos")
+    .update({
+      status: "enviado",
+      ledger_id: blockResult.ledger_id,
+      atualizado_em: new Date().toISOString(),
+    })
+    .eq("id", pedido.id);
+
+  await addPedidoEvento({
+    org_id: params.org_id,
+    pedido_id: pedido.id,
+    tipo: "pedido_liberado_estoque",
+    origem: "sistema",
+    actor_tipo: "sistema",
+    descricao: "Estoque disponível — pedido liberado para postagem.",
+    metadata: { referencia_externa: pedido.referencia_externa },
+  });
+
+  await notifyFornecedorPedidoParaPostar({
+    org_id: params.org_id,
+    fornecedor_id: pedido.fornecedor_id,
+    pedido_id: pedido.id,
+    valor_fornecedor: Number(pedido.valor_fornecedor ?? 0),
+  });
+
+  return {
+    ok: true,
+    pedido_id: pedido.id,
+    valor_total: blockResult.valor_total,
+    status: "enviado",
     estoque_atual_por_sku: items.map((it, i) => ({
       sku: skuRows[i].sku,
       estoque_atual: skuRows[i].estoque_atual - it.quantidade,
