@@ -49,7 +49,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const result = await runSellerOlistSyncForSellerId(seller.id);
+    const result = await runSellerOlistSyncForSellerId(seller.id, { mode: "manual" });
     if (!result) {
       return NextResponse.json(
         { error: "Salve o token API da Olist/Tiny antes de sincronizar pedidos." },

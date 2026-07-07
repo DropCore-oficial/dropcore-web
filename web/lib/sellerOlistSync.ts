@@ -11,8 +11,11 @@ const OLIST_SYNC_CONCURRENCY = 3;
 
 const SYNC_OVERLAP_MS = 2 * 60 * 1000;
 const DEFAULT_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+const MANUAL_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_ORDERS_PER_SELLER = 25;
 const OLIST_API_PAUSE_MS = 200;
+
+export type SellerOlistSyncMode = "cron" | "manual";
 
 export type SellerOlistSyncRow = {
   seller_id: string;
@@ -44,7 +47,16 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function resolveSyncFrom(row: SellerOlistSyncRow, now: Date): Date {
+function resolveSyncFrom(row: SellerOlistSyncRow, now: Date, mode: SellerOlistSyncMode = "cron"): Date {
+  if (mode === "manual") {
+    const validated = row.olist_token_validated_at ? new Date(row.olist_token_validated_at) : null;
+    const weekAgo = new Date(now.getTime() - MANUAL_LOOKBACK_MS);
+    if (validated && !Number.isNaN(validated.getTime())) {
+      return validated > weekAgo ? validated : weekAgo;
+    }
+    return weekAgo;
+  }
+
   const cursor = row.olist_pedidos_sync_cursor_at ? new Date(row.olist_pedidos_sync_cursor_at) : null;
   if (cursor && !Number.isNaN(cursor.getTime())) {
     return new Date(cursor.getTime() - SYNC_OVERLAP_MS);
@@ -149,7 +161,11 @@ async function collectPedidosAtualizados(
   return [...byId.values()];
 }
 
-async function syncSellerOlistOrders(row: SellerOlistSyncRow, now: Date): Promise<SellerOlistSyncSellerResult> {
+async function syncSellerOlistOrders(
+  row: SellerOlistSyncRow,
+  now: Date,
+  mode: SellerOlistSyncMode = "cron"
+): Promise<SellerOlistSyncSellerResult> {
   const result: SellerOlistSyncSellerResult = {
     seller_id: row.seller_id,
     org_id: row.org_id,
@@ -202,7 +218,7 @@ async function syncSellerOlistOrders(row: SellerOlistSyncRow, now: Date): Promis
     return result;
   }
 
-  const syncFrom = resolveSyncFrom(row, now);
+  const syncFrom = resolveSyncFrom(row, now, mode);
   let pedidosResumo: OlistPedidoResumo[] = [];
 
   try {
@@ -221,7 +237,11 @@ async function syncSellerOlistOrders(row: SellerOlistSyncRow, now: Date): Promis
   }
 
   if (pedidosResumo.length === 0) {
-    result.warnings.push("Nenhum pedido atualizado na Olist/Tiny nesta consulta.");
+    result.warnings.push(
+      mode === "manual"
+        ? "Nenhum pedido atualizado na Olist/Tiny desde a validação do token (ou últimos 7 dias)."
+        : "Nenhum pedido atualizado na Olist/Tiny nesta consulta."
+    );
   }
 
   for (const resumo of pedidosResumo) {
@@ -307,11 +327,12 @@ async function loadSellerOlistIntegrationRow(sellerId: string): Promise<SellerOl
 }
 
 export async function runSellerOlistSyncForSellerId(
-  sellerId: string
+  sellerId: string,
+  opts?: { mode?: SellerOlistSyncMode }
 ): Promise<SellerOlistSyncSellerResult | null> {
   const row = await loadSellerOlistIntegrationRow(sellerId);
   if (!row?.olist_token_ciphertext?.trim()) return null;
-  return syncSellerOlistOrders(row, new Date());
+  return syncSellerOlistOrders(row, new Date(), opts?.mode ?? "cron");
 }
 
 export async function runSellerOlistSync(): Promise<SellerOlistSyncRunResult> {
