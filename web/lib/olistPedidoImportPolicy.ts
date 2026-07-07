@@ -33,11 +33,20 @@ export function normalizeOlistCnpjDigits(value: string | null | undefined): stri
   return String(value ?? "").replace(/\D/g, "");
 }
 
+export function normalizeOlistSituacaoTextoBase(value: string | null | undefined): string {
+  const normalized = normalizeOlistSituacaoText(value);
+  if (!normalized) return "";
+  return normalized.replace(/\s*\([^)]*\)/g, "").trim();
+}
+
 export function shouldImportSituacaoText(situacao: string | null | undefined): boolean {
   const normalized = normalizeOlistSituacaoText(situacao);
-  if (!normalized) return false;
-  if (OLIST_SKIP_SITUACOES.has(normalized)) return false;
-  if (OLIST_IMPORT_SITUACOES.has(normalized)) return true;
+  const base = normalizeOlistSituacaoTextoBase(situacao);
+  if (!normalized && !base) return false;
+  if (OLIST_SKIP_SITUACOES.has(normalized) || (base && OLIST_SKIP_SITUACOES.has(base))) return false;
+  if (OLIST_IMPORT_SITUACOES.has(normalized) || (base && OLIST_IMPORT_SITUACOES.has(base))) return true;
+  const codigoLike = base.replace(/\s+/g, "_");
+  if (OLIST_IMPORT_CODIGOS_SITUACAO.has(codigoLike)) return true;
   return false;
 }
 
@@ -46,9 +55,9 @@ export function shouldImportSituacaoText(situacao: string | null | undefined): b
  * Só ignoramos cedo quando a lista traz situação claramente não importável; senão buscamos o detalhe.
  */
 export function shouldSkipSituacaoTextOnPesquisa(situacao: string | null | undefined): boolean {
-  const normalized = normalizeOlistSituacaoText(situacao);
-  if (!normalized) return false;
-  return OLIST_SKIP_SITUACOES.has(normalized);
+  const base = normalizeOlistSituacaoTextoBase(situacao);
+  if (!base) return false;
+  return OLIST_SKIP_SITUACOES.has(base);
 }
 
 export function shouldImportCodigoSituacao(codigo: string | null | undefined): boolean {

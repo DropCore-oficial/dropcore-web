@@ -334,6 +334,10 @@ export default function SellerIntegracoesErpPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error ?? "Erro ao sincronizar pedidos.");
+      const sync = json?.sync as { imported?: number; skipped?: number; errors?: string[]; warnings?: string[] } | undefined;
+      if (sync?.errors?.length) {
+        setError(sync.errors.join(" · "));
+      }
       await loadOlist(session.access_token);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro ao sincronizar pedidos.");
