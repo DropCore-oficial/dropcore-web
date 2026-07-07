@@ -136,9 +136,11 @@ async function persistSellerSyncState(params: {
   }
 }
 
-async function collectPedidosAtualizados(
+async function collectPedidosForSync(
   token: string,
   from: Date,
+  now: Date,
+  mode: SellerOlistSyncMode,
   maxOrders: number
 ): Promise<OlistPedidoResumo[]> {
   const byId = new Map<number, OlistPedidoResumo>();
@@ -146,7 +148,10 @@ async function collectPedidosAtualizados(
   let numeroPaginas = 1;
 
   while (pagina <= numeroPaginas && byId.size < maxOrders) {
-    const page = await pesquisarPedidosOlist(token, { dataAtualizacao: from, pagina });
+    const page =
+      mode === "manual"
+        ? await pesquisarPedidosOlist(token, { dataInicial: from, dataFinal: now, pagina })
+        : await pesquisarPedidosOlist(token, { dataAtualizacao: from, pagina });
     numeroPaginas = page.numero_paginas;
     for (const pedido of page.pedidos) {
       byId.set(pedido.id, pedido);
@@ -222,7 +227,7 @@ async function syncSellerOlistOrders(
   let pedidosResumo: OlistPedidoResumo[] = [];
 
   try {
-    pedidosResumo = await collectPedidosAtualizados(token, syncFrom, MAX_ORDERS_PER_SELLER);
+    pedidosResumo = await collectPedidosForSync(token, syncFrom, now, mode, MAX_ORDERS_PER_SELLER);
   } catch (e: unknown) {
     result.status = "erro";
     result.errors.push(e instanceof Error ? e.message : "Erro ao pesquisar pedidos na Olist/Tiny.");
@@ -239,7 +244,7 @@ async function syncSellerOlistOrders(
   if (pedidosResumo.length === 0) {
     result.warnings.push(
       mode === "manual"
-        ? "Nenhum pedido atualizado na Olist/Tiny desde a validação do token (ou últimos 7 dias)."
+        ? "Nenhum pedido cadastrado na Olist/Tiny no período consultado (desde validação do token)."
         : "Nenhum pedido atualizado na Olist/Tiny nesta consulta."
     );
   }

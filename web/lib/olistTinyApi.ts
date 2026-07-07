@@ -80,6 +80,11 @@ function formatTinyApiDateTime(date: Date): string {
   return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
+function formatTinyApiDate(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${pad(date.getFullYear())}`;
+}
+
 async function postTinyApi2Form<T extends TinyRetornoBase>(
   path: string,
   apiToken: string,
@@ -211,9 +216,13 @@ function mapPedidoResumo(raw: OlistPedidoResumo | undefined): OlistPedidoResumo 
   };
 }
 
+export type PesquisarPedidosOlistParams =
+  | { dataAtualizacao: Date; pagina?: number }
+  | { dataInicial: Date; dataFinal: Date; pagina?: number };
+
 export async function pesquisarPedidosOlist(
   apiToken: string,
-  params: { dataAtualizacao: Date; pagina?: number }
+  params: PesquisarPedidosOlistParams
 ): Promise<{ pedidos: OlistPedidoResumo[]; pagina: number; numero_paginas: number }> {
   const token = apiToken.trim();
   if (!token) {
@@ -223,9 +232,15 @@ export async function pesquisarPedidosOlist(
   const body = new URLSearchParams({
     token,
     formato: "JSON",
-    dataAtualizacao: formatTinyApiDateTime(params.dataAtualizacao),
     pagina: String(Math.max(1, params.pagina ?? 1)),
   });
+
+  if ("dataAtualizacao" in params) {
+    body.set("dataAtualizacao", formatTinyApiDateTime(params.dataAtualizacao));
+  } else {
+    body.set("dataInicial", formatTinyApiDate(params.dataInicial));
+    body.set("dataFinal", formatTinyApiDate(params.dataFinal));
+  }
 
   const res = await fetch(`${TINY_API2_BASE}/pedidos.pesquisa.php`, {
     method: "POST",
