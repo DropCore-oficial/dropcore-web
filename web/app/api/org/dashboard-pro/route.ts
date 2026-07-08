@@ -35,7 +35,10 @@ async function dashboardProLegacy(org_id: string) {
   const pedidos = pedidosRes.data ?? [];
   const ledger = ledgerRes.data ?? [];
 
-  const pedidosValidos = pedidos.filter((p) => p.status !== "cancelado" && p.status !== "erro_saldo");
+  // Só pedidos que passaram pelo fluxo real de venda (débito de estoque + bloqueio de saldo).
+  // "pendente_estoque" e "bloqueado" nunca chegaram lá — não são venda, contá-los infla as métricas.
+  const STATUS_VENDA_REAL = new Set(["enviado", "aguardando_repasse", "entregue", "devolvido"]);
+  const pedidosValidos = pedidos.filter((p) => STATUS_VENDA_REAL.has(p.status));
   const totalPedidos = pedidosValidos.length;
   const somaTotal = pedidosValidos.reduce((s, p) => s + Number(p.valor_total || 0), 0);
   const somaDropcore = pedidosValidos.reduce((s, p) => s + Number(p.valor_dropcore || 0), 0);
