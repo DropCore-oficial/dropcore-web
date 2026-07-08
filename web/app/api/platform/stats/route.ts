@@ -11,6 +11,9 @@ import { requireOwner } from "@/lib/apiOrgAuth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** Só pedidos que passaram pelo fluxo real de venda — "pendente_estoque" e "bloqueado" não são venda. */
+const STATUS_VENDA_REAL = ["enviado", "aguardando_repasse", "entregue", "devolvido"];
+
 export async function GET(req: Request) {
   try {
     await requireOwner(req);
@@ -42,9 +45,19 @@ export async function GET(req: Request) {
       // Total de SKUs ativos
       supabaseAdmin.from("skus").select("id", { count: "exact", head: true }).ilike("status", "ativo"),
       // Pedidos criados este mês
-      supabaseAdmin.from("pedidos").select("id, valor_total, valor_dropcore").gte("criado_em", inicioMes).lte("criado_em", fimMes),
+      supabaseAdmin
+        .from("pedidos")
+        .select("id, valor_total, valor_dropcore")
+        .gte("criado_em", inicioMes)
+        .lte("criado_em", fimMes)
+        .in("status", STATUS_VENDA_REAL),
       // Pedidos criados mês anterior
-      supabaseAdmin.from("pedidos").select("id", { count: "exact", head: true }).gte("criado_em", inicioMesAnterior).lte("criado_em", fimMesAnterior),
+      supabaseAdmin
+        .from("pedidos")
+        .select("id", { count: "exact", head: true })
+        .gte("criado_em", inicioMesAnterior)
+        .lte("criado_em", fimMesAnterior)
+        .in("status", STATUS_VENDA_REAL),
       // Mensalidades pagas este mês (MRR realizado)
       supabaseAdmin.from("financial_mensalidades").select("valor, tipo").eq("status", "pago").gte("pago_em", inicioMes).lte("pago_em", fimMes),
       // Mensalidades pendentes (MRR a receber)
