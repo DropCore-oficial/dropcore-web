@@ -9,7 +9,8 @@ export async function notifyFornecedorPedidoParaPostar(params: {
   fornecedor_id: string;
   pedido_id: string;
   valor_fornecedor: number;
-  motivo?: "postar" | "estoque";
+  motivo?: "postar" | "estoque" | "bloqueado";
+  motivo_bloqueio?: string | null;
 }): Promise<void> {
   let memberUserId: string | null = null;
 
@@ -39,15 +40,30 @@ export async function notifyFornecedorPedidoParaPostar(params: {
     params.valor_fornecedor,
   );
 
-  const aguardandoEstoque = params.motivo === "estoque";
+  const { tipo, titulo, mensagem } =
+    params.motivo === "estoque"
+      ? {
+          tipo: "pedido_pendente_estoque",
+          titulo: "Pedido aguardando estoque",
+          mensagem: `Pedido de ${valorBRL} importado, mas o estoque no DropCore está zerado. Reposição necessária antes do envio.`,
+        }
+      : params.motivo === "bloqueado"
+        ? {
+            tipo: "pedido_bloqueado",
+            titulo: "Pedido bloqueado",
+            mensagem: params.motivo_bloqueio?.trim() || `Pedido de ${valorBRL} foi bloqueado e precisa de atenção.`,
+          }
+        : {
+            tipo: "pedido_para_postar",
+            titulo: "Novo pedido para postar",
+            mensagem: `Você tem um novo pedido de ${valorBRL} aguardando envio.`,
+          };
 
   await supabaseAdmin.from("notifications").insert({
     user_id: memberUserId,
-    tipo: aguardandoEstoque ? "pedido_pendente_estoque" : "pedido_para_postar",
-    titulo: aguardandoEstoque ? "Pedido aguardando estoque" : "Novo pedido para postar",
-    mensagem: aguardandoEstoque
-      ? `Pedido de ${valorBRL} importado, mas o estoque no DropCore está zerado. Reposição necessária antes do envio.`
-      : `Você tem um novo pedido de ${valorBRL} aguardando envio.`,
+    tipo,
+    titulo,
+    mensagem,
     metadata: { pedido_id: params.pedido_id },
   });
 }

@@ -101,6 +101,7 @@ export default function FornecedorDashboardPage() {
     produtos_ativos: number;
     estoque_baixo: number;
     total_a_receber: number;
+    pedidos_atencao?: number;
   } | null>(null);
   const [mensalidades, setMensalidades] = useState<Mensalidade[]>([]);
   const [trialAtivo, setTrialAtivo] = useState(false);
@@ -844,6 +845,29 @@ export default function FornecedorDashboardPage() {
             </button>
           </div>
         </section>
+
+        {/* 3.5. Alerta pedidos bloqueados/aguardando estoque */}
+        {stats && (stats.pedidos_atencao ?? 0) > 0 && (
+          <Link
+            href="/fornecedor/pedidos"
+            className="w-full rounded-xl border border-red-300 bg-red-50 px-4 py-3 flex items-center gap-3 text-left hover:bg-red-100 dark:border-red-800 dark:bg-red-950/30 dark:hover:bg-red-950/50"
+          >
+            <div className="w-9 h-9 rounded-lg bg-white dark:bg-red-950/40 flex items-center justify-center shrink-0 text-red-600 dark:text-red-300">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 9v4" />
+                <path d="M10.363 3.591 2.257 18.028a1.5 1.5 0 0 0 1.274 2.257h16.938a1.5 1.5 0 0 0 1.274-2.257L13.637 3.59a1.5 1.5 0 0 0-2.274 0z" />
+                <path d="M12 16h.01" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+                {stats.pedidos_atencao} {stats.pedidos_atencao === 1 ? "pedido precisa" : "pedidos precisam"} de atenção
+              </p>
+              <p className="text-xs text-red-700/80 dark:text-red-300/80">Bloqueado ou aguardando estoque — clique para ver</p>
+            </div>
+            <IconArrowRight className="w-5 h-5 text-red-600 dark:text-red-300 shrink-0" />
+          </Link>
+        )}
 
         {/* 4. Alerta estoque baixo */}
         {stats && (stats.estoque_baixo ?? 0) > 0 && (

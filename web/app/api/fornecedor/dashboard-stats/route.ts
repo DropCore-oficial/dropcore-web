@@ -124,7 +124,14 @@ export async function GET(req: Request) {
       rpc ??
       (await legacyStats(ctx.org_id, ctx.fornecedor_id, startOfMonth, endOfMonth));
 
-    return NextResponse.json(stats);
+    const { count: pedidosAtencao } = await supabaseAdmin
+      .from("pedidos")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", ctx.org_id)
+      .eq("fornecedor_id", ctx.fornecedor_id)
+      .in("status", ["bloqueado", "pendente_estoque"]);
+
+    return NextResponse.json({ ...stats, pedidos_atencao: pedidosAtencao ?? 0 });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

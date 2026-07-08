@@ -8,7 +8,7 @@ vi.mock("@/lib/supabaseAdmin", () => ({
   },
 }));
 
-import { notifySellerPedidoBloqueado } from "@/lib/notifySellerPedidoBloqueado";
+import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
 
 function sellersChain(userId: string | null) {
   return {
@@ -33,8 +33,8 @@ beforeEach(() => {
   fromMock.mockReset();
 });
 
-describe("notifySellerPedidoBloqueado", () => {
-  it("insere notificação pro user_id do seller com o motivo como mensagem", async () => {
+describe("notifySellerPedidoAtencao", () => {
+  it("insere notificação de pedido bloqueado com o motivo como mensagem", async () => {
     const insertSpy = vi.fn();
     fromMock.mockImplementation((table: string) => {
       if (table === "sellers") return sellersChain("user-123");
@@ -42,10 +42,11 @@ describe("notifySellerPedidoBloqueado", () => {
       throw new Error(`tabela inesperada: ${table}`);
     });
 
-    await notifySellerPedidoBloqueado({
+    await notifySellerPedidoAtencao({
       org_id: "org-1",
       seller_id: "seller-1",
       pedido_id: "pedido-1",
+      tipo: "pedido_bloqueado",
       motivo: "Esta variação não está habilitada no seu plano.",
     });
 
@@ -60,6 +61,27 @@ describe("notifySellerPedidoBloqueado", () => {
     );
   });
 
+  it("insere notificação de pedido pendente_estoque com título diferente", async () => {
+    const insertSpy = vi.fn();
+    fromMock.mockImplementation((table: string) => {
+      if (table === "sellers") return sellersChain("user-456");
+      if (table === "notifications") return notificationsChain(insertSpy);
+      throw new Error(`tabela inesperada: ${table}`);
+    });
+
+    await notifySellerPedidoAtencao({
+      org_id: "org-1",
+      seller_id: "seller-2",
+      pedido_id: "pedido-2",
+      tipo: "pedido_pendente_estoque",
+      motivo: "Estoque zerado no DropCore.",
+    });
+
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ titulo: "Pedido aguardando estoque", tipo: "pedido_pendente_estoque" })
+    );
+  });
+
   it("não insere notificação quando o seller não tem user_id", async () => {
     const insertSpy = vi.fn();
     fromMock.mockImplementation((table: string) => {
@@ -68,10 +90,11 @@ describe("notifySellerPedidoBloqueado", () => {
       throw new Error(`tabela inesperada: ${table}`);
     });
 
-    await notifySellerPedidoBloqueado({
+    await notifySellerPedidoAtencao({
       org_id: "org-1",
       seller_id: "seller-1",
       pedido_id: "pedido-1",
+      tipo: "pedido_bloqueado",
       motivo: "Fornecedor inadimplente.",
     });
 

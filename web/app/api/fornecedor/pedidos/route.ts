@@ -48,14 +48,14 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa"
+        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa"
       )
       .eq("org_id", ctx.org_id)
       .eq("fornecedor_id", ctx.fornecedor_id)
       .order("criado_em", { ascending: false })
       .limit(limit);
 
-    if (status && ["enviado", "aguardando_repasse", "entregue", "devolvido", "cancelado", "erro_saldo", "pendente_estoque"].includes(status)) {
+    if (status && ["enviado", "aguardando_repasse", "entregue", "devolvido", "cancelado", "erro_saldo", "pendente_estoque", "bloqueado"].includes(status)) {
       query = query.eq("status", status);
     }
 
@@ -63,7 +63,7 @@ export async function GET(req: Request) {
     if (error) {
       const msg = String(error.message ?? "").toLowerCase();
       const colunaAusente =
-        msg.includes("marketplace_numero") || msg.includes("comprador_") || error.code === "42703";
+        msg.includes("marketplace_numero") || msg.includes("comprador_") || msg.includes("motivo_bloqueio") || error.code === "42703";
       if (colunaAusente) {
         let fallbackQuery = supabaseAdmin
           .from("pedidos")
@@ -74,7 +74,7 @@ export async function GET(req: Request) {
           .eq("fornecedor_id", ctx.fornecedor_id)
           .order("criado_em", { ascending: false })
           .limit(limit);
-        if (status && ["enviado", "aguardando_repasse", "entregue", "devolvido", "cancelado", "erro_saldo", "pendente_estoque"].includes(status)) {
+        if (status && ["enviado", "aguardando_repasse", "entregue", "devolvido", "cancelado", "erro_saldo", "pendente_estoque", "bloqueado"].includes(status)) {
           fallbackQuery = fallbackQuery.eq("status", status);
         }
         ({ data, error } = await fallbackQuery);

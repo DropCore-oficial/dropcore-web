@@ -1,14 +1,15 @@
 /**
- * Notifica o seller (portal DropCore) que um pedido foi bloqueado por regra de
- * negócio (cor não habilitada no plano, inadimplência, despacho misto, valor
- * inválido) — sem isso, a venda real só aparece no log técnico de sync da Olist.
+ * Notifica o seller (portal DropCore) quando um pedido importado da Olist precisa
+ * de atenção — bloqueado por regra de negócio, ou aguardando reposição de estoque.
+ * Sem isso, a venda real só aparece no log técnico de sync da Olist.
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-export async function notifySellerPedidoBloqueado(params: {
+export async function notifySellerPedidoAtencao(params: {
   org_id: string;
   seller_id: string;
   pedido_id: string;
+  tipo: "pedido_bloqueado" | "pedido_pendente_estoque";
   motivo: string;
 }): Promise<void> {
   const { data: sellerRow } = await supabaseAdmin
@@ -20,10 +21,12 @@ export async function notifySellerPedidoBloqueado(params: {
   const userId = sellerRow?.user_id ?? null;
   if (!userId) return;
 
+  const titulo = params.tipo === "pedido_bloqueado" ? "Pedido bloqueado" : "Pedido aguardando estoque";
+
   await supabaseAdmin.from("notifications").insert({
     user_id: userId,
-    tipo: "pedido_bloqueado",
-    titulo: "Pedido bloqueado",
+    tipo: params.tipo,
+    titulo,
     mensagem: params.motivo,
     metadata: { pedido_id: params.pedido_id },
   });

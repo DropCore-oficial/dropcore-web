@@ -268,6 +268,13 @@ export async function GET(req: Request) {
     const cadastro_pendente = sellerCadastroPendente(seller.documento, seller.plano);
     const plano_precos_mensalidade = await fetchMensalidadeSellerPorPlano(supabaseAdmin);
 
+    const { count: pedidosAtencaoCount } = await supabaseAdmin
+      .from("pedidos")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", seller.org_id)
+      .eq("seller_id", seller.id)
+      .in("status", ["bloqueado", "pendente_estoque"]);
+
     return NextResponse.json({
       ok: true,
       cadastro_pendente,
@@ -296,6 +303,7 @@ export async function GET(req: Request) {
       kpis: {
         pedidos_mes: pedidosMes.length,
         total_mes: totalMes,
+        pedidos_atencao: pedidosAtencaoCount ?? 0,
       },
       saldo_alerta: saldo_alerta,
       vinculo_fornecedor: vinculo_fornecedor,

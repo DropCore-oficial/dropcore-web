@@ -3,7 +3,7 @@ import { fireErpEstoqueWebhook } from "@/lib/erpEstoqueOutbound";
 import { isInadimplente } from "@/lib/inadimplencia";
 import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
 import { notifyFornecedorPedidoParaPostar } from "@/lib/notifyFornecedorPedidoParaPostar";
-import { notifySellerPedidoBloqueado } from "@/lib/notifySellerPedidoBloqueado";
+import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
 import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
@@ -417,7 +417,17 @@ export async function submitSellerErpPedido(
       motivo_bloqueio: motivo,
       evento: { tipo: "pedido_bloqueado", descricao: `Pedido bloqueado: ${motivo}` },
       notify: (pedido_id) =>
-        notifySellerPedidoBloqueado({ org_id, seller_id: seller.id, pedido_id, motivo }),
+        Promise.all([
+          notifySellerPedidoAtencao({ org_id, seller_id: seller.id, pedido_id, tipo: "pedido_bloqueado", motivo }),
+          notifyFornecedorPedidoParaPostar({
+            org_id,
+            fornecedor_id,
+            pedido_id,
+            valor_fornecedor,
+            motivo: "bloqueado",
+            motivo_bloqueio: motivo,
+          }),
+        ]).then(() => undefined),
     });
   }
 
@@ -441,13 +451,22 @@ export async function submitSellerErpPedido(
         descricao: "Pedido importado aguardando reposição de estoque no DropCore.",
       },
       notify: (pedido_id) =>
-        notifyFornecedorPedidoParaPostar({
-          org_id,
-          fornecedor_id,
-          pedido_id,
-          valor_fornecedor,
-          motivo: "estoque",
-        }),
+        Promise.all([
+          notifyFornecedorPedidoParaPostar({
+            org_id,
+            fornecedor_id,
+            pedido_id,
+            valor_fornecedor,
+            motivo: "estoque",
+          }),
+          notifySellerPedidoAtencao({
+            org_id,
+            seller_id: seller.id,
+            pedido_id,
+            tipo: "pedido_pendente_estoque",
+            motivo: "Pedido importado, mas o estoque no DropCore está zerado. Aguardando reposição.",
+          }),
+        ]).then(() => undefined),
     });
   }
 

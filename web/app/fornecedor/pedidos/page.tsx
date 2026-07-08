@@ -22,6 +22,7 @@ type Pedido = {
   categoria?: string | null;
   valor_fornecedor: number;
   status: string;
+  motivo_bloqueio?: string | null;
   criado_em: string;
   tem_etiqueta_oficial?: boolean;
 };
@@ -34,6 +35,7 @@ function formatDate(s: string) {
 
 const statusLabel: Record<string, string> = {
   pendente_estoque: "Aguardando estoque",
+  bloqueado: "Bloqueado",
   enviado: "Aguardando postagem",
   aguardando_repasse: "Postado",
   entregue: "Entregue",
@@ -223,6 +225,7 @@ export default function FornecedorPedidosPage() {
                 >
                   <option value="">Todos</option>
                   <option value="pendente_estoque">Aguardando estoque</option>
+                  <option value="bloqueado">Bloqueado</option>
                   <option value="enviado">Aguardando postagem</option>
                   <option value="aguardando_repasse">Postados</option>
                   <option value="entregue">Entregues</option>
@@ -343,7 +346,9 @@ export default function FornecedorPedidosPage() {
                       <td className="px-4 py-3">
                         <span
                           className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium ${
-                            p.status === "pendente_estoque"
+                            p.status === "bloqueado"
+                              ? "border-red-400 bg-red-100 text-red-800 dark:border-red-700 dark:bg-red-950/40 dark:text-red-300"
+                            : p.status === "pendente_estoque"
                               ? "border-rose-300 bg-rose-100 text-rose-800 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
                             : p.status === "enviado"
                               ? FORN_PEDIDO_STATUS_ENVIADO
@@ -356,6 +361,9 @@ export default function FornecedorPedidosPage() {
                         >
                           {statusLabel[p.status] ?? p.status}
                         </span>
+                        {p.status === "bloqueado" && p.motivo_bloqueio ? (
+                          <p className="mt-1 max-w-xs text-[10px] text-red-700 dark:text-red-300">{p.motivo_bloqueio}</p>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-2">
