@@ -331,6 +331,10 @@ export async function POST(req: Request) {
     resultado = "ignorado_situacao";
   } else if (proc.outcome === "skipped_sem_itens") {
     resultado = "ignorado_sem_itens";
+  } else if (proc.outcome === "reservado_estoque") {
+    resultado = "reservado_estoque";
+  } else if (proc.outcome === "imported_bloqueado") {
+    resultado = "importado_bloqueado";
   }
 
   await logOlistWebhook({
@@ -351,7 +355,9 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     outcome: proc.outcome,
-    ...(proc.outcome === "imported" ? { pedido_id_dropcore: proc.pedido_id_dropcore } : {}),
+    ...(proc.outcome === "imported" || proc.outcome === "imported_bloqueado"
+      ? { pedido_id_dropcore: proc.pedido_id_dropcore }
+      : {}),
     ...(proc.outcome === "skipped_duplicate" && proc.pedido_id_dropcore
       ? { pedido_id_dropcore: proc.pedido_id_dropcore }
       : {}),

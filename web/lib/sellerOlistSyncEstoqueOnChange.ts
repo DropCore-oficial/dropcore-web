@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSellerOlistApiToken } from "@/lib/sellerOlistIntegration";
 import type { CatalogSkuForOlistExport } from "@/lib/sellerCatalogOlistExport";
 import {
+  estoqueDisponivelParaVenda,
   skusParaSyncEstoqueOlistComPaiSoma,
   syncOlistEstoqueGrupoSeller,
   syncOlistEstoqueSkusSeller,
@@ -84,14 +85,18 @@ async function loadSkusGrupoFornecedorForOlistSync(opts: {
 
   const { data: rows, error } = await supabaseAdmin
     .from("skus")
-    .select("sku, estoque_atual")
+    .select("sku, estoque_atual, estoque_reservado")
     .eq("org_id", opts.orgId)
     .eq("fornecedor_id", opts.fornecedorId)
     .like("sku", `${prefix}%`);
 
   if (error || !rows?.length) return null;
 
-  const items: CatalogSkuForOlistExport[] = rows.map((row) => ({
+  const items: CatalogSkuForOlistExport[] = rows.map((row) => {
+    const atual = (row as { estoque_atual?: number | null }).estoque_atual;
+    const disponivel =
+      atual == null ? null : estoqueDisponivelParaVenda(atual, (row as { estoque_reservado?: number | null }).estoque_reservado);
+    return {
     id: "",
     sku: String((row as { sku?: string }).sku ?? ""),
     nome_produto: "",
@@ -99,7 +104,7 @@ async function loadSkusGrupoFornecedorForOlistSync(opts: {
     tamanho: "",
     status: "ativo",
     categoria: null,
-    estoque_atual: (row as { estoque_atual?: number | null }).estoque_atual ?? null,
+    estoque_atual: disponivel,
     custo_total: null,
     imagem_url: null,
     link_fotos: null,
@@ -115,7 +120,8 @@ async function loadSkusGrupoFornecedorForOlistSync(opts: {
     largura_cm: null,
     altura_cm: null,
     habilitado_venda: false,
-  }));
+    };
+  });
 
   return skusParaSyncEstoqueOlistComPaiSoma(items, grupoKey);
 }

@@ -6,7 +6,15 @@ import {
   obterPedidoOlist,
   type OlistPedidoDetalhe,
 } from "@/lib/olistTinyApi";
-import { shouldImportCodigoSituacao, shouldImportSituacaoText } from "@/lib/olistPedidoImportPolicy";
+import {
+  isCodigoSituacaoCancelado,
+  isCodigoSituacaoEmAberto,
+  isSituacaoTextoCancelada,
+  isSituacaoTextoEmAberto,
+  shouldImportCodigoSituacao,
+  shouldImportSituacaoText,
+} from "@/lib/olistPedidoImportPolicy";
+import { liberarReservaPorReferencia, processOlistPedidoReserva } from "@/lib/order/pedidoReservaOlist";
 import { decryptSellerErpSecret, describeSellerErpSecretDecryptFailure } from "@/lib/sellerErpSecretBox";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -108,10 +116,12 @@ export type ProcessOlistPedidoImportInput = {
 export type ProcessOlistPedidoImportResult =
   | { ok: true; outcome: "imported"; pedido_id_dropcore: string; warnings: string[] }
   | { ok: true; outcome: "imported_pendente_estoque"; pedido_id_dropcore: string; warnings: string[] }
+  | { ok: true; outcome: "imported_bloqueado"; pedido_id_dropcore: string; warnings: string[] }
   | { ok: true; outcome: "promoted_pendente_estoque"; pedido_id_dropcore: string; warnings: string[] }
   | { ok: true; outcome: "skipped_duplicate"; pedido_id_dropcore?: string; warnings?: string[] }
   | { ok: true; outcome: "skipped_situacao" }
   | { ok: true; outcome: "skipped_sem_itens"; warnings: string[] }
+  | { ok: true; outcome: "reservado_estoque"; warnings: string[] }
   | { ok: false; error: string };
 
 /**
@@ -129,7 +139,12 @@ export async function processOlistPedidoImport(
   }
 
   const codigo = input.codigo_situacao_webhook?.trim() ?? "";
-  if (codigo && !shouldImportCodigoSituacao(codigo)) {
+  if (
+    codigo &&
+    !shouldImportCodigoSituacao(codigo) &&
+    !isCodigoSituacaoEmAberto(codigo) &&
+    !isCodigoSituacaoCancelado(codigo)
+  ) {
     return { ok: true, outcome: "skipped_situacao" };
   }
 
@@ -142,10 +157,6 @@ export async function processOlistPedidoImport(
       ok: false,
       error: e instanceof Error ? e.message : "Erro ao obter pedido na Olist/Tiny.",
     };
-  }
-
-  if (!shouldImportSituacaoText(pedido.situacao)) {
-    return { ok: true, outcome: "skipped_situacao" };
   }
 
   const items = mapPedidoItems(pedido);
@@ -168,7 +179,53 @@ export async function processOlistPedidoImport(
     return { ok: false, error: "Seller não encontrado." };
   }
 
+  if (!sellerRow.fornecedor_id) {
+    return { ok: false, error: "Seller não está vinculado a um fornecedor." };
+  }
+
   const referencia = buildReferenciaExterna(pedido.id);
+
+  if (isSituacaoTextoEmAberto(pedido.situacao)) {
+    const reserva = await processOlistPedidoReserva({
+      org_id: input.org_id,
+      seller_id: sellerRow.id,
+      fornecedor_id: sellerRow.fornecedor_id,
+      referencia_externa: referencia,
+      items,
+    });
+    if (!reserva.ok) {
+      return { ok: false, error: reserva.error };
+    }
+    return { ok: true, outcome: "reservado_estoque", warnings: reserva.warnings };
+  }
+
+  if (isSituacaoTextoCancelada(pedido.situacao)) {
+    const liberar = await liberarReservaPorReferencia({
+      org_id: input.org_id,
+      seller_id: sellerRow.id,
+      referencia_externa: referencia,
+      novoStatus: "cancelada",
+    });
+    if (!liberar.ok) {
+      console.error("[processOlistPedidoImport] liberar reserva (cancelado):", liberar.warnings);
+    }
+    return { ok: true, outcome: "skipped_situacao" };
+  }
+
+  if (!shouldImportSituacaoText(pedido.situacao)) {
+    return { ok: true, outcome: "skipped_situacao" };
+  }
+
+  const liberarAntesSubmit = await liberarReservaPorReferencia({
+    org_id: input.org_id,
+    seller_id: sellerRow.id,
+    referencia_externa: referencia,
+    novoStatus: "liberada",
+  });
+  if (!liberarAntesSubmit.ok) {
+    console.error("[processOlistPedidoImport] liberar reserva (aprovado):", liberarAntesSubmit.warnings);
+  }
+
   const nomeProduto =
     pedido.itens.map((i) => i.descricao?.trim()).find(Boolean) ??
     items.map((i) => i.sku).join(", ");
@@ -272,6 +329,15 @@ export async function processOlistPedidoImport(
     return {
       ok: true,
       outcome: "imported_pendente_estoque",
+      pedido_id_dropcore: submit.pedido_id,
+      warnings: labelWarnings,
+    };
+  }
+
+  if (submit.status === "bloqueado") {
+    return {
+      ok: true,
+      outcome: "imported_bloqueado",
       pedido_id_dropcore: submit.pedido_id,
       warnings: labelWarnings,
     };

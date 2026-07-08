@@ -19,7 +19,12 @@ const OLIST_IMPORT_CODIGOS_SITUACAO = new Set([
   "entregue",
 ]);
 
-const OLIST_SKIP_SITUACOES = new Set(["cancelado", "dados incompletos", "em aberto"]);
+/**
+ * "em aberto" sai daqui de propósito: esses pedidos não são importados como venda,
+ * mas passam a ser buscados na listagem (pesquisa) para virar reserva de estoque —
+ * ver `isSituacaoTextoEmAberto` e `processOlistPedidoReserva`.
+ */
+const OLIST_SKIP_SITUACOES = new Set(["cancelado", "dados incompletos"]);
 
 const OLIST_SKIP_CODIGOS = new Set(["aberto", "cancelado"]);
 
@@ -76,4 +81,26 @@ export function shouldImportPedidoOlist(params: {
 }): boolean {
   if (shouldImportCodigoSituacao(params.codigoSituacao)) return true;
   return shouldImportSituacaoText(params.situacaoTexto);
+}
+
+/** Pedido aguardando pagamento (boleto/PIX) — não importa como venda, mas reserva estoque. */
+export function isSituacaoTextoEmAberto(situacao: string | null | undefined): boolean {
+  const base = normalizeOlistSituacaoTextoBase(situacao);
+  return base === "em aberto";
+}
+
+/** `codigoSituacao` do webhook equivalente a "em aberto". */
+export function isCodigoSituacaoEmAberto(codigo: string | null | undefined): boolean {
+  return String(codigo ?? "").trim().toLowerCase() === "aberto";
+}
+
+/** Pedido cancelado — libera qualquer reserva de estoque pendente para ele. */
+export function isSituacaoTextoCancelada(situacao: string | null | undefined): boolean {
+  const base = normalizeOlistSituacaoTextoBase(situacao);
+  return base === "cancelado";
+}
+
+/** `codigoSituacao` do webhook equivalente a "cancelado". */
+export function isCodigoSituacaoCancelado(codigo: string | null | undefined): boolean {
+  return String(codigo ?? "").trim().toLowerCase() === "cancelado";
 }

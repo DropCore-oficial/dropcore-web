@@ -34,6 +34,15 @@ export function estoqueOlistFromDropCore(estoque_atual: unknown): number {
   return Math.max(0, Math.floor(n));
 }
 
+/**
+ * Disponível para oferta nos marketplaces = físico - reservado (pedidos Olist em_aberto
+ * ainda não pagos). Evita que dois sellers vendam a última unidade antes do pagamento
+ * de um deles confirmar.
+ */
+export function estoqueDisponivelParaVenda(estoque_atual: unknown, estoque_reservado: unknown): number {
+  return Math.max(0, estoqueOlistFromDropCore(estoque_atual) - estoqueOlistFromDropCore(estoque_reservado));
+}
+
 /** Filhos com estoque; se só pai, inclui pai. */
 export function skusParaSyncEstoqueOlist(items: CatalogSkuForOlistExport[]): string[] {
   const filhos = items.filter((i) => !isSkuPaiInterno(str(i.sku)));
@@ -107,7 +116,7 @@ export async function syncOlistEstoqueSkusSeller(opts: {
 
   const { data: rows, error } = await opts.supabase
     .from("skus")
-    .select("sku, estoque_atual, cor, tamanho")
+    .select("sku, estoque_atual, estoque_reservado, cor, tamanho")
     .eq("org_id", opts.orgId)
     .eq("fornecedor_id", opts.fornecedorId)
     .in("sku", codes);
@@ -122,7 +131,13 @@ export async function syncOlistEstoqueSkusSeller(opts: {
   for (const row of rows ?? []) {
     const sku = str((row as { sku?: string }).sku).toUpperCase();
     if (!sku) continue;
-    saldoPorSku.set(sku, estoqueOlistFromDropCore((row as { estoque_atual?: unknown }).estoque_atual));
+    saldoPorSku.set(
+      sku,
+      estoqueDisponivelParaVenda(
+        (row as { estoque_atual?: unknown }).estoque_atual,
+        (row as { estoque_reservado?: unknown }).estoque_reservado
+      )
+    );
     metaPorSku.set(sku, {
       cor: str((row as { cor?: string | null }).cor) || null,
       tamanho: str((row as { tamanho?: string | null }).tamanho) || null,

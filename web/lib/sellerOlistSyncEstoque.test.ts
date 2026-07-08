@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatTinyEstoqueQuantidade } from "@/lib/olistTinyApi";
 import {
+  estoqueDisponivelParaVenda,
   estoqueOlistFromDropCore,
   skusParaSyncEstoqueOlist,
   skusParaSyncEstoqueOlistComPaiSoma,
@@ -40,6 +41,14 @@ describe("estoqueOlistFromDropCore", () => {
     expect(estoqueOlistFromDropCore(10.9)).toBe(10);
     expect(estoqueOlistFromDropCore(-3)).toBe(0);
     expect(estoqueOlistFromDropCore(null)).toBe(0);
+  });
+});
+
+describe("estoqueDisponivelParaVenda", () => {
+  it("subtrai o reservado do físico, sem passar de zero", () => {
+    expect(estoqueDisponivelParaVenda(10, 3)).toBe(7);
+    expect(estoqueDisponivelParaVenda(2, 5)).toBe(0);
+    expect(estoqueDisponivelParaVenda(10, null)).toBe(10);
   });
 });
 

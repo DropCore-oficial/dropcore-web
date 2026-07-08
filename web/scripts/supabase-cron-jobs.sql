@@ -183,6 +183,14 @@ SELECT cron.schedule(
   $$SELECT public.dropcore_cron_http_post('/api/cron/creditos-expiracao');$$
 );
 
+-- Expira reservas de estoque de pedidos Olist em_aberto muito antigas (TTL) — a cada hora (UTC).
+-- Rede de segurança para sellers sem webhook: cancelamento real-time já libera via webhook.
+SELECT cron.schedule(
+  'dropcore-estoque-reserva-expira',
+  '0 * * * *',
+  $$SELECT public.dropcore_cron_http_post('/api/cron/estoque-reserva-expira');$$
+);
+
 -- -----------------------------------------------------------------------------
 -- 5) Conferir
 -- -----------------------------------------------------------------------------

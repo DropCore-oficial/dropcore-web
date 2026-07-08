@@ -15,6 +15,7 @@ type Pedido = {
   nome_produto: string | null;
   valor_total: number;
   status: string;
+  motivo_bloqueio: string | null;
   criado_em: string;
   referencia_externa: string | null;
   tracking_codigo: string | null;
@@ -42,6 +43,7 @@ function formatDate(s: string) {
 
 const statusLabel: Record<string, string> = {
   pendente_estoque: "Aguardando estoque",
+  bloqueado: "Bloqueado",
   enviado: "Aguardando postagem",
   aguardando_repasse: "Postado",
   entregue: "Entregue",
@@ -51,6 +53,7 @@ const statusLabel: Record<string, string> = {
 };
 
 const STATUS_PENDENTE = cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY);
+const STATUS_BLOQUEADO = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300";
 
 export default function SellerPedidosPage() {
   const router = useRouter();
@@ -123,6 +126,7 @@ export default function SellerPedidosPage() {
           >
             <option value="">Todos</option>
             <option value="pendente_estoque">Aguardando estoque</option>
+            <option value="bloqueado">Bloqueado</option>
             <option value="enviado">Aguardando postagem</option>
             <option value="aguardando_repasse">Postados</option>
             <option value="entregue">Entregues</option>
@@ -160,9 +164,11 @@ export default function SellerPedidosPage() {
                     <span
                       className={cn(
                         "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium",
-                        p.status === "pendente_estoque" || p.status === "enviado"
-                          ? STATUS_PENDENTE
-                          : "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                        p.status === "bloqueado"
+                          ? STATUS_BLOQUEADO
+                          : p.status === "pendente_estoque" || p.status === "enviado"
+                            ? STATUS_PENDENTE
+                            : "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
                       )}
                     >
                       {statusLabel[p.status] ?? p.status}
@@ -224,6 +230,10 @@ export default function SellerPedidosPage() {
                     <p className="mt-3 text-sm text-amber-800 dark:text-amber-200">
                       Aguardando estoque no DropCore. O fornecedor precisa repor saldo ou sincronizar estoque da Olist.
                     </p>
+                  ) : null}
+
+                  {p.status === "bloqueado" && p.motivo_bloqueio ? (
+                    <p className="mt-3 text-sm text-red-700 dark:text-red-300">{p.motivo_bloqueio}</p>
                   ) : null}
                 </article>
               );

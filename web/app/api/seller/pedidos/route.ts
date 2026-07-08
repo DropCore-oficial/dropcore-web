@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 const STATUS_FILTER = [
   "pendente_estoque",
+  "bloqueado",
   "enviado",
   "aguardando_repasse",
   "entregue",
@@ -32,7 +33,7 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, nome_produto, valor_total, status, criado_em, referencia_externa, tracking_codigo, metodo_envio, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, etiqueta_pdf_url"
+        "id, nome_produto, valor_total, status, motivo_bloqueio, criado_em, referencia_externa, tracking_codigo, metodo_envio, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, etiqueta_pdf_url"
       )
       .eq("org_id", seller.org_id)
       .eq("seller_id", seller.id)
@@ -46,7 +47,7 @@ export async function GET(req: Request) {
     const { data, error } = await query;
     if (error) {
       const msg = String(error.message ?? "").toLowerCase();
-      if (msg.includes("marketplace_numero") || msg.includes("comprador_") || error.code === "42703") {
+      if (msg.includes("marketplace_numero") || msg.includes("comprador_") || msg.includes("motivo_bloqueio") || error.code === "42703") {
         const fallback = await supabaseAdmin
           .from("pedidos")
           .select(

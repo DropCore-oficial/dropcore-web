@@ -32,6 +32,8 @@ export type SellerOlistSyncSellerResult = {
   status: "ok" | "parcial" | "erro" | "ignorado";
   imported: number;
   skipped: number;
+  /** Pedidos "em aberto" que só reservaram estoque (sem virar pedido/venda ainda). */
+  reservado: number;
   errors: string[];
   warnings: string[];
 };
@@ -180,6 +182,7 @@ async function syncSellerOlistOrders(
     status: "ok",
     imported: 0,
     skipped: 0,
+    reservado: 0,
     errors: [],
     warnings: [],
   };
@@ -285,7 +288,12 @@ async function syncSellerOlistOrders(
       continue;
     }
 
-    if (proc.outcome === "imported" || proc.outcome === "imported_pendente_estoque" || proc.outcome === "promoted_pendente_estoque") {
+    if (
+      proc.outcome === "imported" ||
+      proc.outcome === "imported_pendente_estoque" ||
+      proc.outcome === "imported_bloqueado" ||
+      proc.outcome === "promoted_pendente_estoque"
+    ) {
       if (proc.warnings.length > 0) {
         result.status = "parcial";
         result.warnings.push(...proc.warnings);
@@ -293,6 +301,16 @@ async function syncSellerOlistOrders(
       result.imported += 1;
       if (proc.outcome === "imported_pendente_estoque") {
         result.warnings.push(`Pedido ${resumo.id}: importado aguardando estoque no DropCore.`);
+      }
+      if (proc.outcome === "imported_bloqueado") {
+        result.warnings.push(`Pedido ${resumo.id}: bloqueado — veja o motivo na tela de Pedidos.`);
+      }
+    }
+
+    if (proc.outcome === "reservado_estoque") {
+      result.reservado += 1;
+      if (proc.warnings.length > 0) {
+        result.warnings.push(...proc.warnings);
       }
     }
   }

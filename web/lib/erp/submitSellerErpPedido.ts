@@ -3,6 +3,7 @@ import { fireErpEstoqueWebhook } from "@/lib/erpEstoqueOutbound";
 import { isInadimplente } from "@/lib/inadimplencia";
 import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
 import { notifyFornecedorPedidoParaPostar } from "@/lib/notifyFornecedorPedidoParaPostar";
+import { notifySellerPedidoBloqueado } from "@/lib/notifySellerPedidoBloqueado";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
 import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
@@ -61,6 +62,17 @@ function toNum(v: unknown): number {
   return parseFloat(String(v ?? "0").replace(",", "."));
 }
 
+type SkuRowResolved = {
+  id: string;
+  sku: string;
+  estoque_atual: number;
+  estoque_minimo: number | null;
+  nome_produto: string | null;
+  custo_base: number;
+  custo_dropcore: number;
+  expedicao_override_linha: string | null;
+};
+
 async function addPedidoEvento(params: {
   org_id: string;
   pedido_id: string;
@@ -81,6 +93,138 @@ async function addPedidoEvento(params: {
     descricao: params.descricao ?? null,
     metadata: params.metadata ?? null,
   });
+}
+
+/**
+ * Cria uma linha "placeholder" em `pedidos` pra vendas reais que não completam o fluxo
+ * normal ainda (estoque zerado ou bloqueio de regra de negócio) — sem isso, o pedido
+ * simplesmente some do DropCore em vez de aparecer pro seller resolver.
+ */
+async function insertPedidoPlaceholder(params: {
+  org_id: string;
+  seller_id: string;
+  fornecedor_id: string;
+  referencia_externa: string | null;
+  tracking_codigo: string | null;
+  metodo_envio: string | null;
+  meta: SubmitSellerErpPedidoInput["meta"];
+  valor_fornecedor: number;
+  valor_dropcore: number;
+  valor_total: number;
+  items: SubmitSellerErpPedidoItem[];
+  skuRows: SkuRowResolved[];
+  status: "pendente_estoque" | "bloqueado";
+  motivo_bloqueio?: string | null;
+  evento: { tipo: string; descricao: string };
+  notify: (pedido_id: string) => Promise<void>;
+}): Promise<SubmitSellerErpPedidoResult> {
+  const meta = params.meta ?? {};
+  const { data: pedidoPlaceholder, error: insertErr } = await supabaseAdmin
+    .from("pedidos")
+    .insert({
+      org_id: params.org_id,
+      seller_id: params.seller_id,
+      fornecedor_id: params.fornecedor_id,
+      valor_fornecedor: params.valor_fornecedor,
+      valor_dropcore: params.valor_dropcore,
+      valor_total: params.valor_total,
+      status: params.status,
+      motivo_bloqueio: params.motivo_bloqueio ?? null,
+      referencia_externa: params.referencia_externa,
+      tracking_codigo: params.tracking_codigo,
+      metodo_envio: params.metodo_envio,
+      sku_id: params.skuRows[0]?.id ?? null,
+      nome_produto: meta.nome_produto?.trim() || params.skuRows[0]?.nome_produto || null,
+      marketplace_numero: meta.marketplace_numero?.trim() || null,
+      comprador_nome: meta.comprador_nome?.trim() || null,
+      comprador_cidade: meta.comprador_cidade?.trim() || null,
+      comprador_uf: meta.comprador_uf?.trim() || null,
+      comprador_fone: meta.comprador_fone?.trim() || null,
+    })
+    .select("id, valor_total")
+    .single();
+
+  if (insertErr || !pedidoPlaceholder) {
+    const isUniqueViolation =
+      insertErr?.code === "23505" || String(insertErr?.message ?? "").toLowerCase().includes("duplicate key");
+    if (isUniqueViolation && params.referencia_externa) {
+      const { data: pedidoPosRace } = await supabaseAdmin
+        .from("pedidos")
+        .select("id, status, referencia_externa")
+        .eq("org_id", params.org_id)
+        .eq("seller_id", params.seller_id)
+        .eq("referencia_externa", params.referencia_externa)
+        .order("criado_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (pedidoPosRace) {
+        return {
+          ok: false,
+          error_code: "PEDIDO_DUPLICADO",
+          error_message: "Já existe pedido com esta referência externa.",
+          http_status: 409,
+          pedido_existente: {
+            pedido_id: pedidoPosRace.id,
+            status: pedidoPosRace.status,
+            referencia_externa: pedidoPosRace.referencia_externa,
+          },
+        };
+      }
+    }
+    return {
+      ok: false,
+      error_code: "INTERNAL_ERROR",
+      error_message: insertErr?.message ?? "Erro ao criar pedido.",
+      http_status: 500,
+    };
+  }
+
+  for (let i = 0; i < params.items.length; i++) {
+    const item = params.items[i];
+    const sku = params.skuRows[i];
+    const precoUnit = sku.custo_base + sku.custo_dropcore;
+    const valorItem = precoUnit * item.quantidade;
+    const { error: pedidoItemErr } = await supabaseAdmin.from("pedido_itens").insert({
+      pedido_id: pedidoPlaceholder.id,
+      sku_id: sku.id,
+      quantidade: item.quantidade,
+      preco_unitario: precoUnit,
+      valor_total: valorItem,
+    });
+    if (pedidoItemErr) {
+      await supabaseAdmin.from("pedidos").update({ status: "cancelado" }).eq("id", pedidoPlaceholder.id);
+      return {
+        ok: false,
+        error_code: "INTERNAL_ERROR",
+        error_message: "Erro ao criar itens do pedido.",
+        http_status: 500,
+      };
+    }
+  }
+
+  await addPedidoEvento({
+    org_id: params.org_id,
+    pedido_id: pedidoPlaceholder.id,
+    tipo: params.evento.tipo,
+    origem: "erp",
+    actor_id: params.seller_id,
+    actor_tipo: "seller",
+    descricao: params.evento.descricao,
+    metadata: { referencia_externa: params.referencia_externa },
+  });
+
+  await params.notify(pedidoPlaceholder.id);
+
+  return {
+    ok: true,
+    pedido_id: pedidoPlaceholder.id,
+    valor_total: Number(pedidoPlaceholder.valor_total ?? params.valor_total),
+    status: params.status,
+    estoque_atual_por_sku: params.skuRows.map((sku) => ({
+      sku: sku.sku,
+      estoque_atual: sku.estoque_atual,
+    })),
+  };
 }
 
 export async function submitSellerErpPedido(
@@ -152,40 +296,10 @@ export async function submitSellerErpPedido(
     };
   }
 
-  const [sellerInad, fornInad] = await Promise.all([
-    isInadimplente(supabaseAdmin, org_id, "seller", seller.id),
-    isInadimplente(supabaseAdmin, org_id, "fornecedor", fornecedor_id),
-  ]);
-  if (sellerInad) {
-    return {
-      ok: false,
-      error_code: "SELLER_INADIMPLENTE",
-      error_message: "Seller inadimplente.",
-      http_status: 403,
-    };
-  }
-  if (fornInad) {
-    return {
-      ok: false,
-      error_code: "FORNECEDOR_INADIMPLENTE",
-      error_message: "Fornecedor inadimplente.",
-      http_status: 403,
-    };
-  }
-
   let valor_fornecedor = 0;
   let valor_dropcore = 0;
   let pendenteEstoque = false;
-  const skuRows: {
-    id: string;
-    sku: string;
-    estoque_atual: number;
-    estoque_minimo: number | null;
-    nome_produto: string | null;
-    custo_base: number;
-    custo_dropcore: number;
-    expedicao_override_linha: string | null;
-  }[] = [];
+  const skuRows: SkuRowResolved[] = [];
 
   for (const item of items) {
     const { data: sku, error: skuErr } = await supabaseAdmin
@@ -229,7 +343,19 @@ export async function submitSellerErpPedido(
     });
   }
 
-  if (skuRows.length > 1) {
+  let bloqueio: { error_code: string; error_message: string } | null = null;
+
+  const [sellerInad, fornInad] = await Promise.all([
+    isInadimplente(supabaseAdmin, org_id, "seller", seller.id),
+    isInadimplente(supabaseAdmin, org_id, "fornecedor", fornecedor_id),
+  ]);
+  if (sellerInad) {
+    bloqueio = { error_code: "SELLER_INADIMPLENTE", error_message: "Seller inadimplente." };
+  } else if (fornInad) {
+    bloqueio = { error_code: "FORNECEDOR_INADIMPLENTE", error_message: "Fornecedor inadimplente." };
+  }
+
+  if (!bloqueio && skuRows.length > 1) {
     let expedicaoPadrao = "";
     const { data: fornRow, error: fornExpErr } = await supabaseAdmin
       .from("fornecedores")
@@ -242,160 +368,87 @@ export async function submitSellerErpPedido(
     if (!fornExpErr && !colMissing) {
       expedicaoPadrao = String((fornRow as { expedicao_padrao_linha?: string | null })?.expedicao_padrao_linha ?? "").trim();
     }
-    const linhaDespacho = (row: (typeof skuRows)[0]) => {
+    const linhaDespacho = (row: SkuRowResolved) => {
       const ov = String(row.expedicao_override_linha ?? "").trim();
       return ov || expedicaoPadrao;
     };
     const chaves = new Set(skuRows.map((r) => linhaDespacho(r)));
     if (chaves.size > 1) {
-      return {
-        ok: false,
+      bloqueio = {
         error_code: "DESPACHO_CD_MISTO",
         error_message:
           "Este pedido mistura CDs ou endereços de despacho diferentes. Separe em envios distintos ou alinhe o despacho nos SKUs.",
-        http_status: 400,
       };
     }
   }
 
   const valor_total = valor_fornecedor + valor_dropcore;
-  if (valor_total <= 0) {
-    return {
-      ok: false,
-      error_code: "VALOR_INVALIDO",
-      error_message: "Valor total do pedido deve ser positivo.",
-      http_status: 400,
-    };
+  if (!bloqueio && valor_total <= 0) {
+    bloqueio = { error_code: "VALOR_INVALIDO", error_message: "Valor total do pedido deve ser positivo." };
   }
 
-  const vendaSkuCheck = await assertSellerPodeVenderSkus(supabaseAdmin, {
-    sellerId: seller.id,
-    sellerPlano: seller.plano,
-    skus: skuRows.map((r) => ({ id: r.id, sku: r.sku })),
-  });
-  if (!vendaSkuCheck.ok) {
-    return {
-      ok: false,
-      error_code: "SKU_NAO_HABILITADO_PLANO",
-      error_message: vendaSkuCheck.error,
-      http_status: 403,
-    };
+  if (!bloqueio) {
+    const vendaSkuCheck = await assertSellerPodeVenderSkus(supabaseAdmin, {
+      sellerId: seller.id,
+      sellerPlano: seller.plano,
+      skus: skuRows.map((r) => ({ id: r.id, sku: r.sku })),
+    });
+    if (!vendaSkuCheck.ok) {
+      bloqueio = { error_code: "SKU_NAO_HABILITADO_PLANO", error_message: vendaSkuCheck.error };
+    }
+  }
+
+  if (bloqueio) {
+    const motivo = bloqueio.error_message;
+    return insertPedidoPlaceholder({
+      org_id,
+      seller_id: seller.id,
+      fornecedor_id,
+      referencia_externa,
+      tracking_codigo,
+      metodo_envio,
+      meta: input.meta,
+      valor_fornecedor,
+      valor_dropcore,
+      valor_total,
+      items,
+      skuRows,
+      status: "bloqueado",
+      motivo_bloqueio: motivo,
+      evento: { tipo: "pedido_bloqueado", descricao: `Pedido bloqueado: ${motivo}` },
+      notify: (pedido_id) =>
+        notifySellerPedidoBloqueado({ org_id, seller_id: seller.id, pedido_id, motivo }),
+    });
   }
 
   if (pendenteEstoque) {
-    const meta = input.meta ?? {};
-    const { data: pedidoPendente, error: insertPendenteErr } = await supabaseAdmin
-      .from("pedidos")
-      .insert({
-        org_id,
-        seller_id: seller.id,
-        fornecedor_id,
-        valor_fornecedor,
-        valor_dropcore,
-        valor_total,
-        status: "pendente_estoque",
-        referencia_externa,
-        tracking_codigo,
-        metodo_envio,
-        sku_id: skuRows[0]?.id ?? null,
-        nome_produto: meta.nome_produto?.trim() || skuRows[0]?.nome_produto || null,
-        marketplace_numero: meta.marketplace_numero?.trim() || null,
-        comprador_nome: meta.comprador_nome?.trim() || null,
-        comprador_cidade: meta.comprador_cidade?.trim() || null,
-        comprador_uf: meta.comprador_uf?.trim() || null,
-        comprador_fone: meta.comprador_fone?.trim() || null,
-      })
-      .select("id, valor_total")
-      .single();
-
-    if (insertPendenteErr || !pedidoPendente) {
-      const isUniqueViolation =
-        insertPendenteErr?.code === "23505" ||
-        String(insertPendenteErr?.message ?? "").toLowerCase().includes("duplicate key");
-      if (isUniqueViolation && referencia_externa) {
-        const { data: pedidoPosRace } = await supabaseAdmin
-          .from("pedidos")
-          .select("id, status, referencia_externa")
-          .eq("org_id", org_id)
-          .eq("seller_id", seller.id)
-          .eq("referencia_externa", referencia_externa)
-          .order("criado_em", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (pedidoPosRace) {
-          return {
-            ok: false,
-            error_code: "PEDIDO_DUPLICADO",
-            error_message: "Já existe pedido com esta referência externa.",
-            http_status: 409,
-            pedido_existente: {
-              pedido_id: pedidoPosRace.id,
-              status: pedidoPosRace.status,
-              referencia_externa: pedidoPosRace.referencia_externa,
-            },
-          };
-        }
-      }
-      return {
-        ok: false,
-        error_code: "INTERNAL_ERROR",
-        error_message: insertPendenteErr?.message ?? "Erro ao criar pedido pendente de estoque.",
-        http_status: 500,
-      };
-    }
-
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      const sku = skuRows[i];
-      const precoUnit = sku.custo_base + sku.custo_dropcore;
-      const valorItem = precoUnit * item.quantidade;
-      const { error: pedidoItemErr } = await supabaseAdmin.from("pedido_itens").insert({
-        pedido_id: pedidoPendente.id,
-        sku_id: sku.id,
-        quantidade: item.quantidade,
-        preco_unitario: precoUnit,
-        valor_total: valorItem,
-      });
-      if (pedidoItemErr) {
-        await supabaseAdmin.from("pedidos").update({ status: "cancelado" }).eq("id", pedidoPendente.id);
-        return {
-          ok: false,
-          error_code: "INTERNAL_ERROR",
-          error_message: "Erro ao criar itens do pedido.",
-          http_status: 500,
-        };
-      }
-    }
-
-    await addPedidoEvento({
+    return insertPedidoPlaceholder({
       org_id,
-      pedido_id: pedidoPendente.id,
-      tipo: "pedido_pendente_estoque",
-      origem: "erp",
-      actor_id: seller.id,
-      actor_tipo: "seller",
-      descricao: "Pedido importado aguardando reposição de estoque no DropCore.",
-      metadata: { referencia_externa },
-    });
-
-    await notifyFornecedorPedidoParaPostar({
-      org_id,
+      seller_id: seller.id,
       fornecedor_id,
-      pedido_id: pedidoPendente.id,
+      referencia_externa,
+      tracking_codigo,
+      metodo_envio,
+      meta: input.meta,
       valor_fornecedor,
-      motivo: "estoque",
-    });
-
-    return {
-      ok: true,
-      pedido_id: pedidoPendente.id,
-      valor_total: Number(pedidoPendente.valor_total ?? valor_total),
+      valor_dropcore,
+      valor_total,
+      items,
+      skuRows,
       status: "pendente_estoque",
-      estoque_atual_por_sku: skuRows.map((sku) => ({
-        sku: sku.sku,
-        estoque_atual: sku.estoque_atual,
-      })),
-    };
+      evento: {
+        tipo: "pedido_pendente_estoque",
+        descricao: "Pedido importado aguardando reposição de estoque no DropCore.",
+      },
+      notify: (pedido_id) =>
+        notifyFornecedorPedidoParaPostar({
+          org_id,
+          fornecedor_id,
+          pedido_id,
+          valor_fornecedor,
+          motivo: "estoque",
+        }),
+    });
   }
 
   const { data: orgRow } = await supabaseAdmin.from("orgs").select("plano").eq("id", org_id).maybeSingle();
