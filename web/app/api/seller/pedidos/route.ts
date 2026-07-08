@@ -2,6 +2,7 @@
  * GET /api/seller/pedidos — Lista pedidos do seller autenticado.
  */
 import { NextResponse } from "next/server";
+import { motivoBloqueioParaPortal } from "@/lib/pedidoBloqueioResponsavel";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, nome_produto, valor_total, status, motivo_bloqueio, criado_em, referencia_externa, tracking_codigo, metodo_envio, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, etiqueta_pdf_url"
+        "id, nome_produto, valor_total, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, referencia_externa, tracking_codigo, metodo_envio, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, etiqueta_pdf_url"
       )
       .eq("org_id", seller.org_id)
       .eq("seller_id", seller.id)
@@ -47,7 +48,12 @@ export async function GET(req: Request) {
     const { data, error } = await query;
     if (error) {
       const msg = String(error.message ?? "").toLowerCase();
-      if (msg.includes("marketplace_numero") || msg.includes("comprador_") || msg.includes("motivo_bloqueio") || error.code === "42703") {
+      if (
+        msg.includes("marketplace_numero") ||
+        msg.includes("comprador_") ||
+        msg.includes("motivo_bloqueio") ||
+        error.code === "42703"
+      ) {
         const fallback = await supabaseAdmin
           .from("pedidos")
           .select(
@@ -93,11 +99,19 @@ export async function GET(req: Request) {
       }
     }
 
-    const items = (data ?? []).map((p) => ({
-      ...p,
-      itens: itensPorPedido.get(p.id) ?? [],
-      tem_etiqueta: Boolean((p as { etiqueta_pdf_url?: string | null }).etiqueta_pdf_url?.trim()),
-    }));
+    const items = (data ?? []).map((p) => {
+      const row = p as typeof p & { motivo_bloqueio_responsavel?: "seller" | "fornecedor" | null };
+      return {
+        ...p,
+        motivo_bloqueio: motivoBloqueioParaPortal({
+          portal: "seller",
+          responsavel: row.motivo_bloqueio_responsavel,
+          motivoCompleto: row.motivo_bloqueio,
+        }),
+        itens: itensPorPedido.get(p.id) ?? [],
+        tem_etiqueta: Boolean((p as { etiqueta_pdf_url?: string | null }).etiqueta_pdf_url?.trim()),
+      };
+    });
 
     return NextResponse.json({ items });
   } catch (e: unknown) {

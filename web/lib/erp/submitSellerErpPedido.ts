@@ -4,6 +4,7 @@ import { isInadimplente } from "@/lib/inadimplencia";
 import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
 import { notifyFornecedorPedidoParaPostar } from "@/lib/notifyFornecedorPedidoParaPostar";
 import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
+import { motivoBloqueioParaPortal, type PedidoBloqueioResponsavel } from "@/lib/pedidoBloqueioResponsavel";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
 import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
@@ -115,6 +116,7 @@ async function insertPedidoPlaceholder(params: {
   skuRows: SkuRowResolved[];
   status: "pendente_estoque" | "bloqueado";
   motivo_bloqueio?: string | null;
+  motivo_bloqueio_responsavel?: PedidoBloqueioResponsavel | null;
   evento: { tipo: string; descricao: string };
   notify: (pedido_id: string) => Promise<void>;
 }): Promise<SubmitSellerErpPedidoResult> {
@@ -130,6 +132,7 @@ async function insertPedidoPlaceholder(params: {
       valor_total: params.valor_total,
       status: params.status,
       motivo_bloqueio: params.motivo_bloqueio ?? null,
+      motivo_bloqueio_responsavel: params.motivo_bloqueio_responsavel ?? null,
       referencia_externa: params.referencia_externa,
       tracking_codigo: params.tracking_codigo,
       metodo_envio: params.metodo_envio,
@@ -343,16 +346,16 @@ export async function submitSellerErpPedido(
     });
   }
 
-  let bloqueio: { error_code: string; error_message: string } | null = null;
+  let bloqueio: { error_code: string; error_message: string; responsavel: PedidoBloqueioResponsavel } | null = null;
 
   const [sellerInad, fornInad] = await Promise.all([
     isInadimplente(supabaseAdmin, org_id, "seller", seller.id),
     isInadimplente(supabaseAdmin, org_id, "fornecedor", fornecedor_id),
   ]);
   if (sellerInad) {
-    bloqueio = { error_code: "SELLER_INADIMPLENTE", error_message: "Seller inadimplente." };
+    bloqueio = { error_code: "SELLER_INADIMPLENTE", error_message: "Seller inadimplente.", responsavel: "seller" };
   } else if (fornInad) {
-    bloqueio = { error_code: "FORNECEDOR_INADIMPLENTE", error_message: "Fornecedor inadimplente." };
+    bloqueio = { error_code: "FORNECEDOR_INADIMPLENTE", error_message: "Fornecedor inadimplente.", responsavel: "fornecedor" };
   }
 
   if (!bloqueio && skuRows.length > 1) {
@@ -378,13 +381,18 @@ export async function submitSellerErpPedido(
         error_code: "DESPACHO_CD_MISTO",
         error_message:
           "Este pedido mistura CDs ou endereços de despacho diferentes. Separe em envios distintos ou alinhe o despacho nos SKUs.",
+        responsavel: "fornecedor",
       };
     }
   }
 
   const valor_total = valor_fornecedor + valor_dropcore;
   if (!bloqueio && valor_total <= 0) {
-    bloqueio = { error_code: "VALOR_INVALIDO", error_message: "Valor total do pedido deve ser positivo." };
+    bloqueio = {
+      error_code: "VALOR_INVALIDO",
+      error_message: "Valor total do pedido deve ser positivo.",
+      responsavel: "fornecedor",
+    };
   }
 
   if (!bloqueio) {
@@ -394,12 +402,22 @@ export async function submitSellerErpPedido(
       skus: skuRows.map((r) => ({ id: r.id, sku: r.sku })),
     });
     if (!vendaSkuCheck.ok) {
-      bloqueio = { error_code: "SKU_NAO_HABILITADO_PLANO", error_message: vendaSkuCheck.error };
+      bloqueio = { error_code: "SKU_NAO_HABILITADO_PLANO", error_message: vendaSkuCheck.error, responsavel: "seller" };
     }
   }
 
   if (bloqueio) {
     const motivo = bloqueio.error_message;
+    const motivoParaSeller = motivoBloqueioParaPortal({
+      portal: "seller",
+      responsavel: bloqueio.responsavel,
+      motivoCompleto: motivo,
+    });
+    const motivoParaFornecedor = motivoBloqueioParaPortal({
+      portal: "fornecedor",
+      responsavel: bloqueio.responsavel,
+      motivoCompleto: motivo,
+    });
     return insertPedidoPlaceholder({
       org_id,
       seller_id: seller.id,
@@ -415,17 +433,24 @@ export async function submitSellerErpPedido(
       skuRows,
       status: "bloqueado",
       motivo_bloqueio: motivo,
+      motivo_bloqueio_responsavel: bloqueio.responsavel,
       evento: { tipo: "pedido_bloqueado", descricao: `Pedido bloqueado: ${motivo}` },
       notify: (pedido_id) =>
         Promise.all([
-          notifySellerPedidoAtencao({ org_id, seller_id: seller.id, pedido_id, tipo: "pedido_bloqueado", motivo }),
+          notifySellerPedidoAtencao({
+            org_id,
+            seller_id: seller.id,
+            pedido_id,
+            tipo: "pedido_bloqueado",
+            motivo: motivoParaSeller ?? motivo,
+          }),
           notifyFornecedorPedidoParaPostar({
             org_id,
             fornecedor_id,
             pedido_id,
             valor_fornecedor,
             motivo: "bloqueado",
-            motivo_bloqueio: motivo,
+            motivo_bloqueio: motivoParaFornecedor,
           }),
         ]).then(() => undefined),
     });

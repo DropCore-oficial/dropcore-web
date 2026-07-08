@@ -4,6 +4,7 @@
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { motivoBloqueioParaPortal } from "@/lib/pedidoBloqueioResponsavel";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -48,7 +49,7 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa"
+        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa"
       )
       .eq("org_id", ctx.org_id)
       .eq("fornecedor_id", ctx.fornecedor_id)
@@ -110,9 +111,20 @@ export async function GET(req: Request) {
       const url = (p as { etiqueta_pdf_url?: string | null }).etiqueta_pdf_url?.trim() ?? "";
       const b64 = (p as { etiqueta_pdf_base64?: string | null }).etiqueta_pdf_base64;
       const tem_etiqueta_oficial = Boolean(url) || Boolean(b64 && String(b64).trim().length > 0);
-      const { etiqueta_pdf_url: _u, etiqueta_pdf_base64: _b, ...rest } = p as Record<string, unknown>;
+      const {
+        etiqueta_pdf_url: _u,
+        etiqueta_pdf_base64: _b,
+        motivo_bloqueio: _mb,
+        motivo_bloqueio_responsavel: responsavel,
+        ...rest
+      } = p as Record<string, unknown>;
       return {
         ...rest,
+        motivo_bloqueio: motivoBloqueioParaPortal({
+          portal: "fornecedor",
+          responsavel: responsavel as "seller" | "fornecedor" | null,
+          motivoCompleto: (p as { motivo_bloqueio?: string | null }).motivo_bloqueio,
+        }),
         seller_nome: sellersMap.get(p.seller_id) ?? "—",
         cor: sku?.cor ?? null,
         tamanho: sku?.tamanho ?? null,
