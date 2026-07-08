@@ -9,6 +9,25 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type PedidoRow = {
+  id: string;
+  nome_produto: string | null;
+  valor_total: number;
+  status: string;
+  criado_em: string;
+  referencia_externa: string | null;
+  tracking_codigo: string | null;
+  metodo_envio: string | null;
+  etiqueta_pdf_url: string | null;
+  motivo_bloqueio?: string | null;
+  motivo_bloqueio_responsavel?: "seller" | "fornecedor" | null;
+  marketplace_numero?: string | null;
+  comprador_nome?: string | null;
+  comprador_cidade?: string | null;
+  comprador_uf?: string | null;
+  comprador_fone?: string | null;
+};
+
 const STATUS_FILTER = [
   "pendente_estoque",
   "bloqueado",
@@ -45,32 +64,34 @@ export async function GET(req: Request) {
       query = query.eq("status", status);
     }
 
-    const { data, error } = await query;
+    let data: PedidoRow[] | null;
+    let error: { message: string; code?: string } | null;
+    ({ data, error } = await query);
     if (error) {
       const msg = String(error.message ?? "").toLowerCase();
-      if (
+      const colunaAusente =
         msg.includes("marketplace_numero") ||
         msg.includes("comprador_") ||
         msg.includes("motivo_bloqueio") ||
-        error.code === "42703"
-      ) {
-        const fallback = await supabaseAdmin
-          .from("pedidos")
-          .select(
-            "id, nome_produto, valor_total, status, criado_em, referencia_externa, tracking_codigo, metodo_envio, etiqueta_pdf_url"
-          )
-          .eq("org_id", seller.org_id)
-          .eq("seller_id", seller.id)
-          .order("criado_em", { ascending: false })
-          .limit(limit);
-        if (fallback.error) {
-          console.error("[seller/pedidos GET]", fallback.error.message);
-          return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
-        }
-        return NextResponse.json({ items: fallback.data ?? [] });
+        error.code === "42703";
+      if (!colunaAusente) {
+        console.error("[seller/pedidos GET]", error.message);
+        return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
       }
-      console.error("[seller/pedidos GET]", error.message);
-      return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
+      const fallback = await supabaseAdmin
+        .from("pedidos")
+        .select(
+          "id, nome_produto, valor_total, status, criado_em, referencia_externa, tracking_codigo, metodo_envio, etiqueta_pdf_url"
+        )
+        .eq("org_id", seller.org_id)
+        .eq("seller_id", seller.id)
+        .order("criado_em", { ascending: false })
+        .limit(limit);
+      if (fallback.error) {
+        console.error("[seller/pedidos GET]", fallback.error.message);
+        return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
+      }
+      ({ data, error } = fallback);
     }
 
     const pedidoIds = (data ?? []).map((p) => p.id);

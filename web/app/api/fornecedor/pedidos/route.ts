@@ -10,6 +10,28 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type PedidoRow = {
+  id: string;
+  seller_id: string;
+  fornecedor_id: string;
+  sku_id: string | null;
+  nome_produto: string | null;
+  preco_venda: number | null;
+  valor_fornecedor: number;
+  status: string;
+  criado_em: string;
+  etiqueta_pdf_url: string | null;
+  etiqueta_pdf_base64: string | null;
+  referencia_externa: string | null;
+  motivo_bloqueio?: string | null;
+  motivo_bloqueio_responsavel?: "seller" | "fornecedor" | null;
+  marketplace_numero?: string | null;
+  comprador_nome?: string | null;
+  comprador_cidade?: string | null;
+  comprador_uf?: string | null;
+  comprador_fone?: string | null;
+};
+
 async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: string; org_id: string } | null> {
   const auth = req.headers.get("authorization") ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
@@ -60,7 +82,9 @@ export async function GET(req: Request) {
       query = query.eq("status", status);
     }
 
-    let { data, error } = await query;
+    let data: PedidoRow[] | null;
+    let error: { message: string; code?: string } | null;
+    ({ data, error } = await query);
     if (error) {
       const msg = String(error.message ?? "").toLowerCase();
       const colunaAusente =
