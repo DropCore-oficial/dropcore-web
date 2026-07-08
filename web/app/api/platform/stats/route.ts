@@ -113,7 +113,9 @@ export async function GET(req: Request) {
     // ── MRR ───────────────────────────────────────────────────────────────────
     type MensalidadeRow = { valor?: number; tipo?: string };
     const mensalidadesMes = mensalidadesMesRes.status === "fulfilled" ? (mensalidadesMesRes.value.data ?? []) as MensalidadeRow[] : [];
-    const mrr_realizado = mensalidadesMes.reduce((s, m) => s + Number(m.valor ?? 0), 0);
+    const mrr_realizado = mensalidadesMes
+      .filter(m => m.tipo === "seller")
+      .reduce((s, m) => s + Number(m.valor ?? 0), 0);
     const mensalidadesPendentes = mensalidadesPendentesRes.status === "fulfilled" ? (mensalidadesPendentesRes.value.data ?? []) as MensalidadeRow[] : [];
     const mrr_pendente = mensalidadesPendentes
       .filter(m => m.tipo === "seller")
