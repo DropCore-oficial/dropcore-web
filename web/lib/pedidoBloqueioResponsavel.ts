@@ -8,9 +8,9 @@ export type PedidoBloqueioResponsavel = "seller" | "fornecedor";
 /** Texto neutro pro lado que NÃO consegue agir nesse motivo. */
 export function motivoBloqueioParaOutroLado(responsavel: PedidoBloqueioResponsavel | null | undefined): string {
   if (responsavel === "seller") {
-    return "Pedido bloqueado — pendência de plano/catálogo a resolver pelo seller.";
+    return "Pedido bloqueado por uma pendência do seller — não precisa fazer nada, é só aguardar.";
   }
-  return "Pedido bloqueado — pendência a resolver pelo fornecedor.";
+  return "Pedido bloqueado por uma pendência do fornecedor — não precisa fazer nada, é só aguardar.";
 }
 
 /**
