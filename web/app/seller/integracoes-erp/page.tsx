@@ -473,7 +473,13 @@ type IntegracoesPageProps = {
   onRegenerarWebhookIngest: () => void;
 };
 
+type ErpProvider = "olist" | "bling";
+
 function IntegracoesErpPageView(props: IntegracoesPageProps) {
+  const [activeErp, setActiveErp] = useState<ErpProvider>(() =>
+    typeof window !== "undefined" && window.location.search.includes("code=") ? "bling" : "olist",
+  );
+
   const pedidosSaude =
     props.olistConnected && props.olistTokenUsable
       ? resolveSellerPedidosSaude({
@@ -488,21 +494,56 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
       <div className="dropcore-shell-4xl space-y-5 py-5 md:space-y-6 md:py-7">
         <SellerPageHeader
           surface="hero"
-          title="Integração ERP (Olist/Tiny)"
+          title="Integração ERP"
           right={
-            <Link
-              href="/seller/integracoes-erp/como-conectar"
-              className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5 text-sm font-semibold text-[var(--foreground)] shadow-sm transition hover:border-emerald-500/40 hover:bg-[var(--surface-hover)] dark:hover:border-emerald-400/35"
-            >
-              <span className="hidden sm:inline">Como conectar</span>
-              <span className="sm:hidden">Guia</span>
-              <svg className="h-4 w-4 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-              </svg>
-            </Link>
+            activeErp === "olist" ? (
+              <Link
+                href="/seller/integracoes-erp/como-conectar"
+                className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5 text-sm font-semibold text-[var(--foreground)] shadow-sm transition hover:border-emerald-500/40 hover:bg-[var(--surface-hover)] dark:hover:border-emerald-400/35"
+              >
+                <span className="hidden sm:inline">Como conectar</span>
+                <span className="sm:hidden">Guia</span>
+                <svg className="h-4 w-4 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
+              </Link>
+            ) : null
           }
         />
 
+        <div role="tablist" aria-label="Escolha o ERP" className="inline-flex gap-1 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-1">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeErp === "olist"}
+            onClick={() => setActiveErp("olist")}
+            className={cn(
+              "rounded-lg px-4 py-2 text-sm font-semibold transition",
+              activeErp === "olist"
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
+            )}
+          >
+            Olist / Tiny
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeErp === "bling"}
+            onClick={() => setActiveErp("bling")}
+            className={cn(
+              "rounded-lg px-4 py-2 text-sm font-semibold transition",
+              activeErp === "bling"
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
+            )}
+          >
+            Bling
+          </button>
+        </div>
+
+        {activeErp === "olist" ? (
+        <>
         <AmberPremiumCallout title="Primeira vez na Olist/Tiny?" className="rounded-2xl px-3 py-3.5 sm:px-5">
           <p className="text-pretty leading-relaxed">
             O passo a passo fica em{" "}
@@ -833,8 +874,10 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
               </div>
             )}
         </section>
-
-        <SellerBlingIntegrationPanel />
+        </>
+        ) : (
+          <SellerBlingIntegrationPanel />
+        )}
       </div>
     </div>
   );
