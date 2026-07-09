@@ -10,6 +10,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { verifyBlingSignature256 } from "@/lib/blingSignature";
+import { processBlingPedidoImport } from "@/lib/sellerBlingPedidoImport";
+import { assertBlingWebhookRateLimit } from "@/lib/blingWebhookRateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,10 +26,22 @@ type BlingEnvelope = {
 };
 
 export async function POST(req: Request) {
+  const rateLimit = assertBlingWebhookRateLimit(req);
+  if (!rateLimit.ok) {
+    return NextResponse.json(
+      { error: "Muitas requisições." },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSec) } },
+    );
+  }
+
   const rawBody = await req.text();
   const sigHeader = req.headers.get("x-bling-signature-256");
   const secret = process.env.BLING_CLIENT_SECRET?.trim() ?? "";
-  const skipVerify = process.env.BLING_WEBHOOK_SKIP_VERIFY === "true";
+  let skipVerify = process.env.BLING_WEBHOOK_SKIP_VERIFY === "true";
+  if (skipVerify && process.env.VERCEL_ENV === "production") {
+    console.error("[webhooks/bling] BLING_WEBHOOK_SKIP_VERIFY=true ignorado em produção.");
+    skipVerify = false;
+  }
 
   if (!secret && !skipVerify) {
     console.error("[webhooks/bling] BLING_CLIENT_SECRET não configurado.");
@@ -93,8 +107,34 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Erro ao registrar evento." }, { status: 500 });
   }
 
+  // Fire-and-forget: o Bling exige resposta em ≤5s, então não travamos a resposta
+  // esperando o import completo (que pode chamar a API do Bling de novo + várias
+  // idas ao banco). O cron de segurança (bling-sync) reprocessa o que passar batido.
+  if (sellerId && eventType.startsWith("order.")) {
+    const pedidoId = extractBlingOrderIdFromEventData(envelope.data);
+    if (pedidoId != null) {
+      processBlingPedidoImport({
+        org_id: orgId!,
+        seller_id: sellerId,
+        bling_pedido_id: pedidoId,
+        is_delete_event: eventType === "order.deleted",
+      }).catch((e: unknown) => {
+        console.error("[webhooks/bling] import pedido falhou:", e instanceof Error ? e.message : e);
+      });
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     matched_seller: Boolean(sellerId),
   });
+}
+
+function extractBlingOrderIdFromEventData(data: unknown): number | null {
+  if (!data || typeof data !== "object") return null;
+  const record = data as Record<string, unknown>;
+  const raw = record.id;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string" && raw.trim() && !Number.isNaN(Number(raw))) return Number(raw);
+  return null;
 }
