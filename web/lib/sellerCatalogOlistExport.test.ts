@@ -261,7 +261,6 @@ describe("sellerCatalogOlistExport", () => {
         cor: "Azul",
         tamanho: "M",
         status: "ativo",
-        imagem_url: "https://example.com/variante.jpg",
         ...olistSkuBase(),
       },
     ]);
