@@ -74,3 +74,36 @@ export function computeBlingAccessTokenExpiresAt(expiresIn?: number): string | n
   if (typeof expiresIn !== "number" || !Number.isFinite(expiresIn) || expiresIn <= 0) return null;
   return new Date(Date.now() + expiresIn * 1000).toISOString();
 }
+
+export async function refreshBlingAccessToken(refreshToken: string): Promise<BlingOAuthTokenResponse> {
+  const { clientId, clientSecret } = getBlingAppCredentials();
+  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken.trim(),
+  });
+
+  const res = await fetch(BLING_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${basic}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+      "enable-jwt": "1",
+    },
+    body,
+    cache: "no-store",
+  });
+
+  const json = (await res.json().catch(() => ({}))) as BlingOAuthTokenResponse & Record<string, unknown>;
+  if (!res.ok) {
+    const detail = parseBlingTokenError(json);
+    throw new Error(detail ?? "Não foi possível renovar o token do Bling.");
+  }
+
+  if (typeof json.access_token !== "string" || !json.access_token.trim()) {
+    throw new Error("Resposta do Bling sem access_token ao renovar.");
+  }
+
+  return json;
+}

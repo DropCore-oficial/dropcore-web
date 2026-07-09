@@ -9,6 +9,7 @@ import {
 } from "@/lib/blingOAuth";
 import { resolveBlingCompanyId, pickBlingCompanyIdForStorage } from "@/lib/blingCompanyId";
 import { getSellerFromToken } from "@/lib/sellerBlingAuth";
+import { encryptSellerErpSecret } from "@/lib/sellerErpSecretBox";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,8 +66,8 @@ export async function POST(req: Request) {
         seller_id: seller.id,
         org_id: seller.org_id,
         bling_company_id: companyIdToSave,
-        bling_access_token: tokens.access_token,
-        bling_refresh_token: tokens.refresh_token ?? null,
+        bling_access_token: encryptSellerErpSecret(tokens.access_token),
+        bling_refresh_token: tokens.refresh_token ? encryptSellerErpSecret(tokens.refresh_token) : null,
         bling_access_token_expires_at: expiresAt,
         updated_at: new Date().toISOString(),
       },
