@@ -1,4 +1,5 @@
 import { isInadimplente } from "@/lib/inadimplencia";
+import { resolveTaxaDropcoreUnit } from "@/lib/order/resolveTaxaDropcore";
 import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -376,16 +377,6 @@ function resolveCustoBaseUnit(row: SkuLookupRow): number | null {
   return null;
 }
 
-/**
- * Taxa DropCore por unidade: coluna `custo_dropcore` quando > 0;
- * senão 15% sobre `custo_base` (não tratar `custo_dropcore` como preço final).
- */
-function resolveTaxaDropcoreUnit(custoBaseUnit: number, row: SkuLookupRow): number {
-  const cd = toMoneyNumber(row.custo_dropcore);
-  if (cd != null && cd > 0) return cd;
-  return custoBaseUnit * 0.15;
-}
-
 async function fetchSkuForOrderCore(params: {
   org_id: string;
   fornecedor_id: string;
@@ -668,7 +659,7 @@ export async function createOrderCore(
         );
       }
 
-      const taxaDropcoreUnit = resolveTaxaDropcoreUnit(custoBaseUnit, sku);
+      const taxaDropcoreUnit = resolveTaxaDropcoreUnit(custoBaseUnit, sku.custo_dropcore);
       const precoFinalUnitario = custoBaseUnit + taxaDropcoreUnit;
       const valorFornecedorItem = custoBaseUnit * q;
       const valorDropcoreItem = taxaDropcoreUnit * q;

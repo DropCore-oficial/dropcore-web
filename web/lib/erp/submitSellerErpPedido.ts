@@ -6,6 +6,7 @@ import { notifyFornecedorPedidoParaPostar } from "@/lib/notifyFornecedorPedidoPa
 import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
 import { motivoBloqueioParaPortal, type PedidoBloqueioResponsavel } from "@/lib/pedidoBloqueioResponsavel";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
+import { resolveTaxaDropcoreUnit } from "@/lib/order/resolveTaxaDropcore";
 import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -331,7 +332,7 @@ export async function submitSellerErpPedido(
     }
 
     const custoBase = toNum(sku.custo_base);
-    const custoDropcore = toNum(sku.custo_dropcore);
+    const custoDropcore = resolveTaxaDropcoreUnit(custoBase, sku.custo_dropcore);
     valor_fornecedor += custoBase * item.quantidade;
     valor_dropcore += custoDropcore * item.quantidade;
     skuRows.push({
@@ -838,6 +839,7 @@ export async function tryPromotePendenteEstoquePedido(params: {
         http_status: 422,
       };
     }
+    const custoBase = toNum(skuRaw.custo_base);
     items.push({ sku: skuRaw.sku, quantidade });
     skuRows.push({
       id: skuRaw.id,
@@ -845,8 +847,8 @@ export async function tryPromotePendenteEstoquePedido(params: {
       estoque_atual: estoque,
       estoque_minimo: skuRaw.estoque_minimo != null ? Number(skuRaw.estoque_minimo) : null,
       nome_produto: skuRaw.nome_produto ?? null,
-      custo_base: toNum(skuRaw.custo_base),
-      custo_dropcore: toNum(skuRaw.custo_dropcore),
+      custo_base: custoBase,
+      custo_dropcore: resolveTaxaDropcoreUnit(custoBase, skuRaw.custo_dropcore),
       expedicao_override_linha: skuRaw.expedicao_override_linha ?? null,
     });
   }
@@ -1021,6 +1023,7 @@ export async function tryPromoteBloqueadoPedido(params: {
       return { ok: false, error_code: "SKU_NOT_FOUND", error_message: "Item do pedido sem SKU válido." };
     }
     const quantidade = Math.max(1, Number(row.quantidade ?? 1));
+    const custoBase = toNum(skuRaw.custo_base);
     items.push({ sku: skuRaw.sku, quantidade });
     skuRows.push({
       id: skuRaw.id,
@@ -1028,8 +1031,8 @@ export async function tryPromoteBloqueadoPedido(params: {
       estoque_atual: Number(skuRaw.estoque_atual ?? 0),
       estoque_minimo: skuRaw.estoque_minimo != null ? Number(skuRaw.estoque_minimo) : null,
       nome_produto: skuRaw.nome_produto ?? null,
-      custo_base: toNum(skuRaw.custo_base),
-      custo_dropcore: toNum(skuRaw.custo_dropcore),
+      custo_base: custoBase,
+      custo_dropcore: resolveTaxaDropcoreUnit(custoBase, skuRaw.custo_dropcore),
       expedicao_override_linha: skuRaw.expedicao_override_linha ?? null,
     });
   }

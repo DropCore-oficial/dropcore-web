@@ -20,6 +20,7 @@ import { resolveLedgerIdForPedido } from "@/lib/resolveLedgerForPedido";
 import { fireErpEstoqueWebhook } from "@/lib/erpEstoqueOutbound";
 import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
+import { resolveTaxaDropcoreUnit } from "@/lib/order/resolveTaxaDropcore";
 import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
 
 export const runtime = "nodejs";
@@ -417,7 +418,7 @@ export async function POST(req: Request) {
       }
 
       const custoBase = toNum(sku.custo_base);
-      const custoDropcore = toNum(sku.custo_dropcore);
+      const custoDropcore = resolveTaxaDropcoreUnit(custoBase, sku.custo_dropcore);
       valor_fornecedor += custoBase * item.quantidade;
       valor_dropcore += custoDropcore * item.quantidade;
       skuRows.push({
