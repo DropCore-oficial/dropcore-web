@@ -11,11 +11,43 @@ import {
   countHabilitadosQueContamNoLimite,
   isSellerPlanoPro,
 } from "@/lib/sellerSkuHabilitado";
+import { tryPromoteBloqueadoPedido } from "@/lib/erp/submitSellerErpPedido";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_STARTER = 15;
+
+/**
+ * Busca pontual (indexada por sku_id + status) — não varre a tabela de pedidos inteira.
+ * Deve ser raro achar mais de 1-2 pedidos bloqueados pelo mesmo SKU de uma vez.
+ */
+async function reprocessarPedidosBloqueadosPorSku(params: {
+  org_id: string;
+  seller_id: string;
+  sku_id: string;
+}): Promise<void> {
+  const { data: rows, error } = await supabaseAdmin
+    .from("pedidos")
+    .select("id, pedido_itens!inner(sku_id)")
+    .eq("org_id", params.org_id)
+    .eq("seller_id", params.seller_id)
+    .eq("status", "bloqueado")
+    .eq("pedido_itens.sku_id", params.sku_id);
+
+  if (error) {
+    console.error("[reprocessarPedidosBloqueadosPorSku] busca:", error.message);
+    return;
+  }
+
+  const pedidoIds = new Set((rows ?? []).map((row: { id: string }) => row.id));
+  for (const pedidoId of pedidoIds) {
+    const result = await tryPromoteBloqueadoPedido({ org_id: params.org_id, pedido_id: pedidoId });
+    if (!result.ok && !("outcome" in result)) {
+      console.error("[reprocessarPedidosBloqueadosPorSku] falhou:", pedidoId, result.error_message);
+    }
+  }
+}
 
 async function getSellerFromBearer(req: Request) {
   const auth = req.headers.get("authorization") ?? "";
@@ -144,6 +176,13 @@ export async function POST(req: Request) {
     }
 
     const { count } = await countHabilitadosQueContamNoLimite(supabaseAdmin, seller.id);
+
+    // Fire-and-forget: pedidos que estavam bloqueados só por causa desse SKU não
+    // habilitado já podem ser liberados agora. Não trava a resposta do toggle.
+    reprocessarPedidosBloqueadosPorSku({ org_id: seller.org_id, seller_id: seller.id, sku_id }).catch((e: unknown) => {
+      console.error("[habilitados POST] reprocessar bloqueados:", e instanceof Error ? e.message : e);
+    });
+
     return NextResponse.json({ ok: true, habilitados_count: count });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro inesperado" }, { status: 500 });
