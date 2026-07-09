@@ -938,3 +938,354 @@ export async function tryPromotePendenteEstoquePedido(params: {
     })),
   };
 }
+
+export type TryPromoteBloqueadoPedidoResult =
+  | { ok: true; outcome: "enviado"; pedido_id: string; valor_total: number }
+  | { ok: true; outcome: "pendente_estoque"; pedido_id: string }
+  | { ok: false; outcome: "ainda_bloqueado"; pedido_id: string; motivo: string }
+  | { ok: false; error_code: string; error_message: string };
+
+/**
+ * Reavalia um pedido `bloqueado` do zero (inadimplência, SKU habilitado no plano,
+ * despacho/CD misto, valor) e promove pra `pendente_estoque` ou `enviado` se os motivos
+ * já não se aplicam mais. Não recria o pedido (ele já existe como placeholder, criado
+ * por insertPedidoPlaceholder) — só atualiza. Reusa os mesmos utilitários que
+ * submitSellerErpPedido já usa no caminho de sucesso, pra não divergir da lógica original
+ * (foi exatamente essa divergência — bloqueado nunca sendo reavaliado — que causou o bug
+ * que motivou esta função).
+ */
+export async function tryPromoteBloqueadoPedido(params: {
+  org_id: string;
+  pedido_id: string;
+}): Promise<TryPromoteBloqueadoPedidoResult> {
+  const { data: pedido, error: pedidoErr } = await supabaseAdmin
+    .from("pedidos")
+    .select(
+      "id, org_id, seller_id, fornecedor_id, status, referencia_externa, tracking_codigo, metodo_envio, motivo_bloqueio, motivo_bloqueio_responsavel",
+    )
+    .eq("id", params.pedido_id)
+    .eq("org_id", params.org_id)
+    .maybeSingle();
+
+  if (pedidoErr || !pedido) {
+    return { ok: false, error_code: "PEDIDO_NAO_ENCONTRADO", error_message: "Pedido não encontrado." };
+  }
+  if (pedido.status !== "bloqueado") {
+    return {
+      ok: false,
+      error_code: "STATUS_INVALIDO",
+      error_message: `Pedido não está bloqueado (status: ${pedido.status}).`,
+    };
+  }
+
+  const { data: sellerRow, error: sellerErr } = await supabaseAdmin
+    .from("sellers")
+    .select("id, org_id, fornecedor_id, plano, erp_estoque_webhook_url, erp_estoque_webhook_secret")
+    .eq("id", pedido.seller_id)
+    .maybeSingle();
+  if (sellerErr || !sellerRow) {
+    return { ok: false, error_code: "SELLER_NAO_ENCONTRADO", error_message: "Seller não encontrado." };
+  }
+
+  const fornecedor_id = pedido.fornecedor_id as string;
+
+  const { data: itens, error: itensErr } = await supabaseAdmin
+    .from("pedido_itens")
+    .select(
+      "quantidade, skus(id, sku, estoque_atual, estoque_minimo, nome_produto, custo_base, custo_dropcore, expedicao_override_linha)",
+    )
+    .eq("pedido_id", pedido.id);
+
+  if (itensErr || !itens?.length) {
+    return { ok: false, error_code: "ITENS_INVALIDOS", error_message: "Pedido sem itens para reavaliar." };
+  }
+
+  const items: SubmitSellerErpPedidoItem[] = [];
+  const skuRows: SkuRowResolved[] = [];
+  for (const row of itens) {
+    const skusJoined = row.skus as unknown;
+    const skuRaw = (Array.isArray(skusJoined) ? skusJoined[0] : skusJoined) as
+      | {
+          id: string;
+          sku: string;
+          estoque_atual: unknown;
+          estoque_minimo: unknown;
+          nome_produto: string | null;
+          custo_base: unknown;
+          custo_dropcore: unknown;
+          expedicao_override_linha?: string | null;
+        }
+      | null
+      | undefined;
+    if (!skuRaw?.sku) {
+      return { ok: false, error_code: "SKU_NOT_FOUND", error_message: "Item do pedido sem SKU válido." };
+    }
+    const quantidade = Math.max(1, Number(row.quantidade ?? 1));
+    items.push({ sku: skuRaw.sku, quantidade });
+    skuRows.push({
+      id: skuRaw.id,
+      sku: skuRaw.sku,
+      estoque_atual: Number(skuRaw.estoque_atual ?? 0),
+      estoque_minimo: skuRaw.estoque_minimo != null ? Number(skuRaw.estoque_minimo) : null,
+      nome_produto: skuRaw.nome_produto ?? null,
+      custo_base: toNum(skuRaw.custo_base),
+      custo_dropcore: toNum(skuRaw.custo_dropcore),
+      expedicao_override_linha: skuRaw.expedicao_override_linha ?? null,
+    });
+  }
+
+  let valor_fornecedor = 0;
+  let valor_dropcore = 0;
+  for (let i = 0; i < items.length; i++) {
+    valor_fornecedor += skuRows[i].custo_base * items[i].quantidade;
+    valor_dropcore += skuRows[i].custo_dropcore * items[i].quantidade;
+  }
+  const valor_total = valor_fornecedor + valor_dropcore;
+
+  let bloqueio: { error_code: string; error_message: string; responsavel: PedidoBloqueioResponsavel } | null = null;
+
+  const [sellerInad, fornInad] = await Promise.all([
+    isInadimplente(supabaseAdmin, params.org_id, "seller", pedido.seller_id),
+    isInadimplente(supabaseAdmin, params.org_id, "fornecedor", fornecedor_id),
+  ]);
+  if (sellerInad) {
+    bloqueio = { error_code: "SELLER_INADIMPLENTE", error_message: "Seller inadimplente.", responsavel: "seller" };
+  } else if (fornInad) {
+    bloqueio = {
+      error_code: "FORNECEDOR_INADIMPLENTE",
+      error_message: "Fornecedor inadimplente.",
+      responsavel: "fornecedor",
+    };
+  }
+
+  if (!bloqueio && skuRows.length > 1) {
+    let expedicaoPadrao = "";
+    const { data: fornRow, error: fornExpErr } = await supabaseAdmin
+      .from("fornecedores")
+      .select("expedicao_padrao_linha")
+      .eq("id", fornecedor_id)
+      .maybeSingle();
+    const colMissing =
+      fornExpErr &&
+      (String(fornExpErr.message ?? "").toLowerCase().includes("column") || fornExpErr.code === "42703");
+    if (!fornExpErr && !colMissing) {
+      expedicaoPadrao = String((fornRow as { expedicao_padrao_linha?: string | null })?.expedicao_padrao_linha ?? "").trim();
+    }
+    const linhaDespacho = (row: SkuRowResolved) => {
+      const ov = String(row.expedicao_override_linha ?? "").trim();
+      return ov || expedicaoPadrao;
+    };
+    const chaves = new Set(skuRows.map((r) => linhaDespacho(r)));
+    if (chaves.size > 1) {
+      bloqueio = {
+        error_code: "DESPACHO_CD_MISTO",
+        error_message:
+          "Este pedido mistura CDs ou endereços de despacho diferentes. Separe em envios distintos ou alinhe o despacho nos SKUs.",
+        responsavel: "fornecedor",
+      };
+    }
+  }
+
+  if (!bloqueio && valor_total <= 0) {
+    bloqueio = {
+      error_code: "VALOR_INVALIDO",
+      error_message: "Valor total do pedido deve ser positivo.",
+      responsavel: "fornecedor",
+    };
+  }
+
+  if (!bloqueio) {
+    const vendaSkuCheck = await assertSellerPodeVenderSkus(supabaseAdmin, {
+      sellerId: pedido.seller_id,
+      sellerPlano: sellerRow.plano,
+      skus: skuRows.map((r) => ({ id: r.id, sku: r.sku })),
+    });
+    if (!vendaSkuCheck.ok) {
+      bloqueio = { error_code: "SKU_NAO_HABILITADO_PLANO", error_message: vendaSkuCheck.error, responsavel: "seller" };
+    }
+  }
+
+  if (bloqueio) {
+    const motivoMudou =
+      bloqueio.error_message !== pedido.motivo_bloqueio || bloqueio.responsavel !== pedido.motivo_bloqueio_responsavel;
+    if (motivoMudou) {
+      await supabaseAdmin
+        .from("pedidos")
+        .update({
+          motivo_bloqueio: bloqueio.error_message,
+          motivo_bloqueio_responsavel: bloqueio.responsavel,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", pedido.id);
+    }
+    return { ok: false, outcome: "ainda_bloqueado", pedido_id: pedido.id, motivo: bloqueio.error_message };
+  }
+
+  let pendenteEstoque = false;
+  for (let i = 0; i < items.length; i++) {
+    if (skuRows[i].estoque_atual < items[i].quantidade) {
+      pendenteEstoque = true;
+      break;
+    }
+  }
+
+  if (pendenteEstoque) {
+    await supabaseAdmin
+      .from("pedidos")
+      .update({
+        status: "pendente_estoque",
+        motivo_bloqueio: null,
+        motivo_bloqueio_responsavel: null,
+        valor_fornecedor,
+        valor_dropcore,
+        valor_total,
+        atualizado_em: new Date().toISOString(),
+      })
+      .eq("id", pedido.id);
+    await addPedidoEvento({
+      org_id: params.org_id,
+      pedido_id: pedido.id,
+      tipo: "pedido_pendente_estoque",
+      origem: "sistema",
+      actor_tipo: "sistema",
+      descricao: "Motivo de bloqueio resolvido, mas estoque insuficiente — pedido aguardando reposição.",
+      metadata: { referencia_externa: pedido.referencia_externa },
+    });
+    await Promise.all([
+      notifyFornecedorPedidoParaPostar({
+        org_id: params.org_id,
+        fornecedor_id,
+        pedido_id: pedido.id,
+        valor_fornecedor,
+        motivo: "estoque",
+      }),
+      notifySellerPedidoAtencao({
+        org_id: params.org_id,
+        seller_id: pedido.seller_id,
+        pedido_id: pedido.id,
+        tipo: "pedido_pendente_estoque",
+        motivo: "Motivo de bloqueio resolvido, mas o estoque no DropCore está zerado. Aguardando reposição.",
+      }),
+    ]);
+    return { ok: true, outcome: "pendente_estoque", pedido_id: pedido.id };
+  }
+
+  const debitoEstoque = await debitarEstoquePedido(
+    items.map((item, i) => ({
+      sku_id: skuRows[i].id,
+      sku: skuRows[i].sku,
+      quantidade: item.quantidade,
+    })),
+  );
+  if (!debitoEstoque.ok) {
+    return {
+      ok: false,
+      error_code: debitoEstoque.error_code ?? "ESTOQUE_DEBITO_FALHOU",
+      error_message: debitoEstoque.error_message ?? "Erro ao debitar estoque.",
+    };
+  }
+
+  const estoqueDebitos = debitoEstoque.debitos ?? [];
+  const tryReverterEstoque = async (): Promise<void> => {
+    if (estoqueDebitos.length === 0) return;
+    const rev = await reverterEstoquePedido(estoqueDebitos);
+    if (!rev.ok) {
+      console.error("[tryPromoteBloqueadoPedido] estoque rollback:", rev.error_code, rev.error_message, rev.detalhes);
+    }
+  };
+
+  const produtosAbaixoDoMin: { sku: string; nome?: string }[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const novoEstoque = skuRows[i].estoque_atual - items[i].quantidade;
+    if (skuRows[i].estoque_minimo != null && novoEstoque < skuRows[i].estoque_minimo!) {
+      produtosAbaixoDoMin.push({ sku: skuRows[i].sku, nome: skuRows[i].nome_produto ?? undefined });
+    }
+  }
+  if (produtosAbaixoDoMin.length > 0) {
+    await notifyEstoqueBaixo({ org_id: params.org_id, fornecedor_id, produtos: produtosAbaixoDoMin });
+  }
+
+  const blockResult = await executeBlockSale({
+    org_id: params.org_id,
+    seller_id: pedido.seller_id,
+    fornecedor_id,
+    pedido_id: pedido.id,
+    valor_fornecedor,
+    valor_dropcore,
+  });
+
+  if (!blockResult.ok) {
+    await tryReverterEstoque();
+    if (blockResult.code === "SALDO_INSUFICIENTE") {
+      await supabaseAdmin.from("pedidos").update({ status: "erro_saldo" }).eq("id", pedido.id);
+      return {
+        ok: false,
+        error_code: "SALDO_INSUFICIENTE",
+        error_message: "Saldo insuficiente para liberar o pedido.",
+      };
+    }
+    return {
+      ok: false,
+      error_code: blockResult.code ?? "BLOCK_SALE_FAILED",
+      error_message: "Erro ao bloquear saldo do pedido.",
+    };
+  }
+
+  await supabaseAdmin
+    .from("pedidos")
+    .update({
+      status: "enviado",
+      motivo_bloqueio: null,
+      motivo_bloqueio_responsavel: null,
+      valor_fornecedor,
+      valor_dropcore,
+      valor_total,
+      ledger_id: blockResult.ledger_id,
+      atualizado_em: new Date().toISOString(),
+    })
+    .eq("id", pedido.id);
+
+  await addPedidoEvento({
+    org_id: params.org_id,
+    pedido_id: pedido.id,
+    tipo: "pedido_liberado_bloqueio",
+    origem: "sistema",
+    actor_tipo: "sistema",
+    descricao: "Motivo de bloqueio resolvido — pedido liberado para postagem.",
+    metadata: { referencia_externa: pedido.referencia_externa },
+  });
+
+  fireErpEstoqueWebhook({
+    webhookUrl: sellerRow.erp_estoque_webhook_url,
+    webhookSecret: sellerRow.erp_estoque_webhook_secret,
+    payload: {
+      event: "dropcore.estoque_atualizado",
+      pedido_id: pedido.id,
+      referencia_externa: pedido.referencia_externa,
+      seller_id: pedido.seller_id,
+      org_id: params.org_id,
+      items: items.map((it, i) => ({
+        sku: skuRows[i].sku,
+        quantidade_vendida: it.quantidade,
+        estoque_atual_dropcore: skuRows[i].estoque_atual - it.quantidade,
+      })),
+    },
+  });
+
+  if (fornecedor_id) {
+    dispararSyncEstoqueOlistFornecedorSkus({
+      orgId: params.org_id,
+      fornecedorId: fornecedor_id,
+      skuCodes: skuRows.map((r) => r.sku).filter(Boolean),
+    });
+  }
+
+  await notifyFornecedorPedidoParaPostar({
+    org_id: params.org_id,
+    fornecedor_id,
+    pedido_id: pedido.id,
+    valor_fornecedor,
+  });
+
+  return { ok: true, outcome: "enviado", pedido_id: pedido.id, valor_total: blockResult.valor_total };
+}
