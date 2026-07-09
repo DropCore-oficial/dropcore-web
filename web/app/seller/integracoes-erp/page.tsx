@@ -13,6 +13,7 @@ import {
   DANGER_PREMIUM_TEXT_BODY,
 } from "@/lib/semanticPremium";
 import { SellerOlistIntegracaoChecklist } from "@/components/seller/SellerOlistIntegracaoChecklist";
+import { SellerBlingIntegrationPanel } from "@/components/seller/SellerBlingIntegrationPanel";
 import { OlistModoOperacaoPainel } from "@/components/olist/OlistModoOperacaoPainel";
 import {
   buildSellerPedidosSaudeLinhas,
@@ -832,6 +833,8 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
               </div>
             )}
         </section>
+
+        <SellerBlingIntegrationPanel />
       </div>
     </div>
   );
