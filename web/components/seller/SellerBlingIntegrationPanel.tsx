@@ -168,22 +168,26 @@ export function SellerBlingIntegrationPanel() {
         </p>
       ) : (
         <div className="space-y-4">
-          <div>
-            <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-[var(--muted)]">
-              URL do webhook (cole no Bling)
-            </label>
-            <div className="flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 text-xs text-[var(--foreground)]">
-                {status?.webhook_url ?? "—"}
-              </code>
+          <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <p className="min-w-0 flex-1 font-medium text-[var(--foreground)]">URL do webhook (cole no Bling)</p>
               <button
                 type="button"
                 onClick={copiarWebhookUrl}
-                className="shrink-0 rounded-lg border border-[var(--card-border)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+                disabled={!status?.webhook_url}
+                className="min-h-[44px] shrink-0 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
               >
                 Copiar URL
               </button>
             </div>
+            <textarea
+              readOnly
+              value={status?.webhook_url ?? ""}
+              rows={2}
+              spellCheck={false}
+              className="mt-3 w-full resize-y rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-2 py-2 font-mono text-[11px] leading-snug text-[var(--foreground)] break-all whitespace-pre-wrap"
+              aria-label="URL do webhook Bling"
+            />
           </div>
 
           {status?.oauth_connected ? (
@@ -195,7 +199,7 @@ export function SellerBlingIntegrationPanel() {
                 type="button"
                 onClick={() => void desconectar()}
                 disabled={saving}
-                className="rounded-lg border border-[var(--card-border)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-60"
+                className="min-h-[44px] rounded-lg border border-[var(--card-border)] px-3 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-60"
               >
                 Desconectar
               </button>
@@ -209,19 +213,19 @@ export function SellerBlingIntegrationPanel() {
                 Depois de autorizar pelo Link de convite (guia abaixo), o companyId aparece sozinho. Só cole aqui manualmente se
                 precisar corrigir.
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <input
                   type="text"
                   value={companyIdInput}
                   onChange={(e) => setCompanyIdInput(e.target.value)}
                   placeholder="companyId da empresa no Bling"
-                  className="min-w-0 flex-1 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)]"
+                  className="min-h-[44px] min-w-0 flex-1 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 text-sm text-[var(--foreground)]"
                 />
                 <button
                   type="button"
                   onClick={() => void salvarCompanyId()}
                   disabled={saving || !companyIdInput.trim()}
-                  className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
+                  className="min-h-[44px] shrink-0 rounded-lg bg-emerald-600 px-4 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
                 >
                   Salvar
                 </button>
