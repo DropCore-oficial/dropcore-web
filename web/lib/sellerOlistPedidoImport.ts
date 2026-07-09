@@ -1,4 +1,8 @@
-import { submitSellerErpPedido, tryPromotePendenteEstoquePedido } from "@/lib/erp/submitSellerErpPedido";
+import {
+  submitSellerErpPedido,
+  tryPromoteBloqueadoPedido,
+  tryPromotePendenteEstoquePedido,
+} from "@/lib/erp/submitSellerErpPedido";
 import {
   fetchUrlAsPdfBase64,
   obterExpedicaoPorPedidoVenda,
@@ -118,6 +122,7 @@ export type ProcessOlistPedidoImportResult =
   | { ok: true; outcome: "imported_pendente_estoque"; pedido_id_dropcore: string; warnings: string[] }
   | { ok: true; outcome: "imported_bloqueado"; pedido_id_dropcore: string; warnings: string[] }
   | { ok: true; outcome: "promoted_pendente_estoque"; pedido_id_dropcore: string; warnings: string[] }
+  | { ok: true; outcome: "promoted_bloqueado"; pedido_id_dropcore: string; warnings: string[] }
   | { ok: true; outcome: "skipped_duplicate"; pedido_id_dropcore?: string; warnings?: string[] }
   | { ok: true; outcome: "skipped_situacao" }
   | { ok: true; outcome: "skipped_sem_itens"; warnings: string[] }
@@ -294,6 +299,23 @@ export async function processOlistPedidoImport(
           return {
             ok: true,
             outcome: "promoted_pendente_estoque",
+            pedido_id_dropcore: promote.pedido_id,
+            warnings: labelWarnings,
+          };
+        }
+      }
+      if (pedidoIdDup && dupStatus === "bloqueado") {
+        const promote = await tryPromoteBloqueadoPedido({ org_id: input.org_id, pedido_id: pedidoIdDup });
+        if (promote.ok && promote.outcome === "enviado") {
+          const labelWarnings = await tryAttachOlistEtiquetaPdf({
+            org_id: input.org_id,
+            pedido_id: promote.pedido_id,
+            olist_pedido_id: pedido.id,
+            token,
+          });
+          return {
+            ok: true,
+            outcome: "promoted_bloqueado",
             pedido_id_dropcore: promote.pedido_id,
             warnings: labelWarnings,
           };

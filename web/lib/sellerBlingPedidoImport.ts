@@ -1,4 +1,4 @@
-import { submitSellerErpPedido } from "@/lib/erp/submitSellerErpPedido";
+import { submitSellerErpPedido, tryPromoteBloqueadoPedido } from "@/lib/erp/submitSellerErpPedido";
 import { obterPedidoVendaBling, type BlingPedidoVendaDetalhe } from "@/lib/blingOrdersApi";
 import { getSellerBlingAccessToken } from "@/lib/sellerBlingIntegration";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -35,6 +35,7 @@ export type ProcessBlingPedidoImportInput = {
 
 export type ProcessBlingPedidoImportResult =
   | { ok: true; outcome: "imported" | "imported_pendente_estoque" | "imported_bloqueado"; pedido_id_dropcore: string }
+  | { ok: true; outcome: "promoted_bloqueado"; pedido_id_dropcore: string }
   | { ok: true; outcome: "skipped_duplicate"; pedido_id_dropcore?: string }
   | { ok: true; outcome: "skipped_sem_itens" }
   | { ok: true; outcome: "cancelado"; pedido_id_dropcore: string }
@@ -134,7 +135,14 @@ export async function processBlingPedidoImport(
 
   if (!result.ok) {
     if (result.error_code === "PEDIDO_DUPLICADO") {
-      return { ok: true, outcome: "skipped_duplicate", pedido_id_dropcore: result.pedido_existente?.pedido_id };
+      const pedidoIdDup = result.pedido_existente?.pedido_id;
+      if (pedidoIdDup && result.pedido_existente?.status === "bloqueado") {
+        const promote = await tryPromoteBloqueadoPedido({ org_id: input.org_id, pedido_id: pedidoIdDup });
+        if (promote.ok && promote.outcome === "enviado") {
+          return { ok: true, outcome: "promoted_bloqueado", pedido_id_dropcore: promote.pedido_id };
+        }
+      }
+      return { ok: true, outcome: "skipped_duplicate", pedido_id_dropcore: pedidoIdDup };
     }
     return { ok: false, error: result.error_message };
   }
