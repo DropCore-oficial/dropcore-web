@@ -8,6 +8,8 @@ const RETRY_CONCURRENCY = 2;
 const MAX_PEDIDOS_PER_RUN = 100;
 const MAX_TENTATIVAS_ANTES_ALERTA = 20;
 const HORAS_ANTES_ALERTA = 24;
+/** Evita alertar já na 1ª tentativa pra pedido que já nasceu "antigo" (ex.: backlog) — dá algumas rodadas de retry primeiro. */
+const MIN_TENTATIVAS_PARA_ALERTA_POR_IDADE = 3;
 
 export type EtiquetaOlistRetrySummary = {
   avaliados: number;
@@ -91,7 +93,9 @@ export async function runEtiquetaOlistRetry(): Promise<EtiquetaOlistRetrySummary
     const novasTentativas = (pedido.etiqueta_tentativas ?? 0) + 1;
     const criadoHaMuito = Date.now() - new Date(pedido.criado_em).getTime() > HORAS_ANTES_ALERTA * 3_600_000;
     const deveAlertar =
-      !pedido.etiqueta_alerta_enviado_em && (novasTentativas >= MAX_TENTATIVAS_ANTES_ALERTA || criadoHaMuito);
+      !pedido.etiqueta_alerta_enviado_em &&
+      (novasTentativas >= MAX_TENTATIVAS_ANTES_ALERTA ||
+        (criadoHaMuito && novasTentativas >= MIN_TENTATIVAS_PARA_ALERTA_POR_IDADE));
     const agora = new Date().toISOString();
 
     const { error: updateErr } = await supabaseAdmin
