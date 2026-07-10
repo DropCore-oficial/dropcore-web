@@ -41,7 +41,8 @@ function mapPedidoItems(pedido: OlistPedidoDetalhe) {
     .filter((item) => item.sku);
 }
 
-async function tryAttachOlistEtiquetaPdf(params: {
+/** Sucesso = retorna array vazio (convenção usada pelos call-sites deste arquivo e pelo cron de retry). */
+export async function tryAttachOlistEtiquetaPdf(params: {
   org_id: string;
   pedido_id: string;
   olist_pedido_id: number;
