@@ -225,7 +225,6 @@ export default function AdminCatalogoPage() {
   const fornecedorId = searchParams.get("fornecedorId") || "";
   const fornecedorNome = searchParams.get("fornecedorNome") || "";
 
-  const [orgId, setOrgId] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [filtroEstoqueBaixo, setFiltroEstoqueBaixo] = useState(() => searchParams.get("estoqueBaixo") === "1");
   const [items, setItems] = useState<ItemSKU[]>([]);
@@ -295,47 +294,23 @@ export default function AdminCatalogoPage() {
   const [importResult, setImportResult] = useState<{ updated: number; created: number; total: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 🔹 busca orgId via API (não depende de RLS)
+  // 🔹 carrega catálogo (a rota resolve a org do próprio token) e ao mudar fornecedorId para filtrar em tempo real ao digitar
   useEffect(() => {
-    async function loadOrg() {
-      const { data: { session } } = await supabaseBrowser.auth.getSession();
-      if (!session?.access_token) {
-        setError("Faça login para acessar.");
-        router.replace("/login");
-        return;
-      }
-
-      const res = await fetch("/api/org/me", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const json = await res.json();
-
-      if (!res.ok) {
-        setError(json?.error || "Erro ao carregar organização.");
-        return;
-      }
-      if (!json?.org_id) {
-        setError("Usuário não pertence a nenhuma organização.");
-        return;
-      }
-
-      setOrgId(json.org_id);
-    }
-
-    loadOrg();
-  }, [router]);
-
-  // 🔹 carrega catálogo ao ter orgId (e ao mudar fornecedorId) para filtrar em tempo real ao digitar
-  useEffect(() => {
-    if (!orgId) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
       setError(null);
       try {
         const { data: { session } } = await supabaseBrowser.auth.getSession();
-        if (!session?.access_token || cancelled) return;
-        const params = new URLSearchParams({ orgId, q: "" });
+        if (!session?.access_token) {
+          if (!cancelled) {
+            setError("Faça login para acessar.");
+            router.replace("/login");
+          }
+          return;
+        }
+        if (cancelled) return;
+        const params = new URLSearchParams({ q: "" });
         if (fornecedorId) params.set("fornecedorId", fornecedorId);
         const res = await fetch(
           `/api/org/catalogo/search?${params.toString()}`,
@@ -353,12 +328,10 @@ export default function AdminCatalogoPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [orgId, fornecedorId]);
+  }, [router, fornecedorId]);
 
   // 🔹 busca catálogo (overrideQ = use outro termo; se não passar, usa estado q)
   async function buscar(overrideQ?: string) {
-    if (!orgId) return;
-
     setLoading(true);
     setError(null);
     const termo = overrideQ ?? q;
@@ -372,7 +345,6 @@ export default function AdminCatalogoPage() {
       }
 
       const params = new URLSearchParams({
-        orgId,
         q: termo,
       });
       if (fornecedorId) params.set("fornecedorId", fornecedorId);
