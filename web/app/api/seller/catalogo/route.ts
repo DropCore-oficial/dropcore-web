@@ -12,6 +12,7 @@ import { createClient } from "@supabase/supabase-js";
 import { countHabilitadosQueContamNoLimite, isSellerPlanoPro } from "@/lib/sellerSkuHabilitado";
 import { pipelineDetalhesCatalogoEspelho, type SkuCatalogoDetalhesRow } from "@/lib/catalogoSkusDetalhesEspelho";
 import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
+import { loadSellerFornecedoresList, loadSellerFornecedorVinculoMeta } from "@/lib/sellerFornecedoresList";
 
 const SKU_CATALOGO_FIELDS =
   "id, sku, nome_produto, cor, tamanho, status, fornecedor_id, estoque_atual, estoque_minimo, custo_dropcore, custo_base, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, peso_kg, imagem_url, link_fotos, descricao, ncm, origem, cest, marca, expedicao_override_linha, detalhes_produto_json, data_lancamento";
@@ -42,9 +43,21 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const qRaw = (searchParams.get("q") ?? "").trim().slice(0, 200).replace(/[%_\\]/g, "");
+    const includeFornecedores = searchParams.get("include_fornecedores") === "1";
 
     /** Sem armazém ligado em Produtos: não listar SKUs da org inteira — só após vínculo. */
     const fornecedorId = (seller as { fornecedor_id?: string | null }).fornecedor_id ?? null;
+
+    const fornecedoresListaPromise = includeFornecedores
+      ? loadSellerFornecedorVinculoMeta((seller as { id: string }).id).then((meta) =>
+          loadSellerFornecedoresList(
+            seller.org_id,
+            meta.fornecedor_conectado_id,
+            meta.fornecedor_vinculado_em,
+            meta.fornecedor_desvinculo_liberado
+          )
+        )
+      : null;
 
     let habilitadoSet = new Set<string>();
     /** Plano Start: quantidade de cores distintas (grupo SKU + cor) com ao menos uma variação habilitada. */
@@ -70,6 +83,7 @@ export async function GET(req: Request) {
     const sellerPlano = (seller as { plano?: string | null }).plano ?? null;
 
     if (!fornecedorId) {
+      const fornecedoresMeta = fornecedoresListaPromise ? await fornecedoresListaPromise : null;
       return NextResponse.json({
         ok: true,
         items: [],
@@ -79,6 +93,10 @@ export async function GET(req: Request) {
         habilitados_count,
         habilitados_max: isSellerPlanoPro(sellerPlano) ? null : 15,
         habilitados_tabela_ok,
+        ...(fornecedoresMeta && {
+          fornecedores: fornecedoresMeta.fornecedores,
+          vinculo: fornecedoresMeta.vinculo,
+        }),
       });
     }
 
@@ -125,6 +143,8 @@ export async function GET(req: Request) {
         };
       });
 
+    const fornecedoresMeta = fornecedoresListaPromise ? await fornecedoresListaPromise : null;
+
     return NextResponse.json({
       ok: true,
       items,
@@ -134,6 +154,10 @@ export async function GET(req: Request) {
       habilitados_count,
       habilitados_max: isSellerPlanoPro(sellerPlano) ? null : 15,
       habilitados_tabela_ok,
+      ...(fornecedoresMeta && {
+        fornecedores: fornecedoresMeta.fornecedores,
+        vinculo: fornecedoresMeta.vinculo,
+      }),
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro inesperado" }, { status: 500 });

@@ -336,12 +336,8 @@ export default function SellerProdutosPage() {
           return;
         }
         const authH = { Authorization: `Bearer ${session.access_token}` };
-        const [resCat, resForn] = await Promise.all([
-          fetch(`/api/seller/catalogo`, { headers: authH, cache: "no-store" }),
-          fetch(`/api/seller/fornecedores`, { headers: authH }),
-        ]);
+        const resCat = await fetch(`/api/seller/catalogo?include_fornecedores=1`, { headers: authH, cache: "no-store" });
         const jsonCat = await resCat.json().catch(() => ({}));
-        const jsonForn = await resForn.json().catch(() => ({}));
         if (cancelled) return;
         if (!resCat.ok) throw new Error(jsonCat.error || "Erro ao buscar catálogo");
         setItems(normalizarItems(jsonCat.items));
@@ -356,13 +352,13 @@ export default function SellerProdutosPage() {
           tabela_ok: jsonCat.habilitados_tabela_ok !== false,
           sem_armazem_ligado: typeof jsonCat.sem_armazem_ligado === "boolean" ? jsonCat.sem_armazem_ligado : !fidNorm,
         });
-        if (resForn.ok && jsonForn.ok) {
-          setFornecedoresLista(normalizarFornecedoresSellerApi(jsonForn.fornecedores));
-          setVinculoMeta((jsonForn.vinculo ?? null) as VinculoFornecedorMeta | null);
+        if (jsonCat.fornecedores) {
+          setFornecedoresLista(normalizarFornecedoresSellerApi(jsonCat.fornecedores));
+          setVinculoMeta((jsonCat.vinculo ?? null) as VinculoFornecedorMeta | null);
         } else {
           setFornecedoresLista([]);
           setVinculoMeta(null);
-          setFornecedoresLoadErr(jsonForn.error || "Não foi possível carregar a lista de fornecedores.");
+          setFornecedoresLoadErr("Não foi possível carregar a lista de fornecedores.");
         }
       } catch (err: unknown) {
         if (!cancelled) {
