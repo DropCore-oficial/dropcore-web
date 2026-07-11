@@ -66,7 +66,7 @@ export async function GET(req: Request) {
     const { data, error } = await query;
     if (error) {
       if (error.message?.includes("does not exist") || error.code === "42P01") {
-        return NextResponse.json([]);
+        return NextResponse.json({ org_id, pedidos: [], sellers: [], fornecedores: [] });
       }
       console.error("[pedidos GET]", error.message);
       return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
@@ -76,13 +76,16 @@ export async function GET(req: Request) {
     const sellerIds = [...new Set((data ?? []).map((p) => p.seller_id))];
     const fornIds = [...new Set((data ?? []).map((p) => p.fornecedor_id))];
 
-    const [sellersRes, fornRes] = await Promise.all([
+    const [sellersRes, fornRes, sellersOrgRes, fornecedoresOrgRes] = await Promise.all([
       sellerIds.length > 0
         ? supabaseAdmin.from("sellers").select("id, nome").in("id", sellerIds)
         : { data: [] },
       fornIds.length > 0
         ? supabaseAdmin.from("fornecedores").select("id, nome").in("id", fornIds)
         : { data: [] },
+      // Lista completa da org (não só quem tem pedido) — usada pra popular os selects da tela.
+      supabaseAdmin.from("sellers").select("id, nome, documento").eq("org_id", org_id).order("nome", { ascending: true }),
+      supabaseAdmin.from("fornecedores").select("id, nome").eq("org_id", org_id).order("nome", { ascending: true }),
     ]);
 
     const sellersMap = new Map((sellersRes.data ?? []).map((s) => [s.id, s.nome]));
@@ -94,7 +97,12 @@ export async function GET(req: Request) {
       fornecedor_nome: fornMap.get(p.fornecedor_id) ?? "—",
     }));
 
-    return NextResponse.json(enriched);
+    return NextResponse.json({
+      org_id,
+      pedidos: enriched,
+      sellers: sellersOrgRes.data ?? [],
+      fornecedores: (fornecedoresOrgRes.data ?? []).filter((f) => f.id && f.nome),
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     const status =

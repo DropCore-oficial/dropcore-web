@@ -78,33 +78,20 @@ export default function PedidosPage() {
         return;
       }
       const token = session.access_token;
-      const meRes = await fetch("/api/org/me", { headers: { Authorization: `Bearer ${token}` } });
-      const meJson = await meRes.json();
-      if (!meRes.ok || !meJson?.org_id) {
+      const pedRes = await fetch(`/api/org/pedidos?status=${encodeURIComponent(statusFilter)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const pedJson = await pedRes.json();
+      if (!pedRes.ok) {
         setLoading(false);
         return;
       }
-      const orgId = meJson.org_id;
-      setOrgId(orgId);
-
-      const [pedRes, sellersRes, fornRes] = await Promise.all([
-        fetch(`/api/org/pedidos?status=${encodeURIComponent(statusFilter)}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch("/api/org/sellers", { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`/api/org/fornecedores?orgId=${encodeURIComponent(orgId)}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
-
-      const pedData = await pedRes.json();
-      const sellersData = await sellersRes.json();
-      const fornData = await fornRes.json();
-
-      if (Array.isArray(pedData)) setPedidos(pedData);
-      else setPedidos([]);
-      if (Array.isArray(sellersData)) setSellers(sellersData);
-      if (Array.isArray(fornData)) setFornecedores(fornData.filter((f: Fornecedor) => f.id && f.nome));
+      setOrgId(pedJson.org_id ?? "");
+      setPedidos(Array.isArray(pedJson.pedidos) ? pedJson.pedidos : []);
+      setSellers(Array.isArray(pedJson.sellers) ? pedJson.sellers : []);
+      setFornecedores(
+        Array.isArray(pedJson.fornecedores) ? pedJson.fornecedores.filter((f: Fornecedor) => f.id && f.nome) : []
+      );
     } catch {
       setError("Erro ao carregar.");
     } finally {
