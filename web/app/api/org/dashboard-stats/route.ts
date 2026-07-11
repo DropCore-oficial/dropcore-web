@@ -4,6 +4,8 @@ import { OrgAuthError, requireAdmin } from "@/lib/apiOrgAuth";
 import { resumoMensalidadePortal } from "@/lib/mensalidadeResumoPortal";
 import { diasAteVencimentoFromMin, fetchOrgDashboardStatsAgg } from "@/lib/orgDashboardRpc";
 import { emptyRepasseFuturosPreview, loadOrgRepasseFuturosPreview } from "@/lib/orgRepasseFuturosPreview";
+import { loadOrgDashboardPro30d } from "@/lib/orgDashboardProLegacy";
+import { loadCalculadoraRecebimentosWidget } from "@/lib/calculadoraRecebimentosWidget";
 import { portalTrialDays } from "@/lib/portalTrial";
 
 export const runtime = "nodejs";
@@ -61,7 +63,10 @@ export async function GET(req: Request) {
     hojePreview.setHours(0, 0, 0, 0);
     const hojeStrPreview = hojePreview.toISOString().slice(0, 10);
 
-    const [rpcAgg, countsSettled, mensalidade_portal, cicloRepasseRowRes, repassePreviewRes] = await Promise.all([
+    const isPro = String(plano ?? "").toLowerCase() === "pro";
+
+    const [rpcAgg, countsSettled, mensalidade_portal, cicloRepasseRowRes, repassePreviewRes, proData, calcReceita] =
+      await Promise.all([
       fetchOrgDashboardStatsAgg(org_id, primeiroDiaMes, ultimoDiaMes).catch(() => null),
       Promise.allSettled([
         supabase.from("fornecedores").select("id", { count: "exact", head: true }).eq("org_id", org_id),
@@ -100,6 +105,8 @@ export async function GET(req: Request) {
       includeRepassePreview
         ? loadOrgRepasseFuturosPreview(supabase, org_id, hojeStrPreview)
         : Promise.resolve(emptyRepasseFuturosPreview),
+      isPro ? loadOrgDashboardPro30d(org_id).catch(() => null) : Promise.resolve(null),
+      loadCalculadoraRecebimentosWidget(supabase, 5).catch(() => null),
     ]);
 
     let agg = rpcAgg;
@@ -281,7 +288,7 @@ export async function GET(req: Request) {
 
     const produto_cor_count = agg.produto_cor_count;
 
-    const isStarter = String(plano ?? "").toLowerCase() !== "pro";
+    const isStarter = !isPro;
 
     const cicloRepasseRow = cicloRepasseRowRes.data;
 
@@ -340,6 +347,8 @@ export async function GET(req: Request) {
         dias_ate_vencimento: dias_ate_vencimento,
         fim_mes_proximo: diasRestantesMes <= 7,
       },
+      ...(isPro && proData && { pro_data: proData }),
+      calc_receita: calcReceita ?? { soma_total_geral: 0, quantidade_total: 0, ultimos: [], avisoTabela: null },
       ...(isStarter && {
         plan_limits: {
           vendas_mes,

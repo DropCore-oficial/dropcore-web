@@ -427,29 +427,20 @@ export default function DashboardPage() {
 
       if (m.role_base === "owner" || m.role_base === "admin") {
         const authHeaders = { Authorization: `Bearer ${token}` };
-        let statsRes: { ok: boolean; json: Stats & { plano?: string } };
+        type StatsResponse = Stats & {
+          plano?: string;
+          pro_data?: ProData;
+          calc_receita?: {
+            soma_total_geral: number;
+            quantidade_total: number;
+            ultimos: { id?: string; email: string | null; valor: number; pago_em: string }[];
+            avisoTabela: string | null;
+          };
+        };
+        let statsRes: { ok: boolean; json: StatsResponse };
         try {
-          const [statsRaw, calcRaw] = await Promise.all([
-            fetch("/api/org/dashboard-stats?repasse_preview=0", { headers: authHeaders, cache: "no-store" }),
-            fetch("/api/org/calculadora/recebimentos?limit=5&widget=1", { headers: authHeaders, cache: "no-store" }),
-          ]);
+          const statsRaw = await fetch("/api/org/dashboard-stats", { headers: authHeaders, cache: "no-store" });
           statsRes = await fetchJsonSafe(statsRaw);
-          try {
-            const cj = (await calcRaw.json()) as {
-              items?: { id?: string; email: string | null; valor: number; pago_em: string }[];
-              soma_total_geral?: number;
-              quantidade_total?: number;
-              error?: string;
-            };
-            setCalcReceita({
-              soma: Number(cj.soma_total_geral ?? 0),
-              quantidade: Number(cj.quantidade_total ?? 0),
-              ultimos: Array.isArray(cj.items) ? cj.items : [],
-              avisoTabela: typeof cj.error === "string" && cj.error ? cj.error : null,
-            });
-          } catch {
-            setCalcReceita({ soma: 0, quantidade: 0, ultimos: [], avisoTabela: null });
-          }
         } catch (fetchErr) {
           const msg = fetchErr instanceof Error && fetchErr.message === "Failed to fetch"
             ? "Falha na conexão. Servidor pode estar reiniciando. Tente novamente."
@@ -458,39 +449,16 @@ export default function DashboardPage() {
         }
         if (statsRes.ok) {
           setStats(statsRes.json as Stats);
-          if (statsRes.json.plano === "pro") {
-            fetch("/api/org/dashboard-pro", { headers: authHeaders, cache: "no-store" })
-              .then((r) => r.json())
-              .then((j) => { if (j?.total_pedidos !== undefined) setProData(j); })
-              .catch(() => {});
-          }
-          fetch("/api/org/dashboard-stats?repasse_only=1", { headers: authHeaders, cache: "no-store" })
-            .then((r) => (r.ok ? r.json() : null))
-            .then((patch) => {
-              if (!patch || typeof patch !== "object") return;
-              setStats((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      repasse_futuros_previstos_total_valor: Number(
-                        patch.repasse_futuros_previstos_total_valor ?? prev.repasse_futuros_previstos_total_valor
-                      ),
-                      repasse_futuros_previstos_total_pedidos: Number(
-                        patch.repasse_futuros_previstos_total_pedidos ?? prev.repasse_futuros_previstos_total_pedidos
-                      ),
-                      repasse_futuros_previstos_ciclos_qtd: Number(
-                        patch.repasse_futuros_previstos_ciclos_qtd ?? prev.repasse_futuros_previstos_ciclos_qtd
-                      ),
-                      repasse_futuros_proximo_ciclo:
-                        patch.repasse_futuros_proximo_ciclo ?? prev.repasse_futuros_proximo_ciclo,
-                      repasse_futuros_proximo_pedidos: Number(
-                        patch.repasse_futuros_proximo_pedidos ?? prev.repasse_futuros_proximo_pedidos
-                      ),
-                    }
-                  : prev
-              );
-            })
-            .catch(() => {});
+          if (statsRes.json.pro_data) setProData(statsRes.json.pro_data);
+          const calc = statsRes.json.calc_receita;
+          setCalcReceita({
+            soma: Number(calc?.soma_total_geral ?? 0),
+            quantidade: Number(calc?.quantidade_total ?? 0),
+            ultimos: Array.isArray(calc?.ultimos) ? calc.ultimos : [],
+            avisoTabela: calc?.avisoTabela ?? null,
+          });
+        } else {
+          setCalcReceita({ soma: 0, quantidade: 0, ultimos: [], avisoTabela: null });
         }
       }
     } catch (e: unknown) {
