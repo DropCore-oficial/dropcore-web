@@ -149,12 +149,11 @@ export default function FornecedorDashboardPage() {
         return;
       }
       const headers = { Authorization: `Bearer ${session.access_token}` };
+      const periodParam = typeof chartPeriodo === "string" ? chartPeriodo : String(chartPeriodo);
 
-      const [meRes, repRes, statsRes, desempRes] = await Promise.all([
+      const [meRes, statsRes] = await Promise.all([
         fetch("/api/fornecedor/me", { headers, cache: "no-store" }),
-        fetch("/api/fornecedor/repasse-list", { headers, cache: "no-store" }),
-        fetch("/api/fornecedor/dashboard-stats", { headers, cache: "no-store" }),
-        fetch(`/api/fornecedor/desempenho?modo=${chartMode}&periodo=${encodeURIComponent(typeof chartPeriodo === "string" ? chartPeriodo : String(chartPeriodo))}`, {
+        fetch(`/api/fornecedor/dashboard-stats?modo=${chartMode}&periodo=${encodeURIComponent(periodParam)}`, {
           headers,
           cache: "no-store",
         }),
@@ -176,35 +175,28 @@ export default function FornecedorDashboardPage() {
       const meJson = await meRes.json();
       setFornecedor(meJson.fornecedor);
 
-      if (repRes.ok) {
-        const repJson = await repRes.json();
-        setRepasseItems(repJson.items ?? []);
-        setTotalAReceber(repJson.total_a_receber ?? 0);
-        setRepasseFuturos(repJson.futuros ?? []);
+      if (statsRes.ok) {
+        const statsJson = await statsRes.json();
+        setStats(statsJson);
+
+        const repJson = statsJson.repasse;
+        if (repJson) {
+          setRepasseItems(repJson.items ?? []);
+          setTotalAReceber(repJson.total_a_receber ?? 0);
+          setRepasseFuturos(repJson.futuros ?? []);
+        } else {
+          setRepasseItems([]);
+          setRepasseFuturos([]);
+          setTotalAReceber(0);
+        }
+
+        if (statsJson.desempenho) setDesempenho(statsJson.desempenho);
       } else {
+        setStats(null);
         setRepasseItems([]);
         setRepasseFuturos([]);
         setTotalAReceber(0);
       }
-
-      if (statsRes.ok) {
-        const statsJson = await statsRes.json();
-        setStats(statsJson);
-      } else {
-        setStats(null);
-      }
-
-      if (desempRes.ok) {
-        setDesempenho(await desempRes.json());
-      }
-
-      fetch("/api/fornecedor/repasse-list?include_preview=1", { headers, cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((repJson) => {
-          if (!repJson) return;
-          setRepasseFuturos(repJson.futuros ?? []);
-        })
-        .catch(() => {});
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {

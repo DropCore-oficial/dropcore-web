@@ -6,6 +6,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { fetchFornecedorDashboardStats } from "@/lib/fornecedorDashboardRpc";
+import { loadFornecedorRepasseList } from "@/lib/fornecedorRepasseList";
+import { loadFornecedorDesempenho } from "@/lib/fornecedorDesempenho";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -113,25 +115,37 @@ export async function GET(req: Request) {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-    const rpc = await fetchFornecedorDashboardStats(
-      ctx.org_id,
-      ctx.fornecedor_id,
-      startOfMonth.toISOString(),
-      endOfMonth.toISOString()
-    ).catch(() => null);
+    const { searchParams } = new URL(req.url);
+    const modo = searchParams.get("modo") ?? "dias";
+    const periodoParam = searchParams.get("periodo") ?? searchParams.get("dias") ?? "14";
+
+    const [rpc, pedidosAtencaoRes, repasse, desempenho] = await Promise.all([
+      fetchFornecedorDashboardStats(
+        ctx.org_id,
+        ctx.fornecedor_id,
+        startOfMonth.toISOString(),
+        endOfMonth.toISOString()
+      ).catch(() => null),
+      supabaseAdmin
+        .from("pedidos")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", ctx.org_id)
+        .eq("fornecedor_id", ctx.fornecedor_id)
+        .in("status", ["bloqueado", "pendente_estoque"]),
+      loadFornecedorRepasseList(ctx.org_id, ctx.fornecedor_id, { includePreview: true }),
+      loadFornecedorDesempenho(ctx.org_id, ctx.fornecedor_id, modo, periodoParam).catch(() => null),
+    ]);
 
     const stats =
       rpc ??
       (await legacyStats(ctx.org_id, ctx.fornecedor_id, startOfMonth, endOfMonth));
 
-    const { count: pedidosAtencao } = await supabaseAdmin
-      .from("pedidos")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", ctx.org_id)
-      .eq("fornecedor_id", ctx.fornecedor_id)
-      .in("status", ["bloqueado", "pendente_estoque"]);
-
-    return NextResponse.json({ ...stats, pedidos_atencao: pedidosAtencao ?? 0 });
+    return NextResponse.json({
+      ...stats,
+      pedidos_atencao: pedidosAtencaoRes.count ?? 0,
+      repasse,
+      desempenho,
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });
