@@ -1194,7 +1194,7 @@ export default function SellerDashboardPage() {
           </div>
             {aLiberar > 0 && (
               <div className="mx-3 sm:mx-4 mt-3 flex items-center justify-between rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3.5 py-3">
-                <span className="text-xs font-medium text-[var(--muted)]">A liberar (aguardando repasse)</span>
+                <span className="text-xs font-medium text-[var(--muted)]">Já enviado (aguardando fechamento do ciclo)</span>
                 <span className="text-base font-bold text-[var(--foreground)] tabular-nums">{BRL.format(aLiberar)}</span>
               </div>
             )}
