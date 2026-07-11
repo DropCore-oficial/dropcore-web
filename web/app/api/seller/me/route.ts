@@ -266,14 +266,23 @@ export async function GET(req: Request) {
     const cadastro_dados_pendente = cadastroSellerDocumentoPendente(seller.documento);
     const plano_pendente = !planoSellerDefinido(seller.plano);
     const cadastro_pendente = sellerCadastroPendente(seller.documento, seller.plano);
-    const plano_precos_mensalidade = await fetchMensalidadeSellerPorPlano(supabaseAdmin);
 
-    const { count: pedidosAtencaoCount } = await supabaseAdmin
-      .from("pedidos")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", seller.org_id)
-      .eq("seller_id", seller.id)
-      .in("status", ["bloqueado", "pendente_estoque"]);
+    const [plano_precos_mensalidade, pedidosAtencaoRes, olistLiteRow] = await Promise.all([
+      fetchMensalidadeSellerPorPlano(supabaseAdmin),
+      supabaseAdmin
+        .from("pedidos")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", seller.org_id)
+        .eq("seller_id", seller.id)
+        .in("status", ["bloqueado", "pendente_estoque"]),
+      supabaseAdmin
+        .from("seller_olist_integrations")
+        .select("olist_token_ciphertext")
+        .eq("seller_id", seller.id)
+        .maybeSingle(),
+    ]);
+    const pedidosAtencaoCount = pedidosAtencaoRes.count;
+    const olist_connected = Boolean(olistLiteRow.data?.olist_token_ciphertext?.trim());
 
     return NextResponse.json({
       ok: true,
@@ -310,6 +319,7 @@ export async function GET(req: Request) {
       extrato: extratoEnriquecido,
       depositos: depositos ?? [],
       credito_resumo,
+      olist_connected,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";

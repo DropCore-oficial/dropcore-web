@@ -361,10 +361,10 @@ export default function SellerDashboardPage() {
         router.replace("/seller/login");
         return;
       }
-      const [meRes, olistRes] = await Promise.all([
-        fetch("/api/seller/me", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }),
-        fetch("/api/seller/olist?lite=1", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }),
-      ]);
+      const meRes = await fetch("/api/seller/me", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: "no-store",
+      });
       const json = await meRes.json();
       if (!meRes.ok) {
         if (meRes.status === 401 || meRes.status === 404) {
@@ -385,12 +385,7 @@ export default function SellerDashboardPage() {
       setExtrato(raw.filter((e: LedgerEntry) => { if (seen.has(e.id)) return false; seen.add(e.id); return true; }));
       setDepositos(json.depositos ?? []);
       setCreditoResumo(json.credito_resumo ?? null);
-      if (olistRes.ok) {
-        const olistJson = await olistRes.json();
-        setOlistIntegrado(Boolean(olistJson.connected));
-      } else {
-        setOlistIntegrado(false);
-      }
+      setOlistIntegrado(Boolean(json.olist_connected));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
