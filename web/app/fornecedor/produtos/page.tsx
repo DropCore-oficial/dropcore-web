@@ -304,9 +304,11 @@ export default function FornecedorProdutosPage() {
       const token = session.access_token;
       setAccessToken(token);
       const headers = { Authorization: `Bearer ${token}` };
-      const resumo = await getResumoRascunhoCriarVariantes(token);
+      const [resumo, res] = await Promise.all([
+        getResumoRascunhoCriarVariantes(token),
+        fetch("/api/fornecedor/produtos?include_alteracoes_status=1", { headers, cache: "no-store" }),
+      ]);
       setRascunhoCriarVariantes(resumo);
-      const res = await fetch("/api/fornecedor/produtos", { headers, cache: "no-store" });
       if (!res.ok) {
         if (res.status === 401 || res.status === 404) {
           await supabaseBrowser.auth.signOut();
@@ -317,16 +319,15 @@ export default function FornecedorProdutosPage() {
         throw new Error(j?.error ?? "Erro ao carregar produtos.");
       }
       const data = await res.json();
-      const lista = Array.isArray(data) ? data : [];
+      const lista = Array.isArray(data.produtos) ? data.produtos : [];
       setProdutos(
         lista.map((p: Produto) => ({
           ...p,
           detalhes_produto_json: parseDetalhesProdutoJson(p.detalhes_produto_json),
         }))
       );
-      const statusRes = await fetch("/api/fornecedor/alteracoes-status", { headers, cache: "no-store" });
-      if (statusRes.ok) {
-        const statusData = await statusRes.json();
+      const statusData = data.alteracoes_status;
+      if (statusData) {
         setAlteracoesStatus({
           pendentes: statusData.pendentes ?? [],
           por_sku: statusData.por_sku ?? {},

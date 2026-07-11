@@ -101,12 +101,50 @@ async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: st
   return { fornecedor_id: member.fornecedor_id, org_id: member.org_id };
 }
 
+async function loadAlteracoesStatus(orgId: string, fornecedorId: string) {
+  const { data: pendentes, error: errPend } = await supabaseAdmin
+    .from("sku_alteracoes_pendentes")
+    .select("sku_id")
+    .eq("fornecedor_id", fornecedorId)
+    .eq("org_id", orgId)
+    .eq("status", "pendente");
+
+  if (errPend) throw new Error(errPend.message);
+
+  const { data: analisadas, error: errAnal } = await supabaseAdmin
+    .from("sku_alteracoes_pendentes")
+    .select("sku_id, status, motivo_rejeicao, analisado_em")
+    .eq("fornecedor_id", fornecedorId)
+    .eq("org_id", orgId)
+    .in("status", ["aprovado", "rejeitado"])
+    .not("analisado_em", "is", null)
+    .order("analisado_em", { ascending: false });
+
+  if (errAnal) throw new Error(errAnal.message);
+
+  const porSku: Record<string, { status: "aprovado" | "rejeitado"; motivo_rejeicao?: string | null; analisado_em: string }> = {};
+  for (const row of analisadas ?? []) {
+    if (row.sku_id && !(row.sku_id in porSku)) {
+      porSku[row.sku_id] = {
+        status: row.status as "aprovado" | "rejeitado",
+        motivo_rejeicao: row.motivo_rejeicao ?? undefined,
+        analisado_em: row.analisado_em ?? "",
+      };
+    }
+  }
+
+  return { pendentes: (pendentes ?? []).map((r) => r.sku_id), por_sku: porSku };
+}
+
 export async function GET(req: Request) {
   try {
     const ctx = await getFornecedorFromToken(req);
     if (!ctx) {
       return NextResponse.json({ error: "Não autenticado como fornecedor." }, { status: 401 });
     }
+
+    const { searchParams } = new URL(req.url);
+    const includeAlteracoesStatus = searchParams.get("include_alteracoes_status") === "1";
 
     const { data, error } = await supabaseAdmin
       .from("skus")
@@ -118,15 +156,28 @@ export async function GET(req: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const rows = data ?? [];
     const ids = rows.map((r) => r.id).filter(Boolean);
-    if (ids.length === 0) return NextResponse.json(rows);
 
-    const { data: pendentesRows, error: errPend } = await supabaseAdmin
-      .from("sku_alteracoes_pendentes")
-      .select("sku_id, dados_propostos")
-      .eq("org_id", ctx.org_id)
-      .eq("fornecedor_id", ctx.fornecedor_id)
-      .eq("status", "pendente")
-      .in("sku_id", ids);
+    const alteracoesStatusPromise = includeAlteracoesStatus
+      ? loadAlteracoesStatus(ctx.org_id, ctx.fornecedor_id)
+      : null;
+
+    if (ids.length === 0) {
+      const alteracoes_status = alteracoesStatusPromise ? await alteracoesStatusPromise : null;
+      return NextResponse.json(
+        includeAlteracoesStatus ? { produtos: rows, alteracoes_status } : rows
+      );
+    }
+
+    const [{ data: pendentesRows, error: errPend }, alteracoes_status] = await Promise.all([
+      supabaseAdmin
+        .from("sku_alteracoes_pendentes")
+        .select("sku_id, dados_propostos")
+        .eq("org_id", ctx.org_id)
+        .eq("fornecedor_id", ctx.fornecedor_id)
+        .eq("status", "pendente")
+        .in("sku_id", ids),
+      alteracoesStatusPromise ?? Promise.resolve(null),
+    ]);
 
     if (errPend) return NextResponse.json({ error: errPend.message }, { status: 500 });
 
@@ -144,9 +195,9 @@ export async function GET(req: Request) {
       return aplicarPropostosPendentes(sku as Record<string, unknown>, prop) as (typeof rows)[number];
     });
 
-    return NextResponse.json(
-      prepararDetalhesProdutoJsonCatalogo(propagarDetalhesProdutoJsonNoGrupo(merged))
-    );
+    const produtos = prepararDetalhesProdutoJsonCatalogo(propagarDetalhesProdutoJsonNoGrupo(merged));
+
+    return NextResponse.json(includeAlteracoesStatus ? { produtos, alteracoes_status } : produtos);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });
