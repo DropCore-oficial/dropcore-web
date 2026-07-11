@@ -52,22 +52,17 @@ export default function DevolucoesPage() {
         return;
       }
       const token = session.access_token;
-      const [res, resPago] = await Promise.all([
-        fetch("/api/org/financial/ledger", { headers: { Authorization: `Bearer ${token}` } }),
-        fetch("/api/org/financial/ledger?statuses=PAGO", { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
+      const res = await fetch("/api/org/financial/ledger?include_pago=1", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
-      const dataPago = await resPago.json();
       if (!res.ok) {
         setError(data?.error || "Erro ao carregar.");
         setList([]);
-      } else {
-        setList(Array.isArray(data) ? data : []);
-      }
-      if (!resPago.ok) {
         setListPago([]);
       } else {
-        setListPago(Array.isArray(dataPago) ? dataPago : []);
+        setList(Array.isArray(data.items) ? data.items : []);
+        setListPago(Array.isArray(data.items_pago) ? data.items_pago : []);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro");
