@@ -100,36 +100,27 @@ export default function OrgMembrosPage() {
         return;
       }
 
-      const meRes = await fetch("/api/org/me", {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-      const meJson = await safeJson(meRes);
-      if (!meRes.ok || !meJson?.org_id) {
-        throw new Error(meJson?.error || "Sua sessão não está ligada a uma organização.");
-      }
-
-      const resolvedOrgId = String(meJson.org_id);
-      if (orgIdParam && orgIdParam !== resolvedOrgId) {
-        setErr("O parâmetro orgId da URL não corresponde à sua organização. Usando a organização da sua sessão.");
-        router.replace("/org/membros");
-      }
-
-      setOrgId(resolvedOrgId);
-      const rb = meJson?.role_base;
-      if (rb === "owner" || rb === "admin" || rb === "operacional") {
-        setViewerRole(rb);
-      } else {
-        setViewerRole(null);
-      }
-
-      const res = await fetch(`/api/org/membros?orgId=${encodeURIComponent(resolvedOrgId)}`, {
+      const res = await fetch("/api/org/membros", {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
       });
 
       const json = await safeJson(res);
       if (!res.ok) throw new Error(json?.error || "Erro ao carregar membros");
+
+      const resolvedOrgId = json?.org_id ? String(json.org_id) : null;
+      if (orgIdParam && resolvedOrgId && orgIdParam !== resolvedOrgId) {
+        setErr("O parâmetro orgId da URL não corresponde à sua organização. Usando a organização da sua sessão.");
+        router.replace("/org/membros");
+      }
+
+      setOrgId(resolvedOrgId);
+      const rb = json?.role_base;
+      if (rb === "owner" || rb === "admin" || rb === "operacional") {
+        setViewerRole(rb);
+      } else {
+        setViewerRole(null);
+      }
 
       setData(json?.data || []);
     } catch (e: any) {

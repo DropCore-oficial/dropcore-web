@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { OrgAuthError, requireAdminForOrgId } from "@/lib/apiOrgAuth";
+import { OrgAuthError, requireAdmin, requireAdminForOrgId } from "@/lib/apiOrgAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 function jsonNoStore(body: unknown, status = 200) {
@@ -21,14 +21,24 @@ function getEnvServiceOk(): boolean {
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const orgId = searchParams.get("orgId");
-    if (!orgId) return jsonNoStore({ error: "orgId é obrigatório" }, 400);
+    const orgIdParam = searchParams.get("orgId");
 
     if (!getEnvServiceOk()) {
       return jsonNoStore({ error: "Env SUPABASE_SERVICE_ROLE_KEY ausente" }, 500);
     }
 
-    await requireAdminForOrgId(req, orgId);
+    /** Sem orgId no query: resolve a própria org do usuário (owner/admin, igual requireAdminForOrgId
+     * já exigia). Com orgId no query: mantém a checagem anti-IDOR de sempre. */
+    let orgId: string;
+    let role_base: string;
+    if (orgIdParam) {
+      orgId = orgIdParam;
+      ({ role_base } = await requireAdminForOrgId(req, orgId));
+    } else {
+      const me = await requireAdmin(req);
+      orgId = me.org_id;
+      role_base = me.role_base;
+    }
 
     /**
      * Portal fornecedor/seller usa a mesma tabela `org_members` com `fornecedor_id` / `seller_id`.
@@ -44,7 +54,7 @@ export async function GET(req: Request) {
     if (memErr) return jsonNoStore({ error: memErr.message }, 500);
 
     if (!members || members.length === 0) {
-      return jsonNoStore({ data: [] }, 200);
+      return jsonNoStore({ data: [], org_id: orgId, role_base }, 200);
     }
 
     const userIds = Array.from(
@@ -77,13 +87,14 @@ export async function GET(req: Request) {
       pode_ver_dinheiro: !!m.pode_ver_dinheiro,
     }));
 
-    return jsonNoStore({ data: formatted }, 200);
+    return jsonNoStore({ data: formatted, org_id: orgId, role_base }, 200);
   } catch (e: unknown) {
     if (e instanceof OrgAuthError) {
       return jsonNoStore({ error: e.message }, e.statusCode);
     }
     const msg = e instanceof Error ? e.message : "Erro interno";
-    return jsonNoStore({ error: msg }, 500);
+    const status = msg === "Sem permissão." ? 403 : 500;
+    return jsonNoStore({ error: msg }, status);
   }
 }
 

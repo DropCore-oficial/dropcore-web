@@ -157,7 +157,7 @@ export async function requireOrgStaffForOrgId(req: Request, orgId: string): Prom
  * **Owner** ou **admin** para um `org_id` explícito (body/query).
  * Use quando o papel deve ser validado na **mesma org** da operação (anti-IDOR).
  */
-export async function requireAdminForOrgId(req: Request, orgId: string): Promise<{ user_id: string }> {
+export async function requireAdminForOrgId(req: Request, orgId: string): Promise<{ user_id: string; role_base: "owner" | "admin" }> {
   const userId = await getUserIdFromBearerOrCookies(req);
   if (!userId) {
     throw new OrgAuthError("Não autenticado", 401);
@@ -181,7 +181,7 @@ export async function requireAdminForOrgId(req: Request, orgId: string): Promise
     throw new OrgAuthError("Sem permissão.", 403);
   }
 
-  return { user_id: userId };
+  return { user_id: userId, role_base: role as "owner" | "admin" };
 }
 
 /**
