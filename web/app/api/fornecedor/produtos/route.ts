@@ -66,21 +66,30 @@ const CAMPOS_PROPOSTOS_SKU = new Set([
   "detalhes_produto_json",
 ]);
 
+/**
+ * Mescla o valor proposto (pendente de aprovação) por cima do valor real de `skus`,
+ * para exibição. Guarda em `_valores_reais` os valores originais (pré-mescla) dos
+ * campos afetados, para telas de edição usarem como base de comparação — o valor
+ * mesclado é só pendente, nunca foi de fato aplicado em `skus` até um admin aprovar.
+ */
 function aplicarPropostosPendentes<T extends Record<string, unknown>>(
   sku: T,
   propostos: Record<string, unknown> | null | undefined
-): T {
+): T & { _valores_reais?: Record<string, unknown> } {
   if (!propostos || typeof propostos !== "object") return sku;
   const out = { ...sku } as Record<string, unknown>;
+  const valoresReais: Record<string, unknown> = {};
   for (const key of CAMPOS_PROPOSTOS_SKU) {
     if (!(key in propostos)) continue;
+    valoresReais[key] = out[key];
     if (key === "detalhes_produto_json") {
       out[key] = mergeDetalhesProdutoJson(out[key], propostos[key]);
     } else {
       out[key] = propostos[key];
     }
   }
-  return out as T;
+  out._valores_reais = valoresReais;
+  return out as T & { _valores_reais?: Record<string, unknown> };
 }
 
 async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: string; org_id: string } | null> {

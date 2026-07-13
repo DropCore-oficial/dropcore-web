@@ -50,7 +50,16 @@ type Produto = {
   marca?: string | null;
   data_lancamento?: string | null;
   expedicao_override_linha?: string | null;
+  /** Valores reais (já aplicados em `skus`) dos campos que têm alteração pendente de aprovação. */
+  _valores_reais?: Record<string, unknown>;
 };
+
+/** Valor real de um campo (ignora alteração pendente de aprovação ainda não aplicada em `skus`). */
+function valorReal<K extends keyof Produto>(produto: Produto, campo: K): Produto[K] {
+  const reais = produto._valores_reais;
+  if (reais && campo in reais) return reais[campo as string] as Produto[K];
+  return produto[campo];
+}
 
 function paiKey(sku: string): string {
   const s = (sku || "").trim().toUpperCase();
@@ -332,39 +341,50 @@ export default function EditarVariantesPage() {
 
   const dirtyBasico = useMemo(() => {
     if (!representante) return false;
-    return editNomeBasico !== (representante.nome_produto ?? "") || editDescricaoGrupo !== (representante.descricao ?? "");
-  }, [representante?.nome_produto, representante?.descricao, editNomeBasico, editDescricaoGrupo]);
+    return (
+      editNomeBasico !== (valorReal(representante, "nome_produto") ?? "") ||
+      editDescricaoGrupo !== (valorReal(representante, "descricao") ?? "")
+    );
+  }, [representante, editNomeBasico, editDescricaoGrupo]);
 
   const dirtyMidia = useMemo(() => {
     if (!alvoMidiaProduto) return false;
-    return editLinkFotosGrupo !== (alvoMidiaProduto.link_fotos ?? "");
-  }, [alvoMidiaProduto?.link_fotos, editLinkFotosGrupo]);
+    return editLinkFotosGrupo !== (valorReal(alvoMidiaProduto, "link_fotos") ?? "");
+  }, [alvoMidiaProduto, editLinkFotosGrupo]);
 
   const dirtyImpostos = useMemo(() => {
     if (!representante) return false;
+    const pesoLiquidoReal = valorReal(representante, "peso_liquido_kg");
+    const pesoBrutoReal = valorReal(representante, "peso_bruto_kg");
     return (
-      (editNcm ?? "") !== (representante.ncm ?? "") ||
-      (editOrigem ?? "") !== (representante.origem ?? "") ||
-      (editCest ?? "") !== (representante.cest ?? "") ||
-      (editPesoLiquido ?? "") !== (representante.peso_liquido_kg != null ? String(representante.peso_liquido_kg) : "") ||
-      (editPesoBruto ?? "") !== (representante.peso_bruto_kg != null ? String(representante.peso_bruto_kg) : "")
+      (editNcm ?? "") !== (valorReal(representante, "ncm") ?? "") ||
+      (editOrigem ?? "") !== (valorReal(representante, "origem") ?? "") ||
+      (editCest ?? "") !== (valorReal(representante, "cest") ?? "") ||
+      (editPesoLiquido ?? "") !== (pesoLiquidoReal != null ? String(pesoLiquidoReal) : "") ||
+      (editPesoBruto ?? "") !== (pesoBrutoReal != null ? String(pesoBrutoReal) : "")
     );
-  }, [representante?.ncm, representante?.origem, representante?.cest, representante?.peso_liquido_kg, representante?.peso_bruto_kg, editNcm, editOrigem, editCest, editPesoLiquido, editPesoBruto]);
+  }, [representante, editNcm, editOrigem, editCest, editPesoLiquido, editPesoBruto]);
 
   const dirtyModal = useMemo(() => {
     if (!editando) return false;
+    const compReal = valorReal(editando, "comprimento_cm");
+    const largReal = valorReal(editando, "largura_cm");
+    const altReal = valorReal(editando, "altura_cm");
+    const pesoReal = valorReal(editando, "peso_kg");
+    const custoReal = valorReal(editando, "custo_base");
+    const estoqueReal = valorReal(editando, "estoque_atual");
     return (
-      (editNome ?? "") !== (editando.nome_produto ?? "") ||
-      (editCor ?? "") !== (editando.cor ?? "") ||
-      (editTamanho ?? "") !== (editando.tamanho ?? "") ||
-      (editLinkFotos ?? "") !== (editando.link_fotos ?? "") ||
-      (editDescricao ?? "") !== (editando.descricao ?? "") ||
-      (editComp ?? "") !== (editando.comprimento_cm != null ? String(editando.comprimento_cm) : "") ||
-      (editLarg ?? "") !== (editando.largura_cm != null ? String(editando.largura_cm) : "") ||
-      (editAlt ?? "") !== (editando.altura_cm != null ? String(editando.altura_cm) : "") ||
-      (editPeso ?? "") !== (editando.peso_kg != null ? String(editando.peso_kg) : "") ||
-      (editCusto ?? "") !== (editando.custo_base != null ? String(editando.custo_base) : "") ||
-      (editEstoque ?? "") !== (editando.estoque_atual != null ? String(editando.estoque_atual) : "")
+      (editNome ?? "") !== (valorReal(editando, "nome_produto") ?? "") ||
+      (editCor ?? "") !== (valorReal(editando, "cor") ?? "") ||
+      (editTamanho ?? "") !== (valorReal(editando, "tamanho") ?? "") ||
+      (editLinkFotos ?? "") !== (valorReal(editando, "link_fotos") ?? "") ||
+      (editDescricao ?? "") !== (valorReal(editando, "descricao") ?? "") ||
+      (editComp ?? "") !== (compReal != null ? String(compReal) : "") ||
+      (editLarg ?? "") !== (largReal != null ? String(largReal) : "") ||
+      (editAlt ?? "") !== (altReal != null ? String(altReal) : "") ||
+      (editPeso ?? "") !== (pesoReal != null ? String(pesoReal) : "") ||
+      (editCusto ?? "") !== (custoReal != null ? String(custoReal) : "") ||
+      (editEstoque ?? "") !== (estoqueReal != null ? String(estoqueReal) : "")
     );
   }, [editando, editNome, editCor, editTamanho, editLinkFotos, editDescricao, editComp, editLarg, editAlt, editPeso, editCusto, editEstoque]);
 

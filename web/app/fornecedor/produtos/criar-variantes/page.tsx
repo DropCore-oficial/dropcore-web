@@ -101,7 +101,19 @@ type ProdutoExistenteEdicao = {
   altura_cm?: number | null;
   expedicao_override_linha?: string | null;
   detalhes_produto_json?: Record<string, unknown> | null;
+  /** Valores reais (já aplicados em `skus`) dos campos que têm alteração pendente de aprovação. */
+  _valores_reais?: Record<string, unknown>;
 };
+
+/** Valor real de um campo (ignora alteração pendente de aprovação ainda não aplicada em `skus`). */
+function valorRealEdicao<K extends keyof ProdutoExistenteEdicao>(
+  produto: ProdutoExistenteEdicao,
+  campo: K
+): ProdutoExistenteEdicao[K] {
+  const reais = produto._valores_reais;
+  if (reais && campo in reais) return reais[campo as string] as ProdutoExistenteEdicao[K];
+  return produto[campo];
+}
 
 function grupoKeyFromSku(sku: string): string {
   const s = (sku || "").trim().toUpperCase();
@@ -2007,7 +2019,7 @@ export default function CriarVariantesPage() {
           detalhes_produto_json: detalhesProdutoJson,
         };
         const paiRowDb = grupoRows.find((r) => r.sku.trim().toUpperCase() === grupoEdicao);
-        if (imagemPaiAlvo !== (paiRowDb?.imagem_url ?? null)) {
+        if (imagemPaiAlvo !== (paiRowDb ? (valorRealEdicao(paiRowDb, "imagem_url") ?? null) : null)) {
           patchPai.imagem_url = imagemPaiAlvo;
         }
         if (tabelaMedidasPayload) patchPai.tabela_medidas = tabelaMedidasPayload;
@@ -2045,11 +2057,11 @@ export default function CriarVariantesPage() {
           const imgCor = imgCorStr || null;
 
           const patchVariante: Record<string, unknown> = {};
-          if ((row.cor ?? "") !== (corNorm || null)) patchVariante.cor = corNorm || null;
-          if ((row.tamanho ?? "") !== (tamNorm || null)) patchVariante.tamanho = tamNorm || null;
-          if (estoqueAtual != null && estoqueAtual !== row.estoque_atual) patchVariante.estoque_atual = estoqueAtual;
-          if (custoAtual != null && custoAtual !== row.custo_base) patchVariante.custo_base = custoAtual;
-          if (imgCor !== (row.imagem_url ?? null)) patchVariante.imagem_url = imgCor;
+          if ((valorRealEdicao(row, "cor") ?? "") !== (corNorm || null)) patchVariante.cor = corNorm || null;
+          if ((valorRealEdicao(row, "tamanho") ?? "") !== (tamNorm || null)) patchVariante.tamanho = tamNorm || null;
+          if (estoqueAtual != null && estoqueAtual !== valorRealEdicao(row, "estoque_atual")) patchVariante.estoque_atual = estoqueAtual;
+          if (custoAtual != null && custoAtual !== valorRealEdicao(row, "custo_base")) patchVariante.custo_base = custoAtual;
+          if (imgCor !== (valorRealEdicao(row, "imagem_url") ?? null)) patchVariante.imagem_url = imgCor;
           if (Object.keys(patchVariante).length === 0) continue;
 
           reqs.push(
@@ -3506,12 +3518,21 @@ export default function CriarVariantesPage() {
             <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
               <p className="mb-4 text-xs leading-relaxed text-[var(--muted)] sm:text-[13px]">
                 <strong className="text-[var(--foreground)]">Lembrete:</strong> «Seguir» e as abas só organizam a tela.{" "}
-                <strong className="text-[var(--foreground)]">«Salvar rascunho»</strong> grava o anúncio na sua conta (e copia neste aparelho); em{" "}
-                <Link href="/fornecedor/produtos" className="font-medium text-neutral-900 underline-offset-2 hover:underline dark:text-neutral-100">
-                  Meus produtos
-                </Link>{" "}
-                aparece o atalho <strong className="text-[var(--foreground)]">Continuar rascunho</strong> junto de «+ Criar produto».{" "}
-                <strong className="text-[var(--foreground)]">Só «Salvar produto»</strong> envia o catálogo ao servidor.
+                {modoEdicao ? (
+                  <>
+                    <strong className="text-[var(--foreground)]">«Salvar alterações»</strong> envia sua edição para análise da
+                    DropCore — o valor só passa a valer depois de aprovado.
+                  </>
+                ) : (
+                  <>
+                    <strong className="text-[var(--foreground)]">«Salvar rascunho»</strong> grava o anúncio na sua conta (e copia neste aparelho); em{" "}
+                    <Link href="/fornecedor/produtos" className="font-medium text-neutral-900 underline-offset-2 hover:underline dark:text-neutral-100">
+                      Meus produtos
+                    </Link>{" "}
+                    aparece o atalho <strong className="text-[var(--foreground)]">Continuar rascunho</strong> junto de «+ Criar produto».{" "}
+                    <strong className="text-[var(--foreground)]">Só «Salvar produto»</strong> envia o catálogo ao servidor.
+                  </>
+                )}
               </p>
 
               <div className="flex flex-col gap-4">
@@ -3533,14 +3554,16 @@ export default function CriarVariantesPage() {
                 <div className="h-px bg-neutral-200/90 dark:bg-neutral-800" aria-hidden />
 
                 <div className="hidden md:flex md:justify-end md:gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => void salvarRascunho()}
-                    disabled={formLoading || rascunhoSalvando}
-                    className={`${btnRascunho} min-w-[10rem]`}
-                  >
-                    <span className="truncate">{rascunhoSalvando ? "Salvando..." : "Salvar rascunho"}</span>
-                  </button>
+                  {!modoEdicao && (
+                    <button
+                      type="button"
+                      onClick={() => void salvarRascunho()}
+                      disabled={formLoading || rascunhoSalvando}
+                      className={`${btnRascunho} min-w-[10rem]`}
+                    >
+                      <span className="truncate">{rascunhoSalvando ? "Salvando..." : "Salvar rascunho"}</span>
+                    </button>
+                  )}
                   <button type="submit" disabled={formLoading} className={`${btnSalvarProduto} min-w-[10rem]`}>
                     {formLoading ? "Salvando..." : modoEdicao ? "Salvar alterações" : "Salvar produto"}
                   </button>
@@ -3577,14 +3600,16 @@ export default function CriarVariantesPage() {
       </div>
       <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] z-30 border-t border-[#e5e7eb] bg-white/95 px-4 py-2.5 shadow-[0_-6px_18px_-14px_rgba(15,23,42,0.35)] backdrop-blur md:hidden dark:border-neutral-700 dark:bg-[#0f141b]/95">
         <div className="dropcore-shell-4xl flex w-full gap-2">
-          <button
-            type="button"
-            onClick={() => void salvarRascunho()}
-            disabled={formLoading || rascunhoSalvando}
-            className={`${btnRascunho} min-h-[38px] flex-1`}
-          >
-            {rascunhoSalvando ? "Salvando..." : "Salvar rascunho"}
-          </button>
+          {!modoEdicao && (
+            <button
+              type="button"
+              onClick={() => void salvarRascunho()}
+              disabled={formLoading || rascunhoSalvando}
+              className={`${btnRascunho} min-h-[38px] flex-1`}
+            >
+              {rascunhoSalvando ? "Salvando..." : "Salvar rascunho"}
+            </button>
+          )}
           <button type="submit" form="form-criar-variantes" disabled={formLoading} className={`${btnSalvarProduto} min-h-[38px] flex-1`}>
             {formLoading ? "Salvando..." : modoEdicao ? "Salvar alterações" : "Salvar produto"}
           </button>
