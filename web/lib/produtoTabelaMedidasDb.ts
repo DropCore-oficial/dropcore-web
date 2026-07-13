@@ -89,6 +89,48 @@ export async function getProdutoTabelaMedidas(
   };
 }
 
+/** Tabela aprovada do grupo + proposta pendente (se houver), a partir de `sku_alteracoes_pendentes`. */
+export async function getTabelaMedidasComPendente(
+  sb: SupabaseClient,
+  orgId: string,
+  fornecedorId: string,
+  grupoKey: string
+): Promise<{ aprovada: TabelaMedidasRow | null; pendente: TabelaMedidasRow | null }> {
+  const gk = grupoKey.trim().toUpperCase();
+  const aprovada = await getProdutoTabelaMedidas(sb, gk);
+
+  let pendente: TabelaMedidasRow | null = null;
+  const prefix = gk.length >= 6 ? gk.slice(0, -3) : gk;
+  const { data: skus } = await sb
+    .from("skus")
+    .select("id, sku")
+    .eq("org_id", orgId)
+    .eq("fornecedor_id", fornecedorId)
+    .ilike("sku", `${prefix}%`);
+  const skuIds = (skus ?? []).filter((s) => paiKey(String(s.sku ?? "")) === gk).map((s) => s.id);
+  if (skuIds.length > 0) {
+    const { data: alt } = await sb
+      .from("sku_alteracoes_pendentes")
+      .select("dados_propostos")
+      .eq("fornecedor_id", fornecedorId)
+      .eq("org_id", orgId)
+      .eq("status", "pendente")
+      .in("sku_id", skuIds)
+      .limit(1)
+      .maybeSingle();
+    const dp = alt?.dados_propostos as Record<string, unknown> | null;
+    if (dp?.tabela_medidas != null && typeof dp.tabela_medidas === "object") {
+      const tm = dp.tabela_medidas as { tipo_produto?: string; medidas?: Record<string, Record<string, number>> };
+      pendente = {
+        tipo_produto: typeof tm.tipo_produto === "string" ? tm.tipo_produto : "generico",
+        medidas: tm.medidas && typeof tm.medidas === "object" ? tm.medidas : {},
+      };
+    }
+  }
+
+  return { aprovada, pendente };
+}
+
 export async function upsertProdutoTabelaMedidas(
   sb: SupabaseClient,
   grupoKey: string,

@@ -9,7 +9,7 @@ import { mergeDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { ordenarTamanhosLista } from "@/lib/fornecedorVariantesUi";
 import {
   fornecedorPossuiGrupoSku,
-  getProdutoTabelaMedidas,
+  getTabelaMedidasComPendente,
   upsertProdutoTabelaMedidas,
 } from "@/lib/produtoTabelaMedidasDb";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -42,12 +42,6 @@ async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: st
   return { fornecedor_id: member.fornecedor_id, org_id: member.org_id };
 }
 
-function paiKey(sku: string): string {
-  const s = (sku || "").trim().toUpperCase();
-  const m = s.match(/^([A-Z]+)(\d{3})(\d{3})$/);
-  return m ? `${m[1]}${m[2]}000` : s;
-}
-
 export async function GET(req: Request) {
   try {
     const ctx = await getFornecedorFromToken(req);
@@ -67,36 +61,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Grupo não encontrado ou não pertence a você." }, { status: 404 });
     }
 
-    const aprovada = await getProdutoTabelaMedidas(supabaseAdmin, grupoKey);
-
-    let pendente: { tipo_produto: string; medidas: Record<string, Record<string, number>> } | null = null;
-    const prefix = grupoKey.length >= 6 ? grupoKey.slice(0, -3) : grupoKey;
-    const { data: skus } = await supabaseAdmin
-      .from("skus")
-      .select("id, sku")
-      .eq("org_id", ctx.org_id)
-      .eq("fornecedor_id", ctx.fornecedor_id)
-      .ilike("sku", `${prefix}%`);
-    const skuIds = (skus ?? []).filter((s) => paiKey(String(s.sku ?? "")) === grupoKey).map((s) => s.id);
-    if (skuIds.length > 0) {
-      const { data: alt } = await supabaseAdmin
-        .from("sku_alteracoes_pendentes")
-        .select("dados_propostos")
-        .eq("fornecedor_id", ctx.fornecedor_id)
-        .eq("org_id", ctx.org_id)
-        .eq("status", "pendente")
-        .in("sku_id", skuIds)
-        .limit(1)
-        .maybeSingle();
-      const dp = alt?.dados_propostos as Record<string, unknown> | null;
-      if (dp?.tabela_medidas != null && typeof dp.tabela_medidas === "object") {
-        const tm = dp.tabela_medidas as { tipo_produto?: string; medidas?: Record<string, Record<string, number>> };
-        pendente = {
-          tipo_produto: typeof tm.tipo_produto === "string" ? tm.tipo_produto : "generico",
-          medidas: (tm.medidas && typeof tm.medidas === "object") ? tm.medidas : {},
-        };
-      }
-    }
+    const { aprovada, pendente } = await getTabelaMedidasComPendente(
+      supabaseAdmin,
+      ctx.org_id,
+      ctx.fornecedor_id,
+      grupoKey
+    );
 
     return NextResponse.json({
       aprovada: aprovada ? { tipo_produto: aprovada.tipo_produto, medidas: aprovada.medidas } : null,

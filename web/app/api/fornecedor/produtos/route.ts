@@ -9,9 +9,16 @@ import { toTitleCase } from "@/lib/formatText";
 import { assertPodeAtivarMaisSkus } from "@/lib/planos";
 import { mergeDetalhesProdutoJson, propagarDetalhesProdutoJsonNoGrupo } from "@/lib/detalhesProdutoJson";
 import { prepararDetalhesProdutoJsonCatalogo } from "@/lib/catalogoSkusDetalhesEspelho";
+import { getTabelaMedidasComPendente } from "@/lib/produtoTabelaMedidasDb";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function paiKey(sku: string): string {
+  const s = (sku || "").trim().toUpperCase();
+  const m = s.match(/^([A-Z]+)(\d{3})(\d{3})$/);
+  return m ? `${m[1]}${m[2]}000` : s;
+}
 
 /** Obtém iniciais do fornecedor a partir do nome (ex: "Djulios" -> "DJU") */
 function iniciaisFromNome(nome: string | null | undefined): string {
@@ -145,30 +152,43 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const includeAlteracoesStatus = searchParams.get("include_alteracoes_status") === "1";
+    const grupoKey = (searchParams.get("grupoKey") ?? "").trim().toUpperCase();
+    const includeTabelaMedidas = grupoKey.length > 0 && searchParams.get("include_tabela_medidas") === "1";
 
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("skus")
       .select(SKU_FIELDS)
       .eq("org_id", ctx.org_id)
-      .eq("fornecedor_id", ctx.fornecedor_id)
-      .order("criado_em", { ascending: false });
+      .eq("fornecedor_id", ctx.fornecedor_id);
+
+    if (grupoKey) {
+      const prefix = grupoKey.length >= 6 ? grupoKey.slice(0, -3) : grupoKey;
+      query = query.ilike("sku", `${prefix}%`);
+    }
+
+    const { data, error } = await query.order("criado_em", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    const rows = data ?? [];
+    const rows = grupoKey ? (data ?? []).filter((r) => paiKey(String(r.sku ?? "")) === grupoKey) : data ?? [];
     const ids = rows.map((r) => r.id).filter(Boolean);
 
     const alteracoesStatusPromise = includeAlteracoesStatus
       ? loadAlteracoesStatus(ctx.org_id, ctx.fornecedor_id)
       : null;
+    const tabelaMedidasPromise = includeTabelaMedidas
+      ? getTabelaMedidasComPendente(supabaseAdmin, ctx.org_id, ctx.fornecedor_id, grupoKey)
+      : null;
+    const includeWrapper = includeAlteracoesStatus || includeTabelaMedidas;
 
     if (ids.length === 0) {
       const alteracoes_status = alteracoesStatusPromise ? await alteracoesStatusPromise : null;
+      const tabela_medidas = tabelaMedidasPromise ? await tabelaMedidasPromise : null;
       return NextResponse.json(
-        includeAlteracoesStatus ? { produtos: rows, alteracoes_status } : rows
+        includeWrapper ? { produtos: rows, alteracoes_status, tabela_medidas } : rows
       );
     }
 
-    const [{ data: pendentesRows, error: errPend }, alteracoes_status] = await Promise.all([
+    const [{ data: pendentesRows, error: errPend }, alteracoes_status, tabela_medidas] = await Promise.all([
       supabaseAdmin
         .from("sku_alteracoes_pendentes")
         .select("sku_id, dados_propostos")
@@ -177,6 +197,7 @@ export async function GET(req: Request) {
         .eq("status", "pendente")
         .in("sku_id", ids),
       alteracoesStatusPromise ?? Promise.resolve(null),
+      tabelaMedidasPromise ?? Promise.resolve(null),
     ]);
 
     if (errPend) return NextResponse.json({ error: errPend.message }, { status: 500 });
@@ -197,7 +218,7 @@ export async function GET(req: Request) {
 
     const produtos = prepararDetalhesProdutoJsonCatalogo(propagarDetalhesProdutoJsonNoGrupo(merged));
 
-    return NextResponse.json(includeAlteracoesStatus ? { produtos, alteracoes_status } : produtos);
+    return NextResponse.json(includeWrapper ? { produtos, alteracoes_status, tabela_medidas } : produtos);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

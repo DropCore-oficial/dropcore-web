@@ -404,7 +404,10 @@ export default function EditarVariantesPage() {
         return;
       }
       const headers = { Authorization: `Bearer ${session.access_token}` };
-      const res = await fetch("/api/fornecedor/produtos", { headers, cache: "no-store" });
+      const res = await fetch(
+        `/api/fornecedor/produtos?grupoKey=${encodeURIComponent(grupoKey)}&include_alteracoes_status=1`,
+        { headers, cache: "no-store" }
+      );
       if (!res.ok) {
         if (res.status === 401 || res.status === 404) {
           await supabaseBrowser.auth.signOut();
@@ -415,12 +418,11 @@ export default function EditarVariantesPage() {
         throw new Error(j?.error ?? "Erro ao carregar produtos.");
       }
       const data = await res.json();
-      setProdutos(data ?? []);
-      const statusRes = await fetch("/api/fornecedor/alteracoes-status", { headers, cache: "no-store" });
-      if (statusRes.ok) {
-        const statusData = await statusRes.json();
-        setAlteracoesStatus({ pendentes: statusData.pendentes ?? [], por_sku: statusData.por_sku ?? {} });
-      }
+      setProdutos(data?.produtos ?? []);
+      setAlteracoesStatus({
+        pendentes: data?.alteracoes_status?.pendentes ?? [],
+        por_sku: data?.alteracoes_status?.por_sku ?? {},
+      });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {

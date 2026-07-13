@@ -612,6 +612,7 @@ export default function CriarVariantesPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [tabelaMedidasSaving, setTabelaMedidasSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [submitResumo, setSubmitResumo] = useState<{ tipo: "sucesso" | "aviso"; texto: string } | null>(null);
   const [carregandoEdicao, setCarregandoEdicao] = useState(false);
 
   // Info. Básica
@@ -1593,29 +1594,25 @@ export default function CriarVariantesPage() {
           router.replace("/fornecedor/login");
           return;
         }
-        const res = await fetch("/api/fornecedor/produtos", {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-        });
-        const j = await res.json().catch(() => []);
+        const res = await fetch(
+          `/api/fornecedor/produtos?grupoKey=${encodeURIComponent(grupoEdicao)}&include_tabela_medidas=1`,
+          { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
+        );
+        const j = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error((j as { error?: string })?.error ?? "Erro ao carregar produto para edição.");
         }
-        let payload = montarRascunhoEdicao(grupoEdicao, Array.isArray(j) ? (j as ProdutoExistenteEdicao[]) : []);
+        const produtosGrupo = (j as { produtos?: ProdutoExistenteEdicao[] })?.produtos ?? [];
+        let payload = montarRascunhoEdicao(grupoEdicao, produtosGrupo);
         if (!payload) {
           throw new Error("Produto não encontrado para edição.");
         }
-        const tmRes = await fetch(
-          `/api/fornecedor/produtos/tabela-medidas?grupoKey=${encodeURIComponent(grupoEdicao)}`,
-          { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
-        );
-        if (tmRes.ok) {
-          const tmData = await tmRes.json().catch(() => ({}));
-          const fonte = (tmData.aprovada ?? tmData.pendente) as TabelaMedidasPayload | null;
-          if (fonte?.medidas && Object.keys(fonte.medidas).length > 0) {
-            const linhas = medidasLinhasFromTabelaPayload(fonte, payload.topicosMedidaSelecionados ?? []);
-            if (linhas.length > 0) payload = { ...payload, medidas: linhas };
-          }
+        const tabelaMedidas = (j as { tabela_medidas?: { aprovada?: TabelaMedidasPayload | null; pendente?: TabelaMedidasPayload | null } })
+          ?.tabela_medidas;
+        const fonte = (tabelaMedidas?.aprovada ?? tabelaMedidas?.pendente) as TabelaMedidasPayload | null | undefined;
+        if (fonte?.medidas && Object.keys(fonte.medidas).length > 0) {
+          const linhas = medidasLinhasFromTabelaPayload(fonte, payload.topicosMedidaSelecionados ?? []);
+          if (linhas.length > 0) payload = { ...payload, medidas: linhas };
         }
         if (cancelled) return;
         aplicarPayloadRascunho(payload);
@@ -1736,6 +1733,7 @@ export default function CriarVariantesPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
+    setSubmitResumo(null);
     if (!nomeProduto.trim()) {
       setFormError("Nome do produto é obrigatório.");
       return;
@@ -1964,7 +1962,10 @@ export default function CriarVariantesPage() {
           throw new Error(addJson?.error ?? "Erro ao sincronizar variantes do grupo.");
         }
 
-        const listRes = await fetch("/api/fornecedor/produtos", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" });
+        const listRes = await fetch(
+          `/api/fornecedor/produtos?grupoKey=${encodeURIComponent(grupoEdicao)}`,
+          { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }
+        );
         const listJson = await listRes.json().catch(() => []);
         if (!listRes.ok) {
           throw new Error((listJson as { error?: string })?.error ?? "Erro ao carregar produtos para editar.");
@@ -2061,11 +2062,15 @@ export default function CriarVariantesPage() {
         }
 
         const results = await Promise.all(reqs);
+        let enviadosParaAnalise = 0;
+        let publicadosDireto = 0;
         for (const r of results) {
+          const j = await r.json().catch(() => ({}));
           if (!r.ok) {
-            const j = await r.json().catch(() => ({}));
             throw new Error(j?.error ?? "Erro ao salvar alterações do produto.");
           }
+          if (j?._enviado_para_analise) enviadosParaAnalise++;
+          else if (j?._detalhes_publicados || j?._tabela_publicada) publicadosDireto++;
         }
         if (tabelaMedidasPayload && grupoEdicao) {
           const tmRes = await fetch("/api/fornecedor/produtos/tabela-medidas", {
@@ -2076,6 +2081,18 @@ export default function CriarVariantesPage() {
           const tmJson = await tmRes.json().catch(() => ({}));
           if (!tmRes.ok) throw new Error(tmJson?.error ?? "Erro ao salvar tabela de medidas.");
           setMedidas(medidasSincronizadas);
+          publicadosDireto++;
+        }
+        if (enviadosParaAnalise === 0) {
+          setSubmitResumo({
+            tipo: "aviso",
+            texto:
+              publicadosDireto > 0
+                ? "Características, mídia e/ou tabela de medidas salvas direto (não passam por aprovação). Nenhuma alteração de catálogo (nome, categoria, preço, estoque etc.) foi detectada para enviar ao DropCore."
+                : "Nenhuma alteração foi detectada nos campos do produto — confira se os valores digitados são realmente diferentes dos já salvos antes de tentar de novo.",
+          });
+          setFormLoading(false);
+          return;
         }
       } else {
         const res = await fetch("/api/fornecedor/produtos/multivariante", {
@@ -2143,6 +2160,11 @@ export default function CriarVariantesPage() {
             {formError && (
               <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-100 dark:bg-red-950/30 p-3 text-sm text-red-800 dark:text-red-300">
                 {formError}
+              </div>
+            )}
+            {submitResumo && (
+              <div className={cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY, "rounded-lg p-3 text-sm")}>
+                {submitResumo.texto}
               </div>
             )}
             {modoEdicao && (
