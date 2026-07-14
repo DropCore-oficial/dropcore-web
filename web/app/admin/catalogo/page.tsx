@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { toTitleCase } from "@/lib/formatText";
 import { PlanLimitsBadge, PLAN_LIMITS_REFRESH_EVENT } from "@/components/PlanLimitsBadge";
-import { DashboardHeader } from "@/components/DashboardHeader";
 import { PageLayout, Card, Button, Badge } from "@/components/ui";
 
 type ItemSKU = {
@@ -986,14 +985,20 @@ export default function AdminCatalogoPage() {
   }
 
   return (
-    <PageLayout maxWidth="sm">
-      <DashboardHeader href="/dashboard" onRefresh={() => buscar("")} onLogout={() => router.push("/login")} />
+    <PageLayout maxWidth="lg">
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0 }}>
             {fornecedorNome ? `Catálogo — ${fornecedorNome}` : "Catálogo (Admin)"}
           </h1>
           <PlanLimitsBadge />
+          <button
+            type="button"
+            onClick={() => buscar("")}
+            style={{ padding: "6px 12px", fontSize: 13, borderRadius: 6, border: "1px solid var(--card-border)", background: "var(--card)", cursor: "pointer", color: "var(--foreground)" }}
+          >
+            Atualizar
+          </button>
         </div>
         <div style={{ marginTop: 8, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <button

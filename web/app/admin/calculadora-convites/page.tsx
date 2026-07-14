@@ -1,11 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { DropCoreLogo } from "@/components/DropCoreLogo";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { apiGet, apiPost } from "@/lib/api";
-import Link from "next/link";
 import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
 
@@ -186,23 +183,8 @@ export default function AdminCalculadoraConvitesPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <header className="border-b border-[var(--border-subtle)] bg-[var(--card)]/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <DropCoreLogo variant="horizontal" href="/dashboard" className="shrink-0 overflow-visible py-0.5" />
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
-            <Link
-              href="/dashboard"
-              className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-            >
-              Início da dash
-            </Link>
-            <ThemeToggle className="hidden md:inline-flex rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-2 min-h-[40px] min-w-[40px] items-center justify-center touch-manipulation" />
-            <div className="text-xs text-[var(--muted)] hidden sm:block">Admin · Convites da calculadora</div>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-5xl px-4 py-8 space-y-6">
+      <main className="dropcore-shell-6xl py-8 space-y-6">
+        <p className="text-xs text-[var(--muted)]">Admin · Convites da calculadora</p>
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 shadow-sm">
           <h1 className="text-lg font-semibold mb-1">Teste grátis da DropCore Calculadora</h1>
           <p className="text-sm text-[var(--muted)] mb-5">

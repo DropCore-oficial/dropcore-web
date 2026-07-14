@@ -5,7 +5,7 @@ import { AdminTinyOlistOnboardingGuide } from "@/components/admin/AdminTinyOlist
 
 export default function AdminGuiaIntegracaoTinyPage() {
   return (
-    <div className="dropcore-shell-4xl space-y-5 py-5 md:space-y-6 md:py-7">
+    <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
       <header className="space-y-3">
         <Link
           href="/dashboard"

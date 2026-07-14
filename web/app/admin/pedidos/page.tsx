@@ -2,8 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { PlanLimitsBadge, PLAN_LIMITS_REFRESH_EVENT } from "@/components/PlanLimitsBadge";
+import { IconClipboard } from "@/components/seller/Icons";
+import {
+  SUCCESS_PREMIUM_SURFACE,
+  SUCCESS_PREMIUM_TEXT_PRIMARY,
+  DANGER_PREMIUM_SURFACE,
+  DANGER_PREMIUM_TEXT_PRIMARY,
+} from "@/lib/semanticPremium";
+import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 type Seller = { id: string; nome: string; documento: string | null };
 type Fornecedor = { id: string; nome: string };
@@ -21,29 +31,37 @@ type Pedido = {
   fornecedor_nome?: string;
 };
 
-const btnPrimary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "#16a34a",
-  color: "#fff",
-  border: "none",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontSize: 14,
+const inputClass =
+  "w-full max-w-xs rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:border-emerald-500";
+const labelClass = "block text-xs font-medium text-[var(--muted)] mb-1";
+const btnSecondaryClass =
+  "rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:border-neutral-300 hover:bg-neutral-100 dark:hover:border-neutral-600 dark:hover:bg-neutral-800/90";
+const btnPrimaryClass =
+  "rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60";
+
+// Mesma paleta de badge de status usada em /fornecedor/pedidos (pill com borda, sem preenchimento sólido)
+const STATUS_PILL: Record<string, string> = {
+  enviado: cn(AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY),
+  aguardando_repasse: "border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-300",
+  entregue: "border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+  devolvido: "border-rose-300 bg-rose-100 text-rose-800 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
+  erro_saldo: "border-red-400 bg-red-100 text-red-800 dark:border-red-700 dark:bg-red-950/40 dark:text-red-300",
+  cancelado: "border-[var(--card-border)] bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800",
 };
-const btnSecondary: React.CSSProperties = {
-  padding: "8px 16px",
-  border: "1px solid #d1d5db",
-  borderRadius: 6,
-  background: "#fff",
-  cursor: "pointer",
-  fontSize: 14,
+const STATUS_LABEL: Record<string, string> = {
+  enviado: "Enviado (bloqueado)",
+  aguardando_repasse: "Aguard. repasse",
+  entregue: "Entregue",
+  devolvido: "Devolvido",
+  erro_saldo: "Erro (saldo insuf.)",
+  cancelado: "Cancelado",
 };
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
 }
 function formatDate(s: string) {
-  return new Date(s).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  return new Date(s).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 export default function PedidosPage() {
@@ -228,82 +246,87 @@ export default function PedidosPage() {
     }
   }
 
-  function statusLabel(s: string) {
-    const map: Record<string, string> = {
-      enviado: "Enviado (bloqueado)",
-      aguardando_repasse: "Aguard. repasse",
-      entregue: "Entregue",
-      devolvido: "Devolvido",
-      cancelado: "Cancelado",
-      erro_saldo: "Erro (saldo insuf.)",
-    };
-    return map[s] ?? s;
-  }
 
   if (loading) {
     return (
-      <div style={{ padding: 24 }}>
-        <p>Carregando...</p>
+      <div className="dropcore-shell-6xl py-6">
+        <p className="text-sm text-[var(--muted)]">Carregando...</p>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0 }}>Pedidos</h1>
-        <PlanLimitsBadge />
-      </div>
-      <p style={{ color: "#6b7280", marginBottom: 24, fontSize: 14 }}>
-        Lista de pedidos enviados. Ao criar um novo pedido, o saldo do seller é bloqueado automaticamente.
-      </p>
-
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-        <button type="button" onClick={() => router.push("/dashboard")} style={btnSecondary}>
-          Voltar
-        </button>
-        <button type="button" onClick={() => router.push("/admin/devolucoes")} style={btnSecondary}>
-          Bloqueios e devoluções
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowForm(!showForm)}
-          style={{ ...btnPrimary, opacity: showForm ? 0.8 : 1 }}
-        >
-          {showForm ? "Fechar formulário" : "Novo pedido"}
-        </button>
-      </div>
+    <div className="dropcore-shell-6xl space-y-5 py-6">
+      <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
+          <div className="min-w-0 space-y-1">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2.5 text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+              Voltar
+            </Link>
+            <p className="text-sm font-medium uppercase leading-snug tracking-wide text-emerald-700/90 dark:text-emerald-400/90">Operação</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">Pedidos</h1>
+              <PlanLimitsBadge />
+            </div>
+            <p className="text-sm leading-snug text-[var(--muted)]">
+              Lista de pedidos enviados. Ao criar um novo pedido, o saldo do seller é bloqueado automaticamente.
+            </p>
+          </div>
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:items-end sm:pt-0.5">
+            <div className="flex w-full flex-wrap gap-2 sm:justify-end">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="min-h-10 flex-1 rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 text-sm text-[var(--foreground)] sm:min-w-[12rem] sm:flex-none"
+              >
+                <option value="">Todos</option>
+                <option value="enviado">Enviado (bloqueado)</option>
+                <option value="aguardando_repasse">Aguardando repasse</option>
+                <option value="entregue">Entregue</option>
+                <option value="devolvido">Devolvido</option>
+                <option value="cancelado">Cancelado</option>
+                <option value="erro_saldo">Erro saldo</option>
+              </select>
+              <button type="button" onClick={() => router.push("/admin/devolucoes")} className={btnSecondaryClass}>
+                Bloqueios e devoluções
+              </button>
+              <button type="button" onClick={() => setShowForm(!showForm)} className={cn(btnPrimaryClass, "inline-flex items-center gap-1.5")}>
+                {!showForm && (
+                  <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                )}
+                {showForm ? "Fechar formulário" : "Novo pedido"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
 
       {error && (
-        <div style={{ marginBottom: 16, padding: 12, background: "#fef2f2", color: "#991b1b", borderRadius: 8 }}>
+        <div className={cn(DANGER_PREMIUM_SURFACE, DANGER_PREMIUM_TEXT_PRIMARY, "rounded-xl px-4 py-3 text-sm mb-4")}>
           {error}
         </div>
       )}
       {success && (
-        <div style={{ marginBottom: 16, padding: 12, background: "#f0fdf4", color: "#166534", borderRadius: 8 }}>
+        <div className={cn(SUCCESS_PREMIUM_SURFACE, SUCCESS_PREMIUM_TEXT_PRIMARY, "rounded-xl px-4 py-3 text-sm mb-4")}>
           {success}
         </div>
       )}
 
       {showForm && (
-        <div
-          style={{
-            marginBottom: 24,
-            padding: 20,
-            border: "1px solid #e5e7eb",
-            borderRadius: 12,
-            background: "#fafafa",
-          }}
-        >
-          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Criar pedido (bloquear saldo)</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="mb-6 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm p-5">
+          <h2 className="text-base font-semibold text-[var(--foreground)] mb-4">Criar pedido (bloquear saldo)</h2>
+          <div className="flex flex-col gap-4">
             <div>
-              <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Seller *</label>
-              <select
-                value={sellerId}
-                onChange={(e) => setSellerId(e.target.value)}
-                style={{ width: "100%", maxWidth: 320, padding: 10, borderRadius: 6, border: "1px solid #d1d5db" }}
-              >
+              <label className={labelClass}>Seller *</label>
+              <select value={sellerId} onChange={(e) => setSellerId(e.target.value)} className={inputClass}>
                 <option value="">Selecione</option>
                 {sellers.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -313,12 +336,8 @@ export default function PedidosPage() {
               </select>
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Fornecedor *</label>
-              <select
-                value={fornecedorId}
-                onChange={(e) => handleFornecedorChange(e.target.value)}
-                style={{ width: "100%", maxWidth: 320, padding: 10, borderRadius: 6, border: "1px solid #d1d5db" }}
-              >
+              <label className={labelClass}>Fornecedor *</label>
+              <select value={fornecedorId} onChange={(e) => handleFornecedorChange(e.target.value)} className={inputClass}>
                 <option value="">Selecione</option>
                 {fornecedores.map((f) => (
                   <option key={f.id} value={f.id}>
@@ -329,14 +348,14 @@ export default function PedidosPage() {
             </div>
             {fornecedorId && (
               <div>
-                <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
+                <label className={labelClass}>
                   Produto / SKU {skusLoading ? "(carregando...)" : "(opcional)"}
                 </label>
                 <select
                   value={skuId}
                   onChange={(e) => handleSkuChange(e.target.value)}
                   disabled={skusLoading}
-                  style={{ width: "100%", maxWidth: 320, padding: 10, borderRadius: 6, border: "1px solid #d1d5db" }}
+                  className={inputClass}
                 >
                   <option value="">Sem produto específico</option>
                   {skus.map((s) => (
@@ -348,149 +367,108 @@ export default function PedidosPage() {
               </div>
             )}
             <div>
-              <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-                Preço de venda ao cliente (R$) <span style={{ color: "#9ca3af" }}>— visível só para o seller</span>
+              <label className={labelClass}>
+                Preço de venda ao cliente (R$) <span className="text-[var(--muted)]">— visível só para o seller</span>
               </label>
               <input
                 type="text"
                 value={precoVenda}
                 onChange={(e) => setPrecoVenda(e.target.value)}
                 placeholder="Ex: 89,90"
-                style={{ width: "100%", maxWidth: 320, padding: 10, borderRadius: 6, border: "1px solid #d1d5db" }}
+                className={inputClass}
               />
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, maxWidth: 320 }}>
+            <div className="grid grid-cols-2 gap-3 max-w-xs">
               <div>
-                <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-                  Valor fornecedor (R$)
-                </label>
+                <label className={labelClass}>Valor fornecedor (R$)</label>
                 <input
                   type="text"
                   value={valorFornecedor}
                   onChange={(e) => setValorFornecedor(e.target.value)}
                   placeholder="Ex: 30"
-                  style={{ width: "100%", padding: 10, borderRadius: 6, border: "1px solid #d1d5db" }}
+                  className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
-                <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-                  Valor DropCore (R$)
-                </label>
+                <label className={labelClass}>Valor DropCore (R$)</label>
                 <input
                   type="text"
                   value={valorDropcore}
                   onChange={(e) => setValorDropcore(e.target.value)}
                   placeholder="Ex: 4,50"
-                  style={{ width: "100%", padding: 10, borderRadius: 6, border: "1px solid #d1d5db" }}
+                  className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
-            <p style={{ fontSize: 12, color: "#6b7280" }}>
+            <p className="text-xs text-[var(--muted)]">
               Total debitado = valor fornecedor + valor DropCore (ex.: 15% sobre o custo).
             </p>
-            <button
-              type="button"
-              onClick={enviar}
-              disabled={sending}
-              style={{
-                ...btnPrimary,
-                opacity: sending ? 0.7 : 1,
-                cursor: sending ? "not-allowed" : "pointer",
-                alignSelf: "flex-start",
-              }}
-            >
+            <button type="button" onClick={enviar} disabled={sending} className={cn(btnPrimaryClass, "self-start")}>
               {sending ? "Enviando..." : "Criar pedido e bloquear saldo"}
             </button>
           </div>
         </div>
       )}
 
-      <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
-        <label style={{ fontSize: 14 }}>Filtrar status:</label>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ padding: 8, borderRadius: 6, border: "1px solid #d1d5db" }}
-        >
-          <option value="">Todos</option>
-          <option value="enviado">Enviado (bloqueado)</option>
-          <option value="aguardando_repasse">Aguardando repasse</option>
-          <option value="entregue">Entregue</option>
-          <option value="devolvido">Devolvido</option>
-          <option value="cancelado">Cancelado</option>
-          <option value="erro_saldo">Erro saldo</option>
-        </select>
-      </div>
-
+      <section className="overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
       {pedidos.length === 0 ? (
-        <div style={{ padding: 24, textAlign: "center", color: "#6b7280", background: "#f9fafb", borderRadius: 8 }}>
-          Nenhum pedido encontrado. Clique em &quot;Novo pedido&quot; para criar.
+        <div className="py-16 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500">
+            <IconClipboard className="h-7 w-7" />
+          </div>
+          <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Nenhum pedido encontrado</p>
+          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-500">Clique em &quot;Novo pedido&quot; para criar.</p>
         </div>
       ) : (
-        <div className="dropcore-scroll-x">
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
             <thead>
-              <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
-                <th style={{ textAlign: "left", padding: 10 }}>Data</th>
-                <th style={{ textAlign: "left", padding: 10 }}>Seller</th>
-                <th style={{ textAlign: "left", padding: 10 }}>Fornecedor</th>
-                <th style={{ textAlign: "left", padding: 10 }}>Produto</th>
-                <th style={{ textAlign: "right", padding: 10 }}>Valor</th>
-                <th style={{ textAlign: "left", padding: 10 }}>Status</th>
-                <th style={{ textAlign: "left", padding: 10 }}>Ação</th>
+              <tr className="border-b border-[var(--card-border)] bg-[var(--muted)]/10 text-left text-xs text-[var(--muted)]">
+                <th className="px-4 py-3 font-medium">Data</th>
+                <th className="px-4 py-3 font-medium">Seller</th>
+                <th className="px-4 py-3 font-medium">Fornecedor</th>
+                <th className="px-4 py-3 font-medium">Produto</th>
+                <th className="px-4 py-3 font-medium text-right">Valor</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Ação</th>
               </tr>
             </thead>
             <tbody>
               {pedidos.map((p) => (
-                <tr key={p.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: 10 }}>{formatDate(p.criado_em)}</td>
-                  <td style={{ padding: 10 }}>{p.seller_nome ?? "—"}</td>
-                  <td style={{ padding: 10 }}>{p.fornecedor_nome ?? "—"}</td>
-                  <td style={{ padding: 10, color: p.nome_produto ? "#111" : "#9ca3af" }}>{p.nome_produto ?? "—"}</td>
-                  <td style={{ padding: 10, textAlign: "right", fontWeight: 500 }}>{formatMoney(p.valor_total)}</td>
-                  <td style={{ padding: 10 }}>
-                    <span
-                      style={{
-                        padding: "2px 8px",
-                        borderRadius: 4,
-                        fontSize: 12,
-                        background:
-                          p.status === "erro_saldo" ? "#fef2f2"
-                          : p.status === "enviado" ? "#eff6ff"
-                          : p.status === "aguardando_repasse" ? "#fefce8"
-                          : p.status === "entregue" ? "#f0fdf4"
-                          : "#f3f4f6",
-                        color:
-                          p.status === "erro_saldo" ? "#991b1b"
-                          : p.status === "enviado" ? "#1d4ed8"
-                          : p.status === "aguardando_repasse" ? "#854d0e"
-                          : p.status === "entregue" ? "#166534"
-                          : "#374151",
-                      }}
-                    >
-                      {statusLabel(p.status)}
+                <tr key={p.id} className="border-b border-[var(--card-border)]/60 transition-colors hover:bg-[var(--muted)]/8">
+                  <td className="px-4 py-3 text-[var(--muted)]">{formatDate(p.criado_em)}</td>
+                  <td className="px-4 py-3">{p.seller_nome ?? "—"}</td>
+                  <td className="px-4 py-3">{p.fornecedor_nome ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    <span className={p.nome_produto ? "text-[var(--foreground)]" : "text-[var(--muted)]"}>
+                      {p.nome_produto ?? "—"}
                     </span>
                   </td>
-                  <td style={{ padding: 10 }}>
-                    {p.status === "enviado" && (
-                      <button
-                        onClick={() => confirmarEnvio(p.id)}
-                        disabled={entregandoId === p.id}
-                        style={{
-                          padding: "4px 12px",
-                          fontSize: 12,
-                          borderRadius: 6,
-                          border: "1px solid #ca8a04",
-                          background: entregandoId === p.id ? "#fefce8" : "#fff",
-                          color: "#854d0e",
-                          cursor: entregandoId === p.id ? "not-allowed" : "pointer",
-                          fontWeight: 500,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {entregandoId === p.id ? "Confirmando..." : "↑ Confirmar envio"}
-                      </button>
-                    )}
+                  <td className="px-4 py-3 text-right font-medium">{formatMoney(p.valor_total)}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={cn(
+                        "inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                        STATUS_PILL[p.status] ?? "border-[var(--card-border)] bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800"
+                      )}
+                    >
+                      {STATUS_LABEL[p.status] ?? p.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {p.status === "enviado" && (
+                        <button
+                          type="button"
+                          onClick={() => confirmarEnvio(p.id)}
+                          disabled={entregandoId === p.id}
+                          title="Confirma o envio no lugar do fornecedor (uso excepcional)"
+                          className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-amber-600/20 transition-colors hover:bg-amber-700 disabled:opacity-50"
+                        >
+                          {entregandoId === p.id ? "Confirmando..." : "↑ Confirmar envio"}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -498,6 +476,7 @@ export default function PedidosPage() {
           </table>
         </div>
       )}
+      </section>
     </div>
   );
 }

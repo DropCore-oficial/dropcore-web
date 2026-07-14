@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { PlanLimitsBadge } from "@/components/PlanLimitsBadge";
-import { DashboardHeader } from "@/components/DashboardHeader";
 import { PageLayout, Card, Button, Alert, Input } from "@/components/ui";
 import { toTitleCase } from "@/lib/formatText";
 import { formatCnpjBr } from "@/lib/fornecedorCadastro";
@@ -211,8 +210,7 @@ export default function AdminEmpresasPage() {
   }
 
   return (
-    <PageLayout maxWidth="md">
-      <DashboardHeader href="/dashboard" onLogout={() => router.push("/login")} />
+    <PageLayout maxWidth="lg">
       <div className="space-y-8">
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl font-semibold text-[var(--foreground)]">Empresas / Fornecedores</h1>

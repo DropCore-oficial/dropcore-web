@@ -94,7 +94,7 @@ export default function APagarFornecedoresPage() {
   }, [router]);
 
   return (
-    <div style={{ padding: 24, maxWidth: 720, margin: "0 auto" }}>
+    <div className="dropcore-shell-6xl" style={{ paddingTop: 24, paddingBottom: 24 }}>
       <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>A pagar aos fornecedores</h1>
       <p style={{ color: "var(--muted)", marginBottom: 24, fontSize: 14 }}>
         Valores que você deve repassar a cada fornecedor (gerados ao fechar o repasse em &quot;Repasse ao fornecedor&quot;). Pague fora do sistema e depois marque como pago, se quiser.

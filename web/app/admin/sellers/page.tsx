@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
-import { DashboardHeader } from "@/components/DashboardHeader";
 import { Button, PageLayout } from "@/components/ui";
 import { toTitleCase } from "@/lib/formatText";
 import { sellerCadastroPendente } from "@/lib/sellerDocumento";
@@ -128,8 +127,7 @@ export default function AdminSellersPage() {
 
   if (orgLoading) {
     return (
-      <PageLayout maxWidth="md">
-        <DashboardHeader href="/dashboard" onLogout={() => router.push("/login")} />
+      <PageLayout maxWidth="lg">
         <div className="text-[var(--muted)]">Carregando...</div>
       </PageLayout>
     );
@@ -137,8 +135,7 @@ export default function AdminSellersPage() {
   if (!orgId) return null;
 
   return (
-    <PageLayout maxWidth="md">
-      <DashboardHeader href="/dashboard" onLogout={() => router.push("/login")} />
+    <PageLayout maxWidth="lg">
       <h1 className="text-2xl font-semibold mb-2 text-[var(--foreground)]">Sellers</h1>
       <p className="text-[var(--muted)] mb-5 text-sm">
         Cadastre sellers só com nome interno; CNPJ, contato, endereço e plano (Start ou Pro) o seller escolhe no painel (Cadastro), após o convite. Toque num seller para ver detalhes, convite e extrato.

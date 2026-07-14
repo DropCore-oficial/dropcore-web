@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
-import { DashboardHeader } from "@/components/DashboardHeader";
 import { toTitleCase } from "@/lib/formatText";
 
 type Alteracao = {
@@ -323,8 +322,7 @@ export default function AdminAlteracoesProdutosPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <DashboardHeader href="/dashboard" onRefresh={load} onLogout={() => router.push("/login")} />
-      <div className="mx-auto w-full min-w-0 max-w-3xl px-4 py-4 sm:px-6 sm:py-6 lg:max-w-6xl lg:px-8 lg:py-8">
+      <div className="dropcore-shell-6xl py-4 sm:py-6 lg:py-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-semibold tracking-tight text-[var(--foreground)] lg:text-2xl">
@@ -334,13 +332,22 @@ export default function AdminAlteracoesProdutosPage() {
               Os fornecedores enviam alterações que ficam em análise. Aprove ou rejeite para aplicar ou descartar as mudanças.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => router.push("/admin/empresas")}
-            className="shrink-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5 text-sm font-medium text-[var(--muted)] shadow-sm transition-colors hover:border-neutral-300 hover:bg-neutral-100 hover:text-[var(--foreground)] dark:hover:border-neutral-600 dark:hover:bg-neutral-800/90 dark:hover:text-neutral-100"
-          >
-            ← Voltar às Empresas
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={load}
+              className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5 text-sm font-medium text-[var(--muted)] shadow-sm transition-colors hover:border-neutral-300 hover:bg-neutral-100 hover:text-[var(--foreground)] dark:hover:border-neutral-600 dark:hover:bg-neutral-800/90 dark:hover:text-neutral-100"
+            >
+              Atualizar
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/admin/empresas")}
+              className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5 text-sm font-medium text-[var(--muted)] shadow-sm transition-colors hover:border-neutral-300 hover:bg-neutral-100 hover:text-[var(--foreground)] dark:hover:border-neutral-600 dark:hover:bg-neutral-800/90 dark:hover:text-neutral-100"
+            >
+              ← Voltar às Empresas
+            </button>
+          </div>
         </div>
 
         {error && (

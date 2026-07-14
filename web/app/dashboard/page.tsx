@@ -5,8 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
-import { AppBarEndDesktopAuth, AppBarEndMobileAuth } from "@/components/AppBarEndAuth";
-import { MobileAppBar } from "@/components/MobileAppBar";
+import { AdminNav } from "@/components/AdminNav";
 import { AdminMobileBottomNav } from "@/components/AdminMobileBottomNav";
 import {
   AMBER_PREMIUM_SHELL,
@@ -490,11 +489,6 @@ export default function DashboardPage() {
     }
   }, [loading, me, router]);
 
-  async function sair() {
-    await supabaseBrowser.auth.signOut();
-    router.replace("/login");
-  }
-
   const isAdmin = me?.role_base === "owner" || me?.role_base === "admin";
   const roleLabel = me?.role_base === "owner" ? "Proprietário" : me?.role_base === "admin" ? "Admin" : me?.role_base ?? "—";
   const isPro = stats?.plano === "pro";
@@ -656,32 +650,9 @@ export default function DashboardPage() {
           : "pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] md:pb-8"
       }`}
     >
-      <MobileAppBar
-        logoHref="/dashboard"
-        end={<AppBarEndMobileAuth context="admin" onLogout={sair} />}
-      />
+      <AdminNav />
 
-      {/* Barra superior desktop — mesmo trio que o fornecedor (sino + tema + Sair) */}
-      <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/98 dark:bg-neutral-950/98 backdrop-blur-xl shadow-sm">
-        <div className="dropcore-shell-4xl flex w-full min-w-0 items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-6">
-            <DropCoreLogo variant="horizontal" href="/dashboard" className="shrink-0" />
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium border-b-2 -mb-px text-emerald-600 dark:text-emerald-400 border-emerald-600 hover:bg-emerald-600/10 dark:hover:bg-emerald-500/15 transition-colors"
-            >
-              <svg className="w-5 h-5 shrink-0 text-emerald-600 dark:text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                <polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
-              Dashboard
-            </Link>
-          </div>
-          <AppBarEndDesktopAuth context="admin" onLogout={sair} />
-        </div>
-      </nav>
-
-      <div className="dropcore-shell-4xl py-5 md:py-7 space-y-5 md:space-y-6">
+      <div className="dropcore-shell-6xl py-5 md:py-7 space-y-5 md:space-y-6">
         {/* 1. Header — mesmo cartão do painel fornecedor (mobile/desktop) */}
         <header className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 sm:p-5 shadow-sm overflow-visible">
           <div className="flex min-w-0 flex-1 items-stretch gap-3">

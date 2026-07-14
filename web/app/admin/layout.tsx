@@ -2,12 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
-import { DropCoreLogo } from "@/components/DropCoreLogo";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { AdminNav } from "@/components/AdminNav";
 import { AdminMobileBottomNav } from "@/components/AdminMobileBottomNav";
-import { NotificationBell } from "@/components/NotificationBell";
 import { AppVersionUpdateBanner } from "@/components/AppVersionUpdateBanner";
 
 export default function AdminLayout({
@@ -76,44 +73,11 @@ export default function AdminLayout({
     );
   }
 
-  const hasOwnHeader =
-    pathname.startsWith("/admin/empresas") ||
-    pathname.startsWith("/admin/catalogo") ||
-    pathname.startsWith("/admin/sellers") ||
-    pathname.startsWith("/admin/alteracoes-produtos") ||
-    pathname.startsWith("/admin/calculadora-convites");
-
   return (
     <>
       <AppVersionUpdateBanner surface="admin" requireAuth />
-      {!hasOwnHeader && (
-        <header className="border-b border-[var(--border-subtle)] bg-[var(--card)]/80 backdrop-blur-sm pt-[env(safe-area-inset-top,0px)]">
-          <div className="dropcore-shell-4xl flex min-w-0 items-center justify-between py-3">
-            <DropCoreLogo variant="horizontal" href="/dashboard" className="shrink-0 overflow-visible py-0.5" />
-            <div className="flex items-center gap-2">
-              <Link
-                href="/dashboard"
-                title="Início do painel"
-                aria-label="Início do painel"
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                  <path d="M9 22V12h6v10" />
-                </svg>
-              </Link>
-              <span className="hidden md:inline-flex">
-                <ThemeToggle />
-              </span>
-            </div>
-          </div>
-        </header>
-      )}
-      <div className="min-h-0 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-0">{children}</div>
-      {/* Sino acima da tab bar (igual fornecedor) — header em mobile não mostra o sino duplicado */}
-      <div className="pointer-events-auto md:hidden fixed right-3 z-[110] bottom-[calc(4rem+env(safe-area-inset-bottom,0px))]">
-        <NotificationBell context="admin" />
-      </div>
+      <AdminNav />
+      <div className="pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 min-h-0 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-0">{children}</div>
       <AdminMobileBottomNav />
     </>
   );

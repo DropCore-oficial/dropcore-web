@@ -594,7 +594,7 @@ export default function MensalidadesPage() {
     !!selectedTrialEntidade && isPortalTrialAtivo(selectedTrialEntidade.trial_valido_ate);
 
   return (
-    <div className="dropcore-safe-x mx-auto min-w-0 max-w-4xl px-3 sm:px-6 py-4 sm:py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+    <div className="dropcore-shell-6xl py-4 sm:py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <header className="mb-6">
         <h1 className="text-xl sm:text-2xl font-semibold mb-1">Mensalidades</h1>
         <p className="text-sm text-neutral-500 max-w-prose leading-relaxed">

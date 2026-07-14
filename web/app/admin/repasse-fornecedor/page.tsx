@@ -5,6 +5,15 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { PlanLimitsBadge } from "@/components/PlanLimitsBadge";
 import { AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY, AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
+import {
+  SUCCESS_PREMIUM_SURFACE,
+  SUCCESS_PREMIUM_TEXT_PRIMARY,
+  DANGER_PREMIUM_SURFACE,
+  DANGER_PREMIUM_TEXT_PRIMARY,
+  INFO_PREMIUM_SURFACE,
+  INFO_PREMIUM_TEXT_PRIMARY,
+  INFO_PREMIUM_TEXT_SOFT,
+} from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
 import { proximosCiclos, ciclosAnteriores } from "@/lib/cicloRepasse";
 
@@ -63,6 +72,8 @@ export default function RepasseFornecedorPage() {
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [cicloBuscado, setCicloBuscado] = useState<string | null>(null);
   const [futureCycles, setFutureCycles] = useState<FutureCyclePreview[]>([]);
+  const [showComoFunciona, setShowComoFunciona] = useState(false);
+  const [showMaisOpcoes, setShowMaisOpcoes] = useState(false);
 
   const proximasOpcoes = proximosCiclos(8);
   const ultimasOpcoes = ciclosAnteriores(8);
@@ -165,8 +176,8 @@ export default function RepasseFornecedorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 p-4 sm:p-6">
-      <div className="max-w-2xl mx-auto space-y-6">
+    <div className="min-h-screen bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 py-4 sm:py-6">
+      <div className="dropcore-shell-6xl space-y-6">
 
         {/* Header */}
         <div className="flex items-center gap-3">
@@ -185,53 +196,26 @@ export default function RepasseFornecedorPage() {
           </div>
         </div>
 
-        {/* Como funciona */}
-        <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm px-4 py-3 text-xs text-neutral-500 leading-relaxed">
-          <p className="font-medium text-neutral-600 mb-1">Como funciona o ciclo</p>
-          Esta tela trabalha com o <span className="text-neutral-600">financeiro (ledger)</span>, não com a lista de pedidos.
-          Um pedido só aparece aqui quando o lançamento do ciclo está <span className="text-neutral-600">pronto para repasse</span>
-          (status <span className="text-neutral-600">ENTREGUE</span> ou <span className="text-neutral-600">AGUARDANDO_REPASSE</span>)
-          e com o <span className="text-neutral-600">ciclo de repasse</span> igual à terça-feira selecionada.
-          Ao fechar, o sistema marca esses lançamentos como <span className="text-neutral-600">PAGO</span> e gera o “A pagar aos fornecedores”.
-        </div>
-
-        {futureCycles.length > 0 && (
-          <div className="rounded-2xl border border-sky-200 bg-sky-100 dark:bg-sky-950/20 dark:border-sky-900/50 shadow-sm px-4 py-3">
-            <p className="text-xs font-semibold text-sky-800 dark:text-sky-300 mb-2">Próximos ciclos (previsão rápida)</p>
-            <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mb-2">
-              Próximas 4 terças: quanto está <span className="font-medium">pronto para fechar</span> no ledger (ENTREGUE / AGUARDANDO_REPASSE). Clique em um ciclo abaixo para detalhar.
-            </p>
-            <div className="rounded-lg border border-sky-200/80 dark:border-sky-900/40 overflow-hidden divide-y divide-sky-100 dark:divide-sky-900/40">
-              {futureCycles.map((f) => (
-                <button
-                  key={f.ciclo_repasse}
-                  type="button"
-                  onClick={() => selectCiclo(f.ciclo_repasse)}
-                  className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 text-left px-3 py-2 text-xs hover:bg-white/80 dark:hover:bg-sky-950/40 transition-colors"
-                >
-                  <span className="text-neutral-800 dark:text-neutral-200">
-                    <span className="font-medium">{formatCiclo(f.ciclo_repasse)}</span>
-                    <span className="text-neutral-500 dark:text-neutral-400">
-                      {" "}
-                      · {f.entries_count} lançamento{f.entries_count !== 1 ? "s" : ""} pronto{f.entries_count !== 1 ? "s" : ""}
-                    </span>
-                  </span>
-                  <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 shrink-0 tabular-nums">
-                    <span className="text-neutral-600 dark:text-neutral-400">
-                      Forn. <span className="font-semibold text-sky-800 dark:text-sky-200">{BRL.format(f.total_fornecedores)}</span>
-                    </span>
-                    <span className="text-neutral-600 dark:text-neutral-400">
-                      DC <span className="font-semibold text-emerald-700 dark:text-emerald-400">{BRL.format(f.total_dropcore)}</span>
-                    </span>
-                  </span>
-                </button>
-              ))}
+        {/* Como funciona (colapsado por padrão) */}
+        <div className={cn(INFO_PREMIUM_SURFACE, "rounded-2xl overflow-hidden")}>
+          <button
+            type="button"
+            onClick={() => setShowComoFunciona((v) => !v)}
+            className={cn("w-full flex items-center justify-between px-4 py-2.5 text-xs font-medium", INFO_PREMIUM_TEXT_PRIMARY)}
+          >
+            Como funciona o ciclo
+            <span className="text-neutral-400">{showComoFunciona ? "▲" : "▼"}</span>
+          </button>
+          {showComoFunciona && (
+            <div className={cn("px-4 pb-3 text-xs leading-relaxed", INFO_PREMIUM_TEXT_SOFT)}>
+              Esta tela trabalha com o <span className="font-medium">financeiro (ledger)</span>, não com a lista de pedidos.
+              Um pedido só aparece aqui quando o lançamento do ciclo está <span className="font-medium">pronto para repasse</span>
+              (status <span className="font-medium">ENTREGUE</span> ou <span className="font-medium">AGUARDANDO_REPASSE</span>)
+              e com o <span className="font-medium">ciclo de repasse</span> igual à terça-feira selecionada.
+              Ao fechar, o sistema marca esses lançamentos como <span className="font-medium">PAGO</span> e gera o “A pagar aos fornecedores”.
             </div>
-            <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-500">
-              Valores previstos até você fechar o repasse naquele ciclo. Depois, use <span className="font-medium">A pagar aos fornecedores</span>.
-            </p>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Seletor de ciclo */}
         <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
@@ -241,49 +225,71 @@ export default function RepasseFornecedorPage() {
               <div>
                 <p className="text-[11px] text-neutral-600 mb-2">Próximas semanas</p>
                 <div className="flex flex-wrap gap-2">
-                  {proximasOpcoes.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => selectCiclo(s)}
-                      className={`rounded-xl border px-3 py-1.5 text-xs transition-colors ${
-                        ciclo === s
-                          ? "border-emerald-300 bg-emerald-100 text-emerald-700 font-semibold"
-                          : "border-neutral-300 text-neutral-600 hover:border-neutral-500 hover:text-neutral-900"
-                      }`}
-                    >
-                      {formatCiclo(s)}
-                    </button>
-                  ))}
+                  {proximasOpcoes.map((s) => {
+                    const cyclePreview = futureCycles.find((f) => f.ciclo_repasse === s);
+                    const selected = ciclo === s;
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => selectCiclo(s)}
+                        className={`flex flex-col items-start rounded-xl border px-3 py-1.5 text-xs transition-colors ${
+                          selected
+                            ? "border-emerald-300 bg-emerald-100 text-emerald-700 font-semibold"
+                            : "border-neutral-300 text-neutral-600 hover:border-neutral-500 hover:text-neutral-900"
+                        }`}
+                      >
+                        <span>{formatCiclo(s)}</span>
+                        {cyclePreview && cyclePreview.entries_count > 0 && (
+                          <span className={`text-[10px] tabular-nums font-normal ${selected ? "text-emerald-700/80" : "text-neutral-500"}`}>
+                            {cyclePreview.entries_count} ped. · {BRL.format(cyclePreview.total_fornecedores)}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-              <div>
-                <p className="text-[11px] text-neutral-600 mb-2">Semanas anteriores</p>
-                <div className="flex flex-wrap gap-2">
-                  {ultimasOpcoes.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => selectCiclo(s)}
-                      className={`rounded-xl border px-3 py-1.5 text-xs transition-colors ${
-                        ciclo === s
-                          ? "border-blue-300 bg-blue-100 text-blue-700 font-semibold"
-                          : "border-neutral-200 text-neutral-600 hover:border-neutral-300 hover:text-neutral-700"
-                      }`}
-                    >
-                      {formatCiclo(s)}
-                    </button>
-                  ))}
+
+              <button
+                type="button"
+                onClick={() => setShowMaisOpcoes((v) => !v)}
+                className="text-[11px] text-neutral-500 hover:text-neutral-800 underline underline-offset-2"
+              >
+                {showMaisOpcoes ? "Ocultar ciclos anteriores" : "Ver ciclos anteriores ou escolher outra data"}
+              </button>
+
+              {showMaisOpcoes && (
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <p className="text-[11px] text-neutral-600 mb-2">Semanas anteriores</p>
+                    <div className="flex flex-wrap gap-2">
+                      {ultimasOpcoes.map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => selectCiclo(s)}
+                          className={`rounded-xl border px-3 py-1.5 text-xs transition-colors ${
+                            ciclo === s
+                              ? "border-emerald-300 bg-emerald-100 text-emerald-700 font-semibold"
+                              : "border-neutral-200 text-neutral-600 hover:border-neutral-300 hover:text-neutral-700"
+                          }`}
+                        >
+                          {formatCiclo(s)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <p className="text-[11px] text-neutral-600">Ou escolha manualmente:</p>
+                    <input
+                      type="date"
+                      value={ciclo}
+                      onChange={(e) => { setCiclo(e.target.value.slice(0, 10)); }}
+                      onBlur={(e) => loadPreview(e.target.value.slice(0, 10))}
+                      className="rounded-lg border border-neutral-300 bg-neutral-100 text-neutral-900 text-xs px-2 py-1.5 focus:outline-none focus:border-neutral-500"
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2 pt-1">
-                <p className="text-[11px] text-neutral-600">Ou escolha manualmente:</p>
-                <input
-                  type="date"
-                  value={ciclo}
-                  onChange={(e) => { setCiclo(e.target.value.slice(0, 10)); }}
-                  onBlur={(e) => loadPreview(e.target.value.slice(0, 10))}
-                  className="rounded-lg border border-neutral-300 bg-neutral-100 text-neutral-900 text-xs px-2 py-1.5 focus:outline-none focus:border-neutral-500"
-                />
-              </div>
+              )}
             </div>
           </div>
 
@@ -292,7 +298,7 @@ export default function RepasseFornecedorPage() {
             {loading ? (
               <p className="text-sm text-neutral-600 text-center py-4">Carregando...</p>
             ) : error ? (
-              <p className="text-sm text-rose-600 py-2">{error}</p>
+              <p className={cn("text-sm py-2", DANGER_PREMIUM_TEXT_PRIMARY)}>{error}</p>
             ) : preview && cicloBuscado ? (
               <div className="space-y-4">
 
@@ -446,11 +452,14 @@ export default function RepasseFornecedorPage() {
 
         {/* Mensagem de sucesso/erro */}
         {message && (
-          <div className={`rounded-2xl border px-4 py-3 text-sm ${
-            message.type === "ok"
-              ? "border-emerald-300 bg-emerald-100 text-emerald-700"
-              : "border-rose-300 bg-rose-100 text-rose-700"
-          }`}>
+          <div
+            className={cn(
+              "rounded-2xl px-4 py-3 text-sm",
+              message.type === "ok"
+                ? cn(SUCCESS_PREMIUM_SURFACE, SUCCESS_PREMIUM_TEXT_PRIMARY)
+                : cn(DANGER_PREMIUM_SURFACE, DANGER_PREMIUM_TEXT_PRIMARY)
+            )}
+          >
             {message.text}
           </div>
         )}

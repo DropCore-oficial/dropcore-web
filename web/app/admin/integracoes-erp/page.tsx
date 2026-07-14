@@ -76,7 +76,7 @@ export default function IntegracoesErpPage() {
   }, []);
 
   return (
-    <div style={{ padding: 24, maxWidth: 640, margin: "0 auto" }}>
+    <div className="dropcore-shell-6xl" style={{ paddingTop: 24, paddingBottom: 24 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <button
           type="button"
