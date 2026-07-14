@@ -5,6 +5,34 @@
 > Última atualização: correção de segurança de 2026-07-08 (ver
 > `web/scripts/fix-security-*.sql`).
 
+## Ciclo de repasse ao fornecedor (`fn_ciclo_repasse`) — corrigido em 2026-07-13
+
+Regra de negócio: tudo vendido/postado de segunda a sábado é pago na
+**terça-feira** da semana seguinte (não segunda, como a função calculava antes
+de `web/scripts/fix-fn-ciclo-repasse-terca.sql`). `ciclo_repasse` (colunas em
+`financial_ledger`, `financial_repasse_fornecedor`, `financial_debito_descontar`)
+sempre guarda essa terça-feira.
+
+O ciclo é **recalculado no momento da postagem** (quando o fornecedor marca o
+pedido como postado, o admin confirma o envio, ou o ERP/marketplace confirma
+via webhook), não reaproveitado do valor gravado quando o seller registrou a
+venda (`lib/blockSale.ts`). Ver `web/app/api/fornecedor/pedidos/[id]/marcar-
+postado/route.ts`, `web/app/api/org/pedidos/[id]/entregar/route.ts` e
+`web/app/api/erp/pedidos/route.ts` (`updatePedidoPostado`) — os três chamam a
+RPC `fn_ciclo_repasse` de novo nesse momento, sobrescrevendo o valor da venda.
+
+Toda lógica de "próximo ciclo" em JS (fallback local, sem round-trip ao
+Postgres) usa `web/lib/cicloRepasse.ts` (`proximoCicloRepasse`,
+`proximosCiclos`, `ciclosAnteriores`) — fonte única, não duplicar essa conta em
+rotas novas.
+
+A correção da função **não é retroativa**: lançamentos que já tinham virado
+`AGUARDANDO_REPASSE`/`ENTREGUE` antes do fix ficaram com `ciclo_repasse` na
+segunda-feira antiga. `web/scripts/fix-ciclo-repasse-backfill-terca.sql`
+corrigiu esses lançamentos uma única vez (recalculando a partir de
+`atualizado_em`, que é o momento da postagem) e já foi aplicado em produção
+em 2026-07-13. Não precisa rodar de novo.
+
 ## RLS — tabelas corrigidas em 2026-07-08
 
 Estavam com RLS desligada (expostas por completo a `anon`/`authenticated` via API).

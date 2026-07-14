@@ -7,17 +7,10 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveLedgerIdForPedido } from "@/lib/resolveLedgerForPedido";
+import { proximoCicloRepasse } from "@/lib/cicloRepasse";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function proximaSegunda(): string {
-  const d = new Date();
-  const dia = d.getDay();
-  const diff = dia === 1 ? 7 : (8 - dia) % 7 || 7;
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().slice(0, 10);
-}
 
 async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: string; org_id: string } | null> {
   const auth = req.headers.get("authorization") ?? "";
@@ -85,7 +78,7 @@ export async function PATCH(
           .maybeSingle();
         if (led?.status === "BLOQUEADO") {
           let ciclo = led.ciclo_repasse ?? null;
-          if (!ciclo) ciclo = proximaSegunda();
+          if (!ciclo) ciclo = proximoCicloRepasse();
           await supabaseAdmin
             .from("financial_ledger")
             .update({ status: "AGUARDANDO_REPASSE", ciclo_repasse: ciclo, atualizado_em: nowRepair })
@@ -125,14 +118,8 @@ export async function PATCH(
 
     let ciclo_repasse: string | null = null;
     if (ledgerId) {
-      const { data: ledger } = await supabaseAdmin
-        .from("financial_ledger")
-        .select("id, ciclo_repasse")
-        .eq("id", ledgerId)
-        .maybeSingle();
-
-      ciclo_repasse = ledger?.ciclo_repasse ?? null;
-      if (!ciclo_repasse) ciclo_repasse = proximaSegunda();
+      const { data: cicloRow } = await supabaseAdmin.rpc("fn_ciclo_repasse", { data_evento: now });
+      ciclo_repasse = cicloRow ?? proximoCicloRepasse();
 
       const { error: upLedgerErr } = await supabaseAdmin
         .from("financial_ledger")

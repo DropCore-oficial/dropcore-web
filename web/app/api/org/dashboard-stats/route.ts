@@ -7,24 +7,12 @@ import { emptyRepasseFuturosPreview, loadOrgRepasseFuturosPreview } from "@/lib/
 import { loadOrgDashboardPro30d } from "@/lib/orgDashboardProLegacy";
 import { loadCalculadoraRecebimentosWidget } from "@/lib/calculadoraRecebimentosWidget";
 import { portalTrialDays } from "@/lib/portalTrial";
+import { proximoCicloRepasse } from "@/lib/cicloRepasse";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PREFIXO_OCULTO = "DJU999";
-
-/** Próxima segunda (1ª opção “Próximas semanas” em /admin/repasse-fornecedor), alinhado ao front. */
-function proximaSegundaFeira(): string {
-  const hoje = new Date();
-  const dia = hoje.getDay();
-  const diffParaProxSeg = dia === 1 ? 7 : (8 - dia) % 7 || 7;
-  const base = new Date(hoje);
-  base.setDate(base.getDate() + diffParaProxSeg);
-  const y = base.getFullYear();
-  const m = String(base.getMonth() + 1).padStart(2, "0");
-  const day = String(base.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
 
 function supabaseService() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -58,7 +46,7 @@ export async function GET(req: Request) {
     const hojeInicio = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const hojeFim = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
 
-    const repasse_proximo_ciclo = proximaSegundaFeira();
+    const repasse_proximo_ciclo = proximoCicloRepasse();
     const hojePreview = new Date();
     hojePreview.setHours(0, 0, 0, 0);
     const hojeStrPreview = hojePreview.toISOString().slice(0, 10);

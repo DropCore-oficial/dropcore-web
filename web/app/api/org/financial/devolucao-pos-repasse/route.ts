@@ -2,25 +2,17 @@
  * POST /api/org/financial/devolucao-pos-repasse
  * Registra devolução após o repasse: insere em financial_debito_descontar.
  * O valor será descontado no próximo repasse (fornecedor + DropCore).
- * Body: { ledger_id: string, ciclo_a_descontar?: "YYYY-MM-DD" } (ciclo = segunda-feira; default = próxima segunda).
+ * Body: { ledger_id: string, ciclo_a_descontar?: "YYYY-MM-DD" } (ciclo = terça-feira; default = próxima terça).
  * Ledger deve estar PAGO e ter fornecedor_id.
  * Apenas admin/owner.
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
+import { proximoCicloRepasse } from "@/lib/cicloRepasse";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function proximaSegunda(): string {
-  const d = new Date();
-  const dia = d.getDay();
-  const diff = dia === 0 ? 1 : dia === 1 ? 7 : 8 - dia;
-  const seg = new Date(d);
-  seg.setDate(seg.getDate() + diff);
-  return seg.toISOString().slice(0, 10);
-}
 
 export async function POST(req: Request) {
   try {
@@ -78,7 +70,7 @@ export async function POST(req: Request) {
     }
 
     if (!ciclo_a_descontar) {
-      ciclo_a_descontar = proximaSegunda();
+      ciclo_a_descontar = proximoCicloRepasse();
     } else {
       const d = new Date(ciclo_a_descontar);
       if (Number.isNaN(d.getTime())) {

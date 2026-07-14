@@ -3,27 +3,17 @@
  * Confirma envio do pedido pelo fornecedor:
  * - pedidos.status → "enviado" → "aguardando_repasse"
  * - financial_ledger.status → "AGUARDANDO_REPASSE"
- * - Se ledger não tiver ciclo_repasse, atribui a próxima segunda-feira
+ * - ciclo_repasse é recalculado a partir do momento desta confirmação (postagem),
+ *   não reaproveitado do valor gravado na venda.
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { resolveLedgerIdForPedido } from "@/lib/resolveLedgerForPedido";
+import { proximoCicloRepasse } from "@/lib/cicloRepasse";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-/** Próxima segunda-feira em YYYY-MM-DD (fuso do servidor, mas consistente) */
-function proximaSegunda(): string {
-  const d = new Date();
-  const dia = d.getDay(); // 0=dom,1=seg
-  const diff = dia === 1 ? 7 : (8 - dia) % 7 || 7;
-  d.setDate(d.getDate() + diff);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -74,17 +64,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     let ciclo_repasse: string | null = null;
 
     if (ledgerId) {
-      const { data: ledger } = await supabaseAdmin
-        .from("financial_ledger")
-        .select("id, ciclo_repasse")
-        .eq("id", ledgerId)
-        .maybeSingle();
-
-      ciclo_repasse = ledger?.ciclo_repasse ?? null;
-
-      if (!ciclo_repasse) {
-        ciclo_repasse = proximaSegunda();
-      }
+      const { data: cicloRow } = await supabaseAdmin.rpc("fn_ciclo_repasse", { data_evento: now });
+      ciclo_repasse = cicloRow ?? proximoCicloRepasse();
 
       const { error: upLedger } = await supabaseAdmin
         .from("financial_ledger")

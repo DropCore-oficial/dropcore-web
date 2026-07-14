@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { PlanLimitsBadge } from "@/components/PlanLimitsBadge";
 import { AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY, AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
+import { proximosCiclos, ciclosAnteriores } from "@/lib/cicloRepasse";
 
 type PreviewItem = {
   fornecedor_id: string;
@@ -52,51 +53,9 @@ function formatCiclo(s: string) {
   return d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
 }
 
-/** Retorna a data de uma segunda-feira como string local YYYY-MM-DD (sem fuso) */
-function toLocalDateStr(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-/** Gera as próximas 8 segundas-feiras a partir de hoje */
-function proximas8Segundas(): string[] {
-  const result: string[] = [];
-  const hoje = new Date();
-  const dia = hoje.getDay(); // 0=dom,1=seg,...6=sab
-  // dias até a próxima segunda (se hoje é segunda, começa da próxima semana)
-  const diffParaProxSeg = dia === 1 ? 7 : (8 - dia) % 7 || 7;
-  const base = new Date(hoje);
-  base.setDate(base.getDate() + diffParaProxSeg);
-  for (let i = 0; i < 8; i++) {
-    const d = new Date(base);
-    d.setDate(d.getDate() + i * 7);
-    result.push(toLocalDateStr(d));
-  }
-  return result;
-}
-
-/** Segundas anteriores (últimas 8, mais recente primeiro) */
-function ultimas8Segundas(): string[] {
-  const result: string[] = [];
-  const hoje = new Date();
-  const dia = hoje.getDay();
-  // dias desde a última segunda (se hoje é segunda, inclui hoje)
-  const diffParaUltimaSeg = dia === 1 ? 0 : dia === 0 ? 6 : dia - 1;
-  const base = new Date(hoje);
-  base.setDate(base.getDate() - diffParaUltimaSeg);
-  for (let i = 0; i < 8; i++) {
-    const d = new Date(base);
-    d.setDate(d.getDate() - i * 7);
-    result.push(toLocalDateStr(d));
-  }
-  return result;
-}
-
 export default function RepasseFornecedorPage() {
   const router = useRouter();
-  const [ciclo, setCiclo] = useState(() => proximas8Segundas()[0]);
+  const [ciclo, setCiclo] = useState(() => proximosCiclos(8)[0]);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -105,8 +64,8 @@ export default function RepasseFornecedorPage() {
   const [cicloBuscado, setCicloBuscado] = useState<string | null>(null);
   const [futureCycles, setFutureCycles] = useState<FutureCyclePreview[]>([]);
 
-  const proximasOpcoes = proximas8Segundas();
-  const ultimasOpcoes = ultimas8Segundas();
+  const proximasOpcoes = proximosCiclos(8);
+  const ultimasOpcoes = ciclosAnteriores(8);
 
   async function loadPreview(cicloStr: string) {
     setLoading(true);
@@ -135,7 +94,7 @@ export default function RepasseFornecedorPage() {
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) return;
-      const ciclos = proximas8Segundas().slice(0, 4);
+      const ciclos = proximosCiclos(4);
       const results = await Promise.all(
         ciclos.map(async (c) => {
           const res = await fetch(`/api/org/financial/repasse-semanal?ciclo_repasse=${encodeURIComponent(c)}`, {
@@ -232,7 +191,7 @@ export default function RepasseFornecedorPage() {
           Esta tela trabalha com o <span className="text-neutral-600">financeiro (ledger)</span>, não com a lista de pedidos.
           Um pedido só aparece aqui quando o lançamento do ciclo está <span className="text-neutral-600">pronto para repasse</span>
           (status <span className="text-neutral-600">ENTREGUE</span> ou <span className="text-neutral-600">AGUARDANDO_REPASSE</span>)
-          e com o <span className="text-neutral-600">ciclo de repasse</span> igual à segunda-feira selecionada.
+          e com o <span className="text-neutral-600">ciclo de repasse</span> igual à terça-feira selecionada.
           Ao fechar, o sistema marca esses lançamentos como <span className="text-neutral-600">PAGO</span> e gera o “A pagar aos fornecedores”.
         </div>
 
@@ -240,7 +199,7 @@ export default function RepasseFornecedorPage() {
           <div className="rounded-2xl border border-sky-200 bg-sky-100 dark:bg-sky-950/20 dark:border-sky-900/50 shadow-sm px-4 py-3">
             <p className="text-xs font-semibold text-sky-800 dark:text-sky-300 mb-2">Próximos ciclos (previsão rápida)</p>
             <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mb-2">
-              Próximas 4 segundas: quanto está <span className="font-medium">pronto para fechar</span> no ledger (ENTREGUE / AGUARDANDO_REPASSE). Clique em um ciclo abaixo para detalhar.
+              Próximas 4 terças: quanto está <span className="font-medium">pronto para fechar</span> no ledger (ENTREGUE / AGUARDANDO_REPASSE). Clique em um ciclo abaixo para detalhar.
             </p>
             <div className="rounded-lg border border-sky-200/80 dark:border-sky-900/40 overflow-hidden divide-y divide-sky-100 dark:divide-sky-900/40">
               {futureCycles.map((f) => (
@@ -277,7 +236,7 @@ export default function RepasseFornecedorPage() {
         {/* Seletor de ciclo */}
         <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
           <div className="px-4 pt-4 pb-3 border-b border-neutral-200">
-            <p className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-3">Selecione o ciclo (segunda-feira)</p>
+            <p className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-3">Selecione o ciclo (terça-feira)</p>
             <div className="space-y-3">
               <div>
                 <p className="text-[11px] text-neutral-600 mb-2">Próximas semanas</p>

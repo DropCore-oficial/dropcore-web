@@ -18,6 +18,7 @@ import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
 import { notifyFornecedorPedidoParaPostar } from "@/lib/notifyFornecedorPedidoParaPostar";
 import { resolveLedgerIdForPedido } from "@/lib/resolveLedgerForPedido";
 import { fireErpEstoqueWebhook } from "@/lib/erpEstoqueOutbound";
+import { proximoCicloRepasse } from "@/lib/cicloRepasse";
 import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
 import { resolveTaxaDropcoreUnit } from "@/lib/order/resolveTaxaDropcore";
@@ -130,14 +131,6 @@ async function consumeRateLimit(params: {
   return { allowed: true };
 }
 
-function proximaSegunda(): string {
-  const d = new Date();
-  const dia = d.getDay();
-  const diff = dia === 1 ? 7 : (8 - dia) % 7 || 7;
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().slice(0, 10);
-}
-
 async function updatePedidoPostado(org_id: string, pedido_id: string, explicit_ledger_id: string | null) {
   const now = new Date().toISOString();
   const { error: upPedido } = await supabaseAdmin
@@ -154,14 +147,8 @@ async function updatePedidoPostado(org_id: string, pedido_id: string, explicit_l
 
   let ciclo_repasse: string | null = null;
   if (ledgerId) {
-    const { data: ledger } = await supabaseAdmin
-      .from("financial_ledger")
-      .select("id, ciclo_repasse")
-      .eq("id", ledgerId)
-      .maybeSingle();
-
-    ciclo_repasse = ledger?.ciclo_repasse ?? null;
-    if (!ciclo_repasse) ciclo_repasse = proximaSegunda();
+    const { data: cicloRow } = await supabaseAdmin.rpc("fn_ciclo_repasse", { data_evento: now });
+    ciclo_repasse = cicloRow ?? proximoCicloRepasse();
 
     const { error: upLedgerErr } = await supabaseAdmin
       .from("financial_ledger")

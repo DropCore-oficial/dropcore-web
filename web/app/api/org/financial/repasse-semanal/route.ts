@@ -3,7 +3,7 @@
  * Fechamento semanal: ledger ENTREGUE/AGUARDANDO_REPASSE do ciclo → PAGO;
  * gera financial_repasse_fornecedor e financial_ciclos_repasse.
  * Desconta automaticamente valores de financial_debito_descontar (devolução pós-repasse).
- * Body: { ciclo_repasse: "YYYY-MM-DD" } (segunda-feira do ciclo).
+ * Body: { ciclo_repasse: "YYYY-MM-DD" } (terça-feira do ciclo).
  * Apenas admin/owner.
  */
 import { NextResponse } from "next/server";
@@ -200,7 +200,7 @@ export async function POST(req: Request) {
     const ciclo_repasse = cicloStr.trim().slice(0, 10);
     const d = new Date(ciclo_repasse);
     if (Number.isNaN(d.getTime())) {
-      return NextResponse.json({ error: "ciclo_repasse deve ser uma data válida (segunda-feira)." }, { status: 400 });
+      return NextResponse.json({ error: "ciclo_repasse deve ser uma data válida (terça-feira)." }, { status: 400 });
     }
 
     // 1) Ledger do ciclo com status ENTREGUE ou AGUARDANDO_REPASSE

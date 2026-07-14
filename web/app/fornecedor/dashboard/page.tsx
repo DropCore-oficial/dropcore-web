@@ -53,7 +53,8 @@ type Mensalidade = {
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 function formatDate(s: string) {
-  return new Date(s).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const d = s.includes("T") ? new Date(s) : new Date(s + "T12:00:00");
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 /** Mesma regra que `vencimentoExibicaoAdmin`: em trial ativo → data fim do trial; senão → vencimento da mensalidade. */
