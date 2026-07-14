@@ -17,6 +17,7 @@ import { createOrderCore } from "@/lib/order/createOrderCore";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
 import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
 import { notifyFornecedorPedidoParaPostar } from "@/lib/notifyFornecedorPedidoParaPostar";
+import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -468,6 +469,13 @@ export async function POST(req: Request) {
       await tryReverterEstoque();
       if (blockResult.code === "SALDO_INSUFICIENTE") {
         await supabaseAdmin.from("pedidos").update({ status: "erro_saldo" }).eq("id", pedido.id);
+        notifySellerPedidoAtencao({
+          org_id,
+          seller_id,
+          pedido_id: pedido.id,
+          tipo: "erro_saldo",
+          motivo: `Saldo insuficiente para o pedido${referenciaExternaGerada ? ` ${referenciaExternaGerada}` : ""} (R$ ${blockResult.valor_total.toFixed(2)}). Saldo disponível: R$ ${blockResult.saldo_disponivel.toFixed(2)}. Recarregue seus créditos DropCore.`,
+        });
         return NextResponse.json(
           {
             error: "Saldo insuficiente para este pedido.",
@@ -505,6 +513,14 @@ export async function POST(req: Request) {
       fornecedor_id,
       pedido_id: pedido.id,
       valor_fornecedor: valorFornecedorCore,
+    });
+
+    notifySellerPedidoAtencao({
+      org_id,
+      seller_id,
+      pedido_id: pedido.id,
+      tipo: "pedido_novo",
+      motivo: `Novo pedido${referenciaExternaGerada ? ` ${referenciaExternaGerada}` : ""} de R$ ${blockResult.valor_total.toFixed(2)} recebido.`,
     });
 
     const skuCodesOlist = estoqueDebitos.map((d) => d.sku).filter((s): s is string => Boolean(s?.trim()));

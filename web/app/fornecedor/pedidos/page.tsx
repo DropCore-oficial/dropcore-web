@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
@@ -55,6 +55,8 @@ export default function FornecedorPedidosPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [imprimindoLote, setImprimindoLote] = useState(false);
   const [avisoLote, setAvisoLote] = useState<string | null>(null);
+  const destaqueId = searchParams.get("destaque");
+  const pedidoRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   async function load() {
     setLoading(true);
@@ -89,6 +91,13 @@ export default function FornecedorPedidosPage() {
   useEffect(() => {
     load();
   }, [statusFilter]);
+
+  useEffect(() => {
+    if (destaqueId && pedidos.length > 0 && !loading) {
+      const el = pedidoRefs.current[destaqueId];
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [destaqueId, pedidos, loading]);
 
   async function marcarPostado(id: string) {
     setPostandoId(id);
@@ -314,7 +323,14 @@ export default function FornecedorPedidosPage() {
                 </thead>
                 <tbody>
                   {pedidos.map((p) => (
-                    <tr key={p.id} className="border-b border-[var(--card-border)]/60 transition-colors hover:bg-[var(--muted)]/8">
+                    <tr
+                      key={p.id}
+                      ref={(el) => { pedidoRefs.current[p.id] = el; }}
+                      className={cn(
+                        "border-b border-[var(--card-border)]/60 transition-colors hover:bg-[var(--muted)]/8",
+                        destaqueId === p.id ? "bg-emerald-100 dark:bg-emerald-950/40" : ""
+                      )}
+                    >
                       <td className="w-10 px-2 py-3 align-middle">
                         {p.tem_etiqueta_oficial ? (
                           <input

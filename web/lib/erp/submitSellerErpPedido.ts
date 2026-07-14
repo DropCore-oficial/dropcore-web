@@ -666,6 +666,13 @@ export async function submitSellerErpPedido(
     await tryReverterEstoque();
     if (blockResult.code === "SALDO_INSUFICIENTE") {
       await supabaseAdmin.from("pedidos").update({ status: "erro_saldo" }).eq("id", pedido.id);
+      notifySellerPedidoAtencao({
+        org_id,
+        seller_id: seller.id,
+        pedido_id: pedido.id,
+        tipo: "erro_saldo",
+        motivo: `Saldo insuficiente para o pedido${referencia_externa ? ` ${referencia_externa}` : ""} (R$ ${blockResult.valor_total.toFixed(2)}). Saldo disponível: R$ ${blockResult.saldo_disponivel.toFixed(2)}. Recarregue seus créditos DropCore.`,
+      });
       return {
         ok: false,
         error_code: "SALDO_INSUFICIENTE",
@@ -733,6 +740,14 @@ export async function submitSellerErpPedido(
     fornecedor_id,
     pedido_id: pedido.id,
     valor_fornecedor,
+  });
+
+  notifySellerPedidoAtencao({
+    org_id,
+    seller_id: seller.id,
+    pedido_id: pedido.id,
+    tipo: "pedido_novo",
+    motivo: `Novo pedido${referencia_externa ? ` ${referencia_externa}` : ""} de R$ ${blockResult.valor_total.toFixed(2)} recebido.`,
   });
 
   return {
@@ -888,6 +903,13 @@ export async function tryPromotePendenteEstoquePedido(params: {
     await tryReverterEstoque();
     if (blockResult.code === "SALDO_INSUFICIENTE") {
       await supabaseAdmin.from("pedidos").update({ status: "erro_saldo" }).eq("id", pedido.id);
+      notifySellerPedidoAtencao({
+        org_id: params.org_id,
+        seller_id: pedido.seller_id,
+        pedido_id: pedido.id,
+        tipo: "erro_saldo",
+        motivo: `Saldo insuficiente para o pedido${pedido.referencia_externa ? ` ${pedido.referencia_externa}` : ""} (R$ ${blockResult.valor_total.toFixed(2)}). Saldo disponível: R$ ${blockResult.saldo_disponivel.toFixed(2)}. Recarregue seus créditos DropCore.`,
+      });
       return {
         ok: false,
         error_code: "SALDO_INSUFICIENTE",
@@ -1221,6 +1243,13 @@ export async function tryPromoteBloqueadoPedido(params: {
     await tryReverterEstoque();
     if (blockResult.code === "SALDO_INSUFICIENTE") {
       await supabaseAdmin.from("pedidos").update({ status: "erro_saldo" }).eq("id", pedido.id);
+      notifySellerPedidoAtencao({
+        org_id: params.org_id,
+        seller_id: pedido.seller_id,
+        pedido_id: pedido.id,
+        tipo: "erro_saldo",
+        motivo: `Saldo insuficiente para o pedido${pedido.referencia_externa ? ` ${pedido.referencia_externa}` : ""} (R$ ${blockResult.valor_total.toFixed(2)}). Saldo disponível: R$ ${blockResult.saldo_disponivel.toFixed(2)}. Recarregue seus créditos DropCore.`,
+      });
       return {
         ok: false,
         error_code: "SALDO_INSUFICIENTE",

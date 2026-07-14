@@ -82,6 +82,48 @@ describe("notifySellerPedidoAtencao", () => {
     );
   });
 
+  it("insere notificação de erro_saldo com título específico", async () => {
+    const insertSpy = vi.fn();
+    fromMock.mockImplementation((table: string) => {
+      if (table === "sellers") return sellersChain("user-789");
+      if (table === "notifications") return notificationsChain(insertSpy);
+      throw new Error(`tabela inesperada: ${table}`);
+    });
+
+    await notifySellerPedidoAtencao({
+      org_id: "org-1",
+      seller_id: "seller-3",
+      pedido_id: "pedido-3",
+      tipo: "erro_saldo",
+      motivo: "Saldo insuficiente para este pedido.",
+    });
+
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ titulo: "Erro de saldo", tipo: "erro_saldo" })
+    );
+  });
+
+  it("insere notificação de pedido_novo com título específico", async () => {
+    const insertSpy = vi.fn();
+    fromMock.mockImplementation((table: string) => {
+      if (table === "sellers") return sellersChain("user-321");
+      if (table === "notifications") return notificationsChain(insertSpy);
+      throw new Error(`tabela inesperada: ${table}`);
+    });
+
+    await notifySellerPedidoAtencao({
+      org_id: "org-1",
+      seller_id: "seller-4",
+      pedido_id: "pedido-4",
+      tipo: "pedido_novo",
+      motivo: "Novo pedido de R$ 69,00 recebido.",
+    });
+
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ titulo: "Novo pedido recebido", tipo: "pedido_novo" })
+    );
+  });
+
   it("não insere notificação quando o seller não tem user_id", async () => {
     const insertSpy = vi.fn();
     fromMock.mockImplementation((table: string) => {

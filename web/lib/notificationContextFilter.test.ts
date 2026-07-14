@@ -107,4 +107,28 @@ describe("filterNotificationsForContext", () => {
     );
     expect(out).toHaveLength(1);
   });
+
+  it("seller aceita notificações de pedido (novo, bloqueado, pendente_estoque, erro_saldo)", () => {
+    const out = filterNotificationsForContext(
+      [
+        { id: "11", tipo: "pedido_novo", titulo: "Novo pedido recebido", mensagem: "" },
+        { id: "12", tipo: "pedido_bloqueado", titulo: "Pedido bloqueado", mensagem: "" },
+        { id: "13", tipo: "pedido_pendente_estoque", titulo: "Pedido aguardando estoque", mensagem: "" },
+        { id: "14", tipo: "erro_saldo", titulo: "Erro de saldo", mensagem: "" },
+      ],
+      "seller",
+    );
+    expect(out.map((n) => n.id)).toEqual(["11", "12", "13", "14"]);
+  });
+
+  it("fornecedor aceita pedido_bloqueado e pedido_pendente_estoque", () => {
+    const out = filterNotificationsForContext(
+      [
+        { id: "15", tipo: "pedido_bloqueado", titulo: "Pedido bloqueado", mensagem: "" },
+        { id: "16", tipo: "pedido_pendente_estoque", titulo: "Pedido aguardando estoque", mensagem: "" },
+      ],
+      "fornecedor",
+    );
+    expect(out.map((n) => n.id)).toEqual(["15", "16"]);
+  });
 });

@@ -478,6 +478,15 @@ export default function SellerDashboardPage() {
     }
   }, [loading, extrato.length, depositos.length]);
 
+  const recarregarParam = searchParams.get("recarregar");
+  const recarregarAbertoRef = useRef(false);
+  useEffect(() => {
+    if (recarregarParam === "1" && !loading && !recarregarAbertoRef.current) {
+      recarregarAbertoRef.current = true;
+      setModalDeposito(true);
+    }
+  }, [recarregarParam, loading]);
+
   const pagarParam = searchParams.get("pagar");
   const pagarAbertoRef = useRef(false);
   useEffect(() => {

@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
 import { AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
+import {
+  SELLER_SALDO_CRITICO_ACCENT_BAR,
+  SELLER_SALDO_CRITICO_BODY,
+  SELLER_SALDO_CRITICO_CARD_SURFACE,
+} from "@/lib/dangerSellerSaldoCriticoUi";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { cn } from "@/lib/utils";
 
@@ -53,7 +60,7 @@ const statusLabel: Record<string, string> = {
 };
 
 const STATUS_PENDENTE = cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY);
-const STATUS_BLOQUEADO = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300";
+const STATUS_BLOQUEADO = cn(DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY);
 
 export default function SellerPedidosPage() {
   const router = useRouter();
@@ -62,6 +69,8 @@ export default function SellerPedidosPage() {
   const [error, setError] = useState<string | null>(null);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
+  const destaqueId = searchParams.get("destaque");
+  const pedidoRefs = useRef<Record<string, HTMLElement | null>>({});
 
   async function load() {
     setLoading(true);
@@ -96,6 +105,13 @@ export default function SellerPedidosPage() {
   useEffect(() => {
     void load();
   }, [statusFilter]);
+
+  useEffect(() => {
+    if (destaqueId && pedidos.length > 0 && !loading) {
+      const el = pedidoRefs.current[destaqueId];
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [destaqueId, pedidos, loading]);
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] pb-24 md:pb-8">
@@ -154,7 +170,11 @@ export default function SellerPedidosPage() {
               return (
                 <article
                   key={p.id}
-                  className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 sm:p-5"
+                  ref={(el) => { pedidoRefs.current[p.id] = el; }}
+                  className={cn(
+                    "rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 sm:p-5 transition-shadow",
+                    destaqueId === p.id ? "ring-2 ring-emerald-500 ring-offset-2 ring-offset-[var(--background)]" : ""
+                  )}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -164,7 +184,7 @@ export default function SellerPedidosPage() {
                     <span
                       className={cn(
                         "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium",
-                        p.status === "bloqueado"
+                        p.status === "bloqueado" || p.status === "erro_saldo"
                           ? STATUS_BLOQUEADO
                           : p.status === "pendente_estoque" || p.status === "enviado"
                             ? STATUS_PENDENTE
@@ -233,7 +253,45 @@ export default function SellerPedidosPage() {
                   ) : null}
 
                   {p.status === "bloqueado" && p.motivo_bloqueio ? (
-                    <p className="mt-3 text-sm text-red-700 dark:text-red-300">{p.motivo_bloqueio}</p>
+                    <p className={cn("mt-3 text-sm", DANGER_PREMIUM_TEXT_PRIMARY)}>{p.motivo_bloqueio}</p>
+                  ) : null}
+
+                  {p.status === "erro_saldo" ? (
+                    <div role="status" className={cn("relative mt-3 overflow-hidden rounded-xl p-3", SELLER_SALDO_CRITICO_CARD_SURFACE)}>
+                      <div className={SELLER_SALDO_CRITICO_ACCENT_BAR} aria-hidden />
+                      <div className="flex items-start gap-2.5 pl-3">
+                        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[var(--danger)]/35 bg-[var(--danger)]/10 dark:border-red-400/55 dark:bg-transparent">
+                          <svg
+                            className="h-4 w-4 text-[var(--danger)] dark:text-red-300"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden
+                          >
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                            <line x1="12" y1="9" x2="12" y2="13" />
+                            <line x1="12" y1="17" x2="12.01" y2="17" />
+                          </svg>
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold leading-snug tracking-tight text-[var(--danger)] dark:text-red-300">
+                            Saldo insuficiente para este pedido
+                          </p>
+                          <p className={cn(SELLER_SALDO_CRITICO_BODY, "mt-1")}>
+                            Pedido não processado por falta de saldo na hora da venda.
+                          </p>
+                          <Link
+                            href="/seller/dashboard?recarregar=1"
+                            className="mt-2.5 block w-full rounded-lg bg-[var(--danger)] px-3 py-2 text-center text-xs font-semibold text-white transition-colors hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:hover:opacity-100 dark:shadow-sm dark:shadow-red-950/50 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:inline-block sm:w-auto sm:text-left"
+                          >
+                            Recarregar créditos
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
                   ) : null}
                 </article>
               );

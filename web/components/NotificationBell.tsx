@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useVisibilityAwareInterval } from "@/lib/useVisibilityAwareInterval";
-import { AMBER_PREMIUM_LINK } from "@/lib/amberPremium";
+import { AMBER_PREMIUM_LINK, AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import {
   filterNotificationsForContext,
@@ -26,6 +27,26 @@ type Notif = {
     alteracao_id?: string;
   };
 };
+
+/** Severidade visual dos tipos de notificação de pedido — cor do ícone segue o mesmo padrão semântico do resto do app. */
+const PEDIDO_TIPO_SEVERIDADE: Record<string, "danger" | "warning" | "success"> = {
+  pedido_bloqueado: "danger",
+  erro_saldo: "danger",
+  pedido_pendente_estoque: "warning",
+  pedido_novo: "success",
+};
+
+const PEDIDO_TIPO_ICON: Record<string, string> = {
+  pedido_bloqueado: "🚫",
+  erro_saldo: "⚠️",
+  pedido_pendente_estoque: "⏳",
+  pedido_novo: "🛒",
+};
+
+function pedidoDestino(context: NotificationPortalContext, pedidoId: string): string {
+  if (context === "fornecedor") return `/fornecedor/pedidos?destaque=${pedidoId}`;
+  return `/seller/pedidos?destaque=${pedidoId}`;
+}
 
 export function NotificationBell({
   className = "",
@@ -184,6 +205,8 @@ export function NotificationBell({
                     "repasse_recebido",
                     "saldo_baixo",
                   ].includes(n.tipo ?? "");
+                  const pedidoSeveridade = PEDIDO_TIPO_SEVERIDADE[n.tipo ?? ""];
+                  const pedidoIcon = PEDIDO_TIPO_ICON[n.tipo ?? ""];
                   return (
                     <div
                       key={n.id}
@@ -200,12 +223,21 @@ export function NotificationBell({
                         !n.lido ? "bg-emerald-100 dark:bg-emerald-950" : ""
                       }`}
                     >
-                      <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                        !n.lido
-                          ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400"
-                          : "bg-[var(--surface-subtle)] text-[var(--muted)]"
-                      }`}>
-                        {isDeposito ? (
+                      <div
+                        className={cn(
+                          "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                          !n.lido
+                            ? pedidoSeveridade === "danger"
+                              ? cn(DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)
+                              : pedidoSeveridade === "warning"
+                                ? cn(AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY)
+                                : "bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400"
+                            : "bg-[var(--surface-subtle)] text-[var(--muted)]"
+                        )}
+                      >
+                        {pedidoIcon ? (
+                          <span className="text-sm">{pedidoIcon}</span>
+                        ) : isDeposito ? (
                           <span className="text-sm">💰</span>
                         ) : isMensalidadePagaAdmin ? (
                           <span className="text-sm">✅</span>
@@ -350,6 +382,26 @@ export function NotificationBell({
                                 Ver repasses →
                               </a>
                             )}
+                            {(n.tipo === "pedido_novo" ||
+                              n.tipo === "pedido_bloqueado" ||
+                              n.tipo === "pedido_pendente_estoque" ||
+                              n.tipo === "erro_saldo") &&
+                              n.metadata?.pedido_id && (
+                                <a
+                                  href={pedidoDestino(context, n.metadata.pedido_id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className={cn(
+                                    "mt-2 inline-flex items-center gap-1 text-xs font-medium hover:underline",
+                                    pedidoSeveridade === "danger"
+                                      ? DANGER_PREMIUM_TEXT_PRIMARY
+                                      : pedidoSeveridade === "warning"
+                                        ? AMBER_PREMIUM_TEXT_PRIMARY
+                                        : "text-emerald-600 dark:text-emerald-400"
+                                  )}
+                                >
+                                  Ver pedido →
+                                </a>
+                              )}
                           </>
                         )}
                       </div>

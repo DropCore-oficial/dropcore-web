@@ -71,6 +71,36 @@ export async function GET(req: Request) {
         return n;
       });
     }
+    // Auto-resolve: pedido_bloqueado/pendente_estoque/erro_saldo cujo pedido já saiu
+    // desse status (ex: liberado pelo retry, postado, cancelado) não precisam mais
+    // aparecer como alerta ativo — marca como lida sem o seller precisar abrir.
+    const TIPO_STATUS_ATIVO: Record<string, string> = {
+      pedido_bloqueado: "bloqueado",
+      pedido_pendente_estoque: "pendente_estoque",
+      erro_saldo: "erro_saldo",
+    };
+    const alertasDePedido = items.filter(
+      (n) => !n.lido && TIPO_STATUS_ATIVO[n.tipo ?? ""] && (n.metadata as { pedido_id?: string } | null)?.pedido_id
+    );
+    if (alertasDePedido.length > 0) {
+      const pedidoIds = [
+        ...new Set(alertasDePedido.map((n) => (n.metadata as { pedido_id?: string }).pedido_id).filter(Boolean)),
+      ] as string[];
+      const { data: pedidosAtuais } = await supabaseAdmin.from("pedidos").select("id, status").in("id", pedidoIds);
+      const statusPorPedido = new Map((pedidosAtuais ?? []).map((p) => [p.id, p.status]));
+      const idsParaResolver = alertasDePedido
+        .filter((n) => {
+          const pid = (n.metadata as { pedido_id?: string }).pedido_id!;
+          const statusAtual = statusPorPedido.get(pid);
+          return statusAtual != null && statusAtual !== TIPO_STATUS_ATIVO[n.tipo ?? ""];
+        })
+        .map((n) => n.id);
+      if (idsParaResolver.length > 0) {
+        await supabaseAdmin.from("notifications").update({ lido: true }).in("id", idsParaResolver);
+        items = items.map((n) => (idsParaResolver.includes(n.id) ? { ...n, lido: true } : n));
+      }
+    }
+
     if (portalContext) {
       items = filterNotificationsForContext(items, portalContext);
     }
