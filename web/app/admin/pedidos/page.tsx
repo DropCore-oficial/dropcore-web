@@ -2,17 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { PlanLimitsBadge, PLAN_LIMITS_REFRESH_EVENT } from "@/components/PlanLimitsBadge";
 import { IconClipboard } from "@/components/seller/Icons";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import {
   SUCCESS_PREMIUM_SURFACE,
   SUCCESS_PREMIUM_TEXT_PRIMARY,
   DANGER_PREMIUM_SURFACE,
   DANGER_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/semanticPremium";
-import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
 
 type Seller = { id: string; nome: string; documento: string | null };
@@ -34,19 +35,23 @@ type Pedido = {
 const inputClass =
   "w-full max-w-xs rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:border-emerald-500";
 const labelClass = "block text-xs font-medium text-[var(--muted)] mb-1";
-const btnSecondaryClass =
-  "rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:border-neutral-300 hover:bg-neutral-100 dark:hover:border-neutral-600 dark:hover:bg-neutral-800/90";
-const btnPrimaryClass =
-  "rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60";
+// Ação compacta de toolbar/cabeçalho de lista — mesmo padrão de
+// web/components/fornecedor/FornecedorImportEstoquePanel.tsx (teste em /admin/pedidos
+// antes de virar padrão de skill/design system para o resto do sistema).
+const btnSecondaryCompactClass =
+  "rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10";
+const btnPrimaryCompactClass =
+  "rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60";
 
-// Mesma paleta de badge de status usada em /fornecedor/pedidos (pill com borda, sem preenchimento sólido)
+// Status = informação, não ação: sem borda (borda é a assinatura visual de botão nesta
+// tela), fundo suave + bolinha (bg-current) na cor do texto em vez de pílula com contorno.
 const STATUS_PILL: Record<string, string> = {
-  enviado: cn(AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY),
-  aguardando_repasse: "border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-300",
-  entregue: "border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
-  devolvido: "border-rose-300 bg-rose-100 text-rose-800 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
-  erro_saldo: "border-red-400 bg-red-100 text-red-800 dark:border-red-700 dark:bg-red-950/40 dark:text-red-300",
-  cancelado: "border-[var(--card-border)] bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800",
+  enviado: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
+  aguardando_repasse: "bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
+  entregue: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
+  devolvido: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+  cancelado: "bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800",
 };
 const STATUS_LABEL: Record<string, string> = {
   enviado: "Enviado (bloqueado)",
@@ -257,57 +262,46 @@ export default function PedidosPage() {
 
   return (
     <div className="dropcore-shell-6xl space-y-5 py-6">
-      <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
-          <div className="min-w-0 space-y-1">
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-2.5 text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
+      <AdminPageHeader
+        eyebrow="Operação"
+        title="Pedidos"
+        titleExtra={<PlanLimitsBadge />}
+        subtitle="Lista de pedidos enviados. Ao criar um novo pedido, o saldo do seller é bloqueado automaticamente."
+        right={
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-max sm:flex-nowrap sm:justify-end">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="min-h-[1.875rem] flex-1 rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] sm:w-36 sm:flex-none"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M19 12H5M12 19l-7-7 7-7" />
+              <option value="">Todos</option>
+              <option value="enviado">Enviado (bloqueado)</option>
+              <option value="aguardando_repasse">Aguardando repasse</option>
+              <option value="entregue">Entregue</option>
+              <option value="devolvido">Devolvido</option>
+              <option value="cancelado">Cancelado</option>
+              <option value="erro_saldo">Erro saldo</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => router.push("/admin/devolucoes")}
+              className={cn(btnSecondaryCompactClass, "flex-1 sm:flex-none")}
+            >
+              Bloqueios e devoluções
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              className={cn(btnPrimaryCompactClass, "inline-flex w-full items-center justify-center gap-1.5 sm:w-auto")}
+            >
+              <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 5v14M5 12h14" />
               </svg>
-              Voltar
-            </Link>
-            <p className="text-sm font-medium uppercase leading-snug tracking-wide text-emerald-700/90 dark:text-emerald-400/90">Operação</p>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">Pedidos</h1>
-              <PlanLimitsBadge />
-            </div>
-            <p className="text-sm leading-snug text-[var(--muted)]">
-              Lista de pedidos enviados. Ao criar um novo pedido, o saldo do seller é bloqueado automaticamente.
-            </p>
+              Novo pedido
+            </button>
           </div>
-          <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:items-end sm:pt-0.5">
-            <div className="flex w-full flex-wrap gap-2 sm:justify-end">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="min-h-10 flex-1 rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 text-sm text-[var(--foreground)] sm:min-w-[12rem] sm:flex-none"
-              >
-                <option value="">Todos</option>
-                <option value="enviado">Enviado (bloqueado)</option>
-                <option value="aguardando_repasse">Aguardando repasse</option>
-                <option value="entregue">Entregue</option>
-                <option value="devolvido">Devolvido</option>
-                <option value="cancelado">Cancelado</option>
-                <option value="erro_saldo">Erro saldo</option>
-              </select>
-              <button type="button" onClick={() => router.push("/admin/devolucoes")} className={btnSecondaryClass}>
-                Bloqueios e devoluções
-              </button>
-              <button type="button" onClick={() => setShowForm(!showForm)} className={cn(btnPrimaryClass, "inline-flex items-center gap-1.5")}>
-                {!showForm && (
-                  <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                )}
-                {showForm ? "Fechar formulário" : "Novo pedido"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+        }
+      />
 
       {error && (
         <div className={cn(DANGER_PREMIUM_SURFACE, DANGER_PREMIUM_TEXT_PRIMARY, "rounded-xl px-4 py-3 text-sm mb-4")}>
@@ -321,8 +315,31 @@ export default function PedidosPage() {
       )}
 
       {showForm && (
-        <div className="mb-6 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm p-5">
-          <h2 className="text-base font-semibold text-[var(--foreground)] mb-4">Criar pedido (bloquear saldo)</h2>
+        <div
+          className={cn(MODAL_OVERLAY_CLASS, "animate-fade-in-up")}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-novo-pedido-title"
+          onClick={() => setShowForm(false)}
+        >
+          <div
+            className={cn(MODAL_PANEL_CLASS, "max-w-lg animate-fade-in-up animate-fade-in-up-delay-1")}
+            onClick={(e) => e.stopPropagation()}
+          >
+          <div className="flex shrink-0 items-center justify-between border-b border-[var(--card-border)] px-5 pb-4 pt-5">
+            <h2 id="modal-novo-pedido-title" className="text-base font-semibold text-[var(--foreground)]">
+              Criar pedido (bloquear saldo)
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              aria-label="Fechar"
+              className="-m-1 rounded p-1 text-xl leading-none text-neutral-400 transition-colors hover:text-neutral-900 dark:hover:text-neutral-200"
+            >
+              ×
+            </button>
+          </div>
+          <div className={cn(MODAL_PANEL_BODY_CLASS, "px-5 pb-5 pt-4")}>
           <div className="flex flex-col gap-4">
             <div>
               <label className={labelClass}>Seller *</label>
@@ -403,9 +420,11 @@ export default function PedidosPage() {
             <p className="text-xs text-[var(--muted)]">
               Total debitado = valor fornecedor + valor DropCore (ex.: 15% sobre o custo).
             </p>
-            <button type="button" onClick={enviar} disabled={sending} className={cn(btnPrimaryClass, "self-start")}>
+            <button type="button" onClick={enviar} disabled={sending} className={cn(btnPrimaryCompactClass, "self-start")}>
               {sending ? "Enviando..." : "Criar pedido e bloquear saldo"}
             </button>
+          </div>
+          </div>
           </div>
         </div>
       )}
@@ -420,61 +439,104 @@ export default function PedidosPage() {
           <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-500">Clique em &quot;Novo pedido&quot; para criar.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--card-border)] bg-[var(--muted)]/10 text-left text-xs text-[var(--muted)]">
-                <th className="px-4 py-3 font-medium">Data</th>
-                <th className="px-4 py-3 font-medium">Seller</th>
-                <th className="px-4 py-3 font-medium">Fornecedor</th>
-                <th className="px-4 py-3 font-medium">Produto</th>
-                <th className="px-4 py-3 font-medium text-right">Valor</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Ação</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pedidos.map((p) => (
-                <tr key={p.id} className="border-b border-[var(--card-border)]/60 transition-colors hover:bg-[var(--muted)]/8">
-                  <td className="px-4 py-3 text-[var(--muted)]">{formatDate(p.criado_em)}</td>
-                  <td className="px-4 py-3">{p.seller_nome ?? "—"}</td>
-                  <td className="px-4 py-3">{p.fornecedor_nome ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    <span className={p.nome_produto ? "text-[var(--foreground)]" : "text-[var(--muted)]"}>
-                      {p.nome_produto ?? "—"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium">{formatMoney(p.valor_total)}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={cn(
-                        "inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium",
-                        STATUS_PILL[p.status] ?? "border-[var(--card-border)] bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800"
-                      )}
-                    >
-                      {STATUS_LABEL[p.status] ?? p.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {p.status === "enviado" && (
-                        <button
-                          type="button"
-                          onClick={() => confirmarEnvio(p.id)}
-                          disabled={entregandoId === p.id}
-                          title="Confirma o envio no lugar do fornecedor (uso excepcional)"
-                          className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-amber-600/20 transition-colors hover:bg-amber-700 disabled:opacity-50"
-                        >
-                          {entregandoId === p.id ? "Confirmando..." : "↑ Confirmar envio"}
-                        </button>
-                      )}
-                    </div>
-                  </td>
+        <>
+          {/* Desktop/tablet: tabela */}
+          <div className="hidden sm:block dropcore-scroll-x">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--card-border)] bg-[var(--muted)]/10 text-left text-xs text-[var(--muted)]">
+                  <th className="px-4 py-3 font-medium">Data</th>
+                  <th className="px-4 py-3 font-medium">Seller</th>
+                  <th className="px-4 py-3 font-medium">Fornecedor</th>
+                  <th className="px-4 py-3 font-medium">Produto</th>
+                  <th className="px-4 py-3 font-medium text-right">Valor</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Ação</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {pedidos.map((p) => (
+                  <tr key={p.id} className="border-b border-[var(--card-border)]/60 transition-colors hover:bg-[var(--muted)]/8">
+                    <td className="px-4 py-3 text-[var(--muted)]">{formatDate(p.criado_em)}</td>
+                    <td className="px-4 py-3">{p.seller_nome ?? "—"}</td>
+                    <td className="px-4 py-3">{p.fornecedor_nome ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      <span className={p.nome_produto ? "text-[var(--foreground)]" : "text-[var(--muted)]"}>
+                        {p.nome_produto ?? "—"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium">{formatMoney(p.valor_total)}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={cn(
+                          "inline-flex w-36 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
+                          STATUS_PILL[p.status] ?? "bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800"
+                        )}
+                      >
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                        {STATUS_LABEL[p.status] ?? p.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {p.status === "enviado" && (
+                          <button
+                            type="button"
+                            onClick={() => confirmarEnvio(p.id)}
+                            disabled={entregandoId === p.id}
+                            title="Confirma o envio no lugar do fornecedor (uso excepcional)"
+                            className="whitespace-nowrap rounded-md bg-amber-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-amber-600/20 transition-colors hover:bg-amber-700 disabled:opacity-50"
+                          >
+                            {entregandoId === p.id ? "Confirmando..." : "↑ Confirmar envio"}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile: cards empilhados (tabela de 7 colunas não cabe em ~390px) */}
+          <div className="sm:hidden divide-y divide-[var(--card-border)]/60">
+            {pedidos.map((p) => (
+              <div key={p.id} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-sm font-medium text-[var(--foreground)] truncate">{p.seller_nome ?? "—"}</span>
+                  <span className="text-sm font-semibold tabular-nums text-[var(--foreground)] shrink-0">{formatMoney(p.valor_total)}</span>
+                </div>
+                <p className="mt-0.5 text-xs text-[var(--muted)] truncate">
+                  {p.fornecedor_nome ?? "—"}
+                  {p.nome_produto ? ` · ${p.nome_produto}` : ""}
+                </p>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-xs text-[var(--muted)]">{formatDate(p.criado_em)}</span>
+                  <span
+                    className={cn(
+                      "inline-flex w-36 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
+                      STATUS_PILL[p.status] ?? "bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800"
+                    )}
+                  >
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                    {STATUS_LABEL[p.status] ?? p.status}
+                  </span>
+                </div>
+                {p.status === "enviado" && (
+                  <button
+                    type="button"
+                    onClick={() => confirmarEnvio(p.id)}
+                    disabled={entregandoId === p.id}
+                    title="Confirma o envio no lugar do fornecedor (uso excepcional)"
+                    className="mt-2 w-full rounded-md bg-amber-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-amber-600/20 transition-colors hover:bg-amber-700 disabled:opacity-50"
+                  >
+                    {entregandoId === p.id ? "Confirmando..." : "↑ Confirmar envio"}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
       )}
       </section>
     </div>

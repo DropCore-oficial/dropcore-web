@@ -5,12 +5,30 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { FornecedorNav } from "../FornecedorNav";
-import { AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { DANGER_PREMIUM_SURFACE, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { IconClipboard } from "@/components/seller/Icons";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { cn } from "@/lib/utils";
 
-const FORN_PEDIDO_STATUS_ENVIADO = cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY);
+// Padrão compacto de toolbar/badge — mesmo teste de web/app/admin/pedidos/page.tsx
+// (ver skill dropcore-layout, seções "Botão de ação compacto" e "Badge de status").
+const btnSecondaryCompactClass =
+  "rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10";
+const btnPrimaryCompactClass =
+  "rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60";
+
+// Status = informação, não ação: sem borda, fundo suave + bolinha (bg-current) em vez de
+// pílula com contorno.
+const STATUS_PILL: Record<string, string> = {
+  bloqueado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+  pendente_estoque: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  enviado: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
+  aguardando_repasse: "bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
+  entregue: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
+  devolvido: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+};
 
 type Pedido = {
   id: string;
@@ -56,7 +74,7 @@ export default function FornecedorPedidosPage() {
   const [imprimindoLote, setImprimindoLote] = useState(false);
   const [avisoLote, setAvisoLote] = useState<string | null>(null);
   const destaqueId = searchParams.get("destaque");
-  const pedidoRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
+  const pedidoCardRefs = useRef<Record<string, HTMLElement | null>>({});
 
   async function load() {
     setLoading(true);
@@ -94,8 +112,7 @@ export default function FornecedorPedidosPage() {
 
   useEffect(() => {
     if (destaqueId && pedidos.length > 0 && !loading) {
-      const el = pedidoRefs.current[destaqueId];
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      pedidoCardRefs.current[destaqueId]?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [destaqueId, pedidos, loading]);
 
@@ -208,7 +225,7 @@ export default function FornecedorPedidosPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="dropcore-shell-4xl space-y-5 py-5 md:space-y-6 md:py-7">
+      <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
             <div className="min-w-0 space-y-1">
@@ -223,14 +240,14 @@ export default function FornecedorPedidosPage() {
               </Link>
               <p className="text-sm font-medium uppercase leading-snug tracking-wide text-emerald-700/90 dark:text-emerald-400/90">Operação</p>
               <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">Pedidos para atender</h1>
-              <p className="text-sm leading-snug text-[var(--muted)]">Lista enviada pelos sellers para postagem e acompanhamento.</p>
+              <p className="max-w-xl text-sm leading-snug text-[var(--muted)]">Lista enviada pelos sellers para postagem e acompanhamento.</p>
             </div>
             <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:items-end sm:pt-0.5">
-              <div className="flex w-full flex-wrap gap-2 sm:justify-end">
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-max sm:flex-nowrap sm:justify-end">
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="min-h-10 flex-1 rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 text-sm text-[var(--foreground)] sm:min-w-[12rem] sm:flex-none"
+                  className="min-h-[1.875rem] flex-1 rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] sm:w-36 sm:flex-none"
                 >
                   <option value="">Todos</option>
                   <option value="pendente_estoque">Aguardando estoque</option>
@@ -245,7 +262,7 @@ export default function FornecedorPedidosPage() {
                   type="button"
                   onClick={() => void load()}
                   disabled={loading}
-                  className="min-h-10 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-100 disabled:opacity-50 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                  className={cn(btnSecondaryCompactClass, "flex-1 sm:flex-none")}
                 >
                   {loading ? "Carregando..." : "Atualizar"}
                 </button>
@@ -255,7 +272,7 @@ export default function FornecedorPedidosPage() {
         </header>
 
         {error && (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+          <div className={cn(DANGER_PREMIUM_SURFACE, DANGER_PREMIUM_TEXT_PRIMARY, "rounded-2xl px-4 py-3 text-sm")}>
             {error}
           </div>
         )}
@@ -268,10 +285,24 @@ export default function FornecedorPedidosPage() {
 
         {idsComEtiquetaOficial.length > 0 && (
           <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 dark:bg-emerald-950/20">
-            <p className="min-w-[200px] flex-1 text-sm text-neutral-700 dark:text-neutral-300">
-              Selecione pedidos com <strong className="font-medium">etiqueta oficial</strong> (PDF do marketplace) e gere{" "}
-              <strong className="font-medium">um único PDF</strong> para imprimir tudo de uma vez.
-            </p>
+            <div className="min-w-[200px] flex-1 space-y-1.5">
+              <p className="text-sm text-neutral-700 dark:text-neutral-300">
+                Selecione pedidos com <strong className="font-medium">etiqueta oficial</strong> (PDF do marketplace) e gere{" "}
+                <strong className="font-medium">um único PDF</strong> para imprimir tudo de uma vez.
+              </p>
+              <label className="flex w-fit items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
+                <input
+                  type="checkbox"
+                  ref={(el) => {
+                    if (el) el.indeterminate = algumMarcadoComEtiqueta && !todosMarcadosComEtiqueta;
+                  }}
+                  checked={todosMarcadosComEtiqueta}
+                  onChange={toggleSelecionarTodosComEtiqueta}
+                  className="rounded border-neutral-300 dark:border-neutral-600"
+                />
+                Selecionar todos com etiqueta oficial
+              </label>
+            </div>
             <button
               type="button"
               onClick={imprimirEtiquetasOficiaisEmLote}
@@ -285,144 +316,119 @@ export default function FornecedorPedidosPage() {
           </div>
         )}
 
-        <section className="overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
-          {pedidos.length === 0 ? (
-            <div className="py-16 text-center">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500">
-                <IconClipboard className="h-7 w-7" />
-              </div>
-              <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Nenhum pedido encontrado</p>
-              <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-500">Os pedidos aparecem aqui quando forem enviados para você atender.</p>
+        {pedidos.length === 0 ? (
+          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] py-16 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500">
+              <IconClipboard className="h-7 w-7" />
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-[var(--card-border)] bg-[var(--muted)]/10 text-left text-xs text-[var(--muted)]">
-                    <th className="w-10 px-2 py-3 font-medium align-middle">
-                      <input
-                        type="checkbox"
-                        ref={(el) => {
-                          if (el) el.indeterminate = algumMarcadoComEtiqueta && !todosMarcadosComEtiqueta;
-                        }}
-                        checked={todosMarcadosComEtiqueta}
-                        onChange={toggleSelecionarTodosComEtiqueta}
-                        disabled={idsComEtiquetaOficial.length === 0}
-                        className="rounded border-neutral-300 dark:border-neutral-600"
-                        title="Selecionar todos com etiqueta oficial"
-                        aria-label="Selecionar todos com etiqueta oficial"
-                      />
-                    </th>
-                    <th className="px-4 py-3 font-medium">Data</th>
-                    <th className="px-4 py-3 font-medium">Seller</th>
-                    <th className="px-4 py-3 font-medium">Produto</th>
-                    <th className="px-4 py-3 font-medium text-right">Valor</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Ação</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pedidos.map((p) => (
-                    <tr
-                      key={p.id}
-                      ref={(el) => { pedidoRefs.current[p.id] = el; }}
+            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Nenhum pedido encontrado</p>
+            <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-500">Os pedidos aparecem aqui quando forem enviados para você atender.</p>
+          </div>
+        ) : (
+          <>
+            {/* Cards em todas as larguras — padrão de web/app/seller/pedidos/page.tsx (article + dt/dd) */}
+            <div className="space-y-3">
+              {pedidos.map((p) => (
+                <article
+                  key={p.id}
+                  ref={(el) => { pedidoCardRefs.current[p.id] = el; }}
+                  className={cn(
+                    "rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 transition-shadow",
+                    destaqueId === p.id ? "ring-2 ring-emerald-500 ring-offset-2 ring-offset-[var(--background)]" : ""
+                  )}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-[var(--foreground)]">{p.nome_produto ?? "Pedido"}</p>
+                      <p className="mt-1 text-sm text-neutral-500">{formatDate(p.criado_em)}</p>
+                    </div>
+                    <span
                       className={cn(
-                        "border-b border-[var(--card-border)]/60 transition-colors hover:bg-[var(--muted)]/8",
-                        destaqueId === p.id ? "bg-emerald-100 dark:bg-emerald-950/40" : ""
+                        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
+                        STATUS_PILL[p.status] ?? "bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800"
                       )}
                     >
-                      <td className="w-10 px-2 py-3 align-middle">
-                        {p.tem_etiqueta_oficial ? (
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(p.id)}
-                            onChange={() => toggleSelecionar(p.id)}
-                            className="rounded border-neutral-300 dark:border-neutral-600"
-                            title="Incluir na impressão em lote (etiqueta oficial)"
-                            aria-label={`Selecionar pedido ${p.id} para etiqueta oficial`}
-                          />
-                        ) : (
-                          <span className="text-[var(--muted)] text-xs block text-center" title="Sem PDF oficial ainda">
-                            —
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-[var(--muted)]">{formatDate(p.criado_em)}</td>
-                      <td className="px-4 py-3">{p.seller_nome}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-[var(--foreground)]">{p.nome_produto ?? "—"}</span>
-                          <span className="text-[12px] text-[var(--muted)] mt-0.5">
-                            {p.cor ? `Cor: ${p.cor}` : "Cor: —"} · {p.tamanho ? `Tamanho: ${p.tamanho}` : "Tamanho: —"}
-                            {p.categoria ? ` · ${p.categoria}` : ""}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium">{BRL.format(p.valor_fornecedor ?? 0)}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium ${
-                            p.status === "bloqueado"
-                              ? "border-red-400 bg-red-100 text-red-800 dark:border-red-700 dark:bg-red-950/40 dark:text-red-300"
-                            : p.status === "pendente_estoque"
-                              ? "border-rose-300 bg-rose-100 text-rose-800 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
-                            : p.status === "enviado"
-                              ? FORN_PEDIDO_STATUS_ENVIADO
-                            : p.status === "aguardando_repasse"
-                              ? "border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
-                            : p.status === "entregue"
-                              ? "border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                            : "border-[var(--card-border)] bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800"
-                          }`}
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                      {statusLabel[p.status] ?? p.status}
+                    </span>
+                  </div>
+
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <dt className="text-neutral-500">Seller</dt>
+                      <dd className="font-medium">{p.seller_nome}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-neutral-500">Custo total</dt>
+                      <dd className="font-medium">{BRL.format(p.valor_fornecedor ?? 0)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-neutral-500">Cor / Tamanho</dt>
+                      <dd>{p.cor ?? "—"} · {p.tamanho ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-neutral-500">Categoria</dt>
+                      <dd>{p.categoria ?? "—"}</dd>
+                    </div>
+                  </dl>
+
+                  {p.status === "bloqueado" && p.motivo_bloqueio ? (
+                    <p className={cn("mt-3 text-sm", DANGER_PREMIUM_TEXT_PRIMARY)}>{p.motivo_bloqueio}</p>
+                  ) : null}
+
+                  {p.tem_etiqueta_oficial && (
+                    <label className="mt-3 flex items-center gap-2 text-xs text-[var(--muted)]">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(p.id)}
+                        onChange={() => toggleSelecionar(p.id)}
+                        className="rounded border-neutral-300 dark:border-neutral-600"
+                        aria-label={`Selecionar pedido ${p.id} para etiqueta oficial`}
+                      />
+                      Incluir na impressão em lote
+                    </label>
+                  )}
+
+                  {(p.status === "enviado" || p.status === "aguardando_repasse") && (
+                    <div className="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:justify-end">
+                      {p.status === "enviado" && (
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/fornecedor/pedidos/${p.id}/etiqueta`)}
+                          className={cn(btnSecondaryCompactClass, "w-full sm:w-auto")}
+                          title="Imprimir etiqueta de separação para a embalagem"
                         >
-                          {statusLabel[p.status] ?? p.status}
-                        </span>
-                        {p.status === "bloqueado" && p.motivo_bloqueio ? (
-                          <p className="mt-1 max-w-xs text-[10px] text-red-700 dark:text-red-300">{p.motivo_bloqueio}</p>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {p.status === "enviado" && (
-                            <button
-                              type="button"
-                              onClick={() => router.push(`/fornecedor/pedidos/${p.id}/etiqueta`)}
-                              className="rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-2.5 py-1.5 text-[10px] font-medium text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
-                              title="Imprimir etiqueta de separação para a embalagem"
-                            >
-                              Imprimir etiqueta
-                            </button>
-                          )}
-                          {p.status === "enviado" && (
-                            <button
-                              type="button"
-                              onClick={() => void marcarPostado(p.id)}
-                              disabled={postandoId !== null}
-                              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-emerald-600/20 transition-colors hover:bg-emerald-700 disabled:opacity-50"
-                            >
-                              {postandoId === p.id ? "Marcando..." : "Marcar como postado"}
-                            </button>
-                          )}
-                          {p.status === "aguardando_repasse" && (
-                            <button
-                              type="button"
-                              onClick={() => void marcarPostado(p.id)}
-                              disabled={postandoId !== null}
-                              title="Use se o extrato do seller ainda mostrar «Aguardando envio» após postagem."
-                              className="rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-2.5 py-1.5 text-[10px] font-medium text-neutral-600 transition-colors hover:bg-neutral-100 disabled:opacity-50 dark:text-neutral-400 dark:hover:bg-neutral-800"
-                            >
-                              {postandoId === p.id ? "Sincronizando..." : "Sincronizar extrato seller"}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                          Imprimir etiqueta
+                        </button>
+                      )}
+                      {p.status === "enviado" && (
+                        <button
+                          type="button"
+                          onClick={() => void marcarPostado(p.id)}
+                          disabled={postandoId !== null}
+                          className={cn(btnPrimaryCompactClass, "w-full sm:w-auto")}
+                        >
+                          {postandoId === p.id ? "Marcando..." : "Marcar como postado"}
+                        </button>
+                      )}
+                      {p.status === "aguardando_repasse" && (
+                        <button
+                          type="button"
+                          onClick={() => void marcarPostado(p.id)}
+                          disabled={postandoId !== null}
+                          title="Use se o extrato do seller ainda mostrar «Aguardando envio» após postagem."
+                          className={cn(btnSecondaryCompactClass, "w-full sm:w-auto")}
+                        >
+                          {postandoId === p.id ? "Sincronizando..." : "Sincronizar extrato seller"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </article>
+              ))}
             </div>
-          )}
-        </section>
+          </>
+        )}
 
       </div>
       <FornecedorNav active="pedidos" />

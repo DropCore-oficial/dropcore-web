@@ -18,21 +18,10 @@ import {
 } from "@/lib/sellerPlanoLabels";
 import { VALOR_DEFAULT_MENSALIDADE_SELLER, VALOR_DEFAULT_MENSALIDADE_SELLER_PRO } from "@/lib/sellerPlanoPrecos";
 import {
-  AMBER_PREMIUM_SHELL,
   AMBER_PREMIUM_SURFACE,
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
   AMBER_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/amberPremium";
-import {
-  SELLER_SALDO_CRITICO_ACCENT_BAR,
-  SELLER_SALDO_CRITICO_BODY,
-  SELLER_SALDO_CRITICO_BUTTON,
-  SELLER_SALDO_CRITICO_CARD_SURFACE,
-  SELLER_SALDO_CRITICO_ICON_STROKE,
-  SELLER_SALDO_CRITICO_ICON_WRAP,
-  SELLER_SALDO_CRITICO_INNER_PAD,
-  SELLER_SALDO_CRITICO_TITLE,
-} from "@/lib/dangerSellerSaldoCriticoUi";
 import {
   DANGER_PREMIUM_SHELL,
   DANGER_PREMIUM_SURFACE_TRANSPARENT,
@@ -55,8 +44,10 @@ import {
 import { SellerPixRecargaVsMensalidadeBox } from "@/components/seller/SellerPixRecargaVsMensalidadeBox";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 
-const SELLER_LEDGER_BADGE_AMBER = cn(AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY);
-const SELLER_LEDGER_BADGE_DANGER = cn(DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY);
+// Status = informação, não ação: sem borda, fundo suave (mesmo padrão de
+// web/app/fornecedor/pedidos/page.tsx e da skill dropcore-layout, seção "Badge de status").
+const SELLER_LEDGER_BADGE_AMBER = cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50");
+const SELLER_LEDGER_BADGE_DANGER = "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300";
 
 type SellerData = {
   id: string;
@@ -179,13 +170,13 @@ const tipoLabel: Record<string, { label: string }> = {
 
 const statusLabel: Record<string, { label: string; cor: string }> = {
   BLOQUEADO:         { label: "Aguardando envio",  cor: SELLER_LEDGER_BADGE_AMBER },
-  ENTREGUE:          { label: "Entregue",           cor: "text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-950/40 border-blue-300 dark:border-blue-700" },
-  AGUARDANDO_REPASSE:{ label: "Pedido postado",     cor: "text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/40 border-sky-300 dark:border-sky-700" },
+  ENTREGUE:          { label: "Entregue",           cor: "text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-950/40" },
+  AGUARDANDO_REPASSE:{ label: "Pedido postado",     cor: "text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/40" },
   EM_DEVOLUCAO:      { label: "Em devolução",       cor: SELLER_LEDGER_BADGE_DANGER },
-  DEVOLVIDO:         { label: "Devolvido",          cor: "text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-950/40 border-violet-300 dark:border-violet-700" },
-  PAGO:              { label: "Concluído",          cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700" },
-  CANCELADO:         { label: "Cancelado",          cor: "text-[var(--muted)] bg-[var(--surface-subtle)] border-[var(--card-border)]" },
-  LIBERADO:          { label: "Disponível",         cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700" },
+  DEVOLVIDO:         { label: "Devolvido",          cor: "text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-950/40" },
+  PAGO:              { label: "Concluído",          cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/40" },
+  CANCELADO:         { label: "Cancelado",          cor: "text-[var(--muted)] bg-[var(--surface-subtle)]" },
+  LIBERADO:          { label: "Disponível",         cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/40" },
 };
 
 const isPositivo = (tipo: string) => tipo === "CREDITO" || tipo === "DEVOLUCAO";
@@ -675,7 +666,8 @@ export default function SellerDashboardPage() {
     const linkClassName = opts?.linkClassName;
     if (!planoOk) {
       const pend = (
-        <span className={cn(SELLER_LEDGER_BADGE_AMBER, "rounded-md px-2 py-0.5 text-[10px] font-semibold")}>
+        <span className={cn(SELLER_LEDGER_BADGE_AMBER, "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium")}>
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
           Plano pendente
         </span>
       );
@@ -913,7 +905,7 @@ export default function SellerDashboardPage() {
           </div>
           <p className={cn("mb-2 font-semibold", DANGER_PREMIUM_TEXT_PRIMARY)}>Ocorreu um erro</p>
           <p className="text-[var(--muted)] text-sm mb-6">{error}</p>
-          <button onClick={() => void load()} className="rounded-xl bg-[var(--foreground)] text-[var(--background)] px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity">
+          <button onClick={() => void load()} className="rounded-md bg-[var(--foreground)] text-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold hover:opacity-90 transition-opacity">
             Tentar novamente
           </button>
         </div>
@@ -923,7 +915,7 @@ export default function SellerDashboardPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="dropcore-shell-4xl py-5 md:py-7 space-y-5 md:space-y-6">
+      <div className="dropcore-shell-6xl py-5 md:py-7 space-y-5 md:space-y-6">
         {/* 1. Header — mesmo cartão do painel fornecedor (mobile/desktop) */}
         <header className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 sm:p-5 shadow-sm overflow-visible">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
@@ -1017,7 +1009,7 @@ export default function SellerDashboardPage() {
                       setMovimentacoesAberto(true);
                       extratoRef.current?.scrollIntoView({ behavior: "smooth" });
                     }}
-                    className="min-h-10 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] touch-manipulation hover:bg-[var(--surface-hover)] transition-colors sm:shrink-0"
+                    className="rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] touch-manipulation hover:bg-[var(--muted)]/10 transition-colors sm:shrink-0"
                   >
                     {pendentesCount} PIX pendente{pendentesCount !== 1 ? "s" : ""}
                   </button>
@@ -1053,49 +1045,10 @@ export default function SellerDashboardPage() {
           </Link>
         )}
 
-        {saldoAlerta && saldoAlerta.nivel !== "ok" && (
-          <div
-            role="status"
-            className={cn(
-              "rounded-2xl p-4 sm:p-5",
-              saldoAlerta.nivel === "critico" ? SELLER_SALDO_CRITICO_CARD_SURFACE : cn(AMBER_PREMIUM_SURFACE, "shadow-sm")
-            )}
-          >
-            {saldoAlerta.nivel === "critico" && (
-              <div className={SELLER_SALDO_CRITICO_ACCENT_BAR} aria-hidden />
-            )}
-            <div className={saldoAlerta.nivel === "critico" ? SELLER_SALDO_CRITICO_INNER_PAD : undefined}>
-            {saldoAlerta.nivel === "critico" ? (
-              <div className="flex gap-3">
-                <span className={SELLER_SALDO_CRITICO_ICON_WRAP}>
-                  <svg
-                    className={SELLER_SALDO_CRITICO_ICON_STROKE}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                    <line x1="12" y1="9" x2="12" y2="13" />
-                    <line x1="12" y1="17" x2="12.01" y2="17" />
-                  </svg>
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className={SELLER_SALDO_CRITICO_TITLE}>Saldo crítico para novos pedidos</p>
-                </div>
-              </div>
-            ) : (
-              <p className={cn("text-sm font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>Saldo baixo — recarregue créditos para pedidos</p>
-            )}
-            <p
-              className={cn(
-                "mt-1 text-xs leading-relaxed text-[var(--foreground)]",
-                saldoAlerta.nivel === "critico" && SELLER_SALDO_CRITICO_BODY
-              )}
-            >
+        {saldoAlerta && saldoAlerta.nivel === "atencao" && (
+          <div role="status" className={cn("rounded-2xl p-4 sm:p-5", AMBER_PREMIUM_SURFACE, "shadow-sm")}>
+            <p className={cn("text-sm font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>Saldo baixo — recarregue créditos para pedidos</p>
+            <p className="mt-1 text-xs leading-relaxed text-[var(--foreground)]">
               Disponível: <span className="font-semibold tabular-nums">{BRL.format(saldoAlerta.saldo_disponivel)}</span>
               {saldoAlerta.custo_medio_pedido != null && saldoAlerta.pedidos_estimados != null ? (
                 <>
@@ -1112,42 +1065,91 @@ export default function SellerDashboardPage() {
                 </>
               )}
             </p>
-            <button
-              type="button"
-              onClick={() => setModalDeposito(true)}
-              className={cn(
-                saldoAlerta.nivel === "critico"
-                  ? SELLER_SALDO_CRITICO_BUTTON
-                  : "mt-3 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors bg-emerald-600 hover:bg-emerald-700"
-              )}
-            >
-              Recarregar créditos
-            </button>
-            </div>
           </div>
         )}
 
-        {/* 2. Resumo financeiro — um único fundo de cartão (sem faixa cinza); alinhado ao fornecedor */}
+        {/* 2. Resumo financeiro — um único fundo de cartão (sem faixa cinza); alinhado ao fornecedor.
+             Vira vermelho e absorve o alerta "Saldo crítico" quando saldoAlerta.nivel === "critico". */}
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
           <div className="relative p-4 sm:p-5">
-            <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-emerald-500 to-emerald-600 opacity-90" aria-hidden />
+            <div
+              className={cn(
+                "absolute left-0 top-4 bottom-4 w-1 rounded-r-full opacity-90",
+                saldoAlerta?.nivel === "critico"
+                  ? "bg-gradient-to-b from-[var(--danger)] to-red-600 dark:from-red-400 dark:to-red-500"
+                  : "bg-gradient-to-b from-emerald-500 to-emerald-600"
+              )}
+              aria-hidden
+            />
             <div className="pl-4 sm:pl-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <p className="text-xs font-medium text-[var(--muted)]">Créditos DropCore (total)</p>
-                <p className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
+                {saldoAlerta?.nivel === "critico" ? (
+                  <div className="flex items-center gap-1.5">
+                    <svg
+                      className="h-4 w-4 shrink-0 text-[var(--danger)] dark:text-red-300"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    <p className="text-xs font-semibold text-[var(--danger)] dark:text-red-300">Saldo crítico para novos pedidos</p>
+                  </div>
+                ) : (
+                  <p className="text-xs font-medium text-[var(--muted)]">Créditos DropCore (total)</p>
+                )}
+                <p
+                  className={cn(
+                    "mt-1 text-3xl sm:text-4xl font-bold tracking-tight tabular-nums",
+                    saldoAlerta?.nivel === "critico" ? "text-[var(--danger)] dark:text-red-300" : "text-emerald-700 dark:text-emerald-400"
+                  )}
+                >
                   {BRL.format(seller?.saldo_atual ?? 0)}
                 </p>
                 <p className="mt-1.5 text-[11px] text-[var(--muted)] max-w-md leading-relaxed">
-                  Para <strong className="font-medium text-[var(--foreground)]">pedidos</strong> na plataforma. Não é saque,
-                  reembolso nem pagamento da mensalidade do plano.
+                  {saldoAlerta?.nivel === "critico" ? (
+                    <>
+                      Disponível: <span className="font-semibold tabular-nums text-[var(--foreground)]">{BRL.format(saldoAlerta.saldo_disponivel)}</span>
+                      {saldoAlerta.custo_medio_pedido != null && saldoAlerta.pedidos_estimados != null ? (
+                        <>
+                          {" "}
+                          · Com base no custo médio dos seus últimos pedidos no extrato (~{BRL.format(saldoAlerta.custo_medio_pedido)} por pedido
+                          {saldoAlerta.amostra_pedidos > 0 ? `, ${saldoAlerta.amostra_pedidos} lançamentos` : ""}), dá para aproximadamente{" "}
+                          <span className="font-semibold tabular-nums text-[var(--foreground)]">{saldoAlerta.pedidos_estimados}</span> pedido
+                          {saldoAlerta.pedidos_estimados === 1 ? "" : "s"} sem recarregar.
+                        </>
+                      ) : (
+                        <>
+                          {" "}
+                          · Sem histórico suficiente de pedidos no extrato para estimar; faça uma recarga PIX (créditos) antes de escalar vendas.
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      Para <strong className="font-medium text-[var(--foreground)]">pedidos</strong> na plataforma. Não é saque,
+                      reembolso nem pagamento da mensalidade do plano.
+                    </>
+                  )}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setModalDeposito(true)}
-                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 text-sm font-semibold shrink-0 shadow-sm shadow-emerald-600/20 transition-colors"
+                className={cn(
+                  "rounded-md px-2.5 py-1.5 text-[11px] font-semibold text-white shrink-0 shadow-sm transition-colors",
+                  saldoAlerta?.nivel === "critico"
+                    ? "bg-[var(--danger)] hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:hover:opacity-100 dark:ring-1 dark:ring-inset dark:ring-white/20"
+                    : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"
+                )}
               >
-                + Recarregar
+                {saldoAlerta?.nivel === "critico" ? "Recarregar créditos" : "+ Recarregar"}
               </button>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-2.5 border-t border-[var(--card-border)]/80 pt-5 sm:grid-cols-4 sm:[&>*]:min-w-0">
@@ -1228,7 +1230,7 @@ export default function SellerDashboardPage() {
                   <button
                     type="button"
                     onClick={() => abrirPixMensalidade(mensalidades[0])}
-                    className="shrink-0 rounded-xl bg-[var(--foreground)] text-[var(--background)] hover:opacity-90 px-4 py-2 text-sm font-semibold"
+                    className="shrink-0 rounded-md bg-[var(--foreground)] text-[var(--background)] hover:opacity-90 px-2.5 py-1.5 text-[11px] font-semibold"
                   >
                     Pagar {BRL.format(mensalidades[0].valor)}
                   </button>
@@ -1249,7 +1251,7 @@ export default function SellerDashboardPage() {
                 <button
                   key={n}
                   onClick={() => setChartPeriodo(n)}
-                  className={`rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                  className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
                     chartPeriodo === n
                       ? "bg-emerald-600 text-white"
                       : "bg-[var(--surface-subtle)] text-[var(--muted)] hover:bg-[var(--surface-hover)]"
@@ -1261,7 +1263,7 @@ export default function SellerDashboardPage() {
               <select
                 value={typeof chartPeriodo === "string" ? chartPeriodo : ""}
                 onChange={(e) => { const v = e.target.value; if (v) setChartPeriodo(v); }}
-                className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium bg-[var(--surface-subtle)] text-[var(--foreground)] border-0 cursor-pointer focus:ring-2 focus:ring-emerald-500"
+                className="rounded-md px-2.5 py-1.5 text-[11px] font-medium bg-[var(--surface-subtle)] text-[var(--foreground)] border-0 cursor-pointer focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="">Mês...</option>
                 <option value="month:current">Este mês</option>
@@ -1285,7 +1287,7 @@ export default function SellerDashboardPage() {
                 <p className="text-sm text-[var(--muted)] mb-3">Sem movimentações neste período</p>
                 <button
                   onClick={() => router.push("/seller/produtos")}
-                  className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-sm font-semibold"
+                  className="rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 text-[11px] font-semibold"
                 >
                   Comece a vender
                 </button>
@@ -1521,7 +1523,7 @@ export default function SellerDashboardPage() {
                     onClick={() => { setTab(t); if (!movimentacoesAberto) setMovimentacoesAberto(true); }}
                     type="button"
                     className={cn(
-                      "inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border px-3 text-xs font-medium transition-colors touch-manipulation whitespace-nowrap",
+                      "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors touch-manipulation whitespace-nowrap",
                       "outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]",
                       tab === t
                         ? "border-emerald-600 bg-emerald-600 text-white font-semibold hover:bg-emerald-700 dark:border-emerald-600 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-700"
@@ -1537,7 +1539,7 @@ export default function SellerDashboardPage() {
                   <button
                     type="button"
                     onClick={() => setModalDeposito(true)}
-                    className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white outline-none transition-colors hover:bg-emerald-700 whitespace-nowrap touch-manipulation focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                    className="inline-flex shrink-0 items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white outline-none transition-colors hover:bg-emerald-700 whitespace-nowrap touch-manipulation focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
                   >
                     + Nova recarga
                   </button>
@@ -1545,14 +1547,14 @@ export default function SellerDashboardPage() {
                 <button
                   type="button"
                   onClick={() => void load()}
-                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 text-xs font-medium text-[var(--muted)] outline-none transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)] touch-manipulation whitespace-nowrap focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                  className="inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] outline-none transition-colors hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] touch-manipulation whitespace-nowrap focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
                 >
                   Atualizar
                 </button>
                 <button
                   type="button"
                   onClick={() => setMovimentacoesAberto(!movimentacoesAberto)}
-                  className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-2.5 text-xs font-medium text-[var(--muted)] outline-none transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)] touch-manipulation focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] outline-none transition-colors hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] touch-manipulation focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
                   title={movimentacoesAberto ? "Recolher" : "Expandir"}
                 >
                   {!movimentacoesAberto && (
@@ -1628,7 +1630,7 @@ export default function SellerDashboardPage() {
                   {(filtroStatus || filtroTipo) && (
                     <button
                       onClick={() => { setFiltroStatus(""); setFiltroTipo(""); }}
-                      className="mt-4 rounded-lg bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 px-4 py-2 text-sm font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+                      className="mt-4 rounded-md bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 px-2.5 py-1.5 text-[11px] font-semibold hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
                     >
                       Ver todas
                     </button>
@@ -1676,7 +1678,12 @@ export default function SellerDashboardPage() {
                                 <p className={`text-base font-bold tabular-nums ${isPositivo(e.tipo) ? "text-emerald-600 dark:text-emerald-400" : isNegativo(e.tipo) ? "text-[var(--foreground)]" : "text-[var(--muted)]"}`}>
                                   {isPositivo(e.tipo) ? "+" : isNegativo(e.tipo) ? "−" : ""}{BRL.format(e.valor_total)}
                                 </p>
-                                {st && <span className={`inline-block mt-1.5 rounded-md px-2 py-0.5 text-[10px] font-medium ${st.cor}`}>{st.label}</span>}
+                                {st && (
+                                  <span className={`mt-1.5 inline-flex w-36 items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium ${st.cor}`}>
+                                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                                    {st.label}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           );
@@ -1701,7 +1708,7 @@ export default function SellerDashboardPage() {
                   <p className="text-xs text-[var(--muted)] mt-1 max-w-sm mx-auto leading-relaxed">
                     Recarregue créditos via PIX (mín. R$ 500) para pedidos. {SELLER_CREDITO_NAO_PAGA_MENSALIDADE}
                   </p>
-                <button onClick={() => setModalDeposito(true)} className="mt-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-sm font-semibold shadow-md shadow-emerald-900/15 hover:shadow-emerald-900/20 transition-all">
+                <button onClick={() => setModalDeposito(true)} className="mt-6 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 text-[11px] font-semibold shadow-sm transition-colors">
                     + Recarregar créditos
                   </button>
                 </div>
@@ -1730,13 +1737,14 @@ export default function SellerDashboardPage() {
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">+{BRL.format(d.valor)}</p>
-                        <span className={`inline-block mt-1.5 rounded-md px-2.5 py-1 text-[10px] font-semibold ${
+                        <span className={`mt-1.5 inline-flex w-36 items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium ${
                           d.status === "aprovado"
                             ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300"
                             : d.status === "pendente"
                               ? SELLER_LEDGER_BADGE_AMBER
                               : "bg-[var(--surface-subtle)] text-[var(--muted)]"
                         }`}>
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                           {d.status === "aprovado" ? "Aprovado" : d.status === "pendente" ? "Pendente" : d.status}
                         </span>
                       </div>
@@ -1801,13 +1809,13 @@ export default function SellerDashboardPage() {
                             setDepositoCopiado(true);
                             setTimeout(() => setDepositoCopiado(false), 2000);
                           }}
-                          className="w-full rounded-xl border-2 border-emerald-500 dark:border-emerald-600 bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-2.5 text-sm hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2"
+                          className="w-full rounded-md bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-1.5 text-[11px] hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2"
                         >
                           {depositoCopiado ? "✓ Copiado!" : "Copiar código PIX"}
                         </button>
                       </div>
                     )}
-                    <button onClick={fecharModal} className="w-full rounded-xl bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-2.5 text-sm hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors">
+                    <button onClick={fecharModal} className="w-full rounded-md bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-1.5 text-[11px] hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors">
                       Fechar
                     </button>
                   </div>
@@ -1818,7 +1826,7 @@ export default function SellerDashboardPage() {
                     </div>
                     <p className="text-sm font-semibold text-[var(--foreground)]">Solicitação enviada!</p>
                     <p className="text-xs text-[var(--muted)]">Faça o PIX e aguarde a confirmação. Os créditos entram assim que o pagamento for aprovado.</p>
-                    <button onClick={fecharModal} className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] text-[var(--foreground)] font-semibold py-2.5 text-sm hover:bg-[var(--surface-hover)] transition-colors mt-2">
+                    <button onClick={fecharModal} className="w-full rounded-md border border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] font-semibold py-1.5 text-[11px] hover:bg-[var(--muted)]/10 transition-colors mt-2">
                       Fechar
                     </button>
                   </div>
@@ -1893,13 +1901,13 @@ export default function SellerDashboardPage() {
                   )}
 
                   <div className="flex gap-2 pt-1">
-                    <button onClick={fecharModal} className="flex-1 rounded-xl border border-[var(--card-border)] py-2.5 text-sm text-[var(--muted)] hover:bg-[var(--surface-hover)] transition-colors">
+                    <button onClick={fecharModal} className="flex-1 rounded-md border border-[var(--card-border)] py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10 transition-colors">
                       Cancelar
                     </button>
                     <button
                       onClick={solicitarDeposito}
                       disabled={depositoLoading || !depositoValor || !depositoAceiteTermos}
-                      className="flex-1 rounded-xl bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-2.5 text-sm hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="flex-1 rounded-md bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-1.5 text-[11px] hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {depositoLoading ? "Gerando PIX..." : "Gerar PIX da recarga"}
                     </button>
@@ -1965,7 +1973,7 @@ export default function SellerDashboardPage() {
                             setPixMensalidadeCopiado(true);
                             setTimeout(() => setPixMensalidadeCopiado(false), 2000);
                           }}
-                          className="w-full rounded-xl border-2 border-emerald-500 dark:border-emerald-600 bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-2.5 text-sm hover:opacity-90 transition-colors flex items-center justify-center gap-2"
+                          className="w-full rounded-md bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-1.5 text-[11px] hover:opacity-90 transition-colors flex items-center justify-center gap-2"
                         >
                           {pixMensalidadeCopiado ? "Copiado!" : "Copiar código PIX"}
                         </button>
@@ -2119,7 +2127,7 @@ export default function SellerDashboardPage() {
               <button
                 type="button"
                 onClick={() => setModalArmazem(false)}
-                className="w-full rounded-xl bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-2.5 text-sm hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors"
+                className="w-full rounded-md bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-1.5 text-[11px] hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors"
               >
                 Entendi
               </button>

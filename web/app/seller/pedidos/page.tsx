@@ -5,12 +5,16 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
-import { AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
-import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
+import { AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import {
   SELLER_SALDO_CRITICO_ACCENT_BAR,
   SELLER_SALDO_CRITICO_BODY,
   SELLER_SALDO_CRITICO_CARD_SURFACE,
+  SELLER_SALDO_CRITICO_ICON_STROKE,
+  SELLER_SALDO_CRITICO_ICON_WRAP,
+  SELLER_SALDO_CRITICO_INNER_PAD,
+  SELLER_SALDO_CRITICO_TITLE,
 } from "@/lib/dangerSellerSaldoCriticoUi";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { cn } from "@/lib/utils";
@@ -59,8 +63,17 @@ const statusLabel: Record<string, string> = {
   erro_saldo: "Erro de saldo",
 };
 
-const STATUS_PENDENTE = cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY);
-const STATUS_BLOQUEADO = cn(DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY);
+// Status = informação, não ação: sem borda, fundo suave + bolinha (bg-current) em vez de
+// pílula com contorno (mesmo padrão de web/app/fornecedor/pedidos/page.tsx).
+const STATUS_PILL: Record<string, string> = {
+  bloqueado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+  pendente_estoque: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  enviado: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
+  aguardando_repasse: "bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
+  entregue: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
+  devolvido: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+};
 
 export default function SellerPedidosPage() {
   const router = useRouter();
@@ -116,7 +129,7 @@ export default function SellerPedidosPage() {
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] pb-24 md:pb-8">
       <SellerNav active="pedidos" />
-      <main className="dropcore-shell-4xl mx-auto px-4 pt-20 sm:px-6 sm:pt-24">
+      <main className="dropcore-shell-6xl mx-auto px-4 pt-20 sm:px-6 sm:pt-24">
         <div className="mb-6">
           <h1 className="text-2xl font-semibold tracking-tight">Seus pedidos</h1>
           <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
@@ -138,7 +151,7 @@ export default function SellerPedidosPage() {
             id="filtro-status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm"
+            className="min-h-[1.875rem] rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] sm:w-36"
           >
             <option value="">Todos</option>
             <option value="pendente_estoque">Aguardando estoque</option>
@@ -162,10 +175,12 @@ export default function SellerPedidosPage() {
         ) : (
           <div className="space-y-3">
             {pedidos.map((p) => {
-              const titulo =
-                p.nome_produto?.trim() ||
-                p.itens.map((i) => i.sku).join(", ") ||
-                "Pedido";
+              const itensNomes = p.itens
+                .map((i) => i.nome_produto?.trim())
+                .filter((nome): nome is string => Boolean(nome));
+              const skuList = p.itens.map((i) => i.sku).filter(Boolean).join(", ");
+              const nomeEncontrado = p.nome_produto?.trim() || (itensNomes.length > 0 ? itensNomes.join(", ") : "");
+              const titulo = nomeEncontrado || skuList || "Pedido";
               const comprador = [p.comprador_nome, p.comprador_cidade, p.comprador_uf].filter(Boolean).join(" · ");
               return (
                 <article
@@ -179,18 +194,18 @@ export default function SellerPedidosPage() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-medium text-[var(--foreground)]">{titulo}</p>
+                      {nomeEncontrado && skuList ? (
+                        <p className="mt-0.5 font-mono text-xs text-neutral-500">{skuList}</p>
+                      ) : null}
                       <p className="mt-1 text-sm text-neutral-500">{formatDate(p.criado_em)}</p>
                     </div>
                     <span
                       className={cn(
-                        "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium",
-                        p.status === "bloqueado" || p.status === "erro_saldo"
-                          ? STATUS_BLOQUEADO
-                          : p.status === "pendente_estoque" || p.status === "enviado"
-                            ? STATUS_PENDENTE
-                            : "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
+                        STATUS_PILL[p.status] ?? "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
                       )}
                     >
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                       {statusLabel[p.status] ?? p.status}
                     </span>
                   </div>
@@ -200,37 +215,27 @@ export default function SellerPedidosPage() {
                       <dt className="text-neutral-500">Custo total</dt>
                       <dd className="font-medium">{BRL.format(Number(p.valor_total ?? 0))}</dd>
                     </div>
-                    {p.marketplace_numero ? (
-                      <div>
-                        <dt className="text-neutral-500">Pedido marketplace</dt>
-                        <dd className="font-mono text-xs sm:text-sm">{p.marketplace_numero}</dd>
-                      </div>
-                    ) : null}
-                    {p.referencia_externa ? (
-                      <div>
-                        <dt className="text-neutral-500">Ref. Olist</dt>
-                        <dd className="font-mono text-xs sm:text-sm">{p.referencia_externa}</dd>
-                      </div>
-                    ) : null}
-                    {comprador ? (
-                      <div className="sm:col-span-2">
-                        <dt className="text-neutral-500">Cliente / entrega</dt>
-                        <dd>{comprador}</dd>
-                        {p.comprador_fone ? <dd className="text-neutral-600 dark:text-neutral-400">{p.comprador_fone}</dd> : null}
-                      </div>
-                    ) : null}
-                    {p.tracking_codigo ? (
-                      <div>
-                        <dt className="text-neutral-500">Rastreio</dt>
-                        <dd className="font-mono text-xs">{p.tracking_codigo}</dd>
-                      </div>
-                    ) : null}
-                    {p.metodo_envio ? (
-                      <div>
-                        <dt className="text-neutral-500">Envio</dt>
-                        <dd>{p.metodo_envio}</dd>
-                      </div>
-                    ) : null}
+                    <div>
+                      <dt className="text-neutral-500">Pedido marketplace</dt>
+                      <dd className="font-mono text-xs sm:text-sm">{p.marketplace_numero ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-neutral-500">Ref. Olist</dt>
+                      <dd className="font-mono text-xs sm:text-sm">{p.referencia_externa ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-neutral-500">Rastreio</dt>
+                      <dd className="font-mono text-xs">{p.tracking_codigo ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-neutral-500">Envio</dt>
+                      <dd>{p.metodo_envio ?? "—"}</dd>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <dt className="text-neutral-500">Cliente / entrega</dt>
+                      <dd>{comprador || "—"}</dd>
+                      {p.comprador_fone ? <dd className="text-neutral-600 dark:text-neutral-400">{p.comprador_fone}</dd> : null}
+                    </div>
                   </dl>
 
                   {p.itens.length > 0 ? (
@@ -257,35 +262,37 @@ export default function SellerPedidosPage() {
                   ) : null}
 
                   {p.status === "erro_saldo" ? (
-                    <div role="status" className={cn("relative mt-3 overflow-hidden rounded-xl p-3", SELLER_SALDO_CRITICO_CARD_SURFACE)}>
+                    <div role="status" className={cn("relative mt-3 overflow-hidden rounded-xl", SELLER_SALDO_CRITICO_CARD_SURFACE)}>
                       <div className={SELLER_SALDO_CRITICO_ACCENT_BAR} aria-hidden />
-                      <div className="flex items-start gap-2.5 pl-3">
-                        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[var(--danger)]/35 bg-[var(--danger)]/10 dark:border-red-400/55 dark:bg-transparent">
-                          <svg
-                            className="h-4 w-4 text-[var(--danger)] dark:text-red-300"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden
-                          >
-                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                            <line x1="12" y1="9" x2="12" y2="13" />
-                            <line x1="12" y1="17" x2="12.01" y2="17" />
-                          </svg>
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold leading-snug tracking-tight text-[var(--danger)] dark:text-red-300">
-                            Saldo insuficiente para este pedido
-                          </p>
-                          <p className={cn(SELLER_SALDO_CRITICO_BODY, "mt-1")}>
-                            Pedido não processado por falta de saldo na hora da venda.
-                          </p>
+                      <div className={SELLER_SALDO_CRITICO_INNER_PAD}>
+                        <div className="flex flex-wrap items-center justify-between gap-3 py-3 pr-3">
+                          <div className="flex min-w-0 items-start gap-2.5">
+                            <span className={SELLER_SALDO_CRITICO_ICON_WRAP}>
+                              <svg
+                                className={SELLER_SALDO_CRITICO_ICON_STROKE}
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden
+                              >
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                <line x1="12" y1="9" x2="12" y2="13" />
+                                <line x1="12" y1="17" x2="12.01" y2="17" />
+                              </svg>
+                            </span>
+                            <div className="min-w-0">
+                              <p className={SELLER_SALDO_CRITICO_TITLE}>Saldo insuficiente para este pedido</p>
+                              <p className={SELLER_SALDO_CRITICO_BODY}>
+                                Pedido não processado por falta de saldo na hora da venda.
+                              </p>
+                            </div>
+                          </div>
                           <Link
                             href="/seller/dashboard?recarregar=1"
-                            className="mt-2.5 block w-full rounded-lg bg-[var(--danger)] px-3 py-2 text-center text-xs font-semibold text-white transition-colors hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:hover:opacity-100 dark:shadow-sm dark:shadow-red-950/50 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:inline-block sm:w-auto sm:text-left"
+                            className="w-full shrink-0 rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-center text-[11px] font-semibold text-white shadow-sm transition-colors hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:hover:opacity-100 dark:shadow-red-950/50 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:w-auto"
                           >
                             Recarregar créditos
                           </Link>
