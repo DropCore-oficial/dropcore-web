@@ -375,7 +375,7 @@ export function NotificationBell({
                             )}
                             {n.tipo === "repasse_recebido" && (
                               <a
-                                href="/fornecedor/dashboard"
+                                href="/fornecedor/dashboard?repasse=1"
                                 onClick={(e) => e.stopPropagation()}
                                 className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
                               >

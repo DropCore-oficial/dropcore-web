@@ -32,6 +32,13 @@ mensalidades, repasses) e integrações com ERPs externos (Olist, Bling).
   desses módulos.
 - Modal/dialog sempre centralizado na viewport (vertical e horizontal), mobile e desktop.
   Nada de "bottom sheet" para formulário, PIX ou confirmação.
+- **Mobile é obrigatório, não opcional.** Toda tela/componente novo ou alterado precisa
+  ficar harmônico e fácil de entender também em telas estreitas (≈360–390px), não só
+  desktop — testar/revisar mentalmente o layout em mobile antes de considerar pronto.
+  Nada de tabela larga estourando a viewport sem alternativa (usar cards empilhados ou
+  scroll horizontal com affordance visível), texto colado sem quebra/espaçamento, ou
+  botões cortados. Bonito e legível em qualquer tamanho de tela é requisito, não é
+  "nice to have".
 
 ## Identidade e idioma
 - **Jarvis** = o assistente de IA neste projeto; **Sr Stark** = o usuário/dono do projeto.
@@ -39,9 +46,15 @@ mensalidades, repasses) e integrações com ERPs externos (Olist, Bling).
 - Toda comunicação com o usuário é em **português do Brasil**, nunca português de Portugal.
 
 ## Regra de ouro
-Antes de QUALQUER alteração em código, banco, RLS, função ou infra: apresentar o plano
-(Plan Mode) e aguardar aprovação. Exceção: typo e lint fix. Uma feature por vez; não
-refatorar o que não foi pedido. Se algo for violar uma regra abaixo, pare e avise.
+- **Código** (front, API route, lib, etc.): pode implementar direto assim que o pedido/
+  direção estiver claro — não fica reconfirmando a cada passo depois que o Sr Stark já
+  disse que quer. Uma feature por vez; não refatorar o que não foi pedido.
+- **Banco, RLS, função (SQL em produção) ou infra**: sempre apresentar o plano e aguardar
+  aprovação antes de rodar — é dado financeiro real (PIX, repasse), sem staging hoje.
+  Exceção: SELECT/consulta só de leitura não precisa de aprovação.
+- **`git commit` e deploy** (Vercel): sempre pedir confirmação antes, mesmo que o resto da
+  tarefa já tenha sido aprovado.
+- Se algo for violar uma regra abaixo, pare e avise.
 
 ## Regras inegociáveis (NÃO violar)
 1. **RLS sempre ligada.** Toda tabela nasce com RLS habilitada. Nada acessível por padrão.

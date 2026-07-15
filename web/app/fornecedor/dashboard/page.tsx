@@ -134,6 +134,7 @@ export default function FornecedorDashboardPage() {
 
   const searchParams = useSearchParams();
   const pagarAbertoRef = useRef(false);
+  const repasseAbertoRef = useRef(false);
 
   const temMensalidadeVencida = mensalidades.some((m) => m.vencido);
   const cobrancaMensalidadeAtiva = !trialAtivo;
@@ -295,6 +296,15 @@ export default function FornecedorDashboardPage() {
       setRepasseAberto(true);
     }
   }, [repasseItems.length, totalAReceber]);
+
+  useEffect(() => {
+    const repasse = searchParams.get("repasse");
+    if (repasse === "1" && !loading && !repasseAbertoRef.current) {
+      repasseAbertoRef.current = true;
+      setRepasseAberto(true);
+      repasseRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [searchParams.get("repasse"), loading]);
 
   async function abrirPixMensalidade(m: Mensalidade) {
     setModalPixMensalidade(m);

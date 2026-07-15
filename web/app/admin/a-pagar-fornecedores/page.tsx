@@ -12,6 +12,12 @@ type Item = {
   status: string;
 };
 
+type CicloResumo = {
+  ciclo_repasse: string;
+  total_dropcore: number;
+  total_fornecedores: number;
+};
+
 const btnPrimary: CSSProperties = { padding: "8px 16px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14 };
 const btnSecondary: CSSProperties = { padding: "8px 16px", border: "1px solid var(--card-border)", borderRadius: 6, background: "var(--card)", color: "var(--foreground)", cursor: "pointer", fontSize: 14 };
 
@@ -30,6 +36,8 @@ export default function APagarFornecedoresPage() {
   const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
   const [totalAPagar, setTotalAPagar] = useState(0);
+  const [ciclos, setCiclos] = useState<CicloResumo[]>([]);
+  const [totalDropcore, setTotalDropcore] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -76,14 +84,20 @@ export default function APagarFornecedoresPage() {
         setError(data?.error || "Erro ao carregar.");
         setItems([]);
         setTotalAPagar(0);
+        setCiclos([]);
+        setTotalDropcore(0);
         return;
       }
       setItems(data.items ?? []);
       setTotalAPagar(data.total_a_pagar ?? 0);
+      setCiclos(data.ciclos ?? []);
+      setTotalDropcore(data.total_dropcore ?? 0);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro");
       setItems([]);
       setTotalAPagar(0);
+      setCiclos([]);
+      setTotalDropcore(0);
     } finally {
       setLoading(false);
     }
@@ -137,10 +151,40 @@ export default function APagarFornecedoresPage() {
         <p style={{ color: "var(--muted)" }}>Nenhum repasse pendente ou liberado. Feche um ciclo em &quot;Repasse ao fornecedor&quot; para gerar valores aqui.</p>
       ) : (
         <>
-          <p style={{ marginBottom: 16, fontSize: 15, fontWeight: 600 }}>
-            Total a pagar (pendente/liberado): {formatMoney(totalAPagar)}
-          </p>
-          <div className="dropcore-scroll-x">
+          <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:gap-6">
+            <p style={{ fontSize: 15, fontWeight: 600 }}>
+              Total a pagar (pendente/liberado): {formatMoney(totalAPagar)}
+            </p>
+            <p style={{ fontSize: 15, fontWeight: 600, color: "#16a34a" }}>
+              Receita DropCore nestes ciclos: {formatMoney(totalDropcore)}
+            </p>
+          </div>
+
+          {ciclos.length > 0 && (
+            <div style={{ marginBottom: 20, border: "1px solid var(--card-border)", borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "var(--muted)", borderBottom: "1px solid var(--card-border)" }}>
+                Por ciclo (fornecedores × receita DropCore — informativo, DropCore não é um valor a pagar)
+              </div>
+              {ciclos
+                .slice()
+                .sort((a, b) => (a.ciclo_repasse < b.ciclo_repasse ? 1 : -1))
+                .map((c) => (
+                  <div
+                    key={c.ciclo_repasse}
+                    className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                    style={{ padding: "8px 12px", fontSize: 13, borderTop: "1px solid var(--card-border)" }}
+                  >
+                    <span className="font-medium">{formatDate(c.ciclo_repasse)}</span>
+                    <span>
+                      Fornecedores {formatMoney(c.total_fornecedores)} · <span style={{ color: "#16a34a" }}>DropCore {formatMoney(c.total_dropcore)}</span>
+                    </span>
+                  </div>
+                ))}
+            </div>
+          )}
+
+          {/* Desktop/tablet: tabela */}
+          <div className="hidden sm:block dropcore-scroll-x">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
               <thead>
                 <tr style={{ borderBottom: "2px solid var(--card-border)", textAlign: "left" }}>
@@ -175,6 +219,36 @@ export default function APagarFornecedoresPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile: cards empilhados (tabela larga não cabe em ~390px) */}
+          <div className="sm:hidden space-y-3">
+            {items.map((r) => (
+              <div
+                key={r.id}
+                className="rounded-xl px-3 py-3"
+                style={{ border: "1px solid var(--card-border)" }}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-sm font-semibold text-[var(--foreground)]">{r.fornecedor_nome}</span>
+                  <span className="text-sm font-semibold tabular-nums text-[var(--foreground)]">{formatMoney(r.valor_total)}</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between gap-2 text-xs" style={{ color: "var(--muted)" }}>
+                  <span>Ciclo {formatDate(r.ciclo_repasse)}</span>
+                  <span>{r.status === "pago" ? "Pago" : r.status}</span>
+                </div>
+                {(r.status === "pendente" || r.status === "liberado") && (
+                  <button
+                    type="button"
+                    onClick={() => marcarComoPago(r.id)}
+                    disabled={updatingId !== null}
+                    style={{ ...btnPrimary, opacity: updatingId !== null ? 0.7 : 1, fontSize: 13, width: "100%", marginTop: 10 }}
+                  >
+                    {updatingId === r.id ? "..." : "Marcar como pago"}
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         </>
       )}

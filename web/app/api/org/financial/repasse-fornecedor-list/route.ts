@@ -57,7 +57,24 @@ export async function GET(req: Request) {
 
     const totalPendente = items.filter((i) => i.status === "pendente" || i.status === "liberado").reduce((s, i) => s + i.valor_total, 0);
 
-    return NextResponse.json({ items, total_a_pagar: totalPendente });
+    // Receita DropCore por ciclo (informativo — não é um valor a pagar ao fornecedor).
+    const ciclosPresentes = [...new Set(items.map((i) => i.ciclo_repasse))];
+    let ciclos: { ciclo_repasse: string; total_dropcore: number; total_fornecedores: number }[] = [];
+    if (ciclosPresentes.length > 0) {
+      const { data: ciclosRows } = await supabaseAdmin
+        .from("financial_ciclos_repasse")
+        .select("ciclo_repasse, total_dropcore, total_fornecedores")
+        .eq("org_id", org_id)
+        .in("ciclo_repasse", ciclosPresentes);
+      ciclos = (ciclosRows ?? []).map((c) => ({
+        ciclo_repasse: c.ciclo_repasse,
+        total_dropcore: Number(c.total_dropcore),
+        total_fornecedores: Number(c.total_fornecedores),
+      }));
+    }
+    const totalDropcore = ciclos.reduce((s, c) => s + c.total_dropcore, 0);
+
+    return NextResponse.json({ items, total_a_pagar: totalPendente, ciclos, total_dropcore: totalDropcore });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     const status =

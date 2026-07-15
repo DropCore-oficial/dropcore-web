@@ -16,6 +16,7 @@ import {
 } from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
 import { proximosCiclos, ciclosAnteriores } from "@/lib/cicloRepasse";
+import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 
 type PreviewItem = {
   fornecedor_id: string;
@@ -72,8 +73,10 @@ export default function RepasseFornecedorPage() {
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [cicloBuscado, setCicloBuscado] = useState<string | null>(null);
   const [futureCycles, setFutureCycles] = useState<FutureCyclePreview[]>([]);
+  const [pastCycles, setPastCycles] = useState<FutureCyclePreview[]>([]);
   const [showComoFunciona, setShowComoFunciona] = useState(false);
   const [showMaisOpcoes, setShowMaisOpcoes] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const proximasOpcoes = proximosCiclos(8);
   const ultimasOpcoes = ciclosAnteriores(8);
@@ -127,9 +130,52 @@ export default function RepasseFornecedorPage() {
     }
   }
 
+  /** Carrega preview das semanas anteriores e devolve a lista (mais recente primeiro). */
+  async function loadPastCycles(): Promise<FutureCyclePreview[]> {
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return [];
+      const results = await Promise.all(
+        ultimasOpcoes.map(async (c) => {
+          const res = await fetch(`/api/org/financial/repasse-semanal?ciclo_repasse=${encodeURIComponent(c)}`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (!res.ok) return null;
+          const data = (await res.json()) as Preview;
+          return {
+            ciclo_repasse: c,
+            entries_count: data.entries_count ?? 0,
+            total_fornecedores: data.total_fornecedores ?? 0,
+            total_dropcore: data.total_dropcore ?? 0,
+          } satisfies FutureCyclePreview;
+        })
+      );
+      const list = results.filter((x): x is FutureCyclePreview => Boolean(x));
+      setPastCycles(list);
+      return list;
+    } catch {
+      setPastCycles([]);
+      return [];
+    }
+  }
+
   useEffect(() => {
-    loadPreview(ciclo);
-    loadFutureCycles();
+    (async () => {
+      // ultimasOpcoes vem do mais recente pro mais antigo; o ciclo mais antigo com
+      // pendências é o que precisa de ação — não o "próximo" cronológico, que é o
+      // que ficava pré-selecionado e causava fechamento por engano do ciclo errado.
+      setLoading(true);
+      const past = await loadPastCycles();
+      const maisAntigoPendente = [...past].reverse().find((c) => c.entries_count > 0);
+      if (maisAntigoPendente) {
+        setCiclo(maisAntigoPendente.ciclo_repasse);
+        setShowMaisOpcoes(true);
+        loadPreview(maisAntigoPendente.ciclo_repasse);
+      } else {
+        loadPreview(ciclo);
+      }
+      loadFutureCycles();
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -263,19 +309,31 @@ export default function RepasseFornecedorPage() {
                   <div>
                     <p className="text-[11px] text-neutral-600 mb-2">Semanas anteriores</p>
                     <div className="flex flex-wrap gap-2">
-                      {ultimasOpcoes.map((s) => (
-                        <button
-                          key={s}
-                          onClick={() => selectCiclo(s)}
-                          className={`rounded-xl border px-3 py-1.5 text-xs transition-colors ${
-                            ciclo === s
-                              ? "border-emerald-300 bg-emerald-100 text-emerald-700 font-semibold"
-                              : "border-neutral-200 text-neutral-600 hover:border-neutral-300 hover:text-neutral-700"
-                          }`}
-                        >
-                          {formatCiclo(s)}
-                        </button>
-                      ))}
+                      {ultimasOpcoes.map((s) => {
+                        const cyclePreview = pastCycles.find((f) => f.ciclo_repasse === s);
+                        const selected = ciclo === s;
+                        const pendente = (cyclePreview?.entries_count ?? 0) > 0;
+                        return (
+                          <button
+                            key={s}
+                            onClick={() => selectCiclo(s)}
+                            className={`flex flex-col items-start rounded-xl border px-3 py-1.5 text-xs transition-colors ${
+                              selected
+                                ? "border-emerald-300 bg-emerald-100 text-emerald-700 font-semibold"
+                                : pendente
+                                ? "border-amber-300 bg-amber-50 text-amber-800 hover:border-amber-400"
+                                : "border-neutral-200 text-neutral-600 hover:border-neutral-300 hover:text-neutral-700"
+                            }`}
+                          >
+                            <span>{formatCiclo(s)}</span>
+                            {cyclePreview && cyclePreview.entries_count > 0 && (
+                              <span className={`text-[10px] tabular-nums font-normal ${selected ? "text-emerald-700/80" : "text-amber-700/80"}`}>
+                                {cyclePreview.entries_count} ped. · {BRL.format(cyclePreview.total_fornecedores)}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 pt-1">
@@ -433,7 +491,7 @@ export default function RepasseFornecedorPage() {
                     )}
 
                     <button
-                      onClick={fecharRepasse}
+                      onClick={() => setShowConfirm(true)}
                       disabled={closing || (preview.fornecedores_cadastro_pendente?.length ?? 0) > 0}
                       className={`w-full rounded-xl py-3 text-sm font-semibold transition-colors ${
                         closing || (preview.fornecedores_cadastro_pendente?.length ?? 0) > 0
@@ -461,6 +519,64 @@ export default function RepasseFornecedorPage() {
             )}
           >
             {message.text}
+          </div>
+        )}
+
+        {/* Confirmação de fechamento */}
+        {showConfirm && preview && (
+          <div className={cn(MODAL_OVERLAY_CLASS, "animate-fade-in-up")} onClick={() => !closing && setShowConfirm(false)}>
+            <div
+              className={cn(MODAL_PANEL_CLASS, "animate-fade-in-up animate-fade-in-up-delay-1")}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[var(--card-border)] shrink-0">
+                <h2 className="text-sm font-semibold text-[var(--foreground)]">Confirmar fechamento do repasse</h2>
+                <button
+                  onClick={() => setShowConfirm(false)}
+                  disabled={closing}
+                  className="p-1 -m-1 text-neutral-400 hover:text-neutral-900 transition-colors rounded text-lg leading-none"
+                >
+                  ×
+                </button>
+              </div>
+              <div className={cn("p-5 space-y-4", MODAL_PANEL_BODY_CLASS)}>
+                <p className="text-sm text-neutral-700">
+                  Você vai fechar o ciclo <strong>{formatCiclo(ciclo)}</strong> com{" "}
+                  <strong>{preview.entries_count} pedido(s)</strong>. Isso apura o valor e envia pra fila de{" "}
+                  <strong>&quot;A pagar aos fornecedores&quot;</strong> — o pagamento em si (PIX/transferência) você faz
+                  fora do sistema e depois marca como pago lá. Confira antes de confirmar.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl border border-neutral-200 px-3 py-2.5 text-center">
+                    <p className="text-[11px] text-neutral-600 mb-0.5">Fornecedores</p>
+                    <p className="text-sm font-semibold tabular-nums text-neutral-900">{BRL.format(preview.total_fornecedores)}</p>
+                  </div>
+                  <div className="rounded-xl border border-neutral-200 px-3 py-2.5 text-center">
+                    <p className="text-[11px] text-neutral-600 mb-0.5">DropCore</p>
+                    <p className="text-sm font-semibold tabular-nums text-emerald-700">{BRL.format(preview.total_dropcore)}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 px-5 pb-5 pt-1 shrink-0">
+                <button
+                  onClick={() => setShowConfirm(false)}
+                  disabled={closing}
+                  className="flex-1 rounded-xl border border-neutral-300 py-2.5 text-sm text-neutral-700 hover:border-neutral-500 disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={async () => {
+                    await fecharRepasse();
+                    setShowConfirm(false);
+                  }}
+                  disabled={closing}
+                  className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 text-sm font-semibold disabled:opacity-60"
+                >
+                  {closing ? "Fechando..." : "Confirmar fechamento"}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
