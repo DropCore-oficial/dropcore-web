@@ -149,19 +149,6 @@ function SellerNavDesktopMais({ active }: { active: NavKey }) {
           aria-labelledby="seller-nav-mais-trigger"
         >
           <Link
-            href="/seller/pedidos"
-            role="menuitem"
-            className={`mx-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-              active === "pedidos"
-                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
-                : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
-            }`}
-            onClick={() => setOpen(false)}
-          >
-            <IconTruck active={active === "pedidos"} />
-            Pedidos
-          </Link>
-          <Link
             href="/seller/integracoes-erp"
             role="menuitem"
             className={`mx-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
@@ -209,10 +196,13 @@ function SellerNavDesktopMais({ active }: { active: NavKey }) {
 export function SellerNav({
   active,
   calcOnly = false,
+  wide = false,
 }: {
   active: NavKey;
   /** Só assinatura calculadora: esconde Dashboard e ERP */
   calcOnly?: boolean;
+  /** Página já migrada pro padrão largo (dropcore-shell-6xl) — alinha o menu desktop com o conteúdo. */
+  wide?: boolean;
 }) {
   const router = useRouter();
   const [mobileMaisOpen, setMobileMaisOpen] = useState(false);
@@ -313,7 +303,7 @@ export function SellerNav({
         end={<AppBarEndMobileAuth context="seller" onLogout={sair} />}
       />
       <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
-        <div className="dropcore-shell-4xl flex w-full min-w-0 items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6">
+        <div className={`${wide ? "dropcore-shell-6xl" : "dropcore-shell-4xl"} flex w-full min-w-0 items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6`}>
           <div className="flex min-w-0 items-center gap-2 sm:gap-4 md:gap-6">
             <DropCoreLogo variant="horizontal" href="/seller/dashboard" className="shrink-0" />
             <div className="flex shrink-0 items-center gap-0.5">
@@ -353,19 +343,6 @@ export function SellerNav({
             role="menu"
             aria-label="Mais opções do seller"
           >
-            <Link
-              href="/seller/pedidos"
-              role="menuitem"
-              className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
-                active === "pedidos"
-                  ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
-                  : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
-              }`}
-              onClick={() => setMobileMaisOpen(false)}
-            >
-              <IconTruck active={active === "pedidos"} />
-              Pedidos
-            </Link>
             <Link
               href="/seller/integracoes-erp"
               role="menuitem"
@@ -410,10 +387,14 @@ export function SellerNav({
       ) : null}
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto grid w-full max-w-4xl grid-cols-4 items-stretch min-h-[52px]">
+        <div className="mx-auto grid w-full max-w-4xl grid-cols-5 items-stretch min-h-[52px]">
           <Link href="/seller/dashboard" className={mobileLinkClass("dashboard")}>
             <IconHome active={active === "dashboard"} />
             <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Painel</span>
+          </Link>
+          <Link href="/seller/pedidos" className={mobileLinkClass("pedidos")}>
+            <IconTruck active={active === "pedidos"} />
+            <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Pedidos</span>
           </Link>
           <Link href="/seller/produtos" className={mobileLinkClass("produtos")}>
             <IconPackage active={active === "produtos"} />

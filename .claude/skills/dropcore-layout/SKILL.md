@@ -67,13 +67,45 @@ são "Botão/card clicável secundário", não CTA).
 
 **O que fica de fora** (não é "botão de ação", é outro papel):
 - Card clicável grande (quick access, plano, atalho) — continua no padrão da seção 2.
-- Chip de filtro/segmented control (toggle "Todos/Pedidos", período 7d/14d/30d) —
-  continua `rounded-full` ou o próprio estilo de toggle, não é ação isolada.
+- Chip de filtro/segmented control — **sempre `rounded-full`** (nunca `rounded-md`/
+  `rounded-lg`, que é raio de botão de ação), e **sempre `py-1.5 text-[11px] font-medium`**
+  (a mesma "altura"/padding vertical da escala compacta) em **todos** os grupos de chip da
+  mesma tela — largura sempre livre (auto, do tamanho do texto de cada um; nunca forçar
+  `w-*` fixo num chip, isso é só pra badge/etiqueta em coluna, ver seção seguinte). Cobre:
+  toggle "Todos/Pedidos", período "7d/14d/30d", abas tipo "Extrato/Recargas PIX", chips de
+  status "Todos/Aguardando envio/...". Foi corrigido em `web/app/seller/dashboard/page.tsx`:
+  as abas "Extrato/Recargas PIX" e os chips "7d/14d..." estavam em `rounded-md`, e os chips
+  de status ("Todos/Aguardando envio/...") estavam em `py-2 text-xs` (mais alto) — os três
+  grupos agora usam exatamente `rounded-full px-2.5–3.5 py-1.5 text-[11px] font-medium`.
 - Botão ícone-only de fechar modal (`×`) — não tem escala de padding pra compactar.
 
 Ainda não copiado pro resto do admin/fornecedor/seller fora dessas páginas — perguntar
 antes de aplicar em tela nova, mas já não é mais "experimento", é o padrão vigente nas
 páginas acima.
+
+### Botão compacto tem versão mobile e versão desktop — não precisam ser o mesmo DOM
+
+O botão/filtro compacto **tem que parecer idêntico** (mesmas classes exatas da tabela
+acima) em qualquer largura, mas isso não significa que é sempre o mesmo elemento HTML nas
+duas telas — em mobile e desktop pode (e às vezes precisa) ser duas instâncias diferentes,
+cada uma só visível na sua faixa (`sm:hidden` numa, `hidden sm:inline-flex`/`sm:block` na
+outra), controlando o mesmo estado. Exemplo: filtro de status em
+`web/app/seller/pedidos/page.tsx` — versão mobile fica em `titleExtra` (ao lado da barra
+degradê, ver seção de header abaixo), versão desktop fica em `right` (extremo direito do
+card); as duas chamam o mesmo `setStatusFilter`, só a posição/DOM muda.
+
+**Select que precisa ficar do tamanho exato de um botão (sem sobra lateral):** um
+`<select>` nativo com `width: auto` é dimensionado pelo navegador pela **opção mais
+longa da lista**, não pelo valor selecionado — por isso um `<select>` mostrando "Todos"
+fica largo demais se a lista tem "Aguardando postagem" como opção. Forçar `width` fixo
+em pixel/rem é frágil (quebra sozinho quando o texto/fonte muda um pouco, causando corte
+ou sobra). A solução correta: renderizar um `<div aria-hidden>` com as classes exatas do
+botão compacto (mesmo padding, mesma fonte, **sem `border`** pra bater a altura exata de
+um botão sem borda) mostrando só o rótulo atual + ícone, e sobrepor um `<select>` de
+verdade `absolute inset-0 h-full w-full cursor-pointer opacity-0` por cima — clicável e
+acessível (`aria-label`), mas o tamanho visual passa a ser 100% controlado pelo texto
+atual, igual um botão normal. Exemplo real: filtro "Todos" em
+`web/app/seller/pedidos/page.tsx` (`titleExtra`, versão mobile).
 
 ### Badge de status (etiqueta, não botão)
 
@@ -131,6 +163,13 @@ sistema, são decisão de produto — não "consertar"):
   `dropcore-shell-4xl` — **exceção**: páginas migradas pro padrão compacto (lista de
   pedidos em card, `seller/dashboard`) usam `6xl` mesmo em fornecedor/seller. Ainda é
   `4xl` nas páginas de fornecedor/seller que não passaram por essa migração.
+  **O menu (`SellerNav`) tem que bater com a largura da página que ele está em cima** —
+  não é só o conteúdo que muda, o menu desktop também, senão o menu fica desalinhado com
+  os cards mais largos embaixo. `web/app/seller/SellerNav.tsx` tem a prop `wide?: boolean`
+  pra isso: `<SellerNav active="..." wide />` nas páginas em `6xl` (hoje `dashboard` e
+  `pedidos`), sem a prop (padrão `4xl`) nas que ainda não migraram. Ao migrar uma página
+  do seller pra `6xl`, sempre adicionar `wide` no `SellerNav` dela no mesmo commit —
+  esquecer isso é o mesmo tipo de erro (padrão inconsistente entre menu e página).
 - Composição do lado esquerdo do header: admin usa seta+breadcrumb ("Operação" etc.),
   fornecedor/seller usam avatar/logo grande (`h-[5.25rem] w-[5.25rem] sm:h-[5.5rem] sm:w-[5.5rem]`).
 
@@ -152,12 +191,44 @@ dashboard raiz, que já tem o header próprio da seção 2). Estado atual:
   da seção 2: sem `shadow-sm`, `rounded-3xl` no `sm+` (não `rounded-2xl`), padding maior
   (`px-7`/`px-8`), barra degradê decorativa ao lado do título, sem label maiúsculo acima
   do título. Ao mexer em página do seller, replicar **esse** componente — não o card da
-  seção 2, não o `AdminPageHeader`.
+  seção 2, não o `AdminPageHeader`. Tem `titleExtra` (igual o `AdminPageHeader`) pra
+  colocar algo ao lado da barra degradê, na linha do título — quando usado, a linha vira
+  `flex-nowrap` (título ganha `truncate` como válvula de segurança) em vez de
+  `flex-wrap`, pra não empurrar o `titleExtra` pra baixo do título em mobile.
 - **Fornecedor:** ainda **sem** componente — `cadastro`, `pedidos` e `produtos` copiam o
   mesmo bloco manualmente (mesmas classes do `AdminPageHeader`, mas sem componente).
   Se for tocar em mais de uma dessas páginas na mesma tarefa, considerar extrair um
   `FornecedorPageHeader` (mesmo molde do `AdminPageHeader`) em vez de copiar de novo —
   perguntar antes, já que mexe em fornecedor (área com regra própria, ver `CLAUDE.md`).
+
+### Barra degradê + destaque embutido no subtítulo — regra geral, todo header — em teste
+
+Duas coisas do `SellerPageHeader` (`surface="hero"`) viram regra pra **qualquer** header
+de página do DropCore — admin, fornecedor e seller, não só seller — **exceto as
+dashboards raiz** (`web/app/dashboard`, `web/app/fornecedor/dashboard`,
+`web/app/seller/dashboard` continuam só com o card padrão da seção 2, sem essas duas
+coisas):
+
+1. **Barra degradê ao lado do título** — `h-1 w-14 sm:w-20 rounded-full bg-gradient-to-r
+   from-emerald-500 via-emerald-400 to-emerald-300/70` (classe exata já em
+   `SellerPageHeader.tsx`, função `accentClass`). Fica ao lado do `<h1>`, não embaixo.
+2. **Destaque embutido no subtítulo** — em vez de um parágrafo neutro inteiro, envolver só
+   o trecho mais importante (o que evita erro/confusão comum) em
+   `<span className="font-medium text-[var(--foreground)]">...</span>` no meio da frase.
+   Exemplo real: `web/app/seller/plano/page.tsx` — "...referência da tabela financeira.
+   **Não credita saldo, só libera recursos do plano após confirmação no Mercado Pago.**
+   A cobrança...". Não inventar destaque em subtítulo que não existe — só aplicar quando
+   já tem uma frase pra destacar.
+
+Fonte: `web/app/seller/produtos/page.tsx` (original) + já aplicado em
+`web/app/seller/cadastro/page.tsx` e `web/app/seller/plano/page.tsx` (só o destaque —
+essas páginas já tinham a barra via `surface="hero"`). Ainda não aplicado em
+admin/fornecedor (que não têm a barra hoje) — pedir confirmação de quais páginas antes de
+espalhar, testando algumas primeiro.
+
+**Isso não mexe em nada do que já existe** — botão compacto, badge de status, largura de
+shell (`6xl` nas páginas migradas) continuam valendo exatamente como documentado acima;
+essa regra é só sobre acrescentar a barra + destaque no header dessas páginas.
 
 ## 3. Modal — sempre centralizado
 
@@ -165,6 +236,15 @@ dashboard raiz, que já tem o header próprio da seção 2). Estado atual:
 - Backdrop: `flex items-center justify-center` (nunca `items-end`, nunca "bottom sheet" pra formulário/PIX/confirmação).
 - Painel alto: `max-h-[min(90dvh,calc(100vh-2rem))]` + corpo `overflow-y-auto`.
 - Exceção só pra lightbox de foto em tela cheia — com comentário no código explicando.
+- **`cn()` (`web/lib/utils.ts`) é só um `join` — não faz merge tipo `tailwind-merge`.**
+  `cn(MODAL_OVERLAY_CLASS, "z-[100]")` deixa `z-50` (do token) **e** `z-[100]` os dois na
+  classe final; quem vence depende da ordem no CSS gerado, não é confiável. Pra sobrescrever
+  uma propriedade que o token já define (`z-*`, `bg-black/*`, etc.), não dá pra usar o
+  token + override — ou o modal aceita o valor padrão do token, ou usa as classes por
+  extenso na mão (como o modal "Escolha seu plano" do `seller/dashboard`, que precisa de
+  `z-[100]` pra ficar acima dos outros modais). Isso não vale pra propriedades que o token
+  **não** define (`max-w-lg` em cima de `MODAL_PANEL_CLASS`, por exemplo, funciona liso,
+  já usado em vários lugares — só cuidado quando é a *mesma* propriedade.
 
 ## 4. Mobile — obrigatório, não opcional
 

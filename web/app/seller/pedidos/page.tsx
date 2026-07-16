@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
+import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
 import { AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import {
@@ -128,40 +129,97 @@ export default function SellerPedidosPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] pb-24 md:pb-8">
-      <SellerNav active="pedidos" />
+      <SellerNav active="pedidos" wide />
       <main className="dropcore-shell-6xl mx-auto px-4 pt-20 sm:px-6 sm:pt-24">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight">Seus pedidos</h1>
-          <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-            Pedidos importados da Olist e do ERP. O extrato financeiro continua no Dashboard.
-          </p>
-        </div>
+        <SellerPageHeader
+          surface="hero"
+          title="Seus pedidos"
+          subtitle={
+            <>
+              Pedidos importados da Olist e do ERP.{" "}
+              <span className="font-medium text-[var(--foreground)]">O extrato financeiro continua no Dashboard.</span>
+            </>
+          }
+          titleExtra={
+            <div className="relative ml-auto inline-flex shrink-0 sm:hidden">
+              <div
+                aria-hidden
+                className="pointer-events-none inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-[var(--surface-subtle)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)]"
+              >
+                <svg className="h-2.5 w-2.5 shrink-0 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+                </svg>
+                {statusFilter ? statusLabel[statusFilter] ?? statusFilter : "Todos"}
+                <svg className="h-2.5 w-2.5 shrink-0 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </div>
+              <select
+                aria-label="Filtrar por status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              >
+                <option value="">Todos</option>
+                <option value="pendente_estoque">Aguardando estoque</option>
+                <option value="bloqueado">Bloqueado</option>
+                <option value="enviado">Aguardando postagem</option>
+                <option value="aguardando_repasse">Postados</option>
+                <option value="entregue">Entregues</option>
+                <option value="erro_saldo">Erro de saldo</option>
+              </select>
+            </div>
+          }
+          right={
+            <div className="relative hidden items-center sm:inline-flex">
+              <svg
+                className="pointer-events-none absolute left-1.5 h-3 w-3 text-[var(--muted)]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+              </svg>
+              <select
+                id="filtro-status"
+                aria-label="Filtrar por status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-20 appearance-none truncate rounded-md border border-[var(--card-border)]/70 bg-[var(--surface-subtle)] py-1 pl-5 pr-4 text-[11px] font-medium text-[var(--foreground)]"
+              >
+                <option value="">Todos</option>
+                <option value="pendente_estoque">Aguardando estoque</option>
+                <option value="bloqueado">Bloqueado</option>
+                <option value="enviado">Aguardando postagem</option>
+                <option value="aguardando_repasse">Postados</option>
+                <option value="entregue">Entregues</option>
+                <option value="erro_saldo">Erro de saldo</option>
+              </select>
+              <svg
+                className="pointer-events-none absolute right-1 h-2.5 w-2.5 text-[var(--muted)]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </div>
+          }
+        />
 
         {error ? (
           <AmberPremiumCallout className="mb-4" title="Erro">
             {error}
           </AmberPremiumCallout>
         ) : null}
-
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <label className="text-sm text-neutral-600 dark:text-neutral-400" htmlFor="filtro-status">
-            Filtrar por status
-          </label>
-          <select
-            id="filtro-status"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="min-h-[1.875rem] rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] sm:w-36"
-          >
-            <option value="">Todos</option>
-            <option value="pendente_estoque">Aguardando estoque</option>
-            <option value="bloqueado">Bloqueado</option>
-            <option value="enviado">Aguardando postagem</option>
-            <option value="aguardando_repasse">Postados</option>
-            <option value="entregue">Entregues</option>
-            <option value="erro_saldo">Erro de saldo</option>
-          </select>
-        </div>
 
         {loading ? (
           <p className="text-sm text-neutral-500">Carregando pedidos…</p>

@@ -262,8 +262,11 @@ export default function SellerPlanoPage() {
           subtitle={
             <>
               Compare <span translate="no" lang="en">Start</span> e <span translate="no" lang="en">Pro</span>. O upgrade para{" "}
-              <span translate="no" lang="en">Pro</span> é feito com um PIX pela diferença mensal entre os planos (referência da tabela financeira). Não
-              credita saldo, só libera recursos do plano após confirmação no Mercado Pago. A cobrança na sua org pode seguir contrato próprio.
+              <span translate="no" lang="en">Pro</span> é feito com um PIX pela diferença mensal entre os planos (referência da tabela financeira).{" "}
+              <span className="font-medium text-[var(--foreground)]">
+                Não credita saldo, só libera recursos do plano após confirmação no Mercado Pago.
+              </span>{" "}
+              A cobrança na sua org pode seguir contrato próprio.
               {planoDefinido && (
                 <span className="mt-2 block text-sm text-[var(--foreground)]">
                   Seu plano hoje:{" "}

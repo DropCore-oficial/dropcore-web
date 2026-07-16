@@ -347,9 +347,15 @@ export default function SellerCadastroPage() {
           backHref="/seller/dashboard"
           title={cadastroPendente ? "Complete seu cadastro" : "Dados comerciais"}
           subtitle={
-            cadastroPendente
-              ? "Preencha CNPJ ou CPF, contato e endereço. O CNPJ deve ser o da sua conta no marketplace. Depois de salvar, você escolhe o plano (Start ou Pro) no painel inicial."
-              : "Revise ou atualize seus dados comerciais quando precisar."
+            cadastroPendente ? (
+              <>
+                Preencha CNPJ ou CPF, contato e endereço.{" "}
+                <span className="font-medium text-[var(--foreground)]">O CNPJ deve ser o da sua conta no marketplace.</span>{" "}
+                Depois de salvar, você escolhe o plano (Start ou Pro) no painel inicial.
+              </>
+            ) : (
+              "Revise ou atualize seus dados comerciais quando precisar."
+            )
           }
         />
 

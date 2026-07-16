@@ -1251,7 +1251,7 @@ export default function SellerDashboardPage() {
                 <button
                   key={n}
                   onClick={() => setChartPeriodo(n)}
-                  className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                  className={`rounded-full px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
                     chartPeriodo === n
                       ? "bg-emerald-600 text-white"
                       : "bg-[var(--surface-subtle)] text-[var(--muted)] hover:bg-[var(--surface-hover)]"
@@ -1523,7 +1523,7 @@ export default function SellerDashboardPage() {
                     onClick={() => { setTab(t); if (!movimentacoesAberto) setMovimentacoesAberto(true); }}
                     type="button"
                     className={cn(
-                      "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors touch-manipulation whitespace-nowrap",
+                      "inline-flex shrink-0 items-center justify-center rounded-full border px-2.5 py-1.5 text-[11px] font-medium transition-colors touch-manipulation whitespace-nowrap",
                       "outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]",
                       tab === t
                         ? "border-emerald-600 bg-emerald-600 text-white font-semibold hover:bg-emerald-700 dark:border-emerald-600 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-700"
@@ -1597,7 +1597,7 @@ export default function SellerDashboardPage() {
                   {filtroTipo === "pedidos" && (
                     <button
                       onClick={() => setFiltroTipo("")}
-                      className="rounded-full px-3.5 py-2 text-xs font-medium whitespace-nowrap bg-emerald-600 text-white shadow-sm"
+                      className="rounded-full px-3.5 py-1.5 text-[11px] font-medium whitespace-nowrap bg-emerald-600 text-white shadow-sm"
                     >
                       Pedidos
                     </button>
@@ -1606,7 +1606,7 @@ export default function SellerDashboardPage() {
                     <button
                       key={s || "todos"}
                       onClick={() => setFiltroStatus(s)}
-                      className={`rounded-full px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                      className={`rounded-full px-3.5 py-1.5 text-[11px] font-medium whitespace-nowrap transition-colors ${
                         filtroStatus === s
                           ? "bg-emerald-600 text-white shadow-sm"
                           : "bg-[var(--surface-subtle)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
@@ -2057,7 +2057,7 @@ export default function SellerDashboardPage() {
 
       {modalArmazem && vinculoFornecedor?.ativo && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-fade-in-up"
+          className={cn(MODAL_OVERLAY_CLASS, "animate-fade-in-up")}
           role="dialog"
           aria-modal="true"
           aria-labelledby="seller-modal-armazem-titulo"
@@ -2136,7 +2136,7 @@ export default function SellerDashboardPage() {
         </div>
       )}
 
-      <SellerNav active="dashboard" />
+      <SellerNav active="dashboard" wide />
     </div>
   );
 }

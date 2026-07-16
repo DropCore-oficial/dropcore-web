@@ -10,6 +10,8 @@ type SellerPageHeaderProps = {
   showBack?: boolean;
   backHref?: string;
   right?: React.ReactNode;
+  /** Conteúdo extra ao lado do título/barra degradê (ex.: filtro compacto). */
+  titleExtra?: ReactNode;
   /** Variante de cabeçalho em formato de cartão para páginas principais. */
   surface?: "plain" | "hero";
   className?: string;
@@ -21,6 +23,7 @@ export function SellerPageHeader({
   showBack = false,
   backHref = "/seller/dashboard",
   right,
+  titleExtra,
   surface = "plain",
   className,
 }: SellerPageHeaderProps) {
@@ -53,13 +56,14 @@ export function SellerPageHeader({
             Voltar
           </button>
         )}
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-          <h1 className={titleClass}>{title}</h1>
+        <div className={`flex items-center gap-2 sm:gap-3 ${titleExtra ? "flex-nowrap" : "flex-wrap"}`}>
+          <h1 className={cn(titleClass, titleExtra ? "min-w-0 truncate" : undefined)}>{title}</h1>
           <span className={accentClass} aria-hidden />
+          {titleExtra}
         </div>
         {subtitle && <div className={subtitleClass}>{subtitle}</div>}
       </div>
-      {right && <div className="shrink-0">{right}</div>}
+      {right && <div className="w-full shrink-0 sm:w-auto">{right}</div>}
     </>
   );
 
@@ -71,7 +75,7 @@ export function SellerPageHeader({
           className
         )}
       >
-        <div className="relative flex items-start justify-between gap-3 sm:gap-5 px-4 py-5 sm:px-7 sm:py-6 md:px-8 md:py-7">
+        <div className="relative flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-start sm:justify-between sm:gap-5 sm:px-7 sm:py-6 md:px-8 md:py-7">
           {inner}
         </div>
       </header>
@@ -81,7 +85,7 @@ export function SellerPageHeader({
   return (
     <header
       className={cn(
-        "flex items-start justify-between gap-3 sm:gap-4 mb-4 sm:mb-5 md:mb-6 animate-fade-in-up",
+        "flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 mb-4 sm:mb-5 md:mb-6 animate-fade-in-up",
         className
       )}
     >
