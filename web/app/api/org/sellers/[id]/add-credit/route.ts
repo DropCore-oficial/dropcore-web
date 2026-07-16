@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
+import { runPedidosErroSaldoRetry } from "@/lib/pedidosErroSaldoRetry";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,7 +71,16 @@ export async function POST(
       .single();
     const saldoAtual = updated?.saldo_atual != null ? Number(updated.saldo_atual) : Number(seller.saldo_atual) + valor;
 
-    return NextResponse.json({ ok: true, saldo_atual: saldoAtual });
+    // Gatilho pontual: pedidos travados por saldo insuficiente podem ter sido liberados
+    // com essa recarga — reavalia na hora (não espera o cron catch-all de 1 min).
+    let erroSaldoRetry: Awaited<ReturnType<typeof runPedidosErroSaldoRetry>> | null = null;
+    try {
+      erroSaldoRetry = await runPedidosErroSaldoRetry({ seller_id: id });
+    } catch (retryErr: unknown) {
+      console.error("[add-credit] retry erro_saldo:", retryErr);
+    }
+
+    return NextResponse.json({ ok: true, saldo_atual: saldoAtual, erro_saldo_retry: erroSaldoRetry });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     const status = msg === "Unauthorized" || msg === "Usuário sem organização." ? 401 : msg === "Sem permissão." ? 403 : 500;

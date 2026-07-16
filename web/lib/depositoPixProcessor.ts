@@ -3,6 +3,7 @@
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { criarSellerCreditLot } from "@/lib/sellerCreditLots";
+import { runPedidosErroSaldoRetry } from "@/lib/pedidosErroSaldoRetry";
 
 export async function processarDepositoAprovado(extRef: string): Promise<boolean> {
   if (!extRef.trim() || !extRef.startsWith("deposito-")) return false;
@@ -128,6 +129,14 @@ export async function processarDepositoAprovado(extRef: string): Promise<boolean
     if (toInsert.length) {
       await supabaseAdmin.from("notifications").insert(toInsert);
     }
+  }
+
+  // Gatilho pontual: pedidos travados por saldo insuficiente podem ter sido liberados
+  // com essa recarga — reavalia na hora (não espera o cron catch-all de 1 min).
+  try {
+    await runPedidosErroSaldoRetry({ seller_id: deposito.seller_id });
+  } catch (retryErr: unknown) {
+    console.error("[depositoPixProcessor] retry erro_saldo:", retryErr);
   }
 
   return true;

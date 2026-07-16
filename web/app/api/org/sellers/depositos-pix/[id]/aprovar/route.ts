@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { criarSellerCreditLot } from "@/lib/sellerCreditLots";
+import { runPedidosErroSaldoRetry } from "@/lib/pedidosErroSaldoRetry";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -136,6 +137,14 @@ export async function POST(
       if (toInsert.length) {
         await supabaseAdmin.from("notifications").insert(toInsert);
       }
+    }
+
+    // Gatilho pontual: pedidos travados por saldo insuficiente podem ter sido liberados
+    // com essa recarga — reavalia na hora (não espera o cron catch-all de 1 min).
+    try {
+      await runPedidosErroSaldoRetry({ seller_id: deposito.seller_id });
+    } catch (retryErr: unknown) {
+      console.error("[aprovar deposito] retry erro_saldo:", retryErr);
     }
 
     const { data: updated } = await supabaseAdmin.from("sellers").select("saldo_atual").eq("id", deposito.seller_id).single();

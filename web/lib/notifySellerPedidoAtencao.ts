@@ -11,13 +11,14 @@ const TITULOS = {
   pedido_bloqueado: "Pedido bloqueado",
   pedido_pendente_estoque: "Pedido aguardando estoque",
   erro_saldo: "Erro de saldo",
+  erro_saldo_expirado: "Pedido cancelado por saldo",
 } as const;
 
 export async function notifySellerPedidoAtencao(params: {
   org_id: string;
   seller_id: string;
   pedido_id: string;
-  tipo: "pedido_novo" | "pedido_bloqueado" | "pedido_pendente_estoque" | "erro_saldo";
+  tipo: "pedido_novo" | "pedido_bloqueado" | "pedido_pendente_estoque" | "erro_saldo" | "erro_saldo_expirado";
   motivo: string;
 }): Promise<void> {
   const { data: sellerRow } = await supabaseAdmin
