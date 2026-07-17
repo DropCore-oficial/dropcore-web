@@ -792,6 +792,51 @@ export async function obterExpedicaoPorPedidoVenda(
   return { id, idAgrupamento };
 }
 
+type EnviarObjetosExpedicaoResponse = TinyRetornoBase & {
+  objetos?: Array<{
+    objeto?: {
+      idObjeto?: number | string;
+      idExpedicao?: number | string;
+      sucesso?: number | string;
+      erro?: string;
+    };
+  }>;
+};
+
+/**
+ * Envia o pedido de venda pra expedição na Olist/Tiny — mesma ação que o painel faz ao
+ * vincular a forma de envio do marketplace (Shopee Envios, Mercado Envios etc.) na
+ * importação. Sem isso, expedicao.obter.php nunca encontra nada: a expedição (e a
+ * etiqueta oficial que ela guarda) só passa a existir depois desse envio.
+ * @see https://tiny.com.br/api-docs/api2-enviar-objetos-para-expedicao
+ */
+export async function enviarPedidoVendaParaExpedicaoOlist(
+  apiToken: string,
+  pedidoId: number
+): Promise<{ idExpedicao: number | null; erro: string | null }> {
+  const token = apiToken.trim();
+  if (!token || !Number.isFinite(pedidoId)) return { idExpedicao: null, erro: "Token ou pedido inválido." };
+
+  const retorno = await postTinyApi2Form<EnviarObjetosExpedicaoResponse>("expedicao.liberar.objetos.php", token, {
+    idObjetos: String(pedidoId),
+    tipoObjetos: "venda",
+  });
+
+  const objeto = retorno.objetos?.[0]?.objeto;
+  if (!objeto) {
+    return { idExpedicao: null, erro: isTinyRetornoOk(retorno) ? null : readTinyErrors(retorno) };
+  }
+
+  const sucesso = Number(objeto.sucesso) === 1 || String(objeto.sucesso).trim() === "1";
+  if (!sucesso) {
+    return { idExpedicao: null, erro: objeto.erro?.trim() || "Falha ao enviar pedido para expedição na Olist." };
+  }
+
+  const idExpedicao =
+    typeof objeto.idExpedicao === "number" ? objeto.idExpedicao : Number.parseInt(String(objeto.idExpedicao ?? ""), 10);
+  return { idExpedicao: Number.isFinite(idExpedicao) && idExpedicao > 0 ? idExpedicao : null, erro: null };
+}
+
 function coletarLinksEtiquetasRetorno(retorno: EtiquetasImpressaoResponse): string[] {
   const out: string[] = [];
   for (const row of retorno.links ?? []) {

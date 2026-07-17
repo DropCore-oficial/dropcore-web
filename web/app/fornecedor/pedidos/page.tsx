@@ -30,6 +30,16 @@ const STATUS_PILL: Record<string, string> = {
   erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
 };
 
+type PedidoItem = {
+  sku: string;
+  quantidade: number;
+  nome_produto: string | null;
+  cor: string | null;
+  tamanho: string | null;
+  categoria: string | null;
+  linha_despacho: string | null;
+};
+
 type Pedido = {
   id: string;
   seller_id: string;
@@ -38,6 +48,15 @@ type Pedido = {
   cor?: string | null;
   tamanho?: string | null;
   categoria?: string | null;
+  linha_despacho?: string | null;
+  metodo_envio?: string | null;
+  tracking_codigo?: string | null;
+  marketplace_numero?: string | null;
+  comprador_nome?: string | null;
+  comprador_cidade?: string | null;
+  comprador_uf?: string | null;
+  comprador_fone?: string | null;
+  itens: PedidoItem[];
   valor_fornecedor: number;
   status: string;
   motivo_bloqueio?: string | null;
@@ -370,7 +389,46 @@ export default function FornecedorPedidosPage() {
                       <dt className="text-neutral-500">Categoria</dt>
                       <dd>{p.categoria ?? "—"}</dd>
                     </div>
+                    <div>
+                      <dt className="text-neutral-500">Onde despachar</dt>
+                      <dd>{p.linha_despacho ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-neutral-500">Como despachar</dt>
+                      <dd>{p.metodo_envio ?? "—"}</dd>
+                    </div>
+                    {p.tracking_codigo ? (
+                      <div>
+                        <dt className="text-neutral-500">Rastreio</dt>
+                        <dd className="font-mono text-xs">{p.tracking_codigo}</dd>
+                      </div>
+                    ) : null}
+                    {p.marketplace_numero ? (
+                      <div>
+                        <dt className="text-neutral-500">Pedido marketplace</dt>
+                        <dd className="font-mono text-xs sm:text-sm">{p.marketplace_numero}</dd>
+                      </div>
+                    ) : null}
+                    {[p.comprador_nome, p.comprador_cidade, p.comprador_uf].some(Boolean) ? (
+                      <div className="col-span-2">
+                        <dt className="text-neutral-500">Destino</dt>
+                        <dd>{[p.comprador_cidade, p.comprador_uf].filter(Boolean).join(" / ") || "—"}</dd>
+                      </div>
+                    ) : null}
                   </dl>
+
+                  {p.itens.length > 1 ? (
+                    <ul className="mt-3 flex flex-wrap gap-2">
+                      {p.itens.map((item, idx) => (
+                        <li
+                          key={`${p.id}-${item.sku}-${idx}`}
+                          className="rounded-lg bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                        >
+                          {item.sku} × {item.quantidade}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
 
                   {p.status === "bloqueado" && p.motivo_bloqueio ? (
                     <p className={cn("mt-3 text-sm", DANGER_PREMIUM_TEXT_PRIMARY)}>{p.motivo_bloqueio}</p>

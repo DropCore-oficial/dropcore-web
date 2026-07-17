@@ -20,13 +20,16 @@ const OLIST_IMPORT_CODIGOS_SITUACAO = new Set([
 ]);
 
 /**
- * "em aberto" sai daqui de propósito: esses pedidos não são importados como venda,
- * mas passam a ser buscados na listagem (pesquisa) para virar reserva de estoque —
- * ver `isSituacaoTextoEmAberto` e `processOlistPedidoReserva`.
+ * "em aberto" e "dados incompletos" saem daqui de propósito: esses pedidos não são
+ * importados como venda, mas passam a ser buscados na listagem (pesquisa) para virar
+ * reserva de estoque — ver `isSituacaoTextoEmAberto` e `processOlistPedidoReserva`.
+ * "Dados incompletos" é o texto que a Olist usa pra pedido Shopee com boleto ainda não
+ * pago (a Shopee mascara nome/endereço do comprador até a confirmação de pagamento) —
+ * não é um pedido quebrado precisando de conserto manual, é o mesmo caso de "em aberto".
  */
-const OLIST_SKIP_SITUACOES = new Set(["cancelado", "dados incompletos"]);
+const OLIST_SKIP_SITUACOES = new Set(["cancelado"]);
 
-const OLIST_SKIP_CODIGOS = new Set(["aberto", "cancelado"]);
+const OLIST_SKIP_CODIGOS = new Set(["aberto", "cancelado", "dados_incompletos"]);
 
 export function normalizeOlistSituacaoText(value: string | null | undefined): string {
   return String(value ?? "")
@@ -83,15 +86,20 @@ export function shouldImportPedidoOlist(params: {
   return shouldImportSituacaoText(params.situacaoTexto);
 }
 
-/** Pedido aguardando pagamento (boleto/PIX) — não importa como venda, mas reserva estoque. */
+/**
+ * Pedido aguardando pagamento (boleto/PIX) — não importa como venda, mas reserva estoque.
+ * Inclui "dados incompletos": é o texto que a Shopee/Olist usa pro mesmo caso (boleto
+ * pendente) enquanto o comprador ainda está mascarado por privacidade.
+ */
 export function isSituacaoTextoEmAberto(situacao: string | null | undefined): boolean {
   const base = normalizeOlistSituacaoTextoBase(situacao);
-  return base === "em aberto";
+  return base === "em aberto" || base === "dados incompletos";
 }
 
-/** `codigoSituacao` do webhook equivalente a "em aberto". */
+/** `codigoSituacao` do webhook equivalente a "em aberto" (ou "dados incompletos"). */
 export function isCodigoSituacaoEmAberto(codigo: string | null | undefined): boolean {
-  return String(codigo ?? "").trim().toLowerCase() === "aberto";
+  const c = String(codigo ?? "").trim().toLowerCase();
+  return c === "aberto" || c === "dados_incompletos";
 }
 
 /** Pedido cancelado — libera qualquer reserva de estoque pendente para ele. */

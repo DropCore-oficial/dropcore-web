@@ -4,6 +4,7 @@ import {
   tryPromotePendenteEstoquePedido,
 } from "@/lib/erp/submitSellerErpPedido";
 import {
+  enviarPedidoVendaParaExpedicaoOlist,
   fetchUrlAsPdfBase64,
   obterExpedicaoPorPedidoVenda,
   obterLinksEtiquetasImpressaoOlist,
@@ -56,6 +57,26 @@ export async function tryAttachOlistEtiquetaPdf(params: {
   } catch {
     exp = null;
   }
+
+  if (!exp) {
+    // Ainda não foi enviado pra expedição na Olist — sem esse passo (o mesmo que o painel
+    // faz sozinho ao vincular a forma de envio do marketplace na importação), a expedição
+    // nunca é criada e a etiqueta oficial nunca existe, não importa quantas vezes reimporte.
+    try {
+      const envio = await enviarPedidoVendaParaExpedicaoOlist(params.token, params.olist_pedido_id);
+      await sleep(OLIST_API_PAUSE_MS);
+      if (envio.idExpedicao) {
+        exp = { id: envio.idExpedicao };
+      } else if (envio.erro) {
+        warnings.push(`Etiqueta PDF: falha ao enviar pedido para expedição na Olist (${envio.erro}).`);
+      }
+    } catch (e: unknown) {
+      warnings.push(
+        `Etiqueta PDF: erro ao enviar pedido para expedição na Olist (${e instanceof Error ? e.message : "erro"}).`,
+      );
+    }
+  }
+
   if (!exp) {
     warnings.push(
       "Etiqueta PDF: sem expedição na Olist para este pedido ainda. Quando a Olist gerar expedição/etiqueta (ex.: marketplace), reimporte ou aguarde próximo sync/webhook para anexar automaticamente.",

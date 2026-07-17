@@ -30,6 +30,18 @@ type PedidoRow = {
   comprador_cidade?: string | null;
   comprador_uf?: string | null;
   comprador_fone?: string | null;
+  metodo_envio?: string | null;
+  tracking_codigo?: string | null;
+};
+
+type PedidoItemRow = {
+  sku: string;
+  quantidade: number;
+  nome_produto: string | null;
+  cor: string | null;
+  tamanho: string | null;
+  categoria: string | null;
+  linha_despacho: string | null;
 };
 
 async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: string; org_id: string } | null> {
@@ -71,7 +83,7 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa"
+        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa, metodo_envio, tracking_codigo"
       )
       .eq("org_id", ctx.org_id)
       .eq("fornecedor_id", ctx.fornecedor_id)
@@ -117,21 +129,63 @@ export async function GET(req: Request) {
       for (const s of sellers ?? []) sellersMap.set(s.id, s.nome ?? "—");
     }
 
-    const skuIds = [...new Set((data ?? []).map((p) => p.sku_id).filter(Boolean))] as string[];
-    const skusMap = new Map<string, { cor: string | null; tamanho: string | null; categoria: string | null }>();
-    if (skuIds.length > 0) {
+    // Linha de despacho padrão do fornecedor (usada quando o SKU não tem override próprio).
+    const { data: fornecedorRow } = await supabaseAdmin
+      .from("fornecedores")
+      .select("expedicao_padrao_linha")
+      .eq("id", ctx.fornecedor_id)
+      .maybeSingle();
+    const expedicaoPadrao = String((fornecedorRow as { expedicao_padrao_linha?: string | null } | null)?.expedicao_padrao_linha ?? "").trim() || null;
+
+    // Itens reais do pedido vêm de pedido_itens (multi-item) — pedidos.sku_id é legado
+    // (só populado no fluxo manual do admin) e fica nulo pros pedidos vindos do ERP/Olist.
+    const pedidoIds = (data ?? []).map((p) => p.id);
+    const itensPorPedido = new Map<string, PedidoItemRow[]>();
+    if (pedidoIds.length > 0) {
+      const { data: itens, error: itensErr } = await supabaseAdmin
+        .from("pedido_itens")
+        .select("pedido_id, quantidade, skus(sku, nome_produto, cor, tamanho, categoria, expedicao_override_linha)")
+        .in("pedido_id", pedidoIds);
+      if (itensErr) {
+        console.error("[fornecedor/pedidos GET] itens:", itensErr.message);
+      }
+      for (const row of itens ?? []) {
+        const pid = row.pedido_id as string;
+        const skusJoined = row.skus as unknown;
+        const sku = (Array.isArray(skusJoined) ? skusJoined[0] : skusJoined) as
+          | { sku?: string; nome_produto?: string | null; cor?: string | null; tamanho?: string | null; categoria?: string | null; expedicao_override_linha?: string | null }
+          | null;
+        const list = itensPorPedido.get(pid) ?? [];
+        list.push({
+          sku: sku?.sku ?? "—",
+          quantidade: Number(row.quantidade ?? 1),
+          nome_produto: sku?.nome_produto ?? null,
+          cor: sku?.cor ?? null,
+          tamanho: sku?.tamanho ?? null,
+          categoria: sku?.categoria ?? null,
+          linha_despacho: (sku?.expedicao_override_linha?.trim() || expedicaoPadrao) ?? null,
+        });
+        itensPorPedido.set(pid, list);
+      }
+    }
+
+    // Fallback legado: pedidos manuais do admin ainda populam pedidos.sku_id direto.
+    const skuIdsLegado = [...new Set((data ?? []).map((p) => p.sku_id).filter(Boolean))] as string[];
+    const skusMapLegado = new Map<string, { cor: string | null; tamanho: string | null; categoria: string | null }>();
+    if (skuIdsLegado.length > 0) {
       const { data: skus } = await supabaseAdmin
         .from("skus")
         .select("id, cor, tamanho, categoria")
-        .in("id", skuIds);
-
+        .in("id", skuIdsLegado);
       for (const s of skus ?? []) {
-        skusMap.set(s.id, { cor: (s.cor as string | null) ?? null, tamanho: (s.tamanho as string | null) ?? null, categoria: (s.categoria as string | null) ?? null });
+        skusMapLegado.set(s.id, { cor: (s.cor as string | null) ?? null, tamanho: (s.tamanho as string | null) ?? null, categoria: (s.categoria as string | null) ?? null });
       }
     }
 
     const items = (data ?? []).map((p) => {
-      const sku = p.sku_id ? skusMap.get(p.sku_id) : null;
+      const itens = itensPorPedido.get(p.id) ?? [];
+      const primeiro = itens[0] ?? null;
+      const skuLegado = !primeiro && p.sku_id ? skusMapLegado.get(p.sku_id) : null;
       const url = (p as { etiqueta_pdf_url?: string | null }).etiqueta_pdf_url?.trim() ?? "";
       const b64 = (p as { etiqueta_pdf_base64?: string | null }).etiqueta_pdf_base64;
       const tem_etiqueta_oficial = Boolean(url) || Boolean(b64 && String(b64).trim().length > 0);
@@ -150,9 +204,11 @@ export async function GET(req: Request) {
           motivoCompleto: (p as { motivo_bloqueio?: string | null }).motivo_bloqueio,
         }),
         seller_nome: sellersMap.get(p.seller_id) ?? "—",
-        cor: sku?.cor ?? null,
-        tamanho: sku?.tamanho ?? null,
-        categoria: sku?.categoria ?? null,
+        cor: primeiro?.cor ?? skuLegado?.cor ?? null,
+        tamanho: primeiro?.tamanho ?? skuLegado?.tamanho ?? null,
+        categoria: primeiro?.categoria ?? skuLegado?.categoria ?? null,
+        linha_despacho: primeiro?.linha_despacho ?? expedicaoPadrao,
+        itens,
         tem_etiqueta_oficial,
       };
     });

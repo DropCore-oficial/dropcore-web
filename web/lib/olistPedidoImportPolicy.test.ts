@@ -14,6 +14,10 @@ describe("isSituacaoTextoEmAberto", () => {
     expect(isSituacaoTextoEmAberto("  em aberto  ")).toBe(true);
   });
 
+  it("reconhece 'dados incompletos' — mesmo caso (Shopee mascara comprador até pagar boleto)", () => {
+    expect(isSituacaoTextoEmAberto("Dados incompletos")).toBe(true);
+  });
+
   it("não reconhece outras situações", () => {
     expect(isSituacaoTextoEmAberto("Aprovado")).toBe(false);
     expect(isSituacaoTextoEmAberto("Cancelado")).toBe(false);
@@ -43,19 +47,20 @@ describe("isCodigoSituacaoEmAberto / isCodigoSituacaoCancelado", () => {
 });
 
 describe("shouldSkipSituacaoTextOnPesquisa", () => {
-  it("não pula 'em aberto' — cron precisa buscar o detalhe para reservar estoque", () => {
+  it("não pula 'em aberto' nem 'dados incompletos' — cron precisa buscar o detalhe para reservar estoque", () => {
     expect(shouldSkipSituacaoTextOnPesquisa("Em aberto")).toBe(false);
+    expect(shouldSkipSituacaoTextOnPesquisa("Dados incompletos")).toBe(false);
   });
 
-  it("continua pulando cancelado e dados incompletos", () => {
+  it("continua pulando cancelado", () => {
     expect(shouldSkipSituacaoTextOnPesquisa("Cancelado")).toBe(true);
-    expect(shouldSkipSituacaoTextOnPesquisa("Dados incompletos")).toBe(true);
   });
 });
 
 describe("shouldImportSituacaoText", () => {
-  it("'em aberto' não é importado como venda (vira reserva, não pedido)", () => {
+  it("'em aberto' e 'dados incompletos' não são importados como venda (viram reserva, não pedido)", () => {
     expect(shouldImportSituacaoText("Em aberto")).toBe(false);
+    expect(shouldImportSituacaoText("Dados incompletos")).toBe(false);
   });
 
   it("situações aprovadas continuam importando normalmente", () => {
