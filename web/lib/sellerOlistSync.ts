@@ -14,6 +14,19 @@ const DEFAULT_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const MANUAL_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_ORDERS_PER_SELLER = 25;
 const OLIST_API_PAUSE_MS = 200;
+/** Até quanto tempo o cursor pode ficar "preso" num pedido com erro (rate limit etc.)
+ * antes de desistir e avançar mesmo assim — evita que um erro permanente (ex.: SKU que
+ * nunca vai existir) trave a janela de busca pra sempre e sufoque pedidos mais novos. */
+const MAX_CURSOR_HOLD_MS = 24 * 60 * 60 * 1000;
+
+/** `data_pedido` da Tiny vem como "dd/mm/yyyy". */
+function parseTinyApiDateOnly(value: string | null | undefined): Date | null {
+  const m = String(value ?? "").trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const [, dd, mm, yyyy] = m;
+  const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 export type SellerOlistSyncMode = "cron" | "manual";
 
@@ -255,6 +268,8 @@ async function syncSellerOlistOrders(
     );
   }
 
+  let earliestFalhaEm: Date | null = null;
+
   for (const resumo of pedidosResumo) {
     if (shouldSkipSituacaoTextOnPesquisa(resumo.situacao)) {
       result.skipped += 1;
@@ -271,6 +286,10 @@ async function syncSellerOlistOrders(
     if (!proc.ok) {
       result.status = "parcial";
       result.errors.push(`Pedido ${resumo.id}: ${proc.error}`);
+      const dataPedido = parseTinyApiDateOnly(resumo.data_pedido);
+      if (dataPedido && (!earliestFalhaEm || dataPedido < earliestFalhaEm)) {
+        earliestFalhaEm = dataPedido;
+      }
       continue;
     }
 
@@ -315,9 +334,17 @@ async function syncSellerOlistOrders(
     }
   }
 
+  const cursorTravado = earliestFalhaEm && now.getTime() - earliestFalhaEm.getTime() < MAX_CURSOR_HOLD_MS;
+  const nextCursorAt = cursorTravado ? earliestFalhaEm! : now;
+  if (cursorTravado) {
+    result.warnings.push(
+      `Sync retido em ${earliestFalhaEm!.toLocaleDateString("pt-BR")} por pedido(s) com erro — reprocessa automaticamente até 24h antes de avançar.`
+    );
+  }
+
   await persistSellerSyncState({
     seller_id: row.seller_id,
-    cursor_at: now.toISOString(),
+    cursor_at: nextCursorAt.toISOString(),
     status: result.status === "ok" ? "ok" : result.status === "ignorado" ? "ok" : result.status,
     error: result.errors[0] ?? null,
     summary: result,
