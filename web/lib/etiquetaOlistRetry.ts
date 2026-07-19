@@ -1,5 +1,6 @@
 import { mapWithConcurrency } from "@/lib/mapWithConcurrency";
 import { notifyAdminsEtiquetaOlistFalha } from "@/lib/notifyAdminsEtiquetaOlistFalha";
+import { isTinyRateLimitMessage } from "@/lib/olistTinyApi";
 import { getSellerOlistApiToken } from "@/lib/sellerOlistIntegration";
 import { tryAttachOlistEtiquetaPdf } from "@/lib/sellerOlistPedidoImport";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -64,7 +65,17 @@ export async function runEtiquetaOlistRetry(): Promise<EtiquetaOlistRetrySummary
   let alertasEnviados = 0;
   let falhas = 0;
 
+  /** Rate limit da Tiny/Olist é por token (por seller) — uma vez detectado, pula o
+   * resto dos pedidos DESSE seller nesta rodada em vez de continuar batendo numa API
+   * que já sinalizou bloqueio (só atrasa a liberação e conta como tentativa à toa). */
+  const sellersBloqueados = new Set<string>();
+
   await mapWithConcurrency(pedidos, RETRY_CONCURRENCY, async (pedido) => {
+    if (sellersBloqueados.has(pedido.seller_id)) {
+      pendentes += 1;
+      return;
+    }
+
     const olistPedidoId = extrairOlistPedidoId(pedido.referencia_externa);
     if (olistPedidoId == null) {
       falhas += 1;
@@ -87,6 +98,10 @@ export async function runEtiquetaOlistRetry(): Promise<EtiquetaOlistRetrySummary
     if (warnings.length === 0) {
       obtidas += 1;
       return;
+    }
+
+    if (warnings.some((w) => isTinyRateLimitMessage(w))) {
+      sellersBloqueados.add(pedido.seller_id);
     }
 
     pendentes += 1;

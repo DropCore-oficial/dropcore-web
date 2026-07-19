@@ -1,6 +1,6 @@
 import { submitSellerErpPedido } from "@/lib/erp/submitSellerErpPedido";
 import { shouldSkipSituacaoTextOnPesquisa } from "@/lib/olistPedidoImportPolicy";
-import { pesquisarPedidosOlist, type OlistPedidoResumo } from "@/lib/olistTinyApi";
+import { isTinyRateLimitMessage, pesquisarPedidosOlist, type OlistPedidoResumo } from "@/lib/olistTinyApi";
 import { processOlistPedidoImport } from "@/lib/sellerOlistPedidoImport";
 import { decryptSellerErpSecret, describeSellerErpSecretDecryptFailure } from "@/lib/sellerErpSecretBox";
 import { mapWithConcurrency } from "@/lib/mapWithConcurrency";
@@ -289,6 +289,15 @@ async function syncSellerOlistOrders(
       const dataPedido = parseTinyApiDateOnly(resumo.data_pedido);
       if (dataPedido && (!earliestFalhaEm || dataPedido < earliestFalhaEm)) {
         earliestFalhaEm = dataPedido;
+      }
+      if (isTinyRateLimitMessage(proc.error)) {
+        // API já sinalizou bloqueio: os pedidos restantes do lote também vão falhar.
+        // Para aqui pra não gastar chamada à toa — o cursor retido (acima) garante que
+        // esses pedidos voltam a ser tentados no próximo sync.
+        result.warnings.push(
+          `Sync interrompido em ${resumo.id} por rate limit da Olist — restante do lote fica pra próxima rodada.`
+        );
+        break;
       }
       continue;
     }

@@ -22,6 +22,22 @@ const TINY_ERROR_CODES: Record<number, string> = {
   99: "Sistema da Olist/Tiny em manutenção.",
 };
 
+/**
+ * Detecta mensagem de rate limit da Tiny/Olist (código 6/11 ou o texto livre que a API
+ * costuma mandar: "API Bloqueada - Excedido o número de acessos..."). Usado pelos crons
+ * pra parar de gastar chamada assim que a API já sinalizou bloqueio — continuar batendo
+ * só atrasa a liberação e desperdiça o budget de requisições do token.
+ */
+export function isTinyRateLimitMessage(message: string | null | undefined): boolean {
+  const m = String(message ?? "").toLowerCase();
+  if (!m) return false;
+  return (
+    (m.includes("bloquead") && (m.includes("acesso") || m.includes("requisi"))) ||
+    m.includes("requisições concorrentes") ||
+    m.includes("requisicoes concorrentes")
+  );
+}
+
 function unwrapTinyRetorno<T extends TinyRetornoBase>(json: unknown): T | null {
   if (!json || typeof json !== "object") return null;
   const root = json as Record<string, unknown>;
