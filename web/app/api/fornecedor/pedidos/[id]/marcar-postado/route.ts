@@ -8,6 +8,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveLedgerIdForPedido } from "@/lib/resolveLedgerForPedido";
 import { proximoCicloRepasse } from "@/lib/cicloRepasse";
+import { promoverPedidoParaPostado } from "@/lib/pedidoPostadoPromote";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,7 +55,7 @@ export async function PATCH(
 
     const { data: pedido, error: pedidoErr } = await supabaseAdmin
       .from("pedidos")
-      .select("id, status, ledger_id, org_id, fornecedor_id")
+      .select("id, status, ledger_id, org_id, fornecedor_id, etiqueta_pdf_url, etiqueta_pdf_base64")
       .eq("id", pedido_id)
       .eq("org_id", ctx.org_id)
       .eq("fornecedor_id", ctx.fornecedor_id)
@@ -101,35 +102,11 @@ export async function PATCH(
       );
     }
 
-    const now = new Date().toISOString();
-    const { error: upPedido } = await supabaseAdmin
-      .from("pedidos")
-      .update({ status: "aguardando_repasse", atualizado_em: now })
-      .eq("id", pedido_id)
-      .eq("org_id", ctx.org_id);
-
-    if (upPedido) return NextResponse.json({ error: upPedido.message }, { status: 500 });
-
-    const ledgerId = await resolveLedgerIdForPedido(ctx.org_id, pedido_id, pedido.ledger_id);
-
-    if (ledgerId && !pedido.ledger_id) {
-      await supabaseAdmin.from("pedidos").update({ ledger_id: ledgerId, atualizado_em: now }).eq("id", pedido_id);
-    }
-
-    let ciclo_repasse: string | null = null;
-    if (ledgerId) {
-      const { data: cicloRow } = await supabaseAdmin.rpc("fn_ciclo_repasse", { data_evento: now });
-      ciclo_repasse = cicloRow ?? proximoCicloRepasse();
-
-      const { error: upLedgerErr } = await supabaseAdmin
-        .from("financial_ledger")
-        .update({ status: "AGUARDANDO_REPASSE", ciclo_repasse, atualizado_em: now })
-        .eq("id", ledgerId);
-
-      if (upLedgerErr) {
-        console.error("[marcar-postado] ledger update:", upLedgerErr.message);
-        return NextResponse.json({ error: "Erro ao atualizar extrato do seller: " + upLedgerErr.message }, { status: 500 });
-      }
+    if (!pedido.etiqueta_pdf_url && !pedido.etiqueta_pdf_base64) {
+      return NextResponse.json(
+        { error: "Sem a etiqueta real não dá pra marcar como postado — peça pro seller buscar o link primeiro." },
+        { status: 422 }
+      );
     }
 
     const { data: member } = await supabaseAdmin
@@ -139,22 +116,28 @@ export async function PATCH(
       .eq("fornecedor_id", ctx.fornecedor_id)
       .limit(1)
       .maybeSingle();
-    await supabaseAdmin.from("pedido_eventos").insert({
+
+    const promote = await promoverPedidoParaPostado({
       org_id: ctx.org_id,
       pedido_id,
-      tipo: "pedido_postado_manual",
-      origem: "manual",
-      actor_id: member?.user_id ?? null,
-      actor_tipo: "fornecedor",
-      descricao: "Fornecedor marcou o pedido como postado manualmente.",
-      metadata: { via: "fornecedor/pedidos" },
+      ledger_id: pedido.ledger_id,
+      evento: {
+        tipo: "pedido_postado_manual",
+        origem: "manual",
+        actor_id: member?.user_id ?? null,
+        actor_tipo: "fornecedor",
+        descricao: "Fornecedor marcou o pedido como postado manualmente.",
+        metadata: { via: "fornecedor/pedidos" },
+      },
     });
+
+    if (!promote.ok) return NextResponse.json({ error: promote.error }, { status: 500 });
 
     return NextResponse.json({
       ok: true,
       pedido_id,
       status: "aguardando_repasse",
-      ciclo_repasse,
+      ciclo_repasse: promote.ciclo_repasse,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";

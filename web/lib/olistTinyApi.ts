@@ -163,7 +163,29 @@ export type OlistPedidoDetalhe = OlistPedidoResumo & {
   comprador_cidade: string | null;
   comprador_uf: string | null;
   comprador_fone: string | null;
+  /** Marketplace de origem normalizado (shopee | mercado_livre | shein | tiktok_shop | outro). */
+  canal_venda: CanalVenda;
 };
+
+export type CanalVenda = "shopee" | "mercado_livre" | "shein" | "tiktok_shop" | "outro";
+
+/**
+ * Normaliza o nome do e-commerce/canal de venda que a Tiny/Olist devolve em
+ * `pedido.ecommerce.nomeEcommerce`/`canalVenda` (texto livre, varia de formatação) pra um
+ * enum fixo. Usado pra aplicar a regra de SLA de postagem específica de cada marketplace.
+ */
+export function normalizeCanalVenda(
+  nomeEcommerce: string | null | undefined,
+  canalVenda?: string | null | undefined
+): CanalVenda {
+  const m = `${nomeEcommerce ?? ""} ${canalVenda ?? ""}`.toLowerCase();
+  if (!m.trim()) return "outro";
+  if (m.includes("shopee")) return "shopee";
+  if (m.includes("mercado livre") || m.includes("mercadolivre") || m.includes("mercado_livre")) return "mercado_livre";
+  if (m.includes("shein")) return "shein";
+  if (m.includes("tiktok")) return "tiktok_shop";
+  return "outro";
+}
 
 type PesquisaPedidosResponse = TinyRetornoBase & {
   pagina?: number;
@@ -191,6 +213,13 @@ type ObterPedidoResponse = TinyRetornoBase & {
       cidade?: string;
       uf?: string;
       fone?: string;
+    };
+    ecommerce?: {
+      id?: number | string;
+      numeroPedidoEcommerce?: string;
+      numeroPedidoCanalVenda?: string;
+      nomeEcommerce?: string;
+      canalVenda?: string;
     };
     itens?: Array<{
       item?: {
@@ -365,6 +394,7 @@ export async function obterPedidoOlist(apiToken: string, pedidoId: number): Prom
     codigo_rastreamento: pedido.codigo_rastreamento?.trim() || null,
     data_pedido: pedido.data_pedido?.trim() || null,
     forma_envio: pedido.forma_envio?.trim() || null,
+    canal_venda: normalizeCanalVenda(pedido.ecommerce?.nomeEcommerce, pedido.ecommerce?.canalVenda),
     itens,
     comprador_nome:
       pedido.endereco_entrega?.nome_destinatario?.trim() ||

@@ -276,6 +276,7 @@ export async function processOlistPedidoImport(
       comprador_cidade: pedido.comprador_cidade,
       comprador_uf: pedido.comprador_uf,
       comprador_fone: pedido.comprador_fone,
+      canal_venda: pedido.canal_venda,
     },
   });
 

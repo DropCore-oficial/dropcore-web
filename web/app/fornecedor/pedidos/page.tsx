@@ -154,6 +154,56 @@ export default function FornecedorPedidosPage() {
     }
   }
 
+  const [lembrandoId, setLembrandoId] = useState<string | null>(null);
+  const [lembrarMsg, setLembrarMsg] = useState<Record<string, { tipo: "ok" | "erro"; texto: string } | undefined>>({});
+
+  async function lembrarSeller(id: string) {
+    setLembrandoId(id);
+    setLembrarMsg((prev) => ({ ...prev, [id]: undefined }));
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch(`/api/fornecedor/pedidos/${id}/lembrar-etiqueta`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? "Erro ao avisar o seller.");
+      setLembrarMsg((prev) => ({ ...prev, [id]: { tipo: "ok", texto: "Seller avisado agora." } }));
+    } catch (e: unknown) {
+      setLembrarMsg((prev) => ({
+        ...prev,
+        [id]: { tipo: "erro", texto: e instanceof Error ? e.message : "Erro inesperado." },
+      }));
+    } finally {
+      setLembrandoId(null);
+    }
+  }
+
+  const [reportandoId, setReportandoId] = useState<string | null>(null);
+
+  async function reportarEtiquetaErrada(id: string) {
+    if (!window.confirm("Confirma que a etiqueta desse pedido está errada? Isso remove a etiqueta e avisa o seller de novo.")) {
+      return;
+    }
+    setReportandoId(id);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch(`/api/fornecedor/pedidos/${id}/reportar-etiqueta-errada`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? "Erro ao reportar etiqueta.");
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao reportar etiqueta.");
+    } finally {
+      setReportandoId(null);
+    }
+  }
+
   const idsComEtiquetaOficial = pedidos.filter((p) => p.tem_etiqueta_oficial).map((p) => p.id);
   const selecionadosComEtiqueta = [...selectedIds].filter((id) =>
     pedidos.some((p) => p.id === id && p.tem_etiqueta_oficial)
@@ -434,6 +484,74 @@ export default function FornecedorPedidosPage() {
                     <p className={cn("mt-3 text-sm", DANGER_PREMIUM_TEXT_PRIMARY)}>{p.motivo_bloqueio}</p>
                   ) : null}
 
+                  {p.status === "enviado" && !p.tem_etiqueta_oficial && (
+                    <div
+                      role="status"
+                      className="relative mt-3 overflow-hidden rounded-xl border border-[var(--danger)]/55 bg-transparent shadow-sm shadow-red-500/10 dark:border-red-400/55 dark:bg-transparent dark:shadow-none"
+                    >
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-[var(--danger)] to-red-600 opacity-95 dark:from-red-400 dark:to-red-500 dark:opacity-100"
+                      />
+                      <div className="pl-4 pr-3 py-3 sm:pl-5 sm:pr-4 sm:py-3.5">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-start gap-2.5">
+                            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--danger)]/35 bg-[var(--danger)]/10 dark:border-red-400/55 dark:bg-transparent">
+                              <svg
+                                className="h-5 w-5 text-[var(--danger)] dark:text-red-300"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden
+                              >
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                <line x1="12" y1="9" x2="12" y2="13" />
+                                <line x1="12" y1="17" x2="12.01" y2="17" />
+                              </svg>
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-base font-bold leading-snug tracking-tight text-[var(--danger)] dark:text-red-300">
+                                Sem etiqueta
+                              </p>
+                              <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">
+                                A Olist ainda não gerou a etiqueta real desse pedido — depende do
+                                seller (só ele acessa a Olist). Não é um problema seu.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
+                            <button
+                              type="button"
+                              onClick={() => void lembrarSeller(p.id)}
+                              disabled={lembrandoId === p.id}
+                              className="w-full shrink-0 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors bg-[var(--danger)] hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:hover:opacity-100 dark:shadow-sm dark:shadow-red-950/50 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:w-auto"
+                            >
+                              {lembrandoId === p.id ? "Avisando..." : "Lembrar seller"}
+                            </button>
+                            {(() => {
+                              const msg = lembrarMsg[p.id];
+                              if (!msg) return null;
+                              return (
+                                <span
+                                  className={
+                                    msg.tipo === "ok"
+                                      ? "text-[11px] text-emerald-600 dark:text-emerald-400"
+                                      : "text-[11px] text-[var(--danger)]"
+                                  }
+                                >
+                                  {msg.texto}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {p.tem_etiqueta_oficial && (
                     <label className="mt-3 flex items-center gap-2 text-xs text-[var(--muted)]">
                       <input
@@ -449,22 +567,43 @@ export default function FornecedorPedidosPage() {
 
                   {(p.status === "enviado" || p.status === "aguardando_repasse") && (
                     <div className="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:justify-end">
-                      {p.status === "enviado" && (
+                      {p.status === "enviado" && p.tem_etiqueta_oficial && (
                         <button
                           type="button"
                           onClick={() => router.push(`/fornecedor/pedidos/${p.id}/etiqueta`)}
                           className={cn(btnSecondaryCompactClass, "w-full sm:w-auto")}
-                          title="Imprimir etiqueta de separação para a embalagem"
+                          title="Abrir etiqueta oficial pra impressão"
                         >
                           Imprimir etiqueta
+                        </button>
+                      )}
+                      {p.status === "enviado" && p.tem_etiqueta_oficial && (
+                        <button
+                          type="button"
+                          onClick={() => void reportarEtiquetaErrada(p.id)}
+                          disabled={reportandoId === p.id}
+                          className="w-full rounded-md px-2.5 py-1.5 text-[11px] font-semibold text-[var(--danger)] underline decoration-dotted underline-offset-2 hover:opacity-80 sm:w-auto"
+                          title="A etiqueta não é do pedido certo (endereço/produto não bate)"
+                        >
+                          {reportandoId === p.id ? "Reportando..." : "Etiqueta errada?"}
                         </button>
                       )}
                       {p.status === "enviado" && (
                         <button
                           type="button"
                           onClick={() => void marcarPostado(p.id)}
-                          disabled={postandoId !== null}
-                          className={cn(btnPrimaryCompactClass, "w-full sm:w-auto")}
+                          disabled={postandoId !== null || !p.tem_etiqueta_oficial}
+                          title={
+                            p.tem_etiqueta_oficial
+                              ? undefined
+                              : "Sem a etiqueta real não dá pra postar o pacote — peça pro seller buscar o link primeiro."
+                          }
+                          className={cn(
+                            p.tem_etiqueta_oficial
+                              ? btnPrimaryCompactClass
+                              : "rounded-md bg-neutral-200 px-2.5 py-1.5 text-[11px] font-semibold text-neutral-500 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-500",
+                            "w-full sm:w-auto"
+                          )}
                         >
                           {postandoId === p.id ? "Marcando..." : "Marcar como postado"}
                         </button>

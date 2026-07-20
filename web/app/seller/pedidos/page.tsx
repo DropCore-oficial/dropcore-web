@@ -39,6 +39,7 @@ type Pedido = {
   comprador_fone: string | null;
   itens: PedidoItem[];
   tem_etiqueta: boolean;
+  etiqueta_tentativas: number;
 };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -85,6 +86,44 @@ export default function SellerPedidosPage() {
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
   const destaqueId = searchParams.get("destaque");
   const pedidoRefs = useRef<Record<string, HTMLElement | null>>({});
+  const [etiquetaLinkInputs, setEtiquetaLinkInputs] = useState<Record<string, string>>({});
+  const [etiquetaLinkSaving, setEtiquetaLinkSaving] = useState<Record<string, boolean>>({});
+  const [etiquetaLinkError, setEtiquetaLinkError] = useState<Record<string, string>>({});
+
+  async function salvarEtiquetaLink(pedidoId: string) {
+    const url = (etiquetaLinkInputs[pedidoId] ?? "").trim();
+    setEtiquetaLinkError((prev) => ({ ...prev, [pedidoId]: "" }));
+    if (!/^https:\/\/.+/i.test(url)) {
+      setEtiquetaLinkError((prev) => ({ ...prev, [pedidoId]: "Cole um link válido (https://...)." }));
+      return;
+    }
+    setEtiquetaLinkSaving((prev) => ({ ...prev, [pedidoId]: true }));
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const res = await fetch(`/api/seller/pedidos/${pedidoId}/etiqueta-link`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? "Erro ao salvar link.");
+      await load();
+    } catch (e: unknown) {
+      setEtiquetaLinkError((prev) => ({
+        ...prev,
+        [pedidoId]: e instanceof Error ? e.message : "Erro inesperado.",
+      }));
+    } finally {
+      setEtiquetaLinkSaving((prev) => ({ ...prev, [pedidoId]: false }));
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -308,6 +347,50 @@ export default function SellerPedidosPage() {
                       ))}
                     </ul>
                   ) : null}
+
+                  {p.status === "enviado" && !p.tem_etiqueta && (
+                      <div className="mt-3">
+                        <AmberPremiumCallout title="Etiqueta não chegou automaticamente — cole o link">
+                          <div className="space-y-2">
+                            <p>
+                              {p.etiqueta_tentativas > 0
+                                ? `Já tentamos buscar na Olist ${p.etiqueta_tentativas}x sem sucesso. `
+                                : "Ainda não conseguimos buscar automaticamente na Olist. "}
+                              Entre no painel da Olist, pegue o link da etiqueta deste pedido e cole abaixo pra
+                              não travar o envio.
+                            </p>
+                            <p className="font-medium text-[var(--foreground)]">
+                              Confira antes de colar: o número do pedido na Olist tem que ser{" "}
+                              <span className="font-mono">{p.referencia_externa ?? "—"}</span> — etiqueta de
+                              pedido errado sai pro endereço/produto errado.
+                            </p>
+                            <div className="flex flex-col gap-1.5 sm:flex-row">
+                              <input
+                                type="url"
+                                placeholder="Cole aqui o link da etiqueta (https://...)"
+                                value={etiquetaLinkInputs[p.id] ?? ""}
+                                onChange={(e) =>
+                                  setEtiquetaLinkInputs((prev) => ({ ...prev, [p.id]: e.target.value }))
+                                }
+                                disabled={etiquetaLinkSaving[p.id]}
+                                className="w-full rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-sm text-[var(--foreground)]"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => salvarEtiquetaLink(p.id)}
+                                disabled={etiquetaLinkSaving[p.id]}
+                                className="w-full shrink-0 rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 sm:w-auto"
+                              >
+                                {etiquetaLinkSaving[p.id] ? "Salvando..." : "Salvar link"}
+                              </button>
+                            </div>
+                            {etiquetaLinkError[p.id] && (
+                              <p className="text-[11px] text-[var(--danger)]">{etiquetaLinkError[p.id]}</p>
+                            )}
+                          </div>
+                        </AmberPremiumCallout>
+                      </div>
+                    )}
 
                   {p.status === "pendente_estoque" ? (
                     <p className="mt-3 text-sm text-amber-800 dark:text-amber-200">

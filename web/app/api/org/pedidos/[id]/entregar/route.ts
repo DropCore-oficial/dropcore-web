@@ -9,8 +9,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
-import { resolveLedgerIdForPedido } from "@/lib/resolveLedgerForPedido";
-import { proximoCicloRepasse } from "@/lib/cicloRepasse";
+import { promoverPedidoParaPostado } from "@/lib/pedidoPostadoPromote";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,60 +43,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       );
     }
 
-    // 2) Atualizar status do pedido
-    const now = new Date().toISOString();
-    const { error: upPedido } = await supabaseAdmin
-      .from("pedidos")
-      .update({ status: "aguardando_repasse", atualizado_em: now })
-      .eq("id", pedido_id)
-      .eq("org_id", org_id);
-
-    if (upPedido) return NextResponse.json({ error: upPedido.message }, { status: 500 });
-
-    const ledgerId = await resolveLedgerIdForPedido(org_id, pedido_id, pedido.ledger_id);
-
-    if (ledgerId && !pedido.ledger_id) {
-      await supabaseAdmin.from("pedidos").update({ ledger_id: ledgerId, atualizado_em: now }).eq("id", pedido_id);
-    }
-
-    // 3) Atualizar ledger vinculado (extrato do seller)
-    let ciclo_repasse: string | null = null;
-
-    if (ledgerId) {
-      const { data: cicloRow } = await supabaseAdmin.rpc("fn_ciclo_repasse", { data_evento: now });
-      ciclo_repasse = cicloRow ?? proximoCicloRepasse();
-
-      const { error: upLedger } = await supabaseAdmin
-        .from("financial_ledger")
-        .update({
-          status: "AGUARDANDO_REPASSE",
-          ciclo_repasse,
-          atualizado_em: now,
-        })
-        .eq("id", ledgerId);
-
-      if (upLedger) {
-        console.error("[entregar] ledger update:", upLedger.message);
-        return NextResponse.json({ error: "Erro ao atualizar ledger: " + upLedger.message }, { status: 500 });
-      }
-    }
-
-    await supabaseAdmin.from("pedido_eventos").insert({
+    const promote = await promoverPedidoParaPostado({
       org_id,
       pedido_id,
-      tipo: "pedido_postado_manual",
-      origem: "manual",
-      actor_id: null,
-      actor_tipo: "admin",
-      descricao: "Envio confirmado manualmente pelo admin.",
-      metadata: { via: "admin/pedidos" },
+      ledger_id: pedido.ledger_id,
+      evento: {
+        tipo: "pedido_postado_manual",
+        origem: "manual",
+        actor_id: null,
+        actor_tipo: "admin",
+        descricao: "Envio confirmado manualmente pelo admin.",
+        metadata: { via: "admin/pedidos" },
+      },
     });
+
+    if (!promote.ok) return NextResponse.json({ error: promote.error }, { status: 500 });
 
     return NextResponse.json({
       ok: true,
       pedido_id,
       status: "aguardando_repasse",
-      ciclo_repasse,
+      ciclo_repasse: promote.ciclo_repasse,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";

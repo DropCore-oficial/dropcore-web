@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { isSellerOlistRateLimited } from "@/lib/olistRateLimitCooldown";
 import { getSellerOlistApiToken } from "@/lib/sellerOlistIntegration";
 import {
   deriveSellerOlistPrecosSyncStatus,
@@ -23,7 +24,7 @@ export async function runOlistSyncPrecosTodosSellers(): Promise<{
 }> {
   const { data: integrations, error } = await supabaseAdmin
     .from("seller_olist_integrations")
-    .select("seller_id")
+    .select("seller_id, olist_rate_limited_until")
     .not("olist_token_ciphertext", "is", null);
 
   if (error) throw new Error(error.message);
@@ -33,10 +34,16 @@ export async function runOlistSyncPrecosTodosSellers(): Promise<{
   let okTotal = 0;
   let falhasTotal = 0;
 
+  const rateLimitedSellerIds = new Set(
+    (integrations ?? [])
+      .filter((r) => isSellerOlistRateLimited(r as { olist_rate_limited_until: string | null }))
+      .map((r) => String((r as { seller_id: string }).seller_id))
+  );
   const sellerIds = [...new Set((integrations ?? []).map((r) => String((r as { seller_id: string }).seller_id)))];
 
   for (let i = 0; i < sellerIds.length; i += 1) {
     const sellerId = sellerIds[i]!;
+    if (rateLimitedSellerIds.has(sellerId)) continue;
     const apiToken = await getSellerOlistApiToken(sellerId);
     if (!apiToken) continue;
 

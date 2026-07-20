@@ -19,6 +19,7 @@ type PedidoRow = {
   tracking_codigo: string | null;
   metodo_envio: string | null;
   etiqueta_pdf_url: string | null;
+  etiqueta_tentativas: number | null;
   motivo_bloqueio?: string | null;
   motivo_bloqueio_responsavel?: "seller" | "fornecedor" | null;
   marketplace_numero?: string | null;
@@ -53,7 +54,7 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, nome_produto, valor_total, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, referencia_externa, tracking_codigo, metodo_envio, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, etiqueta_pdf_url"
+        "id, nome_produto, valor_total, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, referencia_externa, tracking_codigo, metodo_envio, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_tentativas"
       )
       .eq("org_id", seller.org_id)
       .eq("seller_id", seller.id)
@@ -81,7 +82,7 @@ export async function GET(req: Request) {
       const fallback = await supabaseAdmin
         .from("pedidos")
         .select(
-          "id, nome_produto, valor_total, status, criado_em, referencia_externa, tracking_codigo, metodo_envio, etiqueta_pdf_url"
+          "id, nome_produto, valor_total, status, criado_em, referencia_externa, tracking_codigo, metodo_envio, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_tentativas"
         )
         .eq("org_id", seller.org_id)
         .eq("seller_id", seller.id)
@@ -130,7 +131,11 @@ export async function GET(req: Request) {
           motivoCompleto: row.motivo_bloqueio,
         }),
         itens: itensPorPedido.get(p.id) ?? [],
-        tem_etiqueta: Boolean((p as { etiqueta_pdf_url?: string | null }).etiqueta_pdf_url?.trim()),
+        etiqueta_tentativas: p.etiqueta_tentativas ?? 0,
+        tem_etiqueta: Boolean(
+          (p as { etiqueta_pdf_url?: string | null }).etiqueta_pdf_url?.trim() ||
+            (p as { etiqueta_pdf_base64?: string | null }).etiqueta_pdf_base64?.trim()
+        ),
       };
     });
 

@@ -1,6 +1,7 @@
 import { submitSellerErpPedido } from "@/lib/erp/submitSellerErpPedido";
 import { shouldSkipSituacaoTextOnPesquisa } from "@/lib/olistPedidoImportPolicy";
 import { isTinyRateLimitMessage, pesquisarPedidosOlist, type OlistPedidoResumo } from "@/lib/olistTinyApi";
+import { isSellerOlistRateLimited, markSellerOlistRateLimited } from "@/lib/olistRateLimitCooldown";
 import { processOlistPedidoImport } from "@/lib/sellerOlistPedidoImport";
 import { decryptSellerErpSecret, describeSellerErpSecretDecryptFailure } from "@/lib/sellerErpSecretBox";
 import { mapWithConcurrency } from "@/lib/mapWithConcurrency";
@@ -36,6 +37,7 @@ export type SellerOlistSyncRow = {
   olist_token_ciphertext: string | null;
   olist_pedidos_sync_cursor_at: string | null;
   olist_token_validated_at: string | null;
+  olist_rate_limited_until: string | null;
   updated_at: string | null;
 };
 
@@ -101,13 +103,13 @@ async function listSellerOlistIntegrations(): Promise<SellerOlistSyncRow[]> {
   const { data, error } = await supabaseAdmin
     .from("seller_olist_integrations")
     .select(
-      "seller_id, org_id, olist_token_ciphertext, olist_pedidos_sync_cursor_at, olist_token_validated_at, updated_at"
+      "seller_id, org_id, olist_token_ciphertext, olist_pedidos_sync_cursor_at, olist_token_validated_at, olist_rate_limited_until, updated_at"
     )
     .not("olist_token_ciphertext", "is", null);
 
   if (error) {
     const msg = String(error.message ?? "").toLowerCase();
-    if (msg.includes("olist_pedidos_sync_cursor_at") || error.code === "42703") {
+    if (msg.includes("olist_pedidos_sync_cursor_at") || msg.includes("olist_rate_limited_until") || error.code === "42703") {
       const fallback = await supabaseAdmin
         .from("seller_olist_integrations")
         .select("seller_id, org_id, olist_token_ciphertext, olist_token_validated_at, updated_at")
@@ -116,6 +118,7 @@ async function listSellerOlistIntegrations(): Promise<SellerOlistSyncRow[]> {
       return (fallback.data ?? []).map((row) => ({
         ...(row as SellerOlistSyncRow),
         olist_pedidos_sync_cursor_at: null,
+        olist_rate_limited_until: null,
       }));
     }
     throw new Error(error.message);
@@ -203,6 +206,14 @@ async function syncSellerOlistOrders(
   if (!row.olist_token_ciphertext) {
     result.status = "ignorado";
     result.warnings.push("Integração sem token salvo.");
+    return result;
+  }
+
+  if (isSellerOlistRateLimited(row)) {
+    result.status = "ignorado";
+    result.warnings.push(
+      `Seller em cooldown por rate limit da Olist até ${row.olist_rate_limited_until} — sync pulado sem gastar chamada.`
+    );
     return result;
   }
 
@@ -294,6 +305,7 @@ async function syncSellerOlistOrders(
         // API já sinalizou bloqueio: os pedidos restantes do lote também vão falhar.
         // Para aqui pra não gastar chamada à toa — o cursor retido (acima) garante que
         // esses pedidos voltam a ser tentados no próximo sync.
+        await markSellerOlistRateLimited(row.seller_id);
         result.warnings.push(
           `Sync interrompido em ${resumo.id} por rate limit da Olist — restante do lote fica pra próxima rodada.`
         );
@@ -333,6 +345,16 @@ async function syncSellerOlistOrders(
       if (proc.outcome === "imported_bloqueado") {
         result.warnings.push(`Pedido ${resumo.id}: bloqueado — veja o motivo na tela de Pedidos.`);
       }
+      if (proc.warnings.some(isTinyRateLimitMessage)) {
+        // O pedido em si importou, mas a busca de etiqueta (chamada dentro do import
+        // bem-sucedido) já bateu rate limit — os próximos pedidos da mesma leva vão
+        // repetir o mesmo erro. Para aqui em vez de continuar gastando chamada à toa.
+        await markSellerOlistRateLimited(row.seller_id);
+        result.warnings.push(
+          `Sync interrompido em ${resumo.id} por rate limit da Olist (etiqueta) — restante do lote fica pra próxima rodada.`
+        );
+        break;
+      }
     }
 
     if (proc.outcome === "reservado_estoque") {
@@ -366,14 +388,14 @@ async function loadSellerOlistIntegrationRow(sellerId: string): Promise<SellerOl
   const { data, error } = await supabaseAdmin
     .from("seller_olist_integrations")
     .select(
-      "seller_id, org_id, olist_token_ciphertext, olist_pedidos_sync_cursor_at, olist_token_validated_at, updated_at"
+      "seller_id, org_id, olist_token_ciphertext, olist_pedidos_sync_cursor_at, olist_token_validated_at, olist_rate_limited_until, updated_at"
     )
     .eq("seller_id", sellerId)
     .maybeSingle();
 
   if (error) {
     const msg = String(error.message ?? "").toLowerCase();
-    if (msg.includes("olist_pedidos_sync_cursor_at") || error.code === "42703") {
+    if (msg.includes("olist_pedidos_sync_cursor_at") || msg.includes("olist_rate_limited_until") || error.code === "42703") {
       const fallback = await supabaseAdmin
         .from("seller_olist_integrations")
         .select("seller_id, org_id, olist_token_ciphertext, olist_token_validated_at, updated_at")
@@ -383,6 +405,7 @@ async function loadSellerOlistIntegrationRow(sellerId: string): Promise<SellerOl
       return {
         ...(fallback.data as SellerOlistSyncRow),
         olist_pedidos_sync_cursor_at: null,
+        olist_rate_limited_until: null,
       };
     }
     throw new Error(error.message);

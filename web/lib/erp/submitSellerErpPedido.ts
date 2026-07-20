@@ -36,6 +36,7 @@ export type SubmitSellerErpPedidoInput = {
     comprador_cidade?: string | null;
     comprador_uf?: string | null;
     comprador_fone?: string | null;
+    canal_venda?: string | null;
   };
 };
 
@@ -144,6 +145,7 @@ async function insertPedidoPlaceholder(params: {
       comprador_cidade: meta.comprador_cidade?.trim() || null,
       comprador_uf: meta.comprador_uf?.trim() || null,
       comprador_fone: meta.comprador_fone?.trim() || null,
+      canal_venda: meta.canal_venda?.trim() || null,
     })
     .select("id, valor_total")
     .single();
@@ -239,6 +241,7 @@ export async function submitSellerErpPedido(
   const referencia_externa = input.referencia_externa?.trim() || null;
   const tracking_codigo = input.tracking_codigo?.trim() || null;
   const metodo_envio = input.metodo_envio?.trim() || null;
+  const meta = input.meta ?? {};
   const items = input.items
     .map((item) => ({
       sku: item.sku.trim(),
@@ -576,6 +579,14 @@ export async function submitSellerErpPedido(
       referencia_externa,
       tracking_codigo,
       metodo_envio,
+      sku_id: skuRows[0]?.id ?? null,
+      nome_produto: meta.nome_produto?.trim() || skuRows[0]?.nome_produto || null,
+      marketplace_numero: meta.marketplace_numero?.trim() || null,
+      comprador_nome: meta.comprador_nome?.trim() || null,
+      comprador_cidade: meta.comprador_cidade?.trim() || null,
+      comprador_uf: meta.comprador_uf?.trim() || null,
+      comprador_fone: meta.comprador_fone?.trim() || null,
+      canal_venda: meta.canal_venda?.trim() || null,
     })
     .select("id, valor_total, criado_em")
     .single();
