@@ -16,13 +16,11 @@ export const metadata: Metadata = {
     url: site,
     title: LANDING_TITLE,
     description: LANDING_DESCRIPTION,
-    images: [{ url: "/og-social.png", width: 1200, height: 630, alt: "DropCore" }],
   },
   twitter: {
     card: "summary_large_image",
     title: LANDING_TITLE,
     description: LANDING_DESCRIPTION,
-    images: ["/og-social.png"],
   },
 };
 

@@ -30,21 +30,11 @@ export const metadata: Metadata = {
     title: "DropCore",
     description: "Hub de gestão para sellers e fornecedores",
     url: siteUrl,
-    images: [
-      {
-        url: "/og-social.png",
-        width: 1200,
-        height: 630,
-        alt: "DropCore",
-        type: "image/png",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "DropCore",
     description: "Hub de gestão para sellers e fornecedores",
-    images: ["/og-social.png"],
   },
 };
 
