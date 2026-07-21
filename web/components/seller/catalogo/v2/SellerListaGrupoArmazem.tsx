@@ -28,7 +28,7 @@ import { sellerGrupoToProdutoResumoListaGrupoProps } from "./mapSellerGrupoToPro
 import { linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
 import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
 import {
-  AMBER_PREMIUM_SURFACE_TRANSPARENT,
+  AMBER_PREMIUM_SHELL,
   AMBER_PREMIUM_TEXT_PRIMARY,
   AMBER_PREMIUM_TEXT_SECONDARY,
 } from "@/lib/amberPremium";
@@ -386,31 +386,35 @@ export function SellerListaGrupoArmazem({
       return (
         <span
           className={cn(
-            AMBER_PREMIUM_SURFACE_TRANSPARENT,
+            AMBER_PREMIUM_SHELL,
             AMBER_PREMIUM_TEXT_PRIMARY,
-            "inline-flex max-w-full rounded-full px-2 py-0.5 text-xs font-medium",
+            "inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
           )}
         >
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
           Com pendência
         </span>
       );
     }
     if (sg === "sem_estoque") {
       return (
-        <span className="inline-flex rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium ring-1 ring-neutral-200 dark:bg-neutral-800 dark:ring-neutral-700 dark:text-neutral-300">
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-neutral-100 px-2 py-1 text-[11px] font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
           Sem estoque
         </span>
       );
     }
     if (sg === "pausado") {
       return (
-        <span className="inline-flex rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium ring-1 ring-neutral-200 dark:bg-neutral-800 dark:ring-neutral-700 dark:text-neutral-300">
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-neutral-100 px-2 py-1 text-[11px] font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
           Pausado
         </span>
       );
     }
     return (
-      <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900 ring-1 ring-emerald-500/25 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-400/35">
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
         Pronto
       </span>
     );
@@ -473,11 +477,12 @@ export function SellerListaGrupoArmazem({
                 {todosInativos ? (
                   <span
                     className={cn(
-                      AMBER_PREMIUM_SURFACE_TRANSPARENT,
+                      AMBER_PREMIUM_SHELL,
                       AMBER_PREMIUM_TEXT_PRIMARY,
-                      "inline-flex shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold shadow-none",
+                      "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
                     )}
                   >
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                     Inativo
                   </span>
                 ) : null}
@@ -531,7 +536,7 @@ export function SellerListaGrupoArmazem({
         <>
           <div className="relative z-20 overflow-visible border-t border-[var(--card-border)] bg-[var(--card)] px-3 py-2 sm:px-4 sm:py-2">
             <div className="flex min-w-0 flex-col gap-2 overflow-visible sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-2.5">
-              <div className="inline-flex h-8 w-full min-w-0 rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] p-px shadow-none ring-1 ring-[var(--foreground)]/[0.04] sm:h-7 sm:w-auto sm:flex-none sm:rounded-md">
+              <div className="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto sm:flex-none">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -539,10 +544,10 @@ export function SellerListaGrupoArmazem({
                     setModoListaVariantes("agrupado-cor");
                   }}
                   className={cn(
-                    "flex h-full min-h-0 min-w-0 flex-1 items-center justify-center rounded-[6px] px-2.5 text-center text-[11px] font-medium leading-none transition sm:flex-initial sm:rounded-[5px] sm:px-3 sm:text-xs sm:font-normal",
+                    "inline-flex shrink-0 items-center justify-center rounded-full border px-3.5 py-1.5 text-[11px] font-medium whitespace-nowrap transition-colors",
                     modoListaVariantes === "agrupado-cor"
-                      ? "bg-emerald-600 text-white hover:bg-emerald-700 sm:font-medium"
-                      : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
+                      ? "border-emerald-600 bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
+                      : "border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
                   )}
                   title="Agrupado por cor"
                 >
@@ -556,10 +561,10 @@ export function SellerListaGrupoArmazem({
                     setModoListaVariantes("sku");
                   }}
                   className={cn(
-                    "flex h-full min-h-0 min-w-0 flex-1 items-center justify-center rounded-[6px] px-2.5 text-center text-[11px] font-medium leading-none transition sm:flex-initial sm:rounded-[5px] sm:px-3 sm:text-xs sm:font-normal",
+                    "inline-flex shrink-0 items-center justify-center rounded-full border px-3.5 py-1.5 text-[11px] font-medium whitespace-nowrap transition-colors",
                     modoListaVariantes === "sku"
-                      ? "bg-emerald-600 text-white hover:bg-emerald-700 sm:font-medium"
-                      : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
+                      ? "border-emerald-600 bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
+                      : "border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
                   )}
                   title="Detalhado por SKU"
                 >
@@ -574,7 +579,7 @@ export function SellerListaGrupoArmazem({
                     e.stopPropagation();
                     setMostrarFotosVariantes((v) => !v);
                   }}
-                  className="inline-flex h-8 w-full shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 text-[11px] font-medium text-[var(--foreground)] shadow-none transition hover:bg-[var(--muted)]/10 sm:h-7 sm:w-auto sm:rounded-md sm:px-2.5 sm:text-xs sm:font-normal"
+                  className="inline-flex w-full shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition hover:bg-[var(--muted)]/10 sm:w-auto"
                   title={mostrarFotosVariantes ? "Ocultar fotos das variantes" : "Mostrar fotos das variantes"}
                 >
                   <span className="sm:hidden">{mostrarFotosVariantes ? "Ocultar" : "Fotos"}</span>
@@ -605,7 +610,7 @@ export function SellerListaGrupoArmazem({
                         e.stopPropagation();
                         onExportOlist();
                       }}
-                      className="inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 text-[11px] font-semibold text-[var(--primary-blue)] shadow-none transition hover:bg-[var(--muted)]/10 disabled:opacity-50 sm:h-7 sm:rounded-md sm:px-2.5 sm:text-xs"
+                      className="inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--primary-blue)] transition hover:bg-[var(--muted)]/10 disabled:opacity-50"
                       title="Baixa CSV deste produto (pai + variações) para importar na Olist/Tiny"
                     >
                       {exportandoOlist ? "Exportando…" : "Exportar para Olist"}
@@ -697,7 +702,7 @@ export function SellerListaGrupoArmazem({
                                 href={lfCor}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-2.5 text-xs font-medium text-emerald-700 shadow-sm transition hover:bg-[var(--muted)]/10 dark:border-[var(--card-border)] dark:bg-[var(--card)] dark:text-emerald-400"
+                                className="inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 transition hover:bg-[var(--muted)]/10 dark:text-emerald-400"
                               >
                                 Ver fotos
                               </a>

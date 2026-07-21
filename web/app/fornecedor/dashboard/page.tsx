@@ -8,6 +8,7 @@ import { FornecedorPortalBlockedShell } from "@/components/fornecedor/Fornecedor
 import { useMensalidadeBloqueio } from "@/lib/mensalidadeBloqueioContext";
 import { useVisibilityAwareInterval } from "@/lib/useVisibilityAwareInterval";
 import { FornecedorNav } from "../FornecedorNav";
+import { AddToHomeScreenCard } from "@/components/AddToHomeScreenCard";
 import { IconArrowRight, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
 import { AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
@@ -448,6 +449,8 @@ export default function FornecedorDashboardPage() {
             )}
           </div>
         </header>
+
+        <AddToHomeScreenCard appName="DropCore" />
 
         {fornecedor && fornecedor.cadastro_minimo_completo === false && (
           <Link

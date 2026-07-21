@@ -8,6 +8,7 @@ import { useMensalidadeBloqueio } from "@/lib/mensalidadeBloqueioContext";
 import { useVisibilityAwareInterval } from "@/lib/useVisibilityAwareInterval";
 import { SellerPortalBlockedShell } from "@/components/seller/SellerPortalBlockedShell";
 import { SellerNav } from "../SellerNav";
+import { AddToHomeScreenCard } from "@/components/AddToHomeScreenCard";
 import { IconTipoExtrato, IconDevolucao, IconArrowRight, IconPlus, IconClipboard, IconDeposito, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
 import { planoSellerDefinido } from "@/lib/sellerDocumento";
 import {
@@ -1009,7 +1010,7 @@ export default function SellerDashboardPage() {
                       setMovimentacoesAberto(true);
                       extratoRef.current?.scrollIntoView({ behavior: "smooth" });
                     }}
-                    className="rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] touch-manipulation hover:bg-[var(--muted)]/10 transition-colors sm:shrink-0"
+                    className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] touch-manipulation hover:bg-[var(--muted)]/10 transition-colors sm:shrink-0"
                   >
                     {pendentesCount} PIX pendente{pendentesCount !== 1 ? "s" : ""}
                   </button>
@@ -1023,6 +1024,8 @@ export default function SellerDashboardPage() {
             )}
           </div>
         </header>
+
+        <AddToHomeScreenCard appName="DropCore" />
 
         {(kpis?.pedidos_atencao ?? 0) > 0 && (
           <Link
@@ -1547,14 +1550,14 @@ export default function SellerDashboardPage() {
                 <button
                   type="button"
                   onClick={() => void load()}
-                  className="inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] outline-none transition-colors hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] touch-manipulation whitespace-nowrap focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                  className="inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] outline-none transition-colors hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] touch-manipulation whitespace-nowrap focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
                 >
                   Atualizar
                 </button>
                 <button
                   type="button"
                   onClick={() => setMovimentacoesAberto(!movimentacoesAberto)}
-                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] outline-none transition-colors hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] touch-manipulation focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] outline-none transition-colors hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] touch-manipulation focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
                   title={movimentacoesAberto ? "Recolher" : "Expandir"}
                 >
                   {!movimentacoesAberto && (
@@ -1826,7 +1829,7 @@ export default function SellerDashboardPage() {
                     </div>
                     <p className="text-sm font-semibold text-[var(--foreground)]">Solicitação enviada!</p>
                     <p className="text-xs text-[var(--muted)]">Faça o PIX e aguarde a confirmação. Os créditos entram assim que o pagamento for aprovado.</p>
-                    <button onClick={fecharModal} className="w-full rounded-md border border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] font-semibold py-1.5 text-[11px] hover:bg-[var(--muted)]/10 transition-colors mt-2">
+                    <button onClick={fecharModal} className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] font-semibold py-1.5 text-[11px] hover:bg-[var(--muted)]/10 transition-colors mt-2">
                       Fechar
                     </button>
                   </div>

@@ -10,6 +10,8 @@ import {
 } from "@/lib/sellerSkuReadiness";
 import type { LinhaCatalogoV2 } from "./aggregates";
 import { catalogoV2UrlImagem } from "./catalogoV2Imagem";
+import { AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 type Props = {
   linha: LinhaCatalogoV2;
@@ -111,7 +113,7 @@ function VendaSwitch({
 export function HintSemEstoqueLigarBanner() {
   return (
     <div
-      className="w-full rounded-lg border border-amber-200/85 bg-amber-50 px-2.5 py-2 text-left text-[10px] leading-snug text-amber-950 shadow-[0_2px_8px_-4px_rgba(15,23,42,0.18)] dark:border-amber-700/55 dark:bg-amber-950/95 dark:text-amber-50"
+      className={cn(AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY, "w-full rounded-lg px-2.5 py-2 text-left text-[10px] leading-snug shadow-[0_2px_8px_-4px_rgba(15,23,42,0.18)]")}
       role="status"
       aria-live="polite"
     >

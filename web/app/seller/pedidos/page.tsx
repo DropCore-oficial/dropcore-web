@@ -210,25 +210,25 @@ export default function SellerPedidosPage() {
             </div>
           }
           right={
-            <div className="relative hidden items-center sm:inline-flex">
-              <svg
-                className="pointer-events-none absolute left-1.5 h-3 w-3 text-[var(--muted)]"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            <div className="relative hidden shrink-0 sm:inline-flex">
+              <div
                 aria-hidden
+                className="pointer-events-none inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-[var(--surface-subtle)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)]"
               >
-                <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
-              </svg>
+                <svg className="h-2.5 w-2.5 shrink-0 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+                </svg>
+                {statusFilter ? statusLabel[statusFilter] ?? statusFilter : "Todos"}
+                <svg className="h-2.5 w-2.5 shrink-0 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </div>
               <select
                 id="filtro-status"
                 aria-label="Filtrar por status"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-20 appearance-none truncate rounded-md border border-[var(--card-border)]/70 bg-[var(--surface-subtle)] py-1 pl-5 pr-4 text-[11px] font-medium text-[var(--foreground)]"
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
               >
                 <option value="">Todos</option>
                 <option value="pendente_estoque">Aguardando estoque</option>
@@ -238,18 +238,6 @@ export default function SellerPedidosPage() {
                 <option value="entregue">Entregues</option>
                 <option value="erro_saldo">Erro de saldo</option>
               </select>
-              <svg
-                className="pointer-events-none absolute right-1 h-2.5 w-2.5 text-[var(--muted)]"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
             </div>
           }
         />
@@ -307,7 +295,7 @@ export default function SellerPedidosPage() {
                     </span>
                   </div>
 
-                  <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <dt className="text-neutral-500">Custo total</dt>
                       <dd className="font-medium">{BRL.format(Number(p.valor_total ?? 0))}</dd>
@@ -328,7 +316,7 @@ export default function SellerPedidosPage() {
                       <dt className="text-neutral-500">Envio</dt>
                       <dd>{p.metodo_envio ?? "—"}</dd>
                     </div>
-                    <div className="sm:col-span-2">
+                    <div className="col-span-2">
                       <dt className="text-neutral-500">Cliente / entrega</dt>
                       <dd>{comprador || "—"}</dd>
                       {p.comprador_fone ? <dd className="text-neutral-600 dark:text-neutral-400">{p.comprador_fone}</dd> : null}
@@ -373,7 +361,7 @@ export default function SellerPedidosPage() {
                                   setEtiquetaLinkInputs((prev) => ({ ...prev, [p.id]: e.target.value }))
                                 }
                                 disabled={etiquetaLinkSaving[p.id]}
-                                className="w-full rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-sm text-[var(--foreground)]"
+                                className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-sm text-[var(--foreground)]"
                               />
                               <button
                                 type="button"

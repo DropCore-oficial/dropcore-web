@@ -27,6 +27,25 @@ fina (step exato, opacidade permitida), abra o `.mdc` correspondente ou o arquiv
 
 Cor nova só depois de atualizar `dropcorePalette.ts` + Supabase `dropcore_design_tokens` (+ `ALLOWED_EMERALD_OPACITIES`/`ui_blue`/`ui_danger`/`globals.css` conforme o papel) — nunca só na página.
 
+**Nunca usar `bg-[var(--background)]` num botão/chip/badge/campo dentro de um card.** No
+tema escuro `--background` é `#000000` puro, igual ao fundo da própria página — um
+elemento com esse fundo fica sem contraste nenhum (mancha preta lisa, não parece
+elemento clicável). Superfície de botão/input/badge é sempre `bg-[var(--card)]`;
+`--background` é só pro `<div>` raiz da página (canvas por trás de tudo).
+
+### Botão de tema (sol/lua) — REGRA TRAVADA, todo o sistema, sem exceção
+
+Fonte única: `web/components/ThemeToggle.tsx` (componente compartilhado, usado em toda
+área — admin/fornecedor/seller/auth). Corrigir só ali corrige o sistema inteiro.
+
+- **Tema escuro ativo** → ícone de **sol preenchido/aceso**, cor âmbar
+  (`AMBER_PREMIUM_TEXT_PRIMARY` + leve `drop-shadow` âmbar simulando brilho).
+- **Tema claro ativo** → ícone de **lua**, cor padrão do botão (`currentColor`/
+  `text-[var(--chrome-icon)]`), sem nenhum tingimento especial.
+
+Não inverter (sol no claro, lua no escuro) nem colorir a lua — só o sol no escuro ganha
+cor/brilho.
+
 ## 2. Componentes — mesma forma nas 3 áreas (admin / fornecedor / seller)
 
 As três dashboards (`web/app/dashboard/page.tsx`, `web/app/fornecedor/dashboard/page.tsx`,
@@ -54,9 +73,16 @@ da seção 2, inclusive em botão de destaque tipo "Recarregar créditos" ou con
 
 | Papel | Classes exatas |
 |---|---|
-| Secundário compacto | `rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10` |
+| Secundário compacto | `rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10` |
 | Primário compacto | `rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700` |
 | Perigo compacto (ex.: recarregar saldo crítico) | `rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20` |
+
+**Correção 2026-07-21: usar `bg-[var(--card)]`, nunca `bg-[var(--background)]`.** No tema
+escuro `--background` é `#000000` puro — igual ao fundo da própria página — então um botão
+com `bg-[var(--background)]` fica sem nenhum contraste (parece uma mancha preta lisa, sem
+cara de botão) em vez de destacar como superfície elevada. Bug estava na fonte original
+(`FornecedorImportEstoquePanel.tsx`) e se replicou em todo lugar que copiou o token; já
+corrigido nessas páginas — não reintroduzir `bg-[var(--background)]` num botão novo.
 
 Fonte original: `web/components/fornecedor/FornecedorImportEstoquePanel.tsx`. Aplicado
 página inteira (incluindo modais) em: `web/app/admin/pedidos/page.tsx`,
@@ -64,6 +90,17 @@ página inteira (incluindo modais) em: `web/app/admin/pedidos/page.tsx`,
 `web/app/seller/dashboard/page.tsx` (extrato, depósitos, modal de recarga PIX, modal de
 mensalidade, modal "Escolha seu plano" — exceto os cards de escolha de plano em si, que
 são "Botão/card clicável secundário", não CTA).
+
+**REGRA TRAVADA (2026-07-21): não é mais experimento nem opcional.** Botão compacto, chip
+de filtro (ver abaixo), badge de status (ver abaixo) e largura de shell (ver "Largura do
+shell" abaixo) são o **padrão obrigatório em toda tela do sistema** — admin, fornecedor e
+seller, dashboards e páginas internas — não só nas páginas já citadas como fonte. Não
+esperar pedido explícito nem "perguntar antes de aplicar em tela nova": ao criar ou tocar
+em qualquer tela com botão de ação, chip de filtro, badge de status, alerta (sucesso/erro)
+ou largura de shell, aplicar direto essas classes exatas, igual às páginas-fonte. Se uma
+tela do sistema estiver com botão/filtro/alerta/largura diferente disso, é bug de
+inconsistência a corrigir, não uma variação válida — não deixar pra depois nem perguntar
+se pode mexer.
 
 **O que fica de fora** (não é "botão de ação", é outro papel):
 - Card clicável grande (quick access, plano, atalho) — continua no padrão da seção 2.
@@ -79,9 +116,8 @@ são "Botão/card clicável secundário", não CTA).
   grupos agora usam exatamente `rounded-full px-2.5–3.5 py-1.5 text-[11px] font-medium`.
 - Botão ícone-only de fechar modal (`×`) — não tem escala de padding pra compactar.
 
-Ainda não copiado pro resto do admin/fornecedor/seller fora dessas páginas — perguntar
-antes de aplicar em tela nova, mas já não é mais "experimento", é o padrão vigente nas
-páginas acima.
+Padrão obrigatório em **todo** o admin/fornecedor/seller, não só nas páginas-fonte acima —
+ver "REGRA TRAVADA" logo acima.
 
 ### Botão compacto tem versão mobile e versão desktop — não precisam ser o mesmo DOM
 
@@ -127,8 +163,21 @@ visual" do botão acima (`border` + `font-semibold`), senão parece clicável. F
 
 Fonte/aplicado: `web/app/admin/pedidos/page.tsx` (coluna Status), `web/app/fornecedor/pedidos/page.tsx`,
 `web/app/seller/pedidos/page.tsx`, `web/app/seller/dashboard/page.tsx` (extrato, "Plano
-pendente", depósitos). Mesmo status do botão compacto acima — já não é mais experimento
-isolado, mas ainda não espalhado pro resto do admin/fornecedor/seller.
+pendente", depósitos). Mesmo status do botão compacto acima: padrão obrigatório em
+**todo** o sistema, não só nessas páginas — ver "REGRA TRAVADA" na seção do botão compacto.
+
+### Alerta / callout (sucesso, erro, atenção) — mesma caixa em toda tela
+
+Não é só a cor do texto que tem que vir de `semanticPremium.ts`/`amberPremium.ts` (ver
+seção 1) — a **caixa inteira** (borda + fundo + anel) também, usando os tokens de
+`*_PREMIUM_SHELL`/`*_PREMIUM_SURFACE` prontos, nunca montando `border-red-200 bg-red-100`
+(ou equivalente) na mão numa página e o token pronto em outra. Erro real corrigido em
+`web/app/seller/produtos/page.tsx`: a caixa de erro usava `red-100/200/900` direto
+(inclusive steps fora da escala permitida da seção 1) enquanto a caixa de sucesso logo
+abaixo, na mesma tela, já usava `SUCCESS_PREMIUM_SHELL` — as duas precisam vir do mesmo
+lugar (`DANGER_PREMIUM_SHELL`/`SUCCESS_PREMIUM_SHELL` + `*_TEXT_PRIMARY`), sempre em
+`cn(...)`, nunca uma tokenizada e a outra hardcoded. Vale pra qualquer par
+sucesso/erro/atenção que aparecer na mesma tela ou entre telas diferentes.
 
 ### Lista de pedidos em cards (article + dt/dd), sem tabela — em teste
 
@@ -153,25 +202,26 @@ sem split mobile/desktop separado**:
 - Fonte/teste: `web/app/fornecedor/pedidos/page.tsx` — inspirado na estrutura de
   `web/app/seller/pedidos/page.tsx` (mesma ideia de `article` + `dl`), mas com o badge de
   status no padrão novo (bolinha, sem borda) em vez do pill com contorno que o seller usa.
-- Essa página também passou a usar `dropcore-shell-6xl` em vez do `4xl` padrão de
-  fornecedor/seller (ver exceção na lista de larguras abaixo) — o grid de 2 colunas do
-  `dl` faz melhor uso do espaço largo.
+- Essa página já usa `dropcore-shell-6xl` (padrão único do sistema, ver "Largura do shell"
+  abaixo) — o grid de 2 colunas do `dl` faz melhor uso do espaço largo.
 
-**Únicas diferenças intencionais** entre admin e fornecedor/seller (não são exceção ao
-sistema, são decisão de produto — não "consertar"):
-- Largura do shell: admin usa `dropcore-shell-6xl`, fornecedor/seller usam
-  `dropcore-shell-4xl` — **exceção**: páginas migradas pro padrão compacto (lista de
-  pedidos em card, `seller/dashboard`) usam `6xl` mesmo em fornecedor/seller. Ainda é
-  `4xl` nas páginas de fornecedor/seller que não passaram por essa migração.
-  **O menu (`SellerNav`) tem que bater com a largura da página que ele está em cima** —
-  não é só o conteúdo que muda, o menu desktop também, senão o menu fica desalinhado com
-  os cards mais largos embaixo. `web/app/seller/SellerNav.tsx` tem a prop `wide?: boolean`
-  pra isso: `<SellerNav active="..." wide />` nas páginas em `6xl` (hoje `dashboard` e
-  `pedidos`), sem a prop (padrão `4xl`) nas que ainda não migraram. Ao migrar uma página
-  do seller pra `6xl`, sempre adicionar `wide` no `SellerNav` dela no mesmo commit —
-  esquecer isso é o mesmo tipo de erro (padrão inconsistente entre menu e página).
-- Composição do lado esquerdo do header: admin usa seta+breadcrumb ("Operação" etc.),
-  fornecedor/seller usam avatar/logo grande (`h-[5.25rem] w-[5.25rem] sm:h-[5.5rem] sm:w-[5.5rem]`).
+**Largura do shell — REGRA TRAVADA (2026-07-21): `dropcore-shell-6xl` é o padrão único do
+sistema inteiro, sem exceção por área.** Admin já usa `6xl`. Fornecedor e seller: `6xl` é
+o alvo pra **toda** página, não só as que já foram citadas como "migradas" (`dashboard`,
+`pedidos`) — `dropcore-shell-4xl` não é mais um padrão válido pra página nova nem pra
+página existente, é dívida a corrigir sempre que a tela for tocada. **O menu (`SellerNav`)
+tem que bater com a largura da página que ele está em cima** — não é só o conteúdo que
+muda, o menu desktop também, senão o menu fica desalinhado com os cards mais largos
+embaixo. `web/app/seller/SellerNav.tsx` tem a prop `wide?: boolean` pra isso:
+`<SellerNav active="..." wide />` é obrigatório em toda página do seller (não só
+`dashboard`/`pedidos`). Ao tocar numa página do seller ainda em `4xl`, trocar pra `6xl` +
+adicionar `wide` no mesmo commit — esquecer isso é o mesmo tipo de erro (padrão
+inconsistente entre menu e página).
+
+**Única diferença intencional** entre admin e fornecedor/seller (não é exceção ao sistema,
+é decisão de produto — não "consertar"): composição do lado esquerdo do header — admin usa
+seta+breadcrumb ("Operação" etc.), fornecedor/seller usam avatar/logo grande
+(`h-[5.25rem] w-[5.25rem] sm:h-[5.5rem] sm:w-[5.5rem]`).
 
 Fora essas duas coisas, cor, raio de borda, sombra, badge, botão e modal são o **mesmo
 componente** — se uma tela nova em qualquer área não bate com essas classes, ela está
@@ -201,13 +251,16 @@ dashboard raiz, que já tem o header próprio da seção 2). Estado atual:
   `FornecedorPageHeader` (mesmo molde do `AdminPageHeader`) em vez de copiar de novo —
   perguntar antes, já que mexe em fornecedor (área com regra própria, ver `CLAUDE.md`).
 
-### Barra degradê + destaque embutido no subtítulo — regra geral, todo header — em teste
+### Barra degradê + destaque embutido no subtítulo — REGRA TRAVADA, todo header, todo o sistema
 
-Duas coisas do `SellerPageHeader` (`surface="hero"`) viram regra pra **qualquer** header
-de página do DropCore — admin, fornecedor e seller, não só seller — **exceto as
-dashboards raiz** (`web/app/dashboard`, `web/app/fornecedor/dashboard`,
-`web/app/seller/dashboard` continuam só com o card padrão da seção 2, sem essas duas
-coisas):
+**REGRA TRAVADA (2026-07-21): obrigatório em toda página interna do sistema — admin,
+fornecedor e seller —, sem precisar perguntar antes.** As duas coisas do
+`SellerPageHeader` (`surface="hero"`) abaixo são o padrão de **qualquer** header de página
+que não seja a dashboard raiz. **Exceção única e permanente: as 3 dashboards raiz**
+(`web/app/dashboard`, `web/app/fornecedor/dashboard`, `web/app/seller/dashboard`) —
+essas continuam só com o card padrão da seção 2, **nunca** levam a barra degradê nem o
+destaque de subtítulo. Fora as 3 dashboards, toda página (inclusive admin/fornecedor que
+hoje não têm componente de header próprio ainda — ver seção acima) precisa ter:
 
 1. **Barra degradê ao lado do título** — `h-1 w-14 sm:w-20 rounded-full bg-gradient-to-r
    from-emerald-500 via-emerald-400 to-emerald-300/70` (classe exata já em
@@ -222,9 +275,9 @@ coisas):
 
 Fonte: `web/app/seller/produtos/page.tsx` (original) + já aplicado em
 `web/app/seller/cadastro/page.tsx` e `web/app/seller/plano/page.tsx` (só o destaque —
-essas páginas já tinham a barra via `surface="hero"`). Ainda não aplicado em
-admin/fornecedor (que não têm a barra hoje) — pedir confirmação de quais páginas antes de
-espalhar, testando algumas primeiro.
+essas páginas já tinham a barra via `surface="hero"`). Aplicar direto em admin/fornecedor
+ao tocar numa página deles também (criar o header próprio se ainda não existir, ver seção
+"Header de página interna" acima) — não é mais experimento isolado do seller.
 
 **Isso não mexe em nada do que já existe** — botão compacto, badge de status, largura de
 shell (`6xl` nas páginas migradas) continuam valendo exatamente como documentado acima;
@@ -265,6 +318,11 @@ não só desktop:
 
 - [ ] Toda cor usada vem de um token (`dropcorePalette.ts`, `amberPremium.ts`, `semanticPremium.ts`) — nenhum HEX ou classe Tailwind de cor solta reinventando um papel que já existe?
 - [ ] Header, card de seção, ícone, badge e botão batem com as classes exatas da seção 2 (não um formato inventado)?
+- [ ] Botão de ação usa a escala compacta exata (seção 2) — nenhum botão em `rounded-lg`/`rounded-xl`, `text-sm`/padding antigo sobrando?
+- [ ] Chip de filtro é `rounded-full` + `py-1.5 text-[11px] font-medium`, sem largura fixa forçada — igual em todos os grupos de chip da tela?
+- [ ] Alerta de sucesso/erro/atenção usa `*_PREMIUM_SHELL`/`*_PREMIUM_SURFACE` (nunca cor hardcoded numa caixa e token pronto na caixa vizinha)?
+- [ ] Shell da página é `dropcore-shell-6xl` e (se for seller) `SellerNav` tem `wide` — bateu com o padrão do resto do sistema, não ficou em `4xl`?
+- [ ] Header não-dashboard tem a barra degradê ao lado do título e, se houver frase importante no subtítulo, o destaque em `<span className="font-medium text-[var(--foreground)]">`?
 - [ ] Badge de status não tem `border`/`font-semibold` de botão (ver "Badge de status" acima) — dá pra distinguir etiqueta de ação só olhando?
 - [ ] Se tem modal: centralizado, sem bottom sheet, mesmo padrão da seção 3?
 - [ ] Funciona em mobile (~390px) sem estourar, colar texto ou cortar botão?

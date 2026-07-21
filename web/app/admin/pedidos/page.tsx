@@ -39,7 +39,7 @@ const labelClass = "block text-xs font-medium text-[var(--muted)] mb-1";
 // web/components/fornecedor/FornecedorImportEstoquePanel.tsx (teste em /admin/pedidos
 // antes de virar padrão de skill/design system para o resto do sistema).
 const btnSecondaryCompactClass =
-  "rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10";
+  "rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10";
 const btnPrimaryCompactClass =
   "rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60";
 
@@ -272,7 +272,7 @@ export default function PedidosPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="min-h-[1.875rem] flex-1 rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] sm:w-36 sm:flex-none"
+              className="min-h-[1.875rem] flex-1 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] sm:w-36 sm:flex-none"
             >
               <option value="">Todos</option>
               <option value="enviado">Enviado (bloqueado)</option>

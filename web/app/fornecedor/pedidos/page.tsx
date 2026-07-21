@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 // Padrão compacto de toolbar/badge — mesmo teste de web/app/admin/pedidos/page.tsx
 // (ver skill dropcore-layout, seções "Botão de ação compacto" e "Badge de status").
 const btnSecondaryCompactClass =
-  "rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10";
+  "rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10";
 const btnPrimaryCompactClass =
   "rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60";
 
@@ -393,7 +393,7 @@ export default function FornecedorPedidosPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="min-h-[1.875rem] flex-1 rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] sm:w-36 sm:flex-none"
+                  className="min-h-[1.875rem] flex-1 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] sm:w-36 sm:flex-none"
                 >
                   <option value="">Todos</option>
                   <option value="pendente_estoque">Aguardando estoque</option>

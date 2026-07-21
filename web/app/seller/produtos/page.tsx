@@ -26,6 +26,7 @@ import { SellerListaGrupoArmazem } from "@/components/seller/catalogo/v2/SellerL
 import { SellerOlistEstoqueGradeCallout } from "@/components/seller/SellerOlistEstoqueGradeCallout";
 import { linhasGrupo, type GrupoCatalogoV2 } from "@/components/seller/catalogo/v2/aggregates";
 import {
+  AMBER_PREMIUM_SHELL,
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
   AMBER_PREMIUM_TEXT_PRIMARY,
   AMBER_PREMIUM_TEXT_SOFT,
@@ -33,8 +34,12 @@ import {
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import {
   SUCCESS_PREMIUM_SHELL,
+  SUCCESS_PREMIUM_SURFACE,
   SUCCESS_PREMIUM_TEXT_PRIMARY,
+  DANGER_PREMIUM_SHELL,
+  DANGER_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/semanticPremium";
+import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { cn } from "@/lib/utils";
 
 type VinculoFornecedorMeta = {
@@ -83,6 +88,7 @@ export default function SellerProdutosPage() {
   const [modalTabelaGrupoKey, setModalTabelaGrupoKey] = useState<string | null>(null);
   const [tabelaMedidasData, setTabelaMedidasData] = useState<TabelaMedidasPayload | null>(null);
   const [loadingTabela, setLoadingTabela] = useState(false);
+  const [modalErpSkuAberto, setModalErpSkuAberto] = useState(false);
 
   const precisaAceiteVinculo = useMemo(() => {
     const novo = vinculoSelectId.trim() || null;
@@ -613,7 +619,7 @@ export default function SellerProdutosPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="dropcore-shell-4xl py-4 sm:py-6 lg:py-8">
+      <div className="dropcore-shell-6xl py-4 sm:py-6 lg:py-8">
           <SellerPageHeader
             surface="hero"
             className="mb-0 sm:mb-0"
@@ -625,39 +631,18 @@ export default function SellerProdutosPage() {
               </>
             }
             right={
-              <Link
-                href="#erp-catalogo-sku"
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-[13px] font-medium text-[var(--foreground)] no-underline transition hover:border-emerald-300 hover:bg-[var(--surface-hover)] dark:hover:border-emerald-700"
-                >
-                  <svg className="h-4 w-4 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                  </svg>
+              <button
+                type="button"
+                onClick={() => setModalErpSkuAberto(true)}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition hover:bg-[var(--muted)]/10"
+              >
+                <svg className="h-3.5 w-3.5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
                 ERP e SKU
-              </Link>
+              </button>
             }
           />
-          <div id="erp-catalogo-sku" className="mt-4 scroll-mt-28">
-            <AmberPremiumCallout title="Olist/Tiny e código no catálogo (SKU)" className="rounded-2xl px-4 py-3.5 sm:px-5">
-              <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-                No cadastro de produtos da <strong className="text-[var(--foreground)]">Olist/Tiny</strong>, use o mesmo código que
-                aparece como <strong className="text-[var(--foreground)]">SKU</strong> aqui no DropCore. Em cada produto da lista,
-                expanda e use <strong className="text-[var(--foreground)]">Exportar para Olist</strong> para baixar a planilha daquele
-                grupo (pai + variações). O <strong className="text-[var(--foreground)]">token API</strong> fica em{" "}
-                <Link
-                  href="/seller/integracoes-erp"
-                  className="font-semibold text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-400"
-                >
-                  Mais → ERP
-                </Link>
-                .
-              </p>
-              <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
-                Na Olist: Cadastros → Produtos → Mais ações → Importar planilha (reconhecimento por SKU). SKU do produto na Olist deve
-                estar em <strong className="text-[var(--foreground)]">Manual</strong> (Configurações → Cadastros → Código SKU).
-              </p>
-            </AmberPremiumCallout>
-            <SellerOlistEstoqueGradeCallout className="mt-3 rounded-2xl px-4 py-3.5 sm:px-5" compact />
-          </div>
           <div className="mt-3.5 flex flex-nowrap gap-2 sm:mt-5">
             <input
               value={q}
@@ -671,7 +656,7 @@ export default function SellerProdutosPage() {
                 <button
                   type="button"
                   onClick={() => setQ("")}
-                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--surface-hover)] sm:min-h-10 sm:min-w-0 sm:px-3.5 sm:text-sm sm:font-medium"
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10 sm:min-h-0 sm:min-w-0 sm:px-2.5 sm:py-1.5 sm:text-[11px] sm:font-semibold"
                 >
                   <svg className="h-5 w-5 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -684,10 +669,10 @@ export default function SellerProdutosPage() {
                 type="button"
                 onClick={() => setPainelFiltros((p) => !p)}
                 aria-expanded={painelFiltros}
-                className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-lg border px-3.5 text-sm font-medium transition sm:min-h-10 sm:min-w-[6.5rem] ${
+                className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-md border transition sm:min-h-0 sm:px-2.5 sm:py-1.5 sm:text-[11px] sm:font-semibold ${
                   painelFiltros
                     ? "border-emerald-600 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-900/35 dark:text-emerald-300"
-                    : "border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+                    : "border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
                 }`}
               >
                 <svg className="h-5 w-5 shrink-0 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -736,13 +721,15 @@ export default function SellerProdutosPage() {
                   onClick={() => {
                     setFiltroStatus(f.key);
                   }}
-                  className={`min-h-[40px] rounded-full border px-4 py-2 text-sm font-medium transition ${
+                  className={cn(
+                    "rounded-full px-3.5 py-1.5 text-[11px] font-medium whitespace-nowrap transition-colors",
                     filtroStatus === f.key
                       ? f.key === "pendencias"
                         ? cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY)
-                        : "border-emerald-600 bg-emerald-100 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-900/35 dark:text-emerald-300"
-                      : "border-[var(--card-border)] bg-[var(--surface-subtle)] text-[var(--muted)] hover:bg-[var(--surface-hover)] dark:bg-[var(--card)]"
-                  } disabled:cursor-not-allowed disabled:opacity-45`}
+                        : "bg-emerald-600 text-white shadow-sm"
+                      : "bg-[var(--surface-subtle)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
+                    "disabled:cursor-not-allowed disabled:opacity-45"
+                  )}
                 >
                   {f.label}
                 </button>
@@ -771,17 +758,19 @@ export default function SellerProdutosPage() {
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Armazém</span>
               {fornecedorLigadoId?.trim() ? (
-                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-300">
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-300">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                   API ligada
                 </span>
               ) : (
                 <span
                   className={cn(
-                    AMBER_PREMIUM_SURFACE_TRANSPARENT,
+                    AMBER_PREMIUM_SHELL,
                     AMBER_PREMIUM_TEXT_PRIMARY,
-                    "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium"
                   )}
                 >
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                   Pendente
                 </span>
               )}
@@ -805,11 +794,11 @@ export default function SellerProdutosPage() {
           <div className="space-y-4 border-t border-[var(--card-border)] px-3 pb-4 pt-3 sm:px-3.5">
           {fornecedoresLoadErr && <p className={cn("text-sm", AMBER_PREMIUM_TEXT_SOFT)}>{fornecedoresLoadErr}</p>}
           {fornecedoresLista?.length === 0 ? (
-            <p className="text-sm text-muted">Não há fornecedores na organização.</p>
+            <p className="text-sm text-[var(--muted)]">Não há fornecedores na organização.</p>
           ) : (
             <>
               <label className="block space-y-2">
-                <span className="text-sm text-muted">Ligar catálogo da API a</span>
+                <span className="text-sm text-[var(--muted)]">Ligar catálogo da API a</span>
                 <select
                   value={vinculoSelectId}
                   onChange={(e) => setVinculoSelectId(e.target.value)}
@@ -825,13 +814,13 @@ export default function SellerProdutosPage() {
                 </select>
               </label>
               {vinculoMeta && !vinculoMeta.pode_trocar_agora && vinculoMeta.pode_trocar_fornecedor_a_partir_de && (
-                <p className="text-sm text-muted">
+                <p className="text-sm text-[var(--muted)]">
                   Troca de armazém liberada a partir de{" "}
                   {new Date(vinculoMeta.pode_trocar_fornecedor_a_partir_de).toLocaleDateString("pt-BR")} (mín. {vinculoMeta.meses_minimos} meses), salvo liberação da organização.
                 </p>
               )}
               {vinculoAlterado && precisaAceiteVinculo && (
-                <label className="flex cursor-pointer items-start gap-2 text-sm text-foreground">
+                <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--foreground)]">
                   <input type="checkbox" checked={vinculoAceiteUso} onChange={(e) => setVinculoAceiteUso(e.target.checked)} className="mt-1 h-4 w-4 accent-[var(--accent)]" />
                   <span>Confirmo o uso operacional deste armazém ao vincular.</span>
                 </label>
@@ -843,25 +832,25 @@ export default function SellerProdutosPage() {
                     vinculoSaving || (vinculoMeta != null && !vinculoMeta.pode_trocar_agora && vinculoAlterado) || (precisaAceiteVinculo && !vinculoAceiteUso)
                   }
                   onClick={() => void gravarVinculoFornecedor()}
-                  className="h-10 w-full rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                  className="w-full rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
                   {vinculoSaving ? "Salvando..." : "Gravar armazém"}
                 </button>
               ) : fornecedorLigadoId?.trim() ? (
                 <div
                   role="status"
-                  className="flex w-full flex-col gap-3 rounded-xl border border-success/30 bg-success/10 px-4 py-3 sm:flex-row sm:items-center"
+                  className={cn(SUCCESS_PREMIUM_SURFACE, "flex w-full flex-col gap-3 rounded-xl px-4 py-3 sm:flex-row sm:items-center")}
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-success text-white shadow-sm">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--success)] text-white shadow-sm">
                     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-foreground">Armazém gravado</p>
-                    <p className="mt-0.5 text-sm text-muted">
+                    <p className="text-sm font-semibold text-[var(--foreground)]">Armazém gravado</p>
+                    <p className="mt-0.5 text-sm text-[var(--muted)]">
                       O catálogo da API está ligado a{" "}
-                      <span className="font-medium text-foreground">{nomeArmazemLigado ?? "este armazém"}</span>.
+                      <span className="font-medium text-[var(--foreground)]">{nomeArmazemLigado ?? "este armazém"}</span>.
                       {vinculoMeta?.vinculado_em ? (
                         <>
                           {" "}
@@ -873,7 +862,7 @@ export default function SellerProdutosPage() {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-muted">
+                <p className="text-sm text-[var(--muted)]">
                   Nenhum armazém ligado. Escolha um na lista acima e use «Gravar armazém» para carregar os SKUs.
                 </p>
               )}
@@ -887,19 +876,19 @@ export default function SellerProdutosPage() {
           catalogMeta.sem_armazem_ligado &&
           fornecedoresLista !== null &&
           fornecedoresLista.length > 0 && (
-            <section className="mt-6 overflow-hidden rounded-2xl border border-border-subtle bg-card shadow-sm">
-              <div className="h-1 w-full bg-accent" aria-hidden />
+            <section className="mt-6 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--card)] shadow-sm">
+              <div className="h-1 w-full bg-[var(--accent)]" aria-hidden />
               <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:px-6">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-card-border bg-background text-muted">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)]">
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2" />
                   </svg>
                 </div>
                 <div className="min-w-0 flex-1 space-y-1">
-                  <p className="text-sm font-semibold text-foreground">Escolha um armazém</p>
-                  <p className="text-sm leading-relaxed text-muted">
-                    Com «Nenhum» no seletor, <span className="font-medium text-foreground">não listamos SKUs</span> da organização aqui.
+                  <p className="text-sm font-semibold text-[var(--foreground)]">Escolha um armazém</p>
+                  <p className="text-sm leading-relaxed text-[var(--muted)]">
+                    Com «Nenhum» no seletor, <span className="font-medium text-[var(--foreground)]">não listamos SKUs</span> da organização aqui.
                     Vincule o armazém acima para carregar preços, variações e habilitações para a API ERP.
                   </p>
                 </div>
@@ -910,7 +899,7 @@ export default function SellerProdutosPage() {
         {!loading && !catalogMeta.tabela_ok && (
           <div className={cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY, "mt-6 rounded-2xl px-5 py-4 text-sm md:px-6")}>
             A lista de SKUs habilitados para venda ainda não está disponível na base (migração pendente). Execute o script{" "}
-            <code className="rounded border border-card-border bg-card px-1.5 py-0.5 font-mono text-xs">web/scripts/create-seller-skus-habilitados.sql</code> no
+            <code className="rounded border border-[var(--card-border)] bg-[var(--card)] px-1.5 py-0.5 font-mono text-xs">web/scripts/create-seller-skus-habilitados.sql</code> no
             Supabase para ativar o limite de 15 no Start e a integração ERP alinhada ao catálogo.
           </div>
         )}
@@ -932,7 +921,7 @@ export default function SellerProdutosPage() {
               </div>
             )}
             {error && (
-              <div className="border-t border-red-200/90 bg-red-100 p-4 text-sm font-medium text-red-900 dark:border-red-900/45 dark:bg-red-950/45 dark:text-red-200">
+              <div className={cn("border-t p-4 text-sm font-medium", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>
                 {error}
               </div>
             )}
@@ -992,38 +981,74 @@ export default function SellerProdutosPage() {
         </div>
       </div>
 
-      {modalTabelaGrupoKey != null && (
-        <div
-          className="fixed inset-0 z-[140] flex items-center justify-center bg-foreground/28 p-4 backdrop-blur-sm dark:bg-foreground/45"
-          onClick={() => setModalTabelaGrupoKey(null)}
-        >
-          <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-card-border bg-card shadow-[0_24px_72px_-24px_rgba(15,23,42,0.45)]" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-card-border px-5 py-4">
-              <h3 className="font-semibold text-foreground">
-                Tabela de medidas · <span className="font-mono text-sm font-normal text-muted">{modalTabelaGrupoKey}</span>
-              </h3>
+      {modalErpSkuAberto && (
+        <div className={MODAL_OVERLAY_CLASS} onClick={() => setModalErpSkuAberto(false)}>
+          <div className={cn(MODAL_PANEL_CLASS, "max-w-lg")} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
+              <h3 className="font-semibold text-[var(--foreground)]">ERP e SKU</h3>
               <button
                 type="button"
-                onClick={() => setModalTabelaGrupoKey(null)}
-                className="flex h-10 w-10 items-center justify-center rounded-lg text-xl leading-none text-muted hover:bg-background"
+                onClick={() => setModalErpSkuAberto(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-lg text-xl leading-none text-[var(--muted)] hover:bg-[var(--muted)]/10"
               >
                 ×
               </button>
             </div>
-            <div className="flex-1 overflow-auto p-4">
+            <div className={cn(MODAL_PANEL_BODY_CLASS, "p-4 space-y-3")}>
+              <AmberPremiumCallout title="Olist/Tiny e código no catálogo (SKU)" className="rounded-2xl px-4 py-3.5 sm:px-5">
+                <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+                  No cadastro de produtos da <strong className="text-[var(--foreground)]">Olist/Tiny</strong>, use o mesmo código que
+                  aparece como <strong className="text-[var(--foreground)]">SKU</strong> aqui no DropCore. Em cada produto da lista,
+                  expanda e use <strong className="text-[var(--foreground)]">Exportar para Olist</strong> para baixar a planilha daquele
+                  grupo (pai + variações). O <strong className="text-[var(--foreground)]">token API</strong> fica em{" "}
+                  <Link
+                    href="/seller/integracoes-erp"
+                    className="font-semibold text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-400"
+                  >
+                    Mais → ERP
+                  </Link>
+                  .
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+                  Na Olist: Cadastros → Produtos → Mais ações → Importar planilha (reconhecimento por SKU). SKU do produto na Olist deve
+                  estar em <strong className="text-[var(--foreground)]">Manual</strong> (Configurações → Cadastros → Código SKU).
+                </p>
+              </AmberPremiumCallout>
+              <SellerOlistEstoqueGradeCallout className="rounded-2xl px-4 py-3.5 sm:px-5" compact />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalTabelaGrupoKey != null && (
+        <div className={MODAL_OVERLAY_CLASS} onClick={() => setModalTabelaGrupoKey(null)}>
+          <div className={cn(MODAL_PANEL_CLASS, "max-w-2xl")} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
+              <h3 className="font-semibold text-[var(--foreground)]">
+                Tabela de medidas · <span className="font-mono text-sm font-normal text-[var(--muted)]">{modalTabelaGrupoKey}</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setModalTabelaGrupoKey(null)}
+                className="flex h-10 w-10 items-center justify-center rounded-lg text-xl leading-none text-[var(--muted)] hover:bg-[var(--muted)]/10"
+              >
+                ×
+              </button>
+            </div>
+            <div className={cn(MODAL_PANEL_BODY_CLASS, "p-4")}>
               {loadingTabela && (
-                <div className="flex items-center gap-2 py-6 text-sm text-muted">
-                  <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-card-border border-t-success" /> Carregando…
+                <div className="flex items-center gap-2 py-6 text-sm text-[var(--muted)]">
+                  <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[var(--card-border)] border-t-[var(--success)]" /> Carregando…
                 </div>
               )}
-              {!loadingTabela && !tabelaMedidasData && <p className="text-sm text-muted">Nenhuma tabela de medidas cadastrada para este grupo.</p>}
+              {!loadingTabela && !tabelaMedidasData && <p className="text-sm text-[var(--muted)]">Nenhuma tabela de medidas cadastrada para este grupo.</p>}
               {!loadingTabela && tabelaMedidasData && <TabelaMedidasTabela data={tabelaMedidasData} />}
             </div>
           </div>
         </div>
       )}
 
-      <SellerNav active="produtos" />
+      <SellerNav active="produtos" wide />
     </div>
   );
 }

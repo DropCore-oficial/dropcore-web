@@ -107,7 +107,7 @@ export function FornecedorImportEstoquePanel({ produtos, accessToken, onImported
                 buildFornecedorEstoqueTemplateCsv()
               )
             }
-            className="rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+            className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
           >
             Baixar modelo
           </button>
@@ -120,7 +120,7 @@ export function FornecedorImportEstoquePanel({ produtos, accessToken, onImported
                 buildFornecedorEstoqueExportCsv(produtos)
               )
             }
-            className="rounded-md border border-[var(--card-border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
+            className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
           >
             Exportar para editar no DropCore
           </button>
