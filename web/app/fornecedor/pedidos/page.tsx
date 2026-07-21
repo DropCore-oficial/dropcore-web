@@ -224,14 +224,9 @@ export default function FornecedorPedidosPage() {
     setSelectedIds(() => (todosMarcadosEnviados ? new Set() : new Set(idsEnviados)));
   }
 
-  const idsComEtiquetaOficial = pedidos.filter((p) => p.tem_etiqueta_oficial).map((p) => p.id);
   const selecionadosComEtiqueta = [...selectedIds].filter((id) =>
     pedidos.some((p) => p.id === id && p.tem_etiqueta_oficial)
   );
-  const todosMarcadosComEtiqueta =
-    idsComEtiquetaOficial.length > 0 &&
-    idsComEtiquetaOficial.every((id) => selectedIds.has(id));
-  const algumMarcadoComEtiqueta = idsComEtiquetaOficial.some((id) => selectedIds.has(id));
 
   function toggleSelecionar(id: string) {
     setSelectedIds((prev) => {
@@ -240,12 +235,6 @@ export default function FornecedorPedidosPage() {
       else next.add(id);
       return next;
     });
-  }
-
-  function toggleSelecionarTodosComEtiqueta() {
-    setSelectedIds(() =>
-      todosMarcadosComEtiqueta ? new Set() : new Set(idsComEtiquetaOficial)
-    );
   }
 
   async function imprimirEtiquetasOficiaisEmLote() {
@@ -428,68 +417,37 @@ export default function FornecedorPedidosPage() {
           </AmberPremiumCallout>
         )}
 
-        {idsComEtiquetaOficial.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 dark:bg-emerald-950/20">
-            <div className="min-w-[200px] flex-1 space-y-1.5">
-              <p className="text-sm text-neutral-700 dark:text-neutral-300">
-                Selecione pedidos com <strong className="font-medium">etiqueta oficial</strong> (PDF do marketplace) e gere{" "}
-                <strong className="font-medium">um único PDF</strong> para imprimir tudo de uma vez.
-              </p>
-              <label className="flex w-fit items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
-                <input
-                  type="checkbox"
-                  ref={(el) => {
-                    if (el) el.indeterminate = algumMarcadoComEtiqueta && !todosMarcadosComEtiqueta;
-                  }}
-                  checked={todosMarcadosComEtiqueta}
-                  onChange={toggleSelecionarTodosComEtiqueta}
-                  className="rounded border-neutral-300 dark:border-neutral-600"
-                />
-                Selecionar todos com etiqueta oficial
-              </label>
-            </div>
-            <button
-              type="button"
-              onClick={imprimirEtiquetasOficiaisEmLote}
-              disabled={imprimindoLote || selecionadosComEtiqueta.length === 0}
-              className="whitespace-nowrap rounded-xl border border-emerald-600/40 bg-emerald-600/15 px-4 py-2.5 text-sm font-semibold text-emerald-900 hover:bg-emerald-600/25 disabled:pointer-events-none disabled:opacity-50 dark:bg-emerald-500/20 dark:text-emerald-300"
-            >
-              {imprimindoLote
-                ? "Gerando PDF..."
-                : `Imprimir etiquetas oficiais (${selecionadosComEtiqueta.length})`}
-            </button>
-          </div>
-        )}
-
         {idsEnviados.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3">
-            <div className="min-w-[200px] flex-1 space-y-1.5">
-              <p className="text-sm text-neutral-700 dark:text-neutral-300">
-                Selecione pedidos <strong className="font-medium">aguardando postagem</strong> (com ou sem etiqueta
-                oficial) e imprima a <strong className="font-medium">lista de separação</strong> de todos de uma vez —
-                útil pra já preparar a embalagem enquanto a etiqueta não chega.
-              </p>
-              <label className="flex w-fit items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
-                <input
-                  type="checkbox"
-                  ref={(el) => {
-                    if (el) el.indeterminate = algumMarcadoEnviados && !todosMarcadosEnviados;
-                  }}
-                  checked={todosMarcadosEnviados}
-                  onChange={toggleSelecionarTodosEnviados}
-                  className="rounded border-neutral-300 dark:border-neutral-600"
-                />
-                Selecionar todos aguardando postagem
-              </label>
+          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3">
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+              <input
+                type="checkbox"
+                ref={(el) => {
+                  if (el) el.indeterminate = algumMarcadoEnviados && !todosMarcadosEnviados;
+                }}
+                checked={todosMarcadosEnviados}
+                onChange={toggleSelecionarTodosEnviados}
+                aria-label="Selecionar todos"
+                title="Selecionar todos"
+                className="rounded border-neutral-300 dark:border-neutral-600 sm:mr-1"
+              />
+              <button
+                type="button"
+                onClick={imprimirListaSeparacaoEmLote}
+                disabled={selecionadosParaSeparacao.length === 0}
+                className={cn(btnSecondaryCompactClass, "w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-60")}
+              >
+                Lista de separação
+              </button>
+              <button
+                type="button"
+                onClick={imprimirEtiquetasOficiaisEmLote}
+                disabled={imprimindoLote || selecionadosComEtiqueta.length === 0}
+                className={cn(btnPrimaryCompactClass, "w-full sm:w-auto")}
+              >
+                Etiquetas de envio
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={imprimirListaSeparacaoEmLote}
-              disabled={selecionadosParaSeparacao.length === 0}
-              className={cn(btnSecondaryCompactClass, "whitespace-nowrap !px-4 !py-2.5 !text-sm")}
-            >
-              {`Imprimir lista de separação (${selecionadosParaSeparacao.length})`}
-            </button>
           </div>
         )}
 
@@ -515,9 +473,20 @@ export default function FornecedorPedidosPage() {
                   )}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium text-[var(--foreground)]">{p.nome_produto ?? "Pedido"}</p>
-                      <p className="mt-1 text-sm text-neutral-500">{formatDate(p.criado_em)}</p>
+                    <div className="flex min-w-0 items-start gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(p.id)}
+                        onChange={() => toggleSelecionar(p.id)}
+                        disabled={p.status !== "enviado"}
+                        aria-label={`Incluir pedido ${p.id} no lote`}
+                        title={p.status !== "enviado" ? "Só pedidos aguardando postagem entram no lote" : "Incluir no lote"}
+                        className="mt-1 shrink-0 rounded border-neutral-300 disabled:cursor-not-allowed disabled:opacity-40 dark:border-neutral-600"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-medium text-[var(--foreground)]">{p.nome_produto ?? "Pedido"}</p>
+                        <p className="mt-1 text-sm text-neutral-500">{formatDate(p.criado_em)}</p>
+                      </div>
                     </div>
                     <span
                       className={cn(
@@ -658,19 +627,6 @@ export default function FornecedorPedidosPage() {
                         </div>
                       </div>
                     </div>
-                  )}
-
-                  {p.status === "enviado" && (
-                    <label className="mt-3 flex items-center gap-2 text-xs text-[var(--muted)]">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(p.id)}
-                        onChange={() => toggleSelecionar(p.id)}
-                        className="rounded border-neutral-300 dark:border-neutral-600"
-                        aria-label={`Selecionar pedido ${p.id} para impressão em lote`}
-                      />
-                      Incluir no lote (etiqueta oficial e/ou lista de separação)
-                    </label>
                   )}
 
                   {p.status === "enviado" && (
