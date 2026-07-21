@@ -73,3 +73,45 @@ export async function promoverPedidoParaPostado(params: {
 
   return { ok: true, ciclo_repasse };
 }
+
+/**
+ * Repara o caso legado: pedido já em `aguardando_repasse` mas o `financial_ledger`
+ * vinculado ficou parado em `BLOQUEADO` (ex.: `pedido.ledger_id` não existia ainda no
+ * momento da promoção). Sem isso, o extrato do seller mostra "aguardando envio" pra um
+ * pedido que já foi postado de verdade. Não mexe em `pedidos.status` — só sincroniza o
+ * ledger.
+ */
+export async function repararExtratoBloqueado(params: {
+  org_id: string;
+  pedido_id: string;
+  ledger_id: string | null;
+}): Promise<{ reparado: boolean }> {
+  const now = new Date().toISOString();
+  const ledgerId = await resolveLedgerIdForPedido(params.org_id, params.pedido_id, params.ledger_id);
+
+  if (ledgerId && !params.ledger_id) {
+    await supabaseAdmin.from("pedidos").update({ ledger_id: ledgerId, atualizado_em: now }).eq("id", params.pedido_id);
+  }
+  if (!ledgerId) return { reparado: false };
+
+  const { data: led } = await supabaseAdmin
+    .from("financial_ledger")
+    .select("status, ciclo_repasse")
+    .eq("id", ledgerId)
+    .maybeSingle();
+
+  if (led?.status !== "BLOQUEADO") return { reparado: false };
+
+  const ciclo = led.ciclo_repasse ?? proximoCicloRepasse();
+  const { error: upLedgerErr } = await supabaseAdmin
+    .from("financial_ledger")
+    .update({ status: "AGUARDANDO_REPASSE", ciclo_repasse: ciclo, atualizado_em: now })
+    .eq("id", ledgerId);
+
+  if (upLedgerErr) {
+    console.error("[repararExtratoBloqueado] ledger update:", upLedgerErr.message);
+    return { reparado: false };
+  }
+
+  return { reparado: true };
+}

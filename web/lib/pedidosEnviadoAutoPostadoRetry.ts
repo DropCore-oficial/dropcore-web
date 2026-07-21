@@ -2,7 +2,7 @@ import { mapWithConcurrency } from "@/lib/mapWithConcurrency";
 import { normalizeOlistSituacaoTextoBase } from "@/lib/olistPedidoImportPolicy";
 import { isTinyRateLimitMessage, obterPedidoOlist } from "@/lib/olistTinyApi";
 import { isSellerOlistRateLimited, markSellerOlistRateLimited } from "@/lib/olistRateLimitCooldown";
-import { promoverPedidoParaPostado } from "@/lib/pedidoPostadoPromote";
+import { promoverPedidoParaPostado, repararExtratoBloqueado } from "@/lib/pedidoPostadoPromote";
 import { getSellerOlistApiToken } from "@/lib/sellerOlistIntegration";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -150,4 +150,66 @@ export async function runPedidosEnviadoAutoPostadoRetry(): Promise<PedidosEnviad
   });
 
   return { avaliados: pedidos.length, promovidos, pendentes, falhas };
+}
+
+export type ExtratoBloqueadoRepairSummary = {
+  avaliados: number;
+  reparados: number;
+};
+
+const MAX_EXTRATO_REPAIR_PER_RUN = 200;
+
+/**
+ * Varredura automática do que antes era o botão manual "Sincronizar extrato seller"
+ * (removido de web/app/fornecedor/pedidos/page.tsx) — pedido já postado
+ * (`aguardando_repasse`) cujo `financial_ledger` ficou parado em `BLOQUEADO` (ex.:
+ * `ledger_id` não existia ainda no momento em que o pedido foi promovido). Roda na mesma
+ * cron do checker de auto-postado (web/app/api/cron/pedidos-postado-auto-retry), não
+ * precisa de agendamento próprio.
+ */
+export async function runExtratoBloqueadoRepair(): Promise<ExtratoBloqueadoRepairSummary> {
+  type PedidoParaReparar = { id: string; org_id: string; ledger_id: string | null };
+  const vistos = new Map<string, PedidoParaReparar>();
+
+  const { data: semLedger } = await supabaseAdmin
+    .from("pedidos")
+    .select("id, org_id, ledger_id")
+    .eq("status", "aguardando_repasse")
+    .is("ledger_id", null)
+    .limit(MAX_EXTRATO_REPAIR_PER_RUN)
+    .returns<PedidoParaReparar[]>();
+  for (const p of semLedger ?? []) vistos.set(p.id, p);
+
+  const { data: ledgersBloqueados } = await supabaseAdmin
+    .from("financial_ledger")
+    .select("id")
+    .eq("status", "BLOQUEADO")
+    .limit(MAX_EXTRATO_REPAIR_PER_RUN)
+    .returns<{ id: string }[]>();
+  const ledgerIdsBloqueados = (ledgersBloqueados ?? []).map((l) => l.id);
+
+  if (ledgerIdsBloqueados.length > 0) {
+    const { data: comLedgerBloqueado } = await supabaseAdmin
+      .from("pedidos")
+      .select("id, org_id, ledger_id")
+      .eq("status", "aguardando_repasse")
+      .in("ledger_id", ledgerIdsBloqueados)
+      .limit(MAX_EXTRATO_REPAIR_PER_RUN)
+      .returns<PedidoParaReparar[]>();
+    for (const p of comLedgerBloqueado ?? []) vistos.set(p.id, p);
+  }
+
+  const pedidos = [...vistos.values()];
+  let reparados = 0;
+
+  await mapWithConcurrency(pedidos, RETRY_CONCURRENCY, async (pedido) => {
+    const resultado = await repararExtratoBloqueado({
+      org_id: pedido.org_id,
+      pedido_id: pedido.id,
+      ledger_id: pedido.ledger_id,
+    });
+    if (resultado.reparado) reparados += 1;
+  });
+
+  return { avaliados: pedidos.length, reparados };
 }

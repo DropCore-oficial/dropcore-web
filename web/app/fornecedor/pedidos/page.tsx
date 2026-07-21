@@ -565,7 +565,7 @@ export default function FornecedorPedidosPage() {
                     </label>
                   )}
 
-                  {(p.status === "enviado" || p.status === "aguardando_repasse") && (
+                  {p.status === "enviado" && (
                     <div className="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:justify-end">
                       {p.status === "enviado" && p.tem_etiqueta_oficial && (
                         <button
@@ -606,17 +606,6 @@ export default function FornecedorPedidosPage() {
                           )}
                         >
                           {postandoId === p.id ? "Marcando..." : "Marcar como postado"}
-                        </button>
-                      )}
-                      {p.status === "aguardando_repasse" && (
-                        <button
-                          type="button"
-                          onClick={() => void marcarPostado(p.id)}
-                          disabled={postandoId !== null}
-                          title="Use se o extrato do seller ainda mostrar «Aguardando envio» após postagem."
-                          className={cn(btnSecondaryCompactClass, "w-full sm:w-auto")}
-                        >
-                          {postandoId === p.id ? "Sincronizando..." : "Sincronizar extrato seller"}
                         </button>
                       )}
                     </div>

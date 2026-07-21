@@ -6,9 +6,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { resolveLedgerIdForPedido } from "@/lib/resolveLedgerForPedido";
-import { proximoCicloRepasse } from "@/lib/cicloRepasse";
-import { promoverPedidoParaPostado } from "@/lib/pedidoPostadoPromote";
+import { promoverPedidoParaPostado, repararExtratoBloqueado } from "@/lib/pedidoPostadoPromote";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,31 +64,18 @@ export async function PATCH(
 
     /* Legado: pedido já postado mas financial_ledger ficou BLOQUEADO (sem ledger_id no pedido). Repara extrato do seller. */
     if (pedido.status === "aguardando_repasse") {
-      const nowRepair = new Date().toISOString();
-      const ledgerIdRepair = await resolveLedgerIdForPedido(ctx.org_id, pedido_id, pedido.ledger_id);
-      if (ledgerIdRepair && !pedido.ledger_id) {
-        await supabaseAdmin.from("pedidos").update({ ledger_id: ledgerIdRepair, atualizado_em: nowRepair }).eq("id", pedido_id);
-      }
-      if (ledgerIdRepair) {
-        const { data: led } = await supabaseAdmin
-          .from("financial_ledger")
-          .select("status, ciclo_repasse")
-          .eq("id", ledgerIdRepair)
-          .maybeSingle();
-        if (led?.status === "BLOQUEADO") {
-          let ciclo = led.ciclo_repasse ?? null;
-          if (!ciclo) ciclo = proximoCicloRepasse();
-          await supabaseAdmin
-            .from("financial_ledger")
-            .update({ status: "AGUARDANDO_REPASSE", ciclo_repasse: ciclo, atualizado_em: nowRepair })
-            .eq("id", ledgerIdRepair);
-          return NextResponse.json({
-            ok: true,
-            pedido_id,
-            status: "aguardando_repasse",
-            extrato_sincronizado: true,
-          });
-        }
+      const reparo = await repararExtratoBloqueado({
+        org_id: ctx.org_id,
+        pedido_id,
+        ledger_id: pedido.ledger_id,
+      });
+      if (reparo.reparado) {
+        return NextResponse.json({
+          ok: true,
+          pedido_id,
+          status: "aguardando_repasse",
+          extrato_sincronizado: true,
+        });
       }
       return NextResponse.json({ error: "Pedido já marcado como postado." }, { status: 409 });
     }

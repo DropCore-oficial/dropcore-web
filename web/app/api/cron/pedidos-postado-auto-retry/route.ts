@@ -6,7 +6,7 @@
  * pg_cron a cada 30 min (web/scripts/add-pedidos-postado-auto-retry-cron.sql).
  */
 import { NextResponse } from "next/server";
-import { runPedidosEnviadoAutoPostadoRetry } from "@/lib/pedidosEnviadoAutoPostadoRetry";
+import { runExtratoBloqueadoRepair, runPedidosEnviadoAutoPostadoRetry } from "@/lib/pedidosEnviadoAutoPostadoRetry";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -47,7 +47,8 @@ export async function GET(req: Request) {
 
   try {
     const result = await runPedidosEnviadoAutoPostadoRetry();
-    return NextResponse.json({ ok: true, ...result });
+    const extratoRepair = await runExtratoBloqueadoRepair();
+    return NextResponse.json({ ok: true, ...result, extrato_bloqueado_repair: extratoRepair });
   } catch (e: unknown) {
     console.error("[cron/pedidos-postado-auto-retry]", e);
     return NextResponse.json(
