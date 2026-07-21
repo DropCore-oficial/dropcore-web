@@ -62,6 +62,7 @@ type Pedido = {
   motivo_bloqueio?: string | null;
   criado_em: string;
   tem_etiqueta_oficial?: boolean;
+  etiqueta_impressa_em?: string | null;
 };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -94,6 +95,17 @@ export default function FornecedorPedidosPage() {
   const [avisoLote, setAvisoLote] = useState<string | null>(null);
   const destaqueId = searchParams.get("destaque");
   const pedidoCardRefs = useRef<Record<string, HTMLElement | null>>({});
+  const printMenuRef = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    function onPointerDown(e: MouseEvent) {
+      if (printMenuRef.current && !printMenuRef.current.contains(e.target as Node)) {
+        printMenuRef.current.removeAttribute("open");
+      }
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, []);
 
   async function load() {
     setLoading(true);
@@ -417,7 +429,7 @@ export default function FornecedorPedidosPage() {
           </AmberPremiumCallout>
         )}
 
-        {idsEnviados.length > 0 && (
+        {pedidos.length > 0 && (
           <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3">
             <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
               <input
@@ -431,22 +443,52 @@ export default function FornecedorPedidosPage() {
                 title="Selecionar todos"
                 className="rounded border-neutral-300 dark:border-neutral-600 sm:mr-1"
               />
-              <button
-                type="button"
-                onClick={imprimirListaSeparacaoEmLote}
-                disabled={selecionadosParaSeparacao.length === 0}
-                className={cn(btnSecondaryCompactClass, "w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-60")}
-              >
-                Lista de separação
-              </button>
-              <button
-                type="button"
-                onClick={imprimirEtiquetasOficiaisEmLote}
-                disabled={imprimindoLote || selecionadosComEtiqueta.length === 0}
-                className={cn(btnPrimaryCompactClass, "w-full sm:w-auto")}
-              >
-                Etiquetas de envio
-              </button>
+              <details ref={printMenuRef} className="group relative">
+                <summary
+                  className={cn(
+                    btnSecondaryCompactClass,
+                    "flex w-full cursor-pointer list-none items-center justify-center gap-1.5 [&::-webkit-details-marker]:hidden sm:w-auto"
+                  )}
+                >
+                  Imprimir etiqueta
+                  <svg
+                    className="h-3.5 w-3.5 shrink-0 opacity-70 transition-transform duration-200 group-open:rotate-180"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </summary>
+                <div className="absolute left-0 z-20 mt-1.5 min-w-[13rem] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-1 shadow-md">
+                  <button
+                    type="button"
+                    disabled={selecionadosParaSeparacao.length === 0}
+                    onClick={() => {
+                      printMenuRef.current?.removeAttribute("open");
+                      imprimirListaSeparacaoEmLote();
+                    }}
+                    className="block w-full rounded-md px-3 py-2 text-left text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Lista de separação
+                  </button>
+                  <button
+                    type="button"
+                    disabled={imprimindoLote || selecionadosComEtiqueta.length === 0}
+                    onClick={() => {
+                      printMenuRef.current?.removeAttribute("open");
+                      void imprimirEtiquetasOficiaisEmLote();
+                    }}
+                    className="block w-full rounded-md px-3 py-2 text-left text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {imprimindoLote ? "Gerando PDF..." : "Etiquetas de envio"}
+                  </button>
+                </div>
+              </details>
             </div>
           </div>
         )}
@@ -481,7 +523,7 @@ export default function FornecedorPedidosPage() {
                         disabled={p.status !== "enviado"}
                         aria-label={`Incluir pedido ${p.id} no lote`}
                         title={p.status !== "enviado" ? "Só pedidos aguardando postagem entram no lote" : "Incluir no lote"}
-                        className="mt-1 shrink-0 rounded border-neutral-300 disabled:cursor-not-allowed disabled:opacity-40 dark:border-neutral-600"
+                        className="mt-1 shrink-0 rounded border-neutral-300 disabled:cursor-not-allowed dark:border-neutral-600"
                       />
                       <div className="min-w-0">
                         <p className="font-medium text-[var(--foreground)]">{p.nome_produto ?? "Pedido"}</p>
@@ -631,47 +673,39 @@ export default function FornecedorPedidosPage() {
 
                   {p.status === "enviado" && (
                     <div className="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:justify-end">
-                      {p.status === "enviado" && p.tem_etiqueta_oficial && (
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/fornecedor/pedidos/${p.id}/etiqueta`)}
-                          className={cn(btnSecondaryCompactClass, "w-full sm:w-auto")}
-                          title="Abrir etiqueta oficial pra impressão"
-                        >
-                          Imprimir etiqueta
-                        </button>
-                      )}
-                      {p.status === "enviado" && p.tem_etiqueta_oficial && (
+                      {p.tem_etiqueta_oficial && (
                         <button
                           type="button"
                           onClick={() => void reportarEtiquetaErrada(p.id)}
                           disabled={reportandoId === p.id}
-                          className="w-full rounded-md px-2.5 py-1.5 text-[11px] font-semibold text-[var(--danger)] underline decoration-dotted underline-offset-2 hover:opacity-80 sm:w-auto"
                           title="A etiqueta não é do pedido certo (endereço/produto não bate)"
+                          className="w-full rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:w-auto"
                         >
                           {reportandoId === p.id ? "Reportando..." : "Etiqueta errada?"}
                         </button>
                       )}
-                      {p.status === "enviado" && (
-                        <button
-                          type="button"
-                          onClick={() => void marcarPostado(p.id)}
-                          disabled={postandoId !== null || !p.tem_etiqueta_oficial}
-                          title={
-                            p.tem_etiqueta_oficial
-                              ? undefined
-                              : "Sem a etiqueta real não dá pra postar o pacote — peça pro seller buscar o link primeiro."
-                          }
-                          className={cn(
-                            p.tem_etiqueta_oficial
-                              ? btnPrimaryCompactClass
-                              : "rounded-md bg-neutral-200 px-2.5 py-1.5 text-[11px] font-semibold text-neutral-500 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-500",
-                            "w-full sm:w-auto"
-                          )}
-                        >
-                          {postandoId === p.id ? "Marcando..." : "Marcar como postado"}
-                        </button>
-                      )}
+                      {(() => {
+                        const podePostar = Boolean(p.tem_etiqueta_oficial && p.etiqueta_impressa_em);
+                        const motivoBloqueio = !p.tem_etiqueta_oficial
+                          ? "Sem a etiqueta real não dá pra postar o pacote — peça pro seller buscar o link primeiro."
+                          : "Imprima a etiqueta (menu \"Imprimir etiqueta\" no topo) antes de marcar como postado.";
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => void marcarPostado(p.id)}
+                            disabled={postandoId !== null || !podePostar}
+                            title={podePostar ? undefined : motivoBloqueio}
+                            className={cn(
+                              podePostar
+                                ? btnPrimaryCompactClass
+                                : "rounded-md bg-neutral-200 px-2.5 py-1.5 text-[11px] font-semibold text-neutral-500 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-500",
+                              "w-full sm:w-auto"
+                            )}
+                          >
+                            {postandoId === p.id ? "Marcando..." : "Marcar como postado"}
+                          </button>
+                        );
+                      })()}
                     </div>
                   )}
                 </article>

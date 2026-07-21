@@ -53,7 +53,7 @@ export async function PATCH(
 
     const { data: pedido, error: pedidoErr } = await supabaseAdmin
       .from("pedidos")
-      .select("id, status, ledger_id, org_id, fornecedor_id, etiqueta_pdf_url, etiqueta_pdf_base64")
+      .select("id, status, ledger_id, org_id, fornecedor_id, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_impressa_em")
       .eq("id", pedido_id)
       .eq("org_id", ctx.org_id)
       .eq("fornecedor_id", ctx.fornecedor_id)
@@ -90,6 +90,13 @@ export async function PATCH(
     if (!pedido.etiqueta_pdf_url && !pedido.etiqueta_pdf_base64) {
       return NextResponse.json(
         { error: "Sem a etiqueta real não dá pra marcar como postado — peça pro seller buscar o link primeiro." },
+        { status: 422 }
+      );
+    }
+
+    if (!pedido.etiqueta_impressa_em) {
+      return NextResponse.json(
+        { error: "Imprima a etiqueta oficial (menu \"Imprimir etiqueta\" no topo) antes de marcar como postado." },
         { status: 422 }
       );
     }

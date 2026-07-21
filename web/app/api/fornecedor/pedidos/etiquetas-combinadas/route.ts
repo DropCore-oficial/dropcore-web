@@ -127,6 +127,7 @@ export async function POST(req: Request) {
     }
 
     const buffers: Uint8Array[] = [];
+    const incluidos: string[] = [];
     const semEtiqueta: string[] = [];
     const falhaDownload: string[] = [];
 
@@ -145,6 +146,7 @@ export async function POST(req: Request) {
         continue;
       }
       buffers.push(bytes);
+      incluidos.push(id);
     }
 
     if (buffers.length === 0) {
@@ -176,6 +178,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Nenhum PDF válido para mesclar." }, { status: 400 });
     }
     const out = await merged.save();
+
+    if (incluidos.length > 0) {
+      const agora = new Date().toISOString();
+      const { error: marcarImpressaErr } = await supabaseAdmin
+        .from("pedidos")
+        .update({ etiqueta_impressa_em: agora })
+        .in("id", incluidos)
+        .is("etiqueta_impressa_em", null);
+      if (marcarImpressaErr) {
+        console.error("[etiquetas-combinadas] marcar etiqueta_impressa_em:", marcarImpressaErr.message);
+      }
+    }
 
     const filename = `etiquetas-${pageCount}-paginas.pdf`;
     return new NextResponse(Buffer.from(out), {

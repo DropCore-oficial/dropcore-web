@@ -22,6 +22,7 @@ type PedidoRow = {
   criado_em: string;
   etiqueta_pdf_url: string | null;
   etiqueta_pdf_base64: string | null;
+  etiqueta_impressa_em?: string | null;
   referencia_externa: string | null;
   motivo_bloqueio?: string | null;
   motivo_bloqueio_responsavel?: "seller" | "fornecedor" | null;
@@ -83,7 +84,7 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa, metodo_envio, tracking_codigo"
+        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_impressa_em, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa, metodo_envio, tracking_codigo"
       )
       .eq("org_id", ctx.org_id)
       .eq("fornecedor_id", ctx.fornecedor_id)
@@ -100,7 +101,11 @@ export async function GET(req: Request) {
     if (error) {
       const msg = String(error.message ?? "").toLowerCase();
       const colunaAusente =
-        msg.includes("marketplace_numero") || msg.includes("comprador_") || msg.includes("motivo_bloqueio") || error.code === "42703";
+        msg.includes("marketplace_numero") ||
+        msg.includes("comprador_") ||
+        msg.includes("motivo_bloqueio") ||
+        msg.includes("etiqueta_impressa_em") ||
+        error.code === "42703";
       if (colunaAusente) {
         let fallbackQuery = supabaseAdmin
           .from("pedidos")
