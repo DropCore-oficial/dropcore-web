@@ -204,6 +204,26 @@ export default function FornecedorPedidosPage() {
     }
   }
 
+  const idsEnviados = pedidos.filter((p) => p.status === "enviado").map((p) => p.id);
+  const selecionadosParaSeparacao = [...selectedIds].filter((id) => idsEnviados.includes(id));
+  const pedidosSelecionadosParaSeparacao = pedidos.filter((p) => selecionadosParaSeparacao.includes(p.id));
+
+  function imprimirListaSeparacaoEmLote() {
+    if (selecionadosParaSeparacao.length === 0) {
+      setError("Selecione pelo menos um pedido aguardando postagem.");
+      return;
+    }
+    setError(null);
+    window.print();
+  }
+
+  const todosMarcadosEnviados = idsEnviados.length > 0 && idsEnviados.every((id) => selectedIds.has(id));
+  const algumMarcadoEnviados = idsEnviados.some((id) => selectedIds.has(id));
+
+  function toggleSelecionarTodosEnviados() {
+    setSelectedIds(() => (todosMarcadosEnviados ? new Set() : new Set(idsEnviados)));
+  }
+
   const idsComEtiquetaOficial = pedidos.filter((p) => p.tem_etiqueta_oficial).map((p) => p.id);
   const selecionadosComEtiqueta = [...selectedIds].filter((id) =>
     pedidos.some((p) => p.id === id && p.tem_etiqueta_oficial)
@@ -294,6 +314,62 @@ export default function FornecedorPedidosPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+      <style>{`
+        @media print {
+          @page { size: 80mm auto; margin: 0; }
+          body * { visibility: hidden; }
+          .print-lista-separacao, .print-lista-separacao * { visibility: visible; }
+          .print-lista-separacao {
+            display: block !important;
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 80mm;
+          }
+        }
+      `}</style>
+
+      {/* Só existe pra impressão em lote — escondido na tela normal, visível só no print (ver <style> acima). */}
+      <div className="print-lista-separacao hidden">
+        {pedidosSelecionadosParaSeparacao.map((p, idx) => (
+          <div
+            key={p.id}
+            className="bg-white text-black"
+            style={{ pageBreakAfter: idx === pedidosSelecionadosParaSeparacao.length - 1 ? "auto" : "always" }}
+          >
+            <div style={{ width: "80mm", margin: "0 auto", padding: "6px 8px" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>LISTA DE SEPARAÇÃO</div>
+              <div style={{ fontSize: 12, lineHeight: 1.35 }}>
+                <div><b>Pedido:</b> {p.marketplace_numero || p.id}</div>
+                <div><b>Seller:</b> {p.seller_nome}</div>
+                <div><b>Data:</b> {formatDate(p.criado_em)}</div>
+                {p.comprador_nome && (
+                  <div><b>Cliente:</b> {p.comprador_nome}{p.comprador_cidade ? ` · ${p.comprador_cidade}` : ""}{p.comprador_uf ? `/${p.comprador_uf}` : ""}</div>
+                )}
+              </div>
+              <div style={{ height: 8 }} />
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>ITENS</div>
+              <div style={{ fontSize: 12, lineHeight: 1.35 }}>
+                {p.itens.map((it, itIdx) => (
+                  <div
+                    key={`${p.id}-${it.sku}-${itIdx}`}
+                    style={{
+                      marginBottom: 8,
+                      paddingBottom: 8,
+                      borderBottom: itIdx === p.itens.length - 1 ? "none" : "1px dashed #ccc",
+                    }}
+                  >
+                    <div><b>Produto:</b> {it.nome_produto ?? p.nome_produto ?? "—"}</div>
+                    <div>{it.cor ? `Cor: ${it.cor}` : "Cor: —"} · {it.tamanho ? `Tamanho: ${it.tamanho}` : "Tamanho: —"}</div>
+                    <div><b>Qtd:</b> {it.quantidade}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
@@ -381,6 +457,38 @@ export default function FornecedorPedidosPage() {
               {imprimindoLote
                 ? "Gerando PDF..."
                 : `Imprimir etiquetas oficiais (${selecionadosComEtiqueta.length})`}
+            </button>
+          </div>
+        )}
+
+        {idsEnviados.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3">
+            <div className="min-w-[200px] flex-1 space-y-1.5">
+              <p className="text-sm text-neutral-700 dark:text-neutral-300">
+                Selecione pedidos <strong className="font-medium">aguardando postagem</strong> (com ou sem etiqueta
+                oficial) e imprima a <strong className="font-medium">lista de separação</strong> de todos de uma vez —
+                útil pra já preparar a embalagem enquanto a etiqueta não chega.
+              </p>
+              <label className="flex w-fit items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
+                <input
+                  type="checkbox"
+                  ref={(el) => {
+                    if (el) el.indeterminate = algumMarcadoEnviados && !todosMarcadosEnviados;
+                  }}
+                  checked={todosMarcadosEnviados}
+                  onChange={toggleSelecionarTodosEnviados}
+                  className="rounded border-neutral-300 dark:border-neutral-600"
+                />
+                Selecionar todos aguardando postagem
+              </label>
+            </div>
+            <button
+              type="button"
+              onClick={imprimirListaSeparacaoEmLote}
+              disabled={selecionadosParaSeparacao.length === 0}
+              className={cn(btnSecondaryCompactClass, "whitespace-nowrap !px-4 !py-2.5 !text-sm")}
+            >
+              {`Imprimir lista de separação (${selecionadosParaSeparacao.length})`}
             </button>
           </div>
         )}
@@ -552,16 +660,16 @@ export default function FornecedorPedidosPage() {
                     </div>
                   )}
 
-                  {p.tem_etiqueta_oficial && (
+                  {p.status === "enviado" && (
                     <label className="mt-3 flex items-center gap-2 text-xs text-[var(--muted)]">
                       <input
                         type="checkbox"
                         checked={selectedIds.has(p.id)}
                         onChange={() => toggleSelecionar(p.id)}
                         className="rounded border-neutral-300 dark:border-neutral-600"
-                        aria-label={`Selecionar pedido ${p.id} para etiqueta oficial`}
+                        aria-label={`Selecionar pedido ${p.id} para impressão em lote`}
                       />
-                      Incluir na impressão em lote
+                      Incluir no lote (etiqueta oficial e/ou lista de separação)
                     </label>
                   )}
 
