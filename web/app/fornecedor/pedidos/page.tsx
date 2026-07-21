@@ -431,7 +431,7 @@ export default function FornecedorPedidosPage() {
 
         {pedidos.length > 0 && (
           <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3">
-            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+            <div className="flex flex-row items-center gap-2">
               <input
                 type="checkbox"
                 ref={(el) => {
@@ -441,13 +441,13 @@ export default function FornecedorPedidosPage() {
                 onChange={toggleSelecionarTodosEnviados}
                 aria-label="Selecionar todos"
                 title="Selecionar todos"
-                className="rounded border-neutral-300 dark:border-neutral-600 sm:mr-1"
+                className="shrink-0 self-center rounded border-neutral-300 dark:border-neutral-600"
               />
-              <details ref={printMenuRef} className="group relative">
+              <details ref={printMenuRef} className="group relative shrink-0">
                 <summary
                   className={cn(
                     btnSecondaryCompactClass,
-                    "flex w-full cursor-pointer list-none items-center justify-center gap-1.5 [&::-webkit-details-marker]:hidden sm:w-auto"
+                    "flex cursor-pointer list-none items-center justify-center gap-1.5 [&::-webkit-details-marker]:hidden"
                   )}
                 >
                   Imprimir etiqueta
