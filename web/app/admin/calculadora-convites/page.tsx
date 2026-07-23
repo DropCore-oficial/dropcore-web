@@ -183,7 +183,7 @@ export default function AdminCalculadoraConvitesPage() {
   }
 
   return (
-    <div className="bg-[var(--background)] text-[var(--foreground)]">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg">
       <main className="dropcore-shell-6xl py-8 space-y-6">
         <p className="text-xs text-[var(--muted)]">Admin · Convites da calculadora</p>
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 shadow-sm">

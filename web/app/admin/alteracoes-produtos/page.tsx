@@ -323,7 +323,7 @@ export default function AdminAlteracoesProdutosPage() {
   }
 
   return (
-    <div className="bg-[var(--background)] text-[var(--foreground)]">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg">
       <div className="dropcore-shell-6xl py-4 sm:py-6 lg:py-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
           <div className="min-w-0 flex-1">

@@ -222,7 +222,7 @@ export default function RepasseFornecedorPage() {
   }
 
   return (
-    <div className="bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 py-4 sm:py-6">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg py-4 sm:py-6">
       <div className="dropcore-shell-6xl space-y-6">
 
         {/* Header */}
