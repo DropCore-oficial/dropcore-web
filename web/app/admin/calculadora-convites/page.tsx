@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { apiGet, apiPost } from "@/lib/api";
 import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
 
 type Invite = {
@@ -182,7 +183,7 @@ export default function AdminCalculadoraConvitesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+    <div className="bg-[var(--background)] text-[var(--foreground)]">
       <main className="dropcore-shell-6xl py-8 space-y-6">
         <p className="text-xs text-[var(--muted)]">Admin · Convites da calculadora</p>
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 shadow-sm">
@@ -204,7 +205,7 @@ export default function AdminCalculadoraConvitesPage() {
                   value={emailAlvo}
                   onChange={(e) => setEmailAlvo(e.target.value)}
                   placeholder="cliente@exemplo.com (ou deixe em branco)"
-                  className="w-full rounded-xl bg-[var(--background)] border border-[var(--card-border)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/50"
+                  className="w-full rounded-xl bg-[var(--card)] border border-[var(--card-border)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/50"
                 />
                 <p className="mt-1 text-[11px] text-[var(--muted)]">Se preencher, o convite só será aceito para este e-mail. Se deixar em branco, qualquer e-mail poderá usar o link.</p>
               </div>
@@ -219,7 +220,7 @@ export default function AdminCalculadoraConvitesPage() {
                   max={365}
                   value={validadeDias}
                   onChange={(e) => setValidadeDias(e.target.value)}
-                  className="w-full rounded-xl bg-[var(--background)] border border-[var(--card-border)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/50"
+                  className="w-full rounded-xl bg-[var(--card)] border border-[var(--card-border)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/50"
                 />
                 <p className="mt-1 text-[11px] text-[var(--muted)]">
                   Padrão: 7 dias (teste). Máximo: 365 dias.
@@ -232,13 +233,13 @@ export default function AdminCalculadoraConvitesPage() {
                 type="button"
                 onClick={gerarConvite}
                 disabled={loading}
-                className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 text-sm shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-2.5 py-1.5 text-[11px] shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? "Gerando link..." : "Gerar link de teste"}
               </button>
 
               {erro && (
-                <div className="rounded-xl border border-red-300 bg-red-100 px-3 py-2 text-xs text-red-700">
+                <div className={cn("rounded-xl px-3 py-2 text-xs", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>
                   {erro}
                 </div>
               )}
@@ -273,13 +274,13 @@ export default function AdminCalculadoraConvitesPage() {
                 <button
                   type="button"
                   onClick={() => void copiarLinkConvite()}
-                  className="rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--card)] transition-colors touch-manipulation min-h-[40px]"
+                  className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 touch-manipulation"
                 >
                   {linkCopiado ? "Copiado!" : "Copiar link"}
                 </button>
                 <a
                   href={mailtoConviteHref}
-                  className="inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 text-xs font-semibold shadow-sm transition-colors touch-manipulation min-h-[40px]"
+                  className="inline-flex items-center justify-center rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 text-[11px] font-semibold shadow-sm touch-manipulation"
                 >
                   {ultimoConvite.email_alvo?.trim()
                     ? "Abrir e-mail para o cliente"
@@ -310,14 +311,14 @@ export default function AdminCalculadoraConvitesPage() {
               type="button"
               onClick={carregarAssinantes}
               disabled={assinantesLoading}
-              className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
+              className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] disabled:opacity-50"
             >
               {assinantesLoading ? "Atualizando..." : "Atualizar lista"}
             </button>
           </div>
 
           {assinantesErro && (
-            <div className="rounded-xl border border-red-300 bg-red-100 px-3 py-2 text-xs text-red-700">
+            <div className={cn("rounded-xl px-3 py-2 text-xs", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>
               {assinantesErro}
             </div>
           )}
@@ -538,7 +539,7 @@ export default function AdminCalculadoraConvitesPage() {
               type="button"
               onClick={carregarRecebimentos}
               disabled={recebimentosLoading}
-              className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50 shrink-0"
+              className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] disabled:opacity-50 shrink-0"
             >
               {recebimentosLoading ? "Atualizando..." : "Atualizar"}
             </button>
@@ -551,7 +552,7 @@ export default function AdminCalculadoraConvitesPage() {
           )}
 
           {recebimentosErro && (
-            <div className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+            <div className={cn("rounded-xl px-3 py-2 text-xs", AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY)}>
               {recebimentosErro}
             </div>
           )}
@@ -629,7 +630,7 @@ export default function AdminCalculadoraConvitesPage() {
                 type="email"
                 value={apagarLoginEmail}
                 onChange={(e) => setApagarLoginEmail(e.target.value)}
-                className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)]"
+                className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)]"
                 placeholder={apagarLoginModal.emailHint || "email@exemplo.com"}
                 autoComplete="off"
               />
@@ -642,7 +643,7 @@ export default function AdminCalculadoraConvitesPage() {
                   setApagarLoginModal(null);
                   setApagarLoginEmail("");
                 }}
-                className="rounded-lg border border-[var(--card-border)] px-4 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
+                className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)]"
               >
                 Cancelar
               </button>
@@ -679,7 +680,7 @@ export default function AdminCalculadoraConvitesPage() {
                     setApagarLoginSending(false);
                   }
                 }}
-                className="rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
+                className="rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-50 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20"
               >
                 {apagarLoginSending ? "Excluindo..." : "Excluir definitivamente"}
               </button>

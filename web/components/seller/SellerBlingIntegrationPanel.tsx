@@ -144,11 +144,13 @@ export function SellerBlingIntegrationPanel() {
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <h2 className="text-base font-semibold text-[var(--foreground)]">Integração Bling</h2>
           {status?.oauth_connected ? (
-            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
               Conectado
             </span>
           ) : (
-            <span className="rounded-full bg-[var(--muted)]/15 px-2.5 py-0.5 text-xs font-medium text-[var(--muted)]">
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-[var(--muted)]/15 px-2 py-1 text-[11px] font-medium text-[var(--muted)]">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
               Pendente
             </span>
           )}
@@ -156,7 +158,7 @@ export function SellerBlingIntegrationPanel() {
         <button
           type="button"
           onClick={() => void load()}
-          className="rounded-lg border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+          className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
         >
           Atualizar
         </button>
@@ -169,13 +171,13 @@ export function SellerBlingIntegrationPanel() {
       ) : (
         <div className="space-y-4">
           <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <p className="min-w-0 flex-1 font-medium text-[var(--foreground)]">URL do webhook (cole no Bling)</p>
               <button
                 type="button"
                 onClick={copiarWebhookUrl}
                 disabled={!status?.webhook_url}
-                className="min-h-[44px] shrink-0 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
+                className="shrink-0 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
               >
                 Copiar URL
               </button>
@@ -185,7 +187,7 @@ export function SellerBlingIntegrationPanel() {
               value={status?.webhook_url ?? ""}
               rows={2}
               spellCheck={false}
-              className="mt-3 w-full resize-y rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-2 py-2 font-mono text-[11px] leading-snug text-[var(--foreground)] break-all whitespace-pre-wrap"
+              className="mt-3 w-full resize-y rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-2 py-2 font-mono text-[11px] leading-snug text-[var(--foreground)] break-all whitespace-pre-wrap"
               aria-label="URL do webhook Bling"
             />
           </div>
@@ -199,7 +201,7 @@ export function SellerBlingIntegrationPanel() {
                 type="button"
                 onClick={() => void desconectar()}
                 disabled={saving}
-                className="min-h-[44px] rounded-lg border border-[var(--card-border)] px-3 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-60"
+                className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
               >
                 Desconectar
               </button>
@@ -219,13 +221,13 @@ export function SellerBlingIntegrationPanel() {
                   value={companyIdInput}
                   onChange={(e) => setCompanyIdInput(e.target.value)}
                   placeholder="companyId da empresa no Bling"
-                  className="min-h-[44px] min-w-0 flex-1 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 text-sm text-[var(--foreground)]"
+                  className="min-h-[44px] min-w-0 flex-1 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)]"
                 />
                 <button
                   type="button"
                   onClick={() => void salvarCompanyId()}
                   disabled={saving || !companyIdInput.trim()}
-                  className="min-h-[44px] shrink-0 rounded-lg bg-emerald-600 px-4 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
+                  className="shrink-0 rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
                 >
                   Salvar
                 </button>

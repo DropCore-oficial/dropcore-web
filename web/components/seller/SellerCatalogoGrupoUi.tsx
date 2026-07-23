@@ -360,7 +360,7 @@ export function SellerCatalogoProductInfoBlock({
               className={
                 saas
                   ? "inline-flex h-10 w-full sm:w-auto items-center justify-center gap-2 rounded-lg border border-[#2A2F3A] bg-[#0F1115] px-4 text-sm font-medium text-white hover:border-emerald-500/50 transition touch-manipulation shrink-0"
-                  : "inline-flex items-center justify-center gap-2 font-semibold text-neutral-800 dark:text-neutral-100 border border-neutral-300/90 dark:border-neutral-600 rounded-xl px-4 py-2.5 sm:rounded-xl hover:border-emerald-400/80 dark:hover:border-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-950/25 transition touch-manipulation min-h-[44px] sm:min-h-0 w-full sm:w-auto shrink-0 bg-white/90 dark:bg-neutral-950/40 shadow-sm"
+                  : "inline-flex items-center justify-center gap-2 font-semibold text-[11px] rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[var(--foreground)] hover:bg-[var(--muted)]/10 transition touch-manipulation w-full sm:w-auto shrink-0"
               }
             >
               <svg

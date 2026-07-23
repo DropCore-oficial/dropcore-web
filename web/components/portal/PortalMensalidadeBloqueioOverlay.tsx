@@ -196,7 +196,7 @@ export function PortalMensalidadeBloqueioOverlay(props: PortalMensalidadeBloquei
           <button
             type="button"
             onClick={() => void onSair()}
-            className="w-full sm:w-auto rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--foreground)] hover:opacity-90 transition-opacity"
+            className="w-full sm:w-auto rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
           >
             Sair da conta
           </button>
@@ -279,7 +279,7 @@ function PixSection({
           type="button"
           onClick={onGerarPix}
           disabled={pixLoading}
-          className="w-full rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+          className="w-full rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {pixLoading ? "Gerando PIX…" : "Gerar PIX da mensalidade"}
         </button>
@@ -310,7 +310,7 @@ function PixSection({
         <button
           type="button"
           onClick={onCopiarPix}
-          className="w-full rounded-xl border border-emerald-600 bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors touch-manipulation"
+          className="w-full rounded-md border border-emerald-600 bg-emerald-600 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-700 touch-manipulation"
         >
           {pixCopiado ? "Copiado!" : "Copiar código PIX"}
         </button>
@@ -323,7 +323,7 @@ function PixSection({
           type="button"
           onClick={onGerarNovoPix}
           disabled={pixLoading}
-          className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-xs font-medium text-[var(--foreground)] hover:opacity-90 disabled:opacity-50"
+          className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
         >
           {pixLoading ? "Gerando…" : "Gerar novo PIX"}
         </button>

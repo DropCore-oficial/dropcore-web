@@ -27,26 +27,51 @@ import {
   parseCalculadoraBloqueioMotivo,
 } from "@/lib/calculadoraAssinaturaExpired";
 import {
+  DANGER_PREMIUM_SURFACE,
   DANGER_PREMIUM_SURFACE_TRANSPARENT,
+  DANGER_PREMIUM_TEXT_PRIMARY,
   DANGER_PREMIUM_TEXT_SOFT,
 } from "@/lib/semanticPremium";
+import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const MARGEM_MINIMA = 5;
 
 // Visual base — cards neutros e polidos
 const cardClass = "rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm";
-/** Inputs base igual ao Dashboard — mobile um pouco mais baixo para reduzir “scroll infinito” */
+/** Inputs base — `h-9` fixo (36px) pra bater com a altura real do botão "Calcular" e dos
+ * badges R$/%; `py-2`/`text-sm` sozinhos não garantem a mesma altura em px (line-height de
+ * fonte diferente muda o resultado), então trava por altura explícita, não por padding. */
 const inputLight =
-  "w-full rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-600 px-3 py-2.5 text-neutral-900 dark:text-neutral-100 text-base md:text-sm focus:outline-none focus:border-neutral-400 dark:focus:border-neutral-500 placeholder-neutral-400 dark:placeholder-neutral-500";
+  "w-full h-9 rounded-md bg-[var(--card)] border border-[var(--card-border)] px-2.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 placeholder:text-[var(--muted)]";
+/** `<select>` nativo tem padding/altura próprios do SO que estouram a escala fina dos inputs —
+ * `appearance-none` tira o "chrome" do navegador; junto com `SelectChevron` (seta manual) fica
+ * do mesmo tamanho exato de um `<input>`/botão compacto. */
+const selectLight = `${inputLight} appearance-none pr-8`;
+function SelectChevron() {
+  return (
+    <svg
+      className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
 /** Só Perdas — destaque escuro para chamar atenção */
 const inputPerdas =
-  "w-full rounded-xl bg-neutral-900 dark:bg-neutral-950 border border-neutral-900 dark:border-neutral-700 px-3 py-2.5 text-white text-base md:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-neutral-500/40 placeholder-neutral-300";
+  "w-full h-9 rounded-md bg-neutral-900 dark:bg-neutral-950/80 border border-neutral-800 dark:border-neutral-700/70 px-2.5 text-sm text-white font-semibold focus:outline-none focus:ring-1 focus:ring-white/25 placeholder-neutral-400";
 const btnSecondaryClass =
-  "rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-2.5 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors";
+  "h-9 inline-flex items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 transition-colors";
 const unitBadge =
-  "inline-flex items-center justify-center w-[52px] h-[42px] rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-700 dark:text-neutral-200 shrink-0 select-none";
+  "inline-flex items-center justify-center w-10 h-9 rounded-md bg-[var(--muted)]/8 border border-[var(--card-border)] text-[11px] font-medium text-[var(--muted)] shrink-0 select-none";
 const perdaToggleClass =
-  "inline-flex items-center justify-center w-[52px] h-[42px] rounded-xl bg-neutral-900 dark:bg-neutral-950 border border-neutral-900 dark:border-neutral-700 text-xs font-semibold text-white shrink-0 select-none cursor-pointer hover:opacity-90 transition-colors";
+  "inline-flex items-center justify-center w-10 h-9 rounded-md bg-neutral-800 dark:bg-neutral-900 border border-neutral-700/50 dark:border-neutral-600/40 text-[11px] font-semibold text-white shrink-0 select-none cursor-pointer hover:opacity-90 transition-colors";
 
 type Extra = { id: string; nome: string; valorStr: string; tipo: "brl" | "pct" };
 
@@ -1144,12 +1169,12 @@ export default function SellerCalculadoraPage() {
     <div
       className={
         calcOnlyLite
-          ? "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
-          : "min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
+          ? "bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8"
+          : "bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8"
       }
     >
-      <div className="dropcore-shell-4xl py-4 sm:py-6 lg:py-8">
-        <div className="grid w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] gap-x-5 gap-y-5">
+      <div className={calcOnlyLite ? "dropcore-shell-4xl py-4 sm:py-6 lg:py-8" : "dropcore-shell-6xl py-4 sm:py-6 lg:py-8"}>
+        <div className="grid w-full grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)] gap-x-5 gap-y-5">
           <div className="col-span-full">
             <SellerPageHeader
               surface="hero"
@@ -1186,7 +1211,7 @@ export default function SellerCalculadoraPage() {
           )}
           <div
             className={cn(
-              "col-span-full grid w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] gap-x-5 gap-y-5 isolate",
+              "col-span-full grid w-full grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)] gap-x-5 gap-y-5 isolate",
               usoBloqueadoCalc && "relative min-h-[min(72vh,560px)]",
             )}
           >
@@ -1232,7 +1257,7 @@ export default function SellerCalculadoraPage() {
                 </div>
                 <Link
                   href="/seller/produtos"
-                  className="shrink-0 inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-colors text-center sm:text-left"
+                  className="shrink-0 inline-flex items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
                 >
                   Ligar em Produtos
                 </Link>
@@ -1246,12 +1271,12 @@ export default function SellerCalculadoraPage() {
           {!calcOnlyLite && semArmazemCatalogo !== true && fornecedores.length > 0 && (
             <>
               <Row label="Fornecedor">
-                <div className="space-y-2 w-full min-w-0">
+                <div className="relative space-y-2 w-full min-w-0">
                   <select
                     key={fornecedorConectadoId ?? "sem-vinculo"}
                     value={selectedFornecedorId}
                     onChange={(e) => setSelectedFornecedorId(e.target.value)}
-                    className={inputLight}
+                    className={selectLight}
                     autoComplete="off"
                   >
                     <option value="">Selecionar fornecedor</option>
@@ -1268,14 +1293,16 @@ export default function SellerCalculadoraPage() {
                       );
                     })}
                   </select>
+                  <SelectChevron />
                 </div>
               </Row>
               {selectedFornecedorId && (
                 <Row label="Produto">
+                  <div className="relative min-w-0 w-full">
                   <select
                     value={selectedProdutoId}
                     onChange={(e) => handleProdutoSelect(e.target.value)}
-                    className={`${inputLight} min-w-0 w-full`}
+                    className={`${selectLight} min-w-0 w-full`}
                     disabled={produtosLoading}
                     title="Fornecedor + DropCore"
                   >
@@ -1289,6 +1316,8 @@ export default function SellerCalculadoraPage() {
                       <option value="">Nenhum produto ativo</option>
                     )}
                   </select>
+                  <SelectChevron />
+                  </div>
                 </Row>
               )}
             </>
@@ -1313,19 +1342,22 @@ export default function SellerCalculadoraPage() {
               </>
             }
           >
-            <select
-              value={preset}
-              onChange={(e) => handlePresetChange(e.target.value)}
-              title="TikTok 6%, Shopee ~18%, SHEIN masc./fem., ML Clássico 14% + Premium 19%, ou comparar todos"
-              className={`${inputLight} w-full min-w-0 max-w-full`}
-            >
-              <option value="">Marketplace (selecionar)</option>
-              <option value="tiktok">TikTok Shop (6%)</option>
-              <option value="shopee">Shopee (~18%)</option>
-              <option value="shein">SHEIN 18% + 20% (juntos)</option>
-              <option value="meli">Mercado Livre 14% + 19%</option>
-              <option value="todos">Todos (comparar)</option>
-            </select>
+            <div className="relative w-full min-w-0 max-w-full">
+              <select
+                value={preset}
+                onChange={(e) => handlePresetChange(e.target.value)}
+                title="TikTok 6%, Shopee ~18%, SHEIN masc./fem., ML Clássico 14% + Premium 19%, ou comparar todos"
+                className={`${selectLight} w-full min-w-0 max-w-full`}
+              >
+                <option value="">Marketplace (selecionar)</option>
+                <option value="tiktok">TikTok Shop (6%)</option>
+                <option value="shopee">Shopee (~18%)</option>
+                <option value="shein">SHEIN 18% + 20% (juntos)</option>
+                <option value="meli">Mercado Livre 14% + 19%</option>
+                <option value="todos">Todos (comparar)</option>
+              </select>
+              <SelectChevron />
+            </div>
           </Row>
 
           <Row label="Custo do produto" unit="R$">
@@ -1356,7 +1388,7 @@ export default function SellerCalculadoraPage() {
           )}
           {showOpTiktok() && (
             <div className="border-b border-neutral-200/70 dark:border-[var(--card-border)]/70 px-4 py-3 sm:py-2.5">
-              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_52px] sm:items-center sm:gap-x-3 sm:gap-y-0">
+              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_44px] sm:items-center sm:gap-x-3 sm:gap-y-0">
                 {/* Mesmo encaixe do <Row /> (unit): sm:contents distribui input+zerar na coluna 2 e R$ na 3 */}
                 <label className="text-sm font-medium text-neutral-600 dark:text-neutral-400 shrink-0 flex items-center gap-1.5 min-w-0 overflow-visible">
                   <span className="truncate">TikTok Shop</span>
@@ -1399,11 +1431,10 @@ export default function SellerCalculadoraPage() {
                         title="Zerar operacional (R$ 0) — período grátis TikTok"
                         aria-label="Zerar operacional TikTok — coloca valor em zero reais (período grátis)"
                         className={cn(
-                          "inline-flex h-[42px] min-w-[4.25rem] shrink-0 touch-manipulation items-center justify-center rounded-xl px-2.5",
-                          "border border-neutral-200 bg-neutral-100 text-neutral-800 text-[11px] font-semibold leading-tight whitespace-nowrap shadow-sm sm:text-xs",
-                          "transition-colors dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100",
-                          "hover:bg-neutral-200/90 hover:text-neutral-950 dark:hover:bg-neutral-700 dark:hover:text-white",
-                          "focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)] dark:focus-visible:ring-neutral-500",
+                          "inline-flex h-9 min-w-[4.25rem] shrink-0 touch-manipulation items-center justify-center rounded-md px-2.5",
+                          "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] text-[11px] font-semibold leading-tight whitespace-nowrap",
+                          "transition-colors hover:bg-[var(--muted)]/10",
+                          "focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]",
                         )}
                       >
                         Zerar
@@ -1431,7 +1462,7 @@ export default function SellerCalculadoraPage() {
           )}
           {(preset === "meli" || preset === "todos") && (
             <div className="px-4 py-2.5 border-b border-neutral-200/70 dark:border-[var(--card-border)]/70">
-              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_52px] sm:items-center sm:gap-x-3">
+              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_44px] sm:items-center sm:gap-x-3">
                 <div className="flex items-center gap-1.5 min-w-0 sm:pt-0">
                   <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate">
                     Rebate (ML)
@@ -1730,7 +1761,7 @@ export default function SellerCalculadoraPage() {
           {/* ADS/TACOS — oculto no modo Shein único (na Shein a conta do seller costuma não usar esse % como nos outros canais) */}
           {!isPresetShein && (
             <div className="px-4 py-2.5 border-b border-neutral-200/70 dark:border-[var(--card-border)]/70 last:border-b-0">
-              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_52px] sm:items-center sm:gap-x-3">
+              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_44px] sm:items-center sm:gap-x-3">
                 <div className="flex items-center gap-1.5 min-w-0 shrink-0">
                   <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate">ADS/TACOS</span>
                   <HelpBubble
@@ -1779,7 +1810,7 @@ export default function SellerCalculadoraPage() {
 
           {/* Perdas — único campo em cinza escuro (destaque para ajustar) */}
           <div className="px-4 py-3 sm:py-2.5 border-b border-neutral-200/70 dark:border-[var(--card-border)]/70 bg-neutral-200/40 dark:bg-neutral-900/50">
-            <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_52px] sm:items-center sm:gap-x-3">
+            <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_44px] sm:items-center sm:gap-x-3">
               <label className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 shrink-0 truncate">Perdas/Devoluções</label>
               <div className="flex gap-2 items-center min-w-0 sm:contents">
                 <input type="text" inputMode="decimal" value={perda}
@@ -1787,7 +1818,7 @@ export default function SellerCalculadoraPage() {
                 <button
                   type="button"
                   onClick={() => setPerdaTipo(perdaTipo === "pct" ? "brl" : "pct")}
-                  className={`${perdaToggleClass} h-[42px] w-[52px] shrink-0`}
+                  className={`${perdaToggleClass} shrink-0`}
                   title="Alternar % ou R$"
                 >
                   {perdaTipo === "pct" ? "%" : "R$"}
@@ -1803,7 +1834,7 @@ export default function SellerCalculadoraPage() {
               <button
                 type="button"
                 onClick={addExtra}
-                className="shrink-0 inline-flex items-center justify-center rounded-xl border border-[var(--primary-blue)] bg-[var(--primary-blue)] px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+                className="h-9 shrink-0 inline-flex items-center justify-center rounded-md bg-[var(--primary-blue)] px-2.5 text-[11px] font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
               >
                 + Adicionar
               </button>
@@ -1823,12 +1854,15 @@ export default function SellerCalculadoraPage() {
                       <input type="text" inputMode="decimal" placeholder="0" value={x.valorStr}
                         onChange={(e) => updateExtra(x.id, "valorStr", sanitizeNumInput(e.target.value))}
                         autoComplete="off" className={`${inputLight} w-full min-w-0`} />
-                      <select value={x.tipo}
-                        onChange={(e) => updateExtra(x.id, "tipo", e.target.value as "brl" | "pct")}
-                        className={`${inputLight} w-full min-w-0 px-2`}>
-                        <option value="brl">R$</option>
-                        <option value="pct">%</option>
-                      </select>
+                      <div className="relative w-full min-w-0">
+                        <select value={x.tipo}
+                          onChange={(e) => updateExtra(x.id, "tipo", e.target.value as "brl" | "pct")}
+                          className={`${selectLight} w-full min-w-0 pl-2`}>
+                          <option value="brl">R$</option>
+                          <option value="pct">%</option>
+                        </select>
+                        <SelectChevron />
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -1836,7 +1870,7 @@ export default function SellerCalculadoraPage() {
                       className={cn(
                         DANGER_PREMIUM_SURFACE_TRANSPARENT,
                         DANGER_PREMIUM_TEXT_SOFT,
-                        "shrink-0 w-full sm:w-10 h-10 rounded-xl bg-[var(--danger)]/8 hover:bg-[var(--danger)]/14 dark:bg-[var(--danger)]/12 dark:hover:bg-[var(--danger)]/20 text-sm font-bold flex items-center justify-center transition-colors",
+                        "shrink-0 w-full sm:w-9 h-9 rounded-md bg-[var(--danger)]/8 hover:bg-[var(--danger)]/14 dark:bg-[var(--danger)]/12 dark:hover:bg-[var(--danger)]/20 text-[11px] font-bold flex items-center justify-center transition-colors",
                       )}
                     >
                       <span className="sm:hidden">Remover</span>
@@ -1850,19 +1884,20 @@ export default function SellerCalculadoraPage() {
             )}
           </div>
 
-          {/* Botões */}
-          <div className="flex gap-2 px-3 sm:px-4 py-3 sm:py-4 items-center bg-white dark:bg-neutral-900/50 border-t border-neutral-200/60 dark:border-neutral-700/60">
+          {/* Botões — empilha full-width no mobile (igual "+ Recarregar" do dashboard),
+              lado a lado só a partir do sm+ */}
+          <div className="flex flex-col gap-2 px-3 sm:flex-row sm:items-center sm:px-4 py-3 sm:py-4 bg-[var(--card)] border-t border-[var(--card-border)]">
             <button
               type="button"
               onClick={calcular}
-              className="flex-1 rounded-xl bg-emerald-600 text-white font-semibold py-3.5 sm:py-2.5 text-base sm:text-sm hover:bg-emerald-700 transition-colors touch-manipulation min-h-[48px] sm:min-h-0"
+              className="h-9 w-full sm:flex-1 sm:w-auto inline-flex items-center justify-center rounded-md bg-emerald-600 text-white font-semibold px-2.5 text-[11px] hover:bg-emerald-700 transition-colors touch-manipulation"
             >
               Calcular
             </button>
             <button
               type="button"
               onClick={limpar}
-              className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 px-4 py-3.5 sm:py-2.5 text-base sm:text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors shrink-0 touch-manipulation min-h-[48px] sm:min-h-0 min-w-[5.5rem]"
+              className="h-9 w-full sm:w-auto inline-flex items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 transition-colors shrink-0 touch-manipulation"
             >
               Limpar
             </button>
@@ -1870,8 +1905,9 @@ export default function SellerCalculadoraPage() {
         </div>
         </div>
 
-        {/* Coluna direita: resultado */}
-        <div className="w-full min-w-0 space-y-3 self-start">
+        {/* Coluna direita: resultado — gruda no topo ao rolar, pra não sobrar vazio embaixo
+            enquanto o formulário (mais alto) continua rolando */}
+        <div className="w-full min-w-0 space-y-3 self-start lg:sticky lg:top-[calc(3.5rem+env(safe-area-inset-top,0px)+1rem)]">
         {!calcOnlyLite && precoMinimo != null && custoProduto && parseNum(custoProduto) > 0 ? (
           <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 shadow-sm px-4 py-3.5">
             <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-0.5">
@@ -1926,7 +1962,7 @@ export default function SellerCalculadoraPage() {
             </div>
             <div className="p-4 space-y-3">
               {!calcOnlyLite && abaixoMinimo && (
-                <div className="rounded-xl border border-red-300 dark:border-red-900 bg-red-100 dark:bg-red-950/40 p-3 text-sm text-red-800 dark:text-red-200">
+                <div className={cn(DANGER_PREMIUM_SURFACE, DANGER_PREMIUM_TEXT_PRIMARY, "rounded-xl p-3 text-sm")}>
                   ⚠️ Margem abaixo do mínimo! Você está vendendo com menos de {MARGEM_MINIMA}% de lucro.
                 </div>
               )}
@@ -2250,13 +2286,14 @@ export default function SellerCalculadoraPage() {
 
         {usoBloqueadoCalc ? (
           <div
-            className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto p-4 sm:p-6 bg-black/45 dark:bg-black/60 backdrop-blur-[3px]"
+            className={MODAL_OVERLAY_CLASS}
             role="dialog"
             aria-modal="true"
             aria-labelledby="bloqueio-calc-titulo"
           >
-            <div className="relative w-full max-w-[min(22rem,calc(100vw-2rem))] max-h-[calc(100dvh-8rem)] overflow-x-hidden overflow-y-auto rounded-xl border border-emerald-300/60 dark:border-emerald-500/40 bg-white dark:bg-neutral-900 px-4 py-4 shadow-xl ring-1 ring-emerald-500/10 dark:ring-emerald-400/20">
+            <div className="relative flex w-full max-w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-emerald-300/60 bg-[var(--card)] shadow-2xl ring-1 ring-emerald-500/10 max-h-[min(90dvh,calc(100vh-2rem))] dark:border-emerald-500/40 dark:ring-emerald-400/20">
               <div className="absolute inset-x-0 top-0 h-0.5 sm:h-1 bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-600" aria-hidden />
+              <div className={cn(MODAL_PANEL_BODY_CLASS, "relative px-4 py-4")}>
               <div className="flex items-start gap-2.5">
                 <span
                   className={cn(
@@ -2328,7 +2365,7 @@ export default function SellerCalculadoraPage() {
                       type="button"
                       onClick={() => void gerarPixRenovacao()}
                       disabled={renoPixLoading || (renoMeta !== null && !renoMeta.configurado)}
-                      className="w-full sm:w-auto rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                      className="w-full sm:w-auto rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {renoPixLoading ? "Gerando PIX…" : "Gerar PIX da renovação"}
                     </button>
@@ -2339,7 +2376,7 @@ export default function SellerCalculadoraPage() {
                       await supabaseBrowser.auth.signOut();
                       router.replace("/calculadora/login");
                     }}
-                    className="w-full sm:w-auto rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--foreground)] hover:opacity-90 transition-opacity"
+                    className="w-full sm:w-auto rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
                   >
                     Sair da conta
                   </button>
@@ -2392,7 +2429,7 @@ export default function SellerCalculadoraPage() {
                         setRenoPixCopiado(true);
                         window.setTimeout(() => setRenoPixCopiado(false), 2500);
                       }}
-                      className="w-full rounded-xl border border-emerald-600 bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors touch-manipulation"
+                      className="w-full rounded-md border border-emerald-600 bg-emerald-600 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-700 touch-manipulation"
                     >
                       {renoPixCopiado ? "Copiado!" : "Copiar código PIX"}
                     </button>
@@ -2405,7 +2442,7 @@ export default function SellerCalculadoraPage() {
                       type="button"
                       onClick={() => void gerarPixRenovacao()}
                       disabled={renoPixLoading}
-                      className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-xs font-medium text-[var(--foreground)] hover:opacity-90 disabled:opacity-50"
+                      className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
                     >
                       {renoPixLoading ? "Gerando…" : "Gerar novo PIX"}
                     </button>
@@ -2415,20 +2452,21 @@ export default function SellerCalculadoraPage() {
                         await supabaseBrowser.auth.signOut();
                         router.replace("/calculadora/login");
                       }}
-                      className="rounded-xl border border-[var(--card-border)] px-3 py-2 text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                      className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]/10"
                     >
                       Sair da conta
                     </button>
                   </div>
                 </div>
               ) : null}
+              </div>
             </div>
           </div>
         ) : null}
           </div>
         </div>
       </div>
-      <SellerNav active="calculadora" calcOnly={calcOnlyLite} />
+      <SellerNav active="calculadora" calcOnly={calcOnlyLite} wide={!calcOnlyLite} />
     </div>
   );
 }
@@ -2497,7 +2535,7 @@ function Row({
 }) {
   return (
     <div className="px-4 py-3 sm:py-2.5 border-b border-neutral-200/70 dark:border-[var(--card-border)]/70">
-      <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_52px] sm:items-center sm:gap-x-3 sm:gap-y-0">
+      <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(140px,34%)_1fr_44px] sm:items-center sm:gap-x-3 sm:gap-y-0">
         {/* overflow-visible: tooltips (?) no label não podem usar sm:truncate no pai — overflow:hidden recorta o painel */}
         <label className="text-sm font-medium text-neutral-600 dark:text-neutral-400 shrink-0 flex items-center gap-1.5 min-w-0 overflow-visible">
           {label}

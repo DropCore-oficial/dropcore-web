@@ -54,7 +54,8 @@ export function OlistIntegracaoSaudeCard(props: Props) {
           <p className="text-sm font-semibold text-[var(--foreground)]">{props.titulo}</p>
           <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{props.detalhe}</p>
         </div>
-        <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold", s.badge)}>
+        <span className={cn("inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium", s.badge)}>
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
           {s.label}
         </span>
       </div>

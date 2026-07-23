@@ -618,7 +618,7 @@ export default function SellerProdutosPage() {
   }, [fornecedorLigadoId]);
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
       <div className="dropcore-shell-6xl py-4 sm:py-6 lg:py-8">
           <SellerPageHeader
             surface="hero"

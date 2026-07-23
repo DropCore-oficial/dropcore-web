@@ -475,6 +475,13 @@ type IntegracoesPageProps = {
 
 type ErpProvider = "olist" | "bling";
 
+/** Sync costuma repetir a mesma mensagem por pedido — agrupa por texto igual + contador em vez de listar tudo cru. */
+function agruparMensagensComContagem(msgs: string[]): { msg: string; count: number }[] {
+  const contagem = new Map<string, number>();
+  for (const m of msgs) contagem.set(m, (contagem.get(m) ?? 0) + 1);
+  return Array.from(contagem.entries()).map(([msg, count]) => ({ msg, count }));
+}
+
 function IntegracoesErpPageView(props: IntegracoesPageProps) {
   const [activeErp, setActiveErp] = useState<ErpProvider>(() =>
     typeof window !== "undefined" && window.location.search.includes("code=") ? "bling" : "olist",
@@ -489,9 +496,9 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
       : null;
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <SellerNav active="integracoes" />
-      <div className="dropcore-shell-4xl space-y-5 py-5 md:space-y-6 md:py-7">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
+      <SellerNav active="integracoes" wide />
+      <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <SellerPageHeader
           surface="hero"
           title="Integração ERP"
@@ -499,11 +506,11 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
             activeErp === "olist" ? (
               <Link
                 href="/seller/integracoes-erp/como-conectar"
-                className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5 text-sm font-semibold text-[var(--foreground)] shadow-sm transition hover:border-emerald-500/40 hover:bg-[var(--surface-hover)] dark:hover:border-emerald-400/35"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
               >
                 <span className="hidden sm:inline">Como conectar</span>
                 <span className="sm:hidden">Guia</span>
-                <svg className="h-4 w-4 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <svg className="h-3.5 w-3.5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
               </Link>
@@ -511,17 +518,17 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
           }
         />
 
-        <div role="tablist" aria-label="Escolha o ERP" className="inline-flex gap-1 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-1">
+        <div role="tablist" aria-label="Escolha o ERP" className="inline-flex flex-wrap gap-1.5">
           <button
             type="button"
             role="tab"
             aria-selected={activeErp === "olist"}
             onClick={() => setActiveErp("olist")}
             className={cn(
-              "rounded-lg px-4 py-2 text-sm font-semibold transition",
+              "rounded-full px-3.5 py-1.5 text-[11px] font-medium transition",
               activeErp === "olist"
                 ? "bg-emerald-600 text-white shadow-sm"
-                : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
+                : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
             )}
           >
             Olist / Tiny
@@ -532,10 +539,10 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
             aria-selected={activeErp === "bling"}
             onClick={() => setActiveErp("bling")}
             className={cn(
-              "rounded-lg px-4 py-2 text-sm font-semibold transition",
+              "rounded-full px-3.5 py-1.5 text-[11px] font-medium transition",
               activeErp === "bling"
                 ? "bg-emerald-600 text-white shadow-sm"
-                : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
+                : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
             )}
           >
             Bling
@@ -583,11 +590,13 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                 <h2 className="text-base font-semibold text-[var(--foreground)]">Conta Olist/Tiny</h2>
                 {props.olistConnected ? (
-                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                     Token salvo
                   </span>
                 ) : (
-                  <span className="rounded-full bg-[var(--muted)]/15 px-2.5 py-0.5 text-xs font-medium text-[var(--muted)]">
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-[var(--muted)]/15 px-2 py-1 text-[11px] font-medium text-[var(--muted)]">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                     Pendente
                   </span>
                 )}
@@ -596,7 +605,7 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                 type="button"
                 onClick={props.onAtualizar}
                 disabled={props.refreshing}
-                className="rounded-lg border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-60"
+                className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
               >
                 {props.refreshing ? "Atualizando..." : "Atualizar"}
               </button>
@@ -724,15 +733,21 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                       ) : null}
                       {props.olistSyncErrorsList.length > 0 ? (
                         <ul className={cn("mt-2 space-y-1 text-xs list-disc pl-4", DANGER_PREMIUM_TEXT_BODY)}>
-                          {props.olistSyncErrorsList.map((msg) => (
-                            <li key={msg}>{msg}</li>
+                          {agruparMensagensComContagem(props.olistSyncErrorsList).map(({ msg, count }) => (
+                            <li key={msg}>
+                              {msg}
+                              {count > 1 ? <span className="font-semibold"> ×{count}</span> : null}
+                            </li>
                           ))}
                         </ul>
                       ) : null}
                       {props.olistSyncWarningsList.length > 0 ? (
                         <ul className={cn("mt-2 space-y-1 text-xs list-disc pl-4", AMBER_PREMIUM_TEXT_BODY)}>
-                          {props.olistSyncWarningsList.map((msg) => (
-                            <li key={msg}>{msg}</li>
+                          {agruparMensagensComContagem(props.olistSyncWarningsList).map(({ msg, count }) => (
+                            <li key={msg}>
+                              {msg}
+                              {count > 1 ? <span className="font-semibold"> ×{count}</span> : null}
+                            </li>
                           ))}
                         </ul>
                       ) : null}
@@ -741,7 +756,7 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                           type="button"
                           disabled={props.pedidosSyncNow || props.olistSaving}
                           onClick={props.onSincronizarPedidosOlist}
-                          className="mt-3 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-subtle)] disabled:opacity-50"
+                          className="mt-3 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
                         >
                           {props.pedidosSyncNow ? "Buscando pedidos na Olist…" : "Sincronizar pedidos agora"}
                         </button>
@@ -793,7 +808,7 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                           type="button"
                           disabled={props.precosSyncNow || props.olistSaving}
                           onClick={props.onSincronizarPrecosOlist}
-                          className="mt-3 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-subtle)] disabled:opacity-50"
+                          className="mt-3 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
                         >
                           {props.precosSyncNow ? "Enviando preços para Olist…" : "Sincronizar preços agora"}
                         </button>
@@ -856,7 +871,7 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                         type="button"
                         disabled={props.catalogoVerificando || props.olistSaving || !props.olistTokenUsable}
                         onClick={props.onVerificarCatalogoOlist}
-                        className="mt-3 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-subtle)] disabled:opacity-50"
+                        className="mt-3 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
                       >
                         {props.catalogoVerificando ? "Verificando na Olist…" : "Verificar SKUs na Olist"}
                       </button>
@@ -908,7 +923,7 @@ function OlistWebhookPedidosPanel(props: {
 
   return (
     <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <p className="font-medium text-[var(--foreground)]">Webhook de pedidos (Olist/Tiny)</p>
           <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
@@ -924,7 +939,7 @@ function OlistWebhookPedidosPanel(props: {
             type="button"
             onClick={() => void copiar()}
             disabled={!url}
-            className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
+            className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
           >
             {copied ? "Copiado" : "Copiar URL"}
           </button>
@@ -932,7 +947,7 @@ function OlistWebhookPedidosPanel(props: {
             type="button"
             onClick={props.onRegenerarIngest}
             disabled={!podeRegenerar || props.ingestRegenerating}
-            className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
+            className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
             title="Invalida o link atual; atualize a URL na Olist/Tiny"
           >
             {props.ingestRegenerating ? "Gerando…" : "Novo link webhook"}
@@ -947,7 +962,7 @@ function OlistWebhookPedidosPanel(props: {
             value={url}
             rows={4}
             spellCheck={false}
-            className="mt-3 min-h-[5rem] w-full resize-y rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-2 py-2 font-mono text-[11px] leading-snug text-[var(--foreground)] break-all whitespace-pre-wrap"
+            className="mt-3 min-h-[5rem] w-full resize-y rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-2 py-2 font-mono text-[11px] leading-snug text-[var(--foreground)] break-all whitespace-pre-wrap"
             aria-label="URL do webhook de pedidos"
           />
           <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted)]">
@@ -993,36 +1008,43 @@ function OlistWebhookPedidosPanel(props: {
 
 function OlistSyncStatusBadge(props: { status: string | null; hasLastSync: boolean }) {
   const normalized = props.status?.trim().toLowerCase() ?? "";
+  const badgeBase = "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium";
+  const dot = <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />;
   if (!props.hasLastSync) {
     return (
-      <span className="rounded-full bg-[var(--muted)]/15 px-2.5 py-0.5 text-xs font-medium text-[var(--muted)]">
+      <span className={cn(badgeBase, "bg-[var(--muted)]/15 text-[var(--muted)]")}>
+        {dot}
         Aguardando primeira sync
       </span>
     );
   }
   if (normalized === "ok") {
     return (
-      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+      <span className={cn(badgeBase, "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300")}>
+        {dot}
         Sync ok
       </span>
     );
   }
   if (normalized === "parcial") {
     return (
-      <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", AMBER_PREMIUM_TEXT_SOFT, "bg-[var(--muted)]/10")}>
+      <span className={cn(badgeBase, AMBER_PREMIUM_TEXT_SOFT, "bg-[var(--muted)]/10")}>
+        {dot}
         Sync parcial
       </span>
     );
   }
   if (normalized === "erro") {
     return (
-      <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", DANGER_PREMIUM_TEXT_BODY, "bg-[var(--danger)]/10")}>
+      <span className={cn(badgeBase, DANGER_PREMIUM_TEXT_BODY, "bg-[var(--danger)]/10")}>
+        {dot}
         Sync com erro
       </span>
     );
   }
   return (
-    <span className="rounded-full bg-[var(--muted)]/15 px-2.5 py-0.5 text-xs font-medium text-[var(--muted)]">
+    <span className={cn(badgeBase, "bg-[var(--muted)]/15 text-[var(--muted)]")}>
+      {dot}
       Sem status
     </span>
   );
@@ -1037,13 +1059,13 @@ function OlistTokenForm(props: IntegracoesPageProps) {
         onChange={(e) => props.setOlistTokenInput(e.target.value)}
         placeholder={props.olistConnected ? "Cole um novo token para substituir" : "Cole o token API da Olist/Tiny"}
         autoComplete="off"
-        className="min-w-0 flex-1 rounded-xl border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)]"
+        className="min-w-0 flex-1 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)]"
       />
       <button
         type="button"
         onClick={props.onSalvarOlistToken}
         disabled={props.olistSaving || !props.olistTokenInput.trim()}
-        className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+        className="shrink-0 rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
       >
         {props.olistSaving ? "Salvando..." : "Salvar token"}
       </button>
@@ -1052,7 +1074,7 @@ function OlistTokenForm(props: IntegracoesPageProps) {
           type="button"
           onClick={props.onRemoverOlistToken}
           disabled={props.olistSaving}
-          className="shrink-0 rounded-xl border border-[var(--card-border)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-60"
+          className="shrink-0 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
         >
           Remover
         </button>

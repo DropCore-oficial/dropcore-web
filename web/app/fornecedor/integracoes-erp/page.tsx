@@ -254,9 +254,9 @@ export default function FornecedorIntegracoesErpPage() {
       : null;
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <FornecedorNav active="integracoes" />
-      <div className="dropcore-shell-4xl space-y-5 py-5 md:space-y-6 md:py-7">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
+      <FornecedorNav active="integracoes" wide />
+      <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <div>
           <h1 className="text-xl font-bold text-[var(--foreground)] md:text-2xl">Integração ERP (Olist/Tiny)</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
@@ -296,7 +296,8 @@ export default function FornecedorIntegracoesErpPage() {
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               <h2 className="text-base font-semibold text-[var(--foreground)]">Conta Olist/Tiny</h2>
               {connected && tokenUsable ? (
-                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                   Token salvo
                 </span>
               ) : (
@@ -309,7 +310,7 @@ export default function FornecedorIntegracoesErpPage() {
               type="button"
               onClick={() => void atualizar()}
               disabled={refreshing}
-              className="rounded-lg border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-60"
+              className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
             >
               {refreshing ? "Atualizando…" : "Atualizar"}
             </button>
@@ -401,7 +402,8 @@ export default function FornecedorIntegracoesErpPage() {
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       {cronBackupLastAt ? (
                         <>
-                          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                             Cron OK
                           </span>
                           <span className="text-xs text-[var(--muted)]">
@@ -464,7 +466,7 @@ export default function FornecedorIntegracoesErpPage() {
                         type="button"
                         disabled={syncPullNow || saving}
                         onClick={() => void sincronizarEstoqueAgora()}
-                        className="mt-3 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-subtle)] disabled:opacity-50"
+                        className="mt-3 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
                       >
                         {syncPullNow ? "Consultando Olist…" : "Consultar estoque na Olist agora"}
                       </button>
@@ -498,14 +500,14 @@ export default function FornecedorIntegracoesErpPage() {
                   value={tokenInput}
                   onChange={(e) => setTokenInput(e.target.value)}
                   placeholder="Cole o token gerado na Olist"
-                  className="min-w-0 flex-1 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2.5 text-sm"
+                  className="min-w-0 flex-1 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)]"
                   autoComplete="off"
                 />
                 <button
                   type="button"
                   disabled={saving || !tokenInput.trim()}
                   onClick={() => void salvarToken()}
-                  className="shrink-0 rounded-lg bg-[var(--primary-blue)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--primary-blue-hover)] disabled:opacity-50"
+                  className="shrink-0 rounded-md bg-[var(--primary-blue)] px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-[var(--primary-blue-hover)] disabled:opacity-50"
                 >
                   {saving ? "Salvando…" : "Salvar token"}
                 </button>
@@ -566,7 +568,7 @@ function OlistWebhookEstoquePanel(props: {
             type="button"
             onClick={() => void copiar()}
             disabled={!url}
-            className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
+            className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
           >
             {copied ? "Copiado" : "Copiar URL"}
           </button>
@@ -574,7 +576,7 @@ function OlistWebhookEstoquePanel(props: {
             type="button"
             onClick={props.onRegenerarIngest}
             disabled={!podeRegenerar || props.ingestRegenerating}
-            className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
+            className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
             title="Invalida o link atual; atualize a URL na Olist/Tiny"
           >
             {props.ingestRegenerating ? "Gerando…" : "Novo link webhook"}
@@ -589,7 +591,7 @@ function OlistWebhookEstoquePanel(props: {
             value={url}
             rows={3}
             spellCheck={false}
-            className="mt-3 min-h-[4rem] w-full resize-y rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-2 py-2 font-mono text-[11px] leading-snug text-[var(--foreground)] break-all whitespace-pre-wrap"
+            className="mt-3 min-h-[4rem] w-full resize-y rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-2 py-2 font-mono text-[11px] leading-snug text-[var(--foreground)] break-all whitespace-pre-wrap"
             aria-label="URL do webhook de estoque"
           />
           <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted)]">

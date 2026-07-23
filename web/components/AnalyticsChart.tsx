@@ -114,10 +114,10 @@ export function AnalyticsChart({
           <button
             type="button"
             onClick={() => onModeChange("dias")}
-            className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+            className={`rounded-full px-3.5 py-1.5 text-[11px] font-medium transition-colors ${
               mode === "dias"
                 ? "bg-emerald-600 text-white"
-                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
             }`}
           >
             Últimos {periodDias} dias
@@ -129,10 +129,10 @@ export function AnalyticsChart({
                   key={n}
                   type="button"
                   onClick={() => onPeriodChange(n)}
-                  className={`rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                  className={`rounded-full px-3.5 py-1.5 text-[11px] font-medium transition-colors ${
                     periodDias === n
                       ? "bg-emerald-600 text-white"
-                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                      : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
                   }`}
                 >
                   {n}d
@@ -152,7 +152,7 @@ export function AnalyticsChart({
               <button
                 type="button"
                 onClick={emptyCta.onClick}
-                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-sm font-semibold"
+                className="rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 text-[11px] font-semibold shadow-sm"
               >
                 {emptyCta.label}
               </button>

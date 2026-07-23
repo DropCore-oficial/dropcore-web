@@ -2140,13 +2140,13 @@ export default function CriarVariantesPage() {
   }
 
   return (
-    <div className="min-h-screen min-w-0 bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(7.5rem+env(safe-area-inset-bottom,0px))] md:pb-16">
+    <div className="min-w-0 bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(7.5rem+env(safe-area-inset-bottom,0px))] md:pb-16">
       {/*
         Barra do formulário: sticky só no mobile (abaixo do MobileAppBar).
         No desktop, fixed + sticky empilhados costumam causar “travamento”/cliques estranhos no topo — aqui fica estática; use «Salvar» no fim do formulário.
       */}
       <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top,0px))] z-20 border-b border-[var(--card-border)] bg-[var(--card)] shadow-sm md:static md:top-auto md:z-auto md:shadow-none">
-        <div className="dropcore-shell-4xl flex items-center justify-between gap-3 py-3">
+        <div className="dropcore-shell-6xl flex items-center justify-between gap-3 py-3">
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <Link
               href="/fornecedor/produtos"
@@ -2165,7 +2165,7 @@ export default function CriarVariantesPage() {
         </div>
       </div>
 
-      <div className="dropcore-shell-4xl flex flex-col gap-4 overflow-x-hidden py-4 md:flex-row md:gap-6">
+      <div className="dropcore-shell-6xl flex flex-col gap-4 overflow-x-hidden py-4 md:flex-row md:gap-6">
         {/* Conteúdo principal */}
         <div className="min-w-0 flex-1 order-2 md:order-1">
           <form id="form-criar-variantes" onSubmit={handleSubmit} className="space-y-6">
@@ -2498,7 +2498,7 @@ export default function CriarVariantesPage() {
                       setTabAtiva("variacoes");
                       window.setTimeout(() => tabsNavRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
                     }}
-                    className="mt-3 w-full rounded-lg border border-neutral-300 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800 sm:w-auto"
+                    className="mt-3 w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 sm:w-auto"
                   >
                     Ir para variações →
                   </button>
@@ -3213,7 +3213,7 @@ export default function CriarVariantesPage() {
                         const u = linkFotos.trim();
                         if (u) window.open(u, "_blank", "noopener,noreferrer");
                       }}
-                      className="rounded-lg border border-neutral-300 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-100 disabled:opacity-40 dark:border-neutral-600 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                      className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10 disabled:opacity-40"
                     >
                       Visitar
                     </button>
@@ -3236,7 +3236,7 @@ export default function CriarVariantesPage() {
                         const u = linkVideo.trim();
                         if (u) window.open(u, "_blank", "noopener,noreferrer");
                       }}
-                      className="rounded-lg border border-neutral-300 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-100 disabled:opacity-40 dark:border-neutral-600 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                      className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10 disabled:opacity-40"
                     >
                       Visitar
                     </button>
@@ -3599,7 +3599,7 @@ export default function CriarVariantesPage() {
         </aside>
       </div>
       <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] z-30 border-t border-[#e5e7eb] bg-white/95 px-4 py-2.5 shadow-[0_-6px_18px_-14px_rgba(15,23,42,0.35)] backdrop-blur md:hidden dark:border-neutral-700 dark:bg-[#0f141b]/95">
-        <div className="dropcore-shell-4xl flex w-full gap-2">
+        <div className="dropcore-shell-6xl flex w-full gap-2">
           {!modoEdicao && (
             <button
               type="button"
@@ -3697,7 +3697,7 @@ export default function CriarVariantesPage() {
               <button
                 type="button"
                 onClick={() => setModalTopicosMedida(false)}
-                className="rounded-lg bg-[#2563eb] px-3.5 py-1.5 text-sm font-semibold text-white transition hover:bg-[#1d4ed8]"
+                className="rounded-md bg-[var(--primary-blue)] px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[var(--primary-blue-hover)]"
               >
                 Concluir
               </button>
@@ -3705,7 +3705,7 @@ export default function CriarVariantesPage() {
           </div>
         </div>
       )}
-      <FornecedorNav active="produtos" />
+      <FornecedorNav active="produtos" wide />
     </div>
   );
 }

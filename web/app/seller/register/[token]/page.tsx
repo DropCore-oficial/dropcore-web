@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_BODY, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
 import { goToSellerAfterAuth, goToSellerLogin } from "@/lib/sellerPostAuthRedirect";
 
@@ -228,7 +229,7 @@ export default function SellerRegisterPage() {
         </div>
 
         <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm p-6">
-          <div className="mb-5 rounded-xl bg-[var(--background)] border border-[var(--card-border)] px-4 py-3">
+          <div className="mb-5 rounded-xl bg-[var(--surface-subtle)] border border-[var(--card-border)] px-4 py-3">
             <p className="text-xs text-[var(--muted)]">Convite para</p>
             <p className="text-[var(--foreground)] font-semibold mt-0.5">{sellerNome}</p>
             {portalTrialDiasConvite !== null && (
@@ -262,7 +263,7 @@ export default function SellerRegisterPage() {
                   setNeedsLink(false);
                 }}
                 placeholder="seu@email.com"
-                className="w-full rounded-xl bg-[var(--background)] border border-[var(--card-border)] text-[var(--foreground)] placeholder-[var(--muted)] px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/50"
+                className="w-full rounded-xl bg-[var(--card)] border border-[var(--card-border)] text-[var(--foreground)] placeholder-[var(--muted)] px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/50"
               />
             </div>
             <div>
@@ -273,7 +274,7 @@ export default function SellerRegisterPage() {
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
                   placeholder="Mínimo 6 caracteres"
-                  className="w-full rounded-xl bg-white border border-neutral-200 text-neutral-900 placeholder-neutral-400 px-3 py-2.5 pr-10 text-sm focus:outline-none focus:border-neutral-400"
+                  className="w-full rounded-xl bg-[var(--card)] border border-[var(--card-border)] text-[var(--foreground)] placeholder-[var(--muted)] px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/50"
                 />
                 <button
                   type="button"
@@ -303,7 +304,7 @@ export default function SellerRegisterPage() {
                   value={confirmar}
                   onChange={(e) => setConfirmar(e.target.value)}
                   placeholder="Repita a senha"
-                  className="w-full rounded-xl bg-white border border-neutral-200 text-neutral-900 placeholder-neutral-400 px-3 py-2.5 pr-10 text-sm focus:outline-none focus:border-neutral-400"
+                  className="w-full rounded-xl bg-[var(--card)] border border-[var(--card-border)] text-[var(--foreground)] placeholder-[var(--muted)] px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/50"
                 />
                 <button
                   type="button"
@@ -328,7 +329,7 @@ export default function SellerRegisterPage() {
           </div>
 
           {formError && (
-            <div className="mt-4 rounded-xl border border-red-300 bg-red-100 px-4 py-3 text-sm text-red-700">
+            <div className={cn("mt-4 rounded-xl px-4 py-3 text-sm", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>
               {formError}
             </div>
           )}
@@ -343,7 +344,7 @@ export default function SellerRegisterPage() {
                 type="button"
                 onClick={() => void vincularContaExistente()}
                 disabled={sending}
-                className="w-full rounded-xl border border-[#006e52] bg-[#008060] text-white font-semibold py-2.5 text-sm shadow-sm transition hover:bg-[#006e52] disabled:opacity-60"
+                className="w-full rounded-xl bg-[var(--accent)] text-white font-semibold py-2.5 text-sm shadow-sm transition hover:opacity-90 disabled:opacity-60"
               >
                 {sending ? "A vincular..." : "Entrar e vincular ao convite"}
               </button>

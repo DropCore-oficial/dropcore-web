@@ -222,7 +222,7 @@ export default function RepasseFornecedorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 py-4 sm:py-6">
+    <div className="bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 py-4 sm:py-6">
       <div className="dropcore-shell-6xl space-y-6">
 
         {/* Header */}
@@ -561,7 +561,7 @@ export default function RepasseFornecedorPage() {
                 <button
                   onClick={() => setShowConfirm(false)}
                   disabled={closing}
-                  className="flex-1 rounded-xl border border-neutral-300 py-2.5 text-sm text-neutral-700 hover:border-neutral-500 disabled:opacity-60"
+                  className="flex-1 rounded-md border border-[var(--card-border)] bg-[var(--card)] py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
                 >
                   Cancelar
                 </button>
@@ -571,7 +571,7 @@ export default function RepasseFornecedorPage() {
                     setShowConfirm(false);
                   }}
                   disabled={closing}
-                  className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 text-sm font-semibold disabled:opacity-60"
+                  className="flex-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 text-[11px] font-semibold shadow-sm disabled:opacity-60"
                 >
                   {closing ? "Fechando..." : "Confirmar fechamento"}
                 </button>

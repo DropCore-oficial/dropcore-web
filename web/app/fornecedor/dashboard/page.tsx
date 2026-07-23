@@ -391,7 +391,7 @@ export default function FornecedorDashboardPage() {
           </div>
           <p className="text-red-700 dark:text-red-300 font-semibold mb-2">Ocorreu um erro</p>
           <p className="text-[var(--muted)] text-sm mb-6">{error}</p>
-          <button onClick={() => void load()} className="rounded-xl bg-neutral-700 text-white dark:bg-neutral-600 dark:hover:bg-neutral-500 px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity">
+          <button onClick={() => void load()} className="rounded-md bg-[var(--foreground)] text-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold hover:opacity-90 transition-opacity">
             Tentar novamente
           </button>
         </div>
@@ -400,8 +400,8 @@ export default function FornecedorDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="dropcore-shell-4xl py-5 md:py-7 space-y-5 md:space-y-6">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
+      <div className="dropcore-shell-6xl py-5 md:py-7 space-y-5 md:space-y-6">
         <header className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 sm:p-5 shadow-sm overflow-visible">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="flex min-w-0 flex-1 items-stretch gap-3">
@@ -490,7 +490,7 @@ export default function FornecedorDashboardPage() {
                   setRepasseAberto(true);
                   repasseRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
                 }}
-                className="rounded-lg bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 text-sm font-semibold shrink-0"
+                className="rounded-md bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1.5 text-[11px] font-semibold shrink-0"
               >
                 Ver repasses →
               </button>
@@ -581,7 +581,7 @@ export default function FornecedorDashboardPage() {
                 <button
                   type="button"
                   onClick={() => abrirPixMensalidade(mensalidades[0])}
-                  className="w-full shrink-0 rounded-xl bg-[var(--foreground)] px-4 py-2.5 text-sm font-semibold text-[var(--card)] shadow-sm hover:opacity-90 sm:w-auto touch-manipulation"
+                  className="w-full shrink-0 rounded-md bg-[var(--foreground)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--background)] shadow-sm hover:opacity-90 sm:w-auto touch-manipulation"
                 >
                   Pagar {BRL.format(mensalidades[0].valor)}
                 </button>
@@ -737,7 +737,7 @@ export default function FornecedorDashboardPage() {
                 <button
                   type="button"
                   onClick={() => router.push("/fornecedor/produtos")}
-                  className="mt-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 text-sm font-semibold shadow-sm shadow-emerald-600/25 transition-colors"
+                  className="mt-5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 text-[11px] font-semibold shadow-sm"
                 >
                   Gerir catálogo
                 </button>
@@ -906,13 +906,13 @@ export default function FornecedorDashboardPage() {
               <p className="text-xs text-[var(--muted)]">Histórico por ciclo e status de pagamento</p>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => void load()} className="rounded-lg border border-[var(--card-border)] px-2.5 py-1.5 text-xs text-[var(--muted)] hover:bg-[var(--background)]">
+              <button onClick={() => void load()} className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10">
                 Atualizar
               </button>
               <button
                 type="button"
                 onClick={() => setRepasseAberto(!repasseAberto)}
-                className="rounded-lg px-2 py-1.5 text-xs text-[var(--muted)] hover:bg-[var(--background)] hover:text-[var(--foreground)] transition-colors flex items-center gap-1.5"
+                className="rounded-md px-2 py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] transition-colors flex items-center gap-1.5"
                 title={repasseAberto ? "Recolher" : "Expandir"}
               >
                 {!repasseAberto && <span>{repasseItems.length} repasse{repasseItems.length !== 1 ? "s" : ""}</span>}
@@ -1051,7 +1051,7 @@ export default function FornecedorDashboardPage() {
         </div>
       )}
 
-      <FornecedorNav active="dashboard" />
+      <FornecedorNav active="dashboard" wide />
     </div>
   );
 }

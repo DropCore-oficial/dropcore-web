@@ -77,7 +77,7 @@ export default function AdminLayout({
     <>
       <AppVersionUpdateBanner surface="admin" requireAuth />
       <AdminNav />
-      <div className="pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 min-h-0 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-0">{children}</div>
+      <div className="pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 min-h-0 pb-0">{children}</div>
       <AdminMobileBottomNav />
     </>
   );

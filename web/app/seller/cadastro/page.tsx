@@ -335,12 +335,12 @@ export default function SellerCadastroPage() {
   }
 
   const inputClass =
-    "w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40";
+    "w-full h-8 rounded-md border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40";
   const inputMonoClass = `${inputClass} font-mono`;
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="dropcore-shell-4xl space-y-5 py-5 md:space-y-6 md:py-7">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
+      <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <SellerPageHeader
           surface="hero"
           showBack
@@ -404,7 +404,7 @@ export default function SellerCadastroPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <label
                     className={cn(
-                      "inline-flex cursor-pointer items-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)]/10",
+                      "inline-flex cursor-pointer items-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition hover:bg-[var(--muted)]/10",
                       logoUploading && "pointer-events-none opacity-60",
                     )}
                   >
@@ -426,7 +426,7 @@ export default function SellerCadastroPage() {
                       type="button"
                       onClick={() => void removeLogo()}
                       disabled={logoUploading}
-                      className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] disabled:opacity-60"
+                      className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] disabled:opacity-60"
                     >
                       Remover
                     </button>
@@ -464,7 +464,7 @@ export default function SellerCadastroPage() {
               </div>
               <div className="sm:col-span-2 space-y-2">
                 <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">{form.tipo_documento} *</label>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <input
                     type="text"
                     value={form.documento}
@@ -472,7 +472,7 @@ export default function SellerCadastroPage() {
                       setOkMsg(null);
                       setForm((f) => ({ ...f, documento: formatarCNPJouCPF(e.target.value, f.tipo_documento) }));
                     }}
-                    className={`min-h-10 min-w-0 flex-1 ${inputMonoClass}`}
+                    className={`min-w-0 flex-1 ${inputMonoClass}`}
                     maxLength={form.tipo_documento === "CPF" ? 14 : 18}
                   />
                   {form.tipo_documento === "CNPJ" && (
@@ -480,7 +480,7 @@ export default function SellerCadastroPage() {
                       type="button"
                       onClick={() => void buscarDadosCnpj()}
                       disabled={cnpjBuscaLoading}
-                      className="min-h-10 shrink-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-100 disabled:opacity-60 dark:text-neutral-300 dark:hover:bg-neutral-800 whitespace-nowrap"
+                      className="shrink-0 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 disabled:opacity-60 whitespace-nowrap"
                     >
                       {cnpjBuscaLoading ? "A consultar..." : "Validar na Receita"}
                     </button>
@@ -492,7 +492,7 @@ export default function SellerCadastroPage() {
                       type="checkbox"
                       checked={overwriteFromCnpj}
                       onChange={(e) => setOverwriteFromCnpj(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--card-border)] bg-[var(--background)] text-emerald-600 focus:ring-emerald-500/40"
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--card-border)] bg-[var(--card)] text-emerald-600 focus:ring-emerald-500/40"
                     />
                     <span>Substituir nome, e-mail, telefone, CEP e endereço já preenchidos pelos dados da consulta.</span>
                   </label>
@@ -604,32 +604,32 @@ export default function SellerCadastroPage() {
                 Opcional. Usada apenas como referência no cadastro comercial.
               </p>
             </div>
-          </section>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            {!cadastroPendente ? (
-              <Link
-                href="/seller/dashboard"
-                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-5 py-2.5 text-center text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] sm:min-h-0 sm:justify-start"
-              >
-                Voltar ao painel
-              </Link>
-            ) : (
-              <span className="hidden sm:block" aria-hidden />
-            )}
-            <div className="flex justify-center sm:justify-end">
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex min-h-11 w-full max-w-sm items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 active:brightness-[0.92] disabled:opacity-60 dark:bg-emerald-600 dark:hover:bg-emerald-700 sm:w-auto sm:max-w-none sm:min-w-[11rem]"
-              >
-                {saving ? "Salvando..." : "Salvar cadastro"}
-              </button>
+            <div className="flex flex-col gap-3 border-t border-[var(--card-border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+              {!cadastroPendente ? (
+                <Link
+                  href="/seller/dashboard"
+                  className="inline-flex items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-center text-[11px] font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] sm:justify-start"
+                >
+                  Voltar ao painel
+                </Link>
+              ) : (
+                <span className="hidden sm:block" aria-hidden />
+              )}
+              <div className="flex justify-center sm:justify-end">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex w-full max-w-sm items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:brightness-[0.92] disabled:opacity-60 sm:w-auto sm:max-w-none sm:min-w-[11rem]"
+                >
+                  {saving ? "Salvando..." : "Salvar cadastro"}
+                </button>
+              </div>
             </div>
-          </div>
+          </section>
         </form>
       </div>
-      <SellerNav active="cadastro" />
+      <SellerNav active="cadastro" wide />
     </div>
   );
 }

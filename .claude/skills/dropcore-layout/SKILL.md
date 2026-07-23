@@ -19,7 +19,7 @@ fina (step exato, opacidade permitida), abra o `.mdc` correspondente ou o arquiv
 | Papel | Fonte única | Regra rápida |
 |---|---|---|
 | Verde da marca (UI) | `web/lib/dropcorePalette.ts` (`EMERALD_SCALE`) | Só steps `50,100,300,400,500,600,700,900,950`. Proibido `emerald-200`, `emerald-800`, `green-*`, `lime-*`, `teal-*`, hex verde solto. Opacidade só as listadas em `ALLOWED_EMERALD_OPACITIES` (de `/5` a `/95`). |
-| Logo | `LOGO_GREEN_HEX` (`#22C55E`) / `DropCoreLogo.tsx` | Exclusivo do logo — nunca em badge, link ou KPI. |
+| Logo | `LOGO_GREEN_HEX` (`#22C55E`) — `dropcorePalette.ts` / `DropCoreLogo.tsx` | Exclusivo do logo — nunca em badge, link ou KPI. **Exceção (2026-07-22, pedido explícito):** rodapé do sistema (`web/components/SiteFooter.tsx`) usa `LOGO_GREEN_HEX` só como acento no texto "Romanos 11:36" — é a única exceção, não abrir precedente pra usar em mais lugares sem confirmar antes. Fundo do rodapé em si é fixo `#000000` (mesmo preto do `--background` do tema escuro, sempre, nos dois temas), não é cor do logo. |
 | Azul de ação (CTA/links de sistema) | `PRIMARY_ACTION_BLUE_HEX` em `dropcorePalette.ts` + `--primary-blue` | Não usar `blue-600`/`blue-700` cru; não confundir com emerald de sucesso. |
 | Âmbar (alerta/atenção) | `web/lib/amberPremium.ts` (`AMBER_PREMIUM_*`) | Nunca emerald para esse papel. Import `AMBER_PREMIUM_SURFACE_TRANSPARENT` etc. em vez de escrever `border-*`/`dark:border-*` na mão. KPI de alerta usa `amberPremiumWarningMainTextClass(value)`, não lógica duplicada na página. |
 | Sucesso / erro / info (sistema) | `web/lib/semanticPremium.ts` (`SUCCESS_*`, `DANGER_*`, `INFO_*`) | Não misturar com a escala emerald de produto. Preferir componentes `Alert`/`Badge` já ligados a esses tokens. |

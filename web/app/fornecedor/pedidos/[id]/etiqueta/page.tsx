@@ -160,7 +160,7 @@ export default function FornecedorPedidoEtiquetaPage() {
   const shouldRender = !loading && !error && etiqueta;
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-8">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-8">
       <style>{`
         @page { size: 80mm auto; margin: 0; }
         @media print {

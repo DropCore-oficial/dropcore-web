@@ -6,9 +6,9 @@ import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
 
 export default function SellerMapeamentoSkuPage() {
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <SellerNav active="integracoes" />
-      <div className="dropcore-shell-4xl space-y-5 py-5 md:space-y-6 md:py-7">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
+      <SellerNav active="integracoes" wide />
+      <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <SellerPageHeader
           surface="hero"
           title="SKUs e ERP (Olist/Tiny)"

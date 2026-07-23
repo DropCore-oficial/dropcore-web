@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { toTitleCase } from "@/lib/formatText";
+import { cn } from "@/lib/utils";
+import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 
 type Alteracao = {
   id: string;
@@ -321,7 +323,7 @@ export default function AdminAlteracoesProdutosPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+    <div className="bg-[var(--background)] text-[var(--foreground)]">
       <div className="dropcore-shell-6xl py-4 sm:py-6 lg:py-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
           <div className="min-w-0 flex-1">
@@ -336,14 +338,14 @@ export default function AdminAlteracoesProdutosPage() {
             <button
               type="button"
               onClick={load}
-              className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5 text-sm font-medium text-[var(--muted)] shadow-sm transition-colors hover:border-neutral-300 hover:bg-neutral-100 hover:text-[var(--foreground)] dark:hover:border-neutral-600 dark:hover:bg-neutral-800/90 dark:hover:text-neutral-100"
+              className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
             >
               Atualizar
             </button>
             <button
               type="button"
               onClick={() => router.push("/admin/empresas")}
-              className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5 text-sm font-medium text-[var(--muted)] shadow-sm transition-colors hover:border-neutral-300 hover:bg-neutral-100 hover:text-[var(--foreground)] dark:hover:border-neutral-600 dark:hover:bg-neutral-800/90 dark:hover:text-neutral-100"
+              className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
             >
               ← Voltar às Empresas
             </button>
@@ -351,7 +353,7 @@ export default function AdminAlteracoesProdutosPage() {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-100 dark:bg-red-950/30 text-red-800 dark:text-red-300 text-sm">
+          <div className={cn("mb-6 p-4 rounded-xl text-sm", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>
             {error}
           </div>
         )}
@@ -374,7 +376,7 @@ export default function AdminAlteracoesProdutosPage() {
                 <select
                   value={fornecedorAtivo ?? ""}
                   onChange={(e) => setFornecedorSelecionado(e.target.value || null)}
-                  className="mt-1.5 w-full rounded-xl border border-[var(--card-border)] bg-[var(--background)] px-3 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-sm focus:border-emerald-500/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 dark:border-neutral-600 dark:focus:border-emerald-500 dark:focus:ring-emerald-400/20"
+                  className="mt-1.5 w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-sm focus:border-emerald-500/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
                 >
                   {fornecedoresOpcoes.map(([id, nome]) => (
                     <option key={id} value={id}>
@@ -390,7 +392,7 @@ export default function AdminAlteracoesProdutosPage() {
                     type="button"
                     onClick={selecionarTodasDoFornecedor}
                     disabled={actingBulk}
-                    className="rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-medium text-[var(--foreground)] hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-100 dark:hover:bg-neutral-800/80"
+                    className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Selecionar todas
                   </button>
@@ -398,7 +400,7 @@ export default function AdminAlteracoesProdutosPage() {
                     type="button"
                     onClick={limparSelecao}
                     disabled={actingBulk || selectedIds.size === 0}
-                    className="rounded-lg border border-transparent px-3 py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--background)] disabled:cursor-not-allowed disabled:opacity-100"
+                    className="rounded-md border border-transparent px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Limpar seleção
                   </button>
@@ -416,7 +418,7 @@ export default function AdminAlteracoesProdutosPage() {
                         type="button"
                         onClick={() => void aprovarEmMassa([...selectedIds])}
                         disabled={selectedIds.size === 0 || actingBulk}
-                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:disabled:ring-white/15 sm:min-w-[200px] sm:flex-none"
+                        className="inline-flex flex-1 items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[200px] sm:flex-none"
                       >
                         {bulkAction === "approve" ? "Aprovando..." : `Aprovar selecionadas (${selectedIds.size})`}
                       </button>
@@ -424,7 +426,7 @@ export default function AdminAlteracoesProdutosPage() {
                         type="button"
                         onClick={() => void aprovarEmMassa(filtradas.map((x) => x.id))}
                         disabled={actingBulk}
-                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-emerald-600 bg-emerald-100 px-4 py-2.5 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100/80 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:border-emerald-500/70 dark:bg-emerald-950/25 dark:text-emerald-300 dark:hover:bg-emerald-950/45 dark:disabled:ring-white/15 sm:min-w-[240px] sm:flex-none"
+                        className="inline-flex flex-1 items-center justify-center rounded-md border border-emerald-600 bg-emerald-100 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-900 transition hover:bg-emerald-100/80 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-500/70 dark:bg-emerald-950/25 dark:text-emerald-300 dark:hover:bg-emerald-950/45 sm:min-w-[240px] sm:flex-none"
                       >
                         {bulkAction === "approve" ? "..." : `Aprovar todas (${filtradas.length})`}
                       </button>
@@ -446,7 +448,7 @@ export default function AdminAlteracoesProdutosPage() {
                         onChange={(e) => setMotivoRejeicaoMassa(e.target.value)}
                         disabled={actingBulk}
                         placeholder="Motivo opcional (rejeições em massa)"
-                        className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--background)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)]/60 disabled:cursor-not-allowed disabled:opacity-100"
+                        className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)]/60 disabled:cursor-not-allowed disabled:opacity-60"
                       />
                     </label>
                     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -464,7 +466,7 @@ export default function AdminAlteracoesProdutosPage() {
                           void rejeitarEmMassa([...selectedIds]);
                         }}
                         disabled={selectedIds.size === 0 || actingBulk}
-                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:disabled:ring-white/15 sm:min-w-[200px] sm:flex-none"
+                        className="inline-flex flex-1 items-center justify-center rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:min-w-[200px] sm:flex-none"
                       >
                         {bulkAction === "reject" ? "Rejeitando..." : `Rejeitar selecionadas (${selectedIds.size})`}
                       </button>
@@ -481,7 +483,7 @@ export default function AdminAlteracoesProdutosPage() {
                           void rejeitarEmMassa(filtradas.map((x) => x.id));
                         }}
                         disabled={actingBulk || filtradas.length === 0}
-                        className="inline-flex min-h-[42px] flex-1 items-center justify-center rounded-xl border-2 border-red-600 bg-red-100 px-4 py-2.5 text-sm font-semibold text-red-800 transition hover:bg-red-100/60 disabled:cursor-not-allowed disabled:opacity-100 disabled:ring-2 disabled:ring-inset disabled:ring-neutral-900/10 dark:border-red-500/80 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50 dark:disabled:ring-white/15 sm:min-w-[240px] sm:flex-none"
+                        className="inline-flex flex-1 items-center justify-center rounded-md border border-red-600 bg-red-100 px-2.5 py-1.5 text-[11px] font-semibold text-red-800 transition hover:bg-red-100/60 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/80 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50 sm:min-w-[240px] sm:flex-none"
                       >
                         {bulkAction === "reject" ? "..." : `Rejeitar todas (${filtradas.length})`}
                       </button>
@@ -536,7 +538,7 @@ export default function AdminAlteracoesProdutosPage() {
                         type="button"
                         onClick={() => aprovar(a.id)}
                         disabled={actingId === a.id || actingBulk}
-                        className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-100 lg:min-h-[46px] lg:w-full"
+                        className="inline-flex w-full items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {actingId === a.id ? "..." : "Aprovar"}
                       </button>
@@ -544,7 +546,7 @@ export default function AdminAlteracoesProdutosPage() {
                         type="button"
                         onClick={() => setRejeitarId(a.id)}
                         disabled={actingId === a.id || actingBulk}
-                        className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border-2 border-red-600 bg-red-100 px-5 py-2.5 text-sm font-semibold text-red-800 transition hover:bg-red-100/80 disabled:cursor-not-allowed disabled:opacity-100 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50 lg:min-h-[46px] lg:w-full"
+                        className="inline-flex w-full items-center justify-center rounded-md border border-red-600 bg-red-100 px-2.5 py-1.5 text-[11px] font-semibold text-red-800 transition hover:bg-red-100/80 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
                       >
                         Rejeitar
                       </button>
@@ -557,21 +559,21 @@ export default function AdminAlteracoesProdutosPage() {
                         value={motivoRejeicao}
                         onChange={(e) => setMotivoRejeicao(e.target.value)}
                         onBlur={() => setMotivoRejeicao(toTitleCase(motivoRejeicao))}
-                        className="w-full min-w-0 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2.5 text-sm text-[var(--foreground)]"
+                        className="w-full min-w-0 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--foreground)]"
                       />
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           onClick={() => rejeitar(a.id)}
                           disabled={actingId === a.id || actingBulk}
-                          className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-100"
+                          className="rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20"
                         >
                           Confirmar rejeição
                         </button>
                         <button
                           type="button"
                           onClick={() => { setRejeitarId(null); setMotivoRejeicao(""); }}
-                          className="rounded-lg border border-[var(--card-border)] px-4 py-2.5 text-sm font-medium text-[var(--muted)] hover:bg-[var(--background)] hover:text-[var(--foreground)]"
+                          className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)]"
                         >
                           Cancelar
                         </button>

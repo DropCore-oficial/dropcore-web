@@ -14,7 +14,7 @@ export const metadata = {
 
 export default function SellerCreditosRegrasPage() {
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-10">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-10">
       <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8 pb-4">
         <Link
           href="/seller/dashboard"

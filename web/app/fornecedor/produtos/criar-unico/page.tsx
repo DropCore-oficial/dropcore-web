@@ -71,8 +71,8 @@ export default function CriarUnicoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <div className="dropcore-shell-4xl py-6">
+    <div className="bg-[var(--background)] text-[var(--foreground)]">
+      <div className="dropcore-shell-6xl py-6">
         <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-4 mb-6">
           <DropCoreLogo variant="horizontal" href="/fornecedor/dashboard" />
           <ThemeToggle />
@@ -196,10 +196,10 @@ export default function CriarUnicoPage() {
             {formError && <p className="text-sm text-red-500">{formError}</p>}
 
             <div className="flex gap-2 pt-2">
-              <Link href="/fornecedor/produtos" className="flex-1 rounded-lg border border-neutral-300 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-100 text-center">
+              <Link href="/fornecedor/produtos" className="flex-1 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10 text-center">
                 Cancelar
               </Link>
-              <button type="submit" disabled={formLoading} className="flex-1 rounded-lg bg-[var(--primary-blue)] text-white font-semibold px-4 py-2.5 text-sm hover:bg-[var(--primary-blue-hover)] disabled:opacity-60">
+              <button type="submit" disabled={formLoading} className="flex-1 rounded-md bg-[var(--primary-blue)] text-white font-semibold px-2.5 py-1.5 text-[11px] hover:bg-[var(--primary-blue-hover)] disabled:opacity-60">
                 {formLoading ? "Salvando..." : "Adicionar"}
               </button>
             </div>

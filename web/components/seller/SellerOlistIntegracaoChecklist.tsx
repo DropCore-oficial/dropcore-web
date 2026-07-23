@@ -20,7 +20,7 @@ function StepRow(props: { ok: boolean; label: string; detail?: string }) {
           "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
           props.ok
             ? "bg-emerald-600 text-white dark:bg-emerald-500"
-            : "border border-[var(--card-border)] bg-[var(--background)] text-[var(--muted)]"
+            : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)]"
         )}
         aria-hidden
       >

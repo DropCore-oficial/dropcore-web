@@ -576,8 +576,8 @@ export default function FornecedorCadastroPage() {
     "rounded-full border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="dropcore-shell-4xl space-y-5 py-5 md:space-y-6 md:py-7">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
+      <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
           <div className="min-w-0 space-y-1">
             <Link
@@ -850,7 +850,7 @@ export default function FornecedorCadastroPage() {
                           setForm((f) => ({ ...f, ...copiarMatrizParaDespacho(f) }));
                         }
                       }}
-                      className="mt-0.5 h-4 w-4 rounded border-[var(--card-border)] bg-[var(--background)] text-emerald-600 shrink-0"
+                      className="mt-0.5 h-4 w-4 rounded border-[var(--card-border)] bg-[var(--card)] text-emerald-600 shrink-0"
                     />
                     <span className="text-sm text-[var(--foreground)] leading-snug">
                       Endereço de envio é o mesmo endereço da matriz
@@ -1103,14 +1103,14 @@ export default function FornecedorCadastroPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex min-h-11 w-full max-w-sm items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 active:brightness-[0.92] disabled:opacity-60 md:w-auto md:max-w-none md:min-w-[11rem] dark:bg-emerald-600 dark:hover:bg-emerald-700"
+                className="inline-flex w-full max-w-sm items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 active:brightness-[0.92] disabled:opacity-60 md:w-auto md:max-w-none md:min-w-[11rem]"
               >
                 {saving ? "Salvando..." : "Salvar cadastro"}
               </button>
             </div>
           </form>
       </div>
-      <FornecedorNav active="cadastro" />
+      <FornecedorNav active="cadastro" wide />
     </div>
   );
 }

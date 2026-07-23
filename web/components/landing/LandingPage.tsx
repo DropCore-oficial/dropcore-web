@@ -559,28 +559,6 @@ function CtaSection() {
   );
 }
 
-function LandingFooter() {
-  return (
-    <footer className="border-t border-[var(--border-subtle)] bg-neutral-50/70 py-12">
-      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-8 px-5 sm:flex-row sm:px-8">
-        <DropCoreLogo variant="horizontal" href="/" theme="light" />
-        <p className="text-center text-xs text-[var(--muted)] sm:text-left">© {new Date().getFullYear()} DropCore. Todos os direitos reservados.</p>
-        <nav className="flex flex-wrap items-center justify-center gap-6 text-sm text-[var(--muted)]" aria-label="Rodapé">
-          <Link href="/seller/login" className="transition hover:text-[var(--foreground)]">
-            Seller
-          </Link>
-          <Link href="/fornecedor/login" className="transition hover:text-[var(--foreground)]">
-            Armazém
-          </Link>
-          <Link href="/login" className="transition hover:text-[var(--foreground)]">
-            Equipe
-          </Link>
-        </nav>
-      </div>
-    </footer>
-  );
-}
-
 function SessionBanner() {
   const [sellerHref, setSellerHref] = useState<string | null>(null);
 
@@ -637,7 +615,6 @@ export function LandingPage() {
         <FaqSection />
         <CtaSection />
       </main>
-      <LandingFooter />
     </div>
   );
 }

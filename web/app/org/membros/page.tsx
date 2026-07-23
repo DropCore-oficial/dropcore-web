@@ -275,7 +275,7 @@ export default function OrgMembrosPage() {
   }
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-[var(--background)] text-[var(--foreground)] dropcore-p-auth">
+    <div className="bg-[var(--background)] text-[var(--foreground)] dropcore-p-auth">
       <div className="mx-auto max-w-6xl">
         <div className="flex items-start justify-between gap-4">
           <div>

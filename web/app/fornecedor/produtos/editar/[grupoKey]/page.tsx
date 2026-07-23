@@ -798,8 +798,8 @@ export default function EditarVariantesPage() {
 
   if (!grupoKey || grupoProdutos.length === 0) {
     return (
-      <div className="min-h-screen bg-[var(--background)] p-4">
-        <div className="dropcore-shell-4xl text-center py-12">
+      <div className="bg-[var(--background)] p-4">
+        <div className="dropcore-shell-6xl text-center py-12">
           <p className="text-neutral-600 dark:text-neutral-400 text-sm">Produto não encontrado.</p>
           <Link href="/fornecedor/produtos" className="text-blue-600 dark:text-blue-400 hover:underline text-sm mt-2 inline-block">
             Voltar aos produtos
@@ -810,10 +810,10 @@ export default function EditarVariantesPage() {
   }
 
   return (
-    <div className="min-h-screen min-w-0 max-w-[100%] overflow-x-hidden bg-[var(--background)] text-[var(--foreground)]">
+    <div className="min-w-0 max-w-[100%] overflow-x-hidden bg-[var(--background)] text-[var(--foreground)]">
       {/* Header */}
       <div className="bg-[var(--card)] border-b border-[var(--card-border)] sticky top-0 z-30">
-        <div className="dropcore-shell-4xl py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="dropcore-shell-6xl py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
             <DropCoreLogo variant="horizontal" href="/fornecedor/dashboard" className="shrink-0" />
             <ThemeToggle className="shrink-0" />
@@ -857,10 +857,10 @@ export default function EditarVariantesPage() {
               type="button"
               onClick={handleDesativarCategoria}
               disabled={desativarLoading}
-              className={`flex-1 sm:flex-none rounded-lg px-3 sm:px-4 py-2 text-sm font-medium transition touch-manipulation ${
+              className={`flex-1 sm:flex-none rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition touch-manipulation ${
                 categoriaAtiva
                   ? "border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/40"
-                  : "border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-950/40"
+                  : "border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/40"
               } disabled:opacity-60`}
             >
               {desativarLoading ? "..." : categoriaAtiva ? "Desativar categoria" : "Ativar categoria"}
@@ -869,12 +869,12 @@ export default function EditarVariantesPage() {
         </div>
       </div>
 
-      <div className="dropcore-shell-4xl mt-3">
+      <div className="dropcore-shell-6xl mt-3">
         <AlteracoesCatalogoInfoBanner />
       </div>
 
       {error && (
-        <div className="dropcore-shell-4xl mt-4">
+        <div className="dropcore-shell-6xl mt-4">
           <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-100 dark:bg-red-950/30 p-3 text-sm text-red-800 dark:text-red-300">
             {error}
             <button onClick={load} className="ml-2 underline">Tentar novamente</button>
@@ -882,7 +882,7 @@ export default function EditarVariantesPage() {
         </div>
       )}
       {successMessage && (
-        <div className="dropcore-shell-4xl mt-4">
+        <div className="dropcore-shell-6xl mt-4">
           <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
             {successMessage}
           </div>
@@ -890,14 +890,14 @@ export default function EditarVariantesPage() {
       )}
 
       {statusAlteracaoEditar === "pendente" && (
-        <div className="dropcore-shell-4xl mt-4">
+        <div className="dropcore-shell-6xl mt-4">
           <div className={cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY, "rounded-lg p-4 text-sm")}>
             <strong>Alteração em análise.</strong> O admin ainda não aprovou. O <strong>seller e o ERP</strong> seguem com os dados <strong>já aprovados</strong> até essa análise fechar. Você pode <strong>ajustar e salvar de novo</strong> — a última versão enviada é a que o DropCore analisa em Alterações de produtos.
           </div>
         </div>
       )}
 
-      <div className="dropcore-shell-4xl py-4 flex flex-col lg:flex-row gap-6">
+      <div className="dropcore-shell-6xl py-4 flex flex-col lg:flex-row gap-6">
         {/* Área principal */}
         <div className="flex-1 min-w-0 order-2 lg:order-1">
           {tabAtiva === "info-variantes" && (
@@ -1042,7 +1042,7 @@ export default function EditarVariantesPage() {
                     type="button"
                     onClick={handleAdicionarVariantesFaltantes}
                     disabled={loadingAddVar}
-                    className="rounded-lg bg-[var(--primary-blue)] text-white font-medium px-4 py-2 text-sm hover:bg-[var(--primary-blue-hover)] disabled:opacity-60"
+                    className="rounded-md bg-[var(--primary-blue)] text-white font-semibold px-2.5 py-1.5 text-[11px] hover:bg-[var(--primary-blue-hover)] disabled:opacity-60"
                   >
                     {loadingAddVar ? "Adicionando..." : `Adicionar ${faltantesAnuncio} variante(s) ao catálogo`}
                   </button>
@@ -1083,7 +1083,7 @@ export default function EditarVariantesPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <button type="button" onClick={handleMassa} disabled={loadingMassa} className="rounded-lg bg-[var(--primary-blue)] text-white font-medium px-4 py-2 text-sm hover:bg-[var(--primary-blue-hover)] disabled:opacity-60">Editar em massa</button>
+                  <button type="button" onClick={handleMassa} disabled={loadingMassa} className="rounded-md bg-[var(--primary-blue)] text-white font-semibold px-2.5 py-1.5 text-[11px] hover:bg-[var(--primary-blue-hover)] disabled:opacity-60">Editar em massa</button>
                   {formError && <p className="text-sm text-red-400">{formError}</p>}
                 </div>
               </div>
@@ -1374,7 +1374,7 @@ export default function EditarVariantesPage() {
                 <button
                   type="submit"
                   disabled={loadingBasico || !dirtyBasico || statusAlteracaoEditar === "pendente"}
-                  className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${
+                  className={`rounded-md font-semibold px-2.5 py-1.5 text-[11px] disabled:opacity-60 ${
                     dirtyBasico && statusAlteracaoEditar !== "pendente"
                       ? "bg-[var(--primary-blue)] text-white hover:bg-[var(--primary-blue-hover)]"
                       : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"
@@ -1456,7 +1456,7 @@ export default function EditarVariantesPage() {
                   <button
                     type="submit"
                     disabled={loadingOutros || !dirtyMidia}
-                    className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyMidia ? "bg-[var(--primary-blue)] text-white hover:bg-[var(--primary-blue-hover)]" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}
+                    className={`rounded-md font-semibold px-2.5 py-1.5 text-[11px] disabled:opacity-60 ${dirtyMidia ? "bg-[var(--primary-blue)] text-white hover:bg-[var(--primary-blue-hover)]" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}
                   >
                     {loadingOutros ? "Salvando..." : "Salvar links"}
                   </button>
@@ -1516,7 +1516,7 @@ export default function EditarVariantesPage() {
                   </div>
                 </div>
                 {formError && <p className="text-sm text-red-400">{formError}</p>}
-                <button type="submit" disabled={loadingOutros || !dirtyImpostos} className={`rounded-lg font-semibold px-4 py-2.5 text-sm disabled:opacity-60 ${dirtyImpostos ? "bg-[var(--primary-blue)] text-white hover:bg-[var(--primary-blue-hover)]" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}>{loadingOutros ? "Salvando..." : "Salvar"}</button>
+                <button type="submit" disabled={loadingOutros || !dirtyImpostos} className={`rounded-md font-semibold px-2.5 py-1.5 text-[11px] disabled:opacity-60 ${dirtyImpostos ? "bg-[var(--primary-blue)] text-white hover:bg-[var(--primary-blue-hover)]" : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"}`}>{loadingOutros ? "Salvando..." : "Salvar"}</button>
               </form>
             </div>
           )}
@@ -1836,7 +1836,7 @@ export default function EditarVariantesPage() {
                   <button
                     type="button"
                     onClick={() => !formLoading && setEditando(null)}
-                    className="flex-1 sm:flex-initial rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2.5 text-sm text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    className="flex-1 sm:flex-initial rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10"
                   >
                     Cancelar
                   </button>
@@ -1844,7 +1844,7 @@ export default function EditarVariantesPage() {
                     type="submit"
                     disabled={formLoading || !dirtyModal}
                     title={!dirtyModal ? "Nenhuma alteração nesta variante" : undefined}
-                    className={`flex-1 sm:flex-initial rounded-lg font-semibold px-4 py-2.5 text-sm min-w-[7rem] disabled:opacity-60 ${
+                    className={`flex-1 sm:flex-initial rounded-md font-semibold px-2.5 py-1.5 text-[11px] min-w-[7rem] disabled:opacity-60 ${
                       dirtyModal
                         ? "bg-[var(--primary-blue)] text-white hover:bg-[var(--primary-blue-hover)]"
                         : "bg-neutral-400 dark:bg-neutral-500 text-white cursor-not-allowed"

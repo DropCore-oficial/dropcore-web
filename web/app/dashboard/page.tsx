@@ -634,7 +634,7 @@ export default function DashboardPage() {
           <p className="text-red-700 dark:text-red-300 font-semibold mb-2">Erro ao carregar o dashboard</p>
           <p className="text-neutral-600 dark:text-neutral-400 text-sm mb-6 font-mono break-all">{error}</p>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-4">Se o erro for &quot;Failed to fetch&quot;, execute <code className="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">npm run dev</code> na pasta web.</p>
-          <button onClick={load} className="rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity">
+          <button onClick={load} className="rounded-md bg-[var(--foreground)] text-[var(--background)] px-2.5 py-1.5 text-[11px] font-semibold hover:opacity-90 transition-opacity">
             Tentar novamente
           </button>
         </div>
@@ -644,9 +644,9 @@ export default function DashboardPage() {
 
   return (
     <div
-      className={`min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 ${
+      className={`bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 ${
         isAdmin
-          ? "pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8"
+          ? "pb-8"
           : "pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] md:pb-8"
       }`}
     >
@@ -711,7 +711,7 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={() => router.push("/admin/repasse-fornecedor")}
-                    className="rounded-lg bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 text-sm font-semibold shrink-0"
+                    className="rounded-md bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1.5 text-[11px] font-semibold shrink-0"
                   >
                     Ver repasse →
                   </button>
@@ -846,7 +846,7 @@ export default function DashboardPage() {
                 </div>
                 <Link
                   href="/admin/guia-integracao-tiny"
-                  className="inline-flex shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:bg-emerald-800"
+                  className="inline-flex shrink-0 items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:bg-emerald-800"
                 >
                   Guia completo →
                 </Link>
@@ -971,7 +971,7 @@ export default function DashboardPage() {
                 </div>
                 <button
                   onClick={() => router.push(a.rota)}
-                  className={`rounded-lg px-4 py-2 text-sm font-semibold shrink-0 ${alertaBtnMap[a.cor] ?? alertaBtnMap.amber}`}
+                  className={`rounded-md px-2.5 py-1.5 text-[11px] font-semibold shrink-0 shadow-sm ${alertaBtnMap[a.cor] ?? alertaBtnMap.amber}`}
                 >
                   {a.acao} →
                 </button>

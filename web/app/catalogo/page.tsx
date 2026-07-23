@@ -140,7 +140,7 @@ function ItemCard({ item }: { item: ItemSKU }) {
     <div className="rounded-[var(--radius)] border border-[var(--border-subtle)] bg-[var(--card)] px-5 py-4 flex flex-wrap justify-between items-start gap-3 shadow-[var(--shadow)]">
       <div className="flex-1 min-w-0 space-y-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-mono text-xs font-semibold text-[var(--foreground)] bg-[var(--background)] rounded px-1.5 py-0.5">{str(item.sku)}</span>
+          <span className="font-mono text-xs font-semibold text-[var(--foreground)] bg-[var(--surface-subtle)] rounded px-1.5 py-0.5">{str(item.sku)}</span>
           {str(item.cor) && <span className="text-xs text-[var(--muted)]">{str(item.cor)}</span>}
           {str(item.tamanho) && (
             <Badge variant="neutral">{str(item.tamanho)}</Badge>
@@ -354,10 +354,10 @@ export default function CatalogoPage() {
                 <button
                   type="button"
                   onClick={() => toggleGrupo(grupo.paiKey)}
-                  className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-[var(--background)]/50 transition"
+                  className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-[var(--muted)]/10 transition"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="font-mono text-xs font-semibold text-[var(--muted)] bg-[var(--background)] rounded px-2 py-0.5">
+                    <span className="font-mono text-xs font-semibold text-[var(--muted)] bg-[var(--surface-subtle)] rounded px-2 py-0.5">
                       {grupo.paiKey}
                     </span>
                     {grupo.pai && (

@@ -257,17 +257,15 @@ summary {
   color-scheme: light;
 }
 
-/* Background sutil para áreas de app (seller, admin) */
+/* Background sutil para áreas de app (seller, admin). Sem min-height: o rodapé
+   (SiteFooter, montado em app/layout.tsx) vem logo depois do conteúdo — forçar
+   100vh aqui empurrava o rodapé pra fora da tela em páginas com pouco conteúdo. */
 .app-bg {
   background: linear-gradient(165deg, #f7f7f8 0%, #f4f4f5 35%, #efeff1 70%, #e8e8eb 100%);
-  min-height: 100dvh;
-  min-height: 100vh;
 }
 html.dark .app-bg,
 .dark .app-bg {
   background: linear-gradient(165deg, #0c0c0e 0%, #060608 35%, #030305 70%, #010102 100%);
-  min-height: 100dvh;
-  min-height: 100vh;
 }
 
 /* Animação suave de entrada */

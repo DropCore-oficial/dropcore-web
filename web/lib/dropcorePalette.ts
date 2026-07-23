@@ -11,6 +11,10 @@
 
 export const LOGO_GREEN_HEX = "#22C55E" as const;
 
+/** Cinza/neutro do "Drop" no wordmark (`DropCoreLogo.tsx`) — mesmo par light/dark do componente. */
+export const LOGO_NEUTRAL_DARK_HEX = "#111827" as const;
+export const LOGO_NEUTRAL_LIGHT_HEX = "#ededed" as const;
+
 /** Erro / perigo UI — espelha `tokens.ui_danger.base` no Supabase e `--danger` em `globals.css` */
 export const DANGER_HEX = "#EF4444" as const;
 

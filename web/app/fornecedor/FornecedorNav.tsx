@@ -154,7 +154,7 @@ function FornecedorNavDesktopMais({ active }: { active: NavKey }) {
   );
 }
 
-export function FornecedorNav({ active }: { active: NavKey }) {
+export function FornecedorNav({ active, wide = false }: { active: NavKey; wide?: boolean }) {
   const router = useRouter();
   const [mobileMaisOpen, setMobileMaisOpen] = useState(false);
 
@@ -200,7 +200,7 @@ export function FornecedorNav({ active }: { active: NavKey }) {
         end={<AppBarEndMobileAuth context="fornecedor" onLogout={sair} />}
       />
       <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
-        <div className="dropcore-shell-4xl flex w-full min-w-0 items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6">
+        <div className={`${wide ? "dropcore-shell-6xl" : "dropcore-shell-4xl"} flex w-full min-w-0 items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6`}>
           <div className="flex min-w-0 items-center gap-2 sm:gap-4 md:gap-6">
             <DropCoreLogo variant="horizontal" href="/fornecedor/dashboard" className="shrink-0" />
             <div className="flex shrink-0 items-center gap-0.5">

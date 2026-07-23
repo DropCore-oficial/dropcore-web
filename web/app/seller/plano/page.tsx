@@ -252,8 +252,8 @@ export default function SellerPlanoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="dropcore-shell-4xl space-y-5 py-5 md:space-y-6 md:py-7">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
+      <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <SellerPageHeader
           surface="hero"
           showBack
@@ -377,7 +377,7 @@ export default function SellerPlanoPage() {
                   <button
                     type="button"
                     onClick={abrirModalUpgrade}
-                    className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 active:brightness-[0.92] dark:bg-emerald-600 dark:hover:bg-emerald-700"
+                    className="inline-flex w-full items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:brightness-[0.92]"
                   >
                     Fazer upgrade para <span translate="no" lang="en" className="mx-1">Pro</span> — PIX {BRL.format(diffUpgrade)}
                   </button>
@@ -423,7 +423,7 @@ export default function SellerPlanoPage() {
                     <button
                       type="button"
                       onClick={fecharModalUpgrade}
-                      className="flex-1 rounded-xl border border-[var(--card-border)] py-2.5 text-sm text-[var(--muted)] hover:bg-[var(--surface-hover)]"
+                      className="flex-1 rounded-md border border-[var(--card-border)] bg-[var(--card)] py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10"
                     >
                       Cancelar
                     </button>
@@ -431,7 +431,7 @@ export default function SellerPlanoPage() {
                       type="button"
                       onClick={() => void gerarPixUpgrade()}
                       disabled={upgradeLoading || !podeUpgradePix}
-                      className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="flex-1 rounded-md bg-emerald-600 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {upgradeLoading ? "Gerando…" : "Gerar PIX"}
                     </button>
@@ -472,7 +472,7 @@ export default function SellerPlanoPage() {
                           setUpgradeCopiado(true);
                           setTimeout(() => setUpgradeCopiado(false), 2000);
                         }}
-                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 hover:bg-emerald-700"
+                        className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
                       >
                         {upgradeCopiado ? "Copiado!" : "Copiar código PIX"}
                       </button>
@@ -481,7 +481,7 @@ export default function SellerPlanoPage() {
                   <button
                     type="button"
                     onClick={fecharModalUpgrade}
-                    className="w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 hover:bg-emerald-700"
+                    className="w-full rounded-md bg-emerald-600 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
                   >
                     Fechar
                   </button>
@@ -492,7 +492,7 @@ export default function SellerPlanoPage() {
         </div>
       )}
 
-      <SellerNav active="plano" />
+      <SellerNav active="plano" wide />
     </div>
   );
 }

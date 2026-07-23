@@ -167,7 +167,7 @@ export default function SellerPedidosPage() {
   }, [destaqueId, pedidos, loading]);
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] pb-24 md:pb-8">
+    <div className="bg-[var(--background)] text-[var(--foreground)] pb-24 md:pb-8">
       <SellerNav active="pedidos" wide />
       <main className="dropcore-shell-6xl mx-auto px-4 pt-20 sm:px-6 sm:pt-24">
         <SellerPageHeader

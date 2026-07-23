@@ -527,8 +527,8 @@ export default function FornecedorProdutosPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-      <div className="dropcore-shell-4xl py-5 md:py-7 space-y-5 md:space-y-6">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
+      <div className="dropcore-shell-6xl py-5 md:py-7 space-y-5 md:space-y-6">
         {/* Header + filtros — mesmo bloco de cartão que o dashboard do fornecedor */}
         <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
@@ -1533,14 +1533,14 @@ export default function FornecedorProdutosPage() {
                 <button
                   type="button"
                   onClick={() => !formLoading && setModal("none")}
-                  className="flex-1 rounded-lg border border-[var(--card-border)] px-4 py-2.5 text-sm text-[var(--muted)] hover:bg-[var(--muted)]/10"
+                  className="flex-1 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={formLoading}
-                  className="flex-1 rounded-lg bg-emerald-600 text-white font-semibold px-4 py-2.5 text-sm hover:bg-emerald-700 disabled:opacity-60 shadow-sm shadow-emerald-600/20"
+                  className="flex-1 rounded-md bg-emerald-600 text-white font-semibold px-2.5 py-1.5 text-[11px] hover:bg-emerald-700 disabled:opacity-60 shadow-sm"
                 >
                   {formLoading ? "Salvando..." : "Salvar"}
                 </button>
@@ -1549,7 +1549,7 @@ export default function FornecedorProdutosPage() {
           </div>
         </div>
       )}
-      <FornecedorNav active="produtos" />
+      <FornecedorNav active="produtos" wide />
     </div>
   );
 }

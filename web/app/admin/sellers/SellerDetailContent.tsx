@@ -9,6 +9,7 @@ import { toTitleCase } from "@/lib/formatText";
 import { MESES_MINIMOS_COM_FORNECEDOR, dataMinimaTrocaFornecedor, podeTrocarFornecedorAgora } from "@/lib/sellerFornecedorVinculo";
 import { sellerCadastroPendente } from "@/lib/sellerDocumento";
 import { AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
+import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
 
 type Seller = {
@@ -431,7 +432,7 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
                       max={365}
                       value={inviteValidadeDiasStr}
                       onChange={(e) => setInviteValidadeDiasStr(e.target.value)}
-                      className="w-full rounded-xl bg-[var(--background)] border border-[var(--card-border)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/50"
+                      className="w-full rounded-xl bg-[var(--card)] border border-[var(--card-border)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/50"
                     />
                     <p className="mt-1 text-[11px] text-[var(--muted)]">
                       Padrão: 7 dias (teste no painel). Use 0 para não dar período grátis. Máximo: 365 dias.
@@ -448,12 +449,12 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
                       void gerarConvite();
                     }}
                     disabled={inviteSending}
-                    className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 text-sm shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-2.5 py-1.5 text-[11px] shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {inviteSending ? "Gerando link..." : "Gerar link de convite"}
                   </button>
                   {inviteConviteErro && (
-                    <div className="rounded-xl border border-red-300 bg-red-100 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
+                    <div className={cn("rounded-xl px-3 py-2 text-xs", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>
                       {inviteConviteErro}
                     </div>
                   )}
@@ -483,13 +484,13 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
                     <button
                       type="button"
                       onClick={() => void copiarLinkSellerConvite()}
-                      className="rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--card)] transition-colors touch-manipulation min-h-[40px]"
+                      className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 touch-manipulation"
                     >
                       {sellerConviteLinkCopiado ? "Copiado!" : "Copiar link"}
                     </button>
                     <a
                       href={mailtoSellerConviteHref}
-                      className="inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 text-xs font-semibold shadow-sm transition-colors touch-manipulation min-h-[40px]"
+                      className="inline-flex items-center justify-center rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 text-[11px] font-semibold shadow-sm touch-manipulation"
                     >
                       {detail.email?.trim() ? "Abrir e-mail para o seller" : "Abrir rascunho de e-mail"}
                     </a>
@@ -572,7 +573,7 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
                 </div>
               </div>
             )}
-            <div className="p-4 border border-[var(--card-border)] rounded-[var(--radius)] bg-[var(--background)]">
+            <div className="p-4 border border-[var(--card-border)] rounded-[var(--radius)] bg-[var(--card)]">
               <h3 className="text-sm font-semibold mb-2 text-[var(--foreground)]">Extrato (movimentações)</h3>
               {detail.movimentacoes.length === 0 ? (
                 <div className="text-[13px] text-[var(--muted)]">Nenhuma movimentação ainda.</div>
@@ -622,7 +623,7 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
                 )}
               </div>
               {valorValido && (
-                <div className="mb-4 p-3 bg-[var(--background)] rounded-[var(--radius-sm)] border border-[var(--card-border)]">
+                <div className="mb-4 p-3 bg-[var(--surface-subtle)] rounded-[var(--radius-sm)] border border-[var(--card-border)]">
                   <div className="text-xs font-semibold mb-2 text-[var(--foreground)]">Pagamento via PIX</div>
                   <div className="mb-2.5 p-4 bg-[var(--card)] rounded-[var(--radius-sm)] border-2 border-dashed border-[var(--success)] text-center">
                     <div className="text-[11px] text-[var(--muted)] mb-2">Escaneie o QR Code ou copie a chave PIX</div>
@@ -686,7 +687,7 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
                 </select>
                 <p className="text-[11px] text-[var(--muted)] mt-1">Ex: Djulios — catálogo e ERP usam este armazém.</p>
                 {(editFornecedorId.trim() || detail?.fornecedor_id) && (
-                  <div className="mt-3 space-y-2 rounded-lg border border-[var(--card-border)] bg-[var(--background)] p-3">
+                  <div className="mt-3 space-y-2 rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] p-3">
                     <p className="text-[11px] text-[var(--muted)] leading-relaxed">
                       Com tudo certo entre as partes, o seller fica pelo menos <strong>{MESES_MINIMOS_COM_FORNECEDOR} meses</strong> com o armazém atual após cada víncio ou troca. Para exceção (infração, pedidos errados), use as opções abaixo.
                     </p>
