@@ -22,9 +22,10 @@ export type DropCoreLogoProps = {
   compact?: boolean;
   /**
    * `panel` — cabeçalho de painel (ex.: owner): ícone maior; com `variant="symbol"` usa cantos `rounded-2xl` como avatar padrão.
+   * `hero` — destaque de página cheia (ex.: "em breve"): ícone + wordmark maiores, mesma proporção do `default`.
    * `default` — barra superior / mobile.
    */
-  size?: "default" | "panel";
+  size?: "default" | "panel" | "hero";
 };
 
 // Paleta oficial DropCore (preto puro no dark)
@@ -114,16 +115,22 @@ function LogoIcon({
 function Wordmark({
   theme = "dark",
   compact = false,
-  panel = false,
+  size = "default",
   className = "",
 }: {
   theme?: "dark" | "light";
   compact?: boolean;
-  panel?: boolean;
+  size?: "default" | "panel" | "hero";
   className?: string;
 }) {
   const c = theme === "dark" ? DARK : LIGHT;
-  const sizeClass = compact ? "text-sm" : panel ? "text-xl sm:text-2xl" : "text-base";
+  const sizeClass = compact
+    ? "text-sm"
+    : size === "hero"
+      ? "text-2xl sm:text-3xl"
+      : size === "panel"
+        ? "text-xl sm:text-2xl"
+        : "text-base";
   return (
     <span
       className={`${dropCoreWordmarkFont.className} tracking-tight antialiased whitespace-nowrap ${sizeClass} ${className}`}
@@ -146,35 +153,39 @@ export function DropCoreLogo({
   const { theme: ctxTheme } = useTheme();
   const theme = themeProp ?? ctxTheme;
   const panel = sizeProp === "panel";
+  const hero = sizeProp === "hero";
   const iconSize = panel
     ? variant === "symbol"
       ? 84
       : 80
-    : variant === "horizontal"
-      ? compact
-        ? 32
-        : 36
-      : compact
-        ? 32
-        : 40;
+    : hero
+      ? variant === "symbol"
+        ? 72
+        : 64
+      : variant === "horizontal"
+        ? compact
+          ? 32
+          : 36
+        : compact
+          ? 32
+          : 40;
 
   const iconRounded =
-    panel && variant === "symbol" ? "rounded-2xl" : "rounded-[8px]";
-  const iconShellLight =
-    theme === "light"
-      ? `inline-flex shrink-0 ${iconRounded} shadow-[0_1px_2px_rgba(0,0,0,0.07)] ring-1 ring-neutral-200/90 dark:shadow-none dark:ring-0`
-      : `inline-flex shrink-0 ${iconRounded}`;
+    panel && variant === "symbol" ? "rounded-2xl" : hero ? "rounded-xl" : "rounded-[8px]";
+  /** Anel + sombra no contorno do ícone (nos dois temas) — sem isso o quadrado "some" contra
+   * o fundo do card, que costuma ter quase a mesma cor (branco em claro, preto em escuro). */
+  const iconShellLight = `inline-flex shrink-0 ${iconRounded} shadow-[0_1px_3px_rgba(0,0,0,0.12)] ring-1 ring-[var(--card-border)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.5)]`;
 
   const content = (
     <>
-      {/* Sombra/anel leves no tema claro: o quadrado branco não «some» no fundo branco da barra mobile */}
       <span className={iconShellLight}>
         <LogoIcon size={iconSize} theme={theme} />
       </span>
-      {variant === "horizontal" && <Wordmark theme={theme} compact={compact} panel={panel} />}
+      {variant === "horizontal" && <Wordmark theme={theme} compact={compact} size={sizeProp} />}
     </>
   );
-  const gap = variant === "symbol" ? "gap-0" : compact ? "gap-2" : panel ? "gap-3" : "gap-2.5";
+  const gap =
+    variant === "symbol" ? "gap-0" : compact ? "gap-2" : hero ? "gap-3.5" : panel ? "gap-3" : "gap-2.5";
   const wrapperClass = `inline-flex items-center ${gap} shrink-0 hover:opacity-90 transition-opacity ${className}`;
 
   if (href && href !== "") {
