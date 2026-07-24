@@ -25,10 +25,10 @@ type OlistWebhookPayload = {
   cnpj?: string;
   tipo?: string;
   dados?: {
-    id?: number;
+    id?: number | string;
     codigoSituacao?: string;
     descricaoSituacao?: string;
-    numero?: number;
+    numero?: number | string;
   };
 };
 
@@ -144,7 +144,16 @@ export async function POST(req: Request) {
 
   const cnpjNorm = normalizeOlistCnpjDigits(body.cnpj);
   const tipo = String(body.tipo ?? "").trim();
-  const pedidoId = typeof body.dados?.id === "number" ? body.dados.id : Number.NaN;
+  /** A Tiny/Olist manda `dados.id` ora como number, ora como string numérica (ex.: "349850498")
+   * dependendo da conta/integração — aceitar os dois formatos, senão o webhook é descartado
+   * como se não tivesse pedido nenhum (visto ao vivo: pedido novo ignorado por isso). */
+  const rawPedidoId = body.dados?.id;
+  const pedidoId =
+    typeof rawPedidoId === "number"
+      ? rawPedidoId
+      : typeof rawPedidoId === "string" && rawPedidoId.trim() !== ""
+        ? Number(rawPedidoId)
+        : Number.NaN;
   const codigoSituacao = body.dados?.codigoSituacao ? String(body.dados.codigoSituacao).trim() : "";
 
   let row: OlistWebhookRow | null = null;
