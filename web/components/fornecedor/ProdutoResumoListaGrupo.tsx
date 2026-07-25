@@ -14,7 +14,8 @@ import {
 } from "@/lib/amberPremium";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { ncmOrigemFromSkuRow } from "@/lib/fornecedorSkuCatalogExtras";
-import { tabelaMedidasFromDetalhesJson } from "@/lib/fornecedorTabelaMedidas";
+import { tabelaMedidasFromDetalhesJson, type TabelaMedidasPayload } from "@/lib/fornecedorTabelaMedidas";
+import { TabelaMedidasTabela } from "@/components/TabelaMedidasTabela";
 import {
   caimentoOptions,
   climaOptions,
@@ -185,6 +186,7 @@ export function ProdutoResumoListaGrupo({
     preenchidas: number;
     total: number;
   } | null>(null);
+  const [medidasPayload, setMedidasPayload] = useState<TabelaMedidasPayload | null>(null);
   const [medidasLoading, setMedidasLoading] = useState(true);
 
   useEffect(() => {
@@ -232,6 +234,7 @@ export function ProdutoResumoListaGrupo({
             preenchidas,
             total,
           });
+          setMedidasPayload(fonte ?? null);
         }
       } finally {
         if (!cancel) setMedidasLoading(false);
@@ -463,7 +466,7 @@ export function ProdutoResumoListaGrupo({
       {mostrarDetalhes && (
         <>
           <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <MiniCard title="Identificação" subtitle="Conteúdo comercial">
+            <MiniCard className="h-[26rem]" title="Identificação" subtitle="Conteúdo comercial">
               <FieldRow label="Nome" ok={filled(base.nome_produto)} value={filled(base.nome_produto) ? trunc(base.nome_produto, 90) : "Pendente"} />
               <FieldRow label="Categoria" ok={filled(base.categoria)} value={filled(base.categoria) ? String(base.categoria) : "Pendente"} />
               <FieldRow label="Marca" ok={filled(base.marca)} value={filled(base.marca) ? String(base.marca) : "Opcional"} optional />
@@ -485,7 +488,7 @@ export function ProdutoResumoListaGrupo({
               />
             </MiniCard>
 
-            <MiniCard title="Mídia e grade" subtitle="Fotos e variantes">
+            <MiniCard className="h-[26rem]" title="Mídia e grade" subtitle="Fotos e variantes">
               <FieldRow
                 label="Link principal (coluna Ver)"
                 ok={albumOk}
@@ -536,7 +539,7 @@ export function ProdutoResumoListaGrupo({
               />
             </MiniCard>
 
-            <MiniCard title="Embalagem e despacho" subtitle="Logística de expedição">
+            <MiniCard className="h-[26rem]" title="Embalagem e despacho" subtitle="Logística de expedição">
               <FieldRow label="Peso (kg)" ok={pesoOk} value={fmtKg(base.peso_kg) ?? "Pendente"} />
               <FieldRow label="Dimensões" ok={dimsOk} value={fmtCmDim(base) ?? "Pendente"} />
               <FieldRow
@@ -557,7 +560,50 @@ export function ProdutoResumoListaGrupo({
               />
             </MiniCard>
 
-            <MiniCard title="Fiscal" subtitle="NF-e e impostos">
+            <MiniCard className="h-[26rem]" title="Endereço de despacho" subtitle="CD de saída estruturado">
+              <FieldRow label="Usa despacho do cadastro" ok={logisticaExtra?.cdUsarDespachoCadastro != null} value={logisticaExtra?.cdUsarDespachoCadastro ? "Sim" : "Não"} />
+              <FieldRow label="CEP" ok={filled(logisticaExtra?.cdSaidaCep)} value={asText(logisticaExtra?.cdSaidaCep) || "Pendente"} />
+              <FieldRow label="Logradouro" ok={filled(logisticaExtra?.cdSaidaLogradouro)} value={asText(logisticaExtra?.cdSaidaLogradouro) || "Pendente"} />
+              <FieldRow label="Número" ok={filled(logisticaExtra?.cdSaidaNumero)} value={asText(logisticaExtra?.cdSaidaNumero) || "Pendente"} />
+            </MiniCard>
+
+            <MiniCard className="h-[26rem]" title="Localização do CD" subtitle="Complemento do endereço de saída">
+              <FieldRow label="Complemento" ok={filled(logisticaExtra?.cdSaidaComplemento)} value={asText(logisticaExtra?.cdSaidaComplemento) || "Opcional"} optional />
+              <FieldRow label="Bairro" ok={filled(logisticaExtra?.cdSaidaBairro)} value={asText(logisticaExtra?.cdSaidaBairro) || "Pendente"} />
+              <FieldRow label="Cidade" ok={filled(logisticaExtra?.cdSaidaCidade)} value={asText(logisticaExtra?.cdSaidaCidade) || "Pendente"} />
+              <FieldRow label="UF" ok={filled(logisticaExtra?.cdSaidaUf)} value={asText(logisticaExtra?.cdSaidaUf) || "Pendente"} />
+            </MiniCard>
+
+            <MiniCard className="h-[26rem]" title="Tecido e caimento" subtitle="Dados preenchidos no formulário">
+              <FieldRow label="Tecido" ok={filled(caracteristicas?.tecido)} value={filled(caracteristicas?.tecido) ? String(caracteristicas?.tecido) : "Pendente"} />
+              <FieldRow label="Composição" ok={filled(caracteristicas?.composicao)} value={filled(caracteristicas?.composicao) ? String(caracteristicas?.composicao) : "Pendente"} />
+              <FieldRow label="Caimento" ok={filled(caimentoLabel)} value={filled(caimentoLabel) ? caimentoLabel : "Pendente"} />
+              <FieldRow label="Elasticidade" ok={filled(elasticidadeLabel)} value={filled(elasticidadeLabel) ? elasticidadeLabel : "Pendente"} />
+              <FieldRow label="Transparência" ok={filled(transparenciaLabel)} value={filled(transparenciaLabel) ? transparenciaLabel : "Pendente"} />
+            </MiniCard>
+
+            <MiniCard className="h-[26rem]" title="Qualidade e uso" subtitle="Dados preenchidos no formulário">
+              <FieldRow label="Clima ideal" ok={filled(climaLabel)} value={filled(climaLabel) ? climaLabel : "Pendente"} />
+              <FieldRow label="Posicionamento" ok={filled(posicionamentoLabel)} value={filled(posicionamentoLabel) ? posicionamentoLabel : "Pendente"} />
+              <FieldRow label="Amassa fácil" ok={caracteristicas?.amassa != null} value={amassaLabel || "Pendente"} />
+              <FieldRow label="Ocasiões de uso" ok={filled(ocasioesLabel)} value={filled(ocasioesLabel) ? ocasioesLabel : "Pendente"} />
+              <FieldRow
+                label="Qualidade"
+                ok={qualidadeOk}
+                value={
+                  [
+                    qualidade?.naoDesbota != null ? `Não desbota: ${qualidade.naoDesbota ? "sim" : "não"}` : "",
+                    qualidade?.encolhe != null ? `Encolhe: ${qualidade.encolhe ? "sim" : "não"}` : "",
+                    qualidade?.costuraReforcada != null ? `Costura reforçada: ${qualidade.costuraReforcada ? "sim" : "não"}` : "",
+                    String(qualidade?.observacoes ?? "").trim(),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "Pendente"
+                }
+              />
+            </MiniCard>
+
+            <MiniCard className="h-[26rem]" title="Fiscal" subtitle="NF-e e impostos">
               <FieldRow
                 label="NCM"
                 ok={filled(fiscalCols.ncm)}
@@ -587,33 +633,7 @@ export function ProdutoResumoListaGrupo({
               />
             </MiniCard>
 
-            <MiniCard title="Características e qualidade" subtitle="Dados preenchidos no formulário">
-              <FieldRow label="Tecido" ok={filled(caracteristicas?.tecido)} value={filled(caracteristicas?.tecido) ? String(caracteristicas?.tecido) : "Pendente"} />
-              <FieldRow label="Composição" ok={filled(caracteristicas?.composicao)} value={filled(caracteristicas?.composicao) ? String(caracteristicas?.composicao) : "Pendente"} />
-              <FieldRow label="Caimento" ok={filled(caimentoLabel)} value={filled(caimentoLabel) ? caimentoLabel : "Pendente"} />
-              <FieldRow label="Elasticidade" ok={filled(elasticidadeLabel)} value={filled(elasticidadeLabel) ? elasticidadeLabel : "Pendente"} />
-              <FieldRow label="Transparência" ok={filled(transparenciaLabel)} value={filled(transparenciaLabel) ? transparenciaLabel : "Pendente"} />
-              <FieldRow label="Clima ideal" ok={filled(climaLabel)} value={filled(climaLabel) ? climaLabel : "Pendente"} />
-              <FieldRow label="Posicionamento" ok={filled(posicionamentoLabel)} value={filled(posicionamentoLabel) ? posicionamentoLabel : "Pendente"} />
-              <FieldRow label="Amassa fácil" ok={caracteristicas?.amassa != null} value={amassaLabel || "Pendente"} />
-              <FieldRow label="Ocasiões de uso" ok={filled(ocasioesLabel)} value={filled(ocasioesLabel) ? ocasioesLabel : "Pendente"} />
-              <FieldRow
-                label="Qualidade"
-                ok={qualidadeOk}
-                value={
-                  [
-                    qualidade?.naoDesbota != null ? `Não desbota: ${qualidade.naoDesbota ? "sim" : "não"}` : "",
-                    qualidade?.encolhe != null ? `Encolhe: ${qualidade.encolhe ? "sim" : "não"}` : "",
-                    qualidade?.costuraReforcada != null ? `Costura reforçada: ${qualidade.costuraReforcada ? "sim" : "não"}` : "",
-                    String(qualidade?.observacoes ?? "").trim(),
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || "Pendente"
-                }
-              />
-            </MiniCard>
-
-            <MiniCard title="Dados guiados e mídia extra" subtitle="Apoio para anúncio do seller">
+            <MiniCard className="h-[26rem]" title="Dados guiados e mídia extra" subtitle="Apoio para anúncio do seller">
               <FieldRow label="Diferencial" ok={filled(guiado?.diferencial)} value={filled(guiado?.diferencial) ? String(guiado?.diferencial) : "Pendente"} />
               <FieldRow label="Indicação de uso" ok={filled(guiado?.indicacao)} value={filled(guiado?.indicacao) ? String(guiado?.indicacao) : "Pendente"} />
               <FieldRow
@@ -622,19 +642,10 @@ export function ProdutoResumoListaGrupo({
                 value={filled(guiado?.observacoesSeller) ? trunc(String(guiado?.observacoesSeller), 120) : "Pendente"}
               />
             </MiniCard>
+          </div>
 
-            <MiniCard title="Endereço de despacho" subtitle="CD de saída estruturado">
-              <FieldRow label="Usa despacho do cadastro" ok={logisticaExtra?.cdUsarDespachoCadastro != null} value={logisticaExtra?.cdUsarDespachoCadastro ? "Sim" : "Não"} />
-              <FieldRow label="CEP" ok={filled(logisticaExtra?.cdSaidaCep)} value={asText(logisticaExtra?.cdSaidaCep) || "Pendente"} />
-              <FieldRow label="Logradouro" ok={filled(logisticaExtra?.cdSaidaLogradouro)} value={asText(logisticaExtra?.cdSaidaLogradouro) || "Pendente"} />
-              <FieldRow label="Número" ok={filled(logisticaExtra?.cdSaidaNumero)} value={asText(logisticaExtra?.cdSaidaNumero) || "Pendente"} />
-              <FieldRow label="Complemento" ok={filled(logisticaExtra?.cdSaidaComplemento)} value={asText(logisticaExtra?.cdSaidaComplemento) || "Opcional"} optional />
-              <FieldRow label="Bairro" ok={filled(logisticaExtra?.cdSaidaBairro)} value={asText(logisticaExtra?.cdSaidaBairro) || "Pendente"} />
-              <FieldRow label="Cidade" ok={filled(logisticaExtra?.cdSaidaCidade)} value={asText(logisticaExtra?.cdSaidaCidade) || "Pendente"} />
-              <FieldRow label="UF" ok={filled(logisticaExtra?.cdSaidaUf)} value={asText(logisticaExtra?.cdSaidaUf) || "Pendente"} />
-            </MiniCard>
-
-            <MiniCard title="Medidas (meta)" subtitle="Configuração usada no formulário">
+          <div className="mt-4">
+            <MiniCard title="Medidas (meta)" subtitle="Configuração e valores em cm por tamanho">
               <FieldRow
                 label="Tópicos selecionados"
                 ok={asStrList(medidasExtra?.topicosSelecionados).length > 0}
@@ -646,6 +657,15 @@ export function ProdutoResumoListaGrupo({
                 value={asText(medidasExtra?.topicosCustom) || "Opcional"}
                 optional
               />
+              <div className="mt-3 border-t border-[var(--card-border)] pt-3">
+                {medidasLoading ? (
+                  <p className="text-xs text-[var(--muted)]">Carregando…</p>
+                ) : medidasPayload && Object.keys(medidasPayload.medidas ?? {}).length > 0 ? (
+                  <TabelaMedidasTabela data={medidasPayload} />
+                ) : (
+                  <p className="text-xs text-[var(--muted)]">Nenhuma tabela de medidas cadastrada para este grupo.</p>
+                )}
+              </div>
             </MiniCard>
           </div>
         </>

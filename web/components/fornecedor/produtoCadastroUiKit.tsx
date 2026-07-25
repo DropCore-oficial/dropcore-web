@@ -67,16 +67,23 @@ export function MiniCard({
   title,
   subtitle,
   children,
+  className,
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm dark:shadow-none">
+    <section
+      className={cn(
+        "flex flex-col rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm dark:shadow-none",
+        className
+      )}
+    >
       <h4 className="text-[15px] font-semibold tracking-tight text-[var(--foreground)]">{title}</h4>
       {subtitle ? <p className="mt-1 text-sm text-[var(--muted)]">{subtitle}</p> : null}
-      <div className="mt-1">{children}</div>
+      <div className="mt-1 min-h-0 flex-1 overflow-y-auto">{children}</div>
     </section>
   );
 }

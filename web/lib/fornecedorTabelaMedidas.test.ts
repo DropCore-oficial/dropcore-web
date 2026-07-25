@@ -47,6 +47,21 @@ describe("medidasFormToTabelaMedidas", () => {
     expect(linhas[1].comprimento).toBe(70);
   });
 
+  it("não deixa linha duplicada em branco apagar valores já digitados (bug do botão «Adicionar tamanho»)", () => {
+    const linhas = syncMedidasLinhasComTamanhos(
+      [
+        { tamanho: "M", ombro: 43, manga: 62, comprimento: 70, extras: { Bíceps: 18 } },
+        { tamanho: "M" },
+      ],
+      ["P", "M", "G", "GG"]
+    );
+    const m = linhas.find((l) => l.tamanho === "M");
+    expect(m?.ombro).toBe(43);
+    expect(m?.manga).toBe(62);
+    expect(m?.comprimento).toBe(70);
+    expect(m?.extras?.Bíceps).toBe(18);
+  });
+
   it("monta payload alinhado aos tamanhos finais", () => {
     const payload = buildTabelaMedidasPayloadFromForm(
       [{ tamanho: "M", ombro: 50 }],

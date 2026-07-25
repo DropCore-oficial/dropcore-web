@@ -63,13 +63,37 @@ export function valorTopicoFromMedida(m: Medida, topico: string): number | null 
   return typeof legado === "number" && Number.isFinite(legado) ? legado : null;
 }
 
+/** Alguma medida numérica preenchida (campo fixo ou extra)? Usado para não deixar uma
+ * linha duplicada em branco (ex.: criada via "Adicionar tamanho" com o mesmo tamanho que
+ * já tinha linha preenchida) sobrescrever os valores já digitados. */
+function medidaTemValor(m: Medida): boolean {
+  if (
+    m.largura != null ||
+    m.comprimento != null ||
+    m.ombro != null ||
+    m.manga != null ||
+    m.cintura != null ||
+    m.quadril != null ||
+    m.busto != null
+  ) {
+    return true;
+  }
+  return Object.values(m.extras ?? {}).some((v) => v != null);
+}
+
 /** Converte linhas do formulário para o JSON da tabela de medidas (seller + fornecedor). */
 /** Alinha linhas da aba Medidas com os tamanhos escolhidos em Variações (preserva valores já digitados). */
 export function syncMedidasLinhasComTamanhos(medidas: Medida[], tamanhosVariante: string[]): Medida[] {
   const byTam = new Map<string, Medida>();
   for (const m of medidas) {
     const t = m.tamanho.trim().toUpperCase();
-    if (t) byTam.set(t, { ...m, tamanho: t });
+    if (!t) continue;
+    const atual = byTam.get(t);
+    // Duas linhas pro mesmo tamanho: só deixa a nova substituir se a atual não tiver
+    // valor nenhum — senão uma linha em branco (duplicata) apagaria dado já digitado.
+    if (!atual || medidaTemValor(m) || !medidaTemValor(atual)) {
+      byTam.set(t, { ...m, tamanho: t });
+    }
   }
   if (tamanhosVariante.length === 0) {
     return medidas.length > 0
