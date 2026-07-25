@@ -9,6 +9,7 @@ import {
   normalizeFornecedorEstoqueImportRow,
   type FornecedorEstoqueImportRow,
 } from "@/lib/fornecedorEstoqueImport";
+import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
 
@@ -111,7 +112,7 @@ export async function POST(req: Request) {
     const skus = [...new Set(normalized.map((r) => r.sku))];
     const { data: existingRows, error: fetchErr } = await supabaseAdmin
       .from("skus")
-      .select("id, sku, estoque_atual, estoque_minimo")
+      .select("id, sku, nome_produto, estoque_atual, estoque_minimo")
       .eq("org_id", ctx.org_id)
       .eq("fornecedor_id", ctx.fornecedor_id)
       .in("sku", skus);
@@ -120,7 +121,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: fetchErr.message }, { status: 500 });
     }
 
-    const bySku = new Map<string, { id: string; estoque_atual: unknown; estoque_minimo: unknown }>();
+    const bySku = new Map<
+      string,
+      { id: string; nome_produto: unknown; estoque_atual: unknown; estoque_minimo: unknown }
+    >();
     for (const r of existingRows ?? []) {
       bySku.set(String(r.sku).toUpperCase(), r);
     }
@@ -129,6 +133,7 @@ export async function POST(req: Request) {
     let unchanged = 0;
     const unknownSkus: string[] = [];
     const updatedSkus: string[] = [];
+    const produtosAbaixoDoMin: { sku: string; nome?: string }[] = [];
 
     for (const row of normalized) {
       const existing = bySku.get(row.sku);
@@ -156,6 +161,15 @@ export async function POST(req: Request) {
         updated++;
         if ("estoque_atual" in patch) {
           updatedSkus.push(row.sku);
+
+          const minimo = existing.estoque_minimo == null ? null : Number(existing.estoque_minimo);
+          const novoAtual = patch.estoque_atual;
+          if (minimo != null && novoAtual != null && novoAtual < minimo) {
+            produtosAbaixoDoMin.push({
+              sku: row.sku,
+              nome: typeof existing.nome_produto === "string" ? existing.nome_produto : undefined,
+            });
+          }
         }
         await limparEstoqueDeAlteracaoPendente({
           sku_id: existing.id,
@@ -170,6 +184,14 @@ export async function POST(req: Request) {
         orgId: ctx.org_id,
         fornecedorId: ctx.fornecedor_id,
         skuCodes: updatedSkus,
+      });
+    }
+
+    if (produtosAbaixoDoMin.length > 0) {
+      await notifyEstoqueBaixo({
+        org_id: ctx.org_id,
+        fornecedor_id: ctx.fornecedor_id,
+        produtos: produtosAbaixoDoMin,
       });
     }
 
