@@ -279,7 +279,6 @@ type Props = {
   setModoListaVariantes: (m: "agrupado-cor" | "sku") => void;
   mostrarFotosVariantes: boolean;
   setMostrarFotosVariantes: (v: boolean | ((p: boolean) => boolean)) => void;
-  onOpenMedidas: () => void;
   bulkLoading: boolean;
   onBulkEnableValidas: () => void;
   onBulkDisableAll: () => void;
@@ -306,7 +305,6 @@ export function SellerListaGrupoArmazem({
   setModoListaVariantes,
   mostrarFotosVariantes,
   setMostrarFotosVariantes,
-  onOpenMedidas,
   bulkLoading,
   onBulkEnableValidas,
   onBulkDisableAll,
@@ -584,19 +582,6 @@ export function SellerListaGrupoArmazem({
                 >
                   <span className="sm:hidden">{mostrarFotosVariantes ? "Ocultar" : "Fotos"}</span>
                   <span className="hidden sm:inline">{mostrarFotosVariantes ? "Ocultar fotos" : "Mostrar fotos"}</span>
-                </button>
-                <span className="hidden text-[var(--muted)] sm:inline" aria-hidden>
-                  ·
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenMedidas();
-                  }}
-                  className="text-[12px] font-medium text-emerald-600 underline-offset-4 hover:text-emerald-700 hover:underline dark:text-emerald-400 dark:hover:text-emerald-300"
-                >
-                  Tabela de medidas
                 </button>
                 {onExportOlist ? (
                   <>

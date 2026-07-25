@@ -71,6 +71,19 @@ function IconCadastro({ active }: { active: boolean }) {
     </svg>
   );
 }
+function IconStorefront({ active }: { active: boolean }) {
+  return (
+    <svg className={`w-5 h-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7 4.5 3h15L21 7" />
+      <path d="M3 7v3a2.5 2.5 0 0 0 5 0V7" />
+      <path d="M8 10a2.5 2.5 0 0 0 5 0V7" />
+      <path d="M13 10a2.5 2.5 0 0 0 5 0V7" />
+      <path d="M18 10a2.5 2.5 0 0 0 3-2.4V7" />
+      <path d="M4 10v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9" />
+      <path d="M9 21v-5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v5" />
+    </svg>
+  );
+}
 function IconTruck({ active }: { active: boolean }) {
   return (
     <svg className={`w-5 h-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -83,10 +96,13 @@ function IconTruck({ active }: { active: boolean }) {
   );
 }
 
-type NavKey = "dashboard" | "pedidos" | "produtos" | "calculadora" | "plano" | "cadastro" | "integracoes";
+type NavKey = "dashboard" | "pedidos" | "fornecedores" | "produtos" | "calculadora" | "plano" | "cadastro" | "integracoes";
 
 /** Rotas agrupadas no menu “Mais” (desktop e mobile). */
 const NAV_MAIS_MENU_KEYS = ["integracoes", "plano", "cadastro"] as const satisfies readonly NavKey[];
+/** No mobile a barra de baixo só cabe 5 itens — Calculadora sai de lá e entra no "Mais" (só no mobile;
+ * no desktop ela continua como item próprio na barra de cima). */
+const NAV_MAIS_MENU_KEYS_MOBILE = [...NAV_MAIS_MENU_KEYS, "calculadora"] as const satisfies readonly NavKey[];
 
 function SellerNavDesktopMais({ active }: { active: NavKey }) {
   const [open, setOpen] = useState(false);
@@ -240,7 +256,7 @@ export function SellerNav({
       active === key ? activeClass + " bg-emerald-100 dark:bg-emerald-900" : inactiveMobile
     }`;
 
-  const mobileMaisActive = (NAV_MAIS_MENU_KEYS as readonly string[]).includes(active);
+  const mobileMaisActive = (NAV_MAIS_MENU_KEYS_MOBILE as readonly string[]).includes(active);
   const mobileMaisBtnClass =
     `flex min-w-0 flex-1 flex-row items-center justify-center gap-1 overflow-hidden px-0.5 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ` +
     (mobileMaisActive
@@ -315,6 +331,10 @@ export function SellerNav({
                 <IconTruck active={active === "pedidos"} />
                 Pedidos
               </Link>
+              <Link href="/seller/catalogo" className={linkClass("fornecedores")}>
+                <IconStorefront active={active === "fornecedores"} />
+                Fornecedores
+              </Link>
               <Link href="/seller/produtos" className={linkClass("produtos")}>
                 <IconPackage active={active === "produtos"} />
                 Produtos
@@ -343,6 +363,19 @@ export function SellerNav({
             role="menu"
             aria-label="Mais opções do seller"
           >
+            <Link
+              href="/seller/calculadora"
+              role="menuitem"
+              className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+                active === "calculadora"
+                  ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                  : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
+              }`}
+              onClick={() => setMobileMaisOpen(false)}
+            >
+              <IconCalculator active={active === "calculadora"} />
+              Calculadora
+            </Link>
             <Link
               href="/seller/integracoes-erp"
               role="menuitem"
@@ -396,13 +429,13 @@ export function SellerNav({
             <IconTruck active={active === "pedidos"} />
             <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Pedidos</span>
           </Link>
+          <Link href="/seller/catalogo" className={mobileLinkClass("fornecedores")}>
+            <IconStorefront active={active === "fornecedores"} />
+            <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Fornecedores</span>
+          </Link>
           <Link href="/seller/produtos" className={mobileLinkClass("produtos")}>
             <IconPackage active={active === "produtos"} />
             <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Produtos</span>
-          </Link>
-          <Link href="/seller/calculadora" className={mobileLinkClass("calculadora")}>
-            <IconCalculator active={active === "calculadora"} />
-            <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Calculadora</span>
           </Link>
           <button
             type="button"

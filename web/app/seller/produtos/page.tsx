@@ -19,8 +19,6 @@ import { paiKeySkuHabilitacao, skuContaLimiteHabilitacaoSeller } from "@/lib/sel
 import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
 import { corGrupoTemEstoqueParaHabilitar, skuProntoParaVender } from "@/lib/sellerSkuReadiness";
 import { toTitleCase } from "@/lib/formatText";
-import { TabelaMedidasTabela } from "@/components/TabelaMedidasTabela";
-import type { TabelaMedidasPayload } from "@/lib/fornecedorTabelaMedidas";
 import { CatalogoV2ResumoTopo } from "@/components/seller/catalogo/v2/CatalogoV2ResumoTopo";
 import { SellerListaGrupoArmazem } from "@/components/seller/catalogo/v2/SellerListaGrupoArmazem";
 import { SellerOlistEstoqueGradeCallout } from "@/components/seller/SellerOlistEstoqueGradeCallout";
@@ -29,27 +27,16 @@ import {
   AMBER_PREMIUM_SHELL,
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
   AMBER_PREMIUM_TEXT_PRIMARY,
-  AMBER_PREMIUM_TEXT_SOFT,
 } from "@/lib/amberPremium";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import {
   SUCCESS_PREMIUM_SHELL,
-  SUCCESS_PREMIUM_SURFACE,
   SUCCESS_PREMIUM_TEXT_PRIMARY,
   DANGER_PREMIUM_SHELL,
   DANGER_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/semanticPremium";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { cn } from "@/lib/utils";
-
-type VinculoFornecedorMeta = {
-  fornecedor_id: string | null;
-  vinculado_em: string | null;
-  pode_trocar_agora: boolean;
-  pode_trocar_fornecedor_a_partir_de: string | null;
-  meses_minimos: number;
-  liberado_antecipado: boolean;
-};
 
 function isAtivoItem(item: SellerCatalogoItem): boolean {
   return str(item.status).toLowerCase() === "ativo";
@@ -80,27 +67,7 @@ export default function SellerProdutosPage() {
   const [bulkPaiKey, setBulkPaiKey] = useState<string | null>(null);
   const [fornecedorLigadoId, setFornecedorLigadoId] = useState<string | null>(null);
   const [fornecedoresLista, setFornecedoresLista] = useState<FornecedorSellerListaRow[] | null>(null);
-  const [vinculoSelectId, setVinculoSelectId] = useState("");
-  const [vinculoSaving, setVinculoSaving] = useState(false);
-  const [vinculoAceiteUso, setVinculoAceiteUso] = useState(false);
-  const [fornecedoresLoadErr, setFornecedoresLoadErr] = useState<string | null>(null);
-  const [vinculoMeta, setVinculoMeta] = useState<VinculoFornecedorMeta | null>(null);
-  const [modalTabelaGrupoKey, setModalTabelaGrupoKey] = useState<string | null>(null);
-  const [tabelaMedidasData, setTabelaMedidasData] = useState<TabelaMedidasPayload | null>(null);
-  const [loadingTabela, setLoadingTabela] = useState(false);
   const [modalErpSkuAberto, setModalErpSkuAberto] = useState(false);
-
-  const precisaAceiteVinculo = useMemo(() => {
-    const novo = vinculoSelectId.trim() || null;
-    const cur = fornecedorLigadoId?.trim() || null;
-    return Boolean(novo) && novo !== cur;
-  }, [vinculoSelectId, fornecedorLigadoId]);
-
-  const vinculoAlterado = useMemo(() => {
-    const sel = vinculoSelectId.trim() || null;
-    const lig = fornecedorLigadoId?.trim() || null;
-    return sel !== lig;
-  }, [vinculoSelectId, fornecedorLigadoId]);
 
   const nomeArmazemLigado = useMemo(() => {
     const id = fornecedorLigadoId?.trim();
@@ -114,7 +81,7 @@ export default function SellerProdutosPage() {
 
   const habilitarVendaApiBloqueioLigar = useMemo(() => {
     if (!fornecedorLigadoId?.trim() || catalogMeta.sem_armazem_ligado) {
-      return "Grave um armazém em «Configurar armazém e vínculo» antes de ligar SKUs na API.";
+      return "Vincule um fornecedor em «Fornecedores» antes de ligar SKUs na API.";
     }
     if (!catalogMeta.tabela_ok) {
       return "Cadastro de habilitações indisponível no servidor (tabela seller_skus_habilitados). Fale com o suporte DropCore.";
@@ -130,10 +97,6 @@ export default function SellerProdutosPage() {
       return next;
     });
   }
-
-  useEffect(() => {
-    setVinculoAceiteUso(false);
-  }, [vinculoSelectId]);
 
   const postHabilitar = useCallback(
     async (accessToken: string, skuId: string): Promise<{ ok: boolean; habilitados_count?: number; error?: string }> => {
@@ -332,7 +295,6 @@ export default function SellerProdutosPage() {
     (async () => {
       setLoading(true);
       setError(null);
-      setFornecedoresLoadErr(null);
       try {
         const {
           data: { session },
@@ -350,7 +312,6 @@ export default function SellerProdutosPage() {
         const fid = jsonCat.fornecedor_id;
         const fidNorm = typeof fid === "string" && fid.trim() ? fid.trim() : null;
         setFornecedorLigadoId(fidNorm);
-        setVinculoSelectId(fidNorm ?? "");
         setCatalogMeta({
           plano: jsonCat.seller_plano ?? null,
           habilitados_count: typeof jsonCat.habilitados_count === "number" ? jsonCat.habilitados_count : 0,
@@ -360,11 +321,8 @@ export default function SellerProdutosPage() {
         });
         if (jsonCat.fornecedores) {
           setFornecedoresLista(normalizarFornecedoresSellerApi(jsonCat.fornecedores));
-          setVinculoMeta((jsonCat.vinculo ?? null) as VinculoFornecedorMeta | null);
         } else {
           setFornecedoresLista([]);
-          setVinculoMeta(null);
-          setFornecedoresLoadErr("Não foi possível carregar a lista de fornecedores.");
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -379,67 +337,6 @@ export default function SellerProdutosPage() {
       cancelled = true;
     };
   }, [router]);
-
-  async function gravarVinculoFornecedor() {
-    setVinculoSaving(true);
-    setError(null);
-    try {
-      const {
-        data: { session },
-      } = await supabaseBrowser.auth.getSession();
-      if (!session?.access_token) {
-        router.replace("/seller/login");
-        return;
-      }
-      const novo = vinculoSelectId.trim() ? vinculoSelectId.trim() : null;
-      const cur = fornecedorLigadoId?.trim() || null;
-      const body: { fornecedor_id: string | null; aceite_uso_operacional?: boolean } = { fornecedor_id: novo };
-      if (novo && novo !== cur) {
-        if (!vinculoAceiteUso) throw new Error("Marque a confirmação de uso operacional para vincular este armazém.");
-        body.aceite_uso_operacional = true;
-      }
-      const res = await fetch("/api/seller/fornecedor-vinculo", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Erro ao gravar vínculo");
-      const newId = typeof json.fornecedor_id === "string" && json.fornecedor_id ? json.fornecedor_id : null;
-      setFornecedorLigadoId(newId);
-      setVinculoSelectId(newId ?? "");
-      const r2 = await fetch("/api/seller/fornecedores", { headers: { Authorization: `Bearer ${session.access_token}` } });
-      const j2 = await r2.json().catch(() => ({}));
-      if (r2.ok && j2.ok) {
-        setVinculoMeta((j2.vinculo ?? null) as VinculoFornecedorMeta | null);
-        setFornecedoresLista(normalizarFornecedoresSellerApi(j2.fornecedores));
-      }
-      const resCat = await fetch(`/api/seller/catalogo`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        cache: "no-store",
-      });
-      const jCat = await resCat.json().catch(() => ({}));
-      if (resCat.ok) {
-        setItems(normalizarItems(jCat.items));
-        setCatalogMeta((m) => ({
-          ...m,
-          sem_armazem_ligado: typeof jCat.sem_armazem_ligado === "boolean" ? jCat.sem_armazem_ligado : !jCat.fornecedor_id,
-          plano: jCat.seller_plano ?? m.plano,
-          habilitados_count: typeof jCat.habilitados_count === "number" ? jCat.habilitados_count : m.habilitados_count,
-          habilitados_max: jCat.habilitados_max === null || jCat.habilitados_max === undefined ? null : Number(jCat.habilitados_max),
-          tabela_ok: jCat.habilitados_tabela_ok !== false,
-        }));
-      }
-      setVinculoAceiteUso(false);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Erro ao gravar vínculo");
-    } finally {
-      setVinculoSaving(false);
-    }
-  }
 
   const itemsFiltradosBusca = useMemo(() => {
     const termo = q.trim().toLowerCase();
@@ -592,30 +489,6 @@ export default function SellerProdutosPage() {
       cancelled = true;
     };
   }, [loading, fornecedorLigadoId, gruposResumo.length]);
-
-  const abrirTabelaMedidas = useCallback(async (grupoKey: string) => {
-    setModalTabelaGrupoKey(grupoKey);
-    setTabelaMedidasData(null);
-    setLoadingTabela(true);
-    try {
-      const {
-        data: { session },
-      } = await supabaseBrowser.auth.getSession();
-      if (!session?.access_token) return;
-      const u = new URLSearchParams({ grupoKey });
-      if (fornecedorLigadoId?.trim()) u.set("fornecedor_id", fornecedorLigadoId.trim());
-      const res = await fetch(`/api/seller/catalogo/tabela-medidas?${u.toString()}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Erro ao buscar tabela");
-      setTabelaMedidasData(json.aprovada ?? null);
-    } catch {
-      setTabelaMedidasData(null);
-    } finally {
-      setLoadingTabela(false);
-    }
-  }, [fornecedorLigadoId]);
 
   return (
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
@@ -776,7 +649,16 @@ export default function SellerProdutosPage() {
               )}
             </div>
             <p className="text-[14px] font-medium leading-snug text-[var(--foreground)]">
-              {nomeArmazemLigado ?? (fornecedorLigadoId ? "—" : "Nenhum armazém vinculado")}
+              {fornecedorLigadoId?.trim() && nomeArmazemLigado ? (
+                <Link
+                  href={`/seller/catalogo#fornecedor-${encodeURIComponent(fornecedorLigadoId)}`}
+                  className="underline decoration-[var(--card-border)] underline-offset-2 hover:text-emerald-700 hover:decoration-emerald-600 dark:hover:text-emerald-400"
+                >
+                  {nomeArmazemLigado}
+                </Link>
+              ) : (
+                (nomeArmazemLigado ?? (fornecedorLigadoId ? "—" : "Nenhum armazém vinculado"))
+              )}
             </p>
             {!planoSellerPro && catalogMeta.tabela_ok && (
               <p className="text-[12px] text-[var(--muted)]">
@@ -787,96 +669,12 @@ export default function SellerProdutosPage() {
           </div>
         </div>
 
-        <details className="group mt-2.5 overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm transition open:shadow-md">
-          <summary className="cursor-pointer list-none px-3 py-3 text-sm font-medium text-[var(--foreground)] marker:content-none hover:bg-[var(--surface-hover)] sm:px-3.5 [&::-webkit-details-marker]:hidden">
-            Configurar armazém e vínculo
-          </summary>
-          <div className="space-y-4 border-t border-[var(--card-border)] px-3 pb-4 pt-3 sm:px-3.5">
-          {fornecedoresLoadErr && <p className={cn("text-sm", AMBER_PREMIUM_TEXT_SOFT)}>{fornecedoresLoadErr}</p>}
-          {fornecedoresLista?.length === 0 ? (
-            <p className="text-sm text-[var(--muted)]">Não há fornecedores na organização.</p>
-          ) : (
-            <>
-              <label className="block space-y-2">
-                <span className="text-sm text-[var(--muted)]">Ligar catálogo da API a</span>
-                <select
-                  value={vinculoSelectId}
-                  onChange={(e) => setVinculoSelectId(e.target.value)}
-                  className="h-10 w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:focus:ring-emerald-400/25"
-                >
-                  <option value="">— Nenhum (só se a org autorizar) —</option>
-                  {(fornecedoresLista ?? []).map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.nome_publico}
-                      {f.local_resumido ? ` · ${f.local_resumido}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {vinculoMeta && !vinculoMeta.pode_trocar_agora && vinculoMeta.pode_trocar_fornecedor_a_partir_de && (
-                <p className="text-sm text-[var(--muted)]">
-                  Troca de armazém liberada a partir de{" "}
-                  {new Date(vinculoMeta.pode_trocar_fornecedor_a_partir_de).toLocaleDateString("pt-BR")} (mín. {vinculoMeta.meses_minimos} meses), salvo liberação da organização.
-                </p>
-              )}
-              {vinculoAlterado && precisaAceiteVinculo && (
-                <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--foreground)]">
-                  <input type="checkbox" checked={vinculoAceiteUso} onChange={(e) => setVinculoAceiteUso(e.target.checked)} className="mt-1 h-4 w-4 accent-[var(--accent)]" />
-                  <span>Confirmo o uso operacional deste armazém ao vincular.</span>
-                </label>
-              )}
-              {vinculoAlterado ? (
-                <button
-                  type="button"
-                  disabled={
-                    vinculoSaving || (vinculoMeta != null && !vinculoMeta.pode_trocar_agora && vinculoAlterado) || (precisaAceiteVinculo && !vinculoAceiteUso)
-                  }
-                  onClick={() => void gravarVinculoFornecedor()}
-                  className="w-full rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-                >
-                  {vinculoSaving ? "Salvando..." : "Gravar armazém"}
-                </button>
-              ) : fornecedorLigadoId?.trim() ? (
-                <div
-                  role="status"
-                  className={cn(SUCCESS_PREMIUM_SURFACE, "flex w-full flex-col gap-3 rounded-xl px-4 py-3 sm:flex-row sm:items-center")}
-                >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--success)] text-white shadow-sm">
-                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-[var(--foreground)]">Armazém gravado</p>
-                    <p className="mt-0.5 text-sm text-[var(--muted)]">
-                      O catálogo da API está ligado a{" "}
-                      <span className="font-medium text-[var(--foreground)]">{nomeArmazemLigado ?? "este armazém"}</span>.
-                      {vinculoMeta?.vinculado_em ? (
-                        <>
-                          {" "}
-                          Vinculado em{" "}
-                          {new Date(vinculoMeta.vinculado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}.
-                        </>
-                      ) : null}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-[var(--muted)]">
-                  Nenhum armazém ligado. Escolha um na lista acima e use «Gravar armazém» para carregar os SKUs.
-                </p>
-              )}
-            </>
-          )}
-          </div>
-        </details>
-
         {!loading &&
           !error &&
           catalogMeta.sem_armazem_ligado &&
           fornecedoresLista !== null &&
           fornecedoresLista.length > 0 && (
-            <section className="mt-6 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--card)] shadow-sm">
+            <section className="mt-2.5 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--card)] shadow-sm">
               <div className="h-1 w-full bg-[var(--accent)]" aria-hidden />
               <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:px-6">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)]">
@@ -886,12 +684,18 @@ export default function SellerProdutosPage() {
                   </svg>
                 </div>
                 <div className="min-w-0 flex-1 space-y-1">
-                  <p className="text-sm font-semibold text-[var(--foreground)]">Escolha um armazém</p>
+                  <p className="text-sm font-semibold text-[var(--foreground)]">Escolha um fornecedor</p>
                   <p className="text-sm leading-relaxed text-[var(--muted)]">
-                    Com «Nenhum» no seletor, <span className="font-medium text-[var(--foreground)]">não listamos SKUs</span> da organização aqui.
-                    Vincule o armazém acima para carregar preços, variações e habilitações para a API ERP.
+                    Sem fornecedor vinculado, <span className="font-medium text-[var(--foreground)]">não listamos SKUs</span> da organização aqui.
+                    Vá em «Fornecedores» para conhecer o catálogo e vincular um armazém.
                   </p>
                 </div>
+                <Link
+                  href="/seller/catalogo"
+                  className="inline-flex shrink-0 items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
+                >
+                  Ver fornecedores
+                </Link>
               </div>
             </section>
           )}
@@ -962,7 +766,6 @@ export default function SellerProdutosPage() {
                   setModoListaVariantes={setModoListaVariantes}
                   mostrarFotosVariantes={mostrarFotosVariantes}
                   setMostrarFotosVariantes={setMostrarFotosVariantes}
-                  onOpenMedidas={() => void abrirTabelaMedidas(grupo.paiKey)}
                   bulkLoading={bulkPaiKey === grupo.paiKey}
                   onBulkEnableValidas={() => void bulkEnableValidas(grupo)}
                   onBulkDisableAll={() => void bulkDisableAll(grupo)}
@@ -1015,34 +818,6 @@ export default function SellerProdutosPage() {
                 </p>
               </AmberPremiumCallout>
               <SellerOlistEstoqueGradeCallout className="rounded-2xl px-4 py-3.5 sm:px-5" compact />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modalTabelaGrupoKey != null && (
-        <div className={MODAL_OVERLAY_CLASS} onClick={() => setModalTabelaGrupoKey(null)}>
-          <div className={cn(MODAL_PANEL_CLASS, "max-w-2xl")} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
-              <h3 className="font-semibold text-[var(--foreground)]">
-                Tabela de medidas · <span className="font-mono text-sm font-normal text-[var(--muted)]">{modalTabelaGrupoKey}</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setModalTabelaGrupoKey(null)}
-                className="flex h-10 w-10 items-center justify-center rounded-lg text-xl leading-none text-[var(--muted)] hover:bg-[var(--muted)]/10"
-              >
-                ×
-              </button>
-            </div>
-            <div className={cn(MODAL_PANEL_BODY_CLASS, "p-4")}>
-              {loadingTabela && (
-                <div className="flex items-center gap-2 py-6 text-sm text-[var(--muted)]">
-                  <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[var(--card-border)] border-t-[var(--success)]" /> Carregando…
-                </div>
-              )}
-              {!loadingTabela && !tabelaMedidasData && <p className="text-sm text-[var(--muted)]">Nenhuma tabela de medidas cadastrada para este grupo.</p>}
-              {!loadingTabela && tabelaMedidasData && <TabelaMedidasTabela data={tabelaMedidasData} />}
             </div>
           </div>
         </div>

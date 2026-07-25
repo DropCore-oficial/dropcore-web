@@ -1,6 +1,6 @@
-import { permanentRedirect } from "next/navigation";
+import { SellerCatalogoVitrineClient } from "@/components/seller/SellerCatalogoVitrineClient";
 
-/** Catálogo unificado em `/seller/produtos`. */
-export default function SellerCatalogoRedirectPage() {
-  permanentRedirect("/seller/produtos");
+/** Vitrine com o catálogo de todos os fornecedores da organização, já expandidos. */
+export default function SellerCatalogoVitrinePage() {
+  return <SellerCatalogoVitrineClient />;
 }
