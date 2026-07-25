@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildFornecedorEstoqueTemplateCsv,
+  fornecedorEstoqueRowsFromPlanilhaMatrix,
   normalizeFornecedorEstoqueImportRow,
   parseFornecedorEstoqueCsv,
 } from "./fornecedorEstoqueImport";
@@ -31,5 +32,51 @@ describe("fornecedorEstoqueImport", () => {
     const csv = buildFornecedorEstoqueTemplateCsv();
     expect(csv.startsWith("\uFEFFSKU;Estoque atual;Est. mínimo")).toBe(true);
     expect(csv).toContain("ABC001001");
+  });
+
+  it("lê planilha 'Lista de Estoque' exportada da Olist/Tiny (colunas extras ignoradas)", () => {
+    const matrix: unknown[][] = [
+      [
+        "SKU",
+        "Título",
+        "Armazém",
+        "Estante",
+        "Estoque Baixo",
+        "Em Trânsito(Compra)",
+        "Em Trânsito(Transferência）",
+        "Ocupado",
+        "Disponível",
+        "Estoque Atual",
+        "Custo Médio",
+        "Subtotal",
+        "Criado",
+      ],
+      [
+        "DJU005016",
+        "Cinza - GG Camisa gola Italiana tectel manga longa",
+        "My Warehouse",
+        null,
+        0,
+        0,
+        0,
+        0,
+        31,
+        31,
+        null,
+        null,
+        "2026-07-09 17:14:30",
+      ],
+    ];
+    const rows = fornecedorEstoqueRowsFromPlanilhaMatrix(matrix);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].sku).toBe("DJU005016");
+    expect(rows[0].estoque_atual).toBe(31);
+    const normalized = normalizeFornecedorEstoqueImportRow(rows[0]);
+    expect(normalized).toEqual({ sku: "DJU005016", estoque_atual: 31 });
+  });
+
+  it("ignora matriz vazia ou só com cabeçalho", () => {
+    expect(fornecedorEstoqueRowsFromPlanilhaMatrix([])).toEqual([]);
+    expect(fornecedorEstoqueRowsFromPlanilhaMatrix([["SKU", "Estoque Atual"]])).toEqual([]);
   });
 });

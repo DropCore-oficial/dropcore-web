@@ -96,6 +96,35 @@ export function parseFornecedorEstoqueCsv(text: string): Record<string, unknown>
   return rows;
 }
 
+/**
+ * Converte a matriz de uma planilha (1ª linha = cabeçalho, demais = dados) pro mesmo
+ * formato de `parseFornecedorEstoqueCsv` — usado tanto pro modelo próprio do DropCore
+ * quanto pra planilha "Lista de Estoque" exportada direto da Olist/Tiny (colunas extras
+ * como Título/Armazém/Estante são ignoradas; só SKU e Estoque Atual importam).
+ */
+export function fornecedorEstoqueRowsFromPlanilhaMatrix(
+  matrix: unknown[][]
+): Record<string, unknown>[] {
+  if (matrix.length < 2) return [];
+
+  const headerRow = matrix[0] ?? [];
+  const keys = headerRow.map((h) => CSV_HEADER_TO_KEY[String(h ?? "").trim()] ?? null);
+
+  const rows: Record<string, unknown>[] = [];
+  for (let i = 1; i < matrix.length; i++) {
+    const line = matrix[i] ?? [];
+    const row: Record<string, unknown> = {};
+    keys.forEach((k, idx) => {
+      if (!k) return;
+      const raw = line[idx];
+      row[k] = raw === "" || raw == null ? null : raw instanceof Date ? null : raw;
+    });
+    if (row.sku) rows.push(row);
+  }
+
+  return rows;
+}
+
 export function normalizeFornecedorEstoqueImportRow(
   row: Record<string, unknown>
 ): FornecedorEstoqueImportRow | null {

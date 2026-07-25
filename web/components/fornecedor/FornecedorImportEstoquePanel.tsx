@@ -9,6 +9,7 @@ import {
 import {
   buildFornecedorEstoqueExportCsv,
   buildFornecedorEstoqueTemplateCsv,
+  fornecedorEstoqueRowsFromPlanilhaMatrix,
   parseFornecedorEstoqueCsv,
   type FornecedorEstoqueExportItem,
 } from "@/lib/fornecedorEstoqueImport";
@@ -89,13 +90,15 @@ export function FornecedorImportEstoquePanel({ produtos, accessToken, onImported
         <div className="min-w-0 space-y-1">
           <p className={cn("text-sm font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>Atualizar estoque por planilha</p>
           <p className={cn("text-xs leading-relaxed", AMBER_PREMIUM_TEXT_BODY)}>
-            CSV com colunas <strong className="text-[var(--foreground)]">SKU</strong>,{" "}
+            Aceita dois formatos: o <strong className="text-[var(--foreground)]">modelo CSV</strong> do DropCore
+            (colunas <strong className="text-[var(--foreground)]">SKU</strong>,{" "}
             <strong className="text-[var(--foreground)]">Estoque atual</strong> e opcional{" "}
-            <strong className="text-[var(--foreground)]">Est. mínimo</strong>. Separador{" "}
-            <strong className="text-[var(--foreground)]">;</strong> (Excel pt-BR).{" "}
-            <strong className="text-[var(--foreground)]">Exportar</strong> → edite no Excel →{" "}
-            <strong className="text-[var(--foreground)]">Importar CSV</strong> aqui no DropCore (não é planilha da
-            Olist). Com Olist conectada em Integrações ERP, o saldo vai para a Olist dos sellers e do armazém na hora.
+            <strong className="text-[var(--foreground)]">Est. mínimo</strong>, separador{" "}
+            <strong className="text-[var(--foreground)]">;</strong>) ou a planilha{" "}
+            <strong className="text-[var(--foreground)]">.xlsx "Lista de Estoque"</strong> exportada direto da
+            Olist/Tiny (Estoque → Exportar) — as demais colunas dela (Título, Armazém, Estante...) são ignoradas,
+            só SKU e Estoque Atual importam. Com Olist conectada em Integrações ERP, o saldo vai para a Olist dos
+            sellers e do armazém na hora.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
@@ -129,7 +132,7 @@ export function FornecedorImportEstoquePanel({ produtos, accessToken, onImported
             onClick={handlePickFile}
             className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
           >
-            Importar CSV
+            Importar planilha
           </button>
         </div>
       </div>
@@ -137,18 +140,43 @@ export function FornecedorImportEstoquePanel({ produtos, accessToken, onImported
       <input
         ref={fileInputRef}
         type="file"
-        accept=".csv,text/csv"
+        accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
           e.target.value = "";
           if (!file) return;
+          setImportResult(null);
+          setImportError(null);
+
+          const isXlsx =
+            file.name.trim().toLowerCase().endsWith(".xlsx") ||
+            file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+          if (isXlsx) {
+            void (async () => {
+              try {
+                const { readFirstSheetMatrix } = await import("@/lib/xlsxLite");
+                const matrix = await readFirstSheetMatrix(file);
+                const rows = fornecedorEstoqueRowsFromPlanilhaMatrix(matrix);
+                if (rows.length === 0) {
+                  setImportError("Arquivo vazio ou sem linhas válidas (verifique a coluna SKU).");
+                  setImportRows(null);
+                  return;
+                }
+                setImportRows(rows);
+              } catch {
+                setImportError("Não foi possível ler essa planilha .xlsx. Confira se o arquivo não está corrompido.");
+                setImportRows(null);
+              }
+            })();
+            return;
+          }
+
           const reader = new FileReader();
           reader.onload = () => {
             const text = String(reader.result ?? "");
             const rows = parseFornecedorEstoqueCsv(text);
-            setImportResult(null);
-            setImportError(null);
             if (rows.length === 0) {
               setImportError("Arquivo vazio ou sem linhas válidas (verifique cabeçalho SKU).");
               setImportRows(null);
