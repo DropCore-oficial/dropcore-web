@@ -151,7 +151,7 @@ export function CatalogoV2FotoPreview({
         className={cn(
           "cursor-pointer touch-manipulation overflow-hidden border border-[var(--card-border)] bg-[var(--card)] p-0 focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)]",
           grade
-            ? "relative block w-full rounded-xl max-md:h-auto md:h-40 md:w-full"
+            ? "relative block h-full w-full rounded-xl"
             : "block h-12 w-12 shrink-0 rounded max-md:w-full",
           className,
         )}
@@ -162,7 +162,7 @@ export function CatalogoV2FotoPreview({
           {...(grade ? {} : { width: imgPx, height: imgPx })}
           className={cn(
             grade
-              ? "block h-auto w-full max-w-full object-contain md:h-full md:w-full md:max-h-full md:max-w-full"
+              ? "block h-full w-full max-w-full object-cover object-top"
               : "block h-full w-full object-cover",
           )}
           onError={() => {

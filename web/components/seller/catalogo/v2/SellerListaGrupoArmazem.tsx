@@ -27,29 +27,27 @@ import { CatalogoV2FotoPreview } from "./CatalogoV2FotoPreview";
 import { sellerGrupoToProdutoResumoListaGrupoProps } from "./mapSellerGrupoToProdutoResumoLista";
 import { linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
 import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
-import {
-  AMBER_PREMIUM_SHELL,
-  AMBER_PREMIUM_TEXT_PRIMARY,
-  AMBER_PREMIUM_TEXT_SECONDARY,
-} from "@/lib/amberPremium";
-import {
-  deveAvisarOlistEstoqueGradePai,
-  OLIST_ESTOQUE_GRADE_PAI_HINT_CURTO,
-} from "@/lib/sellerOlistEstoqueGradeUi";
+import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 const BULK_MENU_WIDTH_PX = 216;
 
-function BulkAcoesLoteDropdown({
+function ProdutoAcoesMenu({
   bulkLoading,
   onEnableValidas,
   onDisableAll,
+  onExportOlist,
+  exportandoOlist = false,
+  exportOlistDisabled = false,
 }: {
   bulkLoading: boolean;
   onEnableValidas: () => void;
   onDisableAll: () => void;
+  onExportOlist?: () => void;
+  exportandoOlist?: boolean;
+  exportOlistDisabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -105,6 +103,23 @@ function BulkAcoesLoteDropdown({
             style={{ top: pos.top, left: pos.left, width: BULK_MENU_WIDTH_PX }}
             onClick={(e) => e.stopPropagation()}
           >
+            {onExportOlist ? (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={exportOlistDisabled || exportandoOlist}
+                  onClick={() => {
+                    onExportOlist();
+                    setOpen(false);
+                  }}
+                  className="flex w-full whitespace-nowrap px-3.5 py-2.5 text-left text-[13px] text-[var(--foreground)] hover:bg-[var(--muted)]/12 disabled:opacity-50"
+                >
+                  {exportandoOlist ? "Exportando…" : "Exportar para Olist"}
+                </button>
+                <div className="my-1 border-t border-[var(--card-border)]" role="separator" />
+              </>
+            ) : null}
             <button
               type="button"
               role="menuitem"
@@ -141,6 +156,8 @@ function BulkAcoesLoteDropdown({
         type="button"
         aria-expanded={open}
         aria-haspopup="menu"
+        aria-label="Exportar para Olist · Ações em lote"
+        title="Exportar para Olist · Ações em lote"
         onClick={(e) => {
           e.stopPropagation();
           setOpen((v) => {
@@ -149,9 +166,13 @@ function BulkAcoesLoteDropdown({
             return next;
           });
         }}
-        className="shrink-0 cursor-pointer whitespace-nowrap rounded-md px-1 py-0.5 text-[12px] font-medium text-[var(--muted)] hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)]"
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[var(--muted)] hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)]"
       >
-        Ações em lote
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden>
+          <circle cx="12" cy="5" r="1.8" />
+          <circle cx="12" cy="12" r="1.8" />
+          <circle cx="12" cy="19" r="1.8" />
+        </svg>
       </button>
       {menu}
     </>
@@ -274,7 +295,6 @@ type Props = {
   grupo: GrupoCatalogoV2;
   exp: boolean;
   onToggleExpand: () => void;
-  nomeArmazem: string | null;
   modoListaVariantes: "agrupado-cor" | "sku";
   setModoListaVariantes: (m: "agrupado-cor" | "sku") => void;
   mostrarFotosVariantes: boolean;
@@ -300,7 +320,6 @@ export function SellerListaGrupoArmazem({
   grupo,
   exp,
   onToggleExpand,
-  nomeArmazem,
   modoListaVariantes,
   setModoListaVariantes,
   mostrarFotosVariantes,
@@ -349,7 +368,6 @@ export function SellerListaGrupoArmazem({
   }, []);
 
   const representante = grupo.pai ?? grupo.filhos[0];
-  const avisoOlistEstoqueGrade = onExportOlist && deveAvisarOlistEstoqueGradePai(grupo.filhos.length);
   const linhas = linhasGrupo(grupo.pai, grupo.filhos).filter((it) => !isSemente(it) && !isGrupoOculto(it.sku));
   const todosParaLink = linhasGrupo(grupo.pai, grupo.filhos);
 
@@ -462,33 +480,45 @@ export function SellerListaGrupoArmazem({
                 <path d="M9 18l6-6-6-6" />
               </svg>
             </button>
-            <div className="flex h-[3.625rem] w-[3.625rem] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--muted)]/10 p-0.5 sm:h-14 sm:w-14">
+            <div className="flex h-[3.625rem] w-[3.625rem] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--muted)]/10 p-0.5 sm:h-20 sm:w-20">
               <MiniaturaListaGrupoSeller g={grupo} />
             </div>
           </div>
           <div className="min-w-0 flex-1">
-            <div className="min-w-0 space-y-1.5">
-              <p className="text-[15px] font-semibold leading-snug text-[var(--foreground)] [overflow-wrap:anywhere] sm:text-base">
-                {representante?.nome_produto ?? nome}
-              </p>
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                {todosInativos ? (
-                  <span
-                    className={cn(
-                      AMBER_PREMIUM_SHELL,
-                      AMBER_PREMIUM_TEXT_PRIMARY,
-                      "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
-                    )}
-                  >
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                    Inativo
-                  </span>
-                ) : null}
-                {badgeStatus}
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <div className="min-w-0 flex-1 space-y-1.5 sm:flex sm:items-center sm:gap-2 sm:space-y-0">
+                <p className="min-w-0 text-[15px] font-semibold leading-snug text-[var(--foreground)] [overflow-wrap:anywhere] sm:truncate sm:text-lg">
+                  {representante?.nome_produto ?? nome}
+                </p>
+                <div className="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0 sm:flex-nowrap">
+                  {todosInativos ? (
+                    <span
+                      className={cn(
+                        AMBER_PREMIUM_SHELL,
+                        AMBER_PREMIUM_TEXT_PRIMARY,
+                        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
+                      )}
+                    >
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                      Inativo
+                    </span>
+                  ) : null}
+                  {badgeStatus}
+                </div>
               </div>
+              <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                <ProdutoAcoesMenu
+                  bulkLoading={bulkLoading}
+                  onEnableValidas={onBulkEnableValidas}
+                  onDisableAll={onBulkDisableAll}
+                  onExportOlist={onExportOlist}
+                  exportandoOlist={exportandoOlist}
+                  exportOlistDisabled={exportOlistDisabled}
+                />
+              </span>
             </div>
-            <div className="mt-2 space-y-1 border-t border-[var(--card-border)]/60 pt-2 text-[12px] leading-snug text-[var(--muted)] sm:text-[13px]">
-              <p className="[overflow-wrap:anywhere]">
+            <div className="mt-2 space-y-1 border-t border-[var(--card-border)]/60 pt-2 text-[12px] leading-snug text-[var(--muted)] sm:flex sm:flex-wrap sm:items-center sm:gap-x-2 sm:space-y-0 sm:text-[13px]">
+              <p className="[overflow-wrap:anywhere] sm:shrink-0">
                 <span className="break-all font-mono text-[11px] text-[var(--foreground)] sm:text-xs">{grupo.paiKey}</span>
                 {linhas.length > 0 ? (
                   <>
@@ -503,27 +533,16 @@ export function SellerListaGrupoArmazem({
                 ) : null}
               </p>
               {custoFaixaResumo ? (
-                <p>
-                  Custo{" "}
-                  <span className="font-semibold tabular-nums text-[var(--foreground)]">{custoFaixaResumo}</span>
-                  <span> / un.</span>
-                </p>
-              ) : null}
-              {nomeArmazem ? (
-                <p className="flex gap-1.5 text-[11px] leading-snug sm:text-[12px]">
-                  <svg
-                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    aria-hidden
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9h18v10a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V7a2 2 0 012-2h14a2 2 0 012 2v2" />
-                  </svg>
-                  <span className="line-clamp-2 min-w-0 text-[var(--foreground)]">{nomeArmazem}</span>
-                </p>
+                <>
+                  <span className="hidden sm:inline" aria-hidden>
+                    ·
+                  </span>
+                  <p className="sm:shrink-0">
+                    Custo{" "}
+                    <span className="font-semibold tabular-nums text-[var(--foreground)]">{custoFaixaResumo}</span>
+                    <span> / un.</span>
+                  </p>
+                </>
               ) : null}
             </div>
           </div>
@@ -532,95 +551,6 @@ export function SellerListaGrupoArmazem({
 
       {exp && linhas.length > 0 && (
         <>
-          <div className="relative z-20 overflow-visible border-t border-[var(--card-border)] bg-[var(--card)] px-3 py-2 sm:px-4 sm:py-2">
-            <div className="flex min-w-0 flex-col gap-2 overflow-visible sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-2.5">
-              <div className="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto sm:flex-none">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setModoListaVariantes("agrupado-cor");
-                  }}
-                  className={cn(
-                    "inline-flex shrink-0 items-center justify-center rounded-full border px-3.5 py-1.5 text-[11px] font-medium whitespace-nowrap transition-colors",
-                    modoListaVariantes === "agrupado-cor"
-                      ? "border-emerald-600 bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
-                      : "border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
-                  )}
-                  title="Agrupado por cor"
-                >
-                  <span className="sm:hidden">Por cor</span>
-                  <span className="hidden sm:inline">Agrupado por cor</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setModoListaVariantes("sku");
-                  }}
-                  className={cn(
-                    "inline-flex shrink-0 items-center justify-center rounded-full border px-3.5 py-1.5 text-[11px] font-medium whitespace-nowrap transition-colors",
-                    modoListaVariantes === "sku"
-                      ? "border-emerald-600 bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
-                      : "border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
-                  )}
-                  title="Detalhado por SKU"
-                >
-                  <span className="sm:hidden">Por SKU</span>
-                  <span className="hidden sm:inline">Detalhado por SKU</span>
-                </button>
-              </div>
-              <div className="relative flex flex-wrap items-center gap-x-3 gap-y-1.5 overflow-visible">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMostrarFotosVariantes((v) => !v);
-                  }}
-                  className="inline-flex w-full shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition hover:bg-[var(--muted)]/10 sm:w-auto"
-                  title={mostrarFotosVariantes ? "Ocultar fotos das variantes" : "Mostrar fotos das variantes"}
-                >
-                  <span className="sm:hidden">{mostrarFotosVariantes ? "Ocultar" : "Fotos"}</span>
-                  <span className="hidden sm:inline">{mostrarFotosVariantes ? "Ocultar fotos" : "Mostrar fotos"}</span>
-                </button>
-                {onExportOlist ? (
-                  <>
-                    <span className="text-[var(--muted)]" aria-hidden>
-                      ·
-                    </span>
-                    <button
-                      type="button"
-                      disabled={exportOlistDisabled || exportandoOlist}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onExportOlist();
-                      }}
-                      className="inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--primary-blue)] transition hover:bg-[var(--muted)]/10 disabled:opacity-50"
-                      title="Baixa CSV deste produto (pai + variações) para importar na Olist/Tiny"
-                    >
-                      {exportandoOlist ? "Exportando…" : "Exportar para Olist"}
-                    </button>
-                  </>
-                ) : null}
-                <span className="text-[var(--muted)]" aria-hidden>
-                  ·
-                </span>
-                <span className="inline-flex shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <BulkAcoesLoteDropdown
-                    bulkLoading={bulkLoading}
-                    onEnableValidas={onBulkEnableValidas}
-                    onDisableAll={onBulkDisableAll}
-                  />
-                </span>
-              </div>
-            </div>
-            {avisoOlistEstoqueGrade ? (
-              <p className={cn("text-[11px] leading-snug sm:text-xs", AMBER_PREMIUM_TEXT_SECONDARY)}>
-                {OLIST_ESTOQUE_GRADE_PAI_HINT_CURTO}
-              </p>
-            ) : null}
-          </div>
-
           {!mostrarFotosVariantes ? (
             <div className="border-t border-[var(--card-border)] bg-[var(--card)] px-3 py-4 text-sm text-[var(--muted)] sm:px-4">
               Variantes ocultas nesta visualização.
@@ -629,8 +559,10 @@ export function SellerListaGrupoArmazem({
 
           {mostrarFotosVariantes && modoListaVariantes === "agrupado-cor" && (
             <div className="min-w-0 border-t border-[var(--card-border)] bg-[var(--card)] p-4">
-              {/* Mesmo grid que /fornecedor/produtos: 1 col · md+ 2 colunas */}
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-3">
+              {/* Scroll lateral em vez de empilhar verticalmente — evita página gigante em
+               * produto com muitas cores; cada card mostra ~1 cheio + uma tira do próximo. */}
+              <div className="dropcore-scroll-x">
+                <div className="flex gap-3 pb-1">
                 {gruposCor.map((gc) => {
                   const rowCor = gc.itens[0];
                   if (!rowCor) return null;
@@ -656,19 +588,19 @@ export function SellerListaGrupoArmazem({
                   return (
                     <div
                       key={`m-${gc.key}`}
-                      className="min-w-0 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm transition-colors hover:border-emerald-500/35"
+                      className="w-[88%] shrink-0 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm transition-colors hover:border-emerald-500/35 sm:w-[30rem]"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="min-w-0 space-y-2.5">
-                        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-2">
-                          <div className="flex min-w-0 items-center gap-2">
+                        <div className="flex min-w-0 flex-nowrap items-center justify-between gap-x-2">
+                          <div className="flex min-w-0 shrink items-center gap-2">
                             <p className="min-w-0 truncate text-sm font-bold tracking-tight text-[var(--foreground)]">{gc.corLabel}</p>
                             <span className="inline-flex shrink-0 rounded-full bg-[var(--muted)]/12 px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">
                               {gc.itens.length} SKU(s)
                             </span>
                           </div>
                           <div
-                            className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2"
+                            className="ml-auto flex shrink-0 flex-nowrap items-center justify-end gap-2"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <CatalogoV2CorGrupoApiToggle
@@ -702,16 +634,17 @@ export function SellerListaGrupoArmazem({
                           </span>
                           <span className="h-3.5 w-px shrink-0 bg-[var(--card-border)] opacity-90 sm:h-4" aria-hidden />
                           <span className="shrink-0 whitespace-nowrap pl-1 text-right text-[var(--muted)]">
-                            Total em estoque:{" "}
+                            <span className="sm:hidden">Estoque </span>
+                            <span className="hidden sm:inline">Total em estoque: </span>
                             <span className="font-semibold tabular-nums text-[var(--foreground)]">{estoqueTotal}</span>
                           </span>
                         </div>
                       </div>
 
                       {/* Mobile: foto em cima + tabela · md+: igual fornecedor — foto | tabela */}
-                      <div className="mt-4 flex min-w-0 flex-col gap-4 md:grid md:grid-cols-[10rem_minmax(0,1fr)] md:items-stretch md:gap-x-4">
-                        <div className="flex w-full min-w-0 max-w-full shrink-0 flex-col md:h-full md:min-h-0 md:max-w-[10rem]">
-                          <div className="relative w-full overflow-hidden rounded-xl bg-[var(--muted)]/8 md:h-40 md:w-40 md:max-w-none md:shrink-0">
+                      <div className="mt-4 flex min-w-0 flex-col gap-4 md:grid md:grid-cols-[14rem_minmax(0,1fr)] md:items-stretch md:gap-x-4">
+                        <div className="flex w-full min-w-0 max-w-full shrink-0 flex-col md:h-full md:min-h-0 md:max-w-[14rem]">
+                          <div className="relative h-64 w-full overflow-hidden rounded-xl bg-[var(--muted)]/8 md:h-56 md:w-56 md:max-w-none md:shrink-0">
                             <CatalogoV2FotoPreview
                               variant="grade"
                               imagemUrl={rowCor.imagem_url}
@@ -748,6 +681,7 @@ export function SellerListaGrupoArmazem({
                     </div>
                   );
                 })}
+                </div>
               </div>
             </div>
           )}

@@ -15,6 +15,8 @@ type Props = {
   habilitadosMax: number | null;
   /** strip: grade unificada (2 cols no mobile, 4 no sm+); cards: cartões com ícones. */
   variant?: "cards" | "strip";
+  /** Quando definido, o card "Pendências" vira botão (abre modal com o que falta por SKU). */
+  onClickPendencias?: () => void;
 };
 
 /** Mesmos tokens do dashboard seller (`globals.css` / `--card`, `--muted`). */
@@ -42,6 +44,7 @@ function MetricStrip({
   skusHabilitados,
   skusComPendencia,
   habilitadosMax,
+  onClickPendencias,
 }: Props) {
   return (
     <div
@@ -64,10 +67,24 @@ function MetricStrip({
           )}
         </p>
       </div>
-      <div className="bg-[var(--card)] px-3 py-2.5">
-        <p className={cn("text-xs font-medium uppercase tracking-wide", AMBER_PREMIUM_TEXT_SOFT)}>Pendências</p>
-        <p className={cn("text-lg font-semibold tabular-nums", AMBER_PREMIUM_TEXT_PRIMARY)}>{skusComPendencia}</p>
-      </div>
+      {onClickPendencias ? (
+        <button
+          type="button"
+          onClick={onClickPendencias}
+          disabled={skusComPendencia === 0}
+          className="bg-[var(--card)] px-3 py-2.5 text-left transition hover:bg-[var(--surface-hover)] disabled:cursor-default disabled:hover:bg-[var(--card)]"
+        >
+          <p className={cn("text-xs font-medium uppercase tracking-wide", AMBER_PREMIUM_TEXT_SOFT)}>Pendências</p>
+          <p className={cn("text-lg font-semibold tabular-nums", AMBER_PREMIUM_TEXT_PRIMARY)}>
+            {skusComPendencia}
+          </p>
+        </button>
+      ) : (
+        <div className="bg-[var(--card)] px-3 py-2.5">
+          <p className={cn("text-xs font-medium uppercase tracking-wide", AMBER_PREMIUM_TEXT_SOFT)}>Pendências</p>
+          <p className={cn("text-lg font-semibold tabular-nums", AMBER_PREMIUM_TEXT_PRIMARY)}>{skusComPendencia}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -79,6 +96,7 @@ export function CatalogoV2ResumoTopo({
   skusComPendencia,
   habilitadosMax,
   variant = "cards",
+  onClickPendencias,
 }: Props) {
   if (variant === "strip") {
     return (
@@ -88,6 +106,7 @@ export function CatalogoV2ResumoTopo({
         skusHabilitados={skusHabilitados}
         skusComPendencia={skusComPendencia}
         habilitadosMax={habilitadosMax}
+        onClickPendencias={onClickPendencias}
       />
     );
   }

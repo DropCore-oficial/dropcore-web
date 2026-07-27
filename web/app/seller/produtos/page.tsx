@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
+import { HelpBubble } from "@/components/HelpBubble";
 import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
 import { normalizarFornecedoresSellerApi, type FornecedorSellerListaRow } from "@/lib/mapFornecedorSellerPublico";
 import {
@@ -17,7 +18,7 @@ import {
 } from "@/components/seller/SellerCatalogoGrupoUi";
 import { paiKeySkuHabilitacao, skuContaLimiteHabilitacaoSeller } from "@/lib/sellerSkuHabilitado";
 import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
-import { corGrupoTemEstoqueParaHabilitar, skuProntoParaVender } from "@/lib/sellerSkuReadiness";
+import { corGrupoTemEstoqueParaHabilitar, skuProntoParaVender, skuReadinessLabelsFalha } from "@/lib/sellerSkuReadiness";
 import { toTitleCase } from "@/lib/formatText";
 import { CatalogoV2ResumoTopo } from "@/components/seller/catalogo/v2/CatalogoV2ResumoTopo";
 import { SellerListaGrupoArmazem } from "@/components/seller/catalogo/v2/SellerListaGrupoArmazem";
@@ -29,12 +30,7 @@ import {
   AMBER_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/amberPremium";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
-import {
-  SUCCESS_PREMIUM_SHELL,
-  SUCCESS_PREMIUM_TEXT_PRIMARY,
-  DANGER_PREMIUM_SHELL,
-  DANGER_PREMIUM_TEXT_PRIMARY,
-} from "@/lib/semanticPremium";
+import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +64,7 @@ export default function SellerProdutosPage() {
   const [fornecedorLigadoId, setFornecedorLigadoId] = useState<string | null>(null);
   const [fornecedoresLista, setFornecedoresLista] = useState<FornecedorSellerListaRow[] | null>(null);
   const [modalErpSkuAberto, setModalErpSkuAberto] = useState(false);
+  const [ajudaProdutosArmazemAberta, setAjudaProdutosArmazemAberta] = useState(false);
 
   const nomeArmazemLigado = useMemo(() => {
     const id = fornecedorLigadoId?.trim();
@@ -383,8 +380,21 @@ export default function SellerProdutosPage() {
     return { totalProdutos, skusDisponiveis, skusComPendencia };
   }, [gruposResumo.length, skusVisiveis]);
 
+  const [modalPendenciasAberto, setModalPendenciasAberto] = useState(false);
+
+  const pendenciasDetalhe = useMemo(
+    () =>
+      skusVisiveis
+        .filter((i) => !skuProntoParaVender(i))
+        .map((i) => ({
+          sku: i.sku,
+          nome_produto: i.nome_produto,
+          faltando: skuReadinessLabelsFalha(i),
+        })),
+    [skusVisiveis],
+  );
+
   const [exportandoOlistGrupo, setExportandoOlistGrupo] = useState<string | null>(null);
-  const [olistExportInfo, setOlistExportInfo] = useState<string | null>(null);
 
   const baixarCsvOlistGrupo = useCallback(
     async (grupoKey: string) => {
@@ -474,9 +484,6 @@ export default function SellerProdutosPage() {
         if (ok > 0) {
           sessionStorage.setItem(OLIST_PRECO_AUTO_KEY, String(Date.now()));
           setError(null);
-          setOlistExportInfo(
-            `Preços sincronizados com a Olist (${ok} SKU${ok === 1 ? "" : "s"}).${falhas.length ? ` ${falhas.length} grupo(s) ignorado(s) (ainda não estão na Olist).` : ""}`,
-          );
         } else if (falhas.length > 0) {
           setError(`Sync Olist (${falhas[0]?.sku ?? "?"}): ${falhas[0]?.erro ?? "não foi possível atualizar preços."}`);
         }
@@ -491,8 +498,8 @@ export default function SellerProdutosPage() {
   }, [loading, fornecedorLigadoId, gruposResumo.length]);
 
   return (
-    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
-      <div className="dropcore-shell-6xl py-4 sm:py-6 lg:py-8">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
+      <div className="dropcore-shell-6xl pt-4 sm:pt-6 lg:pt-8 pb-5 md:pb-7">
           <SellerPageHeader
             surface="hero"
             className="mb-0 sm:mb-0"
@@ -570,6 +577,7 @@ export default function SellerProdutosPage() {
                 skusHabilitados={catalogMeta.habilitados_count}
                 skusComPendencia={resumoTopo.skusComPendencia}
                 habilitadosMax={catalogMeta.habilitados_max}
+                onClickPendencias={() => setModalPendenciasAberto(true)}
               />
             </div>
           )}
@@ -710,10 +718,19 @@ export default function SellerProdutosPage() {
 
         <div className="mt-4 min-w-0 overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
           <div className="border-b border-[var(--card-border)] bg-[var(--card)] px-4 py-4 sm:px-5 sm:py-4">
-            <h2 className="text-[15px] font-semibold tracking-tight text-[var(--foreground)] sm:text-sm">Produtos do armazém</h2>
-            <p className="mt-1.5 max-w-prose text-[13px] leading-relaxed text-[var(--muted)] sm:text-sm">
-              Cadastro do fornecedor é só leitura; expanda um item para ver SKUs e habilitações na API.
-            </p>
+            <h2 className="flex items-center gap-1.5 text-[15px] font-semibold tracking-tight text-[var(--foreground)] sm:text-sm">
+              Produtos do armazém
+              <HelpBubble
+                open={ajudaProdutosArmazemAberta}
+                onOpen={() => setAjudaProdutosArmazemAberta(true)}
+                onClose={() => setAjudaProdutosArmazemAberta(false)}
+                ariaLabel="Sobre produtos do armazém"
+              >
+                <p className="text-sm leading-relaxed">
+                  Cadastro do fornecedor é só leitura; expanda um item para ver SKUs e habilitações na API.
+                </p>
+              </HelpBubble>
+            </h2>
           </div>
           <div className="min-w-0 space-y-2.5 px-3 py-3 sm:space-y-3 sm:px-4 sm:py-4">
             {loading && (
@@ -727,11 +744,6 @@ export default function SellerProdutosPage() {
             {error && (
               <div className={cn("border-t p-4 text-sm font-medium", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>
                 {error}
-              </div>
-            )}
-            {olistExportInfo && !error && (
-              <div className={cn("border-t p-4 text-sm font-medium", SUCCESS_PREMIUM_SHELL, SUCCESS_PREMIUM_TEXT_PRIMARY)}>
-                {olistExportInfo}
               </div>
             )}
             {!loading && !error && grupos.length === 0 && (
@@ -761,7 +773,6 @@ export default function SellerProdutosPage() {
                   grupo={grupo}
                   exp={expandido.has(grupo.paiKey)}
                   onToggleExpand={() => toggleExpandido(grupo.paiKey)}
-                  nomeArmazem={nomeArmazemLigado}
                   modoListaVariantes={modoListaVariantes}
                   setModoListaVariantes={setModoListaVariantes}
                   mostrarFotosVariantes={mostrarFotosVariantes}
@@ -818,6 +829,54 @@ export default function SellerProdutosPage() {
                 </p>
               </AmberPremiumCallout>
               <SellerOlistEstoqueGradeCallout className="rounded-2xl px-4 py-3.5 sm:px-5" compact />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalPendenciasAberto && (
+        <div className={MODAL_OVERLAY_CLASS} onClick={() => setModalPendenciasAberto(false)}>
+          <div className={cn(MODAL_PANEL_CLASS, "max-w-lg")} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
+              <div className="min-w-0">
+                <h3 className="font-semibold text-[var(--foreground)]">Pendências</h3>
+                <p className="text-xs text-[var(--muted)]">
+                  {pendenciasDetalhe.length} SKU{pendenciasDetalhe.length === 1 ? "" : "s"} com algo faltando pra ficar pronto pra vender
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalPendenciasAberto(false)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xl leading-none text-[var(--muted)] hover:bg-[var(--muted)]/10"
+              >
+                ×
+              </button>
+            </div>
+            <div className={cn(MODAL_PANEL_BODY_CLASS, "p-4 space-y-2.5")}>
+              {pendenciasDetalhe.length === 0 ? (
+                <p className="text-sm text-[var(--muted)]">Nenhuma pendência — tudo pronto pra vender.</p>
+              ) : (
+                pendenciasDetalhe.map((p) => (
+                  <div key={p.sku} className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-3">
+                    <p className="font-mono text-[11px] text-[var(--muted)]">{p.sku}</p>
+                    <p className="text-sm font-medium text-[var(--foreground)]">{p.nome_produto || "—"}</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {p.faltando.map((label) => (
+                        <span
+                          key={label}
+                          className={cn(
+                            AMBER_PREMIUM_SURFACE_TRANSPARENT,
+                            AMBER_PREMIUM_TEXT_PRIMARY,
+                            "inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium",
+                          )}
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

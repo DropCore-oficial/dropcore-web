@@ -202,7 +202,7 @@ export function CatalogoV2CorGrupoApiToggle({
   return (
     <div className="inline-flex shrink-0 max-w-full items-center gap-1.5 sm:gap-2" title={dicaToggle}>
       <span
-        className={`select-none text-[10px] font-medium leading-tight sm:text-[11px] ${
+        className={`hidden select-none text-[10px] font-medium leading-tight sm:inline sm:text-[11px] ${
           algumHabilitadoNaCor ? "text-emerald-700 dark:text-emerald-400" : "text-[var(--muted)]"
         }`}
       >
