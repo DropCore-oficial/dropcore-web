@@ -646,7 +646,7 @@ export default function SellerCalculadoraPage() {
 
   const calcular = useCallback(() => {
     const custo = parseNum(custoProduto);
-    const emb = parseNum(embFul);
+    const emb = calcAccess === "seller" ? 0 : parseNum(embFul);
     const marg = parseNum(margem);
     const com = parseNum(comissao);
     const imp = parseNum(imposto);
@@ -1029,7 +1029,7 @@ export default function SellerCalculadoraPage() {
     custoProduto, embFul, margem, comissao, imposto, ads, afiliado, perda, perdaTipo, preset, extras,
     opMeli, opTiktok, opShopee, opShein, rebateML, parseNum,
     cupomUnico, cupomMl, cupomShopee, cupomTiktok, cupomShein,
-    meliClPctEff, meliPrPctEff,
+    meliClPctEff, meliPrPctEff, calcAccess,
   ]);
 
   // Recalcula quando qualquer dependência de `calcular` mudar (incl. cupom, margem, operacional...)
@@ -1071,7 +1071,7 @@ export default function SellerCalculadoraPage() {
   const precoMinimo = (() => {
     if (preset === "todos") return null;
     const custo = parseNum(custoProduto);
-    const emb = parseNum(embFul);
+    const emb = calcAccess === "seller" ? 0 : parseNum(embFul);
     let com = parseNum(comissao);
     if (preset === "shein") com = sheinFemPctEff;
     else if (preset === "meli") com = meliPrPctEff;
@@ -1371,10 +1371,12 @@ export default function SellerCalculadoraPage() {
               onChange={(e) => setCustoProduto(sanitizeNumInput(e.target.value))} placeholder="0,00" className={inputLight} />
           </Row>
 
-          <Row label="Embalagem / Fulfillment" unit="R$">
-            <input type="text" inputMode="decimal" value={embFul}
-              onChange={(e) => setEmbFul(sanitizeNumInput(e.target.value))} placeholder="0,00" className={inputLight} />
-          </Row>
+          {calcAccess !== "seller" && (
+            <Row label="Embalagem / Fulfillment" unit="R$">
+              <input type="text" inputMode="decimal" value={embFul}
+                onChange={(e) => setEmbFul(sanitizeNumInput(e.target.value))} placeholder="0,00" className={inputLight} />
+            </Row>
+          )}
 
           <div className="px-4 py-2 border-b border-neutral-200/70 dark:border-neutral-700/60 bg-neutral-100 dark:bg-neutral-900/50">
             <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-widest">
