@@ -646,8 +646,8 @@ export default function DashboardPage() {
     <div
       className={`bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 ${
         isAdmin
-          ? "pb-8"
-          : "pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] md:pb-8"
+          ? "pb-5"
+          : "pb-[max(1rem,env(safe-area-inset-bottom,0px))] md:pb-5"
       }`}
     >
       <AdminNav />

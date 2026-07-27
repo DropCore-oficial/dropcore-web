@@ -227,6 +227,47 @@ Fora essas duas coisas, cor, raio de borda, sombra, badge, botão e modal são o
 componente** — se uma tela nova em qualquer área não bate com essas classes, ela está
 destoando do padrão, não criando um estilo novo válido.
 
+### Distância entre o último card e o rodapé — REGRA TRAVADA, todo o sistema
+
+**REGRA TRAVADA (2026-07-25): todo página com `SiteFooter` (ou seja, quase toda página do
+sistema — ver exceção de login abaixo) tem que fechar com exatamente `pb-5 md:pb-7` de
+respiro antes do rodapé, medido a partir do fim do último card visível.** Isso normalmente
+fica dividido em duas camadas (não é sempre um `pb-*` só):
+
+1. **Wrapper mais externo da página** (`app-bg` + `pt-[...]`): fecha com `pb-5` (flat, sem
+   variante `md:`) — é o padrão já usado em toda página de fornecedor/seller
+   (`web/app/seller/dashboard/page.tsx` etc.).
+2. **Shell/`<main>` interno** (`dropcore-shell-6xl`, ou `dropcore-shell-4xl`/`PageLayout`
+   nas exceções que ainda usam largura menor): fecha com `pb-5 md:pb-7` — **não** usar só
+   `py-*` uniforme (isso empurra o mesmo valor pro topo também); separar em `pt-*`
+   (mantém o valor de topo que a página já tinha) + `pb-5 md:pb-7` (bottom padronizado).
+
+Total visível: **40px no mobile, 48px no desktop** — sempre, em qualquer área (admin,
+fornecedor, seller). Página de admin usa um wrapper próprio sem pb (`web/app/admin/layout.tsx`
+tem `pb-0` de propósito), então lá o `pb-5 md:pb-7` do shell interno já é a conta inteira
+sozinho — não duplicar com outro wrapper. `web/components/ui/PageLayout.tsx` (usado por
+`admin/empresas`, `admin/sellers`, `admin/catalogo`, `app/catalogo`, `app/platform`) já
+está ajustado (`pb-10 sm:pb-12`, breakpoint `sm` em vez de `md` porque é o breakpoint que
+esse componente específico já usava — mesmo total final).
+
+**Exceção:** telas de **login** (`/login`, `/seller/login`, `/fornecedor/login`,
+`/calculadora/login`) não mostram `SiteFooter` (ver `web/components/ConditionalFooter.tsx`)
+— tela de auth enxuta, sem o bloco institucional embaixo. Essa regra de espaçamento não
+se aplica a elas porque não há rodapé pra medir distância.
+
+**Why:** achado em `web/app/seller/pedidos/page.tsx` — a página usava um `<main>` com
+padding só no topo (sem `pb-*` nenhum), enquanto toda outra página do sistema tinha um
+respiro extra embutido no shell interno além do wrapper externo. O card final ficava mais
+perto do rodapé ali do que em qualquer outra tela, e o Sr Stark notou comparando lado a
+lado (`dashboard` vs `pedidos`). Auditoria seguinte encontrou o mesmo tipo de divergência
+em ~15 páginas (admin com `py` uniforme, `style={{paddingBottom:24}}` inline, ou faltando
+o `pb` de fora inteiro) — todas alinhadas nessa mesma passada.
+
+**How to apply:** ao criar página nova (ou tocar numa existente) que renderiza embaixo de
+tudo e termina em `SiteFooter`, conferir que o fim do conteúdo bate com esse total (40/48px)
+— não copiar um `py-*` genérico de outra tela sem separar top/bottom primeiro. Se a tela
+for de login, não se aplica (ver exceção acima).
+
 ### Header de página interna (não a dashboard) — usar componente, nunca copiar/colar
 
 Cada área deveria ter **um** componente de header pra suas páginas internas (não a

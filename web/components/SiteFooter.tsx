@@ -38,7 +38,7 @@ export function SiteFooter() {
         className="hidden h-0.5 w-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 dark:block"
         aria-hidden
       />
-      <div className="dropcore-shell-6xl px-4 py-8 sm:px-6">
+      <div className="dropcore-shell-6xl px-4 py-6 sm:px-6">
         <div className="flex flex-col gap-8 sm:flex-row sm:flex-wrap sm:justify-between sm:gap-x-10 sm:gap-y-8">
           <div className="min-w-0 sm:max-w-xs">
             <p className="text-sm font-semibold text-neutral-900 dark:text-white">Sobre o DropCore</p>

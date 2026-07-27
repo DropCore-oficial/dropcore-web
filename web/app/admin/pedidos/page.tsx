@@ -254,14 +254,14 @@ export default function PedidosPage() {
 
   if (loading) {
     return (
-      <div className="dropcore-shell-6xl py-6">
+      <div className="dropcore-shell-6xl pt-6 pb-10 md:pb-12">
         <p className="text-sm text-[var(--muted)]">Carregando...</p>
       </div>
     );
   }
 
   return (
-    <div className="dropcore-shell-6xl space-y-5 py-6">
+    <div className="dropcore-shell-6xl space-y-5 pt-6 pb-10 md:pb-12">
       <AdminPageHeader
         eyebrow="Operação"
         title="Pedidos"

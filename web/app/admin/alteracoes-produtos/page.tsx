@@ -324,7 +324,7 @@ export default function AdminAlteracoesProdutosPage() {
 
   return (
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg">
-      <div className="dropcore-shell-6xl py-4 sm:py-6 lg:py-8">
+      <div className="dropcore-shell-6xl pt-4 sm:pt-6 lg:pt-8 pb-10 md:pb-12">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-semibold tracking-tight text-[var(--foreground)] lg:text-2xl">

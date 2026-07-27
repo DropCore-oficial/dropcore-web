@@ -160,7 +160,7 @@ export default function FornecedorPedidoEtiquetaPage() {
   const shouldRender = !loading && !error && etiqueta;
 
   return (
-    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-8">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-0 md:pt-14 pb-5">
       <style>{`
         @page { size: 80mm auto; margin: 0; }
         @media print {
@@ -169,7 +169,7 @@ export default function FornecedorPedidoEtiquetaPage() {
         }
       `}</style>
 
-      <div className="dropcore-shell-4xl py-5">
+      <div className="dropcore-shell-4xl pt-5 pb-10 md:pb-12">
         {!shouldRender && (
           <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm p-5 text-center">
             {loading ? "Carregando etiqueta..." : error ?? "Erro."}

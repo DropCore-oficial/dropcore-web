@@ -254,7 +254,7 @@ export default function FornecedorIntegracoesErpPage() {
       : null;
 
   return (
-    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
       <FornecedorNav active="integracoes" wide />
       <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <div>

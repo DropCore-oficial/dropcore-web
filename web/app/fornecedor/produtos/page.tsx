@@ -527,7 +527,7 @@ export default function FornecedorProdutosPage() {
   }
 
   return (
-    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
       <div className="dropcore-shell-6xl py-5 md:py-7 space-y-5 md:space-y-6">
         {/* Header + filtros — mesmo bloco de cartão que o dashboard do fornecedor */}
         <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">

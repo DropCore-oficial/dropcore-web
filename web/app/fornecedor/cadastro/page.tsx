@@ -576,7 +576,7 @@ export default function FornecedorCadastroPage() {
     "rounded-full border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
-    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
       <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
           <div className="min-w-0 space-y-1">

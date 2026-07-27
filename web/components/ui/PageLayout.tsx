@@ -30,7 +30,7 @@ export function PageLayout({
     >
       <div
         className={cn(
-          "mx-auto dropcore-px-layout pt-[max(1.5rem,env(safe-area-inset-top,0px))] pb-6 sm:pt-8 sm:pb-8 space-y-8",
+          "mx-auto dropcore-px-layout pt-[max(1.5rem,env(safe-area-inset-top,0px))] pb-10 sm:pt-8 sm:pb-12 space-y-8",
           maxWidthMap[maxWidth]
         )}
       >

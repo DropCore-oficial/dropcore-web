@@ -314,7 +314,7 @@ export default function FornecedorPedidosPage() {
   }
 
   return (
-    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
       <style>{`
         @media print {
           @page { size: 80mm auto; margin: 0; }
