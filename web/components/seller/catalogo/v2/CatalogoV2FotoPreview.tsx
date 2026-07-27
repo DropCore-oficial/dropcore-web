@@ -159,6 +159,8 @@ export function CatalogoV2FotoPreview({
         <img
           src={src}
           alt="Foto do produto"
+          loading="lazy"
+          decoding="async"
           {...(grade ? {} : { width: imgPx, height: imgPx })}
           className={cn(
             grade
