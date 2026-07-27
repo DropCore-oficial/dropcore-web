@@ -5,13 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { resolverDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { enriquecerDetalhesProdutoLegado } from "@/lib/enriquecerDetalhesProdutoLegado";
 import Link from "next/link";
-import {
-  AMBER_PREMIUM_ACCENT_BAR,
-  AMBER_PREMIUM_DOT,
-  AMBER_PREMIUM_SURFACE_TRANSPARENT,
-  AMBER_PREMIUM_TEXT_PRIMARY,
-  AMBER_PREMIUM_TEXT_SECONDARY,
-} from "@/lib/amberPremium";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { ncmOrigemFromSkuRow } from "@/lib/fornecedorSkuCatalogExtras";
 import { tabelaMedidasFromDetalhesJson, type TabelaMedidasPayload } from "@/lib/fornecedorTabelaMedidas";
@@ -27,12 +20,13 @@ import {
   transparenciaOptions,
 } from "@/lib/fornecedorVariantesUi";
 import { cn } from "@/lib/utils";
+import { ModalOverlay } from "@/components/ui/ModalOverlay";
+import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import {
   CadastroResumoShell,
   FieldRow,
   GradeBadge,
   KpiCard,
-  MiniCard,
   ProgressBar,
   cadastroCampoPreenchido as filled,
 } from "@/components/fornecedor/produtoCadastroUiKit";
@@ -105,12 +99,6 @@ function percent(preenchidos: number, total: number): number {
   return Math.max(0, Math.min(100, Math.round((preenchidos / total) * 100)));
 }
 
-type AcaoPrioritaria = {
-  id: string;
-  titulo: string;
-  impacto: "alto" | "medio";
-};
-
 function SummaryShell({ children }: { children: ReactNode }) {
   return (
     <div
@@ -172,7 +160,8 @@ export function ProdutoResumoListaGrupo({
     base.data_lancamento,
     base.expedicao_override_linha,
   ]);
-  const [mostrarDetalhes, setMostrarDetalhes] = useState(false);
+  const [secaoAberta, setSecaoAberta] = useState<string | null>(null);
+  const [resumoAberto, setResumoAberto] = useState(false);
 
   const statsVar = useMemo(() => {
     const total = filhosVariantes.length;
@@ -312,25 +301,294 @@ export function ProdutoResumoListaGrupo({
   ];
   const preenchidos = checks.filter(Boolean).length;
   const score = percent(preenchidos, checks.length);
-  const acoesPrioritarias = useMemo((): AcaoPrioritaria[] => {
-    const out: AcaoPrioritaria[] = [];
-    if (!albumOk) out.push({ id: "album", titulo: "Adicionar link principal de fotos", impacto: "alto" });
-    if (!fiscalCoreOk) out.push({ id: "fiscal", titulo: "Completar NCM e origem", impacto: "alto" });
-    if (!medidasOk) out.push({ id: "medidas", titulo: "Enviar tabela de medidas", impacto: "alto" });
-    if (!modeloOk) out.push({ id: "modelo", titulo: "Preencher modelo do produto", impacto: "medio" });
-    if (!caracteristicasOk) out.push({ id: "caracteristicas", titulo: "Completar características comerciais", impacto: "medio" });
-    if (!qualidadeOk) out.push({ id: "qualidade", titulo: "Completar checklist de qualidade", impacto: "medio" });
-    if (!guiadoOk) out.push({ id: "guiado", titulo: "Preencher dados guiados para seller", impacto: "medio" });
-    if (!midiaComplementarOk) out.push({ id: "midia", titulo: "Adicionar mídias complementares", impacto: "medio" });
-    return out.slice(0, 3);
-  }, [albumOk, fiscalCoreOk, medidasOk, modeloOk, caracteristicasOk, qualidadeOk, guiadoOk, midiaComplementarOk]);
+  const medidasTabelaOnly = medidasLoading ? (
+    <p className="text-xs text-[var(--muted)]">Carregando…</p>
+  ) : medidasPayload && Object.keys(medidasPayload.medidas ?? {}).length > 0 ? (
+    <TabelaMedidasTabela data={medidasPayload} tableClassName="w-full min-w-[280px] border-collapse text-sm" />
+  ) : (
+    <p className="text-xs text-[var(--muted)]">Nenhuma tabela de medidas cadastrada para este grupo.</p>
+  );
+
+  const SECOES: Array<{ key: string; title: string; subtitle: string; content: ReactNode }> = [
+    {
+      key: "identificacao",
+      title: "Identificação",
+      subtitle: "Conteúdo comercial",
+      content: (
+        <>
+          <FieldRow label="Nome" ok={filled(base.nome_produto)} value={filled(base.nome_produto) ? trunc(base.nome_produto, 90) : "Pendente"} />
+          <FieldRow label="Categoria" ok={filled(base.categoria)} value={filled(base.categoria) ? String(base.categoria) : "Pendente"} />
+          <FieldRow label="Marca" ok={filled(base.marca)} value={filled(base.marca) ? String(base.marca) : "Opcional"} optional />
+          <FieldRow label="Modelo" ok={modeloOk} value={modeloOk ? String(infoBasica?.modelo) : "Pendente"} />
+          <FieldRow
+            label="Resumo guiado (seller)"
+            ok={descOk}
+            value={
+              descOk
+                ? trunc(descricaoAnuncio, 120)
+                : "Pendente — preencha Diferencial, Indicação e Observações no cadastro"
+            }
+          />
+          <FieldRow
+            label="Data de lançamento"
+            ok={filled(base.data_lancamento)}
+            value={filled(base.data_lancamento) ? String(base.data_lancamento).slice(0, 10) : "Pendente"}
+            optional
+          />
+        </>
+      ),
+    },
+    {
+      key: "midia",
+      title: "Mídia e grade",
+      subtitle: "Fotos e variantes",
+      content: (
+        <>
+          <FieldRow
+            label="Link principal (coluna Ver)"
+            ok={albumOk}
+            value={
+              albumOk ? (
+                <a
+                  href={linkAlbum!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="break-all font-medium text-[var(--primary-blue)] underline decoration-[var(--primary-blue)]/25 underline-offset-2 transition hover:text-[var(--primary-blue-hover)] dark:text-[var(--primary-blue)] dark:decoration-[var(--primary-blue)]/30 dark:hover:text-[var(--primary-blue-hover)]"
+                >
+                  Abrir link
+                </a>
+              ) : (
+                "Pendente"
+              )
+            }
+          />
+          <FieldRow
+            label="Link do vídeo"
+            ok={videoOk}
+            optional={!videoOk}
+            value={
+              videoOk ? (
+                <a
+                  href={videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="break-all font-medium text-[var(--primary-blue)] underline decoration-[var(--primary-blue)]/25 underline-offset-2 transition hover:text-[var(--primary-blue-hover)] dark:text-[var(--primary-blue)] dark:decoration-[var(--primary-blue)]/30 dark:hover:text-[var(--primary-blue-hover)]"
+                >
+                  Abrir vídeo
+                </a>
+              ) : (
+                "Opcional"
+              )
+            }
+          />
+          <FieldRow label="Miniatura pai (SKU)" ok={filled(pai?.imagem_url)} value={filled(pai?.imagem_url) ? "Definida" : "Usa variante/álbum"} optional />
+          <FieldRow
+            label="Fotos nas variantes"
+            ok={fotoCompleta}
+            value={statsVar.total === 0 ? "—" : `${statsVar.comFoto}/${statsVar.total} com miniatura`}
+          />
+          <FieldRow
+            label="Custo nas variantes"
+            ok={custoCompleto}
+            value={statsVar.total === 0 ? "—" : `${statsVar.comCusto}/${statsVar.total} com preço`}
+          />
+        </>
+      ),
+    },
+    {
+      key: "embalagem",
+      title: "Embalagem e despacho",
+      subtitle: "Logística de expedição",
+      content: (
+        <>
+          <FieldRow label="Peso (kg)" ok={pesoOk} value={fmtKg(base.peso_kg) ?? "Pendente"} />
+          <FieldRow label="Dimensões" ok={dimsOk} value={fmtCmDim(base) ?? "Pendente"} />
+          <FieldRow
+            label="Despacho (override)"
+            ok={filled(base.expedicao_override_linha)}
+            value={filled(base.expedicao_override_linha) ? trunc(String(base.expedicao_override_linha), 84) : "Padrão do cadastro"}
+            optional
+          />
+          <FieldRow
+            label="SLA / unidade"
+            ok={filled(logisticaExtra?.slaEnvio) || filled(logisticaExtra?.unidadeComercial)}
+            value={
+              [String(logisticaExtra?.slaEnvio ?? "").trim(), String(logisticaExtra?.unidadeComercial ?? "").trim()]
+                .filter(Boolean)
+                .join(" · ") || "Pendente"
+            }
+            optional
+          />
+        </>
+      ),
+    },
+    {
+      key: "endereco",
+      title: "Endereço de despacho",
+      subtitle: "CD de saída estruturado",
+      content: (
+        <>
+          <FieldRow label="Usa despacho do cadastro" ok={logisticaExtra?.cdUsarDespachoCadastro != null} value={logisticaExtra?.cdUsarDespachoCadastro ? "Sim" : "Não"} />
+          <FieldRow label="CEP" ok={filled(logisticaExtra?.cdSaidaCep)} value={asText(logisticaExtra?.cdSaidaCep) || "Pendente"} />
+          <FieldRow label="Logradouro" ok={filled(logisticaExtra?.cdSaidaLogradouro)} value={asText(logisticaExtra?.cdSaidaLogradouro) || "Pendente"} />
+          <FieldRow label="Número" ok={filled(logisticaExtra?.cdSaidaNumero)} value={asText(logisticaExtra?.cdSaidaNumero) || "Pendente"} />
+        </>
+      ),
+    },
+    {
+      key: "localizacao",
+      title: "Localização do CD",
+      subtitle: "Complemento do endereço de saída",
+      content: (
+        <>
+          <FieldRow label="Complemento" ok={filled(logisticaExtra?.cdSaidaComplemento)} value={asText(logisticaExtra?.cdSaidaComplemento) || "Opcional"} optional />
+          <FieldRow label="Bairro" ok={filled(logisticaExtra?.cdSaidaBairro)} value={asText(logisticaExtra?.cdSaidaBairro) || "Pendente"} />
+          <FieldRow label="Cidade" ok={filled(logisticaExtra?.cdSaidaCidade)} value={asText(logisticaExtra?.cdSaidaCidade) || "Pendente"} />
+          <FieldRow label="UF" ok={filled(logisticaExtra?.cdSaidaUf)} value={asText(logisticaExtra?.cdSaidaUf) || "Pendente"} />
+        </>
+      ),
+    },
+    {
+      key: "tecido",
+      title: "Tecido e caimento",
+      subtitle: "Dados preenchidos no formulário",
+      content: (
+        <>
+          <FieldRow label="Tecido" ok={filled(caracteristicas?.tecido)} value={filled(caracteristicas?.tecido) ? String(caracteristicas?.tecido) : "Pendente"} />
+          <FieldRow label="Composição" ok={filled(caracteristicas?.composicao)} value={filled(caracteristicas?.composicao) ? String(caracteristicas?.composicao) : "Pendente"} />
+          <FieldRow label="Caimento" ok={filled(caimentoLabel)} value={filled(caimentoLabel) ? caimentoLabel : "Pendente"} />
+          <FieldRow label="Elasticidade" ok={filled(elasticidadeLabel)} value={filled(elasticidadeLabel) ? elasticidadeLabel : "Pendente"} />
+          <FieldRow label="Transparência" ok={filled(transparenciaLabel)} value={filled(transparenciaLabel) ? transparenciaLabel : "Pendente"} />
+        </>
+      ),
+    },
+    {
+      key: "qualidade",
+      title: "Qualidade e uso",
+      subtitle: "Dados preenchidos no formulário",
+      content: (
+        <>
+          <FieldRow label="Clima ideal" ok={filled(climaLabel)} value={filled(climaLabel) ? climaLabel : "Pendente"} />
+          <FieldRow label="Posicionamento" ok={filled(posicionamentoLabel)} value={filled(posicionamentoLabel) ? posicionamentoLabel : "Pendente"} />
+          <FieldRow label="Amassa fácil" ok={caracteristicas?.amassa != null} value={amassaLabel || "Pendente"} />
+          <FieldRow label="Ocasiões de uso" ok={filled(ocasioesLabel)} value={filled(ocasioesLabel) ? ocasioesLabel : "Pendente"} />
+          <FieldRow
+            label="Qualidade"
+            ok={qualidadeOk}
+            value={
+              [
+                qualidade?.naoDesbota != null ? `Não desbota: ${qualidade.naoDesbota ? "sim" : "não"}` : "",
+                qualidade?.encolhe != null ? `Encolhe: ${qualidade.encolhe ? "sim" : "não"}` : "",
+                qualidade?.costuraReforcada != null ? `Costura reforçada: ${qualidade.costuraReforcada ? "sim" : "não"}` : "",
+                String(qualidade?.observacoes ?? "").trim(),
+              ]
+                .filter(Boolean)
+                .join(" · ") || "Pendente"
+            }
+          />
+        </>
+      ),
+    },
+    {
+      key: "fiscal",
+      title: "Fiscal",
+      subtitle: "NF-e e impostos",
+      content: (
+        <>
+          <FieldRow
+            label="NCM"
+            ok={filled(fiscalCols.ncm)}
+            value={filled(fiscalCols.ncm) ? String(fiscalCols.ncm) : "Pendente"}
+          />
+          <FieldRow
+            label="Origem"
+            ok={filled(fiscalCols.origem)}
+            value={filled(fiscalCols.origem) ? String(fiscalCols.origem) : "Pendente"}
+          />
+          <FieldRow
+            label="CEST"
+            ok={filled(base.cest ?? logisticaExtra?.cest)}
+            value={filled(base.cest ?? logisticaExtra?.cest) ? String(base.cest ?? logisticaExtra?.cest) : "Opcional"}
+            optional
+          />
+          <FieldRow
+            label="Tabela de medidas"
+            ok={medidasOk}
+            value={
+              medidasLoading
+                ? "Carregando…"
+                : medidasSnap && medidasSnap.total > 0
+                  ? `${medidasSnap.preenchidas}/${medidasSnap.total} células${medidasSnap.tipo ? ` · ${medidasSnap.tipo}` : ""}`
+                  : "Não enviada"
+            }
+          />
+        </>
+      ),
+    },
+    {
+      key: "guiado",
+      title: "Dados guiados e mídia extra",
+      subtitle: "Apoio para anúncio do seller",
+      content: (
+        <>
+          <FieldRow label="Diferencial" ok={filled(guiado?.diferencial)} value={filled(guiado?.diferencial) ? String(guiado?.diferencial) : "Pendente"} />
+          <FieldRow label="Indicação de uso" ok={filled(guiado?.indicacao)} value={filled(guiado?.indicacao) ? String(guiado?.indicacao) : "Pendente"} />
+          <FieldRow
+            label="Observações para seller"
+            ok={filled(guiado?.observacoesSeller)}
+            value={filled(guiado?.observacoesSeller) ? trunc(String(guiado?.observacoesSeller), 120) : "Pendente"}
+          />
+        </>
+      ),
+    },
+    {
+      key: "medidas",
+      title: "Medidas (meta)",
+      subtitle: "Configuração e valores em cm por tamanho",
+      content: (
+        <>
+          <FieldRow
+            label="Tópicos selecionados"
+            ok={asStrList(medidasExtra?.topicosSelecionados).length > 0}
+            value={asStrList(medidasExtra?.topicosSelecionados).join(", ") || "Pendente"}
+          />
+          <FieldRow
+            label="Tópicos customizados"
+            ok={filled(medidasExtra?.topicosCustom)}
+            value={asText(medidasExtra?.topicosCustom) || "Opcional"}
+            optional
+          />
+          <div className="mt-3 border-t border-[var(--card-border)] pt-3">{medidasTabelaOnly}</div>
+        </>
+      ),
+    },
+  ];
+
+  const secaoAtual = SECOES.find((s) => s.key === secaoAberta) ?? null;
 
   return (
     <SummaryShell>
       <CadastroResumoShell>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Resumo do cadastro</p>
+            <button
+              type="button"
+              onClick={() => setResumoAberto((v) => !v)}
+              aria-expanded={resumoAberto}
+              className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-600/15 dark:bg-emerald-400/10 dark:text-emerald-400 dark:hover:bg-emerald-400/15"
+            >
+              Resumo do cadastro
+              <svg
+                className={cn("h-3 w-3 shrink-0 transition-transform duration-150", resumoAberto ? "rotate-90" : "")}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                aria-hidden
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
+              </svg>
+            </button>
             <h3 className="mt-1.5 text-lg font-semibold tracking-tight text-[var(--foreground)]">
               Qualidade dos dados do produto
             </h3>
@@ -359,72 +617,8 @@ export function ProdutoResumoListaGrupo({
           <ProgressBar value={score} />
         </div>
 
-        <div className="mt-5 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-3 sm:p-3.5">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-            <p className="text-[13px] font-semibold tracking-tight text-[var(--foreground)]">Próximas ações prioritárias</p>
-            {!somenteLeitura ? (
-              <Link
-                href={editHref}
-                className="inline-flex h-8 shrink-0 items-center justify-center self-start rounded-lg bg-[var(--primary-blue)] px-3 text-[12px] font-medium text-white shadow-none ring-1 ring-[var(--primary-blue)]/20 transition hover:bg-[var(--primary-blue-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)] focus:ring-offset-2 focus:ring-offset-[var(--card)] sm:self-auto"
-              >
-                Resolver agora
-              </Link>
-            ) : null}
-          </div>
-          {acoesPrioritarias.length > 0 ? (
-            <div className="mt-2.5 flex min-w-0 flex-col gap-1.5 lg:mt-2 lg:flex-row lg:flex-nowrap lg:gap-2">
-              {acoesPrioritarias.map((acao) => {
-                const prefix = acao.impacto === "alto" ? "Alta prioridade" : "Melhoria";
-                return (
-                  <span
-                    key={acao.id}
-                    title={`${prefix} · ${acao.titulo}`}
-                    className={cn(
-                      "flex w-full min-w-0 flex-col gap-0.5 rounded-lg border border-[var(--card-border)] px-2.5 py-2 text-[11px] leading-relaxed shadow-none lg:flex-1 lg:basis-0 lg:flex-row lg:items-baseline lg:gap-x-2 lg:overflow-hidden lg:px-3 lg:py-2",
-                      acao.impacto === "alto"
-                        ? cn(AMBER_PREMIUM_ACCENT_BAR, "bg-transparent pl-[9px]")
-                        : "border-l-[3px] border-l-emerald-700 bg-transparent pl-[9px] dark:border-l-emerald-400"
-                    )}
-                  >
-                    <span
-                      className={
-                        acao.impacto === "alto"
-                          ? cn("shrink-0 text-[11px] font-medium tracking-tight", AMBER_PREMIUM_TEXT_PRIMARY)
-                          : "shrink-0 text-[11px] font-semibold tracking-tight text-emerald-900 dark:text-emerald-400"
-                      }
-                    >
-                      {prefix}
-                    </span>
-                    <span
-                      className={cn(
-                        "hidden shrink-0 text-[11px] font-normal lg:inline",
-                        acao.impacto === "alto" ? AMBER_PREMIUM_DOT : "text-emerald-700/55 dark:text-emerald-400/90"
-                      )}
-                      aria-hidden
-                    >
-                      ·
-                    </span>
-                    <span
-                      className={cn(
-                        "min-w-0 break-words text-[12px] font-normal leading-snug lg:flex-1 lg:truncate",
-                        acao.impacto === "alto"
-                          ? AMBER_PREMIUM_TEXT_PRIMARY
-                          : "text-emerald-900 dark:text-emerald-300"
-                      )}
-                    >
-                      {acao.titulo}
-                    </span>
-                  </span>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
-              Produto bem preenchido. Faça apenas ajustes finos antes de publicar.
-            </p>
-          )}
-        </div>
-
+        {resumoAberto && (
+        <div className="animate-fade-in-up">
         <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <KpiCard
             label="Miniaturas SKU"
@@ -451,224 +645,56 @@ export function ProdutoResumoListaGrupo({
             tone={medidasOk ? "success" : "warning"}
           />
         </div>
-        <div className="mt-5 flex items-center justify-between border-t border-[var(--card-border)] pt-4">
-          <p className="text-sm font-medium text-[var(--muted)]">Diagnóstico completo</p>
-          <button
-            type="button"
-            onClick={() => setMostrarDetalhes((v) => !v)}
-            className="inline-flex h-9 items-center rounded-lg border border-[var(--card-border)] bg-transparent px-4 text-[13px] font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--muted)] focus:ring-offset-2 focus:ring-offset-[var(--surface-subtle)]"
-          >
-            {mostrarDetalhes ? "Ocultar detalhes" : "Ver detalhes"}
-          </button>
+        <div className="mt-5 border-t border-[var(--card-border)] pt-4">
+          <p className="mb-3 text-sm font-medium text-[var(--muted)]">Diagnóstico completo</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {SECOES.map((secao) => (
+              <button
+                key={secao.key}
+                type="button"
+                title={secao.title}
+                onClick={() => setSecaoAberta(secao.key)}
+                className="group flex flex-col items-start gap-0.5 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 text-left transition-all hover:border-emerald-300 hover:shadow-md dark:hover:border-emerald-700"
+              >
+                <span className="flex w-full items-center justify-between gap-1">
+                  <span className="truncate text-[13px] font-semibold text-[var(--foreground)]">{secao.title}</span>
+                  <svg
+                    className="h-3.5 w-3.5 shrink-0 text-[var(--muted)] transition group-hover:translate-x-0.5 group-hover:text-emerald-600 dark:group-hover:text-emerald-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
+                  </svg>
+                </span>
+                <span className="line-clamp-2 text-[11px] leading-snug text-[var(--muted)]">{secao.subtitle}</span>
+              </button>
+            ))}
+          </div>
         </div>
+        </div>
+        )}
       </CadastroResumoShell>
 
-      {mostrarDetalhes && (
-        <>
-          <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <MiniCard className="h-[26rem]" title="Identificação" subtitle="Conteúdo comercial">
-              <FieldRow label="Nome" ok={filled(base.nome_produto)} value={filled(base.nome_produto) ? trunc(base.nome_produto, 90) : "Pendente"} />
-              <FieldRow label="Categoria" ok={filled(base.categoria)} value={filled(base.categoria) ? String(base.categoria) : "Pendente"} />
-              <FieldRow label="Marca" ok={filled(base.marca)} value={filled(base.marca) ? String(base.marca) : "Opcional"} optional />
-              <FieldRow label="Modelo" ok={modeloOk} value={modeloOk ? String(infoBasica?.modelo) : "Pendente"} />
-              <FieldRow
-                label="Resumo guiado (seller)"
-                ok={descOk}
-                value={
-                  descOk
-                    ? trunc(descricaoAnuncio, 120)
-                    : "Pendente — preencha Diferencial, Indicação e Observações no cadastro"
-                }
-              />
-              <FieldRow
-                label="Data de lançamento"
-                ok={filled(base.data_lancamento)}
-                value={filled(base.data_lancamento) ? String(base.data_lancamento).slice(0, 10) : "Pendente"}
-                optional
-              />
-            </MiniCard>
-
-            <MiniCard className="h-[26rem]" title="Mídia e grade" subtitle="Fotos e variantes">
-              <FieldRow
-                label="Link principal (coluna Ver)"
-                ok={albumOk}
-                value={
-                  albumOk ? (
-                    <a
-                      href={linkAlbum!}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="break-all font-medium text-[var(--primary-blue)] underline decoration-[var(--primary-blue)]/25 underline-offset-2 transition hover:text-[var(--primary-blue-hover)] dark:text-[var(--primary-blue)] dark:decoration-[var(--primary-blue)]/30 dark:hover:text-[var(--primary-blue-hover)]"
-                    >
-                      Abrir link
-                    </a>
-                  ) : (
-                    "Pendente"
-                  )
-                }
-              />
-              <FieldRow
-                label="Link do vídeo"
-                ok={videoOk}
-                optional={!videoOk}
-                value={
-                  videoOk ? (
-                    <a
-                      href={videoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="break-all font-medium text-[var(--primary-blue)] underline decoration-[var(--primary-blue)]/25 underline-offset-2 transition hover:text-[var(--primary-blue-hover)] dark:text-[var(--primary-blue)] dark:decoration-[var(--primary-blue)]/30 dark:hover:text-[var(--primary-blue-hover)]"
-                    >
-                      Abrir vídeo
-                    </a>
-                  ) : (
-                    "Opcional"
-                  )
-                }
-              />
-              <FieldRow label="Miniatura pai (SKU)" ok={filled(pai?.imagem_url)} value={filled(pai?.imagem_url) ? "Definida" : "Usa variante/álbum"} optional />
-              <FieldRow
-                label="Fotos nas variantes"
-                ok={fotoCompleta}
-                value={statsVar.total === 0 ? "—" : `${statsVar.comFoto}/${statsVar.total} com miniatura`}
-              />
-              <FieldRow
-                label="Custo nas variantes"
-                ok={custoCompleto}
-                value={statsVar.total === 0 ? "—" : `${statsVar.comCusto}/${statsVar.total} com preço`}
-              />
-            </MiniCard>
-
-            <MiniCard className="h-[26rem]" title="Embalagem e despacho" subtitle="Logística de expedição">
-              <FieldRow label="Peso (kg)" ok={pesoOk} value={fmtKg(base.peso_kg) ?? "Pendente"} />
-              <FieldRow label="Dimensões" ok={dimsOk} value={fmtCmDim(base) ?? "Pendente"} />
-              <FieldRow
-                label="Despacho (override)"
-                ok={filled(base.expedicao_override_linha)}
-                value={filled(base.expedicao_override_linha) ? trunc(String(base.expedicao_override_linha), 84) : "Padrão do cadastro"}
-                optional
-              />
-              <FieldRow
-                label="SLA / unidade"
-                ok={filled(logisticaExtra?.slaEnvio) || filled(logisticaExtra?.unidadeComercial)}
-                value={
-                  [String(logisticaExtra?.slaEnvio ?? "").trim(), String(logisticaExtra?.unidadeComercial ?? "").trim()]
-                    .filter(Boolean)
-                    .join(" · ") || "Pendente"
-                }
-                optional
-              />
-            </MiniCard>
-
-            <MiniCard className="h-[26rem]" title="Endereço de despacho" subtitle="CD de saída estruturado">
-              <FieldRow label="Usa despacho do cadastro" ok={logisticaExtra?.cdUsarDespachoCadastro != null} value={logisticaExtra?.cdUsarDespachoCadastro ? "Sim" : "Não"} />
-              <FieldRow label="CEP" ok={filled(logisticaExtra?.cdSaidaCep)} value={asText(logisticaExtra?.cdSaidaCep) || "Pendente"} />
-              <FieldRow label="Logradouro" ok={filled(logisticaExtra?.cdSaidaLogradouro)} value={asText(logisticaExtra?.cdSaidaLogradouro) || "Pendente"} />
-              <FieldRow label="Número" ok={filled(logisticaExtra?.cdSaidaNumero)} value={asText(logisticaExtra?.cdSaidaNumero) || "Pendente"} />
-            </MiniCard>
-
-            <MiniCard className="h-[26rem]" title="Localização do CD" subtitle="Complemento do endereço de saída">
-              <FieldRow label="Complemento" ok={filled(logisticaExtra?.cdSaidaComplemento)} value={asText(logisticaExtra?.cdSaidaComplemento) || "Opcional"} optional />
-              <FieldRow label="Bairro" ok={filled(logisticaExtra?.cdSaidaBairro)} value={asText(logisticaExtra?.cdSaidaBairro) || "Pendente"} />
-              <FieldRow label="Cidade" ok={filled(logisticaExtra?.cdSaidaCidade)} value={asText(logisticaExtra?.cdSaidaCidade) || "Pendente"} />
-              <FieldRow label="UF" ok={filled(logisticaExtra?.cdSaidaUf)} value={asText(logisticaExtra?.cdSaidaUf) || "Pendente"} />
-            </MiniCard>
-
-            <MiniCard className="h-[26rem]" title="Tecido e caimento" subtitle="Dados preenchidos no formulário">
-              <FieldRow label="Tecido" ok={filled(caracteristicas?.tecido)} value={filled(caracteristicas?.tecido) ? String(caracteristicas?.tecido) : "Pendente"} />
-              <FieldRow label="Composição" ok={filled(caracteristicas?.composicao)} value={filled(caracteristicas?.composicao) ? String(caracteristicas?.composicao) : "Pendente"} />
-              <FieldRow label="Caimento" ok={filled(caimentoLabel)} value={filled(caimentoLabel) ? caimentoLabel : "Pendente"} />
-              <FieldRow label="Elasticidade" ok={filled(elasticidadeLabel)} value={filled(elasticidadeLabel) ? elasticidadeLabel : "Pendente"} />
-              <FieldRow label="Transparência" ok={filled(transparenciaLabel)} value={filled(transparenciaLabel) ? transparenciaLabel : "Pendente"} />
-            </MiniCard>
-
-            <MiniCard className="h-[26rem]" title="Qualidade e uso" subtitle="Dados preenchidos no formulário">
-              <FieldRow label="Clima ideal" ok={filled(climaLabel)} value={filled(climaLabel) ? climaLabel : "Pendente"} />
-              <FieldRow label="Posicionamento" ok={filled(posicionamentoLabel)} value={filled(posicionamentoLabel) ? posicionamentoLabel : "Pendente"} />
-              <FieldRow label="Amassa fácil" ok={caracteristicas?.amassa != null} value={amassaLabel || "Pendente"} />
-              <FieldRow label="Ocasiões de uso" ok={filled(ocasioesLabel)} value={filled(ocasioesLabel) ? ocasioesLabel : "Pendente"} />
-              <FieldRow
-                label="Qualidade"
-                ok={qualidadeOk}
-                value={
-                  [
-                    qualidade?.naoDesbota != null ? `Não desbota: ${qualidade.naoDesbota ? "sim" : "não"}` : "",
-                    qualidade?.encolhe != null ? `Encolhe: ${qualidade.encolhe ? "sim" : "não"}` : "",
-                    qualidade?.costuraReforcada != null ? `Costura reforçada: ${qualidade.costuraReforcada ? "sim" : "não"}` : "",
-                    String(qualidade?.observacoes ?? "").trim(),
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || "Pendente"
-                }
-              />
-            </MiniCard>
-
-            <MiniCard className="h-[26rem]" title="Fiscal" subtitle="NF-e e impostos">
-              <FieldRow
-                label="NCM"
-                ok={filled(fiscalCols.ncm)}
-                value={filled(fiscalCols.ncm) ? String(fiscalCols.ncm) : "Pendente"}
-              />
-              <FieldRow
-                label="Origem"
-                ok={filled(fiscalCols.origem)}
-                value={filled(fiscalCols.origem) ? String(fiscalCols.origem) : "Pendente"}
-              />
-              <FieldRow
-                label="CEST"
-                ok={filled(base.cest ?? logisticaExtra?.cest)}
-                value={filled(base.cest ?? logisticaExtra?.cest) ? String(base.cest ?? logisticaExtra?.cest) : "Opcional"}
-                optional
-              />
-              <FieldRow
-                label="Tabela de medidas"
-                ok={medidasOk}
-                value={
-                  medidasLoading
-                    ? "Carregando…"
-                    : medidasSnap && medidasSnap.total > 0
-                      ? `${medidasSnap.preenchidas}/${medidasSnap.total} células${medidasSnap.tipo ? ` · ${medidasSnap.tipo}` : ""}`
-                      : "Não enviada"
-                }
-              />
-            </MiniCard>
-
-            <MiniCard className="h-[26rem]" title="Dados guiados e mídia extra" subtitle="Apoio para anúncio do seller">
-              <FieldRow label="Diferencial" ok={filled(guiado?.diferencial)} value={filled(guiado?.diferencial) ? String(guiado?.diferencial) : "Pendente"} />
-              <FieldRow label="Indicação de uso" ok={filled(guiado?.indicacao)} value={filled(guiado?.indicacao) ? String(guiado?.indicacao) : "Pendente"} />
-              <FieldRow
-                label="Observações para seller"
-                ok={filled(guiado?.observacoesSeller)}
-                value={filled(guiado?.observacoesSeller) ? trunc(String(guiado?.observacoesSeller), 120) : "Pendente"}
-              />
-            </MiniCard>
+      {secaoAtual && (
+        <ModalOverlay onBackdropClick={() => setSecaoAberta(null)} panelClassName="max-w-lg md:max-w-4xl">
+          <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-[var(--foreground)]">{secaoAtual.title}</h3>
+              <p className="text-xs text-[var(--muted)]">{secaoAtual.subtitle}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSecaoAberta(null)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xl leading-none text-[var(--muted)] hover:bg-[var(--muted)]/10"
+            >
+              ×
+            </button>
           </div>
-
-          <div className="mt-4">
-            <MiniCard title="Medidas (meta)" subtitle="Configuração e valores em cm por tamanho">
-              <FieldRow
-                label="Tópicos selecionados"
-                ok={asStrList(medidasExtra?.topicosSelecionados).length > 0}
-                value={asStrList(medidasExtra?.topicosSelecionados).join(", ") || "Pendente"}
-              />
-              <FieldRow
-                label="Tópicos customizados"
-                ok={filled(medidasExtra?.topicosCustom)}
-                value={asText(medidasExtra?.topicosCustom) || "Opcional"}
-                optional
-              />
-              <div className="mt-3 border-t border-[var(--card-border)] pt-3">
-                {medidasLoading ? (
-                  <p className="text-xs text-[var(--muted)]">Carregando…</p>
-                ) : medidasPayload && Object.keys(medidasPayload.medidas ?? {}).length > 0 ? (
-                  <TabelaMedidasTabela data={medidasPayload} />
-                ) : (
-                  <p className="text-xs text-[var(--muted)]">Nenhuma tabela de medidas cadastrada para este grupo.</p>
-                )}
-              </div>
-            </MiniCard>
-          </div>
-        </>
+          <div className={cn(MODAL_PANEL_BODY_CLASS, "p-4")}>{secaoAtual.content}</div>
+        </ModalOverlay>
       )}
     </SummaryShell>
   );

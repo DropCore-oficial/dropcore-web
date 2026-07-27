@@ -9,7 +9,7 @@ export type ColunaMedida = { key: string; label: string };
 const CAMISA: ColunaMedida[] = [
   { key: "ombro", label: "Ombro (cm)" },
   { key: "comprimento", label: "Comprimento (cm)" },
-  { key: "manga", label: "Comprimento da manga (cm)" },
+  { key: "manga", label: "Manga (cm)" },
   { key: "busto", label: "Busto (cm)" },
   { key: "cintura", label: "Cintura (cm)" },
   { key: "quadril", label: "Quadril (cm)" },
