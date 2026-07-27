@@ -40,6 +40,7 @@ type Pedido = {
   itens: PedidoItem[];
   tem_etiqueta: boolean;
   etiqueta_tentativas: number;
+  is_reserva?: boolean;
 };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -63,6 +64,7 @@ const statusLabel: Record<string, string> = {
   devolvido: "Devolvido",
   cancelado: "Cancelado",
   erro_saldo: "Erro de saldo",
+  aguardando_pagamento: "Aguardando pagamento",
 };
 
 // Status = informação, não ação: sem borda, fundo suave + bolinha (bg-current) em vez de
@@ -75,6 +77,7 @@ const STATUS_PILL: Record<string, string> = {
   entregue: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
   devolvido: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
   erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+  aguardando_pagamento: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
 };
 
 export default function SellerPedidosPage() {
@@ -167,9 +170,9 @@ export default function SellerPedidosPage() {
   }, [destaqueId, pedidos, loading]);
 
   return (
-    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pb-8">
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pb-5">
       <SellerNav active="pedidos" wide />
-      <main className="dropcore-shell-6xl mx-auto px-4 pt-20 sm:px-6 sm:pt-24">
+      <main className="dropcore-shell-6xl mx-auto px-4 pt-20 pb-5 sm:px-6 sm:pt-24 md:pb-7">
         <SellerPageHeader
           surface="hero"
           title="Seus pedidos"
@@ -206,6 +209,7 @@ export default function SellerPedidosPage() {
                 <option value="aguardando_repasse">Postados</option>
                 <option value="entregue">Entregues</option>
                 <option value="erro_saldo">Erro de saldo</option>
+                <option value="aguardando_pagamento">Aguardando pagamento</option>
               </select>
             </div>
           }
@@ -237,6 +241,7 @@ export default function SellerPedidosPage() {
                 <option value="aguardando_repasse">Postados</option>
                 <option value="entregue">Entregues</option>
                 <option value="erro_saldo">Erro de saldo</option>
+                <option value="aguardando_pagamento">Aguardando pagamento</option>
               </select>
             </div>
           }
@@ -298,7 +303,9 @@ export default function SellerPedidosPage() {
                   <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <dt className="text-neutral-500">Custo total</dt>
-                      <dd className="font-medium">{BRL.format(Number(p.valor_total ?? 0))}</dd>
+                      <dd className="font-medium">
+                        {p.is_reserva ? "—" : BRL.format(Number(p.valor_total ?? 0))}
+                      </dd>
                     </div>
                     <div>
                       <dt className="text-neutral-500">Pedido marketplace</dt>
@@ -428,6 +435,13 @@ export default function SellerPedidosPage() {
                         </div>
                       </div>
                     </div>
+                  ) : null}
+
+                  {p.is_reserva ? (
+                    <p className="mt-3 text-sm text-neutral-500">
+                      Aguardando confirmação de pagamento na Olist — assim que o cliente pagar, este pedido vira
+                      um pedido de verdade aqui automaticamente, sem precisar fazer nada.
+                    </p>
                   ) : null}
                 </article>
               );

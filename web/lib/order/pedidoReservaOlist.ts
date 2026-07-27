@@ -12,6 +12,9 @@ export type ProcessOlistPedidoReservaInput = {
   fornecedor_id: string;
   referencia_externa: string;
   items: PedidoReservaOlistItem[];
+  comprador_nome?: string | null;
+  marketplace_numero?: string | null;
+  canal_venda?: string | null;
 };
 
 export type ProcessOlistPedidoReservaResult =
@@ -60,13 +63,33 @@ export async function processOlistPedidoReserva(
       quantidade: item.quantidade,
       referencia_externa: input.referencia_externa,
       status: "ativa",
+      comprador_nome: input.comprador_nome ?? null,
+      marketplace_numero: input.marketplace_numero ?? null,
+      canal_venda: input.canal_venda ?? null,
     });
 
     if (insertErr) {
       const isUniqueViolation =
         insertErr.code === "23505" || String(insertErr.message ?? "").toLowerCase().includes("duplicate key");
       if (isUniqueViolation) {
-        // Já existe reserva ativa para este pedido/SKU — reprocessamento idempotente, nada a fazer.
+        // Já existe reserva ativa pra este pedido/SKU — reprocessamento idempotente, mas
+        // atualiza a metadata (comprador/marketplace/canal) caso a 1ª tentativa tenha
+        // gravado incompleta (ex.: webhook "dados_incompletos" antes do comprador aparecer).
+        if (input.comprador_nome || input.marketplace_numero || input.canal_venda) {
+          await supabaseAdmin
+            .from("estoque_reservas")
+            .update({
+              comprador_nome: input.comprador_nome ?? null,
+              marketplace_numero: input.marketplace_numero ?? null,
+              canal_venda: input.canal_venda ?? null,
+              atualizado_em: new Date().toISOString(),
+            })
+            .eq("org_id", input.org_id)
+            .eq("seller_id", input.seller_id)
+            .eq("referencia_externa", input.referencia_externa)
+            .eq("sku_id", skuRow.id)
+            .eq("status", "ativa");
+        }
         continue;
       }
       warnings.push(`Reserva de estoque: falha ao gravar reserva para SKU ${item.sku} (${insertErr.message}).`);

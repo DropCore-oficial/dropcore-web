@@ -73,6 +73,17 @@ Corrigidas em `web/scripts/fix-security-function-hardening.sql`:
   - As últimas 4 (`rpc_delete_sku_pai_safe`, `rpc_delete_sku_safe`, `rpc_set_member_active`, `rpc_set_member_role`) não aparecem em nenhum lugar do código local — travadas por segurança; reversível via `GRANT` se alguma automação externa ao repo depender delas.
   - As helpers `fn_user_can_access_org/seller/fornecedor/ledger` **não** foram tocadas — precisam manter `EXECUTE` para `anon` porque são invocadas durante a avaliação das policies com `roles: public`.
 
+## `estoque_reservas` — colunas de metadata (2026-07-25)
+
+`web/scripts/add-metadata-estoque-reservas.sql`: adicionadas 3 colunas nullable
+(`comprador_nome`, `marketplace_numero`, `canal_venda`) pra dar suporte à pré-visualização
+"Aguardando pagamento" no `/seller/pedidos` (pedido Olist com situação "Em aberto"/"Dados
+incompletos" — reserva estoque mas ainda não vira `pedidos`/`financial_ledger`). Gravadas
+em `web/lib/order/pedidoReservaOlist.ts::processOlistPedidoReserva`, populadas a partir do
+mesmo objeto `OlistPedidoDetalhe` que a importação real usa (`web/lib/sellerOlistPedidoImport.ts`).
+Sem mudança de RLS — tabela já tinha policy própria, `SELECT`/`INSERT` seguem só via
+`supabaseAdmin` (mesmo padrão de antes).
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

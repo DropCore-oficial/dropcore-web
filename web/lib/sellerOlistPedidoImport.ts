@@ -42,6 +42,37 @@ function mapPedidoItems(pedido: OlistPedidoDetalhe) {
     .filter((item) => item.sku);
 }
 
+/**
+ * Nome do produto pro título do pedido — sempre a partir do nosso próprio cadastro
+ * (`skus.nome_produto/cor/tamanho`), nunca da descrição solta que o marketplace/Olist
+ * manda na linha do pedido (ex.: "branco, GG" sem o nome do produto, comum em
+ * TikTok Shop/Shopee). Cai pra `null` (deixa o chamador decidir o fallback) só se o SKU
+ * não estiver cadastrado.
+ */
+async function buildNomeProdutoFromSkus(params: {
+  org_id: string;
+  fornecedor_id: string;
+  items: Array<{ sku: string; quantidade: number }>;
+}): Promise<string | null> {
+  const nomes: string[] = [];
+  for (const item of params.items) {
+    const { data: skuRow } = await supabaseAdmin
+      .from("skus")
+      .select("nome_produto, cor, tamanho")
+      .eq("org_id", params.org_id)
+      .eq("fornecedor_id", params.fornecedor_id)
+      .ilike("sku", item.sku)
+      .maybeSingle();
+    if (skuRow?.nome_produto) {
+      const partes = [skuRow.nome_produto, skuRow.cor, skuRow.tamanho]
+        .map((p) => (p ? String(p).trim() : ""))
+        .filter(Boolean);
+      nomes.push(partes.join(" - "));
+    }
+  }
+  return nomes.length > 0 ? nomes.join(", ") : null;
+}
+
 /** Sucesso = retorna array vazio (convenção usada pelos call-sites deste arquivo e pelo cron de retry). */
 export async function tryAttachOlistEtiquetaPdf(params: {
   org_id: string;
@@ -219,6 +250,9 @@ export async function processOlistPedidoImport(
       fornecedor_id: sellerRow.fornecedor_id,
       referencia_externa: referencia,
       items,
+      comprador_nome: pedido.comprador_nome,
+      marketplace_numero: pedido.numero_ecommerce,
+      canal_venda: pedido.canal_venda,
     });
     if (!reserva.ok) {
       return { ok: false, error: reserva.error };
@@ -254,6 +288,7 @@ export async function processOlistPedidoImport(
   }
 
   const nomeProduto =
+    (await buildNomeProdutoFromSkus({ org_id: input.org_id, fornecedor_id: sellerRow.fornecedor_id, items })) ??
     pedido.itens.map((i) => i.descricao?.trim()).find(Boolean) ??
     items.map((i) => i.sku).join(", ");
   const submit = await submitSellerErpPedido({
