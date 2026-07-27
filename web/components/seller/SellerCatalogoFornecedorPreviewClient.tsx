@@ -82,8 +82,8 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
   const totalSkus = itemsFiltrados.filter((i) => !isSemente(i) && !isGrupoOculto(i.sku)).length;
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
-      <div className="dropcore-shell-6xl py-6 lg:py-8 space-y-5">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
+      <div className="dropcore-shell-6xl pt-6 lg:pt-8 pb-5 md:pb-7 space-y-5">
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <Link href="/seller/catalogo" className="font-medium text-emerald-700 dark:text-emerald-400 hover:underline">
             ← Vitrine dos fornecedores

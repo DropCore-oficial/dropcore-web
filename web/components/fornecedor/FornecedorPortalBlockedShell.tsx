@@ -11,7 +11,7 @@ export function FornecedorPortalBlockedShell() {
   });
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-8">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
       <FornecedorNav active="dashboard" />
       <div className="dropcore-shell-4xl py-5 md:py-7 space-y-5 md:space-y-6" aria-hidden>
         <header className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 sm:p-5 shadow-sm">
