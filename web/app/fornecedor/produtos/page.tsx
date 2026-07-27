@@ -233,7 +233,6 @@ export default function FornecedorProdutosPage() {
     por_sku: Record<string, { status: "aprovado" | "rejeitado"; motivo_rejeicao?: string; analisado_em: string }>;
   }>({ pendentes: [], por_sku: {} });
   const [rascunhoCriarVariantes, setRascunhoCriarVariantes] = useState<ResumoRascunhoCriarVariantes | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [exportandoOlistGrupo, setExportandoOlistGrupo] = useState<string | null>(null);
 
   const baixarCsvOlistGrupo = useCallback(
@@ -302,7 +301,6 @@ export default function FornecedorProdutosPage() {
         return;
       }
       const token = session.access_token;
-      setAccessToken(token);
       const headers = { Authorization: `Bearer ${token}` };
       const [resumo, res] = await Promise.all([
         getResumoRascunhoCriarVariantes(token),
@@ -659,7 +657,6 @@ export default function FornecedorProdutosPage() {
             estoque_atual: p.estoque_atual,
             estoque_minimo: p.estoque_minimo,
           }))}
-          accessToken={accessToken}
           onImported={load}
         />
 

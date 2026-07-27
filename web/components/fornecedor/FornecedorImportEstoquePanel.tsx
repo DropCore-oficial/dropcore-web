@@ -13,6 +13,7 @@ import {
   parseFornecedorEstoqueCsv,
   type FornecedorEstoqueExportItem,
 } from "@/lib/fornecedorEstoqueImport";
+import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { cn } from "@/lib/utils";
 
 type ImportResult = {
@@ -26,7 +27,6 @@ type ImportResult = {
 
 type Props = {
   produtos: FornecedorEstoqueExportItem[];
-  accessToken: string | null;
   onImported: () => void | Promise<void>;
 };
 
@@ -40,7 +40,7 @@ function downloadCsv(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
-export function FornecedorImportEstoquePanel({ produtos, accessToken, onImported }: Props) {
+export function FornecedorImportEstoquePanel({ produtos, onImported }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importRows, setImportRows] = useState<Record<string, unknown>[] | null>(null);
   const [importLoading, setImportLoading] = useState(false);
@@ -54,15 +54,22 @@ export function FornecedorImportEstoquePanel({ produtos, accessToken, onImported
   }
 
   async function confirmImport() {
-    if (!importRows?.length || !accessToken) return;
+    if (!importRows?.length) return;
     setImportLoading(true);
     setImportError(null);
     try {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        setImportError("Sessão expirada. Atualize a página e faça login novamente.");
+        return;
+      }
       const res = await fetch("/api/fornecedor/produtos/import-estoque", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ rows: importRows }),
       });
