@@ -6,8 +6,24 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
 import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
-import { AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
-import { DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
+import {
+  AMBER_PREMIUM_SHELL,
+  AMBER_PREMIUM_SURFACE_TRANSPARENT,
+  AMBER_PREMIUM_TEXT_PRIMARY,
+} from "@/lib/amberPremium";
+import {
+  DANGER_PREMIUM_SHELL,
+  DANGER_PREMIUM_SURFACE_TRANSPARENT,
+  DANGER_PREMIUM_TEXT_PRIMARY,
+} from "@/lib/semanticPremium";
+import {
+  MSG_SKU_NAO_HABILITADO_PLANO_STARTER,
+  MAX_SKUS_HABILITADOS_STARTER,
+  isSellerPlanoPro,
+  paiKeySkuHabilitacao,
+} from "@/lib/sellerSkuHabilitado";
+import { ModalOverlay } from "@/components/ui/ModalOverlay";
+import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import {
   SELLER_SALDO_CRITICO_ACCENT_BAR,
   SELLER_SALDO_CRITICO_BODY,
@@ -92,6 +108,13 @@ export default function SellerPedidosPage() {
   const [etiquetaLinkInputs, setEtiquetaLinkInputs] = useState<Record<string, string>>({});
   const [etiquetaLinkSaving, setEtiquetaLinkSaving] = useState<Record<string, boolean>>({});
   const [etiquetaLinkError, setEtiquetaLinkError] = useState<Record<string, string>>({});
+  const [etiquetaModalPedidoId, setEtiquetaModalPedidoId] = useState<string | null>(null);
+  const [bloqueioModalPedidoId, setBloqueioModalPedidoId] = useState<string | null>(null);
+  const [planoCapacidade, setPlanoCapacidade] = useState<{
+    plano: string | null;
+    habilitados_count: number;
+    habilitados_max: number | null;
+  } | null>(null);
 
   async function salvarEtiquetaLink(pedidoId: string) {
     const url = (etiquetaLinkInputs[pedidoId] ?? "").trim();
@@ -118,6 +141,7 @@ export default function SellerPedidosPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error ?? "Erro ao salvar link.");
       await load();
+      setEtiquetaModalPedidoId(null);
     } catch (e: unknown) {
       setEtiquetaLinkError((prev) => ({
         ...prev,
@@ -161,6 +185,55 @@ export default function SellerPedidosPage() {
   useEffect(() => {
     void load();
   }, [statusFilter]);
+
+  // Só usado pra decidir o destino do botão "Resolver" no card de pedido bloqueado
+  // por teto do plano Start (produto específico vs. /seller/plano).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabaseBrowser.auth.getSession();
+        if (!session?.access_token) return;
+        const res = await fetch("/api/seller/catalogo/habilitados", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: "no-store",
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok) {
+          setPlanoCapacidade({
+            plano: json.plano ?? null,
+            habilitados_count: typeof json.habilitados_count === "number" ? json.habilitados_count : 0,
+            habilitados_max:
+              json.habilitados_max === null || json.habilitados_max === undefined
+                ? null
+                : Number(json.habilitados_max),
+          });
+        }
+      } catch {
+        // silencioso — só afeta o destino do "Resolver", não bloqueia a tela
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function bloqueioResolverInfo(p: Pedido): { href: string; limiteAtingido: boolean } {
+    const porTetoPlano = p.motivo_bloqueio === MSG_SKU_NAO_HABILITADO_PLANO_STARTER;
+    const limiteAtingido =
+      porTetoPlano &&
+      planoCapacidade != null &&
+      !isSellerPlanoPro(planoCapacidade.plano) &&
+      planoCapacidade.habilitados_count >= (planoCapacidade.habilitados_max ?? MAX_SKUS_HABILITADOS_STARTER);
+    const href = porTetoPlano
+      ? limiteAtingido
+        ? "/seller/plano"
+        : `/seller/produtos?abrir=${encodeURIComponent(paiKeySkuHabilitacao(p.itens[0]?.sku))}`
+      : "/seller/produtos";
+    return { href, limiteAtingido };
+  }
 
   useEffect(() => {
     if (destaqueId && pedidos.length > 0 && !loading) {
@@ -272,6 +345,7 @@ export default function SellerPedidosPage() {
               const nomeEncontrado = p.nome_produto?.trim() || (itensNomes.length > 0 ? itensNomes.join(", ") : "");
               const titulo = nomeEncontrado || skuList || "Pedido";
               const comprador = [p.comprador_nome, p.comprador_cidade, p.comprador_uf].filter(Boolean).join(" · ");
+
               return (
                 <article
                   key={p.id}
@@ -344,47 +418,39 @@ export default function SellerPedidosPage() {
                   ) : null}
 
                   {p.status === "enviado" && !p.tem_etiqueta && (
-                      <div className="mt-3">
-                        <AmberPremiumCallout title="Etiqueta não chegou automaticamente — cole o link">
-                          <div className="space-y-2">
-                            <p>
-                              {p.etiqueta_tentativas > 0
-                                ? `Já tentamos buscar na Olist ${p.etiqueta_tentativas}x sem sucesso. `
-                                : "Ainda não conseguimos buscar automaticamente na Olist. "}
-                              Entre no painel da Olist, pegue o link da etiqueta deste pedido e cole abaixo pra
-                              não travar o envio.
-                            </p>
-                            <p className="font-medium text-[var(--foreground)]">
-                              Confira antes de colar: o número do pedido na Olist tem que ser{" "}
-                              <span className="font-mono">{p.referencia_externa ?? "—"}</span> — etiqueta de
-                              pedido errado sai pro endereço/produto errado.
-                            </p>
-                            <div className="flex flex-col gap-1.5 sm:flex-row">
-                              <input
-                                type="url"
-                                placeholder="Cole aqui o link da etiqueta (https://...)"
-                                value={etiquetaLinkInputs[p.id] ?? ""}
-                                onChange={(e) =>
-                                  setEtiquetaLinkInputs((prev) => ({ ...prev, [p.id]: e.target.value }))
-                                }
-                                disabled={etiquetaLinkSaving[p.id]}
-                                className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-sm text-[var(--foreground)]"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => salvarEtiquetaLink(p.id)}
-                                disabled={etiquetaLinkSaving[p.id]}
-                                className="w-full shrink-0 rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 sm:w-auto"
-                              >
-                                {etiquetaLinkSaving[p.id] ? "Salvando..." : "Salvar link"}
-                              </button>
-                            </div>
-                            {etiquetaLinkError[p.id] && (
-                              <p className="text-[11px] text-[var(--danger)]">{etiquetaLinkError[p.id]}</p>
-                            )}
-                          </div>
-                        </AmberPremiumCallout>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEtiquetaModalPedidoId(p.id)}
+                        className={cn(
+                          AMBER_PREMIUM_SURFACE_TRANSPARENT,
+                          "mt-3 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-[var(--muted)]/5",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            AMBER_PREMIUM_SHELL,
+                            AMBER_PREMIUM_TEXT_PRIMARY,
+                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                          )}
+                        >
+                          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                            <line x1="12" y1="9" x2="12" y2="13" />
+                            <line x1="12" y1="17" x2="12.01" y2="17" />
+                          </svg>
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className={cn(AMBER_PREMIUM_TEXT_PRIMARY, "block text-sm font-semibold")}>Etiqueta pendente</span>
+                        </span>
+                        <span
+                          className={cn(
+                            AMBER_PREMIUM_TEXT_PRIMARY,
+                            "shrink-0 rounded-md border border-current px-2.5 py-1.5 text-[11px] font-semibold",
+                          )}
+                        >
+                          Resolver
+                        </span>
+                      </button>
                     )}
 
                   {p.status === "pendente_estoque" ? (
@@ -394,7 +460,38 @@ export default function SellerPedidosPage() {
                   ) : null}
 
                   {p.status === "bloqueado" && p.motivo_bloqueio ? (
-                    <p className={cn("mt-3 text-sm", DANGER_PREMIUM_TEXT_PRIMARY)}>{p.motivo_bloqueio}</p>
+                    <button
+                      type="button"
+                      onClick={() => setBloqueioModalPedidoId(p.id)}
+                      className={cn(
+                        DANGER_PREMIUM_SURFACE_TRANSPARENT,
+                        "mt-3 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-[var(--muted)]/5",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          DANGER_PREMIUM_SHELL,
+                          DANGER_PREMIUM_TEXT_PRIMARY,
+                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                        )}
+                      >
+                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                        </svg>
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "block text-sm font-semibold")}>Pedido bloqueado</span>
+                      </span>
+                      <span
+                        className={cn(
+                          DANGER_PREMIUM_TEXT_PRIMARY,
+                          "shrink-0 rounded-md border border-current px-2.5 py-1.5 text-[11px] font-semibold",
+                        )}
+                      >
+                        Resolver
+                      </span>
+                    </button>
                   ) : null}
 
                   {p.status === "erro_saldo" ? (
@@ -449,6 +546,101 @@ export default function SellerPedidosPage() {
           </div>
         )}
       </main>
+
+      {etiquetaModalPedidoId && (() => {
+        const p = pedidos.find((x) => x.id === etiquetaModalPedidoId);
+        if (!p) return null;
+        return (
+          <ModalOverlay onBackdropClick={() => setEtiquetaModalPedidoId(null)} panelClassName="max-w-lg">
+            <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
+              <h3 className="font-semibold text-[var(--foreground)]">Etiqueta não chegou automaticamente</h3>
+              <button
+                type="button"
+                onClick={() => setEtiquetaModalPedidoId(null)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xl leading-none text-[var(--muted)] hover:bg-[var(--muted)]/10"
+              >
+                ×
+              </button>
+            </div>
+            <div className={cn(MODAL_PANEL_BODY_CLASS, "p-4")}>
+              <AmberPremiumCallout title="Cole o link da etiqueta">
+                <div className="space-y-2">
+                  <p>
+                    {p.etiqueta_tentativas > 0
+                      ? `Já tentamos buscar na Olist ${p.etiqueta_tentativas}x sem sucesso. `
+                      : "Ainda não conseguimos buscar automaticamente na Olist. "}
+                    Entre no painel da Olist, pegue o link da etiqueta deste pedido e cole abaixo pra
+                    não travar o envio.
+                  </p>
+                  <p className="font-medium text-[var(--foreground)]">
+                    Confira antes de colar: o número do pedido na Olist tem que ser{" "}
+                    <span className="font-mono">{p.referencia_externa ?? "—"}</span> — etiqueta de
+                    pedido errado sai pro endereço/produto errado.
+                  </p>
+                  <div className="flex flex-col gap-1.5 sm:flex-row">
+                    <input
+                      type="url"
+                      placeholder="Cole aqui o link da etiqueta (https://...)"
+                      value={etiquetaLinkInputs[p.id] ?? ""}
+                      onChange={(e) =>
+                        setEtiquetaLinkInputs((prev) => ({ ...prev, [p.id]: e.target.value }))
+                      }
+                      disabled={etiquetaLinkSaving[p.id]}
+                      className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-sm text-[var(--foreground)]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => salvarEtiquetaLink(p.id)}
+                      disabled={etiquetaLinkSaving[p.id]}
+                      className="w-full shrink-0 rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 sm:w-auto"
+                    >
+                      {etiquetaLinkSaving[p.id] ? "Salvando..." : "Salvar link"}
+                    </button>
+                  </div>
+                  {etiquetaLinkError[p.id] && (
+                    <p className="text-[11px] text-[var(--danger)]">{etiquetaLinkError[p.id]}</p>
+                  )}
+                </div>
+              </AmberPremiumCallout>
+            </div>
+          </ModalOverlay>
+        );
+      })()}
+
+      {bloqueioModalPedidoId && (() => {
+        const p = pedidos.find((x) => x.id === bloqueioModalPedidoId);
+        if (!p) return null;
+        const { href, limiteAtingido } = bloqueioResolverInfo(p);
+        return (
+          <ModalOverlay onBackdropClick={() => setBloqueioModalPedidoId(null)} panelClassName="max-w-lg">
+            <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
+              <h3 className="font-semibold text-[var(--foreground)]">Pedido bloqueado</h3>
+              <button
+                type="button"
+                onClick={() => setBloqueioModalPedidoId(null)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xl leading-none text-[var(--muted)] hover:bg-[var(--muted)]/10"
+              >
+                ×
+              </button>
+            </div>
+            <div className={cn(MODAL_PANEL_BODY_CLASS, "p-4")}>
+              <div className={cn(DANGER_PREMIUM_SURFACE_TRANSPARENT, "rounded-xl p-4 space-y-3")}>
+                <p className="text-sm text-neutral-700 dark:text-neutral-300">{p.motivo_bloqueio}</p>
+                <Link
+                  href={href}
+                  onClick={() => setBloqueioModalPedidoId(null)}
+                  className={cn(
+                    DANGER_PREMIUM_TEXT_PRIMARY,
+                    "inline-flex items-center justify-center rounded-md border border-current px-3 py-2 text-sm font-semibold",
+                  )}
+                >
+                  {limiteAtingido ? "Ver planos" : "Ir para o produto"}
+                </Link>
+              </div>
+            </div>
+          </ModalOverlay>
+        );
+      })()}
     </div>
   );
 }

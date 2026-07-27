@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
 import { HelpBubble } from "@/components/HelpBubble";
@@ -40,6 +40,10 @@ function isAtivoItem(item: SellerCatalogoItem): boolean {
 
 export default function SellerProdutosPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const abrirPaiKey = searchParams.get("abrir");
+  const abrirAplicadoRef = useRef(false);
+  const grupoRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const [q, setQ] = useState("");
   const [items, setItems] = useState<SellerCatalogoItem[]>([]);
@@ -368,6 +372,18 @@ export default function SellerProdutosPage() {
       return list.some((it) => !skuProntoParaVender(it));
     });
   }, [gruposBase, filtroStatus]);
+
+  // Deep-link vindo de /seller/pedidos (card "Pedido bloqueado" → Resolver): expande e
+  // rola até o grupo específico uma única vez, quando os dados terminam de carregar.
+  useEffect(() => {
+    if (!abrirPaiKey || loading || abrirAplicadoRef.current) return;
+    if (!grupos.some((g) => g.paiKey === abrirPaiKey)) return;
+    abrirAplicadoRef.current = true;
+    setExpandido((prev) => (prev.has(abrirPaiKey) ? prev : new Set(prev).add(abrirPaiKey)));
+    requestAnimationFrame(() => {
+      grupoRefs.current[abrirPaiKey]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, [abrirPaiKey, grupos, loading]);
 
   const gruposResumo = useMemo(() => agruparPaiFilhos(items), [items]);
 
@@ -768,28 +784,39 @@ export default function SellerProdutosPage() {
 
             {!loading &&
               grupos.map((grupo) => (
-                <SellerListaGrupoArmazem
+                <div
                   key={grupo.paiKey}
-                  grupo={grupo}
-                  exp={expandido.has(grupo.paiKey)}
-                  onToggleExpand={() => toggleExpandido(grupo.paiKey)}
-                  modoListaVariantes={modoListaVariantes}
-                  setModoListaVariantes={setModoListaVariantes}
-                  mostrarFotosVariantes={mostrarFotosVariantes}
-                  setMostrarFotosVariantes={setMostrarFotosVariantes}
-                  bulkLoading={bulkPaiKey === grupo.paiKey}
-                  onBulkEnableValidas={() => void bulkEnableValidas(grupo)}
-                  onBulkDisableAll={() => void bulkDisableAll(grupo)}
-                  toggleLoadingId={toggleLoadingId}
-                  onToggleOne={(item, ativar) => void setSkuHabilitado(item, ativar)}
-                  bulkCorLoadingKey={bulkCorKey}
-                  onToggleCorGrupo={(paiKey, corKey, items) => void toggleHabilitacaoPorCor(paiKey, corKey, items)}
-                  habilitarVendaApiBloqueioLigar={habilitarVendaApiBloqueioLigar}
-                  exportandoOlist={exportandoOlistGrupo === grupo.paiKey}
-                  onExportOlist={() => void baixarCsvOlistGrupo(grupo.paiKey)}
-                  exportOlistDisabled={catalogMeta.sem_armazem_ligado}
-                  fornecedorLigadoId={fornecedorLigadoId}
-                />
+                  ref={(el) => {
+                    grupoRefs.current[grupo.paiKey] = el;
+                  }}
+                  className={cn(
+                    abrirPaiKey === grupo.paiKey
+                      ? "rounded-xl ring-2 ring-emerald-500 ring-offset-2 ring-offset-[var(--background)]"
+                      : "",
+                  )}
+                >
+                  <SellerListaGrupoArmazem
+                    grupo={grupo}
+                    exp={expandido.has(grupo.paiKey)}
+                    onToggleExpand={() => toggleExpandido(grupo.paiKey)}
+                    modoListaVariantes={modoListaVariantes}
+                    setModoListaVariantes={setModoListaVariantes}
+                    mostrarFotosVariantes={mostrarFotosVariantes}
+                    setMostrarFotosVariantes={setMostrarFotosVariantes}
+                    bulkLoading={bulkPaiKey === grupo.paiKey}
+                    onBulkEnableValidas={() => void bulkEnableValidas(grupo)}
+                    onBulkDisableAll={() => void bulkDisableAll(grupo)}
+                    toggleLoadingId={toggleLoadingId}
+                    onToggleOne={(item, ativar) => void setSkuHabilitado(item, ativar)}
+                    bulkCorLoadingKey={bulkCorKey}
+                    onToggleCorGrupo={(paiKey, corKey, items) => void toggleHabilitacaoPorCor(paiKey, corKey, items)}
+                    habilitarVendaApiBloqueioLigar={habilitarVendaApiBloqueioLigar}
+                    exportandoOlist={exportandoOlistGrupo === grupo.paiKey}
+                    onExportOlist={() => void baixarCsvOlistGrupo(grupo.paiKey)}
+                    exportOlistDisabled={catalogMeta.sem_armazem_ligado}
+                    fornecedorLigadoId={fornecedorLigadoId}
+                  />
+                </div>
               ))}
           </div>
         </div>
