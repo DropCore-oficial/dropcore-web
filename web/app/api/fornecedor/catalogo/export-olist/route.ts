@@ -1,6 +1,7 @@
 /**
  * GET /api/fornecedor/catalogo/export-olist?grupo=PAI000
  * CSV no padrão Olist/Tiny (64 colunas) — um produto/grupo por vez.
+ * Sem `grupo` (ou `?all=1`): exporta o catálogo ativo inteiro num CSV só.
  */
 import { NextResponse } from "next/server";
 import { getFornecedorContextFromBearer } from "@/lib/fornecedorAuth";
@@ -27,23 +28,14 @@ export async function GET(req: Request) {
       (url.searchParams.get("grupo") ?? url.searchParams.get("pai_key") ?? url.searchParams.get("grupoKey") ?? "")
         .trim()
         .toUpperCase() || null;
+    const exportarTudo = !grupoRaw;
     const categoriaOlistParam = (url.searchParams.get("categoria") ?? url.searchParams.get("categoria_olist") ?? "")
       .trim() || null;
-
-    if (!grupoRaw) {
-      return NextResponse.json(
-        {
-          error:
-            "Informe o grupo do produto (ex.: ?grupo=DJU001000). Use Exportar para Olist em cada produto na lista.",
-        },
-        { status: 400 },
-      );
-    }
 
     const loaded = await loadFornecedorSkusForOlistExport({
       orgId: ctx.org_id,
       fornecedorId: ctx.fornecedor_id,
-      grupoKey: grupoRaw,
+      grupoKey: grupoRaw ?? undefined,
       categoriaOlist: categoriaOlistParam,
       supabase: supabaseAdmin,
     });
@@ -63,7 +55,9 @@ export async function GET(req: Request) {
 
     const csv = buildOlistProdutosCsv(filteredForCsv, { margemPct: 0 });
     const date = new Date().toISOString().slice(0, 10);
-    const filename = `dropcore-olist-fornecedor-${grupoRaw}-${date}.csv`;
+    const filename = exportarTudo
+      ? `dropcore-olist-fornecedor-todos-${date}.csv`
+      : `dropcore-olist-fornecedor-${grupoRaw}-${date}.csv`;
 
     return new NextResponse(csv, {
       status: 200,

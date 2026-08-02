@@ -137,7 +137,7 @@ export async function recheckReservasAtivas(): Promise<EstoqueReservaRecheckResu
         result.falhas.push(`Pedido ${item.olist_pedido_id}: ${proc.error}`);
         return;
       }
-      if (proc.outcome === "reservado_estoque") {
+      if (proc.outcome === "reservado_estoque" || proc.outcome === "skipped_ja_expirou_antes") {
         result.ainda_pendentes += 1;
       } else {
         result.promovidas += 1;

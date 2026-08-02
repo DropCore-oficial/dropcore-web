@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { FornecedorNav } from "../FornecedorNav";
 import { BankCombobox } from "@/components/fornecedor/BankCombobox";
@@ -14,6 +13,12 @@ import {
   AMBER_PREMIUM_TEXT_PRIMARY,
   AMBER_PREMIUM_TEXT_SECONDARY,
 } from "@/lib/amberPremium";
+import {
+  DANGER_PREMIUM_SURFACE_TRANSPARENT,
+  DANGER_PREMIUM_TEXT_BODY,
+  SUCCESS_PREMIUM_SURFACE_TRANSPARENT,
+  SUCCESS_PREMIUM_TEXT_BODY,
+} from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
 
 function upper(s: string): string {
@@ -580,28 +585,24 @@ export default function FornecedorCadastroPage() {
       <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
           <div className="min-w-0 space-y-1">
-            <Link
-              href="/fornecedor/dashboard"
-              className="inline-flex items-center gap-2.5 text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              </svg>
-              Voltar
-            </Link>
-            <p className="text-sm font-medium uppercase leading-snug tracking-wide text-emerald-700/90 dark:text-emerald-400/90">Cadastro</p>
-            <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">Cadastro da empresa</h1>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">Cadastro da empresa</h1>
+              <span
+                className="h-1 w-14 shrink-0 self-center rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 sm:w-20"
+                aria-hidden
+              />
+            </div>
             <p className="text-sm leading-snug text-[var(--muted)]">Identificação, contato e dados para receber repasses.</p>
           </div>
         </header>
 
         {error && (
-          <div className="rounded-2xl border border-[var(--danger)]/40 bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/35 dark:text-red-300">
+          <div className={cn("rounded-2xl px-4 py-3 text-sm", DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY)}>
             {error}
           </div>
         )}
         {okMsg && (
-          <div className="rounded-2xl border border-emerald-500/35 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-700/50 dark:bg-emerald-950/25 dark:text-emerald-300">
+          <div className={cn("rounded-2xl px-4 py-3 text-sm", SUCCESS_PREMIUM_SURFACE_TRANSPARENT, SUCCESS_PREMIUM_TEXT_BODY)}>
             {okMsg}
           </div>
         )}
@@ -638,7 +639,7 @@ export default function FornecedorCadastroPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <label
                       className={cn(
-                        "inline-flex cursor-pointer items-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)]/10",
+                        "inline-flex cursor-pointer items-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10",
                         logoUploading && "pointer-events-none opacity-60",
                       )}
                     >
@@ -660,7 +661,7 @@ export default function FornecedorCadastroPage() {
                         type="button"
                         onClick={() => void removeLogo()}
                         disabled={logoUploading}
-                        className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] disabled:opacity-60"
+                        className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
                       >
                         Remover
                       </button>
@@ -682,7 +683,7 @@ export default function FornecedorCadastroPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">CNPJ</label>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <input
                     type="text"
                     inputMode="numeric"
@@ -696,7 +697,7 @@ export default function FornecedorCadastroPage() {
                     type="button"
                     onClick={buscarDadosCnpj}
                     disabled={loadingCnpj}
-                    className="min-h-10 shrink-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-100 disabled:opacity-60 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                    className="shrink-0 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
                   >
                     {loadingCnpj ? "Buscando..." : "Buscar CNPJ"}
                   </button>
@@ -1097,19 +1098,20 @@ export default function FornecedorCadastroPage() {
                   </span>
                 </label>
               )}
-            </section>
 
-            <div className="flex justify-center pt-1 md:justify-end">
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex w-full max-w-sm items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 active:brightness-[0.92] disabled:opacity-60 md:w-auto md:max-w-none md:min-w-[11rem]"
-              >
-                {saving ? "Salvando..." : "Salvar cadastro"}
-              </button>
-            </div>
+              <div className="flex justify-center pt-1 md:justify-end">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex w-full max-w-sm items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 active:brightness-[0.92] disabled:opacity-60 md:w-auto md:max-w-none md:min-w-[11rem]"
+                >
+                  {saving ? "Salvando..." : "Salvar cadastro"}
+                </button>
+              </div>
+            </section>
           </form>
       </div>
+
       <FornecedorNav active="cadastro" wide />
     </div>
   );

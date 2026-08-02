@@ -915,10 +915,11 @@ export default function SellerDashboardPage() {
   }
 
   return (
-    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
+    <div className="bg-[#fafafa] dark:bg-[#0a0a0b] text-[var(--foreground)] pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
+      {/* Teste visual "estilo Atendro" — fundo liso local nesta página, .app-bg global não foi tocado. */}
       <div className="dropcore-shell-6xl py-5 md:py-7 space-y-5 md:space-y-6">
         {/* 1. Header — mesmo cartão do painel fornecedor (mobile/desktop) */}
-        <header className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 sm:p-5 shadow-sm overflow-visible">
+        <header className="rounded-2xl border border-[var(--card-border)]/60 bg-[var(--card)] p-4 sm:p-5 overflow-visible">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="flex min-w-0 flex-1 items-stretch gap-3">
               {seller?.logo_url ? (
@@ -938,7 +939,8 @@ export default function SellerDashboardPage() {
               )}
               <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 pt-0.5">
                 <div className="hidden min-w-0 w-full flex-nowrap items-center justify-between gap-x-3 sm:flex">
-                  <p className="m-0 min-w-0 text-sm font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90 leading-snug">
+                  <p className="m-0 flex min-w-0 items-center gap-1.5 text-sm font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90 leading-snug">
+                    <IconClock className="h-3.5 w-3.5 shrink-0" />
                     Painel do seller
                   </p>
                   <div
@@ -950,7 +952,8 @@ export default function SellerDashboardPage() {
                   </div>
                 </div>
                 <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:hidden">
-                  <p className="m-0 flex min-w-0 items-center text-sm font-medium uppercase leading-none tracking-wide text-emerald-700/90 dark:text-emerald-400/90">
+                  <p className="m-0 flex min-w-0 items-center gap-1.5 text-sm font-medium uppercase leading-none tracking-wide text-emerald-700/90 dark:text-emerald-400/90">
+                    <IconClock className="h-3.5 w-3.5 shrink-0" />
                     Painel do seller
                   </p>
                   {renderPlanoHeaderControls({ showVerPlano: false })}
@@ -1010,7 +1013,7 @@ export default function SellerDashboardPage() {
                       setMovimentacoesAberto(true);
                       extratoRef.current?.scrollIntoView({ behavior: "smooth" });
                     }}
-                    className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] touch-manipulation hover:bg-[var(--muted)]/10 transition-colors sm:shrink-0"
+                    className="rounded-full border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] touch-manipulation hover:bg-[var(--muted)]/10 transition-colors sm:shrink-0"
                   >
                     {pendentesCount} PIX pendente{pendentesCount !== 1 ? "s" : ""}
                   </button>
@@ -1146,7 +1149,7 @@ export default function SellerDashboardPage() {
                 type="button"
                 onClick={() => setModalDeposito(true)}
                 className={cn(
-                  "rounded-md px-2.5 py-1.5 text-[11px] font-semibold text-white shrink-0 shadow-sm transition-colors",
+                  "rounded-full px-2.5 py-1.5 text-[11px] font-semibold text-white shrink-0 shadow-sm transition-colors",
                   saldoAlerta?.nivel === "critico"
                     ? "bg-[var(--danger)] hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:hover:opacity-100 dark:ring-1 dark:ring-inset dark:ring-white/20"
                     : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"
@@ -1156,18 +1159,18 @@ export default function SellerDashboardPage() {
               </button>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-2.5 border-t border-[var(--card-border)]/80 pt-5 sm:grid-cols-4 sm:[&>*]:min-w-0">
-              <div className="w-full min-w-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] shadow-[0_1px_0_rgb(0_0_0/0.04)] dark:shadow-none">
+              <div className="w-full min-w-0 rounded-xl border border-[var(--card-border)]/60 bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem]">
                 <p className="text-[11px] font-semibold text-[var(--muted)]">Disponível</p>
                 <p className="mt-1 text-xl font-bold text-[var(--foreground)] tabular-nums">{BRL.format(seller?.saldo_disponivel ?? 0)}</p>
               </div>
-              <div className="w-full min-w-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] shadow-[0_1px_0_rgb(0_0_0/0.04)] dark:shadow-none">
+              <div className="w-full min-w-0 rounded-xl border border-[var(--card-border)]/60 bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem]">
                 <p className="text-[11px] font-semibold text-[var(--muted)]">Bloqueado</p>
                 <p className="mt-1 text-xl font-bold text-[var(--foreground)] tabular-nums">{BRL.format(seller?.saldo_bloqueado ?? 0)}</p>
               </div>
               <button
                 type="button"
                 onClick={() => { setFiltroTipo("pedidos"); setFiltroStatus(""); setTab("extrato"); setMovimentacoesAberto(true); extratoRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                className="group w-full min-w-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left shadow-[0_1px_0_rgb(0_0_0/0.04)] transition-all hover:border-emerald-300 dark:shadow-none dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
+                className="group w-full min-w-0 rounded-xl border border-[var(--card-border)]/60 bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 active:scale-[0.99]"
               >
                 <p className="text-[11px] font-semibold text-[var(--muted)]">Pedidos (mês)</p>
                 <p className="mt-1 text-xl font-bold tabular-nums text-[var(--foreground)] group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
@@ -1177,7 +1180,7 @@ export default function SellerDashboardPage() {
               <button
                 type="button"
                 onClick={() => { setFiltroTipo("pedidos"); setFiltroStatus(""); setTab("extrato"); setMovimentacoesAberto(true); extratoRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                className="group w-full min-w-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left shadow-[0_1px_0_rgb(0_0_0/0.04)] transition-all hover:border-emerald-300 dark:shadow-none dark:hover:border-emerald-700 hover:shadow-sm active:scale-[0.99]"
+                className="group w-full min-w-0 rounded-xl border border-[var(--card-border)]/60 bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem] text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 active:scale-[0.99]"
               >
                 <p className="text-[11px] font-semibold text-[var(--muted)]">Volume (mês)</p>
                 <p className="mt-1 text-xl font-bold tabular-nums text-[var(--foreground)] group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
@@ -1443,7 +1446,8 @@ export default function SellerDashboardPage() {
 
         {/* 3. Atalhos — mesmo padrão “Acesso rápido” do fornecedor */}
         <section aria-label="Atalhos">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)] mb-2 px-0.5">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--muted)] mb-2 px-0.5">
+            <IconClipboard className="h-3.5 w-3.5 shrink-0" />
             Acesso rápido
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1475,8 +1479,8 @@ export default function SellerDashboardPage() {
             </div>
             <span className="text-sm font-bold text-[var(--foreground)] truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Produtos</span>
           </button>
-          <button onClick={() => router.push("/seller/integracoes-erp")} className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md group relative">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400">
+          <button onClick={() => router.push("/seller/integracoes-erp")} className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 text-left transition-all hover:border-[var(--primary-blue)]/40 hover:shadow-md group relative">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-blue)]/10 dark:bg-[var(--primary-blue)]/14 text-[var(--primary-blue)]">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 22v-5" />
                 <path d="M9 8V2" />
@@ -1484,7 +1488,7 @@ export default function SellerDashboardPage() {
                 <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
               </svg>
             </div>
-            <span className="text-sm font-bold text-[var(--foreground)] truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">ERP</span>
+            <span className="text-sm font-bold text-[var(--foreground)] truncate transition-colors group-hover:text-[var(--primary-blue)]">ERP</span>
             {olistIntegrado === true && (
               <span className="absolute top-2 right-2 rounded-full bg-emerald-100 dark:bg-emerald-950/50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
                 Olist/Tiny ok

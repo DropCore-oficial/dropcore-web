@@ -1,208 +1,112 @@
-import {
-  VALOR_DEFAULT_MENSALIDADE_SELLER,
-  VALOR_DEFAULT_MENSALIDADE_SELLER_PRO,
-} from "@/lib/sellerPlanoPrecos";
-
-const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-
+/** Usado no rodapé geral do site (SiteFooter.tsx) e também no rodapé próprio da landing. */
 export const LANDING_SALES_EMAIL = "contato@dropcore.com.br";
 
-export const LANDING_CTA_PRIMARY_LABEL = "Começar com R$ 500";
+export const LANDING_FOOTER_LINKS = [
+  { label: "Sobre", href: "/sobre" },
+  { label: "Termos de Uso", href: "/termos-de-uso" },
+  { label: "Política de Privacidade", href: "/privacidade" },
+  { label: "Central de Ajuda", href: "/central-de-ajuda" },
+] as const;
+
+export const LANDING_SALES_WHATSAPP_NUMBER = "5562991739631";
+export const LANDING_SALES_WHATSAPP_DISPLAY = "(62) 99173-9631";
+const LANDING_WHATSAPP_DEFAULT_MESSAGE = "Olá! Quero saber mais sobre virar seller na DropCore.";
+
+export const LANDING_CTA_HEADER_LABEL = "Quero entrar";
+export const LANDING_CTA_HERO_LABEL = "Quero vender assim";
+export const LANDING_CTA_FINAL_LABEL = "Vamos conversar";
 export const LANDING_CTA_SECONDARY_LABEL = "Acessar painel";
-export const LANDING_CTA_MAIL_SUBJECT = "Convite seller — DropCore";
+
+export const LANDING_INTEGRATIONS_BAR = {
+  label: "Integra com",
+  items: ["Olist", "Bling", "Mercado Pago"],
+} as const;
 
 export const LANDING_HERO = {
-  eyebrow: "Para seller de marketplace que quer escalar sem travar caixa",
-  title: "Pare de enterrar dinheiro em estoque.",
-  titleAccent: "Comece com capital enxuto e venda de forma profissional.",
+  eyebrow: "Pra seller que quer vender, não virar operador de logística",
+  title: "Você vende.",
+  titleAccent: "A gente cuida do resto.",
   subtitle:
-    "No DropCore, você não precisa de lote grande para entrar no jogo. Opera com saldo inicial, catálogo habilitado e fluxo previsível para escalar com menos risco.",
+    "Estoque, fornecedor, postagem e financeiro rodam sozinhos no DropCore. Você anuncia, atende o cliente e foca no que faz o negócio crescer.",
 } as const;
 
 export const LANDING_HERO_PROOF = [
-  { value: "Capital de entrada", label: "a partir de R$ 500", detail: "Em vez de lote alto no início" },
-  { value: "Fluxo único", label: "pedido + saldo + operação", detail: "Sem controle disperso" },
-  { value: "Escala mais segura", label: "com menos exposição de caixa", detail: "Você cresce sem imobilizar tanto" },
+  { value: "Estoque", label: "gerido pelo fornecedor parceiro", detail: "Você nunca compra nem armazena nada" },
+  { value: "Postagem e SLA", label: "monitorados automaticamente", detail: "Atraso aparece sinalizado, sem você cobrar" },
+  { value: "1 painel", label: "saldo, pedido e repasse", detail: "Sem planilha paralela" },
 ] as const;
 
-export const LANDING_HERO_IMPACT = {
-  title: "Sem DropCore, você paga essa conta todo dia:",
-  items: [
-    {
-      label: "Capital travado em estoque grande antes da primeira escala",
-      detail: "Dinheiro parado e risco alto de giro lento",
-    },
-    {
-      label: "Pouca verba para operação e anúncio",
-      detail: "Você compra produto, mas não sobra caixa para acelerar venda",
-    },
-    {
-      label: "Crescimento limitado pelo caixa imobilizado",
-      detail: "Escala depende de estoque, não de estratégia",
-    },
+export const LANDING_HERO_ORDER_TRACKER = {
+  title: "Acompanhamento de pedido",
+  orderLabel: "#DJU100047",
+  steps: [
+    { label: "Recebido", detail: "Pedido do marketplace importado automaticamente" },
+    { label: "Postado", detail: "Fornecedor parceiro embalou e postou dentro do SLA" },
+    { label: "Entregue", detail: "Confirmado pelo marketplace" },
+    { label: "Repasse liberado", detail: "Valor disponível no seu painel" },
   ],
-  footnote: "Estoque pesado no início costuma matar o caixa antes da escala.",
+  footnote: "Do pedido ao repasse, sem você tocar em planilha.",
 } as const;
 
-export const LANDING_HERO_SIMULATION = {
-  title: "Simulação de entrada",
-  leftTitle: "Modelo tradicional",
-  leftItems: [
-    "Compra lote inicial alto",
-    "Caixa travado antes de validar oferta",
-    "Menos margem para mídia e operação",
-  ],
-  rightTitle: "Modelo com DropCore",
-  rightItems: [
-    "Entrada com saldo inicial enxuto",
-    "Mais caixa para vender e girar operação",
-    "Escala conforme a demanda responde",
-  ],
-  footnote:
-    "*Exemplo de posicionamento comercial. O valor inicial pode variar conforme operação e estratégia do seller.",
-} as const;
-
-export const LANDING_ENTRY_CAPITAL = {
-  badge: "Entrada enxuta",
-  title: "Você não precisa de estoque pesado para começar",
-  highlight: "A partir de R$ 500 de saldo inicial",
-  subtitle:
-    "Menos dinheiro parado em produto, mais fôlego para validar oferta e acelerar venda.",
-  points: [
-    "Menos capital imobilizado no início",
-    "Mais caixa para operação e mídia",
-    "Mais velocidade para testar e ajustar",
-  ],
+export const LANDING_INLINE_CTA = {
+  title: "Já deu pra ver a diferença?",
+  subtitle: "Sem planilha, sem cobrar fornecedor — só o catálogo, o pedido e o repasse rodando sozinhos.",
+  label: "Chega de operar sozinho",
+  whatsappMessage: "Olá! Vi a comparação de como funciona o DropCore e quero saber mais.",
 } as const;
 
 export const LANDING_COMPARISON = [
   {
-    before: "Você compra estoque alto para começar",
-    after: "Você entra com saldo inicial e valida antes de expandir.",
+    before: "Você negocia, cobra e reconcilia fornecedor sozinho",
+    after: "O fornecedor parceiro já está integrado e monitorado por SLA.",
   },
   {
-    before: "Seu caixa fica preso em produto parado",
-    after: "Seu caixa fica livre para operação e crescimento.",
+    before: "Você compra, estoca e embala o produto",
+    after: "O parceiro estoca, embala e posta — você só acompanha.",
   },
   {
-    before: "Você assume risco alto antes de provar demanda",
-    after: "Você reduz risco e escala com previsibilidade.",
-  },
-] as const;
-
-export const LANDING_PAIN_SIGNALS = [
-  {
-    title: "Você vende, mas o caixa não acompanha",
-    body: "Cada expansão depende de nova compra de estoque.",
-  },
-  {
-    title: "Você decide no escuro",
-    body: "Sem fluxo centralizado, você não sabe quando acelerar.",
-  },
-  {
-    title: "Seu risco cresce antes da sua margem",
-    body: "Você investe antes de validar uma rotina de escala.",
+    before: "Você concilia saldo, PIX e repasse na mão",
+    after: "Saldo, crédito e repasse automáticos num painel só.",
   },
 ] as const;
 
 export const LANDING_STEPS = [
   {
     step: "1",
-    title: "Entre com capital enxuto",
-    body: "Comece com saldo inicial e evite travar caixa em estoque.",
+    title: "Escolha o catálogo pronto",
+    body: "Produtos com SKU e estoque real do fornecedor parceiro — sem negociar nada.",
   },
   {
     step: "2",
-    title: "Venda e gire com controle",
-    body: "Pedido, saldo e operação no mesmo fluxo.",
+    title: "Anuncie e venda",
+    body: "Publica no marketplace e atende o cliente. O resto é com a gente.",
   },
   {
     step: "3",
-    title: "Escalone sem prender capital",
-    body: "Com demanda validada, você cresce com menos exposição.",
+    title: "A gente cuida do resto",
+    body: "Estoque reserva, fornecedor posta, você acompanha até o repasse.",
   },
 ] as const;
 
-export const LANDING_FEATURES = [
-  {
-    title: "Entrada de baixo atrito",
-    body: "Você começa com estrutura sem compra massiva no dia zero.",
-  },
-  {
-    title: "Fluxo financeiro previsível",
-    body: "Saldo e débito por pedido para visibilidade real de caixa.",
-  },
-  {
-    title: "Pedido rastreável",
-    body: "Menos improviso e retrabalho na operação.",
-  },
-  {
-    title: "Integração com seu stack",
-    body: "Olist/Tiny e Bling ligados ao fluxo para reduzir ruído.",
-  },
-] as const;
-
-export const LANDING_FOCUS = [
-  "Menos dinheiro parado em estoque",
-  "Mais capacidade de testar oferta e escalar",
-  "Mais previsibilidade de caixa na operação",
-  "Mais controle para crescer com consistência",
-] as const;
-
-export const LANDING_FIRST_30_DAYS = [
-  "Semana 1: entrada com saldo inicial e setup de operação",
-  "Semana 2: pedido centralizado e rotina executável",
-  "Semana 3: leitura de caixa e ritmo de giro",
-  "Semana 4: base pronta para escalar com menos exposição",
+export const LANDING_FLOW = [
+  { icon: "cart", title: "Cliente compra", detail: "Pedido cai automático do marketplace no seu painel, sem você digitar nada." },
+  { icon: "package", title: "Fornecedor separa e posta", detail: "Estoque, embalagem e postagem com o parceiro, dentro do SLA combinado." },
+  { icon: "truck", title: "Pedido é entregue", detail: "Confirmado pelo marketplace — você acompanha, não precisa cobrar ninguém." },
+  { icon: "wallet", title: "Repasse no seu saldo", detail: "Valor liberado automaticamente no painel, pronto pra você usar." },
 ] as const;
 
 export const LANDING_FOR_WHOM = {
   yes: [
-    "Seller que quer começar sem lote alto de estoque",
-    "Operação que precisa preservar caixa para crescer",
-    "Time que quer rotina de escala com processo",
+    "Seller que quer focar 100% em vender e anunciar",
+    "Quem não quer virar operador de estoque e logística",
+    "Quem quer previsibilidade sem planilha paralela",
   ],
   no: [
-    "Quem prefere crescer só com compra massiva de estoque",
-    "Quem não quer controle operacional e financeiro",
-    "Quem está confortável em operar no improviso",
+    "Quem quer controlar e negociar cada etapa da operação na mão",
+    "Quem prefere fornecedor próprio fora de um fluxo integrado",
+    "Quem não vende em marketplace nem usa ERP",
   ],
 } as const;
-
-export const LANDING_PLANS = [
-  {
-    id: "start",
-    name: "Start",
-    badge: "Para começar",
-    priceLabel: BRL.format(VALOR_DEFAULT_MENSALIDADE_SELLER),
-    period: "por mês",
-    description: "Para validar operação e começar com controle.",
-    features: [
-      "Até 15 combinações produto + cor",
-      "Saldo, extrato e recarga PIX",
-      "Pedidos com SKU do catálogo",
-      "Painel financeiro e de pedidos",
-    ],
-    highlighted: false,
-    cta: "Solicitar Start",
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    badge: "Recomendado",
-    priceLabel: BRL.format(VALOR_DEFAULT_MENSALIDADE_SELLER_PRO),
-    period: "por mês",
-    description: "Para sellers em escala com foco em margem e volume.",
-    features: [
-      "Tudo do plano Start",
-      "Receita, custo e margem no painel",
-      "Analytics ampliados",
-      "Mais catálogo habilitado",
-    ],
-    highlighted: true,
-    cta: "Solicitar Pro",
-  },
-] as const;
 
 export const LANDING_FAQ = [
   {
@@ -210,56 +114,56 @@ export const LANDING_FAQ = [
     a: "Não. Você vende a partir do catálogo do armazém parceiro. Estoque físico, separação e envio são responsabilidade do parceiro logístico.",
   },
   {
-    q: "Como obtenho acesso?",
-    a: "O acesso é por convite. Após cadastro, você já opera com catálogo e painel de seller.",
+    q: "Existe SLA de postagem, e se o pedido atrasar ou travar?",
+    a: "Sim. Cada fornecedor parceiro tem um SLA de postagem definido; pedidos que passam do prazo ou travam por outro motivo (aguardando estoque, bloqueado etc.) aparecem sinalizados no seu painel — você vê onde está o problema em vez de esperar o cliente reclamar ou precisar cobrar manualmente.",
   },
   {
     q: "Como funciona o saldo?",
     a: "Cada pedido debita do saldo conforme o custo DropCore. Recarregue via PIX no painel.",
   },
   {
+    q: "Como obtenho acesso?",
+    a: "O acesso é por convite. Após cadastro, você já opera com catálogo e painel de seller.",
+  },
+  {
     q: "Há integração com ERP?",
     a: "Sim. Olist/Tiny e Bling com fluxo operacional organizado.",
   },
   {
-    q: "Qual plano escolher?",
-    a: "O Start atende quem está estruturando a operação. O Pro é indicado para quem já vende em volume e precisa de analytics e mais catálogo.",
+    q: "Posso trocar de fornecedor depois?",
+    a: "Sim, com um período mínimo de vínculo (normalmente 3 meses) antes da troca livre — protege a estabilidade do seu catálogo contra trocas por impulso.",
   },
 ] as const;
 
 export const LANDING_SECTIONS = {
   comparison: {
-    title: "A conta que o seller paga antes de vender",
-    subtitle: "Sem estrutura, o caixa sofre antes da receita maturar.",
+    title: "O que trava o seller antes de vender",
+    subtitle: "Sem estrutura, você vira operador de estoque e financeiro em vez de vendedor.",
   },
   steps: {
     title: "Como o DropCore entra na sua rotina",
-    subtitle: "3 etapas para começar enxuto e escalar com controle.",
+    subtitle: "3 etapas pra você só vender — o resto roda sozinho.",
   },
-  features: {
-    title: "O que torna isso indispensável",
-    subtitle: "Sem essa base, sua operação cresce frágil.",
+  flow: {
+    title: "O que acontece a cada pedido",
+    subtitle: "Do clique do cliente ao dinheiro no seu saldo — automático, sem você tocar em nada.",
   },
-  focus: {
-    title: "O que muda na prática",
-    subtitle: "Você sai do improviso e ganha controle de caixa e execução.",
-  },
-  plans: {
-    title: "Planos para estágio de operação",
-    subtitle: "Entre com estrutura sem depender de estoque alto.",
+  fit: {
+    title: "Pra quem é (e pra quem não é)",
+    subtitle: "Melhor alinhar expectativa antes de começar.",
   },
   faq: {
-    title: "Perguntas estratégicas de seller",
-    subtitle: "As dúvidas que travam a decisão.",
+    title: "Perguntas de quem vai soltar a mão da operação",
+    subtitle: "As dúvidas que aparecem antes de confiar o operacional pra gente.",
   },
 } as const;
 
 export const LANDING_FINAL_CTA = {
-  title: "Comece com pouco caixa. Escale com estrutura.",
-  subtitle:
-    "Solicite o convite e veja o DropCore em ação na sua operação.",
+  title: "Pare de operar. Comece a vender.",
+  subtitle: "Solicite o convite e deixe estoque, postagem e financeiro com a gente.",
+  riskNote: "O único compromisso mínimo é com o fornecedor escolhido (normalmente 3 meses) — depois disso, troca livre.",
 } as const;
 
-export function landingSalesMailto(subject = LANDING_CTA_MAIL_SUBJECT): string {
-  return `mailto:${LANDING_SALES_EMAIL}?subject=${encodeURIComponent(subject)}`;
+export function landingSalesWhatsapp(message = LANDING_WHATSAPP_DEFAULT_MESSAGE): string {
+  return `https://wa.me/${LANDING_SALES_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 }

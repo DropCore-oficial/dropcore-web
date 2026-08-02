@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AppBarEndDesktopAuth, AppBarEndMobileAuth } from "@/components/AppBarEndAuth";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { MobileAppBar } from "@/components/MobileAppBar";
@@ -60,99 +60,8 @@ function IconCadastro({ active }: { active: boolean }) {
 
 type NavKey = "dashboard" | "produtos" | "pedidos" | "cadastro" | "integracoes";
 
-const NAV_MAIS_MENU_KEYS = ["integracoes", "cadastro"] as const satisfies readonly NavKey[];
-
-function FornecedorNavDesktopMais({ active }: { active: NavKey }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const maisActive = (NAV_MAIS_MENU_KEYS as readonly string[]).includes(active);
-
-  useEffect(() => {
-    setOpen(false);
-  }, [active]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDoc(e: MouseEvent) {
-      if (rootRef.current?.contains(e.target as Node)) return;
-      setOpen(false);
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  const btnClass =
-    `flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ` +
-    (maisActive ? activeClass + " hover:bg-emerald-100 dark:hover:bg-emerald-900" : inactiveDesktop);
-
-  return (
-    <div className="relative shrink-0" ref={rootRef}>
-      <button
-        type="button"
-        className={btnClass}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        id="fornecedor-nav-mais-trigger"
-        onClick={() => setOpen((o) => !o)}
-      >
-        Mais
-        <svg
-          className={`h-4 w-4 shrink-0 opacity-70 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
-      {open ? (
-        <div
-          className="absolute left-0 top-full z-[100] mt-1 w-[min(calc(100vw-2rem),16rem)] rounded-xl border border-[var(--card-border)] bg-[var(--card)] py-1 shadow-lg ring-1 ring-[var(--foreground)]/[0.06]"
-          role="menu"
-          aria-labelledby="fornecedor-nav-mais-trigger"
-        >
-          <Link
-            href="/fornecedor/integracoes-erp"
-            role="menuitem"
-            className={`mx-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-              active === "integracoes"
-                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
-                : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
-            }`}
-            onClick={() => setOpen(false)}
-          >
-            <IconPlug active={active === "integracoes"} />
-            ERP
-          </Link>
-          <Link
-            href="/fornecedor/cadastro"
-            role="menuitem"
-            className={`mx-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-              active === "cadastro"
-                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
-                : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
-            }`}
-            onClick={() => setOpen(false)}
-          >
-            <IconCadastro active={active === "cadastro"} />
-            Cadastro
-          </Link>
-        </div>
-      ) : null}
-    </div>
-  );
-}
+/** Só mobile agora — desktop mostra as 5 categorias direto na barra, sem "Mais". */
+const NAV_MAIS_MENU_KEYS_MOBILE = ["integracoes", "cadastro"] as const satisfies readonly NavKey[];
 
 export function FornecedorNav({ active, wide = false }: { active: NavKey; wide?: boolean }) {
   const router = useRouter();
@@ -186,7 +95,7 @@ export function FornecedorNav({ active, wide = false }: { active: NavKey; wide?:
       active === key ? activeClass + " bg-emerald-100 dark:bg-emerald-900" : inactiveMobile
     }`;
 
-  const mobileMaisActive = (NAV_MAIS_MENU_KEYS as readonly string[]).includes(active);
+  const mobileMaisActive = (NAV_MAIS_MENU_KEYS_MOBILE as readonly string[]).includes(active);
   const mobileMaisBtnClass =
     `flex min-w-0 flex-1 flex-row items-center justify-center gap-1 overflow-hidden px-0.5 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ` +
     (mobileMaisActive
@@ -216,7 +125,14 @@ export function FornecedorNav({ active, wide = false }: { active: NavKey; wide?:
                 <IconTruck active={active === "pedidos"} />
                 Pedidos
               </Link>
-              <FornecedorNavDesktopMais active={active} />
+              <Link href="/fornecedor/integracoes-erp" className={linkClass("integracoes")}>
+                <IconPlug active={active === "integracoes"} />
+                ERP
+              </Link>
+              <Link href="/fornecedor/cadastro" className={linkClass("cadastro")}>
+                <IconCadastro active={active === "cadastro"} />
+                Cadastro
+              </Link>
             </div>
           </div>
           <AppBarEndDesktopAuth context="fornecedor" onLogout={sair} />

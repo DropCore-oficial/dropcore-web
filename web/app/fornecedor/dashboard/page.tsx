@@ -10,14 +10,15 @@ import { useVisibilityAwareInterval } from "@/lib/useVisibilityAwareInterval";
 import { FornecedorNav } from "../FornecedorNav";
 import { AddToHomeScreenCard } from "@/components/AddToHomeScreenCard";
 import { IconArrowRight, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
-import { AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
+import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { cn } from "@/lib/utils";
 
-const FORNECEDOR_BADGE_PENDENTE = cn(
-  AMBER_PREMIUM_SURFACE_TRANSPARENT,
-  AMBER_PREMIUM_TEXT_PRIMARY
-);
+// Badge de status (etiqueta, não botão): sem borda, fundo sólido — mesmo padrão de
+// STATUS_PILL["enviado"] em web/app/fornecedor/pedidos/page.tsx.
+const FORNECEDOR_BADGE_PENDENTE = cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50");
 
 type FornecedorData = {
   id: string;
@@ -82,8 +83,8 @@ function subtituloBannerMensalidade(
 
 const statusLabel: Record<string, { label: string; cor: string }> = {
   pendente: { label: "Pendente", cor: FORNECEDOR_BADGE_PENDENTE },
-  liberado: { label: "Liberado", cor: "text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/40 border-sky-300 dark:border-sky-700" },
-  pago: { label: "Pago", cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700" },
+  liberado: { label: "Liberado", cor: "text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/40" },
+  pago: { label: "Pago", cor: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/40" },
 };
 
 export default function FornecedorDashboardPage() {
@@ -599,39 +600,37 @@ export default function FornecedorDashboardPage() {
               </p>
             </div>
             <div className="dropcore-scroll-x -mx-1 flex max-w-full flex-nowrap items-center gap-2 overflow-x-auto px-1 pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0">
-              <div className="flex rounded-lg border border-[var(--card-border)] overflow-hidden bg-neutral-100 dark:bg-neutral-900">
-                <button
-                  type="button"
-                  onClick={() => setChartMode("hoje")}
-                  className={`px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                    chartMode === "hoje"
-                      ? "bg-emerald-600 text-white"
-                      : "bg-transparent text-neutral-600 hover:bg-neutral-200/80 dark:text-neutral-400 dark:hover:bg-neutral-800"
-                  }`}
-                >
-                  Hoje
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setChartMode("dias")}
-                  className={`px-3 py-1.5 text-[11px] font-medium transition-colors border-l border-[var(--card-border)] ${
-                    chartMode === "dias"
-                      ? "bg-emerald-600 text-white"
-                      : "bg-transparent text-neutral-600 hover:bg-neutral-200/80 dark:text-neutral-400 dark:hover:bg-neutral-800"
-                  }`}
-                >
-                  Período
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setChartMode("hoje")}
+                className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                  chartMode === "hoje"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200/80 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                }`}
+              >
+                Hoje
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartMode("dias")}
+                className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                  chartMode === "dias"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200/80 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                }`}
+              >
+                Período
+              </button>
               {chartMode === "dias" && (
                 <>
                   {([7, 14, 30, 60, 90, 120] as const).map((n) => (
                     <button
                       key={n}
                       onClick={() => setChartPeriodo(n)}
-                      className={`rounded-lg border border-[var(--card-border)] px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                      className={`rounded-full px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
                         chartPeriodo === n
-                          ? "border-emerald-600 bg-emerald-600 text-white"
+                          ? "bg-emerald-600 text-white"
                           : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200/90 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
                       }`}
                     >
@@ -641,7 +640,7 @@ export default function FornecedorDashboardPage() {
                   <select
                     value={typeof chartPeriodo === "string" ? chartPeriodo : ""}
                     onChange={(e) => { const v = e.target.value; if (v) setChartPeriodo(v); }}
-                    className="rounded-lg border border-[var(--card-border)] bg-neutral-50 px-2.5 py-1.5 text-[11px] font-medium text-neutral-900 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:ring-neutral-500"
+                    className="rounded-full border border-[var(--card-border)] bg-neutral-50 px-2.5 py-1.5 text-[11px] font-medium text-neutral-900 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:ring-neutral-500"
                   >
                     <option value="">Mês...</option>
                     <option value="month:current">Este mês</option>
@@ -957,7 +956,7 @@ export default function FornecedorDashboardPage() {
               ) : (
                 <div className="rounded-lg border border-[var(--card-border)] overflow-hidden">
                   {repasseItems.map((r) => {
-                    const st = statusLabel[r.status] ?? { label: r.status, cor: "text-[var(--muted)] bg-[var(--background)] border-[var(--card-border)]" };
+                    const st = statusLabel[r.status] ?? { label: r.status, cor: "text-[var(--muted)] bg-neutral-100 dark:bg-neutral-800" };
                     return (
                       <div
                         key={r.id}
@@ -970,7 +969,10 @@ export default function FornecedorDashboardPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-[var(--foreground)]">Ciclo {formatDate(r.ciclo_repasse)}</p>
-                          <span className={`inline-block mt-1 rounded-md px-2 py-0.5 text-[10px] font-medium border ${st.cor}`}>{st.label}</span>
+                          <span className={`mt-1 inline-flex w-24 items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium ${st.cor}`}>
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                            {st.label}
+                          </span>
                           {r.pago_em && <p className="text-xs text-[var(--muted)] mt-1">Pago em {formatDate(r.pago_em)}</p>}
                         </div>
                         <p className="text-base font-bold tabular-nums text-emerald-600 dark:text-emerald-400 shrink-0">{BRL.format(r.valor_total)}</p>
@@ -986,48 +988,48 @@ export default function FornecedorDashboardPage() {
 
       {/* Modal PIX Mensalidade */}
       {modalPixMensalidade && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-fade-in-up">
-          <div className="w-full max-w-sm rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-2xl overflow-hidden animate-fade-in-up animate-fade-in-up-delay-1">
-            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[var(--card-border)]">
+        <div className={cn(MODAL_OVERLAY_CLASS, "animate-fade-in-up")}>
+          <div className={cn(MODAL_PANEL_CLASS, "animate-fade-in-up animate-fade-in-up-delay-1")}>
+            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[var(--card-border)] shrink-0">
               <h2 className="text-sm font-semibold text-[var(--foreground)]">Pagar mensalidade</h2>
               <button onClick={fecharModalPix} className="p-1 -m-1 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors rounded">
                 <IconX className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-5 space-y-4">
+            <div className={cn("p-5 space-y-4", MODAL_PANEL_BODY_CLASS)}>
               <p className="text-sm text-[var(--muted)]">
-                Valor: <strong className="text-[var(--foreground)]">{BRL.format(modalPixMensalidade.valor)}</strong>
+                Valor: <strong className="text-[var(--foreground)] tabular-nums">{BRL.format(modalPixMensalidade.valor)}</strong>
               </p>
               {pixErro && (
-                <p className="text-xs text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2">{pixErro}</p>
+                <p className={cn("text-xs rounded-xl px-3 py-2", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>{pixErro}</p>
               )}
               {pixLoading && <p className="text-sm text-[var(--muted)]">Gerando PIX...</p>}
               {!pixLoading && pixQrCode && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                     <IconCheck className="w-5 h-5" />
-                    <p className="text-sm font-semibold">PIX gerado! Pague agora</p>
+                    <p className="text-sm font-semibold text-[var(--foreground)]">PIX gerado! Pague agora</p>
                   </div>
                   <p className="text-xs text-[var(--muted)]">Escaneie o QR Code ou copie o código PIX. Após pagar, aguarde a confirmação automática.</p>
                   {pixRestanteSec !== null && (
                     <div
                       className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium ${
                         pixRestanteSec <= 60
-                          ? cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY)
-                          : "bg-[var(--background)] text-[var(--muted)]"
+                          ? cn(AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY)
+                          : "bg-[var(--surface-subtle)] text-[var(--muted)]"
                       }`}
                     >
                       <IconClock className={`w-4 h-4 shrink-0 ${pixRestanteSec <= 60 ? "animate-pulse" : ""}`} />
                       Válido por {Math.floor(pixRestanteSec / 60)}:{(pixRestanteSec % 60).toString().padStart(2, "0")}
                     </div>
                   )}
-                  <div className="flex justify-center p-4 bg-[var(--background)] rounded-xl">
+                  <div className="flex justify-center p-4 bg-[var(--card)] rounded-xl">
                     <img src={`data:image/png;base64,${pixQrCode}`} alt="QR Code PIX" className="w-40 h-40" />
                   </div>
                   {pixCopiaCola && (
                     <div className="space-y-2">
                       <p className="text-xs text-[var(--muted)]">Código PIX (copia e cola):</p>
-                      <div className="rounded-xl border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-xs font-mono text-[var(--foreground)] text-left break-all max-h-20 overflow-y-auto">
+                      <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 text-xs font-mono text-[var(--foreground)] text-left break-all max-h-20 overflow-y-auto">
                         {pixCopiaCola}
                       </div>
                       <button
@@ -1037,9 +1039,9 @@ export default function FornecedorDashboardPage() {
                           setPixCopiado(true);
                           setTimeout(() => setPixCopiado(false), 2000);
                         }}
-                        className="w-full rounded-xl border-2 border-emerald-500 dark:border-emerald-600 bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-2.5 text-sm hover:opacity-90 transition-colors flex items-center justify-center gap-2"
+                        className="w-full rounded-md bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-1.5 text-[11px] hover:opacity-90 transition-colors flex items-center justify-center gap-2"
                       >
-                        {pixCopiado ? "✓ Copiado!" : "Copiar código PIX"}
+                        {pixCopiado ? "Copiado!" : "Copiar código PIX"}
                       </button>
                     </div>
                   )}

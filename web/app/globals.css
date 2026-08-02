@@ -289,6 +289,16 @@ html.dark .app-bg,
 .animate-fade-in-up-delay-3 { animation: fade-in-up 0.4s ease-out 0.18s forwards; opacity: 0; }
 .animate-fade-in-up-delay-4 { animation: fade-in-up 0.4s ease-out 0.24s forwards; opacity: 0; }
 
+/* Landing: check "pipocando" em sequência no tracker de pedido do Hero + glow pulsante atrás do card. */
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.06); }
+}
+
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -426,13 +436,16 @@ input, select, textarea {
 .u-btn-info { background: var(--info); color: white; }
 .u-btn-secondary { background: var(--muted); color: white; }
 
-/* Landing pública sempre em tema claro (independente da preferência salva). */
+/* Landing pública sempre em tema claro (independente da preferência salva).
+   --foreground: preto puro (mesmo valor do --background do tema escuro oficial em todo
+   o resto do app) — nada de "gray-900"/"slate" do Tailwind aqui, que carregam azul real
+   (#111827 = R17 G24 B39, o canal azul mais alto já lê como navy num fundo cheio). */
 .landing-light-only {
   --background: #ffffff;
-  --foreground: #0f172a;
-  --muted: #64748b;
+  --foreground: #000000;
+  --muted: #6b7280;
   --card: #ffffff;
-  --surface-hover: #f8fafc;
-  --border-subtle: #e2e8f0;
-  --card-border: #dbe3eb;
+  --surface-hover: #f5f5f6;
+  --border-subtle: #e5e7eb;
+  --card-border: #e5e7eb;
 }

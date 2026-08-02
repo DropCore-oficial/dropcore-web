@@ -342,6 +342,8 @@ export async function POST(req: Request) {
     resultado = "ignorado_sem_itens";
   } else if (proc.outcome === "reservado_estoque") {
     resultado = "reservado_estoque";
+  } else if (proc.outcome === "skipped_ja_expirou_antes") {
+    resultado = "ignorado_ja_expirou_antes";
   } else if (proc.outcome === "imported_bloqueado") {
     resultado = "importado_bloqueado";
   }

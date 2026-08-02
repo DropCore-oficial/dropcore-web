@@ -53,28 +53,36 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status")?.trim();
-    const limit = Math.min(100, parseInt(searchParams.get("limit") || "50", 10) || 50);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+    const pageSize = Math.min(300, Math.max(1, parseInt(searchParams.get("limit") || "10", 10) || 10));
     const somenteReservas = status === STATUS_AGUARDANDO_PAGAMENTO;
 
     let data: PedidoRow[] | null = [];
     let error: { message: string; code?: string } | null = null;
+    let pedidosCount = 0;
 
     if (!somenteReservas) {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
       let query = supabaseAdmin
         .from("pedidos")
         .select(
-          "id, nome_produto, valor_total, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, referencia_externa, tracking_codigo, metodo_envio, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_tentativas"
+          "id, nome_produto, valor_total, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, referencia_externa, tracking_codigo, metodo_envio, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_tentativas",
+          { count: "exact" }
         )
         .eq("org_id", seller.org_id)
         .eq("seller_id", seller.id)
         .order("criado_em", { ascending: false })
-        .limit(limit);
+        .range(from, to);
 
       if (status && (STATUS_FILTER as readonly string[]).includes(status)) {
         query = query.eq("status", status);
       }
 
-      ({ data, error } = await query);
+      const res = await query;
+      data = res.data;
+      error = res.error;
+      pedidosCount = res.count ?? 0;
       if (error) {
         const msg = String(error.message ?? "").toLowerCase();
         const colunaAusente =
@@ -86,20 +94,27 @@ export async function GET(req: Request) {
           console.error("[seller/pedidos GET]", error.message);
           return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
         }
-        const fallback = await supabaseAdmin
+        let fallbackQuery = supabaseAdmin
           .from("pedidos")
           .select(
-            "id, nome_produto, valor_total, status, criado_em, referencia_externa, tracking_codigo, metodo_envio, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_tentativas"
+            "id, nome_produto, valor_total, status, criado_em, referencia_externa, tracking_codigo, metodo_envio, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_tentativas",
+            { count: "exact" }
           )
           .eq("org_id", seller.org_id)
           .eq("seller_id", seller.id)
           .order("criado_em", { ascending: false })
-          .limit(limit);
+          .range(from, to);
+        if (status && (STATUS_FILTER as readonly string[]).includes(status)) {
+          fallbackQuery = fallbackQuery.eq("status", status);
+        }
+        const fallback = await fallbackQuery;
         if (fallback.error) {
           console.error("[seller/pedidos GET]", fallback.error.message);
           return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
         }
-        ({ data, error } = fallback);
+        data = fallback.data;
+        error = fallback.error;
+        pedidosCount = fallback.count ?? 0;
       }
     }
 
@@ -230,11 +245,28 @@ export async function GET(req: Request) {
       }));
     }
 
-    const merged = [...items, ...reservaItems]
-      .sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime())
-      .slice(0, limit);
+    const byDateDesc = (a: { criado_em: string }, b: { criado_em: string }) =>
+      new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime();
 
-    return NextResponse.json({ items: merged });
+    let merged: typeof items;
+    let total: number;
+
+    if (somenteReservas) {
+      // Só reservas ("Em aberto") — lista tende a ser pequena, pagina o array já
+      // buscado inteiro em vez de fazer `.range()` no Supabase pra isso.
+      const sorted = [...reservaItems].sort(byDateDesc);
+      total = sorted.length;
+      const from = (page - 1) * pageSize;
+      merged = sorted.slice(from, from + pageSize);
+    } else {
+      // `pedidos` já vem paginado do banco (`.range()`). Reservas não têm página própria
+      // — como a lista costuma ser pequena, elas só entram inteiras na página 1 (mais
+      // recentes primeiro), sem tentar intercalar duas fontes paginadas separadamente.
+      merged = page === 1 ? [...reservaItems, ...items].sort(byDateDesc) : items;
+      total = pedidosCount + (incluirReservas ? reservaItems.length : 0);
+    }
+
+    return NextResponse.json({ items: merged, total, page, limit: pageSize });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

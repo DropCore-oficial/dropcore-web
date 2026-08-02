@@ -20,12 +20,20 @@ export type ProcessOlistPedidoReservaInput = {
 export type ProcessOlistPedidoReservaResult =
   | { ok: true; outcome: "reservado_estoque"; warnings: string[] }
   | { ok: true; outcome: "skipped_sem_itens"; warnings: string[] }
+  | { ok: true; outcome: "skipped_ja_expirou_antes"; warnings: string[] }
   | { ok: false; error: string };
 
 /**
  * Reserva estoque para um pedido Olist "em aberto" (aguardando pagamento).
  * Idempotente: o índice único parcial em `estoque_reservas` (status='ativa') garante
  * que reprocessar o mesmo pedido (cron a cada 1 min, webhook repetido) não reserva 2x.
+ *
+ * Só reserva uma vez por pedido: se já existe uma reserva `expirada` pra essa
+ * `referencia_externa` (ou seja, já passou pelas 72h de TTL sem a Olist confirmar
+ * pagamento nem cancelamento), não reserva de novo — sem isso o pedido ficava reservando
+ * e expirando em loop indefinidamente enquanto a Olist mantivesse a situação "em aberto".
+ * Se o pedido realmente for pago/cancelado depois, isso é tratado nos outros ramos de
+ * `processOlistPedidoImport` (independentes da reserva) — não precisa da reserva ativa.
  */
 export async function processOlistPedidoReserva(
   input: ProcessOlistPedidoReservaInput
@@ -38,6 +46,26 @@ export async function processOlistPedidoReserva(
 
   if (itemsValidos.length === 0) {
     return { ok: true, outcome: "skipped_sem_itens", warnings: [`Pedido ${input.referencia_externa}: sem itens com SKU mapeável.`] };
+  }
+
+  const { data: jaExpirou, error: jaExpirouErr } = await supabaseAdmin
+    .from("estoque_reservas")
+    .select("id")
+    .eq("org_id", input.org_id)
+    .eq("seller_id", input.seller_id)
+    .eq("referencia_externa", input.referencia_externa)
+    .eq("status", "expirada")
+    .limit(1)
+    .maybeSingle();
+
+  if (jaExpirouErr) {
+    warnings.push(`Reserva de estoque: falha ao checar histórico de expiração (${jaExpirouErr.message}) — seguindo com a reserva.`);
+  } else if (jaExpirou) {
+    return {
+      ok: true,
+      outcome: "skipped_ja_expirou_antes",
+      warnings: [`Pedido ${input.referencia_externa}: já expirou uma vez sem confirmação da Olist — não reserva de novo.`],
+    };
   }
 
   for (const item of itemsValidos) {

@@ -6,21 +6,21 @@ import {
 } from "@/lib/sellerCatalogOlistExport";
 import type { LoadCatalogOlistResult } from "@/lib/sellerCatalogOlistLoad";
 
-/** Catálogo do armazém para planilha Olist (64 colunas) — preço = custo_base do fornecedor. */
+/**
+ * Catálogo do armazém para planilha Olist (64 colunas) — preço = custo_base do fornecedor.
+ * `grupoKey` vazio/omitido exporta o catálogo ativo inteiro (todos os grupos).
+ */
 export async function loadFornecedorSkusForOlistExport(opts: {
   orgId: string;
   fornecedorId: string;
-  grupoKey: string;
+  grupoKey?: string;
   categoriaOlist?: string | null;
   supabase: SupabaseClient;
   maxRows?: number;
 }): Promise<LoadCatalogOlistResult> {
-  const grupoKey = opts.grupoKey.trim().toUpperCase();
-  if (!grupoKey) {
-    return { ok: false, error: "Informe o grupo do produto (ex.: DJU001000).", status: 400 };
-  }
-
-  const maxRows = opts.maxRows ?? 500;
+  const grupoKey = (opts.grupoKey ?? "").trim().toUpperCase();
+  const exportarTudo = grupoKey === "";
+  const maxRows = opts.maxRows ?? (exportarTudo ? 2000 : 500);
 
   const { data: rows, error } = await opts.supabase
     .from("skus")
@@ -31,7 +31,7 @@ export async function loadFornecedorSkusForOlistExport(opts: {
     .eq("fornecedor_id", opts.fornecedorId)
     .ilike("status", "ativo")
     .order("sku", { ascending: true })
-    .limit(600);
+    .limit(Math.max(600, maxRows));
 
   if (error) {
     return { ok: false, error: "Erro ao carregar catálogo.", status: 500 };
@@ -85,9 +85,13 @@ export async function loadFornecedorSkusForOlistExport(opts: {
   });
 
   let filtered = filterSkusForOlistExport(mapped, "todos");
-  filtered = filterSkusByGrupo(filtered, grupoKey);
+  if (!exportarTudo) filtered = filterSkusByGrupo(filtered, grupoKey);
   if (filtered.length === 0) {
-    return { ok: false, error: `Nenhum SKU ativo encontrado para o grupo ${grupoKey}.`, status: 400 };
+    return {
+      ok: false,
+      error: exportarTudo ? "Nenhum SKU ativo encontrado no catálogo." : `Nenhum SKU ativo encontrado para o grupo ${grupoKey}.`,
+      status: 400,
+    };
   }
 
   if (opts.categoriaOlist?.trim()) {

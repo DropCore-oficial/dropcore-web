@@ -180,6 +180,7 @@ export type ProcessOlistPedidoImportResult =
   | { ok: true; outcome: "skipped_situacao" }
   | { ok: true; outcome: "skipped_sem_itens"; warnings: string[] }
   | { ok: true; outcome: "reservado_estoque"; warnings: string[] }
+  | { ok: true; outcome: "skipped_ja_expirou_antes"; warnings: string[] }
   | { ok: false; error: string };
 
 /**
@@ -256,6 +257,9 @@ export async function processOlistPedidoImport(
     });
     if (!reserva.ok) {
       return { ok: false, error: reserva.error };
+    }
+    if (reserva.outcome === "skipped_ja_expirou_antes") {
+      return { ok: true, outcome: "skipped_ja_expirou_antes", warnings: reserva.warnings };
     }
     return { ok: true, outcome: "reservado_estoque", warnings: reserva.warnings };
   }

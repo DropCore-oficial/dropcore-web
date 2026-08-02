@@ -79,17 +79,21 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status")?.trim();
-    const limit = Math.min(100, parseInt(searchParams.get("limit") || "50", 10) || 50);
+    const limit = Math.min(300, Math.max(1, parseInt(searchParams.get("limit") || "10", 10) || 10));
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
 
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_impressa_em, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa, metodo_envio, tracking_codigo"
+        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_impressa_em, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa, metodo_envio, tracking_codigo",
+        { count: "exact" }
       )
       .eq("org_id", ctx.org_id)
       .eq("fornecedor_id", ctx.fornecedor_id)
       .order("criado_em", { ascending: false })
-      .limit(limit);
+      .range(from, to);
 
     if (status && ["enviado", "aguardando_repasse", "entregue", "devolvido", "cancelado", "erro_saldo", "pendente_estoque", "bloqueado"].includes(status)) {
       query = query.eq("status", status);
@@ -97,7 +101,8 @@ export async function GET(req: Request) {
 
     let data: PedidoRow[] | null;
     let error: { message: string; code?: string } | null;
-    ({ data, error } = await query);
+    let total: number | null;
+    ({ data, error, count: total } = await query);
     if (error) {
       const msg = String(error.message ?? "").toLowerCase();
       const colunaAusente =
@@ -110,16 +115,17 @@ export async function GET(req: Request) {
         let fallbackQuery = supabaseAdmin
           .from("pedidos")
           .select(
-            "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, referencia_externa"
+            "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, referencia_externa",
+            { count: "exact" }
           )
           .eq("org_id", ctx.org_id)
           .eq("fornecedor_id", ctx.fornecedor_id)
           .order("criado_em", { ascending: false })
-          .limit(limit);
+          .range(from, to);
         if (status && ["enviado", "aguardando_repasse", "entregue", "devolvido", "cancelado", "erro_saldo", "pendente_estoque", "bloqueado"].includes(status)) {
           fallbackQuery = fallbackQuery.eq("status", status);
         }
-        ({ data, error } = await fallbackQuery);
+        ({ data, error, count: total } = await fallbackQuery);
       }
       if (error) {
         console.error("[fornecedor/pedidos GET]", error.message);
@@ -218,7 +224,7 @@ export async function GET(req: Request) {
       };
     });
 
-    return NextResponse.json({ items });
+    return NextResponse.json({ items, total: total ?? items.length, page, limit, expedicao_padrao: expedicaoPadrao });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

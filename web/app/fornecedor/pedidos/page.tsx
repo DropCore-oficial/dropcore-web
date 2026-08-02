@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { FornecedorNav } from "../FornecedorNav";
 import { AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
@@ -71,6 +70,34 @@ function formatDate(s: string) {
   return new Date(s).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+/** Números de página com reticências pra não estourar a barra quando há muitas páginas. */
+function getPageNumbers(current: number, total: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | "...")[] = [1];
+  if (current > 3) pages.push("...");
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) pages.push(p);
+  if (current < total - 2) pages.push("...");
+  pages.push(total);
+  return pages;
+}
+
+/**
+ * Título do card sem repetir "- Cor - Tamanho" (já tem campo próprio) nem o nome do
+ * produto uma vez por variante — usa o nome base do item (não o `nome_produto` do
+ * pedido, que já vem com o sufixo de cor/tamanho concatenado do Olist).
+ */
+function tituloPedido(p: Pedido): string {
+  const itens = p.itens ?? [];
+  if (itens.length === 0) return p.nome_produto ?? "Pedido";
+  const nomesUnicos = [...new Set(itens.map((it) => (it.nome_produto ?? "").trim()).filter(Boolean))];
+  if (nomesUnicos.length <= 1) {
+    const base = nomesUnicos[0] ?? p.nome_produto ?? "Pedido";
+    return itens.length > 1 ? `${base} · ${itens.length} itens` : base;
+  }
+  const outros = nomesUnicos.length - 1;
+  return `${nomesUnicos[0]} + ${outros} outro${outros > 1 ? "s" : ""}`;
+}
+
 const statusLabel: Record<string, string> = {
   pendente_estoque: "Aguardando estoque",
   bloqueado: "Bloqueado",
@@ -92,7 +119,12 @@ export default function FornecedorPedidosPage() {
   const [postandoId, setPostandoId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [imprimindoLote, setImprimindoLote] = useState(false);
+  const [marcandoLote, setMarcandoLote] = useState(false);
   const [avisoLote, setAvisoLote] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPedidos, setTotalPedidos] = useState(0);
+  const [expedicaoPadrao, setExpedicaoPadrao] = useState<string | null>(null);
   const destaqueId = searchParams.get("destaque");
   const pedidoCardRefs = useRef<Record<string, HTMLElement | null>>({});
   const printMenuRef = useRef<HTMLDetailsElement>(null);
@@ -107,7 +139,7 @@ export default function FornecedorPedidosPage() {
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, []);
 
-  async function load() {
+  async function load(opts?: { preserveSelection?: boolean }) {
     setLoading(true);
     setError(null);
     try {
@@ -118,6 +150,11 @@ export default function FornecedorPedidosPage() {
       }
       const params = new URLSearchParams();
       if (statusFilter) params.set("status", statusFilter);
+      // Com destaque (link de notificação), busca uma janela maior em vez de só a
+      // página atual — o pedido notificado pode não estar entre os `pageSize` mais
+      // recentes.
+      params.set("page", destaqueId ? "1" : String(page));
+      params.set("limit", destaqueId ? "300" : String(pageSize));
       const res = await fetch(`/api/fornecedor/pedidos?${params.toString()}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
         cache: "no-store",
@@ -128,8 +165,14 @@ export default function FornecedorPedidosPage() {
       }
       const json = await res.json();
       setPedidos(json.items ?? []);
-      setSelectedIds(new Set());
-      setAvisoLote(null);
+      setTotalPedidos(typeof json.total === "number" ? json.total : (json.items ?? []).length);
+      if (typeof json.expedicao_padrao === "string" || json.expedicao_padrao === null) {
+        setExpedicaoPadrao(json.expedicao_padrao);
+      }
+      if (!opts?.preserveSelection) {
+        setSelectedIds(new Set());
+        setAvisoLote(null);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
@@ -139,7 +182,8 @@ export default function FornecedorPedidosPage() {
 
   useEffect(() => {
     load();
-  }, [statusFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, page, pageSize]);
 
   useEffect(() => {
     if (destaqueId && pedidos.length > 0 && !loading) {
@@ -240,6 +284,10 @@ export default function FornecedorPedidosPage() {
     pedidos.some((p) => p.id === id && p.tem_etiqueta_oficial)
   );
 
+  const selecionadosProntosParaPostar = [...selectedIds].filter((id) =>
+    pedidos.some((p) => p.id === id && p.status === "enviado" && p.tem_etiqueta_oficial && p.etiqueta_impressa_em)
+  );
+
   function toggleSelecionar(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -295,10 +343,57 @@ export default function FornecedorPedidosPage() {
       const w = window.open(url, "_blank", "noopener,noreferrer");
       if (!w) setError("Permita pop-ups para abrir o PDF ou use o botão de baixar no navegador.");
       setTimeout(() => URL.revokeObjectURL(url), 120_000);
+      // A API já marcou etiqueta_impressa_em no banco — recarrega pra habilitar
+      // "Marcar como postado" na hora, sem o fornecedor precisar dar F5.
+      await load({ preserveSelection: true });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro ao imprimir em lote.");
     } finally {
       setImprimindoLote(false);
+    }
+  }
+
+  async function marcarPostadoEmLote() {
+    if (selecionadosProntosParaPostar.length === 0) {
+      setError("Selecione pelo menos um pedido com etiqueta já impressa.");
+      return;
+    }
+    setMarcandoLote(true);
+    setError(null);
+    setAvisoLote(null);
+    try {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/fornecedor/login");
+        return;
+      }
+      let sucesso = 0;
+      const falhas: string[] = [];
+      for (const id of selecionadosProntosParaPostar) {
+        try {
+          const res = await fetch(`/api/fornecedor/pedidos/${id}/marcar-postado`, {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(json?.error ?? "Erro.");
+          sucesso += 1;
+        } catch {
+          falhas.push(id);
+        }
+      }
+      await load();
+      if (falhas.length > 0) {
+        setAvisoLote(
+          `${sucesso} pedido(s) marcado(s) como postado. ${falhas.length} não puderam ser marcados — tente novamente.`
+        );
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao marcar em lote.");
+    } finally {
+      setMarcandoLote(false);
     }
   }
 
@@ -373,47 +468,15 @@ export default function FornecedorPedidosPage() {
 
       <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
-            <div className="min-w-0 space-y-1">
-              <Link
-                href="/fornecedor/dashboard"
-                className="inline-flex items-center gap-2.5 text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M19 12H5M12 19l-7-7 7-7" />
-                </svg>
-                Voltar
-              </Link>
-              <p className="text-sm font-medium uppercase leading-snug tracking-wide text-emerald-700/90 dark:text-emerald-400/90">Operação</p>
-              <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">Pedidos para atender</h1>
-              <p className="max-w-xl text-sm leading-snug text-[var(--muted)]">Lista enviada pelos sellers para postagem e acompanhamento.</p>
+          <div className="min-w-0 space-y-1">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">Pedidos para atender</h1>
+              <span
+                className="h-1 w-14 shrink-0 self-center rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 sm:w-20"
+                aria-hidden
+              />
             </div>
-            <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:items-end sm:pt-0.5">
-              <div className="flex w-full flex-wrap items-center gap-2 sm:w-max sm:flex-nowrap sm:justify-end">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="min-h-[1.875rem] flex-1 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] sm:w-36 sm:flex-none"
-                >
-                  <option value="">Todos</option>
-                  <option value="pendente_estoque">Aguardando estoque</option>
-                  <option value="bloqueado">Bloqueado</option>
-                  <option value="enviado">Aguardando postagem</option>
-                  <option value="aguardando_repasse">Postados</option>
-                  <option value="entregue">Entregues</option>
-                  <option value="devolvido">Devolvidos</option>
-                  <option value="cancelado">Cancelados</option>
-                </select>
-                <button
-                  type="button"
-                  onClick={() => void load()}
-                  disabled={loading}
-                  className={cn(btnSecondaryCompactClass, "flex-1 sm:flex-none")}
-                >
-                  {loading ? "Carregando..." : "Atualizar"}
-                </button>
-              </div>
-            </div>
+            <p className="max-w-xl text-sm leading-snug text-[var(--muted)]">Lista enviada pelos sellers para postagem e acompanhamento.</p>
           </div>
         </header>
 
@@ -429,9 +492,10 @@ export default function FornecedorPedidosPage() {
           </AmberPremiumCallout>
         )}
 
-        {pedidos.length > 0 && (
-          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3">
-            <div className="flex flex-row items-center gap-2">
+        <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              {pedidos.length > 0 && (
+              <div className="order-2 flex items-center gap-2 sm:order-none sm:contents">
               <input
                 type="checkbox"
                 ref={(el) => {
@@ -443,11 +507,11 @@ export default function FornecedorPedidosPage() {
                 title="Selecionar todos"
                 className="shrink-0 self-center rounded border-neutral-300 dark:border-neutral-600"
               />
-              <details ref={printMenuRef} className="group relative shrink-0">
+              <details ref={printMenuRef} className="group relative flex-1 sm:flex-none sm:shrink-0">
                 <summary
                   className={cn(
                     btnSecondaryCompactClass,
-                    "flex cursor-pointer list-none items-center justify-center gap-1.5 [&::-webkit-details-marker]:hidden"
+                    "flex w-full cursor-pointer list-none items-center justify-center gap-1.5 [&::-webkit-details-marker]:hidden"
                   )}
                 >
                   Imprimir etiqueta
@@ -489,9 +553,67 @@ export default function FornecedorPedidosPage() {
                   </button>
                 </div>
               </details>
+              <button
+                type="button"
+                onClick={() => void marcarPostadoEmLote()}
+                disabled={marcandoLote || selecionadosProntosParaPostar.length === 0}
+                title={
+                  selecionadosProntosParaPostar.length === 0
+                    ? "Selecione pedidos com etiqueta já impressa"
+                    : undefined
+                }
+                className={cn(btnPrimaryCompactClass, "flex-1 sm:flex-none sm:shrink-0")}
+              >
+                {marcandoLote
+                  ? "Marcando..."
+                  : `Marcar como postado${selecionadosProntosParaPostar.length > 0 ? ` (${selecionadosProntosParaPostar.length})` : ""}`}
+              </button>
+              </div>
+              )}
+              <div className="order-1 flex items-center gap-2 sm:order-none sm:contents">
+              <div className="relative flex-1 sm:ml-auto sm:flex-none sm:shrink-0">
+                <div
+                  aria-hidden
+                  className="pointer-events-none flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)]"
+                >
+                  <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+                  </svg>
+                  Filtro
+                  <svg className="h-3.5 w-3.5 shrink-0 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </div>
+                <select
+                  aria-label="Filtrar por status"
+                  value={statusFilter}
+                  onChange={(e) => {
+                    setPage(1);
+                    setStatusFilter(e.target.value);
+                  }}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                >
+                  <option value="">Todos</option>
+                  <option value="pendente_estoque">Aguardando estoque</option>
+                  <option value="bloqueado">Bloqueado</option>
+                  <option value="enviado">Aguardando postagem</option>
+                  <option value="aguardando_repasse">Postados</option>
+                  <option value="entregue">Entregues</option>
+                  <option value="devolvido">Devolvidos</option>
+                  <option value="cancelado">Cancelados</option>
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => void load()}
+                disabled={loading}
+                className={cn(btnSecondaryCompactClass, "flex-1 sm:flex-none sm:shrink-0")}
+              >
+                {loading ? "Carregando..." : "Atualizar Pedidos"}
+              </button>
+              </div>
             </div>
-          </div>
-        )}
+        </div>
 
         {pedidos.length === 0 ? (
           <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] py-16 text-center">
@@ -526,7 +648,7 @@ export default function FornecedorPedidosPage() {
                         className="mt-1 shrink-0 rounded border-neutral-300 disabled:cursor-not-allowed dark:border-neutral-600"
                       />
                       <div className="min-w-0">
-                        <p className="font-medium text-[var(--foreground)]">{p.nome_produto ?? "Pedido"}</p>
+                        <p className="font-medium text-[var(--foreground)]">{tituloPedido(p)}</p>
                         <p className="mt-1 text-sm text-neutral-500">{formatDate(p.criado_em)}</p>
                       </div>
                     </div>
@@ -552,16 +674,22 @@ export default function FornecedorPedidosPage() {
                     </div>
                     <div>
                       <dt className="text-neutral-500">Cor / Tamanho</dt>
-                      <dd>{p.cor ?? "—"} · {p.tamanho ?? "—"}</dd>
+                      <dd>
+                        {p.itens.length > 1
+                          ? `${p.itens.length} variantes`
+                          : `${p.cor ?? "—"} · ${p.tamanho ?? "—"}`}
+                      </dd>
                     </div>
                     <div>
                       <dt className="text-neutral-500">Categoria</dt>
                       <dd>{p.categoria ?? "—"}</dd>
                     </div>
-                    <div>
-                      <dt className="text-neutral-500">Onde despachar</dt>
-                      <dd>{p.linha_despacho ?? "—"}</dd>
-                    </div>
+                    {p.linha_despacho && p.linha_despacho !== expedicaoPadrao ? (
+                      <div className="col-span-2">
+                        <dt className="text-neutral-500">Onde despachar (diferente do padrão)</dt>
+                        <dd>{p.linha_despacho}</dd>
+                      </div>
+                    ) : null}
                     <div>
                       <dt className="text-neutral-500">Como despachar</dt>
                       <dd>{p.metodo_envio ?? "—"}</dd>
@@ -591,9 +719,10 @@ export default function FornecedorPedidosPage() {
                       {p.itens.map((item, idx) => (
                         <li
                           key={`${p.id}-${item.sku}-${idx}`}
+                          title={item.sku}
                           className="rounded-lg bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
                         >
-                          {item.sku} × {item.quantidade}
+                          {[item.cor, item.tamanho].filter(Boolean).join(" · ") || item.sku} × {item.quantidade}
                         </li>
                       ))}
                     </ul>
@@ -711,11 +840,88 @@ export default function FornecedorPedidosPage() {
                 </article>
               ))}
             </div>
+
+            <div className="flex flex-col items-center gap-3 pt-1 sm:flex-row sm:justify-between">
+              <p className="text-xs text-[var(--muted)]">
+                Total <span className="font-semibold text-[var(--foreground)]">{totalPedidos}</span> pedido{totalPedidos !== 1 ? "s" : ""}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  aria-label="Página anterior"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                </button>
+                {getPageNumbers(page, Math.max(1, Math.ceil(totalPedidos / pageSize))).map((p, idx) =>
+                  p === "..." ? (
+                    <span key={`ellipsis-${idx}`} className="px-1 text-xs text-[var(--muted)]">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPage(p)}
+                      aria-current={p === page ? "page" : undefined}
+                      className={cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold transition-colors",
+                        p === page
+                          ? "bg-emerald-600 text-white"
+                          : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                      )}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(Math.max(1, Math.ceil(totalPedidos / pageSize)), p + 1))}
+                  disabled={page >= Math.max(1, Math.ceil(totalPedidos / pageSize))}
+                  aria-label="Próxima página"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                </button>
+                <div className="relative ml-1.5 shrink-0">
+                  <div
+                    aria-hidden
+                    className="pointer-events-none flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)]"
+                  >
+                    {pageSize}/página
+                    <svg className="h-3.5 w-3.5 shrink-0 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </div>
+                  <select
+                    aria-label="Itens por página"
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPage(1);
+                      setPageSize(Number(e.target.value));
+                    }}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  >
+                    <option value={20}>20/página</option>
+                    <option value={50}>50/página</option>
+                    <option value={100}>100/página</option>
+                    <option value={300}>300/página</option>
+                  </select>
+                </div>
+              </div>
+            </div>
           </>
         )}
 
       </div>
-      <FornecedorNav active="pedidos" />
+      <FornecedorNav active="pedidos" wide />
     </div>
   );
 }

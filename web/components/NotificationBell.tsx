@@ -108,8 +108,9 @@ export function NotificationBell({
       <button
         type="button"
         onClick={() => {
-          setOpen((o) => !o);
-          if (open) fetchNotifs(true);
+          const willOpen = !open;
+          setOpen(willOpen);
+          if (willOpen) void fetchNotifs(true);
         }}
         className={`group relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all duration-200 ${
           open

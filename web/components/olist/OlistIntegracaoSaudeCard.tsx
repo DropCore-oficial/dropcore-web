@@ -64,7 +64,7 @@ export function OlistIntegracaoSaudeCard(props: Props) {
         {props.linhas.map((linha) => (
           <div
             key={linha.rotulo}
-            className="rounded-lg border border-[var(--card-border)]/80 bg-[var(--background)]/60 px-2.5 py-2"
+            className="rounded-lg border border-[var(--card-border)]/80 bg-[var(--surface-subtle)] px-2.5 py-2"
           >
             <dt className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">{linha.rotulo}</dt>
             <dd className="mt-0.5 text-xs text-[var(--foreground)]">

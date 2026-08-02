@@ -6,14 +6,25 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { FornecedorNav } from "../FornecedorNav";
 import { CorCelulaProduto } from "@/components/fornecedor/CorCelulaProduto";
-import { AlteracoesCatalogoInfoBanner } from "@/components/fornecedor/AlteracoesCatalogoInfoBanner";
-import { FornecedorImportEstoquePanel } from "@/components/fornecedor/FornecedorImportEstoquePanel";
+import { HelpBubble } from "@/components/HelpBubble";
+import {
+  FornecedorImportEstoquePanel,
+  type FornecedorImportEstoquePanelHandle,
+} from "@/components/fornecedor/FornecedorImportEstoquePanel";
 import { FotoVariacaoCell, type FotoVariacaoCellHandle } from "@/components/FotoVariacaoCell";
 import { toTitleCase } from "@/lib/formatText";
 import { fornecedorProdutoImagemSrc } from "@/lib/fornecedorProdutoImagemSrc";
 import { getResumoRascunhoCriarVariantes, type ResumoRascunhoCriarVariantes } from "@/lib/fornecedorCriarVariantesRascunho";
 import { ProdutoResumoListaGrupo } from "@/components/fornecedor/ProdutoResumoListaGrupo";
 import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_BODY, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import {
+  DANGER_PREMIUM_SHELL,
+  DANGER_PREMIUM_SURFACE,
+  DANGER_PREMIUM_TEXT_PRIMARY,
+  SUCCESS_PREMIUM_SHELL,
+  SUCCESS_PREMIUM_SURFACE,
+  SUCCESS_PREMIUM_TEXT_PRIMARY,
+} from "@/lib/semanticPremium";
 import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
 import { parseDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { cn } from "@/lib/utils";
@@ -25,8 +36,8 @@ function closeFornecedorVariantMenu(fromEl: HTMLElement) {
   if (d) d.removeAttribute("open");
 }
 
-/** Três pontinhos horizontais (⋯ estilo lista / print). */
-function IconTresPontosHorizontais({ size = 16, className }: { size?: number; className?: string }) {
+/** Três pontinhos verticais (⋮ menu de ações — padrão igual ao do seller). */
+function IconTresPontosVerticais({ size = 16, className }: { size?: number; className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -37,9 +48,9 @@ function IconTresPontosHorizontais({ size = 16, className }: { size?: number; cl
       className={className}
       aria-hidden
     >
-      <circle cx="5" cy="12" r="2" />
+      <circle cx="12" cy="5" r="2" />
       <circle cx="12" cy="12" r="2" />
-      <circle cx="19" cy="12" r="2" />
+      <circle cx="12" cy="19" r="2" />
     </svg>
   );
 }
@@ -195,14 +206,22 @@ function isEstoqueBaixo(p: Produto): boolean {
   return min != null && atual != null && Number(atual) < Number(min);
 }
 
+function grupoTodosInativos(g: GrupoProduto): boolean {
+  const linhas = [...(g.pai ? [g.pai] : []), ...g.filhos];
+  return linhas.length > 0 && linhas.every((p) => (p.status || "").toLowerCase() !== "ativo");
+}
+
 export default function FornecedorProdutosPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const filtroEstoqueBaixo = searchParams.get("estoqueBaixo") === "1";
+  const filtroInativo = searchParams.get("inativo") === "1";
+  const filtroPendente = searchParams.get("pendente") === "1";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [helpAlteracoesOpen, setHelpAlteracoesOpen] = useState(false);
   const [modal, setModal] = useState<"none" | "edit">("none");
   const [editando, setEditando] = useState<Produto | null>(null);
   const [formLoading, setFormLoading] = useState(false);
@@ -226,6 +245,7 @@ export default function FornecedorProdutosPage() {
   const [mostrarFotosVariantes, setMostrarFotosVariantes] = useState<boolean>(true);
   /** Refs por `gc.key` para menu ⋮ (trocar / excluir foto) nos cartões «agrupado por cor». */
   const fotoPorCorHandleRef = useRef<Record<string, FotoVariacaoCellHandle | null>>({});
+  const importEstoqueRef = useRef<FornecedorImportEstoquePanelHandle>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [solicitandoExclusao, setSolicitandoExclusao] = useState<string | null>(null);
   const [alteracoesStatus, setAlteracoesStatus] = useState<{
@@ -275,6 +295,44 @@ export default function FornecedorProdutosPage() {
     },
     [router],
   );
+
+  const [exportandoOlistTudo, setExportandoOlistTudo] = useState(false);
+
+  const baixarCsvOlistTodos = useCallback(async () => {
+    setExportandoOlistTudo(true);
+    setFormError(null);
+    try {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/fornecedor/login");
+        return;
+      }
+      const res = await fetch("/api/fornecedor/catalogo/export-olist", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(typeof json?.error === "string" ? json.error : "Erro ao exportar catálogo para a Olist.");
+      }
+      const blob = await res.blob();
+      const disp = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disp);
+      const filename = match?.[1] ?? "dropcore-olist-fornecedor-todos.csv";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      setFormError(e instanceof Error ? e.message : "Erro ao exportar catálogo para a Olist.");
+    } finally {
+      setExportandoOlistTudo(false);
+    }
+  }, [router]);
 
   function fecharMenusAcoesAbertos() {
     if (typeof document === "undefined") return;
@@ -382,6 +440,30 @@ export default function FornecedorProdutosPage() {
         ultimo = r;
     }
     return ultimo?.motivo_rejeicao ?? null;
+  }
+
+  const gruposFiltrados = useMemo(() => {
+    if (!filtroInativo && !filtroPendente) return grupos;
+    return grupos.filter((g) => {
+      if (filtroInativo && !grupoTodosInativos(g)) return false;
+      if (filtroPendente && statusAlteracaoGrupo(g) !== "pendente") return false;
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grupos, filtroInativo, filtroPendente, alteracoesStatus]);
+
+  const filtrosAtivosCount = [filtroEstoqueBaixo, filtroInativo, filtroPendente].filter(Boolean).length;
+
+  function buildFiltroHref(overrides: Partial<{ estoqueBaixo: boolean; inativo: boolean; pendente: boolean }>) {
+    const eb = overrides.estoqueBaixo ?? filtroEstoqueBaixo;
+    const ia = overrides.inativo ?? filtroInativo;
+    const pe = overrides.pendente ?? filtroPendente;
+    const params = new URLSearchParams();
+    if (eb) params.set("estoqueBaixo", "1");
+    if (ia) params.set("inativo", "1");
+    if (pe) params.set("pendente", "1");
+    const qs = params.toString();
+    return `/fornecedor/produtos${qs ? `?${qs}` : ""}`;
   }
 
   useEffect(() => {
@@ -527,156 +609,42 @@ export default function FornecedorProdutosPage() {
   return (
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
       <div className="dropcore-shell-6xl py-5 md:py-7 space-y-5 md:space-y-6">
-        {/* Header + filtros — mesmo bloco de cartão que o dashboard do fornecedor */}
+        {/* Header — só título */}
         <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
           <div className="min-w-0 space-y-1">
-            <Link
-              href="/fornecedor/dashboard"
-              className="inline-flex items-center gap-2.5 text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              </svg>
-              Voltar
-            </Link>
-            <p className="text-sm font-medium uppercase tracking-wide text-emerald-700/90 dark:text-emerald-400/90 leading-snug">
-              Catálogo
-            </p>
-            <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">Meus produtos</h1>
-          </div>
-          <div className="flex w-full min-w-0 flex-col gap-3 sm:w-auto sm:items-end sm:pt-0.5">
-            <label className="flex w-full cursor-pointer items-center gap-2 text-sm text-[var(--muted)] sm:w-auto sm:justify-end">
-              <input
-                type="checkbox"
-                checked={filtroEstoqueBaixo}
-                onChange={(e) => router.push(e.target.checked ? "/fornecedor/produtos?estoqueBaixo=1" : "/fornecedor/produtos")}
-                className="rounded border-[var(--card-border)] bg-[var(--background)] text-emerald-600 focus:ring-emerald-500/40 dark:bg-[var(--surface-subtle)]"
+            <div className="flex items-center gap-2 sm:gap-3">
+              <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">Meus produtos</h1>
+              <span
+                className="h-1 w-14 shrink-0 self-center rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 sm:w-20"
+                aria-hidden
               />
-              Só estoque baixo
-            </label>
-            <div className="flex w-full flex-col gap-2 sm:hidden">
-              {rascunhoCriarVariantes && (
-                <Link
-                  href="/fornecedor/produtos/criar-variantes"
-                  className="flex min-h-[3rem] items-center gap-3 rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 shadow-sm transition hover:bg-[var(--muted)]/10"
-                  title={`${rascunhoCriarVariantes.nomeResumo} — salvo em ${new Date(rascunhoCriarVariantes.savedAt).toLocaleString("pt-BR")}`}
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--muted)]/12 text-[var(--muted)]">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <line x1="16" y1="13" x2="8" y2="13" />
-                      <line x1="16" y1="17" x2="8" y2="17" />
-                    </svg>
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span className="text-sm font-semibold text-[var(--foreground)]">Continuar rascunho</span>
-                      {rascunhoCriarVariantes.origem === "local" && (
-                        <span className="rounded-md bg-[var(--muted)]/20 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
-                          Só aparelho
-                        </span>
-                      )}
-                    </span>
-                    <span className="mt-0.5 block truncate text-xs text-[var(--muted)]">
-                      {rascunhoCriarVariantes.nomeResumo}
-                      <span className="text-[var(--muted)]"> · </span>
-                      {new Date(rascunhoCriarVariantes.savedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
-                    </span>
-                  </span>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--muted)]" aria-hidden>
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
-                </Link>
-              )}
-              <Link
-                href="/fornecedor/produtos/criar-variantes"
-                className="flex h-9 w-full items-center justify-center rounded-md bg-emerald-600 px-3 text-center text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:brightness-[0.92] shadow-emerald-600/20"
-              >
-                Criar produto
-              </Link>
             </div>
-            <div className="hidden sm:flex sm:justify-end">
-              {rascunhoCriarVariantes ? (
-                <div className="inline-flex max-w-full items-stretch overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
-                  <Link
-                    href="/fornecedor/produtos/criar-variantes"
-                    className="group flex min-h-[2.5rem] max-w-[min(100vw-8rem,17rem)] min-w-0 items-center gap-2.5 border-r border-[var(--card-border)] px-3 py-1.5 text-left transition hover:bg-[var(--muted)]/10"
-                    title={`${rascunhoCriarVariantes.nomeResumo} — salvo em ${new Date(rascunhoCriarVariantes.savedAt).toLocaleString("pt-BR")}`}
-                  >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--muted)]/12 text-[var(--muted)] transition group-hover:bg-emerald-100 group-hover:text-emerald-700 dark:group-hover:bg-emerald-950/50 dark:group-hover:text-emerald-400">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                        <polyline points="14 2 14 8 20 8" />
-                        <line x1="16" y1="13" x2="8" y2="13" />
-                        <line x1="12" y1="17" x2="8" y2="17" />
-                      </svg>
-                    </span>
-                    <span className="min-w-0 flex-1 py-0.5">
-                      <span className="flex items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-[var(--foreground)]">Continuar rascunho</span>
-                        {rascunhoCriarVariantes.origem === "local" && (
-                          <span className="shrink-0 rounded bg-[var(--muted)]/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[var(--muted)]">
-                            Local
-                          </span>
-                        )}
-                      </span>
-                      <span className="mt-0.5 block truncate text-[11px] leading-tight text-[var(--muted)]">
-                        {rascunhoCriarVariantes.nomeResumo}
-                        <span className="text-[var(--muted)]"> · </span>
-                        {new Date(rascunhoCriarVariantes.savedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
-                      </span>
-                    </span>
-                  </Link>
-                  <div className="flex items-stretch gap-1 p-1 pl-0">
-                    <Link
-                      href="/fornecedor/produtos/criar-variantes"
-                      className="flex h-7 items-center rounded-md bg-emerald-600 px-2.5 text-[11px] font-medium text-white shadow-sm transition hover:bg-emerald-700 active:brightness-[0.92] shadow-emerald-600/15"
-                    >
-                      Criar produto
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <Link
-                  href="/fornecedor/produtos/criar-variantes"
-                  className="flex h-7 items-center rounded-md bg-emerald-600 px-2.5 text-[11px] font-medium text-white shadow-sm transition hover:bg-emerald-700 active:brightness-[0.92] shadow-emerald-600/15"
-                >
-                  Criar produto
-                </Link>
-              )}
-            </div>
+            <p className="max-w-xl text-sm leading-relaxed text-[var(--muted)]">
+              Cadastre produtos, fotos e estoque do seu catálogo.{" "}
+              <span className="font-medium text-[var(--foreground)]">
+                Alterações entram em análise da DropCore antes de valer pro seller.
+              </span>
+            </p>
           </div>
-        </div>
         </header>
 
-        <FornecedorImportEstoquePanel
-          produtos={produtos.map((p) => ({
-            sku: p.sku,
-            estoque_atual: p.estoque_atual,
-            estoque_minimo: p.estoque_minimo,
-          }))}
-          onImported={load}
-        />
-
         {error && (
-          <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-100 dark:bg-red-950 p-4 text-sm text-red-800 dark:text-red-300">
+          <div className={cn(DANGER_PREMIUM_SURFACE, DANGER_PREMIUM_TEXT_PRIMARY, "rounded-2xl px-4 py-3 text-sm")}>
             {error}
             <button onClick={load} className="ml-2 underline">Tentar novamente</button>
           </div>
         )}
 
         {successMessage && (
-          <div className="rounded-xl border border-emerald-300 dark:border-emerald-900 bg-emerald-100 dark:bg-emerald-950 p-4 text-sm text-emerald-900 dark:text-emerald-300">
+          <div className={cn(SUCCESS_PREMIUM_SURFACE, SUCCESS_PREMIUM_TEXT_PRIMARY, "rounded-2xl px-4 py-3 text-sm")}>
             {successMessage}
           </div>
         )}
 
         {formError && modal === "none" && (
-          <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-100 dark:bg-red-950 p-4 text-sm text-red-800 dark:text-red-300 flex items-start justify-between gap-3">
+          <div className={cn(DANGER_PREMIUM_SURFACE, DANGER_PREMIUM_TEXT_PRIMARY, "rounded-2xl px-4 py-3 text-sm flex items-start justify-between gap-3")}>
             <span>{formError}</span>
-            <button type="button" onClick={() => setFormError(null)} className="shrink-0 text-red-700 dark:text-red-400 underline text-xs">
+            <button type="button" onClick={() => setFormError(null)} className="shrink-0 underline text-xs">
               Fechar
             </button>
           </div>
@@ -685,25 +653,237 @@ export default function FornecedorProdutosPage() {
         {/* Lista — mobile: cartões; desktop largo: tabela */}
         <div className="min-w-0 overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
           <div className="border-b border-[var(--card-border)] px-3 py-3 sm:px-4">
-            <h2 className="text-sm font-semibold text-[var(--foreground)]">Produtos do armazém</h2>
+            <div className="flex flex-nowrap items-center justify-between gap-2">
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <h2 className="truncate text-xl font-bold text-emerald-700 dark:text-emerald-400">Produtos do armazém</h2>
+                <HelpBubble
+                  open={helpAlteracoesOpen}
+                  onOpen={() => setHelpAlteracoesOpen(true)}
+                  onClose={() => setHelpAlteracoesOpen(false)}
+                  ariaLabel="Como funcionam alterações e o catálogo do seller"
+                >
+                  <p>
+                    <strong className="text-[var(--foreground)]">Dados cadastrais</strong> (nome, descrição, preço,
+                    estoque via fluxos com análise, medidas, NCM e link de fotos no formulário) entram em{" "}
+                    <strong className="text-[var(--foreground)]">análise da DropCore</strong>.
+                  </p>
+                  <p className="mt-2">
+                    O seller e os pedidos ERP seguem com a{" "}
+                    <strong className="text-[var(--foreground)]">última versão aprovada</strong> até a publicação em{" "}
+                    <strong className="text-[var(--foreground)]">Alterações de produtos</strong>.
+                  </p>
+                  <p className="mt-2">
+                    <strong className="text-[var(--foreground)]">Miniatura de SKU</strong> (Enviar/Trocar) costuma
+                    atualizar na hora pela rota de upload.
+                  </p>
+                </HelpBubble>
+              </span>
+              <div className="flex shrink-0 items-center gap-2">
+                <Link
+                  href="/fornecedor/produtos/criar-variantes"
+                  className="hidden shrink-0 items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 active:brightness-[0.92] sm:flex"
+                >
+                  Criar produto
+                </Link>
+                <details data-menu-acoes className="group relative hidden shrink-0 sm:block">
+                  <summary
+                    aria-label={`Filtros${filtrosAtivosCount > 0 ? ` (${filtrosAtivosCount} ativos)` : ""}`}
+                    className="flex cursor-pointer list-none items-center gap-1.5 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 [&::-webkit-details-marker]:hidden"
+                  >
+                    <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+                    </svg>
+                    Filtros{filtrosAtivosCount > 0 ? ` (${filtrosAtivosCount})` : ""}
+                    <svg
+                      className="h-3.5 w-3.5 shrink-0 opacity-70 transition-transform duration-200 group-open:rotate-180"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </summary>
+                  <div className="absolute right-0 z-20 mt-1.5 min-w-[14rem] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-1 shadow-md">
+                    <label className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12">
+                      <input
+                        type="checkbox"
+                        checked={filtroEstoqueBaixo}
+                        onChange={(e) => router.push(buildFiltroHref({ estoqueBaixo: e.target.checked }))}
+                        className="rounded border-[var(--card-border)] text-emerald-600 focus:ring-emerald-500/40"
+                      />
+                      Só estoque baixo
+                    </label>
+                    <label className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12">
+                      <input
+                        type="checkbox"
+                        checked={filtroInativo}
+                        onChange={(e) => router.push(buildFiltroHref({ inativo: e.target.checked }))}
+                        className="rounded border-[var(--card-border)] text-emerald-600 focus:ring-emerald-500/40"
+                      />
+                      Só inativos
+                    </label>
+                    <label className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12">
+                      <input
+                        type="checkbox"
+                        checked={filtroPendente}
+                        onChange={(e) => router.push(buildFiltroHref({ pendente: e.target.checked }))}
+                        className="rounded border-[var(--card-border)] text-emerald-600 focus:ring-emerald-500/40"
+                      />
+                      Alteração em análise
+                    </label>
+                  </div>
+                </details>
+                <details data-menu-acoes className="group relative shrink-0">
+                  <summary
+                    aria-label="Mais ações"
+                    title="Mais ações"
+                    className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-md text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 [&::-webkit-details-marker]:hidden"
+                  >
+                    <IconTresPontosVerticais size={18} />
+                  </summary>
+                  <div className="absolute right-0 z-20 mt-1.5 min-w-[15rem] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-1 shadow-md">
+                    {rascunhoCriarVariantes && (
+                      <Link
+                        href="/fornecedor/produtos/criar-variantes"
+                        onClick={fecharMenusAcoesAbertos}
+                        className="block rounded-md px-3 py-2 text-left text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12"
+                      >
+                        Continuar rascunho
+                        <span className="block truncate text-xs text-[var(--muted)]">{rascunhoCriarVariantes.nomeResumo}</span>
+                      </Link>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        fecharMenusAcoesAbertos();
+                        importEstoqueRef.current?.baixarModelo();
+                      }}
+                      className="block w-full rounded-md px-3 py-2 text-left text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12"
+                    >
+                      Baixar modelo (planilha)
+                    </button>
+                    <button
+                      type="button"
+                      disabled={produtos.length === 0}
+                      onClick={() => {
+                        fecharMenusAcoesAbertos();
+                        importEstoqueRef.current?.exportarParaEditar();
+                      }}
+                      className="block w-full rounded-md px-3 py-2 text-left text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Exportar para editar no DropCore
+                    </button>
+                    <button
+                      type="button"
+                      disabled={produtos.length === 0}
+                      onClick={() => {
+                        fecharMenusAcoesAbertos();
+                        importEstoqueRef.current?.pickFile();
+                      }}
+                      className="block w-full rounded-md px-3 py-2 text-left text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Importar planilha
+                    </button>
+                    <div className="my-1 border-t border-[var(--card-border)]" />
+                    <button
+                      type="button"
+                      disabled={exportandoOlistTudo || produtos.length === 0}
+                      onClick={() => {
+                        fecharMenusAcoesAbertos();
+                        void baixarCsvOlistTodos();
+                      }}
+                      className="block w-full rounded-md px-3 py-2 text-left text-sm text-[var(--primary-blue)] hover:bg-[var(--muted)]/12 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {exportandoOlistTudo ? "Exportando…" : "Exportar todos para Olist"}
+                    </button>
+                  </div>
+                </details>
+              </div>
+            </div>
             <p className="mt-0.5 text-sm text-[var(--muted)]">Gerencie seus produtos e links de fotos</p>
+            <div className="mt-3 flex gap-2 sm:hidden">
+              <Link
+                href="/fornecedor/produtos/criar-variantes"
+                className="flex-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-center text-[11px] font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 active:brightness-[0.92]"
+              >
+                Criar produto
+              </Link>
+              <details data-menu-acoes className="group relative flex-1">
+                <summary
+                  aria-label={`Filtros${filtrosAtivosCount > 0 ? ` (${filtrosAtivosCount} ativos)` : ""}`}
+                  className="relative flex w-full cursor-pointer list-none items-center justify-center gap-1.5 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 [&::-webkit-details-marker]:hidden"
+                >
+                  <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+                  </svg>
+                  Filtros
+                  {filtrosAtivosCount > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-bold text-white">
+                      {filtrosAtivosCount}
+                    </span>
+                  )}
+                </summary>
+                <div className="absolute right-0 z-20 mt-1.5 min-w-[14rem] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-1 shadow-md">
+                  <label className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12">
+                    <input
+                      type="checkbox"
+                      checked={filtroEstoqueBaixo}
+                      onChange={(e) => router.push(buildFiltroHref({ estoqueBaixo: e.target.checked }))}
+                      className="rounded border-[var(--card-border)] text-emerald-600 focus:ring-emerald-500/40"
+                    />
+                    Só estoque baixo
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12">
+                    <input
+                      type="checkbox"
+                      checked={filtroInativo}
+                      onChange={(e) => router.push(buildFiltroHref({ inativo: e.target.checked }))}
+                      className="rounded border-[var(--card-border)] text-emerald-600 focus:ring-emerald-500/40"
+                    />
+                    Só inativos
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12">
+                    <input
+                      type="checkbox"
+                      checked={filtroPendente}
+                      onChange={(e) => router.push(buildFiltroHref({ pendente: e.target.checked }))}
+                      className="rounded border-[var(--card-border)] text-emerald-600 focus:ring-emerald-500/40"
+                    />
+                    Alteração em análise
+                  </label>
+                </div>
+              </details>
+            </div>
           </div>
-          <div className="min-w-0 divide-y divide-[var(--card-border)]/60">
-            {grupos.length === 0 ? (
+          <FornecedorImportEstoquePanel
+            ref={importEstoqueRef}
+            produtos={produtos.map((p) => ({
+              sku: p.sku,
+              estoque_atual: p.estoque_atual,
+              estoque_minimo: p.estoque_minimo,
+            }))}
+            onImported={load}
+          />
+          <div className="min-w-0 divide-y divide-[var(--card-border)]/60 overflow-hidden rounded-b-2xl">
+            {gruposFiltrados.length === 0 ? (
               <div className="px-4 py-12 text-center">
                 <p className="text-sm text-[var(--muted)]">
-                  {filtroEstoqueBaixo ? "Nenhum produto com estoque abaixo do mínimo." : "Nenhum produto cadastrado."}
+                  {filtrosAtivosCount > 0 ? "Nenhum produto encontrado com esses filtros." : "Nenhum produto cadastrado."}
                 </p>
                 <p className="mt-1 text-xs text-[var(--muted)]">Use Criar produto acima para cadastrar.</p>
               </div>
             ) : (
-              grupos.map((g) => {
+              gruposFiltrados.map((g) => {
                 const representante = g.pai ?? g.filhos[0];
                 const exp = expandido.has(g.paiKey);
                 const linhas = [...(g.pai ? [g.pai] : []), ...g.filhos];
                 const baseVariantes = g.filhos.length > 0 ? g.filhos : linhas;
                 const gruposCor = agruparVariantesPorCor(baseVariantes);
-                const todosInativos = linhas.every((p) => (p.status || "").toLowerCase() !== "ativo");
+                const todosInativos = grupoTodosInativos(g);
                 return (
                   <div key={g.paiKey} className="bg-[var(--card)]">
                     {/* Cabeçalho do produto — mobile: coluna; sm+: linha */}
@@ -762,13 +942,13 @@ export default function FornecedorProdutosPage() {
                                   </span>
                                 )}
                                 {statusAlteracaoGrupo(g) === "aprovado" && (
-                                  <span className="shrink-0 rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
+                                  <span className={cn(SUCCESS_PREMIUM_SHELL, SUCCESS_PREMIUM_TEXT_PRIMARY, "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium")}>
                                     Aprovado
                                   </span>
                                 )}
                                 {statusAlteracaoGrupo(g) === "rejeitado" && (
                                   <span
-                                    className="shrink-0 rounded-full border border-red-200 bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+                                    className={cn(DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY, "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium")}
                                     title={motivoRejeicaoGrupo(g) ? `Motivo: ${motivoRejeicaoGrupo(g)}` : undefined}
                                   >
                                     Reprovado
@@ -782,7 +962,7 @@ export default function FornecedorProdutosPage() {
                                   aria-label="Ações do produto"
                                   className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-[var(--muted)]/12 hover:text-[var(--foreground)] [&::-webkit-details-marker]:hidden"
                                 >
-                                  <IconTresPontosHorizontais size={17} />
+                                  <IconTresPontosVerticais size={17} />
                                 </summary>
                                 <div className="absolute right-0 z-20 mt-1.5 min-w-[10rem] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-1 shadow-md">
                                   <Link
@@ -867,18 +1047,21 @@ export default function FornecedorProdutosPage() {
                       <>
                       <div className="border-t border-[var(--card-border)] bg-[var(--card)] px-3 py-2 sm:px-4 sm:py-2">
                         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-2.5">
-                        {/* Desktop: altura 28px, texto xs, largura só do conteúdo — não estica pela linha */}
-                        <div className="inline-flex h-8 w-full min-w-0 rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] p-px shadow-none ring-1 ring-[var(--foreground)]/[0.04] sm:h-7 sm:w-auto sm:flex-none sm:rounded-md">
+                        {/* Desktop: altura 28px, texto xs, largura só do conteúdo — não estica pela linha.
+                            Pílulas soltas com gap (não coladas) — rounded-full em botões adjacentes sem
+                            gap cria um entalhe na costura do meio; padrão real é o das abas do
+                            seller/dashboard (pílulas independentes, gap-1.5). */}
+                        <div className="flex h-8 w-full min-w-0 gap-1.5 sm:h-7 sm:w-auto sm:flex-none">
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               setModoListaVariantes("agrupado-cor");
                             }}
-                            className={`flex h-full min-h-0 min-w-0 flex-1 items-center justify-center rounded-[6px] px-2.5 text-center text-[11px] font-medium leading-none transition sm:flex-initial sm:rounded-[5px] sm:px-3 sm:text-xs sm:font-normal ${
+                            className={`flex h-full min-h-0 min-w-0 flex-1 items-center justify-center rounded-full px-2.5 text-center text-[11px] font-medium leading-none transition sm:flex-initial sm:px-3 sm:text-xs sm:font-normal ${
                               modoListaVariantes === "agrupado-cor"
                                 ? "bg-emerald-600 text-white hover:bg-emerald-700 sm:font-medium"
-                                : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+                                : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)]"
                             }`}
                             title="Agrupado por cor"
                           >
@@ -891,10 +1074,10 @@ export default function FornecedorProdutosPage() {
                               e.stopPropagation();
                               setModoListaVariantes("sku");
                             }}
-                            className={`flex h-full min-h-0 min-w-0 flex-1 items-center justify-center rounded-[6px] px-2.5 text-center text-[11px] font-medium leading-none transition sm:flex-initial sm:rounded-[5px] sm:px-3 sm:text-xs sm:font-normal ${
+                            className={`flex h-full min-h-0 min-w-0 flex-1 items-center justify-center rounded-full px-2.5 text-center text-[11px] font-medium leading-none transition sm:flex-initial sm:px-3 sm:text-xs sm:font-normal ${
                               modoListaVariantes === "sku"
                                 ? "bg-emerald-600 text-white hover:bg-emerald-700 sm:font-medium"
-                                : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+                                : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)]"
                             }`}
                             title="Detalhado por SKU"
                           >
@@ -908,7 +1091,7 @@ export default function FornecedorProdutosPage() {
                             e.stopPropagation();
                             setMostrarFotosVariantes((v) => !v);
                           }}
-                          className="inline-flex h-8 w-full shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 text-[11px] font-medium text-[var(--foreground)] shadow-none transition hover:bg-[var(--muted)]/10 sm:h-7 sm:w-auto sm:rounded-md sm:px-2.5 sm:text-xs sm:font-normal"
+                          className="inline-flex h-8 w-full shrink-0 items-center justify-center rounded-full border border-[var(--card-border)] bg-[var(--card)] px-3 text-[11px] font-medium text-[var(--foreground)] shadow-none transition hover:bg-[var(--muted)]/10 sm:h-7 sm:w-auto sm:px-2.5 sm:text-xs sm:font-normal"
                           title={mostrarFotosVariantes ? "Ocultar fotos das variantes" : "Mostrar fotos das variantes"}
                         >
                           <span className="sm:hidden">{mostrarFotosVariantes ? "Ocultar" : "Fotos"}</span>
@@ -993,7 +1176,7 @@ export default function FornecedorProdutosPage() {
                                           className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] shadow-sm transition hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] [&::-webkit-details-marker]:hidden"
                                           aria-label="Mais opções desta cor"
                                         >
-                                          <IconTresPontosHorizontais size={18} />
+                                          <IconTresPontosVerticais size={18} />
                                         </summary>
                                         <div className="absolute right-0 top-[calc(100%+6px)] z-40 min-w-[12.5rem] rounded-xl border border-[var(--card-border)] bg-[var(--card)] py-1 shadow-lg ring-1 ring-[var(--foreground)]/[0.05]">
                                           <button
@@ -1373,19 +1556,11 @@ export default function FornecedorProdutosPage() {
             )}
           </div>
         </div>
-
-        <AlteracoesCatalogoInfoBanner />
-
-        <p className="text-center text-xs text-[var(--muted)] px-1 break-words">
-          <Link href="/fornecedor/dashboard" className="hover:text-[var(--foreground)]">Dashboard</Link>
-          {" · "}
-          <Link href="/" className="hover:text-[var(--foreground)]">Voltar ao DropCore</Link>
-        </p>
       </div>
 
       {/* Modal Edit */}
       {modal === "edit" && editando && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[color-mix(in_srgb,var(--foreground)_32%,transparent)]" onClick={() => !formLoading && setModal("none")}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-md" onClick={() => !formLoading && setModal("none")}>
           <div
             className="w-full max-w-md max-h-[min(92dvh,40rem)] min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-xl sm:p-6"
             onClick={(e) => e.stopPropagation()}

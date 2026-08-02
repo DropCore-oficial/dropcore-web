@@ -302,6 +302,11 @@ export async function fetchMensalidadeTotaisFinanceirosOrg(
   const inadFornIds = new Set<string>();
 
   for (const r of cicloRowsList) {
+    // Entidade excluída de verdade (não só inativa) — mensalidade órfã, não conta mais
+    // pra nada (senão fica "inadimplente" pra sempre numa entidade que não existe mais).
+    if (r.tipo === "seller" && !sellerNomes.has(r.entidade_id)) continue;
+    if (r.tipo === "fornecedor" && !fornNomes.has(r.entidade_id)) continue;
+
     const valor = Number(r.valor ?? 0);
     const emTeste = trialAtivoPorEntidade(r.tipo, r.entidade_id, sellersTrial, fornTrial);
     const status = r.status;

@@ -108,6 +108,7 @@ export async function GET(req: Request) {
     if (markRead && items.some((n) => !n.lido)) {
       const ids = items.filter((n) => !n.lido).map((n) => n.id);
       await supabaseAdmin.from("notifications").update({ lido: true }).in("id", ids).eq("user_id", userId);
+      items = items.map((n) => (ids.includes(n.id) ? { ...n, lido: true } : n));
     }
 
     return NextResponse.json({ items });

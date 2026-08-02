@@ -36,6 +36,22 @@ import {
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { cn } from "@/lib/utils";
 
+// Padrão compacto de toolbar — mesmo teste de web/app/fornecedor/pedidos/page.tsx
+// (ver skill dropcore-layout, seção "Botão de ação compacto").
+const btnSecondaryCompactClass =
+  "rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10";
+
+/** Números de página com reticências pra não estourar a barra quando há muitas páginas. */
+function getPageNumbers(current: number, total: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | "...")[] = [1];
+  if (current > 3) pages.push("...");
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) pages.push(p);
+  if (current < total - 2) pages.push("...");
+  pages.push(total);
+  return pages;
+}
+
 type PedidoItem = { sku: string; quantidade: number; nome_produto: string | null };
 
 type Pedido = {
@@ -71,6 +87,25 @@ function formatDate(s: string) {
   });
 }
 
+/**
+ * Título do card sem repetir o nome do produto uma vez por item — usa o nome deduplicado
+ * dos itens (não o `nome_produto` do pedido, que às vezes já vem concatenado do Olist).
+ * Mesmo padrão de web/app/fornecedor/pedidos/page.tsx (`tituloPedido`).
+ */
+function tituloPedido(p: Pedido): string {
+  const itens = p.itens ?? [];
+  const nomesUnicos = [...new Set(itens.map((it) => (it.nome_produto ?? "").trim()).filter(Boolean))];
+  if (nomesUnicos.length === 0) {
+    const skuList = itens.map((i) => i.sku).filter(Boolean).join(", ");
+    return p.nome_produto?.trim() || skuList || "Pedido";
+  }
+  if (nomesUnicos.length === 1) {
+    return itens.length > 1 ? `${nomesUnicos[0]} · ${itens.length} itens` : nomesUnicos[0];
+  }
+  const outros = nomesUnicos.length - 1;
+  return `${nomesUnicos[0]} + ${outros} outro${outros > 1 ? "s" : ""}`;
+}
+
 const statusLabel: Record<string, string> = {
   pendente_estoque: "Aguardando estoque",
   bloqueado: "Bloqueado",
@@ -103,6 +138,9 @@ export default function SellerPedidosPage() {
   const [error, setError] = useState<string | null>(null);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPedidos, setTotalPedidos] = useState(0);
   const destaqueId = searchParams.get("destaque");
   const pedidoRefs = useRef<Record<string, HTMLElement | null>>({});
   const [etiquetaLinkInputs, setEtiquetaLinkInputs] = useState<Record<string, string>>({});
@@ -165,6 +203,11 @@ export default function SellerPedidosPage() {
       }
       const params = new URLSearchParams();
       if (statusFilter) params.set("status", statusFilter);
+      // Com destaque (link de notificação), busca uma janela maior em vez de só a
+      // página atual — o pedido notificado pode não estar entre os `pageSize` mais
+      // recentes (mesmo padrão de web/app/fornecedor/pedidos/page.tsx).
+      params.set("page", destaqueId ? "1" : String(page));
+      params.set("limit", destaqueId ? "300" : String(pageSize));
       const res = await fetch(`/api/seller/pedidos?${params.toString()}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
         cache: "no-store",
@@ -175,6 +218,7 @@ export default function SellerPedidosPage() {
       }
       const json = await res.json();
       setPedidos(json.items ?? []);
+      setTotalPedidos(typeof json.total === "number" ? json.total : (json.items ?? []).length);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
@@ -184,7 +228,8 @@ export default function SellerPedidosPage() {
 
   useEffect(() => {
     void load();
-  }, [statusFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, page, pageSize]);
 
   // Só usado pra decidir o destino do botão "Resolver" no card de pedido bloqueado
   // por teto do plano Start (produto específico vs. /seller/plano).
@@ -255,69 +300,6 @@ export default function SellerPedidosPage() {
               <span className="font-medium text-[var(--foreground)]">O extrato financeiro continua no Dashboard.</span>
             </>
           }
-          titleExtra={
-            <div className="relative ml-auto inline-flex shrink-0 sm:hidden">
-              <div
-                aria-hidden
-                className="pointer-events-none inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-[var(--surface-subtle)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)]"
-              >
-                <svg className="h-2.5 w-2.5 shrink-0 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
-                </svg>
-                {statusFilter ? statusLabel[statusFilter] ?? statusFilter : "Todos"}
-                <svg className="h-2.5 w-2.5 shrink-0 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </div>
-              <select
-                aria-label="Filtrar por status"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              >
-                <option value="">Todos</option>
-                <option value="pendente_estoque">Aguardando estoque</option>
-                <option value="bloqueado">Bloqueado</option>
-                <option value="enviado">Aguardando postagem</option>
-                <option value="aguardando_repasse">Postados</option>
-                <option value="entregue">Entregues</option>
-                <option value="erro_saldo">Erro de saldo</option>
-                <option value="aguardando_pagamento">Aguardando pagamento</option>
-              </select>
-            </div>
-          }
-          right={
-            <div className="relative hidden shrink-0 sm:inline-flex">
-              <div
-                aria-hidden
-                className="pointer-events-none inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-[var(--surface-subtle)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)]"
-              >
-                <svg className="h-2.5 w-2.5 shrink-0 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
-                </svg>
-                {statusFilter ? statusLabel[statusFilter] ?? statusFilter : "Todos"}
-                <svg className="h-2.5 w-2.5 shrink-0 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </div>
-              <select
-                id="filtro-status"
-                aria-label="Filtrar por status"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              >
-                <option value="">Todos</option>
-                <option value="pendente_estoque">Aguardando estoque</option>
-                <option value="bloqueado">Bloqueado</option>
-                <option value="enviado">Aguardando postagem</option>
-                <option value="aguardando_repasse">Postados</option>
-                <option value="entregue">Entregues</option>
-                <option value="erro_saldo">Erro de saldo</option>
-                <option value="aguardando_pagamento">Aguardando pagamento</option>
-              </select>
-            </div>
-          }
         />
 
         {error ? (
@@ -325,6 +307,51 @@ export default function SellerPedidosPage() {
             {error}
           </AmberPremiumCallout>
         ) : null}
+
+        <div className="mb-4 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <div className="relative flex-1 sm:flex-none sm:shrink-0">
+              <div
+                aria-hidden
+                className="pointer-events-none flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)]"
+              >
+                <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+                </svg>
+                {statusFilter ? statusLabel[statusFilter] ?? statusFilter : "Todos"}
+                <svg className="h-3.5 w-3.5 shrink-0 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </div>
+              <select
+                aria-label="Filtrar por status"
+                value={statusFilter}
+                onChange={(e) => {
+                  setPage(1);
+                  setStatusFilter(e.target.value);
+                }}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              >
+                <option value="">Todos</option>
+                <option value="pendente_estoque">Aguardando estoque</option>
+                <option value="bloqueado">Bloqueado</option>
+                <option value="enviado">Aguardando postagem</option>
+                <option value="aguardando_repasse">Postados</option>
+                <option value="entregue">Entregues</option>
+                <option value="erro_saldo">Erro de saldo</option>
+                <option value="aguardando_pagamento">Aguardando pagamento</option>
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={() => void load()}
+              disabled={loading}
+              className={cn(btnSecondaryCompactClass, "flex-1 sm:flex-none sm:shrink-0")}
+            >
+              {loading ? "Carregando..." : "Atualizar Pedidos"}
+            </button>
+          </div>
+        </div>
 
         {loading ? (
           <p className="text-sm text-neutral-500">Carregando pedidos…</p>
@@ -338,12 +365,6 @@ export default function SellerPedidosPage() {
         ) : (
           <div className="space-y-3">
             {pedidos.map((p) => {
-              const itensNomes = p.itens
-                .map((i) => i.nome_produto?.trim())
-                .filter((nome): nome is string => Boolean(nome));
-              const skuList = p.itens.map((i) => i.sku).filter(Boolean).join(", ");
-              const nomeEncontrado = p.nome_produto?.trim() || (itensNomes.length > 0 ? itensNomes.join(", ") : "");
-              const titulo = nomeEncontrado || skuList || "Pedido";
               const comprador = [p.comprador_nome, p.comprador_cidade, p.comprador_uf].filter(Boolean).join(" · ");
 
               return (
@@ -357,10 +378,7 @@ export default function SellerPedidosPage() {
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-medium text-[var(--foreground)]">{titulo}</p>
-                      {nomeEncontrado && skuList ? (
-                        <p className="mt-0.5 font-mono text-xs text-neutral-500">{skuList}</p>
-                      ) : null}
+                      <p className="font-medium text-[var(--foreground)]">{tituloPedido(p)}</p>
                       <p className="mt-1 text-sm text-neutral-500">{formatDate(p.criado_em)}</p>
                     </div>
                     <span
@@ -381,18 +399,22 @@ export default function SellerPedidosPage() {
                         {p.is_reserva ? "—" : BRL.format(Number(p.valor_total ?? 0))}
                       </dd>
                     </div>
-                    <div>
-                      <dt className="text-neutral-500">Pedido marketplace</dt>
-                      <dd className="font-mono text-xs sm:text-sm">{p.marketplace_numero ?? "—"}</dd>
-                    </div>
+                    {p.marketplace_numero ? (
+                      <div>
+                        <dt className="text-neutral-500">Pedido marketplace</dt>
+                        <dd className="font-mono text-xs sm:text-sm">{p.marketplace_numero}</dd>
+                      </div>
+                    ) : null}
                     <div>
                       <dt className="text-neutral-500">Ref. Olist</dt>
                       <dd className="font-mono text-xs sm:text-sm">{p.referencia_externa ?? "—"}</dd>
                     </div>
-                    <div>
-                      <dt className="text-neutral-500">Rastreio</dt>
-                      <dd className="font-mono text-xs">{p.tracking_codigo ?? "—"}</dd>
-                    </div>
+                    {p.tracking_codigo ? (
+                      <div>
+                        <dt className="text-neutral-500">Rastreio</dt>
+                        <dd className="font-mono text-xs">{p.tracking_codigo}</dd>
+                      </div>
+                    ) : null}
                     <div>
                       <dt className="text-neutral-500">Envio</dt>
                       <dd>{p.metodo_envio ?? "—"}</dd>
@@ -404,7 +426,7 @@ export default function SellerPedidosPage() {
                     </div>
                   </dl>
 
-                  {p.itens.length > 0 ? (
+                  {p.itens.length > 1 ? (
                     <ul className="mt-3 flex flex-wrap gap-2">
                       {p.itens.map((item, idx) => (
                         <li
@@ -545,6 +567,85 @@ export default function SellerPedidosPage() {
             })}
           </div>
         )}
+
+        {!loading && pedidos.length > 0 ? (
+          <div className="mt-4 flex flex-col items-center gap-3 pt-1 sm:flex-row sm:justify-between">
+            <p className="text-xs text-[var(--muted)]">
+              Total <span className="font-semibold text-[var(--foreground)]">{totalPedidos}</span> pedido{totalPedidos !== 1 ? "s" : ""}
+            </p>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={page <= 1}
+                aria-label="Página anterior"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+              {getPageNumbers(page, Math.max(1, Math.ceil(totalPedidos / pageSize))).map((p, idx) =>
+                p === "..." ? (
+                  <span key={`ellipsis-${idx}`} className="px-1 text-xs text-[var(--muted)]">
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPage(p)}
+                    aria-current={p === page ? "page" : undefined}
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold transition-colors",
+                      p === page
+                        ? "bg-emerald-600 text-white"
+                        : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                    )}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+              <button
+                type="button"
+                onClick={() => setPage((prev) => Math.min(Math.max(1, Math.ceil(totalPedidos / pageSize)), prev + 1))}
+                disabled={page >= Math.max(1, Math.ceil(totalPedidos / pageSize))}
+                aria-label="Próxima página"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </button>
+              <div className="relative ml-1.5 shrink-0">
+                <div
+                  aria-hidden
+                  className="pointer-events-none flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)]"
+                >
+                  {pageSize}/página
+                  <svg className="h-3.5 w-3.5 shrink-0 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </div>
+                <select
+                  aria-label="Itens por página"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPage(1);
+                    setPageSize(Number(e.target.value));
+                  }}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                >
+                  <option value={20}>20/página</option>
+                  <option value={50}>50/página</option>
+                  <option value={100}>100/página</option>
+                  <option value={300}>300/página</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </main>
 
       {etiquetaModalPedidoId && (() => {

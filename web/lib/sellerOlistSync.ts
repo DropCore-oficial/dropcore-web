@@ -363,6 +363,11 @@ async function syncSellerOlistOrders(
         result.warnings.push(...proc.warnings);
       }
     }
+
+    if (proc.outcome === "skipped_ja_expirou_antes") {
+      result.skipped += 1;
+      result.warnings.push(...proc.warnings);
+    }
   }
 
   const cursorTravado = earliestFalhaEm && now.getTime() - earliestFalhaEm.getTime() < MAX_CURSOR_HOLD_MS;

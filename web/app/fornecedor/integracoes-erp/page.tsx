@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { FornecedorNav } from "../FornecedorNav";
-import { FornecedorOlistIntegracaoChecklist } from "@/components/fornecedor/FornecedorOlistIntegracaoChecklist";
+import { HelpBubble } from "@/components/HelpBubble";
 import { OlistModoOperacaoPainel } from "@/components/olist/OlistModoOperacaoPainel";
 import {
   buildFornecedorEstoqueSaudeLinhas,
@@ -46,8 +46,8 @@ export default function FornecedorIntegracoesErpPage() {
   const [webhookEstoqueLastAt, setWebhookEstoqueLastAt] = useState<string | null>(null);
   const [tokenInput, setTokenInput] = useState("");
   const [saving, setSaving] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [ingestRegenerating, setIngestRegenerating] = useState(false);
+  const [helpTokenOpen, setHelpTokenOpen] = useState(false);
 
   const applyPayload = useCallback((json: Record<string, unknown>) => {
     setOlistUnavailable(Boolean(json.olist_unavailable));
@@ -184,20 +184,6 @@ export default function FornecedorIntegracoesErpPage() {
     }
   }
 
-  async function atualizar() {
-    setRefreshing(true);
-    setError(null);
-    try {
-      await withSession(async (accessToken) => {
-        await loadOlist(accessToken);
-      });
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Erro ao atualizar.");
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
   async function regenerarWebhookIngest() {
     setIngestRegenerating(true);
     setError(null);
@@ -257,22 +243,22 @@ export default function FornecedorIntegracoesErpPage() {
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
       <FornecedorNav active="integracoes" wide />
       <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
-        <div>
-          <h1 className="text-xl font-bold text-[var(--foreground)] md:text-2xl">Integração ERP (Olist/Tiny)</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Conecte a Olist do armazém. Sem webhook na Olist, o estoque atualiza pelo cron a cada ~1 min; com webhook (planos Impulsione+), na hora.
-          </p>
-        </div>
-
-        <AmberPremiumCallout title="Olist do armazém (fornecedor)" className="rounded-2xl px-3 py-3.5 sm:px-5">
-          <p className="text-pretty leading-relaxed text-sm">
-            Gere o <strong className="text-[var(--foreground)]">token API</strong> na Olist/Tiny do Djulios (não use o token do seller)
-            e cole abaixo. Com extensão Webhooks (planos Impulsione+), cadastre também a URL de estoque;{" "}
-            <strong className="text-[var(--foreground)]">sem webhook</strong>, o cron consulta a API a cada ~1 min.
-            Para cadastrar produtos na Olist, use{" "}
-            <strong className="text-[var(--foreground)]">Produtos → ⋮ → Exportar para Olist</strong>.
-          </p>
-        </AmberPremiumCallout>
+        <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
+          <div className="min-w-0 space-y-1">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">ERP (Olist/Tiny)</h1>
+              <span
+                className="h-1 w-14 shrink-0 self-center rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 sm:w-20"
+                aria-hidden
+              />
+            </div>
+            <p className="max-w-xl text-sm leading-snug text-[var(--muted)]">
+              Conecte a Olist/Tiny do seu armazém e o DropCore{" "}
+              <span className="font-medium text-[var(--foreground)]">mantém o estoque atualizado automaticamente</span>,
+              sem precisar avisar cada venda na mão.
+            </p>
+          </div>
+        </header>
 
         <section className="relative rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm sm:p-6">
           {loading ? (
@@ -292,28 +278,43 @@ export default function FornecedorIntegracoesErpPage() {
             </div>
           ) : null}
 
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              <h2 className="text-base font-semibold text-[var(--foreground)]">Conta Olist/Tiny</h2>
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <h2 className="text-base font-semibold text-[var(--foreground)]">Conta Olist/Tiny</h2>
+                <HelpBubble
+                  open={helpTokenOpen}
+                  onOpen={() => setHelpTokenOpen(true)}
+                  onClose={() => setHelpTokenOpen(false)}
+                  ariaLabel="Como gerar e cadastrar o token da Olist/Tiny"
+                >
+                  <p>
+                    Gere o <strong className="text-[var(--foreground)]">token API</strong> na Olist/Tiny do Djulios
+                    (não use o token do seller) e cole abaixo.
+                  </p>
+                  <p className="mt-2">
+                    Com extensão Webhooks (planos Impulsione+), cadastre também a URL de estoque;{" "}
+                    <strong className="text-[var(--foreground)]">sem webhook</strong>, o cron consulta a API a cada
+                    ~1 min.
+                  </p>
+                  <p className="mt-2">
+                    Para cadastrar produtos na Olist, use{" "}
+                    <strong className="text-[var(--foreground)]">Produtos → ⋮ → Exportar para Olist</strong>.
+                  </p>
+                </HelpBubble>
+              </span>
               {connected && tokenUsable ? (
                 <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                   Token salvo
                 </span>
               ) : (
-                <span className="rounded-full bg-[var(--muted)]/15 px-2.5 py-0.5 text-xs font-medium text-[var(--muted)]">
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-[var(--muted)]/15 px-2 py-1 text-[11px] font-medium text-[var(--muted)]">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                   Pendente
                 </span>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => void atualizar()}
-              disabled={refreshing}
-              className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
-            >
-              {refreshing ? "Atualizando…" : "Atualizar"}
-            </button>
           </div>
 
           {olistUnavailable ? (
@@ -330,16 +331,85 @@ export default function FornecedorIntegracoesErpPage() {
               ) : null}
 
               {estoqueSaude ? (
-                <OlistIntegracaoSaudeCard
-                  nivel={estoqueSaude.nivel}
-                  titulo={estoqueSaude.titulo}
-                  detalhe={estoqueSaude.detalhe}
-                  linhas={buildFornecedorEstoqueSaudeLinhas({
-                    webhookLastAt: webhookEstoqueLastAt,
-                    syncLastAt,
-                    cronLastAt: cronBackupLastAt,
-                  })}
-                />
+                <div className="space-y-2">
+                  <OlistIntegracaoSaudeCard
+                    nivel={estoqueSaude.nivel}
+                    titulo={estoqueSaude.titulo}
+                    detalhe={estoqueSaude.detalhe}
+                    linhas={buildFornecedorEstoqueSaudeLinhas({
+                      webhookLastAt: webhookEstoqueLastAt,
+                      syncLastAt,
+                      cronLastAt: cronBackupLastAt,
+                    })}
+                  />
+
+                  {connected && tokenUsable ? (
+                    <button
+                      type="button"
+                      disabled={syncPullNow || saving}
+                      onClick={() => void sincronizarEstoqueAgora()}
+                      className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
+                    >
+                      {syncPullNow ? "Consultando Olist…" : "Consultar estoque na Olist agora"}
+                    </button>
+                  ) : null}
+
+                  {syncUpdated != null && syncStatus && syncStatus !== "webhook" ? (
+                    <p className="text-xs text-[var(--muted)]">
+                      Último resultado: <strong className="text-[var(--foreground)]">{syncUpdated}</strong> alterado(s)
+                      {syncUnchanged != null ? (
+                        <>
+                          {" "}
+                          · {syncUnchanged} já igual(is)
+                        </>
+                      ) : null}
+                      {syncMissingOlist != null && syncMissingOlist > 0 ? (
+                        <>
+                          {" "}
+                          · {syncMissingOlist} sem cadastro na Olist
+                        </>
+                      ) : null}
+                      {syncErrors != null && syncErrors > 0 ? (
+                        <>
+                          {" "}
+                          · {syncErrors} erro(s) de API
+                        </>
+                      ) : null}
+                    </p>
+                  ) : null}
+
+                  {syncMissingOlist != null && syncMissingOlist > 0 && syncStatus !== "webhook" ? (
+                    <p className={cn("text-xs leading-relaxed", AMBER_PREMIUM_TEXT_SOFT)}>
+                      {syncIndexCodigos === 0 && syncIndexPais === 0 ? (
+                        <>
+                          A API da Olist <strong className="text-[var(--foreground)]">não encontrou produtos</strong> com
+                          estes SKUs nesta conta (token {accountName ?? "salvo"}). Confira se o CSV foi importado na{" "}
+                          <strong className="text-[var(--foreground)]">mesma conta Olist</strong> deste token.
+                        </>
+                      ) : syncIndexPais != null && syncIndexPais > 0 && syncMissingOlist != null && syncMissingOlist > 0 ? (
+                        <>
+                          A Olist listou {syncIndexPais} produto(s) pai, mas {syncMissingOlist} variação(ões) ainda não
+                          casaram (código ou cor/tamanho). Confira um SKU filho na Olist vs DropCore.
+                        </>
+                      ) : (
+                        <>
+                          SKU(s) existem no DropCore mas ainda não foram encontrados na Olist (código diferente ou produto
+                          não importado). Use{" "}
+                          <strong className="text-[var(--foreground)]">Produtos → ⋮ → Exportar para Olist</strong>.
+                        </>
+                      )}
+                    </p>
+                  ) : null}
+
+                  {syncErrors != null && syncErrors > 0 && syncStatus !== "webhook" ? (
+                    <p className={cn("text-xs", DANGER_PREMIUM_TEXT_BODY)}>
+                      {syncErrors} SKU(s) falharam na consulta à API da Olist — tente de novo em alguns minutos.
+                    </p>
+                  ) : null}
+                  {syncError && syncStatus !== "webhook" && syncStatus !== "ok" && (syncErrors ?? 0) > 0 ? (
+                    <p className={cn("text-xs", DANGER_PREMIUM_TEXT_BODY)}>{syncError}</p>
+                  ) : null}
+                </div>
               ) : null}
 
               <OlistModoOperacaoPainel
@@ -352,16 +422,6 @@ export default function FornecedorIntegracoesErpPage() {
                 syncLabel="Sync de estoque"
               />
 
-              <FornecedorOlistIntegracaoChecklist
-                connected={connected}
-                tokenUsable={tokenUsable}
-                cnpjReady={webhookCnpjReady}
-                webhookUrl={webhookEstoqueUrl}
-                webhookLastReceivedAt={webhookEstoqueLastAt}
-                syncLastAt={cronBackupLastAt}
-                syncStatus={syncStatus}
-              />
-
               <OlistWebhookEstoquePanel
                 webhookUrl={webhookEstoqueUrl}
                 connected={connected}
@@ -372,119 +432,22 @@ export default function FornecedorIntegracoesErpPage() {
               />
 
               {connected ? (
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
-                    {accountName ? (
-                      <p className="text-[var(--foreground)]">
-                        Conta: <strong>{accountName}</strong>
-                      </p>
-                    ) : null}
-                    {tokenPrefix ? (
-                      <p className="mt-1 text-[var(--muted)]">
-                        Token salvo: <span className="font-mono text-xs">{tokenPrefix}</span>
-                      </p>
-                    ) : null}
-                    {validatedAt ? (
-                      <p className="mt-1 text-xs text-[var(--muted)]">
-                        Validado em {new Date(validatedAt).toLocaleString("pt-BR")}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
-                    <p className="font-medium text-[var(--foreground)]">Sincronização automática de estoque</p>
-                    <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
-                      O DropCore consulta a Olist do armazém <strong className="text-[var(--foreground)]">a cada ~1 minuto</strong>{" "}
-                      (cron no Supabase). Com extensão Webhooks na Olist (planos Impulsione+), entra na hora; sem webhook,
-                      este cron é a via principal — atraso máximo ~1 min, não 15. Use o botão abaixo só se quiser forçar
-                      agora.
+                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
+                  {accountName ? (
+                    <p className="text-[var(--foreground)]">
+                      Conta: <strong>{accountName}</strong>
                     </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {cronBackupLastAt ? (
-                        <>
-                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                            Cron OK
-                          </span>
-                          <span className="text-xs text-[var(--muted)]">
-                            Última execução: {new Date(cronBackupLastAt).toLocaleString("pt-BR")}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-xs text-[var(--muted)]">
-                          Aguardando primeira execução do cron (até ~1 min após salvar o token).
-                        </span>
-                      )}
-                    </div>
-                    {syncUpdated != null && syncStatus && syncStatus !== "webhook" ? (
-                      <p className="mt-2 text-xs text-[var(--muted)]">
-                        Último resultado: <strong className="text-[var(--foreground)]">{syncUpdated}</strong> alterado(s)
-                        {syncUnchanged != null ? (
-                          <>
-                            {" "}
-                            · {syncUnchanged} já igual(is)
-                          </>
-                        ) : null}
-                        {syncMissingOlist != null && syncMissingOlist > 0 ? (
-                          <>
-                            {" "}
-                            · {syncMissingOlist} sem cadastro na Olist
-                          </>
-                        ) : null}
-                        {syncErrors != null && syncErrors > 0 ? (
-                          <>
-                            {" "}
-                            · {syncErrors} erro(s) de API
-                          </>
-                        ) : null}
-                      </p>
-                    ) : null}
-                    {syncMissingOlist != null && syncMissingOlist > 0 && syncStatus !== "webhook" ? (
-                      <p className={cn("mt-2 text-xs leading-relaxed", AMBER_PREMIUM_TEXT_SOFT)}>
-                        {syncIndexCodigos === 0 && syncIndexPais === 0 ? (
-                          <>
-                            A API da Olist <strong className="text-[var(--foreground)]">não encontrou produtos</strong> com
-                            estes SKUs nesta conta (token {accountName ?? "salvo"}). Confira se o CSV foi importado na{" "}
-                            <strong className="text-[var(--foreground)]">mesma conta Olist</strong> deste token.
-                          </>
-                        ) : syncIndexPais != null && syncIndexPais > 0 && syncMissingOlist != null && syncMissingOlist > 0 ? (
-                          <>
-                            A Olist listou {syncIndexPais} produto(s) pai, mas {syncMissingOlist} variação(ões) ainda não
-                            casaram (código ou cor/tamanho). Confira um SKU filho na Olist vs DropCore.
-                          </>
-                        ) : (
-                          <>
-                            SKU(s) existem no DropCore mas ainda não foram encontrados na Olist (código diferente ou produto
-                            não importado). Use{" "}
-                            <strong className="text-[var(--foreground)]">Produtos → ⋮ → Exportar para Olist</strong>.
-                          </>
-                        )}
-                      </p>
-                    ) : null}
-                    {connected && tokenUsable ? (
-                      <button
-                        type="button"
-                        disabled={syncPullNow || saving}
-                        onClick={() => void sincronizarEstoqueAgora()}
-                        className="mt-3 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
-                      >
-                        {syncPullNow ? "Consultando Olist…" : "Consultar estoque na Olist agora"}
-                      </button>
-                    ) : null}
-                    {syncErrors != null && syncErrors > 0 && syncStatus !== "webhook" ? (
-                      <p className={cn("mt-2 text-xs", DANGER_PREMIUM_TEXT_BODY)}>
-                        {syncErrors} SKU(s) falharam na consulta à API da Olist — tente de novo em alguns minutos.
-                      </p>
-                    ) : null}
-                    {syncError && syncStatus !== "webhook" && syncStatus !== "ok" && (syncErrors ?? 0) > 0 ? (
-                      <p className={cn("mt-2 text-xs", DANGER_PREMIUM_TEXT_BODY)}>{syncError}</p>
-                    ) : null}
-                    {webhookEstoqueLastAt ? (
-                      <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
-                        Webhook ativo — último evento: {new Date(webhookEstoqueLastAt).toLocaleString("pt-BR")}
-                      </p>
-                    ) : null}
-                  </div>
+                  ) : null}
+                  {tokenPrefix ? (
+                    <p className="mt-1 text-[var(--muted)]">
+                      Token salvo: <span className="font-mono text-xs">{tokenPrefix}</span>
+                    </p>
+                  ) : null}
+                  {validatedAt ? (
+                    <p className="mt-1 text-xs text-[var(--muted)]">
+                      Validado em {new Date(validatedAt).toLocaleString("pt-BR")}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -555,7 +518,7 @@ function OlistWebhookEstoquePanel(props: {
 
   return (
     <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <p className="font-medium text-[var(--foreground)]">Webhook de estoque (Olist/Tiny)</p>
           <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
@@ -601,15 +564,15 @@ function OlistWebhookEstoquePanel(props: {
         </>
       ) : (
         <p className="mt-2 text-xs text-[var(--muted)]">
-          URL indisponível — salve o token para gerar o link (após rodar o SQL de webhook no Supabase).
+          URL indisponível — salve o token para gerar o link. Se continuar assim, fale com o suporte DropCore.
         </p>
       )}
 
       {props.connected && !props.cnpjReady ? (
         <AmberPremiumCallout title="Webhook ainda não associa esta conta" className="mt-3 rounded-xl px-3 py-3 sm:px-4">
           <p className="text-pretty text-xs leading-relaxed">
-            Rode <code className="font-mono text-[11px]">add-fornecedor-olist-webhook.sql</code> no Supabase e{" "}
-            <strong className="text-[var(--foreground)]">salve o token de novo</strong> para gravar o CNPJ da Olist.
+            <strong className="text-[var(--foreground)]">Salve o token de novo</strong> para gravar o CNPJ da Olist. Se
+            continuar assim, fale com o suporte DropCore.
           </p>
         </AmberPremiumCallout>
       ) : null}

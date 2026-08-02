@@ -191,6 +191,14 @@ SELECT cron.schedule(
   $$SELECT public.dropcore_cron_http_post('/api/cron/estoque-reserva-expira');$$
 );
 
+-- Repasse ao fornecedor atrasado (ciclo de terça-feira vencido e não fechado) — 11:00 UTC.
+-- Notifica admins/owners da org (tabela notifications); lembra todo dia até o ciclo ser fechado.
+SELECT cron.schedule(
+  'dropcore-repasse-fornecedor-atrasado',
+  '0 11 * * *',
+  $$SELECT public.dropcore_cron_http_post('/api/cron/repasse-fornecedor-atrasado');$$
+);
+
 -- -----------------------------------------------------------------------------
 -- 5) Conferir
 -- -----------------------------------------------------------------------------

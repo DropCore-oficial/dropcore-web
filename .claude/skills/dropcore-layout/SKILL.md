@@ -125,10 +125,18 @@ O botão/filtro compacto **tem que parecer idêntico** (mesmas classes exatas da
 acima) em qualquer largura, mas isso não significa que é sempre o mesmo elemento HTML nas
 duas telas — em mobile e desktop pode (e às vezes precisa) ser duas instâncias diferentes,
 cada uma só visível na sua faixa (`sm:hidden` numa, `hidden sm:inline-flex`/`sm:block` na
-outra), controlando o mesmo estado. Exemplo: filtro de status em
-`web/app/seller/pedidos/page.tsx` — versão mobile fica em `titleExtra` (ao lado da barra
-degradê, ver seção de header abaixo), versão desktop fica em `right` (extremo direito do
-card); as duas chamam o mesmo `setStatusFilter`, só a posição/DOM muda.
+outra), controlando o mesmo estado.
+
+**Atualização (2026-08-01): `web/app/seller/pedidos/page.tsx` não usa mais duas instâncias
+(`titleExtra` mobile + `right` desktop).** O filtro "Todos" saiu do `SellerPageHeader` e
+virou uma barra própria abaixo do header (`Filtro` + `Atualizar Pedidos`), **uma única
+instância** responsiva via `flex-col sm:flex-row` — mesmo padrão de
+`web/app/fornecedor/pedidos/page.tsx`. Ou seja: as duas telas de pedidos (seller e
+fornecedor) agora têm a mesma estrutura — header só com título/subtítulo, barra de
+filtro+atualizar logo abaixo, paginação (números de página + anterior/próxima +
+`20/50/100/300 por página`) no fim da lista. Duas instâncias por breakpoint (a técnica
+descrita acima) continua válida como padrão pra quando o layout realmente exigir DOM
+diferente por largura — só não é mais o caso dessa tela específica.
 
 **Select que precisa ficar do tamanho exato de um botão (sem sobra lateral):** um
 `<select>` nativo com `width: auto` é dimensionado pelo navegador pela **opção mais
@@ -140,8 +148,9 @@ botão compacto (mesmo padding, mesma fonte, **sem `border`** pra bater a altura
 um botão sem borda) mostrando só o rótulo atual + ícone, e sobrepor um `<select>` de
 verdade `absolute inset-0 h-full w-full cursor-pointer opacity-0` por cima — clicável e
 acessível (`aria-label`), mas o tamanho visual passa a ser 100% controlado pelo texto
-atual, igual um botão normal. Exemplo real: filtro "Todos" em
-`web/app/seller/pedidos/page.tsx` (`titleExtra`, versão mobile).
+atual, igual um botão normal. Exemplo real: filtro "Todos"/"Filtro" em
+`web/app/seller/pedidos/page.tsx` e `web/app/fornecedor/pedidos/page.tsx` (barra abaixo
+do header).
 
 ### Badge de status (etiqueta, não botão)
 
@@ -286,10 +295,30 @@ dashboard raiz, que já tem o header próprio da seção 2). Estado atual:
   colocar algo ao lado da barra degradê, na linha do título — quando usado, a linha vira
   `flex-nowrap` (título ganha `truncate` como válvula de segurança) em vez de
   `flex-wrap`, pra não empurrar o `titleExtra` pra baixo do título em mobile.
-- **Fornecedor:** ainda **sem** componente — `cadastro`, `pedidos` e `produtos` copiam o
-  mesmo bloco manualmente (mesmas classes do `AdminPageHeader`, mas sem componente).
-  Se for tocar em mais de uma dessas páginas na mesma tarefa, considerar extrair um
-  `FornecedorPageHeader` (mesmo molde do `AdminPageHeader`) em vez de copiar de novo —
+- **Fornecedor:** ainda **sem** componente — `cadastro`, `pedidos` e `produtos` copiavam o
+  mesmo bloco manualmente (seta "Voltar" + eyebrow maiúsculo, mesmas classes do
+  `AdminPageHeader`). **Migração em andamento (2026-07-31):** o alvo agora é o padrão do
+  seller (`SellerPageHeader` `surface="hero"`), não mais o do admin — ver
+  `web/app/fornecedor/produtos/page.tsx`, `web/app/fornecedor/pedidos/page.tsx`,
+  `web/app/fornecedor/integracoes-erp/page.tsx` e `web/app/fornecedor/cadastro/page.tsx`
+  como fontes já convertidas: sem seta "Voltar" (a página já tem `FornecedorNav` cobrindo
+  navegação) e **sem** eyebrow maiúsculo acima do `<h1>` — só título + barra degradê (ver
+  seção seguinte) + parágrafo (com destaque quando existir frase importante pra marcar —
+  `pedidos` e `cadastro` não tinham nenhuma frase que valesse destaque, então o subtítulo
+  ficou sem `<span>` de destaque; `integracoes-erp` já tinha destaque bom no subtítulo, só
+  manteve; não forçar um destaque artificial só pra ter).
+  Nessa mesma passada em `cadastro` também saíram dois bugs reais: as caixas de
+  erro/sucesso usavam `red-50`/`emerald-50` direto em vez de
+  `DANGER_PREMIUM_SURFACE_TRANSPARENT`/`SUCCESS_PREMIUM_SURFACE_TRANSPARENT`
+  (`lib/semanticPremium.ts`), e os botões "Buscar CNPJ"/"Enviar imagem"/"Remover" (logo)
+  estavam em `rounded-lg`/`rounded-xl` + `text-sm` em vez da escala compacta
+  (`rounded-md px-2.5 py-1.5 text-[11px] font-semibold`) — corrigido pro mesmo padrão do
+  resto do sistema.
+  **Não remover a seta "Voltar"** em `fornecedor/pedidos/[id]/etiqueta`,
+  `fornecedor/produtos/editar/[grupoKey]` e `fornecedor/produtos/criar-unico` — essas três
+  não renderizam `FornecedorNav`, a seta é a única forma de sair da página.
+  Se for tocar em mais de uma página do fornecedor na mesma tarefa, considerar extrair um
+  `FornecedorPageHeader` (mesmo molde do `SellerPageHeader`) em vez de copiar de novo —
   perguntar antes, já que mexe em fornecedor (área com regra própria, ver `CLAUDE.md`).
 
 ### Barra degradê + destaque embutido no subtítulo — REGRA TRAVADA, todo header, todo o sistema
@@ -319,6 +348,14 @@ Fonte: `web/app/seller/produtos/page.tsx` (original) + já aplicado em
 essas páginas já tinham a barra via `surface="hero"`). Aplicar direto em admin/fornecedor
 ao tocar numa página deles também (criar o header próprio se ainda não existir, ver seção
 "Header de página interna" acima) — não é mais experimento isolado do seller.
+
+**Primeira página do fornecedor migrada: `web/app/fornecedor/produtos/page.tsx`
+(2026-07-31).** Nessa leva também saiu o eyebrow maiúsculo ("Catálogo") que ficava acima
+do `<h1>` — o padrão novo do fornecedor não leva eyebrow, só título + barra + subtítulo
+com destaque, igual ao `SellerPageHeader`. Destaque usado: "Cadastre produtos, fotos e
+estoque do seu catálogo. **Alterações entram em análise da DropCore antes de valer pro
+seller.**" — reaproveita a mesma explicação que já existe no `HelpBubble` de "Produtos do
+armazém" na mesma página, não é informação nova inventada só pro subtítulo.
 
 **Isso não mexe em nada do que já existe** — botão compacto, badge de status, largura de
 shell (`6xl` nas páginas migradas) continuam valendo exatamente como documentado acima;
