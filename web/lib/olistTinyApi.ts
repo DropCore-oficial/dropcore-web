@@ -939,7 +939,7 @@ export async function obterLinksEtiquetasImpressaoOlist(
   return [];
 }
 
-const MAX_ETIQUETA_PDF_BYTES = Math.floor(1.35 * 1024 * 1024);
+export const MAX_ETIQUETA_PDF_BYTES = Math.floor(1.35 * 1024 * 1024);
 
 /** Baixa URL (link temporário da Olist) e devolve base64 do PDF, com limite de tamanho para gravar no Postgres. */
 export async function fetchUrlAsPdfBase64(url: string, maxBytes = MAX_ETIQUETA_PDF_BYTES): Promise<string | null> {

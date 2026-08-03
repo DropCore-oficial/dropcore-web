@@ -273,7 +273,7 @@ export default function FornecedorPedidoEtiquetaPage() {
                           type="button"
                           onClick={lembrarSeller}
                           disabled={lembrando}
-                          className="w-full shrink-0 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors bg-[var(--danger)] hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:hover:opacity-100 dark:shadow-sm dark:shadow-red-950/50 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:w-auto"
+                          className="w-full shrink-0 rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:w-auto"
                         >
                           {lembrando ? "Avisando..." : "Lembrar seller"}
                         </button>

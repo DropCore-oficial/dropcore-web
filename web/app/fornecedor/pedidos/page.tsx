@@ -116,7 +116,6 @@ export default function FornecedorPedidosPage() {
   const [error, setError] = useState<string | null>(null);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
-  const [postandoId, setPostandoId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [imprimindoLote, setImprimindoLote] = useState(false);
   const [marcandoLote, setMarcandoLote] = useState(false);
@@ -190,25 +189,6 @@ export default function FornecedorPedidosPage() {
       pedidoCardRefs.current[destaqueId]?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [destaqueId, pedidos, loading]);
-
-  async function marcarPostado(id: string) {
-    setPostandoId(id);
-    try {
-      const { data: { session } } = await supabaseBrowser.auth.getSession();
-      if (!session?.access_token) return;
-      const res = await fetch(`/api/fornecedor/pedidos/${id}/marcar-postado`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? "Erro.");
-      await load();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Erro.");
-    } finally {
-      setPostandoId(null);
-    }
-  }
 
   const [lembrandoId, setLembrandoId] = useState<string | null>(null);
   const [lembrarMsg, setLembrarMsg] = useState<Record<string, { tipo: "ok" | "erro"; texto: string } | undefined>>({});
@@ -775,7 +755,7 @@ export default function FornecedorPedidosPage() {
                               type="button"
                               onClick={() => void lembrarSeller(p.id)}
                               disabled={lembrandoId === p.id}
-                              className="w-full shrink-0 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors bg-[var(--danger)] hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:hover:opacity-100 dark:shadow-sm dark:shadow-red-950/50 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:w-auto"
+                              className="w-full shrink-0 rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:w-auto"
                             >
                               {lembrandoId === p.id ? "Avisando..." : "Lembrar seller"}
                             </button>
@@ -800,41 +780,17 @@ export default function FornecedorPedidosPage() {
                     </div>
                   )}
 
-                  {p.status === "enviado" && (
+                  {p.status === "enviado" && p.tem_etiqueta_oficial && (
                     <div className="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:justify-end">
-                      {p.tem_etiqueta_oficial && (
-                        <button
-                          type="button"
-                          onClick={() => void reportarEtiquetaErrada(p.id)}
-                          disabled={reportandoId === p.id}
-                          title="A etiqueta não é do pedido certo (endereço/produto não bate)"
-                          className="w-full rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:w-auto"
-                        >
-                          {reportandoId === p.id ? "Reportando..." : "Etiqueta errada?"}
-                        </button>
-                      )}
-                      {(() => {
-                        const podePostar = Boolean(p.tem_etiqueta_oficial && p.etiqueta_impressa_em);
-                        const motivoBloqueio = !p.tem_etiqueta_oficial
-                          ? "Sem a etiqueta real não dá pra postar o pacote — peça pro seller buscar o link primeiro."
-                          : "Imprima a etiqueta (menu \"Imprimir etiqueta\" no topo) antes de marcar como postado.";
-                        return (
-                          <button
-                            type="button"
-                            onClick={() => void marcarPostado(p.id)}
-                            disabled={postandoId !== null || !podePostar}
-                            title={podePostar ? undefined : motivoBloqueio}
-                            className={cn(
-                              podePostar
-                                ? btnPrimaryCompactClass
-                                : "rounded-md bg-neutral-200 px-2.5 py-1.5 text-[11px] font-semibold text-neutral-500 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-500",
-                              "w-full sm:w-auto"
-                            )}
-                          >
-                            {postandoId === p.id ? "Marcando..." : "Marcar como postado"}
-                          </button>
-                        );
-                      })()}
+                      <button
+                        type="button"
+                        onClick={() => void reportarEtiquetaErrada(p.id)}
+                        disabled={reportandoId === p.id}
+                        title="A etiqueta não é do pedido certo (endereço/produto não bate)"
+                        className="w-full rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:w-auto"
+                      >
+                        {reportandoId === p.id ? "Reportando..." : "Etiqueta errada?"}
+                      </button>
                     </div>
                   )}
                 </article>

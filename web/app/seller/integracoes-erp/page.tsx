@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
 import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
+import { HelpBubble } from "@/components/HelpBubble";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { AMBER_PREMIUM_TEXT_BODY, AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
 import {
@@ -15,11 +16,7 @@ import {
 import { SellerOlistIntegracaoChecklist } from "@/components/seller/SellerOlistIntegracaoChecklist";
 import { SellerBlingIntegrationPanel } from "@/components/seller/SellerBlingIntegrationPanel";
 import { OlistModoOperacaoPainel } from "@/components/olist/OlistModoOperacaoPainel";
-import {
-  buildSellerPedidosSaudeLinhas,
-  OlistIntegracaoSaudeCard,
-} from "@/components/olist/OlistIntegracaoSaudeCard";
-import { OLIST_CRON_PEDIDOS_MIN, OLIST_CRON_PRECOS_MIN, isOlistSyncStale, resolveSellerPedidosSaude } from "@/lib/olistModoOperacaoUi";
+import { OLIST_CRON_PEDIDOS_MIN, OLIST_CRON_PRECOS_MIN, isOlistSyncStale, formatOlistTempoDesde } from "@/lib/olistModoOperacaoUi";
 import { cn } from "@/lib/utils";
 import { useVisibilityAwareInterval } from "@/lib/useVisibilityAwareInterval";
 
@@ -482,18 +479,92 @@ function agruparMensagensComContagem(msgs: string[]): { msg: string; count: numb
   return Array.from(contagem.entries()).map(([msg, count]) => ({ msg, count }));
 }
 
+/** Pills "Olist / Tiny" / "Bling" — embutido no header do card ativo (Conta Olist/Tiny ou Bling). */
+function ErpTabSwitcher(props: { active: ErpProvider; onChange: (erp: ErpProvider) => void }) {
+  const pill = (erp: ErpProvider, label: string) => (
+    <button
+      key={erp}
+      type="button"
+      role="tab"
+      aria-selected={props.active === erp}
+      onClick={() => props.onChange(erp)}
+      className={cn(
+        "rounded-full px-3.5 py-1.5 text-[11px] font-medium transition",
+        props.active === erp
+          ? "bg-emerald-600 text-white shadow-sm"
+          : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
+      )}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div role="tablist" aria-label="Escolha o ERP" className="inline-flex flex-wrap gap-1.5">
+      {pill("olist", "Olist / Tiny")}
+      {pill("bling", "Bling")}
+    </div>
+  );
+}
+
+/** Lista de mensagens (erro/aviso) agrupadas, com rótulo de seção — usada dentro do toggle "Ver problemas". */
+function MensagensList(props: { msgs: string[]; textClass: string; titulo: string }) {
+  if (props.msgs.length === 0) return null;
+  const agrupadas = agruparMensagensComContagem(props.msgs);
+  return (
+    <div>
+      <p className={cn("text-[10px] font-semibold uppercase tracking-wide", props.textClass)}>{props.titulo}</p>
+      <ul className={cn("mt-1 space-y-1 text-xs list-disc pl-4", props.textClass)}>
+        {agrupadas.map(({ msg, count }) => (
+          <li key={msg}>
+            {msg}
+            {count > 1 ? <span className="font-semibold"> ×{count}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Toggle "Ver problemas (N)" — some por padrão; card fica só com status + contagem + botão até clicar. */
+function ProblemasDisclosure(props: {
+  errorSingle: string | null;
+  errorsList: string[];
+  warningsList: string[];
+  errorTextClass: string;
+  warningTextClass: string;
+}) {
+  const errorCount = props.errorsList.length > 0 ? props.errorsList.length : props.errorSingle ? 1 : 0;
+  const total = errorCount + props.warningsList.length;
+  if (total === 0) return null;
+  return (
+    <details className="group mt-2">
+      <summary className={cn("inline-flex cursor-pointer list-none items-center gap-1 text-xs font-semibold", props.errorTextClass)}>
+        Ver problemas ({total})
+        <svg className="h-3 w-3 shrink-0 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </summary>
+      <div className="mt-2 space-y-3">
+        {props.errorsList.length === 0 && props.errorSingle ? (
+          <p className={cn("text-xs", props.errorTextClass)}>{props.errorSingle}</p>
+        ) : null}
+        <MensagensList msgs={props.errorsList} textClass={props.errorTextClass} titulo="Erros" />
+        <MensagensList msgs={props.warningsList} textClass={props.warningTextClass} titulo="Avisos" />
+      </div>
+    </details>
+  );
+}
+
 function IntegracoesErpPageView(props: IntegracoesPageProps) {
   const [activeErp, setActiveErp] = useState<ErpProvider>(() =>
     typeof window !== "undefined" && window.location.search.includes("code=") ? "bling" : "olist",
   );
-
-  const pedidosSaude =
-    props.olistConnected && props.olistTokenUsable
-      ? resolveSellerPedidosSaude({
-          webhookLastAt: props.olistWebhookLastAt,
-          syncLastAt: props.olistSyncLastAt,
-        })
-      : null;
+  const [openHelp, setOpenHelp] = useState<string | null>(null);
+  const help = (key: string) => ({
+    open: openHelp === key,
+    onOpen: () => setOpenHelp(key),
+    onClose: () => setOpenHelp((cur) => (cur === key ? null : cur)),
+  });
 
   return (
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
@@ -501,73 +572,40 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
       <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <SellerPageHeader
           surface="hero"
-          title="Integração ERP"
-          right={
-            activeErp === "olist" ? (
-              <Link
-                href="/seller/integracoes-erp/como-conectar"
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
-              >
-                <span className="hidden sm:inline">Como conectar</span>
-                <span className="sm:hidden">Guia</span>
-                <svg className="h-3.5 w-3.5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
-              </Link>
-            ) : null
+          title="ERP (Olist/Bling)"
+          subtitle={
+            <>
+              Conecte a Olist/Tiny ou o Bling pra{" "}
+              <span className="font-medium text-[var(--foreground)]">
+                sincronizar pedidos, preços e estoque automaticamente
+              </span>{" "}
+              entre o DropCore e o seu ERP.
+            </>
           }
         />
 
-        <div role="tablist" aria-label="Escolha o ERP" className="inline-flex flex-wrap gap-1.5">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeErp === "olist"}
-            onClick={() => setActiveErp("olist")}
-            className={cn(
-              "rounded-full px-3.5 py-1.5 text-[11px] font-medium transition",
-              activeErp === "olist"
-                ? "bg-emerald-600 text-white shadow-sm"
-                : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
-            )}
-          >
-            Olist / Tiny
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeErp === "bling"}
-            onClick={() => setActiveErp("bling")}
-            className={cn(
-              "rounded-full px-3.5 py-1.5 text-[11px] font-medium transition",
-              activeErp === "bling"
-                ? "bg-emerald-600 text-white shadow-sm"
-                : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
-            )}
-          >
-            Bling
-          </button>
-        </div>
 
         {activeErp === "olist" ? (
         <>
-        <AmberPremiumCallout title="Primeira vez na Olist/Tiny?" className="rounded-2xl px-3 py-3.5 sm:px-5">
-          <p className="text-pretty leading-relaxed">
-            O passo a passo fica em{" "}
-            <Link
-              href="/seller/integracoes-erp/como-conectar"
-              className="font-semibold text-[var(--foreground)] underline underline-offset-2"
-            >
-              Como conectar
-            </Link>
-            . Você gera o <strong className="text-[var(--foreground)]">token API</strong> na Olist/Tiny e cola aqui. Antes dos pedidos,
-            exporte o catálogo em{" "}
-            <Link href="/seller/produtos" className="font-semibold text-[var(--foreground)] underline underline-offset-2">
-              Produtos → Exportar para Olist (por produto)
-            </Link>{" "}
-            e importe a planilha no ERP.
-          </p>
-        </AmberPremiumCallout>
+        {!props.olistConnected ? (
+          <AmberPremiumCallout title="Primeira vez na Olist/Tiny?" className="rounded-2xl px-3 py-3.5 sm:px-5">
+            <p className="text-pretty leading-relaxed">
+              O passo a passo fica em{" "}
+              <Link
+                href="/seller/integracoes-erp/como-conectar"
+                className="font-semibold text-[var(--foreground)] underline underline-offset-2"
+              >
+                Como conectar
+              </Link>
+              . Você gera o <strong className="text-[var(--foreground)]">token API</strong> na Olist/Tiny e cola aqui. Antes dos
+              pedidos, exporte o catálogo em{" "}
+              <Link href="/seller/produtos" className="font-semibold text-[var(--foreground)] underline underline-offset-2">
+                Produtos → Exportar para Olist (por produto)
+              </Link>{" "}
+              e importe a planilha no ERP.
+            </p>
+          </AmberPremiumCallout>
+        ) : null}
 
         <section className="relative rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm transition-shadow hover:shadow-md sm:p-6">
           {props.loading ? (
@@ -586,9 +624,20 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
               {props.error}
             </div>
           ) : null}
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                <h2 className="text-base font-semibold text-[var(--foreground)]">Conta Olist/Tiny</h2>
+                <ErpTabSwitcher active={activeErp} onChange={setActiveErp} />
+                <HelpBubble ariaLabel="Como funciona a integração Olist/Tiny" {...help("conta")}>
+                  <p>
+                    Gere o <strong className="text-[var(--foreground)]">token API</strong> na Olist/Tiny e cole abaixo. O
+                    DropCore consulta pedidos a cada ~{OLIST_CRON_PEDIDOS_MIN} min e envia preços/custos a cada ~
+                    {OLIST_CRON_PRECOS_MIN} min — sem precisar de webhook.
+                  </p>
+                  <p className="mt-2">
+                    Detalhes de conta, webhook e checklist de configuração ficam em{" "}
+                    <strong className="text-[var(--foreground)]">Avançado / Diagnóstico</strong>, mais abaixo.
+                  </p>
+                </HelpBubble>
                 {props.olistConnected ? (
                   <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
@@ -605,7 +654,7 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                 type="button"
                 onClick={props.onAtualizar}
                 disabled={props.refreshing}
-                className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
+                className="self-start rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60 sm:self-auto"
               >
                 {props.refreshing ? "Atualizando..." : "Atualizar"}
               </button>
@@ -632,125 +681,45 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                   </AmberPremiumCallout>
                 ) : null}
 
-                {pedidosSaude ? (
-                  <OlistIntegracaoSaudeCard
-                    nivel={pedidosSaude.nivel}
-                    titulo={pedidosSaude.titulo}
-                    detalhe={pedidosSaude.detalhe}
-                    linhas={buildSellerPedidosSaudeLinhas({
-                      webhookLastAt: props.olistWebhookLastAt,
-                      syncLastAt: props.olistSyncLastAt,
-                      precosLastAt: props.precosSyncLastAt,
-                    })}
-                  />
-                ) : null}
-
-                <OlistModoOperacaoPainel
-                  papel="seller"
-                  connected={props.olistConnected}
-                  tokenUsable={props.olistTokenUsable}
-                  webhookLastAt={props.olistWebhookLastAt}
-                  syncLastAt={props.olistSyncLastAt}
-                  syncIntervalMinutes={OLIST_CRON_PEDIDOS_MIN}
-                  syncLabel="Sync de pedidos"
-                />
-
-                <SellerOlistIntegracaoChecklist
-                  connected={props.olistConnected}
-                  tokenUsable={props.olistTokenUsable}
-                  cnpjReady={props.olistWebhookCnpjReady}
-                  webhookUrl={props.olistWebhookPedidosUrl}
-                  webhookLastReceivedAt={props.olistWebhookLastAt}
-                  syncLastAt={props.olistSyncLastAt}
-                />
-
-                <OlistWebhookPedidosPanel
-                  webhookUrl={props.olistWebhookPedidosUrl}
-                  connected={props.olistConnected}
-                  cnpjReady={props.olistWebhookCnpjReady}
-                  tokenUsable={props.olistTokenUsable}
-                  ingestRegenerating={props.ingestRegenerating}
-                  onRegenerarIngest={props.onRegenerarWebhookIngest}
-                />
-
                 {props.olistConnected && (
-                  <div className="mb-4 space-y-4">
+                  <div className="mb-4 space-y-3">
                     <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
-                      {props.olistAccountName && (
-                        <p className="text-[var(--foreground)]">
-                          Conta: <strong>{props.olistAccountName}</strong>
-                        </p>
-                      )}
-                      {props.olistTokenPrefix && (
-                        <p className="mt-1 text-[var(--muted)]">
-                          Token salvo: <span className="font-mono text-xs">{props.olistTokenPrefix}</span>
-                        </p>
-                      )}
-                      {props.olistValidatedAt && (
-                        <p className="mt-1 text-xs text-[var(--muted)]">
-                          Validado em {new Date(props.olistValidatedAt).toLocaleString("pt-BR")}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
-                      <div>
-                        <p className="font-medium text-[var(--foreground)]">Sincronização automática de pedidos</p>
-                        <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
-                          O DropCore consulta a Olist/Tiny <strong className="text-[var(--foreground)]">a cada ~1 minuto</strong>.
-                          Com webhook (planos Impulsione+), pedidos entram na hora; sem webhook, este cron é a via principal.
-                        </p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="font-medium text-[var(--foreground)]">Sincronização de pedidos</p>
+                        <HelpBubble ariaLabel="Como funciona a sincronização de pedidos" {...help("pedidos")}>
+                          <p>
+                            O DropCore consulta a Olist/Tiny <strong className="text-[var(--foreground)]">a cada ~1 minuto</strong>.
+                            Com webhook (planos Impulsione+), pedidos entram na hora; sem webhook, este cron é a via
+                            principal.
+                          </p>
+                        </HelpBubble>
                       </div>
 
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
                         <OlistSyncStatusBadge status={props.olistSyncStatus} hasLastSync={Boolean(props.olistSyncLastAt)} />
                         {props.olistSyncLastAt ? (
-                          <span className="text-xs text-[var(--muted)]">
-                            Última execução: {new Date(props.olistSyncLastAt).toLocaleString("pt-BR")}
-                          </span>
+                          <span className="text-xs text-[var(--muted)]">{formatOlistTempoDesde(props.olistSyncLastAt)}</span>
                         ) : (
                           <span className="text-xs text-[var(--muted)]">
-                            Aguardando primeira execução automática (em até 1 minuto após salvar o token).
+                            Aguardando primeira execução (até 1 min após salvar o token)
+                          </span>
+                        )}
+                        {(props.olistSyncImported != null || props.olistSyncSkipped != null) && (
+                          <span className="text-xs text-[var(--muted)]">
+                            ·{" "}
+                            {props.olistSyncImported != null ? `${props.olistSyncImported} importado(s)` : "—"}
+                            {props.olistSyncSkipped != null ? ` · ${props.olistSyncSkipped} ignorado(s)` : ""}
                           </span>
                         )}
                       </div>
 
-                      {(props.olistSyncImported != null ||
-                        props.olistSyncSkipped != null ||
-                        props.olistSyncWarnings != null) && (
-                        <p className="mt-2 text-xs text-[var(--muted)]">
-                          Último resultado:{" "}
-                          {props.olistSyncImported != null ? `${props.olistSyncImported} importado(s)` : "—"}
-                          {props.olistSyncSkipped != null ? ` · ${props.olistSyncSkipped} ignorado(s)` : ""}
-                          {props.olistSyncWarnings != null && props.olistSyncWarnings > 0
-                            ? ` · ${props.olistSyncWarnings} aviso(s)`
-                            : ""}
-                        </p>
-                      )}
-
-                      {props.olistSyncError ? (
-                        <p className={cn("mt-2 text-xs", DANGER_PREMIUM_TEXT_BODY)}>{props.olistSyncError}</p>
-                      ) : null}
-                      {props.olistSyncErrorsList.length > 0 ? (
-                        <ul className={cn("mt-2 space-y-1 text-xs list-disc pl-4", DANGER_PREMIUM_TEXT_BODY)}>
-                          {agruparMensagensComContagem(props.olistSyncErrorsList).map(({ msg, count }) => (
-                            <li key={msg}>
-                              {msg}
-                              {count > 1 ? <span className="font-semibold"> ×{count}</span> : null}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                      {props.olistSyncWarningsList.length > 0 ? (
-                        <ul className={cn("mt-2 space-y-1 text-xs list-disc pl-4", AMBER_PREMIUM_TEXT_BODY)}>
-                          {agruparMensagensComContagem(props.olistSyncWarningsList).map(({ msg, count }) => (
-                            <li key={msg}>
-                              {msg}
-                              {count > 1 ? <span className="font-semibold"> ×{count}</span> : null}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
+                      <ProblemasDisclosure
+                        errorSingle={props.olistSyncError}
+                        errorsList={props.olistSyncErrorsList}
+                        warningsList={props.olistSyncWarningsList}
+                        errorTextClass={DANGER_PREMIUM_TEXT_BODY}
+                        warningTextClass={AMBER_PREMIUM_TEXT_BODY}
+                      />
                       {props.olistConnected && props.olistTokenUsable ? (
                         <button
                           type="button"
@@ -764,40 +733,39 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                     </div>
 
                     <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
-                      <p className="font-medium text-[var(--foreground)]">Preços e custos na Olist</p>
-                      <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
-                        O DropCore envia preço de venda e custo para a Olist{" "}
-                        <strong className="text-[var(--foreground)]">a cada ~10 minutos</strong> (cron). Quando o custo muda no
-                        catálogo, também dispara sync — pode levar alguns minutos sem webhook.
-                      </p>
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="font-medium text-[var(--foreground)]">Preços e custos na Olist</p>
+                        <HelpBubble ariaLabel="Como funciona o sync de preços" {...help("precos")}>
+                          <p>
+                            O DropCore envia preço de venda e custo para a Olist{" "}
+                            <strong className="text-[var(--foreground)]">a cada ~10 minutos</strong> (cron). Quando o custo
+                            muda no catálogo, também dispara sync — pode levar alguns minutos sem webhook.
+                          </p>
+                        </HelpBubble>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
                         <OlistSyncStatusBadge
                           status={props.precosSyncStatus}
                           hasLastSync={Boolean(props.precosSyncLastAt)}
                         />
                         {props.precosSyncLastAt ? (
-                          <span className="text-xs text-[var(--muted)]">
-                            Última execução: {new Date(props.precosSyncLastAt).toLocaleString("pt-BR")}
-                          </span>
+                          <span className="text-xs text-[var(--muted)]">{formatOlistTempoDesde(props.precosSyncLastAt)}</span>
                         ) : (
-                          <span className="text-xs text-[var(--muted)]">
-                            Aguardando primeira execução (até ~10 min após conectar o token).
-                          </span>
+                          <span className="text-xs text-[var(--muted)]">Aguardando primeira execução (até ~10 min)</span>
                         )}
+                        {props.precosSyncOk != null || props.precosSyncFalhas != null ? (
+                          <span className="text-xs text-[var(--muted)]">
+                            · <strong className="text-[var(--foreground)]">{props.precosSyncOk ?? 0}</strong> SKU(s) ok
+                            {props.precosSyncGruposOk != null ? ` · ${props.precosSyncGruposOk} grupo(s) ok` : ""}
+                            {props.precosSyncFalhas != null && props.precosSyncFalhas > 0
+                              ? ` · ${props.precosSyncFalhas} falha(s)`
+                              : ""}
+                          </span>
+                        ) : null}
                       </div>
                       {isOlistSyncStale(props.precosSyncLastAt, OLIST_CRON_PRECOS_MIN) ? (
                         <p className={cn("mt-2 text-xs", DANGER_PREMIUM_TEXT_BODY)}>
                           Sync de preços não roda há mais de ~30 min — confira o cron no Supabase ou use o botão abaixo.
-                        </p>
-                      ) : null}
-                      {props.precosSyncOk != null || props.precosSyncFalhas != null ? (
-                        <p className="mt-2 text-xs text-[var(--muted)]">
-                          Último resultado:{" "}
-                          <strong className="text-[var(--foreground)]">{props.precosSyncOk ?? 0}</strong> SKU(s) ok
-                          {props.precosSyncGruposOk != null ? ` · ${props.precosSyncGruposOk} grupo(s) ok` : ""}
-                          {props.precosSyncFalhas != null && props.precosSyncFalhas > 0
-                            ? ` · ${props.precosSyncFalhas} falha(s)`
-                            : ""}
                         </p>
                       ) : null}
                       {props.precosSyncError ? (
@@ -816,15 +784,20 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                     </div>
 
                     <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
-                      <p className="font-medium text-[var(--foreground)]">Catálogo na Olist (SKUs)</p>
-                      <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
-                        Confere se os SKUs ativos do DropCore existem na Olist deste seller — o mesmo tipo de checagem
-                        do armazém. Use depois de{" "}
-                        <strong className="text-[var(--foreground)]">Exportar para Olist</strong> e importar a planilha.
-                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="font-medium text-[var(--foreground)]">Catálogo na Olist (SKUs)</p>
+                        <HelpBubble ariaLabel="Como funciona a verificação de catálogo" {...help("catalogo")}>
+                          <p>
+                            Confere se os SKUs ativos do DropCore existem na Olist deste seller — o mesmo tipo de
+                            checagem do armazém. Use depois de{" "}
+                            <strong className="text-[var(--foreground)]">Exportar para Olist</strong> e importar a
+                            planilha.
+                          </p>
+                        </HelpBubble>
+                      </div>
                       {props.catalogoProbeLastAt ? (
                         <p className="mt-2 text-xs text-[var(--muted)]">
-                          Última verificação: {new Date(props.catalogoProbeLastAt).toLocaleString("pt-BR")}
+                          Última verificação: {formatOlistTempoDesde(props.catalogoProbeLastAt)}
                         </p>
                       ) : null}
                       {props.catalogoProbeTotal != null ? (
@@ -879,19 +852,99 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
                   </div>
                 )}
 
-                <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-[var(--muted)]">
-                  Token API da Olist/Tiny
-                </label>
-                <p className="mb-2 text-xs leading-relaxed text-[var(--muted)]">
-                  Cole o token gerado em Configurações → Token API. O DropCore valida com a Olist/Tiny antes de salvar.
-                </p>
-                <OlistTokenForm {...props} />
+                {!props.olistConnected ? (
+                  <>
+                    <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-[var(--muted)]">
+                      Token API da Olist/Tiny
+                    </label>
+                    <p className="mb-2 text-xs leading-relaxed text-[var(--muted)]">
+                      Cole o token gerado em Configurações → Token API. O DropCore valida com a Olist/Tiny antes de
+                      salvar.
+                    </p>
+                    <OlistTokenForm {...props} />
+                  </>
+                ) : (
+                  <details className="group rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)]" open={!props.olistTokenUsable}>
+                    <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-3 text-sm font-medium text-[var(--foreground)]">
+                      Avançado / Diagnóstico
+                      <svg
+                        className="h-4 w-4 shrink-0 text-[var(--muted)] transition-transform group-open:rotate-180"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden
+                      >
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </summary>
+                    <div className="space-y-4 border-t border-[var(--card-border)] px-3 pb-4 pt-3">
+                      <OlistModoOperacaoPainel
+                        papel="seller"
+                        connected={props.olistConnected}
+                        tokenUsable={props.olistTokenUsable}
+                        webhookLastAt={props.olistWebhookLastAt}
+                        syncLastAt={props.olistSyncLastAt}
+                        syncIntervalMinutes={OLIST_CRON_PEDIDOS_MIN}
+                        syncLabel="Sync de pedidos"
+                      />
+
+                      <SellerOlistIntegracaoChecklist
+                        connected={props.olistConnected}
+                        tokenUsable={props.olistTokenUsable}
+                        cnpjReady={props.olistWebhookCnpjReady}
+                        webhookUrl={props.olistWebhookPedidosUrl}
+                        webhookLastReceivedAt={props.olistWebhookLastAt}
+                        syncLastAt={props.olistSyncLastAt}
+                      />
+
+                      <OlistWebhookPedidosPanel
+                        webhookUrl={props.olistWebhookPedidosUrl}
+                        connected={props.olistConnected}
+                        cnpjReady={props.olistWebhookCnpjReady}
+                        tokenUsable={props.olistTokenUsable}
+                        ingestRegenerating={props.ingestRegenerating}
+                        onRegenerarIngest={props.onRegenerarWebhookIngest}
+                      />
+
+                      <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-3 text-sm">
+                        {props.olistAccountName && (
+                          <p className="text-[var(--foreground)]">
+                            Conta: <strong>{props.olistAccountName}</strong>
+                          </p>
+                        )}
+                        {props.olistTokenPrefix && (
+                          <p className="mt-1 text-[var(--muted)]">
+                            Token salvo: <span className="font-mono text-xs">{props.olistTokenPrefix}</span>
+                          </p>
+                        )}
+                        {props.olistValidatedAt && (
+                          <p className="mt-1 text-xs text-[var(--muted)]">
+                            Validado em {new Date(props.olistValidatedAt).toLocaleString("pt-BR")}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-[var(--muted)]">
+                          Substituir ou remover token
+                        </label>
+                        <p className="mb-2 text-xs leading-relaxed text-[var(--muted)]">
+                          Cole um novo token para trocar o atual, ou remova para desconectar a Olist/Tiny.
+                        </p>
+                        <OlistTokenForm {...props} />
+                      </div>
+                    </div>
+                  </details>
+                )}
               </div>
             )}
         </section>
         </>
         ) : (
-          <SellerBlingIntegrationPanel />
+          <SellerBlingIntegrationPanel switcher={<ErpTabSwitcher active={activeErp} onChange={setActiveErp} />} />
         )}
       </div>
     </div>

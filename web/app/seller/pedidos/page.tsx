@@ -146,6 +146,8 @@ export default function SellerPedidosPage() {
   const [etiquetaLinkInputs, setEtiquetaLinkInputs] = useState<Record<string, string>>({});
   const [etiquetaLinkSaving, setEtiquetaLinkSaving] = useState<Record<string, boolean>>({});
   const [etiquetaLinkError, setEtiquetaLinkError] = useState<Record<string, string>>({});
+  const [etiquetaModo, setEtiquetaModo] = useState<Record<string, "link" | "arquivo">>({});
+  const [etiquetaFileInputs, setEtiquetaFileInputs] = useState<Record<string, File | null>>({});
   const [etiquetaModalPedidoId, setEtiquetaModalPedidoId] = useState<string | null>(null);
   const [bloqueioModalPedidoId, setBloqueioModalPedidoId] = useState<string | null>(null);
   const [planoCapacidade, setPlanoCapacidade] = useState<{
@@ -178,6 +180,41 @@ export default function SellerPedidosPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error ?? "Erro ao salvar link.");
+      await load();
+      setEtiquetaModalPedidoId(null);
+    } catch (e: unknown) {
+      setEtiquetaLinkError((prev) => ({
+        ...prev,
+        [pedidoId]: e instanceof Error ? e.message : "Erro inesperado.",
+      }));
+    } finally {
+      setEtiquetaLinkSaving((prev) => ({ ...prev, [pedidoId]: false }));
+    }
+  }
+
+  async function enviarEtiquetaArquivo(pedidoId: string) {
+    const file = etiquetaFileInputs[pedidoId];
+    setEtiquetaLinkError((prev) => ({ ...prev, [pedidoId]: "" }));
+    if (!file) {
+      setEtiquetaLinkError((prev) => ({ ...prev, [pedidoId]: "Selecione o arquivo PDF da etiqueta." }));
+      return;
+    }
+    setEtiquetaLinkSaving((prev) => ({ ...prev, [pedidoId]: true }));
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const form = new FormData();
+      form.set("file", file);
+      const res = await fetch(`/api/seller/pedidos/${pedidoId}/etiqueta-link`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: form,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? "Erro ao enviar o arquivo.");
       await load();
       setEtiquetaModalPedidoId(null);
     } catch (e: unknown) {
@@ -651,6 +688,7 @@ export default function SellerPedidosPage() {
       {etiquetaModalPedidoId && (() => {
         const p = pedidos.find((x) => x.id === etiquetaModalPedidoId);
         if (!p) return null;
+        const modo = etiquetaModo[p.id] ?? "link";
         return (
           <ModalOverlay onBackdropClick={() => setEtiquetaModalPedidoId(null)} panelClassName="max-w-lg">
             <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
@@ -664,40 +702,97 @@ export default function SellerPedidosPage() {
               </button>
             </div>
             <div className={cn(MODAL_PANEL_BODY_CLASS, "p-4")}>
-              <AmberPremiumCallout title="Cole o link da etiqueta">
-                <div className="space-y-2">
+              <AmberPremiumCallout title={modo === "link" ? "Cole o link da etiqueta" : "Envie o arquivo PDF da etiqueta"}>
+                <div className="space-y-3">
                   <p>
                     {p.etiqueta_tentativas > 0
                       ? `Já tentamos buscar na Olist ${p.etiqueta_tentativas}x sem sucesso. `
                       : "Ainda não conseguimos buscar automaticamente na Olist. "}
-                    Entre no painel da Olist, pegue o link da etiqueta deste pedido e cole abaixo pra
-                    não travar o envio.
+                    Entre no painel da Olist e pegue a etiqueta deste pedido pra não travar o envio.{" "}
+                    <strong className="text-[var(--foreground)]">
+                      Se a Olist só baixar o PDF pro seu computador (sem te dar um link) — comum em pedidos
+                      Shopee — use a opção &quot;Arquivo PDF&quot; abaixo.
+                    </strong>
                   </p>
                   <p className="font-medium text-[var(--foreground)]">
-                    Confira antes de colar: o número do pedido na Olist tem que ser{" "}
+                    Confira antes de enviar: o número do pedido na Olist tem que ser{" "}
                     <span className="font-mono">{p.referencia_externa ?? "—"}</span> — etiqueta de
                     pedido errado sai pro endereço/produto errado.
                   </p>
-                  <div className="flex flex-col gap-1.5 sm:flex-row">
-                    <input
-                      type="url"
-                      placeholder="Cole aqui o link da etiqueta (https://...)"
-                      value={etiquetaLinkInputs[p.id] ?? ""}
-                      onChange={(e) =>
-                        setEtiquetaLinkInputs((prev) => ({ ...prev, [p.id]: e.target.value }))
-                      }
-                      disabled={etiquetaLinkSaving[p.id]}
-                      className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-sm text-[var(--foreground)]"
-                    />
+
+                  <div role="tablist" aria-label="Como enviar a etiqueta" className="inline-flex flex-wrap gap-1.5">
                     <button
                       type="button"
-                      onClick={() => salvarEtiquetaLink(p.id)}
-                      disabled={etiquetaLinkSaving[p.id]}
-                      className="w-full shrink-0 rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 sm:w-auto"
+                      role="tab"
+                      aria-selected={modo === "link"}
+                      onClick={() => setEtiquetaModo((prev) => ({ ...prev, [p.id]: "link" }))}
+                      className={cn(
+                        "rounded-full px-3.5 py-1.5 text-[11px] font-medium transition",
+                        modo === "link"
+                          ? "bg-emerald-600 text-white shadow-sm"
+                          : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
+                      )}
                     >
-                      {etiquetaLinkSaving[p.id] ? "Salvando..." : "Salvar link"}
+                      Link
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={modo === "arquivo"}
+                      onClick={() => setEtiquetaModo((prev) => ({ ...prev, [p.id]: "arquivo" }))}
+                      className={cn(
+                        "rounded-full px-3.5 py-1.5 text-[11px] font-medium transition",
+                        modo === "arquivo"
+                          ? "bg-emerald-600 text-white shadow-sm"
+                          : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
+                      )}
+                    >
+                      Arquivo PDF
                     </button>
                   </div>
+
+                  {modo === "link" ? (
+                    <div className="flex flex-col gap-1.5 sm:flex-row">
+                      <input
+                        type="url"
+                        placeholder="Cole aqui o link da etiqueta (https://...)"
+                        value={etiquetaLinkInputs[p.id] ?? ""}
+                        onChange={(e) =>
+                          setEtiquetaLinkInputs((prev) => ({ ...prev, [p.id]: e.target.value }))
+                        }
+                        disabled={etiquetaLinkSaving[p.id]}
+                        className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-sm text-[var(--foreground)]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => salvarEtiquetaLink(p.id)}
+                        disabled={etiquetaLinkSaving[p.id]}
+                        className="w-full shrink-0 rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 sm:w-auto"
+                      >
+                        {etiquetaLinkSaving[p.id] ? "Salvando..." : "Salvar link"}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-1.5 sm:flex-row">
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={(e) =>
+                          setEtiquetaFileInputs((prev) => ({ ...prev, [p.id]: e.target.files?.[0] ?? null }))
+                        }
+                        disabled={etiquetaLinkSaving[p.id]}
+                        className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-sm text-[var(--foreground)] file:mr-2 file:rounded file:border-0 file:bg-[var(--muted)]/15 file:px-2 file:py-1 file:text-xs file:font-semibold"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => enviarEtiquetaArquivo(p.id)}
+                        disabled={etiquetaLinkSaving[p.id]}
+                        className="w-full shrink-0 rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 sm:w-auto"
+                      >
+                        {etiquetaLinkSaving[p.id] ? "Enviando..." : "Enviar PDF"}
+                      </button>
+                    </div>
+                  )}
                   {etiquetaLinkError[p.id] && (
                     <p className="text-[11px] text-[var(--danger)]">{etiquetaLinkError[p.id]}</p>
                   )}

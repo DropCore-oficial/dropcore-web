@@ -198,6 +198,17 @@ function dataEventoParaYmdLocal(iso: string): string {
   return dateToLocalYmd(t);
 }
 
+/** Números de página com reticências pra não estourar a barra quando há muitas páginas. */
+function getPageNumbers(current: number, total: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | "...")[] = [1];
+  if (current > 3) pages.push("...");
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) pages.push(p);
+  if (current < total - 2) pages.push("...");
+  pages.push(total);
+  return pages;
+}
+
 function groupByDate(entries: LedgerEntry[]): { label: string; items: LedgerEntry[] }[] {
   const agora = new Date();
   const hoje = dateToLocalYmd(agora);
@@ -337,6 +348,8 @@ export default function SellerDashboardPage() {
   /** Olist/Tiny: token API salvo na integração. */
   const [olistIntegrado, setOlistIntegrado] = useState<boolean | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<"" | "pedidos">("");
+  const [extratoPage, setExtratoPage] = useState(1);
+  const [extratoPageSize, setExtratoPageSize] = useState(10);
   const autoOpenedRef = useRef(false);
   const extratoRef = useRef<HTMLDivElement>(null);
   const [chartTooltipHover, setChartTooltipHover] = useState<{ dia: string; valor: number; count: number } | null>(null);
@@ -469,6 +482,10 @@ export default function SellerDashboardPage() {
       setMovimentacoesAberto(true);
     }
   }, [loading, extrato.length, depositos.length]);
+
+  useEffect(() => {
+    setExtratoPage(1);
+  }, [filtroStatus, filtroTipo, tab]);
 
   const recarregarParam = searchParams.get("recarregar");
   const recarregarAbertoRef = useRef(false);
@@ -734,6 +751,12 @@ export default function SellerDashboardPage() {
     return list;
   })();
 
+  const extratoTotalPaginas = Math.max(1, Math.ceil(extratoFiltrado.length / extratoPageSize));
+  const extratoPagina = extratoFiltrado.slice(
+    (extratoPage - 1) * extratoPageSize,
+    (extratoPage - 1) * extratoPageSize + extratoPageSize
+  );
+
   const emDevolucaoCount = extrato.filter((e) => e.status === "EM_DEVOLUCAO").length;
   const devolvidoCount = extrato.filter((e) => e.tipo === "DEVOLUCAO").length;
   const temDevolucoes = emDevolucaoCount > 0 || devolvidoCount > 0;
@@ -741,7 +764,7 @@ export default function SellerDashboardPage() {
   const aLiberar = extrato
     .filter((e) => e.status === "AGUARDANDO_REPASSE" && (e.tipo === "BLOQUEIO" || e.tipo === "VENDA"))
     .reduce((s, e) => s + e.valor_total, 0);
-  const extratoAgrupado = groupByDate(extratoFiltrado);
+  const extratoAgrupado = groupByDate(extratoPagina);
   const previewExtrato = extrato.slice(0, 3);
 
   // Analytics Pro — calculado a partir do extrato (últimos 30 dias)
@@ -1653,40 +1676,47 @@ export default function SellerDashboardPage() {
                         const info = tipoLabel[e.tipo] ?? { label: e.tipo };
                         const st = statusLabel[e.status];
                         return (
-                          <div key={e.id} className="flex items-center gap-4 px-4 py-3 border-b border-[var(--card-border)] last:border-0 hover:bg-[var(--surface-hover)]/50 transition-colors">
-                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                                isPositivo(e.tipo) ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400" :
-                                isNegativo(e.tipo) ? "bg-[var(--surface-subtle)] text-[var(--muted)]" :
-                                "bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400"
-                              }`}>
-                                <IconTipoExtrato tipo={e.tipo} className="w-5 h-5" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-[var(--foreground)]">{e.nome_produto || info.label}</p>
-                                <p className="text-xs text-[var(--muted)] mt-0.5">
-                                  {formatDateTime(e.data_evento)}{e.fornecedor_nome ? ` · ${e.fornecedor_nome}` : ""}
-                                </p>
-                                {e.preco_venda != null && e.custo != null && e.preco_venda > 0 && (
-                                  <p className="text-[11px] text-[var(--muted)] mt-1">
-                                    Venda {BRL.format(e.preco_venda)} · Margem{" "}
-                                    <span
-                                      className={
-                                        e.preco_venda - e.custo >= 0
-                                          ? "text-emerald-600 dark:text-emerald-400"
-                                          : DANGER_PREMIUM_TEXT_SOFT
-                                      }
-                                    >
-                                      {((e.preco_venda - e.custo) / e.preco_venda * 100).toFixed(0)}%
-                                    </span>
+                          <div key={e.id} className="flex flex-col gap-2 px-4 py-3 border-b border-[var(--card-border)] last:border-0 hover:bg-[var(--surface-hover)]/50 transition-colors sm:flex-row sm:items-center sm:gap-4">
+                              <div className="flex items-center gap-3 sm:flex-1 sm:gap-4 sm:min-w-0">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                  isPositivo(e.tipo) ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400" :
+                                  isNegativo(e.tipo) ? "bg-[var(--surface-subtle)] text-[var(--muted)]" :
+                                  "bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400"
+                                }`}>
+                                  <IconTipoExtrato tipo={e.tipo} className="w-5 h-5" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p
+                                    title={e.nome_produto || info.label}
+                                    className="text-sm font-medium text-[var(--foreground)] line-clamp-2 leading-snug"
+                                  >
+                                    {e.nome_produto || info.label}
                                   </p>
-                                )}
+                                  <p className="text-xs text-[var(--muted)] mt-0.5">
+                                    {formatDateTime(e.data_evento)}{e.fornecedor_nome ? ` · ${e.fornecedor_nome}` : ""}
+                                  </p>
+                                  {e.preco_venda != null && e.custo != null && e.preco_venda > 0 && (
+                                    <p className="text-[11px] text-[var(--muted)] mt-1">
+                                      Venda {BRL.format(e.preco_venda)} · Margem{" "}
+                                      <span
+                                        className={
+                                          e.preco_venda - e.custo >= 0
+                                            ? "text-emerald-600 dark:text-emerald-400"
+                                            : DANGER_PREMIUM_TEXT_SOFT
+                                        }
+                                      >
+                                        {((e.preco_venda - e.custo) / e.preco_venda * 100).toFixed(0)}%
+                                      </span>
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              <div className="text-right shrink-0">
+                              <div className="flex items-center justify-between gap-3 pl-[3.25rem] sm:block sm:pl-0 sm:text-right sm:shrink-0">
                                 <p className={`text-base font-bold tabular-nums ${isPositivo(e.tipo) ? "text-emerald-600 dark:text-emerald-400" : isNegativo(e.tipo) ? "text-[var(--foreground)]" : "text-[var(--muted)]"}`}>
                                   {isPositivo(e.tipo) ? "+" : isNegativo(e.tipo) ? "−" : ""}{BRL.format(e.valor_total)}
                                 </p>
                                 {st && (
-                                  <span className={`mt-1.5 inline-flex w-36 items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium ${st.cor}`}>
+                                  <span className={`inline-flex w-auto items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-medium sm:mt-1.5 sm:w-36 ${st.cor}`}>
                                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                                     {st.label}
                                   </span>
@@ -1700,6 +1730,112 @@ export default function SellerDashboardPage() {
                   ))}
                 </div>
               )}
+
+              {extratoFiltrado.length > 0 ? (
+                <div className="mt-4 flex flex-col items-center gap-3 pt-1 sm:flex-row sm:justify-between">
+                  <p className="text-xs text-[var(--muted)]">
+                    Total <span className="font-semibold text-[var(--foreground)]">{extratoFiltrado.length}</span>{" "}
+                    movimentaç{extratoFiltrado.length !== 1 ? "ões" : "ão"}
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setExtratoPage((prev) => Math.max(1, prev - 1))}
+                      disabled={extratoPage <= 1}
+                      aria-label="Página anterior"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="m15 18-6-6 6-6" />
+                      </svg>
+                    </button>
+
+                    {/* Mobile: só até a página 4 numerada + reticências (a partir daí, use anterior/próxima) */}
+                    <div className="flex items-center gap-1.5 sm:hidden">
+                      {Array.from({ length: Math.min(4, extratoTotalPaginas) }, (_, i) => i + 1).map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setExtratoPage(p)}
+                          aria-current={p === extratoPage ? "page" : undefined}
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold transition-colors ${
+                            p === extratoPage
+                              ? "bg-emerald-600 text-white"
+                              : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                      {extratoTotalPaginas > 4 && (
+                        <span className="px-0.5 text-xs text-[var(--muted)]">…</span>
+                      )}
+                    </div>
+
+                    {/* Desktop: paginador completo com reticências dinâmicas */}
+                    <div className="hidden items-center gap-1.5 sm:flex">
+                      {getPageNumbers(extratoPage, extratoTotalPaginas).map((p, idx) =>
+                        p === "..." ? (
+                          <span key={`ellipsis-${idx}`} className="px-1 text-xs text-[var(--muted)]">
+                            …
+                          </span>
+                        ) : (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setExtratoPage(p)}
+                            aria-current={p === extratoPage ? "page" : undefined}
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold transition-colors ${
+                              p === extratoPage
+                                ? "bg-emerald-600 text-white"
+                                : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        )
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setExtratoPage((prev) => Math.min(extratoTotalPaginas, prev + 1))}
+                      disabled={extratoPage >= extratoTotalPaginas}
+                      aria-label="Próxima página"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="m9 18 6-6-6-6" />
+                      </svg>
+                    </button>
+                    <div className="relative ml-1.5 shrink-0">
+                      <div
+                        aria-hidden
+                        className="pointer-events-none flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)]"
+                      >
+                        {extratoPageSize}/página
+                        <svg className="h-3.5 w-3.5 shrink-0 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </div>
+                      <select
+                        aria-label="Itens por página"
+                        value={extratoPageSize}
+                        onChange={(e) => {
+                          setExtratoPage(1);
+                          setExtratoPageSize(Number(e.target.value));
+                        }}
+                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                      >
+                        <option value={10}>10/página</option>
+                        <option value={20}>20/página</option>
+                        <option value={50}>50/página</option>
+                        <option value={100}>100/página</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
 

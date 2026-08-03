@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { cn } from "@/lib/utils";
@@ -23,7 +23,7 @@ async function getAccessToken(): Promise<string | null> {
   return session?.access_token ?? null;
 }
 
-export function SellerBlingIntegrationPanel() {
+export function SellerBlingIntegrationPanel({ switcher }: { switcher?: ReactNode }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -140,9 +140,9 @@ export function SellerBlingIntegrationPanel() {
         </div>
       ) : null}
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <h2 className="text-base font-semibold text-[var(--foreground)]">Integração Bling</h2>
+          {switcher}
           {status?.oauth_connected ? (
             <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
@@ -158,7 +158,7 @@ export function SellerBlingIntegrationPanel() {
         <button
           type="button"
           onClick={() => void load()}
-          className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+          className="self-start rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 sm:self-auto"
         >
           Atualizar
         </button>
