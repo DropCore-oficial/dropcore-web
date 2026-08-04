@@ -4,6 +4,8 @@ import { requireAdmin } from "@/lib/apiOrgAuth";
 import { buildSellerFornecedorIdPatch, uuidNormFornecedor } from "@/lib/applySellerFornecedorIdChange";
 import { clampMensalidadeDiaVencimento } from "@/lib/mensalidadeDiaVencimento";
 import { deleteSellerCascade } from "@/lib/sellerDeleteCascade";
+import { DIAS_JANELA_ESCOLHA_FORNECEDOR } from "@/lib/sellerFornecedorVinculo";
+import { notifyUserEmail } from "@/lib/notifyEmail";
 
 function uuidNorm(v: unknown): string | null {
   return uuidNormFornecedor(v);
@@ -143,6 +145,14 @@ export async function PATCH(
       allowed.fornecedor_desvinculo_liberado = libNoBody;
     }
 
+    // Marca/limpa o instante da liberação — usado pelo cron fornecedor-troca-janela-expira
+    // (DIAS_JANELA_ESCOLHA_FORNECEDOR) pra fechar sozinha a liberação que o seller não usou. Cobre
+    // tanto o toggle direto do admin quanto o reset automático pra `false` que
+    // buildSellerFornecedorIdPatch já faz ao trocar/desvincular.
+    if (Object.prototype.hasOwnProperty.call(allowed, "fornecedor_desvinculo_liberado")) {
+      allowed.fornecedor_desvinculo_liberado_em = allowed.fornecedor_desvinculo_liberado ? new Date().toISOString() : null;
+    }
+
     allowed.atualizado_em = new Date().toISOString();
 
     const keysMeaningful = Object.keys(allowed).filter((k) => k !== "atualizado_em");
@@ -171,6 +181,18 @@ export async function PATCH(
       console.error("[sellers PATCH]", error.message);
       return NextResponse.json({ error: "Erro ao atualizar seller." }, { status: 500 });
     }
+
+    const liberacaoConcedidaAgora = allowed.fornecedor_desvinculo_liberado === true && !curLib;
+    const sellerUserId = (curRow as Record<string, unknown>).user_id as string | null | undefined;
+    if (liberacaoConcedidaAgora && sellerUserId) {
+      await notifyUserEmail({
+        userId: sellerUserId,
+        subject: "Você já pode trocar de fornecedor",
+        titulo: "Liberação antecipada concedida",
+        mensagem: `Você foi liberado para trocar ou desvincular do fornecedor atual. Você tem ${DIAS_JANELA_ESCOLHA_FORNECEDOR} dias para escolher — se não agir nesse prazo, o vínculo atual será renovado automaticamente.`,
+      });
+    }
+
     return NextResponse.json(data);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";

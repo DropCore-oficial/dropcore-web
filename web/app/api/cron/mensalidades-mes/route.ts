@@ -9,6 +9,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { gerarMensalidadesParaOrgCiclo } from "@/lib/gerarMensalidadesCicloOrg";
 import { contarInadimplentes, marcarInadimplentes, reverterInadimplentesDuranteTrial } from "@/lib/inadimplencia";
 import { syncInadimplentesOrgAdminNotifications } from "@/lib/inadimplenciaOrgNotifications";
+import { enviarEmailsMensalidadeVencida, enviarEmailsMensalidadeVencendo } from "@/lib/mensalidadeVencimentoEmail";
 import { cicloMesAtualSaoPaulo } from "@/lib/mensalidadeDiaVencimento";
 
 export const runtime = "nodejs";
@@ -58,7 +59,9 @@ export async function GET(req: Request) {
   for (const org_id of orgIds) {
     try {
       await reverterInadimplentesDuranteTrial(supabaseAdmin, org_id);
-      await marcarInadimplentes(supabaseAdmin, org_id);
+      const marcados = await marcarInadimplentes(supabaseAdmin, org_id);
+      if (marcados.length) await enviarEmailsMensalidadeVencida(marcados);
+      await enviarEmailsMensalidadeVencendo(org_id);
       const inad = await contarInadimplentes(supabaseAdmin, org_id);
       await syncInadimplentesOrgAdminNotifications(supabaseAdmin, org_id, inad);
       const g = await gerarMensalidadesParaOrgCiclo(org_id, ciclo);

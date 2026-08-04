@@ -4,6 +4,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { criarSellerCreditLot } from "@/lib/sellerCreditLots";
 import { runPedidosErroSaldoRetry } from "@/lib/pedidosErroSaldoRetry";
+import { notifyUserEmail } from "@/lib/notifyEmail";
 
 export async function processarDepositoAprovado(extRef: string): Promise<boolean> {
   if (!extRef.trim() || !extRef.startsWith("deposito-")) return false;
@@ -102,12 +103,19 @@ export async function processarDepositoAprovado(extRef: string): Promise<boolean
   }
 
   if (sellerUserId) {
+    const mensagemSeller = `Sua recarga de ${valorBRL} virou crédito DropCore e já está disponível. Validade: 12 meses a partir de hoje.`;
     await supabaseAdmin.from("notifications").insert({
       user_id: sellerUserId,
       tipo: "deposito_aprovado",
       titulo: "Recarga aprovada",
-      mensagem: `Sua recarga de ${valorBRL} virou crédito DropCore e já está disponível. Validade: 12 meses a partir de hoje.`,
+      mensagem: mensagemSeller,
       metadata: { deposito_id: depositoId, valor },
+    });
+    await notifyUserEmail({
+      userId: sellerUserId,
+      subject: "Sua recarga PIX foi aprovada",
+      titulo: "Recarga aprovada",
+      mensagem: mensagemSeller,
     });
   }
 
@@ -117,17 +125,27 @@ export async function processarDepositoAprovado(extRef: string): Promise<boolean
     .eq("org_id", deposito.org_id)
     .in("role_base", ["owner", "admin"]);
   if (admins?.length) {
-    const toInsert = admins
-      .filter((a) => a.user_id && a.user_id !== sellerUserId)
-      .map((a) => ({
-        user_id: a.user_id,
-        tipo: "deposito_entrou",
-        titulo: "Nova recarga PIX",
-        mensagem: `Recarga de ${valorBRL} de ${sellerNome} foi aprovada (créditos na plataforma).`,
-        metadata: { deposito_id: depositoId, valor, seller_id: deposito.seller_id },
-      }));
+    const mensagemAdmin = `Recarga de ${valorBRL} de ${sellerNome} foi aprovada (créditos na plataforma).`;
+    const adminIds = admins.map((a) => a.user_id).filter((uid): uid is string => !!uid && uid !== sellerUserId);
+    const toInsert = adminIds.map((user_id) => ({
+      user_id,
+      tipo: "deposito_entrou",
+      titulo: "Nova recarga PIX",
+      mensagem: mensagemAdmin,
+      metadata: { deposito_id: depositoId, valor, seller_id: deposito.seller_id },
+    }));
     if (toInsert.length) {
       await supabaseAdmin.from("notifications").insert(toInsert);
+      await Promise.all(
+        adminIds.map((userId) =>
+          notifyUserEmail({
+            userId,
+            subject: "Nova recarga PIX de seller",
+            titulo: "Nova recarga PIX",
+            mensagem: mensagemAdmin,
+          })
+        )
+      );
     }
   }
 

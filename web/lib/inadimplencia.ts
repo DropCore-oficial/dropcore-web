@@ -66,26 +66,36 @@ export async function reverterInadimplentesDuranteTrial(
   return n;
 }
 
+export type MensalidadeMarcadaInadimplente = {
+  tipo: "seller" | "fornecedor";
+  entidade_id: string;
+  valor: number;
+  vencimento_em: string | null;
+};
+
 /**
  * Marca mensalidades pendentes vencidas como inadimplente (exceto entidades em trial de portal).
+ * Retorna as linhas recém-marcadas (não as que já estavam inadimplentes) pra quem quiser
+ * notificar o dono individualmente — a query já filtra por status='pendente', então cada
+ * linha só passa por aqui uma vez (natural idempotência pro aviso de "mensalidade venceu").
  */
 export async function marcarInadimplentes(
   supabase: SupabaseClient,
   orgId: string
-): Promise<number> {
+): Promise<MensalidadeMarcadaInadimplente[]> {
   const hoje = new Date().toISOString().slice(0, 10);
   const { forn, sell } = await entidadesComTrialAtivo(supabase, orgId);
 
   const { data: candidates, error: qErr } = await supabase
     .from("financial_mensalidades")
-    .select("id, tipo, entidade_id")
+    .select("id, tipo, entidade_id, valor, vencimento_em")
     .eq("org_id", orgId)
     .eq("status", "pendente")
     .lt("vencimento_em", hoje);
 
   if (qErr || !candidates?.length) {
     if (qErr) console.error("[inadimplencia] Erro ao listar candidatos:", qErr.message);
-    return 0;
+    return [];
   }
 
   const toMark = candidates.filter((r: { id: string; tipo: string; entidade_id: string }) => {
@@ -93,7 +103,7 @@ export async function marcarInadimplentes(
     if (r.tipo === "seller" && sell.has(r.entidade_id)) return false;
     return true;
   });
-  if (!toMark.length) return 0;
+  if (!toMark.length) return [];
 
   const ids = toMark.map((r: { id: string }) => r.id);
   const { data, error } = await supabase
@@ -104,10 +114,18 @@ export async function marcarInadimplentes(
 
   if (error) {
     console.error("[inadimplencia] Erro ao marcar:", error.message);
-    return 0;
+    return [];
   }
 
-  return data?.length ?? 0;
+  const marcadosIds = new Set((data ?? []).map((r: { id: string }) => r.id));
+  return toMark
+    .filter((r: { id: string }) => marcadosIds.has(r.id))
+    .map((r: { tipo: string; entidade_id: string; valor: number; vencimento_em: string | null }) => ({
+      tipo: r.tipo as "seller" | "fornecedor",
+      entidade_id: r.entidade_id,
+      valor: Number(r.valor),
+      vencimento_em: r.vencimento_em,
+    }));
 }
 
 /**

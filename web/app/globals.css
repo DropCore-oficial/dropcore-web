@@ -23,6 +23,14 @@ html[data-version-banner] .min-h-screen.app-bg {
     padding-top: calc(3.5rem + var(--app-version-banner-offset, 0px)) !important;
   }
 }
+/* Seller (desktop): menu virou rail fixo à esquerda — reserva espaço pro conteúdo não ficar por baixo.
+   Usa .app-bg sozinho (sem exigir .min-h-screen): o wrapper real das páginas do seller não leva
+   min-h-screen (ver comentário acima da regra .app-bg mais abaixo), só as telas de loading centralizadas. */
+@media (min-width: 768px) {
+  html[data-seller-sidebar] .app-bg {
+    padding-left: 4rem;
+  }
+}
 /* Tabelas / blocos largos: scroll horizontal com inércia no iOS */
 .dropcore-scroll-x {
   width: 100%;

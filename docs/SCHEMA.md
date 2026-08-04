@@ -84,6 +84,30 @@ mesmo objeto `OlistPedidoDetalhe` que a importação real usa (`web/lib/sellerOl
 Sem mudança de RLS — tabela já tinha policy própria, `SELECT`/`INSERT` seguem só via
 `supabaseAdmin` (mesmo padrão de antes).
 
+## `sellers.fornecedor_desvinculo_liberado_em` + janela de 5 dias pra trocar de fornecedor (2026-08-03)
+
+`web/scripts/seller-fornecedor-desvinculo-liberado-expira.sql`: coluna nullable `timestamptz`
+em `sellers`. Grava o instante em que `fornecedor_desvinculo_liberado` virou `true` (admin
+concedeu liberação antecipada em `/admin/sellers`); volta a `null` quando a liberação fecha
+(seller troca/desvincula, admin desliga o toggle, ou o cron expira sozinho). Escrita em
+`web/app/api/org/sellers/[id]/route.ts` (PATCH), junto com qualquer mudança em
+`fornecedor_desvinculo_liberado`.
+
+Regra de negócio: quando o seller fica livre pra trocar de fornecedor — natural (venceram os
+`MESES_MINIMOS_COM_FORNECEDOR`) ou por liberação antecipada do admin — ele tem
+`DIAS_JANELA_ESCOLHA_FORNECEDOR` (5, `web/lib/sellerFornecedorVinculo.ts`) dias pra escolher
+(trocar ou desvincular). Se não agir, o sistema tranca de novo sozinho com o **mesmo**
+fornecedor, reiniciando os `MESES_MINIMOS_COM_FORNECEDOR` a partir dali — não fica aberto pra
+sempre em nenhum dos dois casos.
+
+Cron `dropcore-fornecedor-troca-janela-expira` (12:00 UTC, `web/scripts/supabase-cron-jobs.sql`)
+chama `/api/cron/fornecedor-troca-janela-expira` → `web/lib/sellerFornecedorTrocaJanelaExpira.ts`,
+que busca os dois casos separadamente (mesmo update nos dois): liberação antecipada com
+`fornecedor_desvinculo_liberado_em` mais velho que a janela, e vínculo com
+`fornecedor_vinculado_em` mais velho que `MESES_MINIMOS_COM_FORNECEDOR + DIAS_JANELA_ESCOLHA_FORNECEDOR`
+sem liberação antecipada ativa. Sem mudança de RLS — leitura/escrita só via `supabaseAdmin`
+(mesmo padrão das outras colunas de vínculo de fornecedor).
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

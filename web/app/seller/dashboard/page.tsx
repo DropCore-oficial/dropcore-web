@@ -44,6 +44,7 @@ import {
 } from "@/lib/sellerCreditoTermos";
 import { SellerPixRecargaVsMensalidadeBox } from "@/components/seller/SellerPixRecargaVsMensalidadeBox";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
+import { buildSellerSupportWhatsAppHref } from "@/lib/sellerSupportWhatsAppPrefill";
 
 // Status = informação, não ação: sem borda, fundo suave (mesmo padrão de
 // web/app/fornecedor/pedidos/page.tsx e da skill dropcore-layout, seção "Badge de status").
@@ -2247,7 +2248,7 @@ export default function SellerDashboardPage() {
                   {vinculoFornecedor.pode_trocar_a_partir_de ? (
                     <>
                       {" "}
-                      Troca ou remoção do víncio com a equipe a partir de{" "}
+                      Troca ou remoção do vínculo com a equipe a partir de{" "}
                       <span className="font-semibold">{formatDate(vinculoFornecedor.pode_trocar_a_partir_de.slice(0, 10))}</span>.
                     </>
                   ) : null}{" "}
@@ -2257,7 +2258,7 @@ export default function SellerDashboardPage() {
                 <p>
                   {vinculoFornecedor.pode_trocar_a_partir_de ? (
                     <>
-                      <strong>Já liberado desde {formatDate(vinculoFornecedor.pode_trocar_a_partir_de.slice(0, 10))}</strong> — fale com o <strong>suporte DropCore</strong> para trocar de armazém ou ajustar o víncio (a alteração é feita pela equipe no painel).
+                      <strong>Já liberado desde {formatDate(vinculoFornecedor.pode_trocar_a_partir_de.slice(0, 10))}</strong> — fale com o <strong>suporte DropCore</strong> para trocar de armazém ou ajustar o vínculo (a alteração é feita pela equipe no painel).
                     </>
                   ) : (
                     <>
@@ -2267,13 +2268,25 @@ export default function SellerDashboardPage() {
                   A cada troca efetiva, o período mínimo de <strong>{vinculoFornecedor.meses_minimos} meses</strong> volta a contar com o novo armazém.
                 </p>
               )}
-              <button
-                type="button"
-                onClick={() => setModalArmazem(false)}
-                className="w-full rounded-md bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-1.5 text-[11px] hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors"
-              >
-                Entendi
-              </button>
+              <div className="flex flex-col gap-2">
+                <a
+                  href={buildSellerSupportWhatsAppHref(
+                    "Olá! Preciso trocar/desvincular o armazém vinculado no DropCore."
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-center text-[11px] font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10"
+                >
+                  Falar com o suporte no WhatsApp
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setModalArmazem(false)}
+                  className="w-full rounded-md bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-1.5 text-[11px] hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors"
+                >
+                  Entendi
+                </button>
+              </div>
             </div>
           </div>
         </div>

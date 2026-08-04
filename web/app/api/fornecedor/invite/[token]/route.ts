@@ -11,6 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { applyPortalTrialFromInviteForFornecedor } from "@/lib/applyPortalTrialFromInvite";
 import { ensureMensalidadeDiaVencimentoSeNull } from "@/lib/ensureMensalidadeDiaVencimento";
+import { notifyUserEmail } from "@/lib/notifyEmail";
 
 function isEmailAlreadyRegisteredError(msg: string): boolean {
   const m = msg.toLowerCase();
@@ -230,6 +231,13 @@ export async function POST(req: Request, { params }: Params) {
       .from("fornecedor_invites")
       .update({ usado: true })
       .eq("id", invite.id);
+
+    await notifyUserEmail({
+      userId: user_id!,
+      subject: "Bem-vindo ao DropCore",
+      titulo: "Seu acesso de fornecedor foi ativado",
+      mensagem: "Seu acesso de fornecedor no DropCore foi criado com sucesso. Você já pode fazer login e começar a gerenciar seus pedidos.",
+    });
 
     return NextResponse.json({
       ok: true,

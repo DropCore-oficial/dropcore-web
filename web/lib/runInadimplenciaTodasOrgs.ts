@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { contarInadimplentes, marcarInadimplentes, reverterInadimplentesDuranteTrial } from "@/lib/inadimplencia";
 import { syncInadimplentesOrgAdminNotifications } from "@/lib/inadimplenciaOrgNotifications";
+import { enviarEmailsMensalidadeVencida, enviarEmailsMensalidadeVencendo } from "@/lib/mensalidadeVencimentoEmail";
 
 async function distinctOrgIds(): Promise<string[]> {
   const [{ data: s }, { data: f }] = await Promise.all([
@@ -36,8 +37,10 @@ export async function runInadimplenciaTodasOrgs(): Promise<RunInadimplenciaResul
   for (const org_id of orgIds) {
     try {
       await reverterInadimplentesDuranteTrial(supabaseAdmin, org_id);
-      const n = await marcarInadimplentes(supabaseAdmin, org_id);
-      marcados_total += n;
+      const marcados = await marcarInadimplentes(supabaseAdmin, org_id);
+      marcados_total += marcados.length;
+      if (marcados.length) await enviarEmailsMensalidadeVencida(marcados);
+      await enviarEmailsMensalidadeVencendo(org_id);
       const inad = await contarInadimplentes(supabaseAdmin, org_id);
       await syncInadimplentesOrgAdminNotifications(supabaseAdmin, org_id, inad);
     } catch (e: unknown) {

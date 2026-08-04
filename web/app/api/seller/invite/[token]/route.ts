@@ -11,6 +11,7 @@ import {
   resolveSellerInvite,
   resolveSellerInviteConsumedWithAccount,
 } from "@/lib/sellerInviteToken";
+import { notifyUserEmail } from "@/lib/notifyEmail";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -123,6 +124,13 @@ export async function POST(req: Request, { params }: Params) {
       .from("seller_invites")
       .update({ usado: true })
       .eq("id", invite.id);
+
+    await notifyUserEmail({
+      userId: user_id,
+      subject: "Bem-vindo ao DropCore",
+      titulo: "Sua conta foi criada",
+      mensagem: "Sua conta de seller no DropCore foi criada com sucesso. Você já pode fazer login e começar a vender.",
+    });
 
     return NextResponse.json({ ok: true, message: "Conta criada com sucesso. Você já pode fazer login." });
   } catch (e: unknown) {

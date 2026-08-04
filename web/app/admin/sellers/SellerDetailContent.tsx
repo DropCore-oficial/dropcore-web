@@ -534,7 +534,7 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
                   if (!pode && min) {
                     return (
                       <p className="text-[11px] text-[var(--muted)] mt-2">
-                        Regra: {MESES_MINIMOS_COM_FORNECEDOR} meses com o armazém atual após cada víncio ou troca (evita pinga-pinga). Liberação na plataforma a partir de{" "}
+                        Regra: {MESES_MINIMOS_COM_FORNECEDOR} meses com o armazém atual após cada vínculo ou troca (evita pinga-pinga). Liberação na plataforma a partir de{" "}
                         <span className="font-semibold text-[var(--foreground)]">{formatDate(min.toISOString().slice(0, 10))}</span>; infração comprovada → opções em Editar.
                       </p>
                     );
@@ -689,7 +689,7 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
                 {(editFornecedorId.trim() || detail?.fornecedor_id) && (
                   <div className="mt-3 space-y-2 rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] p-3">
                     <p className="text-[11px] text-[var(--muted)] leading-relaxed">
-                      Com tudo certo entre as partes, o seller fica pelo menos <strong>{MESES_MINIMOS_COM_FORNECEDOR} meses</strong> com o armazém atual após cada víncio ou troca. Para exceção (infração, pedidos errados), use as opções abaixo.
+                      Com tudo certo entre as partes, o seller fica pelo menos <strong>{MESES_MINIMOS_COM_FORNECEDOR} meses</strong> com o armazém atual após cada vínculo ou troca. Para exceção (infração, pedidos errados), use as opções abaixo.
                     </p>
                     <label className="flex cursor-pointer items-start gap-2 text-[12px] text-[var(--foreground)]">
                       <input

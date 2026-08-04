@@ -141,6 +141,17 @@ export function SellerCatalogoVitrineClient() {
     [fornecedores, fornecedorLigadoId]
   );
 
+  /** Fornecedor vinculado sempre primeiro na vitrine. */
+  const fornecedoresOrdenados = useMemo(() => {
+    if (!fornecedores || !fornecedorLigadoId) return fornecedores;
+    const idx = fornecedores.findIndex((f) => f.id === fornecedorLigadoId);
+    if (idx <= 0) return fornecedores;
+    const copy = [...fornecedores];
+    const [vinculado] = copy.splice(idx, 1);
+    copy.unshift(vinculado);
+    return copy;
+  }, [fornecedores, fornecedorLigadoId]);
+
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
       <div className="dropcore-shell-6xl pt-6 lg:pt-8 pb-5 md:pb-7 space-y-6">
@@ -155,20 +166,6 @@ export function SellerCatalogoVitrineClient() {
           title="Vitrine dos fornecedores"
           subtitle="Conheça o catálogo de cada fornecedor da sua organização — fotos, preço e variantes, tudo aqui."
         />
-
-        {fornecedores && fornecedores.length > 1 && (
-          <div className="flex flex-wrap gap-2">
-            {fornecedores.map((f) => (
-              <a
-                key={f.id}
-                href={`#fornecedor-${f.id}`}
-                className="rounded-full border border-[var(--card-border)] bg-[var(--card)] px-3.5 py-1.5 text-[11px] font-medium text-[var(--foreground)] hover:border-emerald-300"
-              >
-                {f.nome_publico}
-              </a>
-            ))}
-          </div>
-        )}
 
         {loadingFornecedores && (
           <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm p-12 text-center text-sm text-[var(--muted)]">
@@ -186,9 +183,10 @@ export function SellerCatalogoVitrineClient() {
           </div>
         )}
 
-        {fornecedores?.map((f) => {
+        {fornecedoresOrdenados?.map((f) => {
           const estado = porFornecedor[f.id];
           const escolhido = f.id === fornecedorLigadoId;
+          const temProdutos = Boolean(estado && !estado.loading && !estado.error && estado.items.length > 0);
           return (
             <section
               key={f.id}
@@ -221,7 +219,7 @@ export function SellerCatalogoVitrineClient() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  {!escolhido && confirmandoId !== f.id && !(vinculo && !vinculo.pode_trocar_agora) && (
+                  {!escolhido && temProdutos && confirmandoId !== f.id && !(vinculo && !vinculo.pode_trocar_agora) && (
                     <button
                       type="button"
                       disabled={vinculo === null}
@@ -249,7 +247,7 @@ export function SellerCatalogoVitrineClient() {
                 </div>
               </div>
 
-              {!escolhido && (confirmandoId === f.id || (vinculo && !vinculo.pode_trocar_agora)) && (
+              {!escolhido && temProdutos && (confirmandoId === f.id || (vinculo && !vinculo.pode_trocar_agora)) && (
                 <div className="mb-3 space-y-2">
                   {confirmandoId === f.id ? (
                     <div className="space-y-3 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-3">
@@ -309,7 +307,7 @@ export function SellerCatalogoVitrineClient() {
                 </div>
               )}
 
-              {!escolhido && confirmandoId !== f.id && !(vinculo && !vinculo.pode_trocar_agora) && (
+              {!escolhido && temProdutos && confirmandoId !== f.id && !(vinculo && !vinculo.pode_trocar_agora) && (
                 <div className="mb-3 sm:hidden">
                   <button
                     type="button"

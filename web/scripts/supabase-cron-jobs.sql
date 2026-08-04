@@ -199,6 +199,15 @@ SELECT cron.schedule(
   $$SELECT public.dropcore_cron_http_post('/api/cron/repasse-fornecedor-atrasado');$$
 );
 
+-- Tranca de novo o seller que ficou livre pra trocar de fornecedor (prazo mínimo natural
+-- vencido OU liberação antecipada do admin) e não escolheu em 5 dias — reinicia o
+-- compromisso mínimo com o fornecedor atual. — 12:00 UTC.
+SELECT cron.schedule(
+  'dropcore-fornecedor-troca-janela-expira',
+  '0 12 * * *',
+  $$SELECT public.dropcore_cron_http_post('/api/cron/fornecedor-troca-janela-expira');$$
+);
+
 -- -----------------------------------------------------------------------------
 -- 5) Conferir
 -- -----------------------------------------------------------------------------
