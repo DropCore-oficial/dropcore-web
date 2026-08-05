@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { orgErrorHttpStatus, requireAdmin } from "@/lib/apiOrgAuth";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ function supabaseService() {
 
 export async function DELETE(req: Request) {
   try {
-    const { org_id } = await requireAdmin(req);
+    const { user_id, org_id } = await requireAdmin(req);
 
     const { id } = await req.json();
     if (!id) return NextResponse.json({ error: "Faltou id." }, { status: 400 });
@@ -28,6 +29,8 @@ export async function DELETE(req: Request) {
       .eq("org_id", org_id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    await logAdminAction({ req, orgId: org_id, actorUserId: user_id, action: "sku.excluir", targetTable: "skus", targetId: id });
 
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {

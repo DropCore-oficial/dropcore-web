@@ -29,7 +29,7 @@ export async function getFornecedorIdFromBearer(req: Request): Promise<string | 
 /** Resolve fornecedor_id + org_id do usuário autenticado (Bearer Supabase). */
 export async function getFornecedorContextFromBearer(
   req: Request
-): Promise<{ fornecedor_id: string; org_id: string } | null> {
+): Promise<{ fornecedor_id: string; org_id: string; user_id: string } | null> {
   const auth = req.headers.get("authorization") ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
   if (!token) return null;
@@ -51,5 +51,5 @@ export async function getFornecedorContextFromBearer(
     .maybeSingle();
 
   if (!member?.fornecedor_id || !member.org_id) return null;
-  return { fornecedor_id: member.fornecedor_id, org_id: member.org_id };
+  return { fornecedor_id: member.fornecedor_id, org_id: member.org_id, user_id: userData.user.id };
 }

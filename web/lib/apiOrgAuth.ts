@@ -9,7 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import { resolveOrgMe } from "@/lib/orgMeServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-export type Me = { org_id: string; role_base: "owner" | "admin" | "operacional"; plano?: string };
+export type Me = { user_id: string; org_id: string; role_base: "owner" | "admin" | "operacional"; plano?: string };
 
 /** Erro com status HTTP para rotas mapearem NextResponse sem fetch interno. */
 export class OrgAuthError extends Error {
@@ -63,7 +63,7 @@ export async function getMe(req: Request): Promise<Me> {
   if (!r.role_base) {
     throw new OrgAuthError("Usuário sem organização.", 401);
   }
-  return { org_id: r.org_id, role_base: r.role_base, plano: r.plano };
+  return { user_id: r.user_id, org_id: r.org_id, role_base: r.role_base, plano: r.plano };
 }
 
 /** Exige owner ou admin; retorna { org_id, role_base } ou 403. */

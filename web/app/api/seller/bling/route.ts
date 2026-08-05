@@ -7,6 +7,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveExternalWebhookOrigin } from "@/lib/appOrigin";
 import { isBlingClientIdMisusedAsCompanyId } from "@/lib/blingCompanyId";
 import { getSellerFromToken } from "@/lib/sellerBlingAuth";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -149,6 +150,15 @@ export async function PUT(req: Request) {
         return NextResponse.json({ error: "Erro ao limpar o companyId." }, { status: 500 });
       }
 
+      await logAdminAction({
+        req,
+        orgId: seller.org_id,
+        actorUserId: seller.user_id,
+        action: "erp.bling.desconectar",
+        targetTable: "seller_bling_integrations",
+        targetId: seller.id,
+      });
+
       return NextResponse.json({ ok: true, bling_company_id: null });
     }
 
@@ -188,6 +198,16 @@ export async function PUT(req: Request) {
       console.error("[seller/bling PUT]", upErr.message);
       return NextResponse.json({ error: "Erro ao salvar." }, { status: 500 });
     }
+
+    await logAdminAction({
+      req,
+      orgId: seller.org_id,
+      actorUserId: seller.user_id,
+      action: "erp.bling.conectar",
+      targetTable: "seller_bling_integrations",
+      targetId: seller.id,
+      detalhes: { bling_company_id },
+    });
 
     return NextResponse.json({ ok: true, bling_company_id });
   } catch (e: unknown) {

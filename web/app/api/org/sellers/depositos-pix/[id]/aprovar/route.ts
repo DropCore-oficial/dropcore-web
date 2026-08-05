@@ -7,6 +7,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { criarSellerCreditLot } from "@/lib/sellerCreditLots";
 import { runPedidosErroSaldoRetry } from "@/lib/pedidosErroSaldoRetry";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { org_id } = await requireAdmin(req);
+    const { user_id, org_id } = await requireAdmin(req);
     const { id } = await params;
 
     const { data: deposito, error: fetchErr } = await supabaseAdmin
@@ -99,6 +100,16 @@ export async function POST(
     if (updateErr) {
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
     }
+
+    await logAdminAction({
+      req,
+      orgId: org_id,
+      actorUserId: user_id,
+      action: "deposito_pix.aprovar",
+      targetTable: "seller_depositos_pix",
+      targetId: id,
+      detalhes: { seller_id: deposito.seller_id, valor },
+    });
 
     const valorBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);
     const { data: sellerRow } = await supabaseAdmin

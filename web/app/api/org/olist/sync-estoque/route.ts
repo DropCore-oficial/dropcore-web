@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { paiKeyFromSku } from "@/lib/sellerCatalogOlistExport";
 import { syncOlistEstoqueFornecedorGrupo } from "@/lib/sellerOlistSyncEstoqueOnChange";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export const maxDuration = 300;
 
 export async function POST(req: Request) {
   try {
-    const { org_id } = await requireAdmin(req);
+    const { user_id, org_id } = await requireAdmin(req);
     const body = await req.json().catch(() => ({}));
 
     const fornecedorId =
@@ -56,6 +57,16 @@ export async function POST(req: Request) {
       sellers = Math.max(sellers, r.sellers);
       porGrupo.push({ grupo: grupoKey, ok: r.ok, sellers: r.sellers });
     }
+
+    await logAdminAction({
+      req,
+      orgId: org_id,
+      actorUserId: user_id,
+      action: "erp.olist.sync_estoque_admin",
+      targetTable: "fornecedores",
+      targetId: fornecedorId,
+      detalhes: { grupo_keys: keys, ok_total: okTotal },
+    });
 
     return NextResponse.json({
       ok: true,

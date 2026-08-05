@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { orgErrorHttpStatus, requireAdmin } from "@/lib/apiOrgAuth";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ function supabaseService() {
 
 export async function DELETE(req: Request, { params }: Params) {
   try {
-    await requireAdmin(req);
+    const { user_id: actorId, org_id } = await requireAdmin(req);
     const { userId } = await params;
     if (!userId?.trim()) {
       return NextResponse.json({ error: "userId inválido." }, { status: 400 });
@@ -32,6 +33,15 @@ export async function DELETE(req: Request, { params }: Params) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    await logAdminAction({
+      req,
+      orgId: org_id,
+      actorUserId: actorId,
+      action: "calculadora_assinante.excluir",
+      targetTable: "calculadora_assinantes",
+      targetId: userId,
+    });
 
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {

@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { org_id } = await requireAdmin(req);
+    const { user_id, org_id } = await requireAdmin(req);
     const { id } = await params;
 
     const { data: row, error: fetchErr } = await supabaseAdmin
@@ -41,6 +42,16 @@ export async function DELETE(
       .eq("org_id", org_id);
 
     if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
+
+    await logAdminAction({
+      req,
+      orgId: org_id,
+      actorUserId: user_id,
+      action: "mensalidade.excluir",
+      targetTable: "financial_mensalidades",
+      targetId: id,
+      detalhes: { status_anterior: row.status },
+    });
 
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {

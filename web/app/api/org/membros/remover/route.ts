@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { OrgAuthError, requireAdminForOrgId } from "@/lib/apiOrgAuth";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 const uuidRegex =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -100,6 +101,16 @@ export async function POST(req: Request) {
       .eq("user_id", memberId);
 
     if (delErr) return jsonNoStore({ error: delErr.message }, 500);
+
+    await logAdminAction({
+      req,
+      orgId,
+      actorUserId: actorId,
+      action: "membro.remover",
+      targetTable: "org_members",
+      targetId: memberId,
+      detalhes: { role_removido: targetRole },
+    });
 
     return jsonNoStore({ ok: true }, 200);
   } catch (e: unknown) {

@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { buildOlistPedidosWebhookUrl } from "@/lib/olistWebhookUrl";
 import { regenerateSellerOlistIngestToken } from "@/lib/olistIngestToken";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +29,15 @@ export async function POST(req: Request) {
         { status: 503, headers: NO_STORE_JSON_HEADERS },
       );
     }
+
+    await logAdminAction({
+      req,
+      orgId: seller.org_id,
+      actorUserId: seller.user_id,
+      action: "erp.olist.regenerar_ingest_token",
+      targetTable: "seller_olist_integrations",
+      targetId: seller.id,
+    });
 
     return NextResponse.json(
       {

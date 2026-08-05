@@ -10,6 +10,7 @@ import {
 import { resolveBlingCompanyId, pickBlingCompanyIdForStorage } from "@/lib/blingCompanyId";
 import { getSellerFromToken } from "@/lib/sellerBlingAuth";
 import { encryptSellerErpSecret } from "@/lib/sellerErpSecretBox";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -85,6 +86,15 @@ export async function POST(req: Request) {
       console.error("[seller/bling/oauth POST]", upErr.message);
       return NextResponse.json({ error: "Erro ao salvar tokens do Bling." }, { status: 500 });
     }
+
+    await logAdminAction({
+      req,
+      orgId: seller.org_id,
+      actorUserId: seller.user_id,
+      action: "erp.bling.conectar_oauth",
+      targetTable: "seller_bling_integrations",
+      targetId: seller.id,
+    });
 
     return NextResponse.json({
       ok: true,

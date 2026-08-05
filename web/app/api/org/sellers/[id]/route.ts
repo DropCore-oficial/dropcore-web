@@ -6,6 +6,7 @@ import { clampMensalidadeDiaVencimento } from "@/lib/mensalidadeDiaVencimento";
 import { deleteSellerCascade } from "@/lib/sellerDeleteCascade";
 import { DIAS_JANELA_ESCOLHA_FORNECEDOR } from "@/lib/sellerFornecedorVinculo";
 import { notifyUserEmail } from "@/lib/notifyEmail";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 function uuidNorm(v: unknown): string | null {
   return uuidNormFornecedor(v);
@@ -206,7 +207,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { org_id } = await requireAdmin(req);
+    const { user_id, org_id } = await requireAdmin(req);
     const { id } = await params;
 
     const result = await deleteSellerCascade(supabaseAdmin, org_id, id);
@@ -214,6 +215,15 @@ export async function DELETE(
       const status = result.message === "Seller não encontrado." ? 404 : 400;
       return NextResponse.json({ error: result.message }, { status });
     }
+
+    await logAdminAction({
+      req,
+      orgId: org_id,
+      actorUserId: user_id,
+      action: "seller.excluir",
+      targetTable: "sellers",
+      targetId: id,
+    });
 
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {

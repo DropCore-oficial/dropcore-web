@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { runSellerOlistSyncForSellerId } from "@/lib/sellerOlistSync";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,6 +57,15 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    await logAdminAction({
+      req,
+      orgId: seller.org_id,
+      actorUserId: seller.user_id,
+      action: "erp.olist.sync_manual",
+      targetTable: "seller_olist_integrations",
+      targetId: seller.id,
+    });
 
     return NextResponse.json({
       ok: true,

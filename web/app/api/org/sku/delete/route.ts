@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const { org_id } = await requireAdmin(req);
+    const { user_id, org_id } = await requireAdmin(req);
     const body = await req.json();
     const sku = body?.sku ? String(body.sku).trim().toUpperCase() : null;
     const skuPai = body?.skuPai ? String(body.skuPai).trim().toUpperCase() : null;
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
 
       const { error } = await supabaseAdmin.from("skus").delete().in("sku", skus).eq("org_id", org_id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      await logAdminAction({ req, orgId: org_id, actorUserId: user_id, action: "sku.excluir", targetTable: "skus", detalhes: { modo: "skuPai", skus } });
       return NextResponse.json({ ok: true, mode, count: skus.length });
     }
 
@@ -50,6 +52,7 @@ export async function POST(req: Request) {
 
     const { error } = await supabaseAdmin.from("skus").delete().eq("sku", sku).eq("org_id", org_id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await logAdminAction({ req, orgId: org_id, actorUserId: user_id, action: "sku.excluir", targetTable: "skus", targetId: sku ?? undefined, detalhes: { modo: "sku" } });
     return NextResponse.json({ ok: true, mode, sku });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro no delete";

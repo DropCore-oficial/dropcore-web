@@ -31,6 +31,7 @@ const MAIS_GRUPOS = [
       { href: "/admin/integracoes-erp", label: "Integrações ERP" },
       { href: "/admin/enviar-pedido", label: "Enviar pedido" },
       { href: "/admin/relatorio-entrada-saida", label: "Relatório entrada/saída" },
+      { href: "/admin/auditoria", label: "Auditoria" },
     ],
   },
 ] as const;

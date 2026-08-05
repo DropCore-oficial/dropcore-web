@@ -10,13 +10,14 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { promoverPedidoParaPostado } from "@/lib/pedidoPostadoPromote";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { org_id } = await requireAdmin(req);
+    const { user_id, org_id } = await requireAdmin(req);
     const { id: pedido_id } = await params;
 
     if (!pedido_id) {
@@ -58,6 +59,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     });
 
     if (!promote.ok) return NextResponse.json({ error: promote.error }, { status: 500 });
+
+    await logAdminAction({
+      req,
+      orgId: org_id,
+      actorUserId: user_id,
+      action: "pedido.confirmar_envio_manual",
+      targetTable: "pedidos",
+      targetId: pedido_id,
+    });
 
     return NextResponse.json({
       ok: true,

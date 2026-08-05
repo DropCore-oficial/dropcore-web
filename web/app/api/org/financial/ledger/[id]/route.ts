@@ -10,6 +10,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { org_id } = await requireAdmin(req);
+    const { user_id, org_id } = await requireAdmin(req);
     const { id } = await params;
     const body = await req.json();
     const status = body?.status != null ? String(body.status).trim().toUpperCase() : null;
@@ -113,6 +114,16 @@ export async function PATCH(
       }
       devolucao_ledger_id = devRow?.id ?? null;
     }
+
+    await logAdminAction({
+      req,
+      orgId: org_id,
+      actorUserId: user_id,
+      action: "ledger.mudar_status",
+      targetTable: "financial_ledger",
+      targetId: id,
+      detalhes: { status_anterior: current, status_novo: status, devolucao_ledger_id },
+    });
 
     const mensagem =
       status === "EM_DEVOLUCAO"

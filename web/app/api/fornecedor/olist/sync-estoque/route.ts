@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { getFornecedorContextFromBearer } from "@/lib/fornecedorAuth";
 import { getFornecedorOlistApiToken } from "@/lib/fornecedorOlistIntegration";
 import { pullFornecedorEstoqueFromOlist } from "@/lib/fornecedorOlistSyncEstoquePull";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +30,15 @@ export async function POST(req: Request) {
       fornecedorId: ctx.fornecedor_id,
       orgId: ctx.org_id,
       apiToken,
+    });
+
+    await logAdminAction({
+      req,
+      orgId: ctx.org_id,
+      actorUserId: ctx.user_id,
+      action: "erp.olist.sync_manual",
+      targetTable: "fornecedor_olist_integrations",
+      targetId: ctx.fornecedor_id,
     });
 
     return NextResponse.json({ ok: result.status !== "erro", result });

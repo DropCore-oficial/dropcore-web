@@ -12,6 +12,7 @@ import { normalizeOlistCnpjDigits } from "@/lib/olistPedidoImportPolicy";
 import { encryptSellerErpSecret, maskErpSecret, decryptSellerErpSecret, describeSellerErpSecretDecryptFailure } from "@/lib/sellerErpSecretBox";
 import { fetchSellerOlistWebhookLastAt } from "@/lib/sellerOlistWebhookStatus";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -471,6 +472,16 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Erro ao salvar o token." }, { status: 500 });
     }
 
+    await logAdminAction({
+      req,
+      orgId: seller.org_id,
+      actorUserId: seller.user_id,
+      action: "erp.olist.conectar",
+      targetTable: "seller_olist_integrations",
+      targetId: seller.id,
+      detalhes: { account_name: accountName },
+    });
+
     let webhook_pedidos_url = buildOlistPedidosWebhookUrl();
     if (cnpjSavedToDb) {
       const ingest = await ensureSellerOlistIngestToken(seller.id);
@@ -541,6 +552,15 @@ export async function DELETE(req: Request) {
       console.error("[seller/olist DELETE]", delErr.message);
       return NextResponse.json({ error: "Erro ao remover o token." }, { status: 500 });
     }
+
+    await logAdminAction({
+      req,
+      orgId: seller.org_id,
+      actorUserId: seller.user_id,
+      action: "erp.olist.desconectar",
+      targetTable: "seller_olist_integrations",
+      targetId: seller.id,
+    });
 
     return NextResponse.json({ ok: true, connected: false });
   } catch (e: unknown) {

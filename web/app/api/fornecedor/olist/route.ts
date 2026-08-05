@@ -16,6 +16,7 @@ import {
   maskErpSecret,
 } from "@/lib/sellerErpSecretBox";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -274,6 +275,16 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Erro ao salvar o token." }, { status: 500 });
     }
 
+    await logAdminAction({
+      req,
+      orgId: ctx.org_id,
+      actorUserId: ctx.user_id,
+      action: "erp.olist.conectar",
+      targetTable: "fornecedor_olist_integrations",
+      targetId: ctx.fornecedor_id,
+      detalhes: { account_name: accountName },
+    });
+
     let webhook_estoque_url: string | null = null;
     if (cnpjSavedToDb) {
       const ingest = await ensureFornecedorOlistIngestToken(ctx.fornecedor_id);
@@ -344,6 +355,15 @@ export async function DELETE(req: Request) {
       console.error("[fornecedor/olist DELETE]", delErr.message);
       return NextResponse.json({ error: "Erro ao remover o token." }, { status: 500 });
     }
+
+    await logAdminAction({
+      req,
+      orgId: ctx.org_id,
+      actorUserId: ctx.user_id,
+      action: "erp.olist.desconectar",
+      targetTable: "fornecedor_olist_integrations",
+      targetId: ctx.fornecedor_id,
+    });
 
     return NextResponse.json({ ok: true, connected: false });
   } catch (e: unknown) {

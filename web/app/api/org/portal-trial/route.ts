@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { orgErrorHttpStatus, requireAdmin } from "@/lib/apiOrgAuth";
 import { trialValidoAteSomarDias } from "@/lib/portalTrial";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -92,7 +93,7 @@ export async function POST(req: Request) {
 /** Remove o teste grátis do portal (trial_valido_ate = null). */
 export async function DELETE(req: Request) {
   try {
-    const { org_id } = await requireAdmin(req);
+    const { user_id, org_id } = await requireAdmin(req);
     const body = await req.json().catch(() => ({}));
     const tipo = String(body?.tipo ?? "").toLowerCase();
     const entidade_id = String(body?.entidade_id ?? "").trim();
@@ -123,6 +124,17 @@ export async function DELETE(req: Request) {
       .eq("id", entidade_id)
       .eq("org_id", org_id);
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+
+    await logAdminAction({
+      req,
+      orgId: org_id,
+      actorUserId: user_id,
+      action: "portal_trial.cancelar",
+      targetTable: table,
+      targetId: entidade_id,
+      detalhes: { tipo },
+    });
+
     return NextResponse.json({ ok: true, trial_valido_ate: null });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro";

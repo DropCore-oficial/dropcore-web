@@ -16,7 +16,7 @@ export async function getSellerFromToken(req: Request) {
 
   const { data: seller } = await supabaseAdmin
     .from("sellers")
-    .select("id, org_id")
+    .select("id, org_id, user_id")
     .eq("user_id", userData.user.id)
     .maybeSingle();
 

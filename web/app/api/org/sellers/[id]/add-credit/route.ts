@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { runPedidosErroSaldoRetry } from "@/lib/pedidosErroSaldoRetry";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { org_id } = await requireAdmin(req);
+    const { user_id, org_id } = await requireAdmin(req);
     const { id } = await params;
     const body = await req.json();
     const valor = typeof body?.valor === "number" ? body.valor : parseFloat(String(body?.valor ?? "0").replace(",", "."));
@@ -62,6 +63,16 @@ export async function POST(
     });
 
     if (movErr) return NextResponse.json({ error: movErr.message }, { status: 500 });
+
+    await logAdminAction({
+      req,
+      orgId: org_id,
+      actorUserId: user_id,
+      action: "seller.credito_manual",
+      targetTable: "sellers",
+      targetId: id,
+      detalhes: { valor, motivo },
+    });
 
     // Ler saldo atual (do ledger via trigger ou do seller)
     const { data: updated } = await supabaseAdmin

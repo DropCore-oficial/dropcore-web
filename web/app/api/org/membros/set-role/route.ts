@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { OrgAuthError, requireOwnerForOrgId } from "@/lib/apiOrgAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { notifyUserEmail } from "@/lib/notifyEmail";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 function jsonNoStore(body: unknown, status = 200) {
   return NextResponse.json(body, {
@@ -49,6 +50,16 @@ export async function POST(req: Request) {
       .eq("user_id", memberId);
 
     if (upErr) return jsonNoStore({ error: upErr.message }, 500);
+
+    await logAdminAction({
+      req,
+      orgId,
+      actorUserId: actorId,
+      action: "membro.mudar_papel",
+      targetTable: "org_members",
+      targetId: memberId,
+      detalhes: { role_anterior: roleAnterior ?? null, role_novo: role },
+    });
 
     const ganhouAcessoPrivilegiado =
       (role === "owner" || role === "admin") && roleAnterior !== "owner" && roleAnterior !== "admin";

@@ -3,6 +3,7 @@ import { deleteFornecedorCascade } from "@/lib/fornecedorDeleteCascade";
 import { OrgAuthError, orgErrorHttpStatus, requireAdminForOrgId } from "@/lib/apiOrgAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { clampMensalidadeDiaVencimento } from "@/lib/mensalidadeDiaVencimento";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,7 +77,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       return NextResponse.json({ error: "orgId é obrigatório" }, { status: 400 });
     }
 
-    await requireAdminForOrgId(req, orgId);
+    const { user_id } = await requireAdminForOrgId(req, orgId);
 
     const { id } = await params;
     if (!id) return NextResponse.json({ error: "id é obrigatório" }, { status: 400 });
@@ -86,6 +87,15 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       const status = result.message.includes("não encontrado") ? 404 : 400;
       return NextResponse.json({ error: result.message }, { status });
     }
+
+    await logAdminAction({
+      req,
+      orgId,
+      actorUserId: user_id,
+      action: "fornecedor.excluir",
+      targetTable: "fornecedores",
+      targetId: id,
+    });
 
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {

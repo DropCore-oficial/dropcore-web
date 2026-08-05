@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getMe, requireAdmin } from "@/lib/apiOrgAuth";
 import { toTitleCase } from "@/lib/formatText";
 import { assertPodeAtivarMaisSkus } from "@/lib/planos";
+import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -148,7 +149,7 @@ export async function POST(req: Request) {
  */
 export async function DELETE(req: Request) {
   try {
-    const { org_id } = await requireAdmin(req);
+    const { user_id, org_id } = await requireAdmin(req);
     const body = await req.json().catch(() => ({}));
 
     const sku: string | undefined = body?.sku;
@@ -177,12 +178,14 @@ export async function DELETE(req: Request) {
       const like = `${head}%`;
       const { error } = await supabaseAdmin.from("skus").delete().like("sku", like).eq("org_id", org_id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      await logAdminAction({ req, orgId: org_id, actorUserId: user_id, action: "sku.excluir", targetTable: "skus", detalhes: { modo: "skuPai", like } });
       return NextResponse.json({ ok: true, deleted: "skuPai", like });
     }
 
     if (hasSku) {
       const { error } = await supabaseAdmin.from("skus").delete().eq("sku", sku!).eq("org_id", org_id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      await logAdminAction({ req, orgId: org_id, actorUserId: user_id, action: "sku.excluir", targetTable: "skus", targetId: sku, detalhes: { modo: "sku" } });
       return NextResponse.json({ ok: true, deleted: "sku", sku });
     }
 
@@ -192,6 +195,7 @@ export async function DELETE(req: Request) {
     }
     const { error } = await supabaseAdmin.from("skus").delete().in("sku", clean).eq("org_id", org_id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await logAdminAction({ req, orgId: org_id, actorUserId: user_id, action: "sku.excluir", targetTable: "skus", detalhes: { modo: "skus", skus: clean } });
     return NextResponse.json({ ok: true, deleted: "skus", count: clean.length });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro no DELETE /api/org/sku";
