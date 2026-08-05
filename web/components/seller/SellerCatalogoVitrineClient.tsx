@@ -152,6 +152,28 @@ export function SellerCatalogoVitrineClient() {
     return copy;
   }, [fornecedores, fornecedorLigadoId]);
 
+  /** Só mostra fornecedor com produto cadastrado — enquanto o catálogo dele ainda não
+   * carregou (ou deu erro), mantém na tela; assim que resolve vazio, some da vitrine. */
+  const fornecedoresVisiveis = useMemo(
+    () =>
+      fornecedoresOrdenados?.filter((f) => {
+        const estado = porFornecedor[f.id];
+        return !estado || estado.loading || estado.error || estado.items.length > 0;
+      }),
+    [fornecedoresOrdenados, porFornecedor]
+  );
+
+  const todosResolvidos = useMemo(
+    () => (fornecedores ?? []).every((f) => porFornecedor[f.id] && !porFornecedor[f.id].loading),
+    [fornecedores, porFornecedor]
+  );
+  const nenhumFornecedorComProdutos =
+    !loadingFornecedores &&
+    !errorFornecedores &&
+    (fornecedores?.length ?? 0) > 0 &&
+    todosResolvidos &&
+    (fornecedoresVisiveis?.length ?? 0) === 0;
+
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
       <div className="dropcore-shell-6xl pt-6 lg:pt-8 pb-5 md:pb-7 space-y-6">
@@ -182,8 +204,13 @@ export function SellerCatalogoVitrineClient() {
             Não há fornecedores na organização.
           </div>
         )}
+        {nenhumFornecedorComProdutos && (
+          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-12 text-center text-sm text-[var(--muted)]">
+            Nenhum fornecedor com produtos cadastrados ainda.
+          </div>
+        )}
 
-        {fornecedoresOrdenados?.map((f) => {
+        {fornecedoresVisiveis?.map((f) => {
           const estado = porFornecedor[f.id];
           const escolhido = f.id === fornecedorLigadoId;
           const temProdutos = Boolean(estado && !estado.loading && !estado.error && estado.items.length > 0);

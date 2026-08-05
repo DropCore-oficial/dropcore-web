@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { SellerCatalogoItem } from "@/components/seller/SellerCatalogoGrupoUi";
 import { agruparPaiFilhosSeller as agruparPaiFilhos, infoDoGrupo, strSellerCatalogo as str } from "@/components/seller/SellerCatalogoGrupoUi";
@@ -44,36 +45,81 @@ function variantesResumoGrupo(grupo: GrupoPreview): string {
 }
 
 /** Card de 1 produto (foto + nome + faixa de preço + variantes) — reaproveitado tanto na
- * grade (página de 1 fornecedor) quanto na linha com scroll lateral (vitrine combinada). */
+ * grade (página de 1 fornecedor) quanto na linha com scroll lateral (vitrine combinada).
+ * Foto é clicável e abre modal (mesmo padrão de `CatalogoV2FotoPreview`); o resto do card
+ * (nome/preço) continua levando pro produto — sem zoom na foto, só elevação leve no hover
+ * (zoom dentro do scroll lateral causava soluço no scroll). */
 export function SellerCatalogoProdutoCard({ fornecedorId, grupo }: { fornecedorId: string; grupo: GrupoPreview }) {
   const rep = infoDoGrupo(grupo);
   const nomeGrupo = rep ? str(rep.nome_produto) || grupo.paiKey : grupo.paiKey;
   const foto = primeiraImagemGrupo(grupo);
   const fotoSrc = foto ? catalogoV2UrlImagem(foto) : null;
+  const [previewAberto, setPreviewAberto] = useState(false);
+
+  useEffect(() => {
+    if (!previewAberto) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setPreviewAberto(false);
+    }
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [previewAberto]);
+
   return (
-    <Link
-      href={`/seller/catalogo/fornecedor/${encodeURIComponent(fornecedorId)}/produto/${encodeURIComponent(grupo.paiKey)}`}
-      className="group block rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-3 text-left shadow-sm transition-all hover:border-emerald-300 hover:shadow-md dark:hover:border-emerald-700"
-    >
-      <div className="aspect-square w-full overflow-hidden rounded-xl bg-[var(--muted)]/10">
+    <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-3 shadow-sm transition-all hover:-translate-y-[1px] hover:border-emerald-300 hover:shadow-md dark:hover:border-emerald-700">
+      <button
+        type="button"
+        onClick={() => fotoSrc && setPreviewAberto(true)}
+        disabled={!fotoSrc}
+        className="block aspect-square w-full overflow-hidden rounded-xl border-0 bg-[var(--muted)]/10 p-0 disabled:cursor-default"
+      >
         {fotoSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={fotoSrc}
-            alt={nomeGrupo}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-            loading="lazy"
-          />
+          <img src={fotoSrc} alt={nomeGrupo} className="h-full w-full object-cover" loading="lazy" />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-[11px] text-[var(--muted)]">Sem foto</div>
         )}
-      </div>
-      <p className="mt-2.5 line-clamp-2 min-h-[2.5rem] text-[13px] font-semibold leading-snug text-[var(--foreground)]">
-        {nomeGrupo}
-      </p>
-      <p className="mt-1 text-sm font-bold tabular-nums text-[var(--foreground)]">{faixaPrecoGrupo(grupo)}</p>
-      <p className="mt-0.5 text-[11px] text-[var(--muted)]">{variantesResumoGrupo(grupo)}</p>
-    </Link>
+      </button>
+      <Link
+        href={`/seller/catalogo/fornecedor/${encodeURIComponent(fornecedorId)}/produto/${encodeURIComponent(grupo.paiKey)}`}
+        className="block text-left"
+      >
+        <p className="mt-2.5 line-clamp-2 min-h-[2.5rem] text-[13px] font-semibold leading-snug text-[var(--foreground)]">
+          {nomeGrupo}
+        </p>
+        <p className="mt-1 text-sm font-bold tabular-nums text-[var(--foreground)]">{faixaPrecoGrupo(grupo)}</p>
+        <p className="mt-0.5 text-[11px] text-[var(--muted)]">{variantesResumoGrupo(grupo)}</p>
+      </Link>
+
+      {previewAberto && fotoSrc && (
+        <div
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Visualização da foto"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default border-0 bg-[color-mix(in_srgb,var(--foreground)_45%,transparent)] p-0"
+            aria-label="Fechar"
+            onClick={() => setPreviewAberto(false)}
+          />
+          <div className="relative z-[110] w-full max-w-lg rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-2 shadow-2xl">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={fotoSrc}
+              alt={nomeGrupo}
+              className="block h-auto max-h-[min(85dvh,28rem)] w-full rounded-lg object-contain"
+            />
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
