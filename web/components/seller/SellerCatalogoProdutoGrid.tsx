@@ -47,8 +47,7 @@ function variantesResumoGrupo(grupo: GrupoPreview): string {
 /** Card de 1 produto (foto + nome + faixa de preço + variantes) — reaproveitado tanto na
  * grade (página de 1 fornecedor) quanto na linha com scroll lateral (vitrine combinada).
  * Foto é clicável e abre modal (mesmo padrão de `CatalogoV2FotoPreview`); o resto do card
- * (nome/preço) continua levando pro produto — sem zoom na foto, só elevação leve no hover
- * (zoom dentro do scroll lateral causava soluço no scroll). */
+ * (nome/preço) continua levando pro produto. Zoom leve na foto + elevação do card no hover. */
 export function SellerCatalogoProdutoCard({ fornecedorId, grupo }: { fornecedorId: string; grupo: GrupoPreview }) {
   const rep = infoDoGrupo(grupo);
   const nomeGrupo = rep ? str(rep.nome_produto) || grupo.paiKey : grupo.paiKey;
@@ -76,11 +75,16 @@ export function SellerCatalogoProdutoCard({ fornecedorId, grupo }: { fornecedorI
         type="button"
         onClick={() => fotoSrc && setPreviewAberto(true)}
         disabled={!fotoSrc}
-        className="block aspect-square w-full overflow-hidden rounded-xl border-0 bg-[var(--muted)]/10 p-0 disabled:cursor-default"
+        className="group block aspect-square w-full overflow-hidden rounded-xl border-0 bg-[var(--muted)]/10 p-0 disabled:cursor-default"
       >
         {fotoSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={fotoSrc} alt={nomeGrupo} className="h-full w-full object-cover" loading="lazy" />
+          <img
+            src={fotoSrc}
+            alt={nomeGrupo}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            loading="lazy"
+          />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-[11px] text-[var(--muted)]">Sem foto</div>
         )}

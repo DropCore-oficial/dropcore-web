@@ -261,6 +261,8 @@ function MiniaturaListaGrupoSeller({ g }: { g: GrupoCatalogoV2 }) {
     <img
       src={src}
       alt=""
+      loading="lazy"
+      decoding="async"
       className="h-full w-full object-contain object-top"
       onError={() => setFailIdx((i) => i + 1)}
     />

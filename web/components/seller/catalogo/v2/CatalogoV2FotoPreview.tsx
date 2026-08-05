@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { catalogoV2UrlImagem } from "./catalogoV2Imagem";
 import { linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
 import { strSellerCatalogo as str } from "@/components/seller/SellerCatalogoGrupoUi";
 import { cn } from "@/lib/utils";
-
-type PreviewMode = "off" | "hover" | "fixo";
 
 function resolveThumbSrc(imagemUrl: string | null, fallbackUrl: string | null, linkFotosUrl: string | null): string | null {
   const linkMini =
@@ -33,8 +31,9 @@ type Props = {
 };
 
 /**
- * Mesma regra de interação do `FotoVariacaoCell` no fornecedor:
- * desktop — passar o mouse na miniatura abre preview flutuante; mobile/toque — toque abre modal em tela cheia.
+ * Miniatura só eleva levemente no hover (sem preview flutuante — atrapalhava scroll,
+ * abrindo/fechando painel toda hora ao passar o mouse pelos cards). Clique (mouse ou
+ * toque) abre o modal em tela cheia, mesmo comportamento em qualquer dispositivo.
  * URLs passam por `catalogoV2UrlImagem` (proxy do catálogo seller).
  */
 export function CatalogoV2FotoPreview({
@@ -51,28 +50,23 @@ export function CatalogoV2FotoPreview({
       ? srcResolvedProp
       : resolveThumbSrc(imagemUrl ?? null, fallbackUrl ?? null, linkFotosUrl ?? null);
 
-  const [previewMode, setPreviewMode] = useState<PreviewMode>("off");
-  const [hoverPreviewPos, setHoverPreviewPos] = useState<{ left: number; top: number } | null>(null);
+  const [previewAberto, setPreviewAberto] = useState(false);
   const [imgErro, setImgErro] = useState(false);
   const [previewImgErro, setPreviewImgErro] = useState(false);
-  const lastPointerTypeRef = useRef<string>("mouse");
 
   const grade = variant === "grade";
-  const hoverPreviewW = grade ? 400 : 260;
-  const hoverPreviewH = grade ? 460 : 320;
   const imgPx = grade ? 160 : 48;
 
   useEffect(() => {
     setImgErro(false);
     setPreviewImgErro(false);
-    setPreviewMode("off");
-    setHoverPreviewPos(null);
+    setPreviewAberto(false);
   }, [src]);
 
   useEffect(() => {
-    if (previewMode !== "fixo") return;
+    if (!previewAberto) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setPreviewMode("off");
+      if (e.key === "Escape") setPreviewAberto(false);
     }
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -81,21 +75,7 @@ export function CatalogoV2FotoPreview({
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [previewMode]);
-
-  function abrirPreviewHoverPorAnchor(el: HTMLElement) {
-    const r = el.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const gap = 12;
-    let left = r.right + gap;
-    if (left + hoverPreviewW > vw - 8) left = r.left - hoverPreviewW - gap;
-    left = Math.max(8, Math.min(left, vw - hoverPreviewW - 8));
-    let top = r.top + r.height / 2 - hoverPreviewH / 2;
-    top = Math.max(8, Math.min(top, vh - hoverPreviewH - 8));
-    setHoverPreviewPos({ left, top });
-    setPreviewMode("hover");
-  }
+  }, [previewAberto]);
 
   const previewImgBlock = src ? (
     !previewImgErro ? (
@@ -130,26 +110,12 @@ export function CatalogoV2FotoPreview({
     <div className={cn("relative", grade ? "w-full max-md:h-auto md:h-full md:min-h-0" : "")}>
       <button
         type="button"
-        onPointerDown={(e) => {
-          lastPointerTypeRef.current = e.pointerType;
-        }}
-        onPointerEnter={(e) => {
-          if (e.pointerType === "mouse") abrirPreviewHoverPorAnchor(e.currentTarget);
-        }}
-        onPointerLeave={(e) => {
-          if (e.pointerType === "mouse") {
-            setPreviewMode("off");
-            setHoverPreviewPos(null);
-          }
-        }}
         onClick={(e) => {
           e.stopPropagation();
-          if (lastPointerTypeRef.current !== "mouse") {
-            setPreviewMode((m) => (m === "fixo" ? "off" : "fixo"));
-          }
+          setPreviewAberto(true);
         }}
         className={cn(
-          "cursor-pointer touch-manipulation overflow-hidden border border-[var(--card-border)] bg-[var(--card)] p-0 focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)]",
+          "cursor-pointer touch-manipulation overflow-hidden border border-[var(--card-border)] bg-[var(--card)] p-0 transition-transform duration-150 hover:-translate-y-[1px] focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)]",
           grade
             ? "relative block h-full w-full rounded-xl"
             : "block h-12 w-12 shrink-0 rounded max-md:w-full",
@@ -173,25 +139,7 @@ export function CatalogoV2FotoPreview({
           }}
         />
       </button>
-      {previewMode === "hover" && src && hoverPreviewPos && (
-        <div
-          className="pointer-events-none fixed z-[120] overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card)] shadow-xl"
-          style={{ width: `${hoverPreviewW}px`, left: `${hoverPreviewPos.left}px`, top: `${hoverPreviewPos.top}px` }}
-        >
-          {!previewImgErro ? (
-            <img
-              src={src}
-              alt="Preview"
-              className="block h-auto w-full object-contain"
-              style={{ maxHeight: `${hoverPreviewH}px` }}
-              onError={() => setPreviewImgErro(true)}
-            />
-          ) : (
-            <div className="flex items-center justify-center px-4 py-8 text-xs text-[var(--muted)]">Imagem não carregou</div>
-          )}
-        </div>
-      )}
-      {previewMode === "fixo" && previewImgBlock && (
+      {previewAberto && previewImgBlock && (
         <div
           className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 sm:p-6"
           role="dialog"
@@ -202,7 +150,7 @@ export function CatalogoV2FotoPreview({
             type="button"
             className="absolute inset-0 cursor-default border-0 bg-[color-mix(in_srgb,var(--foreground)_45%,transparent)] p-0"
             aria-label="Fechar"
-            onClick={() => setPreviewMode("off")}
+            onClick={() => setPreviewAberto(false)}
           />
           <div className="relative z-[110] w-full max-w-lg rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-2 shadow-2xl">
             {previewImgBlock}
