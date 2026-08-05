@@ -94,8 +94,13 @@ function VerificarDispositivoInner() {
         setErro(data?.error ?? "Código incorreto.");
         return;
       }
-      router.replace(next);
-      router.refresh();
+      // Navegação forçada (não router.replace): o cookie de dispositivo acabou de ser
+      // setado pela resposta acima, e uma transição client-side do Next pode reaproveitar
+      // cache de rota anterior (sem o cookie novo) — só uma requisição de verdade garante
+      // que o middleware releia o cookie e libere a rota de primeira.
+      const destino = next.startsWith("/") && !next.startsWith("//") ? next : "/";
+      window.location.assign(destino);
+      return;
     } catch {
       setErro("Não foi possível confirmar. Verifique sua conexão.");
     } finally {
