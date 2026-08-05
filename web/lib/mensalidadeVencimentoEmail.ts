@@ -8,6 +8,7 @@
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { notifyUserEmail } from "@/lib/notifyEmail";
+import { getUserIdParaEntidade } from "@/lib/entidadeUserId";
 import type { MensalidadeMarcadaInadimplente } from "@/lib/inadimplencia";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -16,20 +17,6 @@ function formatDataBR(ymd: string | null): string {
   if (!ymd) return "";
   const [ano, mes, dia] = ymd.split("-");
   return `${dia}/${mes}/${ano}`;
-}
-
-async function getUserIdParaEntidade(tipo: "seller" | "fornecedor", entidadeId: string): Promise<string | null> {
-  if (tipo === "seller") {
-    const { data } = await supabaseAdmin.from("sellers").select("user_id").eq("id", entidadeId).maybeSingle();
-    return (data?.user_id as string | null) ?? null;
-  }
-  const { data } = await supabaseAdmin
-    .from("org_members")
-    .select("user_id")
-    .eq("fornecedor_id", entidadeId)
-    .limit(1)
-    .maybeSingle();
-  return (data?.user_id as string | null) ?? null;
 }
 
 export async function enviarEmailsMensalidadeVencida(marcados: MensalidadeMarcadaInadimplente[]): Promise<void> {

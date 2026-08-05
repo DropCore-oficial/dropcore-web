@@ -1,16 +1,25 @@
 /**
  * PATCH /api/fornecedor/dados-bancarios
- * Atualiza dados bancários do fornecedor autenticado.
+ * Não aplica a mudança na hora — grava como pendente e manda link de confirmação por
+ * e-mail (POST /api/fornecedor/dados-bancarios/confirmar). Mesma lógica de carência que
+ * bancos reais usam pra troca de chave PIX: se um token de fornecedor vazar, quem pegar
+ * ainda precisaria do e-mail do fornecedor pra completar a troca de destino do repasse.
  * Requer token de fornecedor.
  */
 import { NextResponse } from "next/server";
+import { randomBytes, createHash } from "crypto";
 import { getFornecedorIdFromBearer } from "@/lib/fornecedorAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { normalizeCnpjInput } from "@/lib/fornecedorCadastro";
 import { validarRepasseTitularEmpresa } from "@/lib/repasseTitularCnpj";
+import { getUserIdParaEntidade } from "@/lib/entidadeUserId";
+import { notifyUserEmail } from "@/lib/notifyEmail";
+import { getSiteUrl } from "@/lib/siteUrl";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const CONFIRMACAO_EXPIRA_MINUTOS = 30;
 
 export async function PATCH(req: Request) {
   try {
@@ -58,16 +67,51 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: repasseCheck.error }, { status: 400 });
     }
 
-    const { error } = await supabaseAdmin
-      .from("fornecedores")
-      .update(update)
-      .eq("id", fornecedor_id);
+    const dadosPropostos = {
+      chave_pix: "chave_pix" in update ? update.chave_pix : rowAtual.chave_pix,
+      nome_banco: "nome_banco" in update ? update.nome_banco : rowAtual.nome_banco,
+      nome_no_banco: "nome_no_banco" in update ? update.nome_no_banco : rowAtual.nome_no_banco,
+      agencia: "agencia" in update ? update.agencia : rowAtual.agencia,
+      conta: "conta" in update ? update.conta : rowAtual.conta,
+      tipo_conta: "tipo_conta" in update ? update.tipo_conta : rowAtual.tipo_conta,
+    };
+
+    const token = randomBytes(32).toString("hex");
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    const expiraEm = new Date(Date.now() + CONFIRMACAO_EXPIRA_MINUTOS * 60 * 1000).toISOString();
+
+    const { error } = await supabaseAdmin.from("fornecedor_dados_bancarios_pendentes").upsert(
+      {
+        fornecedor_id,
+        dados_propostos: dadosPropostos,
+        token_hash: tokenHash,
+        expira_em: expiraEm,
+      },
+      { onConflict: "fornecedor_id" }
+    );
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: "Erro ao registrar alteração pendente." }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    const userId = await getUserIdParaEntidade("fornecedor", fornecedor_id);
+    if (userId) {
+      const link = `${getSiteUrl()}/fornecedor/confirmar-dados-bancarios?token=${token}`;
+      await notifyUserEmail({
+        userId,
+        subject: "Confirme a troca dos seus dados bancários",
+        titulo: "Confirmação de dados bancários",
+        mensagem: `Foi solicitada uma troca dos dados de repasse (PIX/conta) do seu cadastro no DropCore. Se foi você, confirme pelo link abaixo — ele vale por ${CONFIRMACAO_EXPIRA_MINUTOS} minutos. Se não foi você, ignore este e-mail e avise o suporte.`,
+        ctaUrl: link,
+        ctaLabel: "Confirmar dados bancários",
+      });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      pendente_confirmacao: true,
+      message: "Confirme a alteração pelo link enviado no seu e-mail.",
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

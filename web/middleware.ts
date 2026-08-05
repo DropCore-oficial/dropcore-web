@@ -2,7 +2,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { createHash } from "crypto";
 import { getSiteUrl } from "@/lib/siteUrl";
+
+const DEVICE_COOKIE_NAME = "dc_device";
+
+function hashDeviceToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 /**
  * Produção no URL *.vercel.app (ex.: dropcore-web.vercel.app) → domínio canónico.
@@ -93,7 +100,10 @@ export async function middleware(req: NextRequest) {
   const isFornecedorProtegido =
     (path.startsWith("/fornecedor") &&
       !path.startsWith("/fornecedor/login") &&
-      !path.startsWith("/fornecedor/register"));
+      !path.startsWith("/fornecedor/register") &&
+      // Confirmação de dados bancários é por token no e-mail, sem exigir login (mesmo
+      // padrão de fornecedor/register/[token]).
+      !path.startsWith("/fornecedor/confirmar-dados-bancarios"));
   const isSellerProtegido =
     path.startsWith("/seller") &&
     !path.startsWith("/seller/login") &&
@@ -134,16 +144,56 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
+  // Dispositivo confiável: sessão válida mas sem cookie de dispositivo reconhecido (ou
+  // expirado por inatividade) — pede código por e-mail antes de liberar as rotas
+  // protegidas dos 3 portais (calculadora fica fora, é produto à parte). A própria rota
+  // de verificação fica fora do gate pra não entrar em loop.
+  const isVerificarDispositivo = path.startsWith("/verificar-dispositivo");
+  const isDeviceAuthApi =
+    path === "/api/auth/solicitar-codigo-dispositivo" || path === "/api/auth/confirmar-dispositivo";
+
+  if (
+    (rotasProtegidas || isFornecedorProtegido || isSellerProtegido) &&
+    user &&
+    !isVerificarDispositivo &&
+    !isDeviceAuthApi
+  ) {
+    const deviceToken = req.cookies.get(DEVICE_COOKIE_NAME)?.value ?? null;
+    let trusted = false;
+    if (deviceToken) {
+      try {
+        const { data, error } = await supabase.rpc("rpc_touch_trusted_device", {
+          p_token_hash: hashDeviceToken(deviceToken),
+        });
+        if (!error) trusted = Boolean(data);
+      } catch (e) {
+        console.warn("[middleware] rpc_touch_trusted_device falhou:", e instanceof Error ? e.message : e);
+      }
+    }
+    if (!trusted) {
+      const dest = new URL("/verificar-dispositivo", req.url);
+      dest.searchParams.set("next", path + req.nextUrl.search);
+      return NextResponse.redirect(dest);
+    }
+  }
+
+  if (isVerificarDispositivo && !user) {
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
+
   // Segunda camada: rotas /api/org, /api/seller e /api/fornecedor exigem autenticação
   // (os handlers fazem a autorização detalhada, mas sem sessão nem token rejeitamos cedo)
-  // Exceção: invite/[token] é chamado sem auth (usuário completando cadastro)
+  // Exceção: invite/[token] e a confirmação de dados bancários são chamados sem auth
+  // (usuário completando cadastro / confirmando pelo token do e-mail).
   const isInviteRoute =
     /^\/api\/(fornecedor|seller)\/invite\/[^/]+$/.test(path);
+  const isDadosBancariosConfirmar = path === "/api/fornecedor/dados-bancarios/confirmar";
   const isApiProtected =
     (path.startsWith("/api/org/") ||
       path.startsWith("/api/seller/") ||
       path.startsWith("/api/fornecedor/")) &&
-    !isInviteRoute;
+    !isInviteRoute &&
+    !isDadosBancariosConfirmar;
   if (isApiProtected && !user) {
     // Verifica se há Bearer token no header (sellers/fornecedores usam token, não cookie)
     const authHeader = req.headers.get("authorization");

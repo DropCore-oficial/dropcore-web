@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { SiteFooter } from "@/components/SiteFooter";
 
-const PATHS_SEM_RODAPE = ["/", "/login", "/seller/login", "/fornecedor/login", "/calculadora/login", "/landing"];
+const PATHS_SEM_RODAPE = ["/", "/login", "/seller/login", "/fornecedor/login", "/calculadora/login", "/landing", "/verificar-dispositivo"];
 
 /** Rodapé do sistema some na home ("/em breve"), nas telas de login (tela de auth
  * enxuta, sem o bloco institucional embaixo) e na landing pública (que tem rodapé
