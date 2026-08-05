@@ -2,13 +2,22 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { createHash } from "crypto";
 import { getSiteUrl } from "@/lib/siteUrl";
 
 const DEVICE_COOKIE_NAME = "dc_device";
 
-function hashDeviceToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
+/**
+ * O middleware roda no Edge runtime, que não suporta o módulo `crypto` do Node
+ * (usado nas rotas /api/auth/*, que rodam em runtime nodejs) — por isso aqui usa
+ * Web Crypto (`crypto.subtle`), disponível em Edge e Node, mesmo algoritmo SHA-256
+ * hex, mesmo hash de quem gravou o token em trusted_devices.
+ */
+async function hashDeviceToken(token: string): Promise<string> {
+  const data = new TextEncoder().encode(token);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 /**
@@ -163,7 +172,7 @@ export async function middleware(req: NextRequest) {
     if (deviceToken) {
       try {
         const { data, error } = await supabase.rpc("rpc_touch_trusted_device", {
-          p_token_hash: hashDeviceToken(deviceToken),
+          p_token_hash: await hashDeviceToken(deviceToken),
         });
         if (!error) trusted = Boolean(data);
       } catch (e) {
