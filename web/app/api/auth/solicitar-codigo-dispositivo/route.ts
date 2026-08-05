@@ -9,6 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createHash, randomInt } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { notifyUserEmail } from "@/lib/notifyEmail";
+import { getRequestIp } from "@/lib/requestIp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +68,7 @@ export async function POST(req: Request) {
       user_id: authUser.userId,
       code_hash: hashCodigo(codigo),
       expira_em: expiraEm,
+      ip_solicitacao: getRequestIp(req),
     });
     if (insErr) {
       return NextResponse.json({ error: "Erro ao gerar código." }, { status: 500 });

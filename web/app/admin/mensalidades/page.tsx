@@ -396,6 +396,15 @@ export default function MensalidadesPage() {
   }
 
   async function marcarPago(id: string) {
+    const r = rows.find((row) => row.id === id);
+    const nome = r?.entidade_nome?.trim() || "esta entidade";
+    if (
+      !window.confirm(
+        `Confirma que ${nome} pagou de verdade (comprovante/PIX conferido) e quer marcar esta mensalidade como paga?`
+      )
+    ) {
+      return;
+    }
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) return;

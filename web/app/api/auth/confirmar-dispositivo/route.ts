@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createHash, randomBytes } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getRequestIp } from "@/lib/requestIp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -91,6 +92,7 @@ export async function POST(req: Request) {
       user_id: userId,
       device_token_hash: hash(deviceToken),
       expira_em: expiraEm,
+      ip_confirmacao: getRequestIp(req),
     });
     if (insErr) {
       return NextResponse.json({ error: "Erro ao confirmar dispositivo." }, { status: 500 });

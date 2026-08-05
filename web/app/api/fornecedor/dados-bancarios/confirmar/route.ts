@@ -10,6 +10,9 @@ import { createHash } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { normalizeCnpjInput } from "@/lib/fornecedorCadastro";
 import { validarRepasseTitularEmpresa } from "@/lib/repasseTitularCnpj";
+import { getRequestIp } from "@/lib/requestIp";
+
+const BANK_FIELDS = ["chave_pix", "nome_banco", "nome_no_banco", "agencia", "conta", "tipo_conta"] as const;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,7 +45,7 @@ export async function POST(req: Request) {
 
     const { data: rowAtual, error: errRow } = await supabaseAdmin
       .from("fornecedores")
-      .select("nome, cnpj")
+      .select("nome, cnpj, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta")
       .eq("id", pendente.fornecedor_id)
       .maybeSingle();
     if (errRow || !rowAtual) {
@@ -74,6 +77,17 @@ export async function POST(req: Request) {
     if (updErr) {
       return NextResponse.json({ error: "Erro ao aplicar alteração." }, { status: 500 });
     }
+
+    const dadosAntigos: Record<string, string | null> = {};
+    for (const f of BANK_FIELDS) {
+      dadosAntigos[f] = (rowAtual as Record<string, string | null>)[f] ?? null;
+    }
+    await supabaseAdmin.from("fornecedor_dados_bancarios_historico").insert({
+      fornecedor_id: pendente.fornecedor_id,
+      dados_antigos: dadosAntigos,
+      dados_novos: dados,
+      ip_confirmacao: getRequestIp(req),
+    });
 
     await supabaseAdmin.from("fornecedor_dados_bancarios_pendentes").delete().eq("id", pendente.id);
 
