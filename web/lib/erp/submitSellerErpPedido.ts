@@ -10,6 +10,7 @@ import { resolveTaxaDropcoreUnit } from "@/lib/order/resolveTaxaDropcore";
 import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { skuBaseSemSufixoMarketplace } from "@/lib/skuMarketplaceSuffix";
 
 export type SubmitSellerErpPedidoItem = {
   sku: string;
@@ -308,17 +309,34 @@ export async function submitSellerErpPedido(
   let pendenteEstoque = false;
   const skuRows: SkuRowResolved[] = [];
 
+  const SKU_SELECT =
+    "id, sku, nome_produto, estoque_atual, estoque_minimo, custo_base, custo_dropcore, expedicao_override_linha";
+
   for (const item of items) {
-    const { data: sku, error: skuErr } = await supabaseAdmin
+    let { data: sku, error: skuErr } = await supabaseAdmin
       .from("skus")
-      .select(
-        "id, sku, nome_produto, estoque_atual, estoque_minimo, custo_base, custo_dropcore, expedicao_override_linha"
-      )
+      .select(SKU_SELECT)
       .eq("org_id", org_id)
       .eq("fornecedor_id", fornecedor_id)
       .ilike("sku", item.sku)
       .eq("status", "ativo")
       .maybeSingle();
+
+    if (!sku) {
+      const skuBase = skuBaseSemSufixoMarketplace(item.sku);
+      if (skuBase) {
+        const retry = await supabaseAdmin
+          .from("skus")
+          .select(SKU_SELECT)
+          .eq("org_id", org_id)
+          .eq("fornecedor_id", fornecedor_id)
+          .ilike("sku", skuBase)
+          .eq("status", "ativo")
+          .maybeSingle();
+        sku = retry.data;
+        skuErr = retry.error;
+      }
+    }
 
     if (skuErr || !sku) {
       return {

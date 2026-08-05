@@ -2,6 +2,7 @@ import { isInadimplente } from "@/lib/inadimplencia";
 import { resolveTaxaDropcoreUnit } from "@/lib/order/resolveTaxaDropcore";
 import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { skuBaseSemSufixoMarketplace } from "@/lib/skuMarketplaceSuffix";
 
 export type OrderCoreOrigem = "erp" | "org";
 
@@ -382,7 +383,7 @@ async function fetchSkuForOrderCore(params: {
   fornecedor_id: string;
   lookup: { by: "sku_id" | "sku"; value: string };
 }): Promise<{ data: SkuLookupRow | null; error: { message?: string; code?: string } | null }> {
-  const run = async (select: string) => {
+  const run = async (select: string, lookupValue: string = params.lookup.value) => {
     const q = supabaseAdmin
       .from("skus")
       .select(select)
@@ -390,14 +391,26 @@ async function fetchSkuForOrderCore(params: {
       .eq("fornecedor_id", params.fornecedor_id)
       .limit(1);
     return params.lookup.by === "sku_id"
-      ? await q.eq("id", params.lookup.value).maybeSingle<SkuLookupRow>()
-      : await q.ilike("sku", params.lookup.value).maybeSingle<SkuLookupRow>();
+      ? await q.eq("id", lookupValue).maybeSingle<SkuLookupRow>()
+      : await q.ilike("sku", lookupValue).maybeSingle<SkuLookupRow>();
   };
 
   let res = await run(SKU_SELECT_EXTENDED);
   if (res.error && columnMissingFromSupabase(res.error)) {
     res = await run(SKU_SELECT_MINIMAL);
   }
+
+  if (!res.data && params.lookup.by === "sku") {
+    const skuBase = skuBaseSemSufixoMarketplace(params.lookup.value);
+    if (skuBase) {
+      let retry = await run(SKU_SELECT_EXTENDED, skuBase);
+      if (retry.error && columnMissingFromSupabase(retry.error)) {
+        retry = await run(SKU_SELECT_MINIMAL, skuBase);
+      }
+      if (retry.data) return retry;
+    }
+  }
+
   return { data: res.data, error: res.error };
 }
 

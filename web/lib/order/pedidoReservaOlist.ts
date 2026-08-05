@@ -1,5 +1,6 @@
 import { liberarReservaEstoquePedido, reservarEstoquePedido } from "@/lib/order/estoqueReserva";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { skuBaseSemSufixoMarketplace } from "@/lib/skuMarketplaceSuffix";
 
 export type PedidoReservaOlistItem = {
   sku: string;
@@ -69,7 +70,7 @@ export async function processOlistPedidoReserva(
   }
 
   for (const item of itemsValidos) {
-    const { data: skuRow, error: skuErr } = await supabaseAdmin
+    let { data: skuRow, error: skuErr } = await supabaseAdmin
       .from("skus")
       .select("id, sku")
       .eq("org_id", input.org_id)
@@ -77,6 +78,22 @@ export async function processOlistPedidoReserva(
       .ilike("sku", item.sku)
       .eq("status", "ativo")
       .maybeSingle();
+
+    if (!skuRow) {
+      const skuBase = skuBaseSemSufixoMarketplace(item.sku);
+      if (skuBase) {
+        const retry = await supabaseAdmin
+          .from("skus")
+          .select("id, sku")
+          .eq("org_id", input.org_id)
+          .eq("fornecedor_id", input.fornecedor_id)
+          .ilike("sku", skuBase)
+          .eq("status", "ativo")
+          .maybeSingle();
+        skuRow = retry.data;
+        skuErr = retry.error;
+      }
+    }
 
     if (skuErr || !skuRow) {
       warnings.push(`Reserva de estoque: SKU não encontrado ou inativo: ${item.sku}.`);
