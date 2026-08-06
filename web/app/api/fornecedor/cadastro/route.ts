@@ -3,15 +3,21 @@
  * Atualiza dados da empresa e/ou dados bancários do fornecedor autenticado.
  */
 import { NextResponse } from "next/server";
+import { randomBytes, createHash } from "crypto";
 import { getFornecedorIdFromBearer } from "@/lib/fornecedorAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { validarCnpjNasApisPublicas } from "@/lib/cnpjValidacaoExterna";
 import { isValidCnpjDigits, normalizeCnpjInput } from "@/lib/fornecedorCadastro";
 import { validarRepasseTitularEmpresa } from "@/lib/repasseTitularCnpj";
 import { buildExpedicaoPadraoLinha, type ExpedicaoEnderecoParts } from "@/lib/expedicaoFornecedorFormat";
+import { getUserIdParaEntidade } from "@/lib/entidadeUserId";
+import { notifyUserEmail } from "@/lib/notifyEmail";
+import { getSiteUrl } from "@/lib/siteUrl";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const CONFIRMACAO_BANCARIA_EXPIRA_MINUTOS = 30;
 
 const BANK_FIELDS = ["chave_pix", "nome_banco", "nome_no_banco", "agencia", "conta", "tipo_conta"] as const;
 const ENDERECO_FIELDS = [
@@ -194,27 +200,94 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Fornecedor não encontrado." }, { status: 404 });
     }
 
+    /**
+     * Dados bancários não aplicam na hora — ficam pendentes até o fornecedor confirmar
+     * pelo link do e-mail (mesma lógica de carência de banco real pra troca de PIX). O
+     * form do cadastro sempre reenvia os 6 campos junto com o resto, então "in update"
+     * sozinho não indica troca de verdade — só entra como pendente se o valor mudou.
+     */
+    const incomingBank: Record<string, string | null> = {};
+    for (const f of BANK_FIELDS) {
+      if (f in update) {
+        incomingBank[f] = update[f];
+        delete update[f];
+      }
+    }
+    const bankChanged = BANK_FIELDS.some((f) => {
+      if (!(f in incomingBank)) return false;
+      const atual = (rowAtual as Record<string, string | null>)[f] ?? null;
+      return incomingBank[f] !== atual;
+    });
+    const dadosBancariosPropostos: Record<string, string | null> = {};
+    for (const f of BANK_FIELDS) {
+      dadosBancariosPropostos[f] =
+        f in incomingBank ? incomingBank[f] : ((rowAtual as Record<string, string | null>)[f] ?? null);
+    }
+
     const repasseCheck = validarRepasseTitularEmpresa({
       razaoSocial: String(("nome" in update ? update.nome : rowAtual.nome) ?? "").trim(),
       cnpjEmpresa: normalizeCnpjInput(String(("cnpj" in update ? update.cnpj : rowAtual.cnpj) ?? "")),
-      chave_pix: ("chave_pix" in update ? update.chave_pix : rowAtual.chave_pix) ?? null,
-      nome_banco: ("nome_banco" in update ? update.nome_banco : rowAtual.nome_banco) ?? null,
-      nome_no_banco: ("nome_no_banco" in update ? update.nome_no_banco : rowAtual.nome_no_banco) ?? null,
-      agencia: ("agencia" in update ? update.agencia : rowAtual.agencia) ?? null,
-      conta: ("conta" in update ? update.conta : rowAtual.conta) ?? null,
-      tipo_conta: ("tipo_conta" in update ? update.tipo_conta : rowAtual.tipo_conta) ?? null,
+      chave_pix: dadosBancariosPropostos.chave_pix,
+      nome_banco: dadosBancariosPropostos.nome_banco,
+      nome_no_banco: dadosBancariosPropostos.nome_no_banco,
+      agencia: dadosBancariosPropostos.agencia,
+      conta: dadosBancariosPropostos.conta,
+      tipo_conta: dadosBancariosPropostos.tipo_conta,
     });
     if (!repasseCheck.ok) {
       return NextResponse.json({ error: repasseCheck.error }, { status: 400 });
     }
 
-    const { error } = await supabaseAdmin.from("fornecedores").update(update).eq("id", fornecedor_id);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (Object.keys(update).length === 0 && !bankChanged) {
+      return NextResponse.json({ ok: true, message: "Nenhum dado alterado." });
     }
 
-    return NextResponse.json({ ok: true });
+    if (Object.keys(update).length > 0) {
+      const { error } = await supabaseAdmin.from("fornecedores").update(update).eq("id", fornecedor_id);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+    }
+
+    if (bankChanged) {
+      const token = randomBytes(32).toString("hex");
+      const tokenHash = createHash("sha256").update(token).digest("hex");
+      const expiraEm = new Date(Date.now() + CONFIRMACAO_BANCARIA_EXPIRA_MINUTOS * 60 * 1000).toISOString();
+
+      const { error: pendErr } = await supabaseAdmin.from("fornecedor_dados_bancarios_pendentes").upsert(
+        {
+          fornecedor_id,
+          dados_propostos: dadosBancariosPropostos,
+          token_hash: tokenHash,
+          expira_em: expiraEm,
+        },
+        { onConflict: "fornecedor_id" }
+      );
+      if (pendErr) {
+        return NextResponse.json({ error: "Erro ao registrar alteração bancária pendente." }, { status: 500 });
+      }
+
+      const userId = await getUserIdParaEntidade("fornecedor", fornecedor_id);
+      if (userId) {
+        const link = `${getSiteUrl()}/fornecedor/confirmar-dados-bancarios?token=${token}`;
+        await notifyUserEmail({
+          userId,
+          subject: "Confirme a troca dos seus dados bancários",
+          titulo: "Confirmação de dados bancários",
+          mensagem: `Foi solicitada uma troca dos dados de repasse (PIX/conta) do seu cadastro no DropCore. Se foi você, confirme pelo link abaixo — ele vale por ${CONFIRMACAO_BANCARIA_EXPIRA_MINUTOS} minutos. Se não foi você, ignore este e-mail e avise o suporte.`,
+          ctaUrl: link,
+          ctaLabel: "Confirmar dados bancários",
+        });
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      dados_bancarios_pendente_confirmacao: bankChanged,
+      message: bankChanged
+        ? "Cadastro atualizado. A troca dos dados bancários precisa ser confirmada pelo link enviado no seu e-mail."
+        : "Cadastro atualizado.",
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

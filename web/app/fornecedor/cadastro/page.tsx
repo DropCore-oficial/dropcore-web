@@ -467,7 +467,11 @@ export default function FornecedorCadastroPage() {
       if (!res.ok) {
         throw new Error(json?.error ?? "Erro ao salvar.");
       }
-      setOkMsg("Cadastro atualizado.");
+      setOkMsg(
+        json?.dados_bancarios_pendente_confirmacao
+          ? "Cadastro atualizado. A troca dos dados bancários (PIX/conta) só vale depois de confirmar pelo link enviado no seu e-mail."
+          : "Cadastro atualizado."
+      );
       setConfirmoRepasseTitularCnpj(false);
       if (cnpjDigits.length === 14) {
         setForm((prev) => ({ ...prev, cnpj: formatCnpjDisplay(cnpjDigits) }));

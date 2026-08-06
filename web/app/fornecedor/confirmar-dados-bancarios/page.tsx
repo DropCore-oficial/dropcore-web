@@ -69,8 +69,8 @@ function ConfirmarDadosBancariosInner() {
       {status === "erro" && <div className={authAlertErrorClass}>{mensagem}</div>}
 
       <p className="mt-5 text-center">
-        <Link href="/fornecedor/login" className={authMutedLinkClass}>
-          Ir para o login do fornecedor
+        <Link href="/fornecedor/cadastro" className={authMutedLinkClass}>
+          Voltar pro cadastro
         </Link>
       </p>
     </DropcoreAuthShell>
