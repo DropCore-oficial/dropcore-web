@@ -4,15 +4,26 @@ import { useTheme } from "./ThemeProvider";
 import { AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
 
-export function ThemeToggle({ className = "" }: { className?: string }) {
+export function ThemeToggle({
+  className = "",
+  variant = "chrome",
+}: {
+  className?: string;
+  /** "plain": sem borda/fundo, mesmo estilo dos ícones da rail lateral do seller. */
+  variant?: "chrome" | "plain";
+}) {
   const { theme, toggleTheme } = useTheme();
+
+  const base = "inline-flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl p-0 transition-colors";
+  const chromeClass = "border border-[var(--chrome-border)] bg-[var(--card)] text-[var(--chrome-icon)] shadow-none hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]";
+  const plainClass = "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]";
 
   return (
     <button
       type="button"
       onClick={toggleTheme}
       title={theme === "dark" ? "Tema escuro ativo — alternar para claro" : "Tema claro ativo — alternar para escuro"}
-      className={`inline-flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-[var(--chrome-border)] bg-[var(--card)] p-0 text-[var(--chrome-icon)] shadow-none transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)] ${className}`}
+      className={`${base} ${variant === "plain" ? plainClass : chromeClass} ${className}`}
       aria-label={theme === "dark" ? "Tema escuro. Ativar tema claro" : "Tema claro. Ativar tema escuro"}
     >
       {theme === "dark" ? (

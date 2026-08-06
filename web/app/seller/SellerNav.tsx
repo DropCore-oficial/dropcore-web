@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AppBarEndDesktopAuth, AppBarEndMobileAuth } from "@/components/AppBarEndAuth";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { MobileAppBar } from "@/components/MobileAppBar";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { buildSellerSupportWhatsAppHref, getSellerSupportWhatsAppPrefill } from "@/lib/sellerSupportWhatsAppPrefill";
 
 const activeClass = "text-emerald-600 dark:text-emerald-400 border-emerald-500";
 const inactiveDesktop =
@@ -95,23 +96,72 @@ function IconTruck({ active }: { active: boolean }) {
     </svg>
   );
 }
+function IconHelp({ active }: { active: boolean }) {
+  return (
+    <svg className={`w-5 h-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.2 9a2.8 2.8 0 1 1 3.8 2.6c-.7.3-1 .9-1 1.6v.3" />
+      <path d="M12 17h.01" />
+    </svg>
+  );
+}
+function IconGear({ active }: { active: boolean }) {
+  return (
+    <svg className={`w-5 h-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 13a7.9 7.9 0 0 0 0-2l2-1.5-2-3.4-2.3.9a7.7 7.7 0 0 0-1.7-1L15 3h-4l-.4 2.6a7.7 7.7 0 0 0-1.7 1l-2.3-.9-2 3.4L6.6 11a7.9 7.9 0 0 0 0 2l-2 1.5 2 3.4 2.3-.9a7.7 7.7 0 0 0 1.7 1L11 21h4l.4-2.6a7.7 7.7 0 0 0 1.7-1l2.3.9 2-3.4Z" />
+    </svg>
+  );
+}
+function IconSuporte() {
+  return (
+    <svg className="w-5 h-5 shrink-0 text-current" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+      <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+    </svg>
+  );
+}
 
 type NavKey = "dashboard" | "pedidos" | "fornecedores" | "produtos" | "calculadora" | "plano" | "cadastro" | "integracoes";
 
-/** Rotas agrupadas no menu “Mais” (desktop e mobile). */
+/** Rotas agrupadas no menu “Mais” (só mobile agora — desktop mostra tudo direto na rail). */
 const NAV_MAIS_MENU_KEYS = ["integracoes", "plano", "cadastro"] as const satisfies readonly NavKey[];
-/** No mobile a barra de baixo só cabe 5 itens — Calculadora sai de lá e entra no "Mais" (só no mobile;
- * no desktop ela continua como item próprio na barra de cima). */
-const NAV_MAIS_MENU_KEYS_MOBILE = [...NAV_MAIS_MENU_KEYS, "calculadora"] as const satisfies readonly NavKey[];
+/** No mobile a barra de baixo só mostra 3 categorias — Calculadora e Fornecedores saem de
+ * lá e entram no "Mais" (só no mobile; no desktop todos os itens são ícones próprios na rail). */
+const NAV_MAIS_MENU_KEYS_MOBILE = [...NAV_MAIS_MENU_KEYS, "calculadora", "fornecedores"] as const satisfies readonly NavKey[];
 
-function SellerNavDesktopMais({ active }: { active: NavKey }) {
+const railActive = "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400";
+const railInactive = "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]";
+
+/** Ícone da rail lateral (desktop): mostra o nome num tooltip ao passar o mouse. */
+function SellerNavRailItem({
+  href,
+  label,
+  isActive,
+  children,
+}: {
+  href: string;
+  label: string;
+  isActive: boolean;
+  children: ReactNode;
+}) {
+  const className = `group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${
+    isActive ? railActive : railInactive
+  }`;
+  return (
+    <Link href={href} aria-label={label} className={className}>
+      {children}
+      <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2 py-1 text-xs font-medium text-[var(--foreground)] opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100">
+        {label}
+      </span>
+    </Link>
+  );
+}
+
+/** Botão "Ajuda" da rail lateral (desktop): dropdown com os canais de suporte — pensado pra crescer com mais itens. */
+function SellerNavHelpMenu({ supportHref }: { supportHref: string }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const maisActive = (NAV_MAIS_MENU_KEYS as readonly string[]).includes(active);
-
-  useEffect(() => {
-    setOpen(false);
-  }, [active]);
 
   useEffect(() => {
     if (!open) return;
@@ -130,79 +180,40 @@ function SellerNavDesktopMais({ active }: { active: NavKey }) {
     };
   }, [open]);
 
-  const btnClass =
-    `flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ` +
-    (maisActive ? activeClass + " hover:bg-emerald-100 dark:hover:bg-emerald-900" : inactiveDesktop);
-
   return (
-    <div className="relative shrink-0" ref={rootRef}>
+    <div className="relative" ref={rootRef}>
       <button
         type="button"
-        className={btnClass}
+        aria-label="Ajuda"
         aria-expanded={open}
         aria-haspopup="menu"
-        id="seller-nav-mais-trigger"
         onClick={() => setOpen((o) => !o)}
+        className={`group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${
+          open ? railActive : railInactive
+        }`}
       >
-        Mais
-        <svg
-          className={`h-4 w-4 shrink-0 opacity-70 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
+        <IconHelp active={open} />
+        <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2 py-1 text-xs font-medium text-[var(--foreground)] opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100">
+          Ajuda
+        </span>
       </button>
       {open ? (
         <div
-          className="absolute left-0 top-full z-[100] mt-1 w-[min(calc(100vw-2rem),16rem)] rounded-xl border border-[var(--card-border)] bg-[var(--card)] py-1 shadow-lg ring-1 ring-[var(--foreground)]/[0.06]"
           role="menu"
-          aria-labelledby="seller-nav-mais-trigger"
+          aria-label="Ajuda"
+          className="absolute bottom-0 left-full z-50 ml-2 w-56 rounded-xl border border-[var(--card-border)] bg-[var(--card)] py-1 shadow-lg ring-1 ring-[var(--foreground)]/[0.06]"
         >
-          <Link
-            href="/seller/integracoes-erp"
+          <a
+            href={supportHref}
+            target="_blank"
+            rel="noopener noreferrer"
             role="menuitem"
-            className={`mx-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-              active === "integracoes"
-                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
-                : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
-            }`}
+            className="mx-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--surface-hover)]"
             onClick={() => setOpen(false)}
           >
-            <IconPlug active={active === "integracoes"} />
-            ERP
-          </Link>
-          <Link
-            href="/seller/plano"
-            role="menuitem"
-            className={`mx-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-              active === "plano"
-                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
-                : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
-            }`}
-            onClick={() => setOpen(false)}
-          >
-            <IconPlano active={active === "plano"} />
-            Plano
-          </Link>
-          <Link
-            href="/seller/cadastro"
-            role="menuitem"
-            className={`mx-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-              active === "cadastro"
-                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
-                : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
-            }`}
-            onClick={() => setOpen(false)}
-          >
-            <IconCadastro active={active === "cadastro"} />
-            Cadastro
-          </Link>
+            <IconSuporte />
+            Suporte no WhatsApp
+          </a>
         </div>
       ) : null}
     </div>
@@ -217,10 +228,12 @@ export function SellerNav({
   active: NavKey;
   /** Só assinatura calculadora: esconde Dashboard e ERP */
   calcOnly?: boolean;
-  /** Página já migrada pro padrão largo (dropcore-shell-6xl) — alinha o menu desktop com o conteúdo. */
+  /** Página já migrada pro padrão largo (dropcore-shell-6xl) — usado pra escalar a largura da barra inferior no mobile junto com o conteúdo. Não afeta mais o desktop (virou rail lateral de largura fixa). */
   wide?: boolean;
 }) {
   const router = useRouter();
+  const pathname = usePathname() ?? "";
+  const supportHref = buildSellerSupportWhatsAppHref(getSellerSupportWhatsAppPrefill(pathname));
   const [mobileMaisOpen, setMobileMaisOpen] = useState(false);
 
   useEffect(() => {
@@ -235,6 +248,16 @@ export function SellerNav({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [mobileMaisOpen]);
+
+  // Desktop virou rail lateral fixo — reserva o espaço à esquerda do conteúdo via CSS global
+  // (html[data-seller-sidebar], ver globals.css). Não se aplica ao modo calcOnly (topo+baixo).
+  useEffect(() => {
+    if (calcOnly) return;
+    document.documentElement.setAttribute("data-seller-sidebar", "1");
+    return () => {
+      document.documentElement.removeAttribute("data-seller-sidebar");
+    };
+  }, [calcOnly]);
 
   async function sair() {
     await supabaseBrowser.auth.signOut();
@@ -281,11 +304,23 @@ export function SellerNav({
                 </Link>
               </div>
             </div>
-            <AppBarEndDesktopAuth context="seller" onLogout={sairCalculadoraNav} />
+            <div className="flex shrink-0 items-center gap-2">
+              <a
+                href={supportHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Suporte no WhatsApp"
+                title="Suporte no WhatsApp"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+              >
+                <IconSuporte />
+              </a>
+              <AppBarEndDesktopAuth context="seller" onLogout={sairCalculadoraNav} />
+            </div>
           </div>
         </nav>
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
-          <div className="max-w-lg mx-auto grid grid-cols-2 items-stretch min-h-[52px]">
+          <div className="max-w-lg mx-auto grid grid-cols-3 items-stretch min-h-[52px]">
             <Link
               href="/seller/calculadora"
               className={`${mobileLinkClass("calculadora")} border-t-0 border-b-0 py-2 touch-manipulation min-h-[52px]`}
@@ -293,6 +328,16 @@ export function SellerNav({
               <IconCalculator active={active === "calculadora"} />
               <span className="text-[10px] font-medium leading-tight text-center">Calculadora</span>
             </Link>
+            <a
+              href={supportHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-col items-center justify-center gap-0.5 border-l border-[var(--card-border)] py-2 px-1 min-h-[52px] touch-manipulation text-[var(--muted)] hover:text-[var(--foreground)] active:bg-[var(--surface-hover)] transition-colors"
+              aria-label="Suporte no WhatsApp"
+            >
+              <IconSuporte />
+              <span className="text-[10px] font-medium leading-tight">Ajuda</span>
+            </a>
             <button
               type="button"
               onClick={() => void sairCalculadoraNav()}
@@ -318,35 +363,46 @@ export function SellerNav({
         logoHref="/seller/dashboard"
         end={<AppBarEndMobileAuth context="seller" onLogout={sair} />}
       />
-      <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
-        <div className={`${wide ? "dropcore-shell-6xl" : "dropcore-shell-4xl"} flex w-full min-w-0 items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6`}>
-          <div className="flex min-w-0 items-center gap-2 sm:gap-4 md:gap-6">
-            <DropCoreLogo variant="horizontal" href="/seller/dashboard" className="shrink-0" />
-            <div className="flex shrink-0 items-center gap-0.5">
-              <Link href="/seller/dashboard" className={linkClass("dashboard")}>
-                <IconHome active={active === "dashboard"} />
-                Dashboard
-              </Link>
-              <Link href="/seller/pedidos" className={linkClass("pedidos")}>
-                <IconTruck active={active === "pedidos"} />
-                Pedidos
-              </Link>
-              <Link href="/seller/catalogo" className={linkClass("fornecedores")}>
-                <IconStorefront active={active === "fornecedores"} />
-                Fornecedores
-              </Link>
-              <Link href="/seller/produtos" className={linkClass("produtos")}>
-                <IconPackage active={active === "produtos"} />
-                Produtos
-              </Link>
-              <Link href="/seller/calculadora" className={linkClass("calculadora")}>
-                <IconCalculator active={active === "calculadora"} />
-                Calculadora
-              </Link>
-              <SellerNavDesktopMais active={active} />
-            </div>
-          </div>
-          <AppBarEndDesktopAuth context="seller" onLogout={sair} />
+      <header className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
+        <div className="flex w-full min-w-0 items-center justify-between gap-3 px-4 sm:px-6">
+          <DropCoreLogo variant="horizontal" href="/seller/dashboard" className="shrink-0" />
+          <AppBarEndDesktopAuth context="seller" onLogout={sair} iconVariant="plain" />
+        </div>
+      </header>
+
+      <nav
+        aria-label="Navegação do seller"
+        className="hidden md:flex fixed left-0 top-14 bottom-0 z-40 w-16 flex-col items-center gap-1 border-r border-[var(--card-border)] bg-[var(--background)] py-3 text-[var(--foreground)]"
+      >
+        <SellerNavRailItem href="/seller/dashboard" label="Dashboard" isActive={active === "dashboard"}>
+          <IconHome active={active === "dashboard"} />
+        </SellerNavRailItem>
+        <SellerNavRailItem href="/seller/pedidos" label="Pedidos" isActive={active === "pedidos"}>
+          <IconTruck active={active === "pedidos"} />
+        </SellerNavRailItem>
+        <SellerNavRailItem href="/seller/produtos" label="Produtos" isActive={active === "produtos"}>
+          <IconPackage active={active === "produtos"} />
+        </SellerNavRailItem>
+        <SellerNavRailItem href="/seller/catalogo" label="Fornecedores" isActive={active === "fornecedores"}>
+          <IconStorefront active={active === "fornecedores"} />
+        </SellerNavRailItem>
+        <SellerNavRailItem href="/seller/calculadora" label="Calculadora" isActive={active === "calculadora"}>
+          <IconCalculator active={active === "calculadora"} />
+        </SellerNavRailItem>
+        <div className="my-1 h-px w-6 shrink-0 bg-[var(--card-border)]" aria-hidden />
+        <SellerNavRailItem href="/seller/integracoes-erp" label="ERP" isActive={active === "integracoes"}>
+          <IconPlug active={active === "integracoes"} />
+        </SellerNavRailItem>
+        <SellerNavRailItem href="/seller/plano" label="Plano" isActive={active === "plano"}>
+          <IconPlano active={active === "plano"} />
+        </SellerNavRailItem>
+
+        <div className="mt-auto flex flex-col items-center gap-1 pb-1">
+          <div className="my-1 h-px w-6 shrink-0 bg-[var(--card-border)]" aria-hidden />
+          <SellerNavHelpMenu supportHref={supportHref} />
+          <SellerNavRailItem href="/seller/cadastro" label="Configurações" isActive={active === "cadastro"}>
+            <IconGear active={active === "cadastro"} />
+          </SellerNavRailItem>
         </div>
       </nav>
 
@@ -363,6 +419,19 @@ export function SellerNav({
             role="menu"
             aria-label="Mais opções do seller"
           >
+            <Link
+              href="/seller/catalogo"
+              role="menuitem"
+              className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+                active === "fornecedores"
+                  ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                  : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
+              }`}
+              onClick={() => setMobileMaisOpen(false)}
+            >
+              <IconStorefront active={active === "fornecedores"} />
+              Fornecedores
+            </Link>
             <Link
               href="/seller/calculadora"
               role="menuitem"
@@ -420,7 +489,7 @@ export function SellerNav({
       ) : null}
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto grid w-full max-w-4xl grid-cols-5 items-stretch min-h-[52px]">
+        <div className={`mx-auto grid w-full ${wide ? "max-w-6xl" : "max-w-4xl"} grid-cols-4 items-stretch min-h-[52px]`}>
           <Link href="/seller/dashboard" className={mobileLinkClass("dashboard")}>
             <IconHome active={active === "dashboard"} />
             <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Painel</span>
@@ -428,10 +497,6 @@ export function SellerNav({
           <Link href="/seller/pedidos" className={mobileLinkClass("pedidos")}>
             <IconTruck active={active === "pedidos"} />
             <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Pedidos</span>
-          </Link>
-          <Link href="/seller/catalogo" className={mobileLinkClass("fornecedores")}>
-            <IconStorefront active={active === "fornecedores"} />
-            <span className="truncate text-[10px] font-medium leading-none sm:text-[11px]">Fornecedores</span>
           </Link>
           <Link href="/seller/produtos" className={mobileLinkClass("produtos")}>
             <IconPackage active={active === "produtos"} />

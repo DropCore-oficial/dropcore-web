@@ -9,6 +9,10 @@ const btnSairMobile =
 const btnSairDesktop =
   "inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-[var(--chrome-border)] bg-[var(--card)] px-3 text-sm font-medium leading-none text-[var(--chrome-icon)] shadow-none transition-colors hover:text-[var(--foreground)]";
 
+/** "plain": sem borda/fundo, mesmo estilo dos ícones da rail lateral do seller. */
+const btnSairDesktopPlain =
+  "inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-3 text-sm font-medium leading-none text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]";
+
 /**
  * Ações à direita da `MobileAppBar`: sino + tema + Sair (mesmo padrão do fornecedor).
  */
@@ -38,15 +42,22 @@ export function AppBarEndMobileAuth({
 export function AppBarEndDesktopAuth({
   context,
   onLogout,
+  iconVariant = "chrome",
 }: {
   context: "admin" | "seller" | "fornecedor";
   onLogout: () => void | Promise<void>;
+  /** "plain": sino/tema sem borda/fundo — usado na rail lateral nova do seller. */
+  iconVariant?: "chrome" | "plain";
 }) {
   return (
     <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
-      <NotificationBell context={context} />
-      <ThemeToggle />
-      <button type="button" onClick={() => void onLogout()} className={btnSairDesktop}>
+      <NotificationBell context={context} variant={iconVariant} />
+      <ThemeToggle variant={iconVariant} />
+      <button
+        type="button"
+        onClick={() => void onLogout()}
+        className={iconVariant === "plain" ? btnSairDesktopPlain : btnSairDesktop}
+      >
         Sair
       </button>
     </div>

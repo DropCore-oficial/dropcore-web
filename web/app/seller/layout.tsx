@@ -17,7 +17,6 @@ export default function SellerLayout({ children }: { children: ReactNode }) {
       <>
         <AppVersionUpdateBanner surface="seller" requireAuth />
         {children}
-        <SellerLayoutWhatsAppSupportFab />
       </>
     );
   }

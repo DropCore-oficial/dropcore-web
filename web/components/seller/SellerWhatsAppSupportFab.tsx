@@ -11,6 +11,8 @@ type SellerWhatsAppSupportFabProps = {
 
 /**
  * Botão fixo estilo “dock” (ex.: UpSeller): abre o WhatsApp de suporte sem exibir o número na UI.
+ * Só mobile — no desktop o suporte já tem entrada própria no menu "Ajuda" da rail lateral
+ * (SellerNavHelpMenu em SellerNav.tsx), então o FAB duplicaria o mesmo canal ali.
  */
 export function SellerWhatsAppSupportFab({
   className,
@@ -22,12 +24,12 @@ export function SellerWhatsAppSupportFab({
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        "fixed z-[90] flex h-12 w-12 items-center justify-center rounded-full",
+        "fixed z-[90] flex h-12 w-12 items-center justify-center rounded-full md:hidden",
         "bg-emerald-600 text-white shadow-md shadow-emerald-900/15 ring-2 ring-white/25",
         "transition hover:bg-emerald-700 hover:shadow-lg active:scale-[0.97] active:bg-emerald-900",
         "dark:ring-emerald-400/20",
         "right-3 sm:right-5",
-        "bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:bottom-8",
+        "bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))]",
         "animate-in fade-in-0 zoom-in-95 duration-200",
         className,
       )}

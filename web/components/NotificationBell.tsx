@@ -51,9 +51,12 @@ function pedidoDestino(context: NotificationPortalContext, pedidoId: string): st
 export function NotificationBell({
   className = "",
   context = "admin",
+  variant = "chrome",
 }: {
   className?: string;
   context?: NotificationPortalContext;
+  /** "plain": sem borda/fundo, mesmo estilo dos ícones da rail lateral do seller. */
+  variant?: "chrome" | "plain";
 }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notif[]>([]);
@@ -112,11 +115,19 @@ export function NotificationBell({
           setOpen(willOpen);
           if (willOpen) void fetchNotifs(true);
         }}
-        className={`group relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all duration-200 ${
-          open
-            ? "border-emerald-400 dark:border-emerald-600 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 shadow-sm"
-            : "border-[var(--chrome-border)] bg-[var(--card)] text-[var(--chrome-icon)] shadow-none hover:border-emerald-300/80 dark:hover:border-emerald-700/80 hover:bg-emerald-100/80 dark:hover:bg-emerald-900 hover:text-emerald-600 dark:hover:text-emerald-400"
-        }`}
+        className={
+          variant === "plain"
+            ? `group relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                open
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"
+                  : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+              }`
+            : `group relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all duration-200 ${
+                open
+                  ? "border-emerald-400 dark:border-emerald-600 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 shadow-sm"
+                  : "border-[var(--chrome-border)] bg-[var(--card)] text-[var(--chrome-icon)] shadow-none hover:border-emerald-300/80 dark:hover:border-emerald-700/80 hover:bg-emerald-100/80 dark:hover:bg-emerald-900 hover:text-emerald-600 dark:hover:text-emerald-400"
+              }`
+        }
         title="Notificações"
       >
         <svg
