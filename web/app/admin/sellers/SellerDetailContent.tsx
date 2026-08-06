@@ -46,7 +46,17 @@ type SellerComMov = Seller & {
 
 // Padrão de modais (usa tokens globais)
 const modalOverlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 };
-const modalBox: React.CSSProperties = { background: "var(--card)", padding: 24, borderRadius: 8, maxWidth: 380, width: "calc(100% - 32px)", boxShadow: "var(--shadow-card)", border: "1px solid var(--border-subtle)" };
+const modalBox: React.CSSProperties = {
+  background: "var(--card)",
+  padding: 24,
+  borderRadius: 8,
+  maxWidth: 380,
+  width: "calc(100% - 32px)",
+  maxHeight: "min(90dvh, calc(100vh - 2rem))",
+  overflowY: "auto",
+  boxShadow: "var(--shadow-card)",
+  border: "1px solid var(--border-subtle)",
+};
 
 export function SellerDetailContent({ sellerId }: { sellerId: string }) {
   const router = useRouter();

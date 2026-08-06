@@ -6,6 +6,36 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const SELLER_DEPOSITO_REF_UPGRADE_PRO = "UPGRADE_PRO";
 
+const VALOR_DEFAULT_SELLER_PRO = 147.9;
+
+/**
+ * A mensalidade do ciclo atual (se já tiver sido gerada, ainda não paga) fica com o valor
+ * do Starter até a próxima rodada de geração (cron do dia seguinte) — sem isso o seller
+ * paga o upgrade mas continua vendo/sendo cobrado o valor antigo até lá.
+ */
+async function recalcularMensalidadeCicloAtualParaPro(sellerId: string): Promise<void> {
+  try {
+    const now = new Date();
+    const ciclo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    const { data: planoPro } = await supabaseAdmin
+      .from("financial_planos")
+      .select("valor_seller")
+      .eq("plano", "Pro")
+      .maybeSingle();
+    const valorPro = planoPro ? Number(planoPro.valor_seller) : VALOR_DEFAULT_SELLER_PRO;
+
+    await supabaseAdmin
+      .from("financial_mensalidades")
+      .update({ valor: valorPro })
+      .eq("tipo", "seller")
+      .eq("entidade_id", sellerId)
+      .eq("ciclo", ciclo)
+      .in("status", ["pendente", "inadimplente"]);
+  } catch (e) {
+    console.error("[upgradeProPixProcessor] recalcular mensalidade do ciclo:", e);
+  }
+}
+
 export async function processarUpgradeProAprovado(extRef: string): Promise<boolean> {
   const prefix = "upgrade-pro-";
   if (!extRef.trim().startsWith(prefix)) return false;
@@ -41,6 +71,7 @@ export async function processarUpgradeProAprovado(extRef: string): Promise<boole
       .update({ status: "aprovado", aprovado_em: now })
       .eq("id", rowId)
       .eq("referencia", SELLER_DEPOSITO_REF_UPGRADE_PRO);
+    await recalcularMensalidadeCicloAtualParaPro(sellerRow.id);
     return true;
   }
 
@@ -60,6 +91,8 @@ export async function processarUpgradeProAprovado(extRef: string): Promise<boole
     .update({ status: "aprovado", aprovado_em: now })
     .eq("id", rowId)
     .eq("seller_id", dep.seller_id);
+
+  await recalcularMensalidadeCicloAtualParaPro(sellerRow.id);
 
   const valorBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(dep.valor ?? 0));
   if (sellerRow.user_id) {
