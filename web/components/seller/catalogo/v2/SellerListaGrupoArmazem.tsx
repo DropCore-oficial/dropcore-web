@@ -655,20 +655,29 @@ export function SellerListaGrupoArmazem({
                             />
                           </div>
                         </div>
-                        <div className="min-w-0 w-full max-w-full overflow-x-visible rounded-xl bg-[var(--card)] max-md:overflow-hidden max-md:border-0 max-md:shadow-none md:border md:border-[var(--card-border)] md:shadow-sm md:overflow-x-auto md:[-webkit-overflow-scrolling:touch] md:overscroll-x-contain">
-                          <div className="grid w-full min-w-0 grid-cols-[4.5rem_minmax(0,1fr)_3rem] rounded-t-xl border-b border-[var(--card-border)] bg-[var(--surface-subtle)] px-2.5 py-2 text-[11px] font-bold text-[var(--muted)] md:rounded-t-none">
+                        {/* Sem scroll horizontal próprio: já está dentro do carrossel de cores
+                         * (dropcore-scroll-x acima) — ter dois scrolls horizontais aninhados faz
+                         * o gesto de rolar ser capturado pela tabela em vez do carrossel, travando
+                         * a navegação. Colunas estreitas o bastante pra quebrar linha em vez de
+                         * precisar rolar (ver whitespace-normal no SKU abaixo). */}
+                        <div className="flex min-w-0 w-full max-w-full flex-col overflow-x-visible rounded-xl bg-[var(--card)] max-md:overflow-hidden max-md:border-0 max-md:shadow-none md:h-full md:border md:border-[var(--card-border)] md:shadow-sm">
+                          <div className="grid w-full min-w-0 shrink-0 grid-cols-[4.5rem_minmax(0,1fr)_3rem] rounded-t-xl border-b border-[var(--card-border)] bg-[var(--surface-subtle)] px-2.5 py-2 text-[11px] font-bold text-[var(--muted)] md:rounded-t-none">
                             <span>Numeração</span>
                             <span className="min-w-0">SKU</span>
                             <span className="text-right">Qtd.</span>
                           </div>
+                          {/* md:flex-1 no corpo + em cada linha: linhas dividem igualmente a altura
+                           * que sobrar até bater com a foto ao lado (h-56), em vez de deixar vão
+                           * vazio embaixo da última linha quando há poucos tamanhos. */}
+                          <div className="md:flex md:flex-1 md:flex-col">
                           {itensOrdenados.map((p) => (
                             <div
                               key={p.id}
-                              className="grid w-full min-w-0 grid-cols-[4.5rem_minmax(0,1fr)_3rem] items-center border-b border-[var(--card-border)]/50 px-2.5 py-2 text-xs last:border-b-0 max-md:last:rounded-b-xl"
+                              className="grid w-full min-w-0 grid-cols-[4.5rem_minmax(0,1fr)_3rem] items-center border-b border-[var(--card-border)]/50 px-2.5 py-2 text-xs last:border-b-0 max-md:last:rounded-b-xl md:flex-1"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <span className="font-bold text-[var(--foreground)]">{(p.tamanho ?? "—").toUpperCase()}</span>
-                              <span className="min-w-0 whitespace-nowrap font-mono text-[11px] font-normal leading-snug text-[var(--muted)]">
+                              <span className="min-w-0 break-all font-mono text-[11px] font-normal leading-snug text-[var(--muted)]">
                                 {p.sku}
                               </span>
                               <span
@@ -678,6 +687,7 @@ export function SellerListaGrupoArmazem({
                               </span>
                             </div>
                           ))}
+                          </div>
                         </div>
                       </div>
                     </div>

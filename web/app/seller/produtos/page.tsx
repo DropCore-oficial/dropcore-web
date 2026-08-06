@@ -38,6 +38,18 @@ function isAtivoItem(item: SellerCatalogoItem): boolean {
   return str(item.status).toLowerCase() === "ativo";
 }
 
+/** Números de página com reticências pra não estourar a barra quando há muitas páginas
+ * (mesmo padrão de web/app/seller/pedidos/page.tsx). */
+function getPageNumbers(current: number, total: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | "...")[] = [1];
+  if (current > 3) pages.push("...");
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) pages.push(p);
+  if (current < total - 2) pages.push("...");
+  pages.push(total);
+  return pages;
+}
+
 export default function SellerProdutosPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -69,6 +81,11 @@ export default function SellerProdutosPage() {
   const [fornecedoresLista, setFornecedoresLista] = useState<FornecedorSellerListaRow[] | null>(null);
   const [modalErpSkuAberto, setModalErpSkuAberto] = useState(false);
   const [ajudaProdutosArmazemAberta, setAjudaProdutosArmazemAberta] = useState(false);
+  /** Lista renderiza paginado (não tudo de uma vez) — catálogo grande travava o scroll
+   * com centenas de cards montados ao mesmo tempo. Busca/filtro continuam instantâneos
+   * (rodam sobre `items` inteiro), só a renderização é fatiada. */
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const nomeArmazemLigado = useMemo(() => {
     const id = fornecedorLigadoId?.trim();
@@ -373,17 +390,32 @@ export default function SellerProdutosPage() {
     });
   }, [gruposBase, filtroStatus]);
 
-  // Deep-link vindo de /seller/pedidos (card "Pedido bloqueado" → Resolver): expande e
-  // rola até o grupo específico uma única vez, quando os dados terminam de carregar.
+  // Busca/filtro mudou o recorte — volta pra página 1 (senão pode "sumir" tudo se a
+  // página atual não existir mais no resultado novo).
+  useEffect(() => {
+    setPage(1);
+  }, [q, filtroStatus]);
+
+  const totalPaginas = Math.max(1, Math.ceil(grupos.length / pageSize));
+  const gruposPaginados = useMemo(
+    () => grupos.slice((page - 1) * pageSize, page * pageSize),
+    [grupos, page, pageSize]
+  );
+
+  // Deep-link vindo de /seller/pedidos (card "Pedido bloqueado" → Resolver): acha a página
+  // onde o grupo está, expande e rola até ele uma única vez, quando os dados carregam.
   useEffect(() => {
     if (!abrirPaiKey || loading || abrirAplicadoRef.current) return;
-    if (!grupos.some((g) => g.paiKey === abrirPaiKey)) return;
+    const idx = grupos.findIndex((g) => g.paiKey === abrirPaiKey);
+    if (idx === -1) return;
     abrirAplicadoRef.current = true;
+    const paginaAlvo = Math.floor(idx / pageSize) + 1;
     setExpandido((prev) => (prev.has(abrirPaiKey) ? prev : new Set(prev).add(abrirPaiKey)));
+    setPage(paginaAlvo);
     requestAnimationFrame(() => {
       grupoRefs.current[abrirPaiKey]?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
-  }, [abrirPaiKey, grupos, loading]);
+  }, [abrirPaiKey, grupos, loading, pageSize]);
 
   const gruposResumo = useMemo(() => agruparPaiFilhos(items), [items]);
 
@@ -783,7 +815,7 @@ export default function SellerProdutosPage() {
             )}
 
             {!loading &&
-              grupos.map((grupo) => (
+              gruposPaginados.map((grupo) => (
                 <div
                   key={grupo.paiKey}
                   ref={(el) => {
@@ -820,6 +852,86 @@ export default function SellerProdutosPage() {
               ))}
           </div>
         </div>
+
+        {!loading && grupos.length > 0 && (
+          <div className="mt-4 flex flex-col items-center gap-3 pt-1 sm:flex-row sm:justify-between">
+            <p className="text-xs text-[var(--muted)]">
+              Total <span className="font-semibold text-[var(--foreground)]">{grupos.length}</span> produto
+              {grupos.length !== 1 ? "s" : ""}
+            </p>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={page <= 1}
+                aria-label="Página anterior"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+              {getPageNumbers(page, totalPaginas).map((p, idx) =>
+                p === "..." ? (
+                  <span key={`ellipsis-${idx}`} className="px-1 text-xs text-[var(--muted)]">
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPage(p)}
+                    aria-current={p === page ? "page" : undefined}
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold transition-colors",
+                      p === page
+                        ? "bg-emerald-600 text-white"
+                        : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                    )}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+              <button
+                type="button"
+                onClick={() => setPage((prev) => Math.min(totalPaginas, prev + 1))}
+                disabled={page >= totalPaginas}
+                aria-label="Próxima página"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </button>
+              <div className="relative ml-1.5 shrink-0">
+                <div
+                  aria-hidden
+                  className="pointer-events-none flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)]"
+                >
+                  {pageSize}/página
+                  <svg className="h-3.5 w-3.5 shrink-0 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </div>
+                <select
+                  aria-label="Itens por página"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPage(1);
+                    setPageSize(Number(e.target.value));
+                  }}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                >
+                  <option value={20}>20/página</option>
+                  <option value={50}>50/página</option>
+                  <option value={100}>100/página</option>
+                  <option value={300}>300/página</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {modalErpSkuAberto && (
