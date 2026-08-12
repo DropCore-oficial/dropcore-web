@@ -1,26 +1,27 @@
 "use client";
 
 import Link from "next/link";
+import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
+import { DANGER_PREMIUM_SURFACE, DANGER_PREMIUM_TEXT_BODY, DANGER_PREMIUM_TEXT_SOFT } from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
 import {
   LANDING_COMPARISON,
   LANDING_CTA_FINAL_LABEL,
+  LANDING_CTA_FINAL_MESSAGE,
   LANDING_CTA_HEADER_LABEL,
   LANDING_CTA_HERO_LABEL,
-  LANDING_CTA_SECONDARY_LABEL,
   LANDING_FAQ,
   LANDING_FLOW,
-  LANDING_FOOTER_LINKS,
   LANDING_FOR_WHOM,
   LANDING_FINAL_CTA,
   LANDING_HERO,
-  LANDING_HERO_ORDER_TRACKER,
   LANDING_HERO_PROOF,
+  LANDING_HERO_VIDEO,
   LANDING_INLINE_CTA,
   LANDING_INTEGRATIONS_BAR,
-  LANDING_SALES_EMAIL,
+  LANDING_MARKETPLACES_BAR,
   LANDING_SECTIONS,
   LANDING_STEPS,
   landingSalesWhatsapp,
@@ -32,6 +33,57 @@ const NAV = [
   { href: "#como-funciona", label: "Como funciona" },
   { href: "#faq", label: "FAQ" },
 ] as const;
+
+const CTA_FINAL_ANCHOR = "cta-final";
+
+/** Dataset "DropCore LP" no Gerenciador de Eventos da Meta — usado só na landing pública,
+ * não no app logado (evita rastrear seller/fornecedor já autenticado). */
+const META_PIXEL_ID = "1042181891938817";
+
+declare global {
+  interface Window {
+    fbq?: (...args: unknown[]) => void;
+  }
+}
+
+/** Carrega o Meta Pixel só quando o script termina de rodar (`afterInteractive`) — não atrasa
+ * o carregamento inicial da página. `PageView` dispara sozinho a cada visita; `Lead` é
+ * disparado manualmente no clique do CTA que de fato abre o WhatsApp (ver `CtaSection`). */
+function MetaPixel() {
+  return (
+    <>
+      <Script id="meta-pixel" strategy="afterInteractive">
+        {`
+          !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+          n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+          n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+          t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+          document,'script','https://connect.facebook.net/en_US/fbevents.js');
+          fbq('init', '${META_PIXEL_ID}');
+          fbq('track', 'PageView');
+        `}
+      </Script>
+      <noscript>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          height="1"
+          width="1"
+          alt=""
+          style={{ display: "none" }}
+          src={`https://www.facebook.com/tr?id=${META_PIXEL_ID}&ev=PageView&noscript=1`}
+        />
+      </noscript>
+    </>
+  );
+}
+
+/** Botões que não abrem o WhatsApp direto (ex.: "Comece a vender agora", "Chega de operar
+ * sozinho") descem até o CTA final em vez de duplicar conversa — um único ponto de contato
+ * no fim da página, não um por botão. */
+function scrollToFinalCta(e: React.MouseEvent<HTMLAnchorElement>) {
+  e.preventDefault();
+  document.getElementById(CTA_FINAL_ANCHOR)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
 
 function IconArrow({ className }: { className?: string }) {
   return (
@@ -65,52 +117,47 @@ function IconChevronDown({ className }: { className?: string }) {
   );
 }
 
+function IconPlay({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z" />
+    </svg>
+  );
+}
+
+/** Glifo oficial (Simple Icons, CC0) — mesmo ícone usado no SiteFooter.tsx. */
+function IconWhatsApp({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
+    </svg>
+  );
+}
+
 
 function PrimaryButton({
   className,
   children,
   href,
+  onClick,
 }: {
   className?: string;
   children: React.ReactNode;
   href?: string;
+  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 }) {
   return (
     <a
       href={href ?? landingSalesWhatsapp()}
+      onClick={onClick}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 hover:scale-[1.03] active:scale-[0.97]",
+        "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-emerald-600 px-4 py-2.5 text-xs font-medium text-white shadow-sm transition hover:bg-emerald-700 hover:scale-[1.03] active:scale-[0.97] sm:gap-2 sm:px-6 sm:py-3 sm:text-sm",
         className,
       )}
     >
       {children}
       <IconArrow />
     </a>
-  );
-}
-
-function GhostButton({
-  href,
-  children,
-  onDark = false,
-}: {
-  href: string;
-  children: React.ReactNode;
-  /** Fundo escuro por trás (ex.: dentro do Hero) — troca pra contorno claro em vez do padrão emerald/branco. */
-  onDark?: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-full border px-6 py-3 text-sm font-medium transition hover:scale-[1.03] active:scale-[0.97]",
-        onDark
-          ? "border-white/35 bg-transparent text-white hover:bg-white/10"
-          : "border-emerald-300 bg-white text-[var(--foreground)] hover:bg-emerald-50/70",
-      )}
-    >
-      {children}
-    </Link>
   );
 }
 
@@ -194,12 +241,16 @@ function SectionHeader({
   subtitle,
   align = "center",
   tone = "light",
+  titleClassName,
 }: {
   id: string;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   align?: "center" | "left";
   tone?: "light" | "dark";
+  /** Override pontual pro título — usado no FAQ pra caber numa linha só no desktop
+   * (`lg:whitespace-nowrap` + fonte um pouco menor), sem mexer nos outros headers. */
+  titleClassName?: string;
 }) {
   return (
     <header id={id} className={cn("scroll-mt-28", align === "center" ? "mx-auto max-w-2xl text-center" : "max-w-xl")}>
@@ -207,11 +258,14 @@ function SectionHeader({
         className={cn(
           "text-3xl font-semibold tracking-tight sm:text-[2.15rem] sm:leading-tight",
           tone === "dark" ? "text-white" : "text-[var(--foreground)]",
+          titleClassName,
         )}
       >
         {title}
       </h2>
-      <p className={cn("mt-4 text-base leading-relaxed", tone === "dark" ? "text-white/75" : "text-[var(--muted)]")}>{subtitle}</p>
+      {subtitle && (
+        <p className={cn("mt-4 text-base leading-relaxed", tone === "dark" ? "text-white/75" : "text-[var(--muted)]")}>{subtitle}</p>
+      )}
     </header>
   );
 }
@@ -233,7 +287,7 @@ function LandingHeader() {
         scrolled ? "border-[var(--border-subtle)] shadow-sm" : "border-transparent",
       )}
     >
-      <div className="mx-auto flex h-[4.25rem] max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
+      <div className="dropcore-shell-6xl flex h-[4.25rem] items-center justify-between gap-4">
         <DropCoreLogo variant="horizontal" href="/" theme="light" />
         <nav className="hidden items-center gap-8 md:flex" aria-label="Principal">
           {NAV.map((item) => (
@@ -243,53 +297,51 @@ function LandingHeader() {
           ))}
         </nav>
         <div className="flex items-center gap-2 sm:gap-3">
-          <Link href="/seller/login" className="hidden text-sm font-medium text-[var(--muted)] transition hover:text-[var(--foreground)] sm:inline">
+          <Link href="/seller/login" className="text-sm font-medium text-[var(--muted)] transition hover:text-[var(--foreground)]">
             Entrar
           </Link>
-          <PrimaryButton className="!px-4 !py-2 !text-xs sm:!px-5 sm:!text-sm">{LANDING_CTA_HEADER_LABEL}</PrimaryButton>
+          <PrimaryButton
+            href={`#${CTA_FINAL_ANCHOR}`}
+            onClick={scrollToFinalCta}
+            className="!px-4 !py-2 !text-xs sm:!px-5 sm:!text-sm"
+          >
+            {LANDING_CTA_HEADER_LABEL}
+          </PrimaryButton>
         </div>
       </div>
     </header>
   );
 }
 
-function HeroOrderTrackerPanel() {
-  const steps = LANDING_HERO_ORDER_TRACKER.steps;
+/** Vídeo auto-hospedado (Supabase Storage), sem player de terceiro — `preload="none"` +
+ * clique pra tocar evita baixar o arquivo antes do visitante decidir assistir. 16:9 único,
+ * toca inline no próprio card em qualquer largura (sem modal — ver LANDING_HERO_VIDEO). */
+function HeroVideoPanel() {
+  const [playing, setPlaying] = useState(false);
+  const { src, poster, title } = LANDING_HERO_VIDEO;
+
   return (
-    <div className="relative mx-auto w-full max-w-lg">
+    <div className="relative mx-auto w-full max-w-lg lg:max-w-none">
       <div
         className="absolute -inset-6 -z-10 rounded-[2.5rem] bg-emerald-400/20 blur-3xl motion-safe:animate-[pulse-glow_4s_ease-in-out_infinite]"
         aria-hidden
       />
-      <div className="rounded-3xl border border-black/5 bg-white p-5 shadow-2xl shadow-black/30 sm:p-6">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">{LANDING_HERO_ORDER_TRACKER.title}</p>
-          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
-            {LANDING_HERO_ORDER_TRACKER.orderLabel}
-          </span>
-        </div>
-        <ol className="relative mt-5 space-y-5">
-          {steps.map((step, idx) => (
-            <li key={step.label} className="relative flex gap-3">
-              {idx < steps.length - 1 && (
-                <span className="absolute left-3 top-6 h-full w-px -translate-x-1/2 bg-emerald-100" aria-hidden />
-              )}
-              <span
-                className="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white opacity-0 motion-safe:animate-[pop-in_0.4s_ease-out_forwards] motion-reduce:opacity-100"
-                style={{ animationDelay: `${500 + idx * 220}ms` }}
-              >
-                <IconCheck className="h-3.5 w-3.5" />
-              </span>
-              <div className="min-w-0 pb-0.5">
-                <p className="text-sm font-semibold text-[var(--foreground)]">{step.label}</p>
-                <p className="text-xs text-[var(--muted)]">{step.detail}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
-        <p className="mt-5 border-t border-[var(--border-subtle)] pt-3 text-[11px] leading-relaxed text-[var(--muted)]">
-          {LANDING_HERO_ORDER_TRACKER.footnote}
-        </p>
+      <div className="relative aspect-video overflow-hidden rounded-3xl border border-black/5 bg-black shadow-2xl shadow-black/30">
+        {playing ? (
+          <video src={src} poster={poster} controls autoPlay playsInline preload="none" title={title} className="h-full w-full object-cover" />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setPlaying(true)}
+            className="group relative flex h-full w-full items-center justify-center"
+            aria-label={`Assistir vídeo: ${title}`}
+          >
+            <img src={poster} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/60 text-[var(--foreground)] transition group-hover:bg-white/80">
+              <IconPlay className="h-5 w-5" />
+            </span>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -298,37 +350,62 @@ function HeroOrderTrackerPanel() {
 function HeroSection() {
   return (
     <section className="relative overflow-hidden bg-[var(--foreground)]">
-      <div className="relative mx-auto max-w-6xl px-5 pb-12 pt-12 sm:px-8 sm:pb-16 sm:pt-16 lg:grid lg:grid-cols-2 lg:items-center lg:gap-14 lg:pt-20">
-        <Reveal className="text-center lg:text-left">
-          <p className="mb-6 inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3.5 py-1 text-xs font-semibold uppercase tracking-wide text-white/85">
-            {LANDING_HERO.eyebrow}
-          </p>
-          <h1 className="text-5xl font-bold leading-[1.03] tracking-tight text-white sm:text-6xl lg:text-[4rem]">
-            {LANDING_HERO.title}
-            <span className="block text-emerald-300">{LANDING_HERO.titleAccent}</span>
+      <div className="relative dropcore-shell-6xl pb-12 pt-12 sm:pb-16 sm:pt-16 lg:grid lg:grid-cols-[1fr_1.1fr] lg:items-center lg:gap-14 lg:pt-20">
+        <Reveal className="text-center lg:min-w-0 lg:text-left">
+          <h1 className="font-bold leading-[1.03] tracking-tight text-white">
+            <span className="block whitespace-nowrap text-6xl sm:text-6xl lg:text-7xl">{LANDING_HERO.title}</span>
+            <span className="block whitespace-nowrap text-3xl text-emerald-300 sm:text-6xl lg:mt-2 lg:text-[2.75rem]">
+              {LANDING_HERO.titleAccent}
+            </span>
           </h1>
-          <p className="mx-auto mt-6 max-w-lg text-lg leading-relaxed text-white/80 lg:mx-0">{LANDING_HERO.subtitle}</p>
-          <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start">
-            <PrimaryButton>{LANDING_CTA_HERO_LABEL}</PrimaryButton>
-            <GhostButton href="/seller/login" onDark>
-              {LANDING_CTA_SECONDARY_LABEL}
-            </GhostButton>
+          {/* Mobile/tablet: highlight maior, própria linha (ajustes pedidos nessa conversa). */}
+          <p className="mx-auto mt-6 max-w-lg text-base leading-relaxed text-white/80 lg:hidden">
+            {LANDING_HERO.subtitle}{" "}
+            <span className="block whitespace-nowrap text-lg font-semibold text-white sm:inline sm:text-base">
+              {LANDING_HERO.subtitleHighlight}
+            </span>
+          </p>
+          {/* Desktop: parágrafo corrido, sem ajuste nenhum — exatamente como sempre foi. */}
+          <p className="hidden max-w-lg text-base leading-relaxed text-white/80 lg:mt-6 lg:block">
+            {LANDING_HERO.subtitle} <span className="font-semibold text-white">{LANDING_HERO.subtitleHighlight}</span>
+          </p>
+          {/* Vídeo entra aqui só no mobile (depois do texto de apoio, antes dos CTAs). No
+           * desktop ele fica na coluna direita, ver o segundo <HeroVideoPanel /> abaixo. Duas
+           * instâncias porque não dá pra só reordenar com CSS sem arriscar quebrar o grid 2
+           * colunas do desktop; mesmo padrão já usado no sistema pra bloco que muda de posição
+           * por breakpoint. */}
+          <div className="mt-10 lg:hidden">
+            <HeroVideoPanel />
+          </div>
+          <div className="mt-10 flex flex-row items-center justify-center gap-2 sm:gap-3 lg:mt-6 lg:justify-start">
+            <a
+              href={`#${CTA_FINAL_ANCHOR}`}
+              onClick={scrollToFinalCta}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 hover:scale-[1.03] active:scale-[0.97]"
+            >
+              {LANDING_CTA_HERO_LABEL}
+              <IconArrow />
+            </a>
           </div>
         </Reveal>
-        <Reveal className="mt-10 lg:mt-0" delayMs={150}>
-          <HeroOrderTrackerPanel />
+        <Reveal className="hidden lg:block" delayMs={150}>
+          <HeroVideoPanel />
         </Reveal>
       </div>
-      <dl className="relative mx-auto grid max-w-6xl gap-4 px-5 pb-12 sm:grid-cols-3 sm:gap-6 sm:px-8 sm:pb-16">
+      {/* Risca só no mobile separando os CTAs do bloco de prova (dl) abaixo. */}
+      <div className="dropcore-shell-6xl sm:hidden">
+        <div className="h-px bg-white/15" />
+      </div>
+      <dl className="relative dropcore-shell-6xl grid gap-4 pb-12 pt-12 sm:grid-cols-3 sm:gap-6 sm:pb-16 sm:pt-0">
         {LANDING_HERO_PROOF.map((item, idx) => (
           <Reveal
             key={item.label}
             delayMs={idx * 100}
             className="rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-8 text-center"
           >
-            <dt className="text-sm font-semibold text-emerald-300">{item.value}</dt>
-            <dd className="mt-1 text-sm text-white/90">{item.label}</dd>
-            <dd className="mt-2 text-xs leading-relaxed text-white/60">{item.detail}</dd>
+            <dt className="text-base font-semibold text-emerald-300 sm:text-sm">{item.value}</dt>
+            <dd className="mt-1 text-lg font-bold text-white/90 sm:text-sm">{item.label}</dd>
+            <dd className="mt-2 text-sm leading-relaxed text-white/60 sm:text-xs">{item.detail}</dd>
           </Reveal>
         ))}
       </dl>
@@ -336,17 +413,32 @@ function HeroSection() {
   );
 }
 
+/** Parceiros (integração operacional real) + marketplaces atendidos, numa fileira só rolando
+ * automático — resolve o desalinho visual de logo com tamanho/estilo bem diferente (wordmark
+ * fino do Olist ao lado do ícone+texto do TikTok Shop) sem precisar encaixar tudo estático
+ * numa linha. Lista duplicada 2x pro loop do `animate-marquee` ficar contínuo. */
 function IntegrationsBar() {
+  const items = [...LANDING_INTEGRATIONS_BAR.items, ...LANDING_MARKETPLACES_BAR.items];
+  const looped = [...items, ...items];
+
   return (
-    <div className="border-y border-[var(--border-subtle)] bg-white py-6">
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-5 sm:flex-row sm:gap-6 sm:px-8">
-        <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">{LANDING_INTEGRATIONS_BAR.label}</p>
-        <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 sm:justify-start">
-          {LANDING_INTEGRATIONS_BAR.items.map((item) => (
-            <span key={item} className="text-base font-semibold text-[var(--foreground)]/70">
-              {item}
-            </span>
-          ))}
+    <div className="border-y border-[var(--border-subtle)] bg-white py-6 sm:py-12 lg:py-8">
+      <div className="dropcore-shell-6xl flex flex-col items-center gap-6 sm:flex-row sm:gap-8">
+        <p className="shrink-0 whitespace-nowrap text-2xl font-bold uppercase tracking-wider text-emerald-600 sm:text-lg lg:text-base">
+          {LANDING_INTEGRATIONS_BAR.label}
+        </p>
+        <div className="w-full overflow-hidden sm:min-w-0 sm:flex-1 [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
+          <div className="flex w-max items-center gap-20 animate-marquee motion-reduce:animate-none">
+            {looped.map((item, idx) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={`${item.name}-${idx}`}
+                src={item.logo}
+                alt={item.name}
+                className="h-16 w-auto shrink-0 object-contain sm:h-20 lg:h-11"
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -356,14 +448,9 @@ function IntegrationsBar() {
 function ComparisonSection() {
   return (
     <section id="solucao" className="border-b border-white/15 bg-[var(--foreground)] py-14 sm:py-20">
-      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+      <div className="dropcore-shell-6xl">
         <Reveal>
-          <SectionHeader
-            id="solucao-titulo"
-            title={LANDING_SECTIONS.comparison.title}
-            subtitle={LANDING_SECTIONS.comparison.subtitle}
-            tone="dark"
-          />
+          <SectionHeader id="solucao-titulo" title={LANDING_SECTIONS.comparison.title} tone="dark" />
         </Reveal>
         <ul className="mt-10 space-y-4">
           {LANDING_COMPARISON.map((row, idx) => (
@@ -401,14 +488,15 @@ function ComparisonSection() {
 function InlineCtaSection() {
   return (
     <section className="bg-white py-10 sm:py-12">
-      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+      <div className="dropcore-shell-6xl">
         <Reveal className="flex flex-col items-center justify-between gap-6 rounded-3xl bg-emerald-600 px-6 py-9 text-center shadow-lg shadow-emerald-900/10 sm:flex-row sm:px-10 sm:py-8 sm:text-left">
           <div>
-            <h3 className="text-xl font-semibold text-white sm:text-2xl">{LANDING_INLINE_CTA.title}</h3>
+            <h3 className="text-2xl font-semibold text-white sm:text-3xl">{LANDING_INLINE_CTA.title}</h3>
             <p className="mt-2 text-sm leading-relaxed text-emerald-50 sm:text-base">{LANDING_INLINE_CTA.subtitle}</p>
           </div>
           <a
-            href={landingSalesWhatsapp(LANDING_INLINE_CTA.whatsappMessage)}
+            href={`#${CTA_FINAL_ANCHOR}`}
+            onClick={scrollToFinalCta}
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-medium text-emerald-700 shadow-sm transition hover:scale-[1.03] hover:bg-emerald-50 active:scale-[0.97]"
           >
             {LANDING_INLINE_CTA.label}
@@ -422,10 +510,10 @@ function InlineCtaSection() {
 
 function StepsSection() {
   return (
-    <section id="como-funciona" className="border-y border-[var(--border-subtle)] bg-white py-14 sm:py-20">
-      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+    <section id="como-funciona" className="border-y border-white/15 bg-[var(--foreground)] py-14 sm:py-20">
+      <div className="dropcore-shell-6xl">
         <Reveal>
-          <SectionHeader id="como-funciona-titulo" title={LANDING_SECTIONS.steps.title} subtitle={LANDING_SECTIONS.steps.subtitle} />
+          <SectionHeader id="como-funciona-titulo" title={LANDING_SECTIONS.steps.title} tone="dark" />
         </Reveal>
         <ol className="mt-10 grid gap-6 md:grid-cols-3">
           {LANDING_STEPS.map((step, idx) => (
@@ -433,17 +521,15 @@ function StepsSection() {
               key={step.step}
               delayMs={idx * 120}
               className={cn(
-                "rounded-3xl border p-8 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-900/5",
-                idx === 1
-                  ? "border-emerald-300 bg-emerald-50/40"
-                  : "border-[var(--border-subtle)]/70 bg-white",
+                "rounded-3xl border p-8 transition-all hover:-translate-y-0.5",
+                idx === 1 ? "border-emerald-500/40 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]",
               )}
             >
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
                 {step.step}
               </span>
-              <h3 className="mt-5 text-lg font-semibold text-[var(--foreground)]">{step.title}</h3>
-              <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">{step.body}</p>
+              <h3 className="mt-5 text-lg font-semibold text-white">{step.title}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-white/70">{step.body}</p>
             </RevealLi>
           ))}
         </ol>
@@ -502,13 +588,13 @@ const FLOW_ICONS: Record<(typeof LANDING_FLOW)[number]["icon"], (props: { classN
 function FlowSection() {
   return (
     <section className="border-y border-[var(--border-subtle)] bg-white py-14 sm:py-20">
-      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+      <div className="dropcore-shell-6xl">
         <Reveal>
           <SectionHeader id="fluxo-titulo" title={LANDING_SECTIONS.flow.title} subtitle={LANDING_SECTIONS.flow.subtitle} />
         </Reveal>
         <div className="relative mt-14">
           <div
-            className="absolute left-6 right-6 top-6 hidden h-px bg-gradient-to-r from-emerald-200 via-emerald-300 to-emerald-200 lg:block"
+            className="absolute left-6 right-6 top-6 hidden h-px bg-emerald-100 lg:block"
             aria-hidden
           />
           <ol className="grid gap-8 lg:grid-cols-4 lg:gap-6">
@@ -536,28 +622,28 @@ function FlowSection() {
 function FitSection() {
   return (
     <section className="border-t border-[var(--border-subtle)] bg-[var(--surface-hover)] py-14 sm:py-20">
-      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+      <div className="dropcore-shell-6xl">
         <Reveal>
-          <SectionHeader id="fit-titulo" title={LANDING_SECTIONS.fit.title} subtitle={LANDING_SECTIONS.fit.subtitle} />
+          <SectionHeader id="fit-titulo" title={LANDING_SECTIONS.fit.title} />
         </Reveal>
         <div className="mt-10 grid gap-6 md:grid-cols-2">
-          <Reveal className="rounded-3xl border border-emerald-300 bg-emerald-50/40 p-8 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Para quem é</p>
+          <Reveal className="rounded-3xl bg-emerald-600 p-8 shadow-lg shadow-emerald-900/10">
+            <p className="text-xs font-bold uppercase tracking-wider text-emerald-50">Para quem é</p>
             <ul className="mt-4 space-y-3">
               {LANDING_FOR_WHOM.yes.map((item) => (
-                <li key={item} className="flex gap-3 text-sm text-[var(--foreground)]">
-                  <IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                <li key={item} className="flex gap-3 text-sm text-white">
+                  <IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-white" />
                   {item}
                 </li>
               ))}
             </ul>
           </Reveal>
-          <Reveal delayMs={120} className="rounded-3xl border border-[var(--border-subtle)]/70 bg-white p-8 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Para quem não é</p>
+          <Reveal delayMs={120} className={cn("rounded-3xl p-8", DANGER_PREMIUM_SURFACE)}>
+            <p className={cn("text-xs font-bold uppercase tracking-wider", DANGER_PREMIUM_TEXT_SOFT)}>Para quem não é</p>
             <ul className="mt-4 space-y-3">
               {LANDING_FOR_WHOM.no.map((item) => (
-                <li key={item} className="flex gap-3 text-sm text-[var(--muted)]">
-                  <IconX className="mt-1 h-3 w-3 shrink-0" />
+                <li key={item} className={cn("flex gap-3 text-sm", DANGER_PREMIUM_TEXT_BODY)}>
+                  <IconX className={cn("mt-0.5 h-4 w-4 shrink-0", DANGER_PREMIUM_TEXT_SOFT)} />
                   {item}
                 </li>
               ))}
@@ -576,7 +662,7 @@ function FaqSection() {
     <section id="faq" className="bg-white py-14 sm:py-20">
       <div className="mx-auto max-w-3xl px-5 sm:px-8">
         <Reveal>
-          <SectionHeader id="faq-titulo" title={LANDING_SECTIONS.faq.title} subtitle={LANDING_SECTIONS.faq.subtitle} />
+          <SectionHeader id="faq-titulo" title={LANDING_SECTIONS.faq.title} titleClassName="lg:whitespace-nowrap lg:text-[1.7rem]" />
         </Reveal>
         <Reveal delayMs={100}>
           <div className="mt-10 divide-y divide-[var(--border-subtle)] border-y border-[var(--border-subtle)]">
@@ -620,100 +706,39 @@ function FaqSection() {
 
 function CtaSection() {
   return (
-    <section className="border-t border-[var(--border-subtle)] bg-white">
-      <div className="mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
+    <section id={CTA_FINAL_ANCHOR} className="scroll-mt-24 border-t border-[var(--border-subtle)] bg-white">
+      <div className="dropcore-shell-6xl py-14 sm:py-20">
         <Reveal className="rounded-3xl border border-[var(--foreground)]/10 bg-[var(--foreground)] px-6 py-10 text-center sm:px-12 sm:py-14">
           <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">{LANDING_FINAL_CTA.title}</h2>
-          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-white/75">{LANDING_FINAL_CTA.subtitle}</p>
-          <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-white/75">
+            {LANDING_FINAL_CTA.subtitle}
+            <span className="font-semibold text-white">{LANDING_FINAL_CTA.subtitleHighlight}</span>
+          </p>
+          <ul className="mt-6 flex flex-col items-center justify-center gap-2 text-sm font-semibold text-white sm:flex-row sm:gap-6">
+            {LANDING_FINAL_CTA.recap.map((item) => (
+              <li key={item} className="flex items-center gap-2">
+                <IconCheck className="h-4 w-4 shrink-0 text-emerald-400" />
+                {item}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <a
-              href={landingSalesWhatsapp("Olá! Vim pela landing page e quero começar a vender na DropCore.")}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-medium text-[var(--foreground)] shadow-sm transition hover:scale-[1.03] hover:opacity-90 active:scale-[0.97]"
+              href={landingSalesWhatsapp(LANDING_CTA_FINAL_MESSAGE)}
+              onClick={() => window.fbq?.("track", "Lead")}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 hover:scale-[1.03] active:scale-[0.97]"
             >
+              <IconWhatsApp className="h-4 w-4" />
               {LANDING_CTA_FINAL_LABEL}
-              <IconArrow />
             </a>
-            <Link
-              href="/seller/login"
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-white/35 bg-transparent px-6 py-3 text-sm font-medium text-white transition hover:scale-[1.03] hover:bg-white/10 active:scale-[0.97]"
-            >
-              {LANDING_CTA_SECONDARY_LABEL}
-            </Link>
           </div>
-          <p className="mt-6 text-xs text-white/60">{LANDING_FINAL_CTA.riskNote}</p>
+          <p className="mt-4 text-xs text-white/60">
+            {LANDING_FINAL_CTA.reassurance}
+            <span className="font-semibold text-white/80">{LANDING_FINAL_CTA.reassuranceHighlight}</span>
+          </p>
         </Reveal>
       </div>
     </section>
-  );
-}
-
-const FOOTER_ICON_CLASS =
-  "flex h-8 w-8 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]";
-
-/** Glifo oficial (Simple Icons, CC0) — mesmo ícone usado no SiteFooter.tsx. */
-function IconWhatsApp({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
-    </svg>
-  );
-}
-
-function IconMail({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect width="20" height="16" x="2" y="4" rx="2" />
-      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-    </svg>
-  );
-}
-
-/** Glifo oficial (Simple Icons, CC0) — mesmo ícone usado no SiteFooter.tsx. */
-function IconInstagram({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M7.0301.084c-1.2768.0602-2.1487.264-2.911.5634-.7888.3075-1.4575.72-2.1228 1.3877-.6652.6677-1.075 1.3368-1.3802 2.127-.2954.7638-.4956 1.6365-.552 2.914-.0564 1.2775-.0689 1.6882-.0626 4.947.0062 3.2586.0206 3.6671.0825 4.9473.061 1.2765.264 2.1482.5635 2.9107.308.7889.72 1.4573 1.388 2.1228.6679.6655 1.3365 1.0743 2.1285 1.38.7632.295 1.6361.4961 2.9134.552 1.2773.056 1.6884.069 4.9462.0627 3.2578-.0062 3.668-.0207 4.9478-.0814 1.28-.0607 2.147-.2652 2.9098-.5633.7889-.3086 1.4578-.72 2.1228-1.3881.665-.6682 1.0745-1.3378 1.3795-2.1284.2957-.7632.4966-1.636.552-2.9124.056-1.2809.0692-1.6898.063-4.948-.0063-3.2583-.021-3.6668-.0817-4.9465-.0607-1.2797-.264-2.1487-.5633-2.9117-.3084-.7889-.72-1.4568-1.3876-2.1228C21.2982 1.33 20.628.9208 19.8378.6165 19.074.321 18.2017.1197 16.9244.0645 15.6471.0093 15.236-.005 11.977.0014 8.718.0076 8.31.0215 7.0301.0839m.1402 21.6932c-1.17-.0509-1.8053-.2453-2.2287-.408-.5606-.216-.96-.4771-1.3819-.895-.422-.4178-.6811-.8186-.9-1.378-.1644-.4234-.3624-1.058-.4171-2.228-.0595-1.2645-.072-1.6442-.079-4.848-.007-3.2037.0053-3.583.0607-4.848.05-1.169.2456-1.805.408-2.2282.216-.5613.4762-.96.895-1.3816.4188-.4217.8184-.6814 1.3783-.9003.423-.1651 1.0575-.3614 2.227-.4171 1.2655-.06 1.6447-.072 4.848-.079 3.2033-.007 3.5835.005 4.8495.0608 1.169.0508 1.8053.2445 2.228.408.5608.216.96.4754 1.3816.895.4217.4194.6816.8176.9005 1.3787.1653.4217.3617 1.056.4169 2.2263.0602 1.2655.0739 1.645.0796 4.848.0058 3.203-.0055 3.5834-.061 4.848-.051 1.17-.245 1.8055-.408 2.2294-.216.5604-.4763.96-.8954 1.3814-.419.4215-.8181.6811-1.3783.9-.4224.1649-1.0577.3617-2.2262.4174-1.2656.0595-1.6448.072-4.8493.079-3.2045.007-3.5825-.006-4.848-.0608M16.953 5.5864A1.44 1.44 0 1 0 18.39 4.144a1.44 1.44 0 0 0-1.437 1.4424M5.8385 12.012c.0067 3.4032 2.7706 6.1557 6.173 6.1493 3.4026-.0065 6.157-2.7701 6.1506-6.1733-.0065-3.4032-2.771-6.1565-6.174-6.1498-3.403.0067-6.156 2.771-6.1496 6.1738M8 12.0077a4 4 0 1 1 4.008 3.9921A3.9996 3.9996 0 0 1 8 12.0077" />
-    </svg>
-  );
-}
-
-/** Rodapé próprio da landing — sem o tom institucional/versículo do SiteFooter.tsx (que é
- * pra quem já é cliente logado), já que aqui é a primeira impressão de um visitante frio. */
-function LandingFooter() {
-  const ano = new Date().getFullYear();
-  return (
-    <footer className="border-t border-[var(--border-subtle)] bg-white">
-      <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
-        <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
-          <DropCoreLogo variant="horizontal" href="/" theme="light" />
-          <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2" aria-label="Links úteis">
-            {LANDING_FOOTER_LINKS.map((l) => (
-              <Link key={l.href} href={l.href} className="text-sm text-[var(--muted)] transition hover:text-[var(--foreground)]">
-                {l.label}
-              </Link>
-            ))}
-          </nav>
-          <div className="flex items-center gap-1.5">
-            <a href={landingSalesWhatsapp()} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" className={FOOTER_ICON_CLASS}>
-              <IconWhatsApp className="h-4 w-4" />
-            </a>
-            <a href={`mailto:${LANDING_SALES_EMAIL}`} aria-label="E-mail" className={FOOTER_ICON_CLASS}>
-              <IconMail className="h-4 w-4" />
-            </a>
-            <a
-              href="https://www.instagram.com/dropcore.oficial/"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Instagram"
-              className={FOOTER_ICON_CLASS}
-            >
-              <IconInstagram className="h-4 w-4" />
-            </a>
-          </div>
-        </div>
-        <p className="mt-8 text-center text-xs text-[var(--muted)] sm:text-left">© {ano} DropCore. Todos os direitos reservados.</p>
-      </div>
-    </footer>
   );
 }
 
@@ -757,6 +782,7 @@ function SessionBanner() {
 export function LandingPage() {
   return (
     <div className="landing-light-only min-h-screen bg-[var(--background)] text-[var(--foreground)] antialiased">
+      <MetaPixel />
       <SessionBanner />
       <LandingHeader />
       <main>
@@ -770,7 +796,6 @@ export function LandingPage() {
         <FaqSection />
         <CtaSection />
       </main>
-      <LandingFooter />
     </div>
   );
 }

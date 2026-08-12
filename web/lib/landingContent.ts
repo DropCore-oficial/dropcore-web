@@ -1,58 +1,87 @@
-/** Usado no rodapé geral do site (SiteFooter.tsx) e também no rodapé próprio da landing. */
+/** Usado no rodapé geral do site (SiteFooter.tsx). */
 export const LANDING_SALES_EMAIL = "contato@dropcore.com.br";
-
-export const LANDING_FOOTER_LINKS = [
-  { label: "Sobre", href: "/sobre" },
-  { label: "Termos de Uso", href: "/termos-de-uso" },
-  { label: "Política de Privacidade", href: "/privacidade" },
-  { label: "Central de Ajuda", href: "/central-de-ajuda" },
-] as const;
 
 export const LANDING_SALES_WHATSAPP_NUMBER = "5562991739631";
 export const LANDING_SALES_WHATSAPP_DISPLAY = "(62) 99173-9631";
 const LANDING_WHATSAPP_DEFAULT_MESSAGE = "Olá! Quero saber mais sobre virar seller na DropCore.";
 
-export const LANDING_CTA_HEADER_LABEL = "Quero entrar";
-export const LANDING_CTA_HERO_LABEL = "Quero vender assim";
-export const LANDING_CTA_FINAL_LABEL = "Vamos conversar";
-export const LANDING_CTA_SECONDARY_LABEL = "Acessar painel";
+/** Topo (1º contato, quem só chegou): pedido mais frio, por isso separado de "Entrar"
+ * (login de quem já é seller) que fica ao lado — os dois eram quase homônimos ("Entrar" /
+ * "Quero entrar") e confundiam visitante novo com seller já cadastrado. */
+export const LANDING_CTA_HEADER_LABEL = "Solicitar acesso";
 
+/** Hero: ecoa a chamada falada no vídeo do hero ("cadastre-se agora e comece a vender") sem
+ * prometer autoatendimento — o acesso continua sendo por convite (ver FAQ), o WhatsApp é quem
+ * de fato inicia isso. */
+export const LANDING_CTA_HERO_LABEL = "Comece a vender agora";
+
+/** Final: quem rolou a página inteira e já entendeu a mecânica de convite (ver FAQ). Volta pro
+ * mesmo verbo do resto da página ("vender") em vez de "acesso" — a página inteira treina o
+ * visitante em "Você vende" / "Comece a vender agora", trocar o verbo bem no último botão
+ * quebrava essa régua. Todos os CTAs de venda da página (header, hero, CTA intermediário e
+ * este) apontam pra essa mesma mensagem — um único destino de conversão, não um por botão. */
+export const LANDING_CTA_FINAL_LABEL = "Quero começar a vender";
+export const LANDING_CTA_FINAL_MESSAGE = "Olá! Terminei de ver a DropCore e quero começar a vender.";
+
+/** "Parceiros", não "Integra com" — Olist e Bling têm integração operacional real (sync de
+ * estoque/pedido). Mercado Pago saiu daqui: é só a conta de pagamento usada pro PIX, não uma
+ * integração operacional como as outras duas, misturar os três dava a entender uma paridade
+ * que não existe. Logos oficiais em `public/brand/partners/`. */
 export const LANDING_INTEGRATIONS_BAR = {
-  label: "Integra com",
-  items: ["Olist", "Bling", "Mercado Pago"],
+  label: "Parceiros do DropCore",
+  items: [
+    { name: "Olist", logo: "/brand/partners/olist.svg" },
+    { name: "Bling", logo: "/brand/partners/bling.svg" },
+  ],
+} as const;
+
+/** Só os 4 marketplaces que a calculadora (`web/app/seller/calculadora/page.tsx`) de fato
+ * suporta hoje — não é uma lista aspiracional/genérica, é o que o produto atende. Logos
+ * oficiais em `public/brand/marketplaces/`. */
+export const LANDING_MARKETPLACES_BAR = {
+  label: "Marketplaces atendidos",
+  items: [
+    { name: "Mercado Livre", logo: "/brand/marketplaces/mercado-livre.svg" },
+    { name: "Shopee", logo: "/brand/marketplaces/shopee.svg" },
+    { name: "Shein", logo: "/brand/marketplaces/shein.svg" },
+    { name: "TikTok Shop", logo: "/brand/marketplaces/tiktok-shop.png" },
+  ],
 } as const;
 
 export const LANDING_HERO = {
-  eyebrow: "Pra seller que quer vender, não virar operador de logística",
   title: "Você vende.",
   titleAccent: "A gente cuida do resto.",
-  subtitle:
-    "Estoque, fornecedor, postagem e financeiro rodam sozinhos no DropCore. Você anuncia, atende o cliente e foca no que faz o negócio crescer.",
+  subtitle: "Estoque, fornecedor e financeiro rodam sozinhos.",
+  subtitleHighlight: "Você só foca em vender e ganhar dinheiro.",
 } as const;
 
+/** Primeiro item é prova social real (volume processado), não descrição de feature como os
+ * outros três — de propósito na frente, é o número mais concreto que a página tem. Ajustar
+ * o valor aqui conforme atualizar. */
 export const LANDING_HERO_PROOF = [
-  { value: "Estoque", label: "gerido pelo fornecedor parceiro", detail: "Você nunca compra nem armazena nada" },
-  { value: "Postagem e SLA", label: "monitorados automaticamente", detail: "Atraso aparece sinalizado, sem você cobrar" },
-  { value: "1 painel", label: "saldo, pedido e repasse", detail: "Sem planilha paralela" },
+  { value: "50 mil+", label: "Pedidos já enviados", detail: "Volume real processado na plataforma" },
+  { value: "Estoque", label: "Gerido pelo fornecedor parceiro", detail: "Você nunca compra nem armazena nada" },
+  { value: "Postagem e SLA", label: "Monitorados automaticamente", detail: "Atraso aparece sinalizado, sem você cobrar" },
 ] as const;
 
-export const LANDING_HERO_ORDER_TRACKER = {
-  title: "Acompanhamento de pedido",
-  orderLabel: "#DJU100047",
-  steps: [
-    { label: "Recebido", detail: "Pedido do marketplace importado automaticamente" },
-    { label: "Postado", detail: "Fornecedor parceiro embalou e postou dentro do SLA" },
-    { label: "Entregue", detail: "Confirmado pelo marketplace" },
-    { label: "Repasse liberado", detail: "Valor disponível no seu painel" },
-  ],
-  footnote: "Do pedido ao repasse, sem você tocar em planilha.",
+/** Vídeo curto explicando o que o DropCore faz — substitui o mock estático do painel de
+ * pedido no hero. Auto-hospedado no bucket `landing-assets` (Supabase Storage), não YouTube
+ * — sem casca de player de terceiro, só o vídeo com a legenda já queimada nele. Poster
+ * (thumbnail) + `preload="none"` no `<video>` evitam baixar o arquivo antes do clique, ver
+ * `HeroVideoPanel`. 16:9 único pra qualquer largura — sem corte mobile separado nem modal
+ * (já teve as duas coisas; simplificado de volta porque o vídeo agora é conteúdo inline no
+ * fluxo da página, não um "visual de destaque" que precisasse de tela cheia). */
+const LANDING_ASSETS_BASE = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/landing-assets`;
+export const LANDING_HERO_VIDEO = {
+  src: `${LANDING_ASSETS_BASE}/hero.mp4`,
+  poster: `${LANDING_ASSETS_BASE}/hero-poster.jpg`,
+  title: "Como funciona o DropCore",
 } as const;
 
 export const LANDING_INLINE_CTA = {
   title: "Já deu pra ver a diferença?",
   subtitle: "Sem planilha, sem cobrar fornecedor — só o catálogo, o pedido e o repasse rodando sozinhos.",
   label: "Chega de operar sozinho",
-  whatsappMessage: "Olá! Vi a comparação de como funciona o DropCore e quero saber mais.",
 } as const;
 
 export const LANDING_COMPARISON = [
@@ -138,30 +167,36 @@ export const LANDING_FAQ = [
 export const LANDING_SECTIONS = {
   comparison: {
     title: "O que trava o seller antes de vender",
-    subtitle: "Sem estrutura, você vira operador de estoque e financeiro em vez de vendedor.",
   },
   steps: {
     title: "Como o DropCore entra na sua rotina",
-    subtitle: "3 etapas pra você só vender — o resto roda sozinho.",
   },
   flow: {
     title: "O que acontece a cada pedido",
     subtitle: "Do clique do cliente ao dinheiro no seu saldo — automático, sem você tocar em nada.",
   },
   fit: {
-    title: "Pra quem é (e pra quem não é)",
-    subtitle: "Melhor alinhar expectativa antes de começar.",
+    /** Espaço fixo (não quebra linha) entre "não" e "é)" — sem isso, no mobile a quebra caía
+     * bem no meio, deixando um "é)" sozinho e torto na 2ª linha. */
+    title: "Pra quem é (e pra quem não é)",
   },
   faq: {
     title: "Perguntas de quem vai soltar a mão da operação",
-    subtitle: "As dúvidas que aparecem antes de confiar o operacional pra gente.",
   },
 } as const;
 
+/** `recap`: reforço rápido bem em cima do botão — quem chegou até aqui já leu tudo isso lá em
+ * cima, mas pode não lembrar mais depois de rolar a página inteira; não é claim nova, só
+ * repete o que já foi provado antes (hero e comparação). `reassurance`: reduz a hesitação de
+ * abrir uma conversa de WhatsApp com empresa desconhecida — deixa claro que é só isso, sem
+ * compromisso nenhum em clicar. */
 export const LANDING_FINAL_CTA = {
   title: "Pare de operar. Comece a vender.",
-  subtitle: "Solicite o convite e deixe estoque, postagem e financeiro com a gente.",
-  riskNote: "O único compromisso mínimo é com o fornecedor escolhido (normalmente 3 meses) — depois disso, troca livre.",
+  subtitle: "Comece agora e deixe ",
+  subtitleHighlight: "estoque, postagem e financeiro com a gente.",
+  recap: ["50 mil+ pedidos enviados", "Postagem e SLA monitorados", "Repasse automático no saldo"],
+  reassurance: "Sem compromisso — ",
+  reassuranceHighlight: "é só uma conversa no WhatsApp.",
 } as const;
 
 export function landingSalesWhatsapp(message = LANDING_WHATSAPP_DEFAULT_MESSAGE): string {

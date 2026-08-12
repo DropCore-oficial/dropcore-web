@@ -25,11 +25,12 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      // Mercado Pago Bricks (cartão): sdk + secure fields + API + mlstatic
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://http2.mlstatic.com https://*.mlstatic.com",
+      // Mercado Pago Bricks (cartão): sdk + secure fields + API + mlstatic. Meta Pixel (landing): connect.facebook.net
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://http2.mlstatic.com https://*.mlstatic.com https://connect.facebook.net",
       "style-src 'self' 'unsafe-inline' https://sdk.mercadopago.com https://http2.mlstatic.com https://*.mlstatic.com",
-      `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""} https://*.supabase.co wss://*.supabase.co https://viacep.com.br https://api.mercadopago.com https://*.mercadopago.com https://api.mercadolibre.com https://*.mercadolibre.com https://http2.mlstatic.com https://*.mlstatic.com`,
-      "img-src 'self' data: blob: https://*.supabase.co https://http2.mlstatic.com https://*.mlstatic.com https://*.mercadopago.com",
+      `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""} https://*.supabase.co wss://*.supabase.co https://viacep.com.br https://api.mercadopago.com https://*.mercadopago.com https://api.mercadolibre.com https://*.mercadolibre.com https://http2.mlstatic.com https://*.mlstatic.com https://www.facebook.com`,
+      "img-src 'self' data: blob: https://*.supabase.co https://http2.mlstatic.com https://*.mlstatic.com https://*.mercadopago.com https://www.facebook.com",
+      "media-src 'self' https://*.supabase.co",
       "font-src 'self' data: https://http2.mlstatic.com https://*.mlstatic.com",
       "worker-src 'self' blob:",
       "child-src 'self' https://www.mercadopago.com https://*.mercadopago.com https://www.mercadolibre.com https://*.mercadolibre.com",

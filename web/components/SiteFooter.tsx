@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { LANDING_SALES_EMAIL, landingSalesWhatsapp } from "@/lib/landingContent";
 import { LOGO_GREEN_HEX } from "@/lib/dropcorePalette";
+import { cn } from "@/lib/utils";
 
 const SOCIAL_ICON_CLASS =
   "flex h-8 w-8 items-center justify-center rounded-full text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white";
@@ -56,8 +57,12 @@ const LINKS_UTEIS = [
  * isso o "© ano DropCore..." ficava escondido atrás da barra, mesmo bug do padding que as
  * próprias páginas já reservam pra si (`pb-[calc(6.25rem+...)]`), só que o rodapé fica fora
  * do wrapper de cada página, então precisa reservar esse espaço por conta própria.
+ *
+ * `compactMobilePadding`: a landing pública (home, "/") não tem barra de navegação fixa
+ * nenhuma — nela esse respiro extra é só espaço em branco sobrando à toa. Passado pelo
+ * `ConditionalFooter` com base na rota.
  */
-export function SiteFooter() {
+export function SiteFooter({ compactMobilePadding = false }: { compactMobilePadding?: boolean }) {
   const ano = new Date().getFullYear();
   return (
     <footer className="w-full bg-[#FFFFFF] dark:bg-black">
@@ -116,8 +121,13 @@ export function SiteFooter() {
           </div>
         </div>
       </div>
-      <div className="border-t border-neutral-300 px-4 py-6 pb-[calc(1.5rem+6.25rem+env(safe-area-inset-bottom,0px))] text-center dark:border-white/20 sm:px-6 sm:pb-6">
-        <p className="mx-auto text-[11px] leading-snug text-neutral-900 dark:text-white sm:text-sm sm:leading-relaxed sm:whitespace-nowrap">
+      <div
+        className={cn(
+          "border-t border-neutral-300 px-4 py-6 text-center dark:border-white/20 sm:px-6 sm:pb-6",
+          compactMobilePadding ? "pb-6" : "pb-[calc(1.5rem+6.25rem+env(safe-area-inset-bottom,0px))]",
+        )}
+      >
+        <p className="mx-auto text-sm leading-snug text-neutral-900 dark:text-white sm:text-base sm:leading-relaxed sm:whitespace-nowrap">
           <span className="italic">
             “Porque dele, e por ele, e para ele são todas as coisas; glória, pois, a ele eternamente. Amém!”
           </span>

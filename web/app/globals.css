@@ -317,6 +317,17 @@ html.dark .app-bg,
   animation: shimmer 2s infinite;
 }
 
+/* Landing: barra de logos de parceiros/marketplaces rolando contínuo pra esquerda. O conteúdo
+ * é duplicado 2x no componente — translateX(-50%) fica exatamente no fim da 1ª cópia, então o
+ * loop repete sem "salto" visível. */
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee-scroll 28s linear infinite;
+}
+
 /* Tema escuro - preto puro, zero azul */
 html.dark,
 .dark {
