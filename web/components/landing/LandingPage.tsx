@@ -77,6 +77,23 @@ function MetaPixel() {
   );
 }
 
+/** Dispara o "Lead" nos dois lados (pixel no client + Conversions API no server, ver
+ * `web/app/api/meta-capi/route.ts`) com o mesmo `event_id`, pra Meta deduplicar em vez de
+ * contar duas vezes. Não bloqueia o clique — o link pro WhatsApp segue normal. */
+function trackFinalCtaLead() {
+  const eventId = crypto.randomUUID();
+  window.fbq?.("track", "Lead", {}, { eventID: eventId });
+  fetch("/api/meta-capi", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      event_name: "Lead",
+      event_id: eventId,
+      event_source_url: window.location.href,
+    }),
+  }).catch(() => {});
+}
+
 /** Botões que não abrem o WhatsApp direto (ex.: "Comece a vender agora", "Chega de operar
  * sozinho") descem até o CTA final em vez de duplicar conversa — um único ponto de contato
  * no fim da página, não um por botão. */
@@ -725,7 +742,7 @@ function CtaSection() {
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <a
               href={landingSalesWhatsapp(LANDING_CTA_FINAL_MESSAGE)}
-              onClick={() => window.fbq?.("track", "Lead")}
+              onClick={trackFinalCtaLead}
               className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 hover:scale-[1.03] active:scale-[0.97]"
             >
               <IconWhatsApp className="h-4 w-4" />
