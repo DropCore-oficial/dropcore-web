@@ -37,6 +37,10 @@ export const metadata: Metadata = {
     title: "DropCore",
     description: "Hub de gestão para sellers e fornecedores",
   },
+  // Verificação de domínio no Gerenciador de Eventos da Meta (dataset "DropCore LP").
+  other: {
+    "facebook-domain-verification": "xmh3n2ktb6d1dnr6j1rg0co22ob05v",
+  },
 };
 
 /** Mobile: evita zoom por pinça e ajuda a não “puxar” a página na horizontal (calculadora / PWA-like). */
