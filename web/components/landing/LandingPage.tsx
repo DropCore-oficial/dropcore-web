@@ -91,6 +91,7 @@ function trackFinalCtaLead() {
       event_id: eventId,
       event_source_url: window.location.href,
     }),
+    keepalive: true,
   }).catch(() => {});
 }
 
