@@ -10,6 +10,7 @@ import {
   type NotificationPortalContext,
 } from "@/lib/notificationContextFilter";
 import { useMensalidadeBloqueio } from "@/lib/mensalidadeBloqueioContext";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 
 type Notif = {
@@ -185,9 +186,16 @@ export function NotificationBell({
           </div>
           <div className="max-h-72 overflow-y-auto">
             {loading && itemsFiltrados.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-12">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-500 dark:border-emerald-900 dark:border-t-emerald-400" />
-                <p className="text-xs text-[var(--muted)]">Carregando...</p>
+              <div className="divide-y divide-[var(--card-border)]">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-start gap-3 px-4 py-3">
+                    <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <Skeleton className="h-3.5 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : itemsFiltrados.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-12 px-4">

@@ -32,6 +32,7 @@ import {
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
+import { ProdutoRowSkeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 
 function isAtivoItem(item: SellerCatalogoItem): boolean {
@@ -781,14 +782,7 @@ export default function SellerProdutosPage() {
             </h2>
           </div>
           <div className="min-w-0 space-y-2.5 px-3 py-3 sm:space-y-3 sm:px-4 sm:py-4">
-            {loading && (
-              <div className="px-4 py-12 text-center">
-                <span className="mx-auto mb-4 inline-flex h-11 w-11 animate-spin rounded-full border-2 border-[var(--card-border)] border-t-emerald-600 dark:border-t-emerald-400" />
-                <div className="mx-auto mb-3 h-2 max-w-[180px] animate-pulse rounded-full bg-[var(--surface-subtle)]" />
-                <p className="text-sm font-medium text-[var(--foreground)]">Carregando catálogo</p>
-                <p className="mt-1 text-[13px] text-[var(--muted)]">Buscando produtos do armazém…</p>
-              </div>
-            )}
+            {loading && <ProdutoRowSkeleton />}
             {error && (
               <div className={cn("border-t p-4 text-sm font-medium", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>
                 {error}

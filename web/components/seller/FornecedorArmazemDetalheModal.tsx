@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 
 function str(v: unknown): string {
@@ -76,10 +77,14 @@ export function FornecedorArmazemDetalheModal({ fornecedorId, onClose }: Props) 
         </div>
         <div className="p-4 sm:p-5 overflow-auto flex-1 space-y-3">
           {loading && (
-            <p className="text-sm text-neutral-500 flex items-center gap-2 py-4">
-              <span className="inline-block w-5 h-5 border-2 border-neutral-300 border-t-emerald-500 rounded-full animate-spin shrink-0" />
-              A carregar...
-            </p>
+            <div className="space-y-2.5">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="space-y-1">
+                  <Skeleton className="h-2.5 w-24" />
+                  <Skeleton className="h-3.5 w-40" />
+                </div>
+              ))}
+            </div>
           )}
           {err && <p className="text-sm text-red-600 dark:text-red-400">{err}</p>}
           {!loading && payload && (

@@ -16,6 +16,7 @@ import {
   AMBER_PREMIUM_TEXT_SOFT,
 } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
+import { DashboardSkeleton } from "@/components/ui/Skeleton";
 import { MensalidadesResumoFinanceiro } from "@/components/admin/MensalidadesResumoFinanceiro";
 
 type MeResponse = {
@@ -615,11 +616,13 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 border-t-emerald-600 dark:border-t-emerald-500 animate-spin" />
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Carregando...</p>
-        </div>
+      <div
+        className={`bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 ${
+          isAdmin ? "pb-5" : "pb-[max(1rem,env(safe-area-inset-bottom,0px))] md:pb-5"
+        }`}
+      >
+        <AdminNav />
+        <DashboardSkeleton />
       </div>
     );
   }

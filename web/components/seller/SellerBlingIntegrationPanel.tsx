@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { cn } from "@/lib/utils";
 import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY } from "@/lib/semanticPremium";
 import { SellerBlingConnectGuidePanel } from "@/components/seller/SellerBlingConnectGuidePanel";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 type BlingStatus = {
   bling_unavailable: boolean;
@@ -128,9 +129,10 @@ export function SellerBlingIntegrationPanel({ switcher }: { switcher?: ReactNode
   return (
     <section className="relative rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm transition-shadow hover:shadow-md sm:p-6">
       {loading ? (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl bg-[var(--card)]/95 px-6" role="status" aria-live="polite">
-          <span className="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-2 border-[var(--card-border)] border-t-emerald-500" />
-          <p className="text-sm text-[var(--muted)]">Carregando...</p>
+        <div className="absolute inset-0 z-10 space-y-4 rounded-2xl bg-[var(--card)] p-5 sm:p-6" role="status" aria-live="polite">
+          <Skeleton className="h-7 w-32 rounded-full" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-4 w-2/3" />
         </div>
       ) : null}
 

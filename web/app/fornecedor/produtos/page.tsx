@@ -186,8 +186,10 @@ function MiniaturaListaGrupo({
   const src = candidatos[failIdx];
   return (
     <img
-      src={fornecedorProdutoImagemSrc(src)}
+      src={fornecedorProdutoImagemSrc(src, 96)}
       alt=""
+      loading="lazy"
+      decoding="async"
       className="h-full w-full object-cover"
       onError={() => setFailIdx((i) => i + 1)}
     />

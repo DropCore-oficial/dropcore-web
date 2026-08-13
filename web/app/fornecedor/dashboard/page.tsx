@@ -14,6 +14,7 @@ import { AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM
 import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
+import { DashboardSkeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 
 // Badge de status (etiqueta, não botão): sem borda, fundo sólido — mesmo padrão de
@@ -374,11 +375,8 @@ export default function FornecedorDashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-xl border-2 border-[var(--card-border)] border-t-neutral-500 dark:border-t-neutral-400 animate-spin" />
-          <p className="text-sm text-[var(--muted)] font-medium">Carregando...</p>
-        </div>
+      <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
+        <DashboardSkeleton />
       </div>
     );
   }

@@ -45,6 +45,7 @@ import {
 import { SellerPixRecargaVsMensalidadeBox } from "@/components/seller/SellerPixRecargaVsMensalidadeBox";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { buildSellerSupportWhatsAppHref } from "@/lib/sellerSupportWhatsAppPrefill";
+import { DashboardSkeleton } from "@/components/ui/Skeleton";
 
 // Status = informação, não ação: sem borda, fundo suave (mesmo padrão de
 // web/app/fornecedor/pedidos/page.tsx e da skill dropcore-layout, seção "Badge de status").
@@ -903,11 +904,8 @@ export default function SellerDashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-xl border-2 border-[var(--card-border)] border-t-emerald-500 dark:border-t-emerald-500 animate-spin" />
-          <p className="text-sm text-[var(--muted)] font-medium">Carregando...</p>
-        </div>
+      <div className="bg-[#fafafa] dark:bg-[#0a0a0b] text-[var(--foreground)] pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
+        <DashboardSkeleton />
       </div>
     );
   }

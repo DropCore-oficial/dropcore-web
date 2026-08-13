@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
+import { PedidoCardSkeleton } from "@/components/ui/Skeleton";
 import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
 import {
   AMBER_PREMIUM_SHELL,
@@ -391,7 +392,11 @@ export default function SellerPedidosPage() {
         </div>
 
         {loading ? (
-          <p className="text-sm text-neutral-500">Carregando pedidos…</p>
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <PedidoCardSkeleton key={i} fields={4} />
+            ))}
+          </div>
         ) : pedidos.length === 0 ? (
           <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-8 text-center">
             <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Nenhum pedido encontrado</p>

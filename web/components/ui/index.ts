@@ -7,3 +7,4 @@ export { SectionHeader } from "./SectionHeader";
 export { Input } from "./Input";
 export { PageLayout } from "./PageLayout";
 export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./Table";
+export { Skeleton } from "./Skeleton";

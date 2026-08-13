@@ -13,6 +13,7 @@ import { empresaCnpjParaEnderecoLinha, type EmpresaCnpjPayload } from "@/lib/cnp
 import { cepParaConsultaViaCep } from "@/lib/cepViaCep";
 import { cn } from "@/lib/utils";
 import { goToSellerAfterAuth } from "@/lib/sellerPostAuthRedirect";
+import { FormRowsSkeleton } from "@/components/ui/Skeleton";
 
 function formatarCNPJouCPF(val: string, tipo: "CNPJ" | "CPF"): string {
   const dig = val.replace(/\D/g, "");
@@ -325,11 +326,11 @@ export default function SellerCadastroPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-xl border-2 border-[var(--card-border)] border-t-neutral-500 dark:border-t-neutral-400" />
-          <p className="text-sm font-medium text-[var(--muted)]">Carregando...</p>
+      <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
+        <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
+          <FormRowsSkeleton rows={6} />
         </div>
+        <SellerNav active="cadastro" wide />
       </div>
     );
   }

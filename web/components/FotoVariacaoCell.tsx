@@ -156,6 +156,8 @@ export const FotoVariacaoCell = forwardRef<FotoVariacaoCellHandle | null, Props>
       ? "w-12 h-12"
       : "w-12 h-12";
   const imgPx = stacked ? (stackedLarge ? 160 : 80) : table ? 48 : 48;
+  // 2x o tamanho de exibição da miniatura (retina) — em vez do default de 960px do proxy.
+  const srcThumb = urlExibicao ? fornecedorProdutoImagemSrc(urlExibicao, imgPx * 2) : "";
   const iconSz = stacked ? (stackedLarge ? 24 : 18) : table ? 16 : 20;
   const stackedColClass = stackedLarge ? "w-full min-w-0 md:w-40" : "w-[92px]";
   const stackedErrMaxClass = stackedLarge ? "max-w-full md:max-w-[10rem]" : "max-w-[92px]";
@@ -213,10 +215,12 @@ export const FotoVariacaoCell = forwardRef<FotoVariacaoCellHandle | null, Props>
         className={`shrink-0 max-md:min-w-0 ${box} ${stackedLarge ? "rounded-xl" : "rounded"} border border-[var(--card-border)] overflow-hidden bg-[var(--card)] p-0 block max-md:w-full focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)] cursor-pointer touch-manipulation`}
       >
         <img
-          src={srcImagem}
+          src={srcThumb}
           alt="Foto"
           width={imgPx}
           height={imgPx}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover block"
           onError={() => setImgErro(true)}
         />
