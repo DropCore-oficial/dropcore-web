@@ -20,6 +20,7 @@ import {
   AMBER_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
+import { FormRowsSkeleton, Skeleton } from "@/components/ui/Skeleton";
 
 type Produto = {
   id: string;
@@ -790,8 +791,11 @@ export default function EditarVariantesPage() {
 
   if (loading && grupoProdutos.length === 0) {
     return (
-      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
-        <p className="text-neutral-600 dark:text-neutral-400 text-sm">Carregando...</p>
+      <div className="min-w-0 max-w-[100%] overflow-x-hidden bg-[var(--background)] text-[var(--foreground)]">
+        <div className="dropcore-shell-6xl space-y-5 py-5">
+          <FormRowsSkeleton rows={4} />
+          <FormRowsSkeleton rows={5} />
+        </div>
       </div>
     );
   }
@@ -1537,9 +1541,10 @@ export default function EditarVariantesPage() {
               </div>
               <div className="p-6">
                 {tabelaMedidasLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400 py-8">
-                    <span className="inline-block w-5 h-5 border-2 border-neutral-300 dark:border-neutral-600 border-t-blue-500 rounded-full animate-spin" />
-                    Carregando tabela...
+                  <div className="space-y-2">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <Skeleton key={i} className="h-9 w-full" />
+                    ))}
                   </div>
                 ) : (
                   <form onSubmit={salvarTabelaMedidas} className="space-y-5">

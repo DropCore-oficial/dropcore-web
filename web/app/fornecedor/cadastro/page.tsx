@@ -20,6 +20,7 @@ import {
   SUCCESS_PREMIUM_TEXT_BODY,
 } from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
+import { FormRowsSkeleton } from "@/components/ui/Skeleton";
 
 function upper(s: string): string {
   return s.toLocaleUpperCase("pt-BR");
@@ -570,11 +571,12 @@ export default function FornecedorCadastroPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-xl border-2 border-[var(--card-border)] border-t-neutral-500 dark:border-t-neutral-400 animate-spin" />
-          <p className="text-sm text-[var(--muted)] font-medium">Carregando...</p>
+      <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
+        <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
+          <FormRowsSkeleton rows={6} />
+          <FormRowsSkeleton rows={4} />
         </div>
+        <FornecedorNav active="cadastro" wide />
       </div>
     );
   }

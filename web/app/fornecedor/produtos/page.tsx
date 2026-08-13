@@ -28,6 +28,7 @@ import {
 import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
 import { parseDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { cn } from "@/lib/utils";
+import { ProdutoRowSkeleton } from "@/components/ui/Skeleton";
 
 const BRL_CUSTO_FORNECEDOR = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -599,10 +600,25 @@ export default function FornecedorProdutosPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--background)] app-bg flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-xl border-2 border-[var(--card-border)] border-t-neutral-500 dark:border-t-neutral-400" />
-          <p className="text-sm font-medium text-[var(--muted)]">Carregando...</p>
+      <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
+        <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
+          <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
+            <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">Meus produtos</h1>
+                <span
+                  className="h-1 w-14 shrink-0 self-center rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 sm:w-20"
+                  aria-hidden
+                />
+              </div>
+              <p className="max-w-xl text-sm leading-relaxed text-[var(--muted)]">
+                Cadastre produtos, fotos e estoque do seu catálogo.
+              </p>
+            </div>
+          </header>
+          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-3 sm:px-4">
+            <ProdutoRowSkeleton />
+          </div>
         </div>
       </div>
     );
