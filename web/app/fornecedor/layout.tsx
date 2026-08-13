@@ -2,6 +2,7 @@
 
 import { MensalidadeBloqueioGate } from "@/components/MensalidadeBloqueioGate";
 import { FornecedorPortalGate } from "@/components/fornecedor/FornecedorPortalGate";
+import { FornecedorLayoutWhatsAppSupportFab } from "@/components/fornecedor/FornecedorLayoutWhatsAppSupportFab";
 import { AppVersionUpdateBanner } from "@/components/AppVersionUpdateBanner";
 
 export default function FornecedorLayout({ children }: { children: React.ReactNode }) {
@@ -10,6 +11,7 @@ export default function FornecedorLayout({ children }: { children: React.ReactNo
       <AppVersionUpdateBanner surface="fornecedor" requireAuth />
       <MensalidadeBloqueioGate context="fornecedor" logoHref="/fornecedor/dashboard">
         {children}
+        <FornecedorLayoutWhatsAppSupportFab />
       </MensalidadeBloqueioGate>
     </FornecedorPortalGate>
   );
