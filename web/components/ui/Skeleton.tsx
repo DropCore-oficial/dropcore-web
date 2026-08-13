@@ -110,6 +110,22 @@ export function ProdutoRowSkeleton({ count = 6 }: { count?: number }) {
   );
 }
 
+/** Mesma grade, mas em 1 linha só com scroll lateral — vitrine combinada de vários
+ * fornecedores (`SellerCatalogoProdutoLinha`), 3 cards visíveis (mobile mostra menos). */
+export function ProdutoLinhaSkeleton() {
+  return (
+    <div className="flex gap-3 overflow-hidden pb-1">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="w-[85%] shrink-0 space-y-2 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-3 sm:w-[45%] lg:w-[31%]">
+          <Skeleton className="aspect-square w-full rounded-xl" />
+          <Skeleton className="h-3 w-3/4" />
+          <Skeleton className="h-3 w-1/2" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Linhas de formulário/config (label + campo) — telas de cadastro, plano, integração. */
 export function FormRowsSkeleton({ rows = 5 }: { rows?: number }) {
   return (

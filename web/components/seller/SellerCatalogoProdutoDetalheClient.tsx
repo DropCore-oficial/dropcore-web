@@ -19,6 +19,7 @@ import { catalogoV2UrlImagem } from "@/components/seller/catalogo/v2/catalogoV2I
 import { sellerGrupoToProdutoResumoListaGrupoProps } from "@/components/seller/catalogo/v2/mapSellerGrupoToProdutoResumoLista";
 import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -139,8 +140,19 @@ export function SellerCatalogoProdutoDetalheClient({ fornecedorId, paiKey }: Pro
         </div>
 
         {loading && (
-          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm p-12 text-center text-sm text-[var(--muted)]">
-            A carregar produto...
+          <div className="space-y-5">
+            <Skeleton className="h-7 w-56" />
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-8">
+              <Skeleton className="aspect-square w-full max-w-xl rounded-2xl" />
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="space-y-1.5">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-4 w-40" />
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
         {error && (

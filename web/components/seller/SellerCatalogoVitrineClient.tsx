@@ -16,6 +16,7 @@ import { SellerCatalogoProdutoLinha } from "@/components/seller/SellerCatalogoPr
 import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
+import { ProdutoLinhaSkeleton, Skeleton } from "@/components/ui/Skeleton";
 
 type FornecedorState = {
   items: SellerCatalogoItem[];
@@ -189,11 +190,13 @@ export function SellerCatalogoVitrineClient() {
           subtitle="Conheça o catálogo de cada fornecedor da sua organização — fotos, preço e variantes, tudo aqui."
         />
 
-        {loadingFornecedores && (
-          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm p-12 text-center text-sm text-[var(--muted)]">
-            A carregar fornecedores...
-          </div>
-        )}
+        {loadingFornecedores &&
+          Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="space-y-3 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
+              <Skeleton className="h-5 w-40" />
+              <ProdutoLinhaSkeleton />
+            </div>
+          ))}
         {errorFornecedores && (
           <div className={cn(DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY, "rounded-xl p-4 text-sm")}>
             {errorFornecedores}
@@ -357,9 +360,7 @@ export function SellerCatalogoVitrineClient() {
               )}
 
               {!estado || estado.loading ? (
-                <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm p-10 text-center text-sm text-[var(--muted)]">
-                  A carregar produtos...
-                </div>
+                <ProdutoLinhaSkeleton />
               ) : estado.error ? (
                 <div className={cn(DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY, "rounded-xl p-4 text-sm")}>
                   {estado.error}

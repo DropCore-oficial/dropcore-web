@@ -17,6 +17,7 @@ import {
 } from "@/components/seller/SellerCatalogoGrupoUi";
 import { SellerCatalogoProdutoGrid } from "@/components/seller/SellerCatalogoProdutoGrid";
 import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
+import { ProdutoGridSkeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 
 type Props = { fornecedorId: string; nomeArmazem?: string };
@@ -120,11 +121,7 @@ export function SellerCatalogoFornecedorPreviewClient({ fornecedorId, nomeArmaze
           )}
         </div>
 
-        {loading && (
-          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm p-12 text-center text-sm text-[var(--muted)]">
-            A carregar vitrine...
-          </div>
-        )}
+        {loading && <ProdutoGridSkeleton />}
         {error && (
           <div className={cn(DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY, "rounded-xl p-4 text-sm")}>
             {error}
