@@ -1,8 +1,8 @@
 /**
- * Lotes de crédito pré-pago do seller (validade 12 meses, consumo FIFO, expiração).
+ * Lotes de crédito pré-pago do seller (validade ver SELLER_CREDITO_MESES_VALIDADE, consumo FIFO, expiração).
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { sellerCreditoExpiraEmIso } from "@/lib/sellerCreditoTermos";
+import { sellerCreditoExpiraEmIso, SELLER_CREDITO_MESES_VALIDADE } from "@/lib/sellerCreditoTermos";
 
 export type SellerCreditoResumo = {
   expira_em_breve: number;
@@ -180,7 +180,7 @@ export async function processarCreditosSellerCron(): Promise<ExpirarCreditosResu
         user_id: sellerRow.user_id,
         tipo: "credito_expirado",
         titulo: "Créditos expirados",
-        mensagem: `${fmt.format(valor)} em créditos DropCore expiraram após 12 meses sem uso.`,
+        mensagem: `${fmt.format(valor)} em créditos DropCore expiraram após ${SELLER_CREDITO_MESES_VALIDADE} meses sem uso.`,
         metadata: { lot_id: lot.id, valor },
       });
     }

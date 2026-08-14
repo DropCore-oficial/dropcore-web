@@ -165,6 +165,10 @@ export type OlistPedidoDetalhe = OlistPedidoResumo & {
   comprador_fone: string | null;
   /** Marketplace de origem normalizado (shopee | mercado_livre | shein | tiktok_shop | outro). */
   canal_venda: CanalVenda;
+  /** `total_pedido` da Tiny — já líquido de desconto do marketplace (ex.: cupom da Shein),
+   * diferente de `total_produtos` que é o preço cheio antes do desconto. É o valor que o
+   * cliente final de fato pagou, usado como `preco_venda` em `pedidos` (ver seller/pedidos). */
+  preco_venda: number | null;
 };
 
 export type CanalVenda = "shopee" | "mercado_livre" | "shein" | "tiktok_shop" | "outro";
@@ -229,6 +233,7 @@ type ObterPedidoResponse = TinyRetornoBase & {
         quantidade?: string | number;
       };
     }>;
+    total_pedido?: string | number;
   };
 };
 
@@ -404,6 +409,7 @@ export async function obterPedidoOlist(apiToken: string, pedidoId: number): Prom
       pedido.endereco_entrega?.cidade?.trim() || pedido.cliente?.cidade?.trim() || null,
     comprador_uf: pedido.endereco_entrega?.uf?.trim() || pedido.cliente?.uf?.trim() || null,
     comprador_fone: pedido.endereco_entrega?.fone?.trim() || pedido.cliente?.fone?.trim() || null,
+    preco_venda: parseTinyPreco(pedido.total_pedido),
   };
 }
 

@@ -9,6 +9,7 @@ import { useVisibilityAwareInterval } from "@/lib/useVisibilityAwareInterval";
 import { SellerPortalBlockedShell } from "@/components/seller/SellerPortalBlockedShell";
 import { SellerNav } from "../SellerNav";
 import { AddToHomeScreenCard } from "@/components/AddToHomeScreenCard";
+import { HelpBubble } from "@/components/HelpBubble";
 import { IconTipoExtrato, IconDevolucao, IconArrowRight, IconPlus, IconClipboard, IconDeposito, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
 import { planoSellerDefinido } from "@/lib/sellerDocumento";
 import {
@@ -100,6 +101,7 @@ type LedgerEntry = {
   nome_produto: string | null;
   preco_venda: number | null;
   custo: number | null;
+  canal_venda: string | null;
   fornecedor_nome: string | null;
 };
 
@@ -128,6 +130,15 @@ type Mensalidade = {
 };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+
+/** Rótulo de exibição por canal — mesmo enum normalizado em `normalizeCanalVenda` (olistTinyApi.ts). */
+const CANAL_VENDA_LABEL: Record<string, string> = {
+  shopee: "Shopee",
+  mercado_livre: "Mercado Livre",
+  shein: "Shein",
+  tiktok_shop: "TikTok Shop",
+  outro: "Outro canal",
+};
 
 function formatDate(s: string) {
   return new Date(s).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -324,6 +335,7 @@ export default function SellerDashboardPage() {
   const [trialValidoAte, setTrialValidoAte] = useState<string | null>(null);
   const [tab, setTab] = useState<"extrato" | "depositos">(tabParam === "depositos" ? "depositos" : "extrato");
   const [filtroStatus, setFiltroStatus] = useState("");
+  const [ajudaSaldoAberta, setAjudaSaldoAberta] = useState(false);
   const [modalDeposito, setModalDeposito] = useState(false);
   const [depositoValor, setDepositoValor] = useState("");
   const [depositoLoading, setDepositoLoading] = useState(false);
@@ -763,9 +775,6 @@ export default function SellerDashboardPage() {
   const devolvidoCount = extrato.filter((e) => e.tipo === "DEVOLUCAO").length;
   const temDevolucoes = emDevolucaoCount > 0 || devolvidoCount > 0;
 
-  const aLiberar = extrato
-    .filter((e) => e.status === "AGUARDANDO_REPASSE" && (e.tipo === "BLOQUEIO" || e.tipo === "VENDA"))
-    .reduce((s, e) => s + e.valor_total, 0);
   const extratoAgrupado = groupByDate(extratoPagina);
   const previewExtrato = extrato.slice(0, 3);
 
@@ -813,6 +822,23 @@ export default function SellerDashboardPage() {
     });
     const topProduto = Object.values(produtosMap).sort((a, b) => b.count - a.count)[0] ?? null;
 
+    // Margem por canal de venda (Shein, Shopee, Mercado Livre, TikTok Shop...)
+    const canaisMap: Record<string, { receita: number; custo: number }> = {};
+    comVenda.forEach((e) => {
+      const canal = e.canal_venda ?? "outro";
+      if (!canaisMap[canal]) canaisMap[canal] = { receita: 0, custo: 0 };
+      canaisMap[canal].receita += e.preco_venda ?? 0;
+      canaisMap[canal].custo += e.custo ?? e.valor_total;
+    });
+    const porCanal = Object.entries(canaisMap)
+      .map(([canal, v]) => ({
+        canal,
+        receita: v.receita,
+        lucro: v.receita - v.custo,
+        margem: v.receita > 0 ? ((v.receita - v.custo) / v.receita) * 100 : null,
+      }))
+      .sort((a, b) => b.receita - a.receita);
+
     return {
       pedidos: pedidos30d.length,
       custoTotal,
@@ -822,6 +848,7 @@ export default function SellerDashboardPage() {
       ticketMedioVenda,
       vendasPorDia: Object.entries(dias),
       topProduto,
+      porCanal,
       temDadosVenda: comVenda.length > 0,
     };
   })();
@@ -1073,31 +1100,9 @@ export default function SellerDashboardPage() {
           </Link>
         )}
 
-        {saldoAlerta && saldoAlerta.nivel === "atencao" && (
-          <div role="status" className={cn("rounded-2xl p-4 sm:p-5", AMBER_PREMIUM_SURFACE, "shadow-sm")}>
-            <p className={cn("text-sm font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>Saldo baixo — recarregue créditos para pedidos</p>
-            <p className="mt-1 text-xs leading-relaxed text-[var(--foreground)]">
-              Disponível: <span className="font-semibold tabular-nums">{BRL.format(saldoAlerta.saldo_disponivel)}</span>
-              {saldoAlerta.custo_medio_pedido != null && saldoAlerta.pedidos_estimados != null ? (
-                <>
-                  {" "}
-                  · Com base no custo médio dos seus últimos pedidos no extrato (~{BRL.format(saldoAlerta.custo_medio_pedido)} por pedido
-                  {saldoAlerta.amostra_pedidos > 0 ? `, ${saldoAlerta.amostra_pedidos} lançamentos` : ""}), dá para aproximadamente{" "}
-                  <span className="font-semibold tabular-nums">{saldoAlerta.pedidos_estimados}</span> pedido
-                  {saldoAlerta.pedidos_estimados === 1 ? "" : "s"} sem recarregar.
-                </>
-              ) : (
-                <>
-                  {" "}
-                  · Sem histórico suficiente de pedidos no extrato para estimar; faça uma recarga PIX (créditos) antes de escalar vendas.
-                </>
-              )}
-            </p>
-          </div>
-        )}
-
         {/* 2. Resumo financeiro — um único fundo de cartão (sem faixa cinza); alinhado ao fornecedor.
-             Vira vermelho e absorve o alerta "Saldo crítico" quando saldoAlerta.nivel === "critico". */}
+             Vira vermelho e absorve o alerta "Saldo crítico" quando saldoAlerta.nivel === "critico",
+             vira âmbar e absorve o alerta "Saldo baixo" quando saldoAlerta.nivel === "atencao". */}
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
           <div className="relative p-4 sm:p-5">
             <div
@@ -1105,7 +1110,9 @@ export default function SellerDashboardPage() {
                 "absolute left-0 top-4 bottom-4 w-1 rounded-r-full opacity-90",
                 saldoAlerta?.nivel === "critico"
                   ? "bg-gradient-to-b from-[var(--danger)] to-red-600 dark:from-red-400 dark:to-red-500"
-                  : "bg-gradient-to-b from-emerald-500 to-emerald-600"
+                  : saldoAlerta?.nivel === "atencao"
+                    ? "bg-gradient-to-b from-[#b45309] to-[#92400e] dark:from-[#F7C348] dark:to-[#eab308]"
+                    : "bg-gradient-to-b from-emerald-500 to-emerald-600"
               )}
               aria-hidden
             />
@@ -1128,6 +1135,64 @@ export default function SellerDashboardPage() {
                       <line x1="12" y1="17" x2="12.01" y2="17" />
                     </svg>
                     <p className="text-xs font-semibold text-[var(--danger)] dark:text-red-300">Saldo crítico para novos pedidos</p>
+                    {saldoAlerta.pedidos_estimados != null && (
+                      <HelpBubble
+                        open={ajudaSaldoAberta}
+                        onOpen={() => setAjudaSaldoAberta(true)}
+                        onClose={() => setAjudaSaldoAberta(false)}
+                        ariaLabel="Como essa estimativa é calculada"
+                      >
+                        <p className="text-sm leading-relaxed">
+                          Disponível: {BRL.format(saldoAlerta.saldo_disponivel)}
+                          {saldoAlerta.custo_medio_pedido != null ? (
+                            <>
+                              {" "}
+                              · Com base no custo médio dos seus últimos pedidos no extrato (~{BRL.format(saldoAlerta.custo_medio_pedido)} por pedido
+                              {saldoAlerta.amostra_pedidos > 0 ? `, ${saldoAlerta.amostra_pedidos} lançamentos` : ""}), dá para aproximadamente{" "}
+                              {saldoAlerta.pedidos_estimados} pedido{saldoAlerta.pedidos_estimados === 1 ? "" : "s"} sem recarregar.
+                            </>
+                          ) : null}
+                        </p>
+                      </HelpBubble>
+                    )}
+                  </div>
+                ) : saldoAlerta?.nivel === "atencao" ? (
+                  <div className="flex items-center gap-1.5">
+                    <svg
+                      className={cn("h-4 w-4 shrink-0", AMBER_PREMIUM_TEXT_PRIMARY)}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    <p className={cn("text-xs font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>Saldo baixo — recarregue créditos para pedidos</p>
+                    {saldoAlerta.pedidos_estimados != null && (
+                      <HelpBubble
+                        open={ajudaSaldoAberta}
+                        onOpen={() => setAjudaSaldoAberta(true)}
+                        onClose={() => setAjudaSaldoAberta(false)}
+                        ariaLabel="Como essa estimativa é calculada"
+                      >
+                        <p className="text-sm leading-relaxed">
+                          Disponível: {BRL.format(saldoAlerta.saldo_disponivel)}
+                          {saldoAlerta.custo_medio_pedido != null ? (
+                            <>
+                              {" "}
+                              · Com base no custo médio dos seus últimos pedidos no extrato (~{BRL.format(saldoAlerta.custo_medio_pedido)} por pedido
+                              {saldoAlerta.amostra_pedidos > 0 ? `, ${saldoAlerta.amostra_pedidos} lançamentos` : ""}), dá para aproximadamente{" "}
+                              {saldoAlerta.pedidos_estimados} pedido{saldoAlerta.pedidos_estimados === 1 ? "" : "s"} sem recarregar.
+                            </>
+                          ) : null}
+                        </p>
+                      </HelpBubble>
+                    )}
                   </div>
                 ) : (
                   <p className="text-xs font-medium text-[var(--muted)]">Créditos DropCore (total)</p>
@@ -1135,37 +1200,21 @@ export default function SellerDashboardPage() {
                 <p
                   className={cn(
                     "mt-1 text-3xl sm:text-4xl font-bold tracking-tight tabular-nums",
-                    saldoAlerta?.nivel === "critico" ? "text-[var(--danger)] dark:text-red-300" : "text-emerald-700 dark:text-emerald-400"
+                    saldoAlerta?.nivel === "critico"
+                      ? "text-[var(--danger)] dark:text-red-300"
+                      : saldoAlerta?.nivel === "atencao"
+                        ? AMBER_PREMIUM_TEXT_PRIMARY
+                        : "text-emerald-700 dark:text-emerald-400"
                   )}
                 >
                   {BRL.format(seller?.saldo_atual ?? 0)}
                 </p>
-                <p className="mt-1.5 text-[11px] text-[var(--muted)] max-w-md leading-relaxed">
-                  {saldoAlerta?.nivel === "critico" ? (
-                    <>
-                      Disponível: <span className="font-semibold tabular-nums text-[var(--foreground)]">{BRL.format(saldoAlerta.saldo_disponivel)}</span>
-                      {saldoAlerta.custo_medio_pedido != null && saldoAlerta.pedidos_estimados != null ? (
-                        <>
-                          {" "}
-                          · Com base no custo médio dos seus últimos pedidos no extrato (~{BRL.format(saldoAlerta.custo_medio_pedido)} por pedido
-                          {saldoAlerta.amostra_pedidos > 0 ? `, ${saldoAlerta.amostra_pedidos} lançamentos` : ""}), dá para aproximadamente{" "}
-                          <span className="font-semibold tabular-nums text-[var(--foreground)]">{saldoAlerta.pedidos_estimados}</span> pedido
-                          {saldoAlerta.pedidos_estimados === 1 ? "" : "s"} sem recarregar.
-                        </>
-                      ) : (
-                        <>
-                          {" "}
-                          · Sem histórico suficiente de pedidos no extrato para estimar; faça uma recarga PIX (créditos) antes de escalar vendas.
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      Para <strong className="font-medium text-[var(--foreground)]">pedidos</strong> na plataforma. Não é saque,
-                      reembolso nem pagamento da mensalidade do plano.
-                    </>
-                  )}
-                </p>
+                {saldoAlerta?.nivel !== "critico" && saldoAlerta?.nivel !== "atencao" && (
+                  <p className="mt-1.5 text-[11px] text-[var(--muted)] max-w-md leading-relaxed">
+                    Para <strong className="font-medium text-[var(--foreground)]">pedidos</strong> na plataforma. Não é saque,
+                    reembolso nem pagamento da mensalidade do plano.
+                  </p>
+                )}
               </div>
               <button
                 type="button"
@@ -1177,7 +1226,11 @@ export default function SellerDashboardPage() {
                     : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"
                 )}
               >
-                {saldoAlerta?.nivel === "critico" ? "Recarregar créditos" : "+ Recarregar"}
+                {saldoAlerta?.nivel === "critico"
+                  ? "Recarregar créditos"
+                  : saldoAlerta?.nivel === "atencao"
+                    ? "Recarregar agora"
+                    : "+ Recarregar"}
               </button>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-2.5 border-t border-[var(--card-border)]/80 pt-5 sm:grid-cols-4 sm:[&>*]:min-w-0">
@@ -1231,12 +1284,6 @@ export default function SellerDashboardPage() {
               </div>
             )}
           </div>
-            {aLiberar > 0 && (
-              <div className="mx-3 sm:mx-4 mt-3 flex items-center justify-between rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3.5 py-3">
-                <span className="text-xs font-medium text-[var(--muted)]">Já enviado (aguardando fechamento do ciclo)</span>
-                <span className="text-base font-bold text-[var(--foreground)] tabular-nums">{BRL.format(aLiberar)}</span>
-              </div>
-            )}
             {mensalidades.length > 0 && (
               <div className="mx-3 mb-3 mt-3 sm:mx-4 sm:mb-4 flex flex-col gap-2 rounded-xl border border-[var(--card-border)] px-3.5 py-3 bg-[var(--surface-subtle)] sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 space-y-1">
@@ -1244,10 +1291,12 @@ export default function SellerDashboardPage() {
                   <p className="text-[11px] text-[var(--muted)] leading-relaxed">
                     {subtituloBannerMensalidade(mensalidades[0], trialAtivo, trialValidoAte)}
                   </p>
-                  <p className="text-[11px] text-[var(--muted)] leading-relaxed">
-                    PIX separado da recarga de créditos. Recarregar saldo <strong className="text-[var(--foreground)]">não</strong>{" "}
-                    quita esta mensalidade.
-                  </p>
+                  {!trialAtivo && (
+                    <p className="text-[11px] text-[var(--muted)] leading-relaxed">
+                      PIX separado da recarga de créditos. Recarregar saldo <strong className="text-[var(--foreground)]">não</strong>{" "}
+                      quita esta mensalidade.
+                    </p>
+                  )}
                   {!cobrancaMensalidadeAtiva && (
                     <p className="text-[11px] text-[var(--muted)] pt-0.5 leading-relaxed">
                       Sem cobrança enquanto o teste grátis estiver ativo.
@@ -1447,6 +1496,33 @@ export default function SellerDashboardPage() {
                 <span className="text-[var(--muted)]">Top:</span>
                 <span className="font-medium text-[var(--foreground)] truncate max-w-[60%]">{analytics30d.topProduto.nome}</span>
                 <span className="text-[var(--muted)] shrink-0">{analytics30d.topProduto.count} vendas</span>
+              </div>
+            )}
+            {analytics30d.temDadosVenda && analytics30d.ticketMedioVenda != null && (
+              <div className="px-4 py-2 border-t border-[var(--card-border)] flex items-center justify-between text-xs">
+                <span className="text-[var(--muted)]">Ticket médio:</span>
+                <span className="font-medium text-[var(--foreground)] tabular-nums">{BRL.format(analytics30d.ticketMedioVenda)}</span>
+              </div>
+            )}
+            {analytics30d.temDadosVenda && analytics30d.porCanal.length > 1 && (
+              <div className="px-4 py-2.5 border-t border-[var(--card-border)] space-y-1.5">
+                <p className="text-[11px] text-[var(--muted)]">Margem por canal</p>
+                {analytics30d.porCanal.map((c) => (
+                  <div key={c.canal} className="flex items-center justify-between text-xs">
+                    <span className="text-[var(--foreground)]">{CANAL_VENDA_LABEL[c.canal] ?? c.canal}</span>
+                    <span className="flex items-center gap-2 tabular-nums">
+                      <span className="text-[var(--muted)]">{BRL.format(c.receita)}</span>
+                      <span
+                        className={cn(
+                          "font-medium",
+                          c.margem != null && c.margem >= 0 ? "text-emerald-600 dark:text-emerald-400" : DANGER_PREMIUM_TEXT_SOFT
+                        )}
+                      >
+                        {c.margem != null ? `${c.margem.toFixed(1)}%` : "—"}
+                      </span>
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
             {analytics30d.vendasPorDia.some(([, v]) => (v as { receita: number; custo: number }).receita > 0 || (v as { receita: number; custo: number }).custo > 0) && (
@@ -1975,13 +2051,8 @@ export default function SellerDashboardPage() {
                 )
               ) : (
                 <div className={cn("p-5 space-y-4", MODAL_PANEL_BODY_CLASS)}>
-                  <SellerPixRecargaVsMensalidadeBox variant="recarga" />
                   <Alert variant="warning" title="Antes de recarregar, leia isto">
                     <ul className="list-disc pl-4 space-y-1.5 text-sm">
-                      <li>
-                        <strong>Não paga mensalidade:</strong> este PIX só gera crédito para pedidos. A mensalidade do plano
-                        é outro pagamento no painel.
-                      </li>
                       <li>O valor pago vira <strong>crédito DropCore</strong>, só para usar na plataforma.</li>
                       <li>
                         <strong>Não</strong> é depósito bancário: sem saque e sem reembolso após a confirmação.

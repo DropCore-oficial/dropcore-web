@@ -1,6 +1,6 @@
 /**
  * GET/POST /api/cron/creditos-expiracao
- * Expira lotes de crédito vencidos (12 meses) e envia avisos 30/7 dias antes.
+ * Expira lotes de crédito vencidos (ver SELLER_CREDITO_MESES_VALIDADE) e envia avisos 30/7 dias antes.
  * Agendamento: Supabase pg_cron (web/scripts/supabase-cron-jobs.sql), não Vercel Cron.
  */
 import { NextResponse } from "next/server";

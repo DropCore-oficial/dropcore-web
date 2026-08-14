@@ -38,6 +38,10 @@ export type SubmitSellerErpPedidoInput = {
     comprador_uf?: string | null;
     comprador_fone?: string | null;
     canal_venda?: string | null;
+    /** Valor de venda ao cliente final (já líquido de desconto do marketplace) — ver
+     * `OlistPedidoDetalhe.preco_venda` em `olistTinyApi.ts`. Só informativo pro seller ver
+     * a margem; não entra em nenhum cálculo de saldo/repasse. */
+    preco_venda?: number | null;
   };
 };
 
@@ -147,6 +151,7 @@ async function insertPedidoPlaceholder(params: {
       comprador_uf: meta.comprador_uf?.trim() || null,
       comprador_fone: meta.comprador_fone?.trim() || null,
       canal_venda: meta.canal_venda?.trim() || null,
+      preco_venda: meta.preco_venda ?? null,
     })
     .select("id, valor_total")
     .single();
@@ -605,6 +610,7 @@ export async function submitSellerErpPedido(
       comprador_uf: meta.comprador_uf?.trim() || null,
       comprador_fone: meta.comprador_fone?.trim() || null,
       canal_venda: meta.canal_venda?.trim() || null,
+      preco_venda: meta.preco_venda ?? null,
     })
     .select("id, valor_total, criado_em")
     .single();
@@ -779,7 +785,7 @@ export async function submitSellerErpPedido(
     seller_id: seller.id,
     pedido_id: pedido.id,
     tipo: "pedido_novo",
-    motivo: `Novo pedido${referencia_externa ? ` ${referencia_externa}` : ""} de R$ ${blockResult.valor_total.toFixed(2)} recebido.`,
+    motivo: `Novo pedido${referencia_externa ? ` ${referencia_externa}` : ""} de R$ ${blockResult.valor_total.toFixed(2)} recebido.${meta.preco_venda ? ` Vendido por R$ ${meta.preco_venda.toFixed(2)}.` : ""}`,
   });
 
   return {

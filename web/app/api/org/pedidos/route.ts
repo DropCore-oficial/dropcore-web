@@ -520,7 +520,7 @@ export async function POST(req: Request) {
       seller_id,
       pedido_id: pedido.id,
       tipo: "pedido_novo",
-      motivo: `Novo pedido${referenciaExternaGerada ? ` ${referenciaExternaGerada}` : ""} de R$ ${blockResult.valor_total.toFixed(2)} recebido.`,
+      motivo: `Novo pedido${referenciaExternaGerada ? ` ${referenciaExternaGerada}` : ""} de R$ ${blockResult.valor_total.toFixed(2)} recebido.${preco_venda ? ` Vendido por R$ ${preco_venda.toFixed(2)}.` : ""}`,
     });
 
     const skuCodesOlist = estoqueDebitos.map((d) => d.sku).filter((s): s is string => Boolean(s?.trim()));

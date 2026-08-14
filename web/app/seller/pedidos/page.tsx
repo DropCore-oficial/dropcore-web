@@ -59,6 +59,7 @@ type Pedido = {
   id: string;
   nome_produto: string | null;
   valor_total: number;
+  preco_venda: number | null;
   status: string;
   motivo_bloqueio: string | null;
   criado_em: string;
@@ -437,10 +438,18 @@ export default function SellerPedidosPage() {
                   <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <dt className="text-neutral-500">Custo total</dt>
-                      <dd className="font-medium">
+                      <dd className="text-base font-semibold text-[var(--foreground)]">
                         {p.is_reserva ? "—" : BRL.format(Number(p.valor_total ?? 0))}
                       </dd>
                     </div>
+                    {!p.is_reserva && p.preco_venda != null && p.preco_venda > 0 ? (
+                      <div>
+                        <dt className="text-neutral-500">Vendido por</dt>
+                        <dd className="text-base font-semibold text-emerald-600 dark:text-emerald-400">
+                          {BRL.format(p.preco_venda)}
+                        </dd>
+                      </div>
+                    ) : null}
                     {p.marketplace_numero ? (
                       <div>
                         <dt className="text-neutral-500">Pedido marketplace</dt>

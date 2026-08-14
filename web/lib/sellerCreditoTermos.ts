@@ -1,8 +1,8 @@
 /** Versão dos termos de recarga de créditos (aceite na API e UI). */
-export const SELLER_CREDITO_TERMOS_VERSAO = "credit_terms_v2";
+export const SELLER_CREDITO_TERMOS_VERSAO = "credit_terms_v3";
 
 /** Validade de cada recarga aprovada (meses). */
-export const SELLER_CREDITO_MESES_VALIDADE = 12;
+export const SELLER_CREDITO_MESES_VALIDADE = 6;
 
 export function sellerCreditoExpiraEm(from: Date = new Date()): Date {
   const d = new Date(from);
@@ -24,4 +24,4 @@ export const SELLER_MENSALIDADE_NAO_E_RECARGA =
 
 /** Texto curto do checkbox (deve bater com a UI e o registro na API). */
 export const SELLER_CREDITO_CHECKBOX_LABEL =
-  "Li e aceito que o pagamento vira créditos DropCore para pedidos (não paga mensalidade do plano), sem reembolso ou saque, validade de 12 meses, conforme as regras de créditos.";
+  `Li e aceito que o pagamento vira créditos DropCore para pedidos (não paga mensalidade do plano), sem reembolso ou saque, validade de ${SELLER_CREDITO_MESES_VALIDADE} meses, conforme as regras de créditos.`;

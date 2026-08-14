@@ -8,6 +8,7 @@ import { requireAdmin } from "@/lib/apiOrgAuth";
 import { criarSellerCreditLot } from "@/lib/sellerCreditLots";
 import { runPedidosErroSaldoRetry } from "@/lib/pedidosErroSaldoRetry";
 import { logAdminAction } from "@/lib/adminAuditLog";
+import { SELLER_CREDITO_MESES_VALIDADE } from "@/lib/sellerCreditoTermos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -125,7 +126,7 @@ export async function POST(
         user_id: sellerUserId,
         tipo: "deposito_aprovado",
         titulo: "Recarga aprovada",
-        mensagem: `Sua recarga de ${valorBRL} virou crédito DropCore. Validade: 12 meses a partir de hoje.`,
+        mensagem: `Sua recarga de ${valorBRL} virou crédito DropCore. Validade: ${SELLER_CREDITO_MESES_VALIDADE} meses a partir de hoje.`,
         metadata: { deposito_id: id, valor },
       });
     }

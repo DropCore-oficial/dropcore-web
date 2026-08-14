@@ -125,12 +125,12 @@ export async function GET(req: Request) {
     // Buscar nome_produto dos pedidos vinculados ao extrato
     const pedidoIds = [...new Set((extrato ?? []).map((e) => e.pedido_id).filter(Boolean))] as string[];
     let pedidoNomes: Record<string, string> = {};
-    let pedidoDetalhes: Record<string, { preco_venda: number | null; custo: number }> = {};
+    let pedidoDetalhes: Record<string, { preco_venda: number | null; custo: number; canal_venda: string | null }> = {};
     let pedidoStatusById: Record<string, string> = {};
     if (pedidoIds.length > 0) {
       const { data: pedidosData } = await supabaseAdmin
         .from("pedidos")
-        .select("id, nome_produto, preco_venda, valor_fornecedor, valor_dropcore, valor_total, status")
+        .select("id, nome_produto, preco_venda, valor_fornecedor, valor_dropcore, valor_total, status, canal_venda")
         .in("id", pedidoIds);
       type PedidoRow = {
         id: string;
@@ -140,12 +140,14 @@ export async function GET(req: Request) {
         valor_dropcore: number;
         valor_total: number;
         status: string;
+        canal_venda: string | null;
       };
       for (const p of (pedidosData ?? []) as PedidoRow[]) {
         if (p.nome_produto) pedidoNomes[p.id] = p.nome_produto;
         pedidoDetalhes[p.id] = {
           preco_venda: p.preco_venda ? Number(p.preco_venda) : null,
           custo: Number(p.valor_total),
+          canal_venda: p.canal_venda,
         };
         pedidoStatusById[p.id] = p.status;
       }
@@ -179,6 +181,7 @@ export async function GET(req: Request) {
       nome_produto: e.pedido_id ? (pedidoNomes[e.pedido_id] ?? null) : null,
       preco_venda: e.pedido_id ? (pedidoDetalhes[e.pedido_id]?.preco_venda ?? null) : null,
       custo: e.pedido_id ? (pedidoDetalhes[e.pedido_id]?.custo ?? null) : null,
+      canal_venda: e.pedido_id ? (pedidoDetalhes[e.pedido_id]?.canal_venda ?? null) : null,
       fornecedor_nome: e.fornecedor_id ? (fornNomes[e.fornecedor_id] ?? "—") : null,
     }));
 

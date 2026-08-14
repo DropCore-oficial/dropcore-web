@@ -392,9 +392,56 @@ não só desktop:
 - Nada de botão cortado ou fora da viewport.
 - Testar mentalmente o layout em ~390px antes de considerar a tela pronta.
 
-## 5. Checklist antes de terminar uma tela/componente
+## 5. Skeleton screens — loading, nunca spinner genérico
+
+Fonte única: `web/components/ui/Skeleton.tsx`. Peça base é `<Skeleton className="..." />`
+(`animate-pulse rounded-md bg-[var(--muted)]/15`) — todo esqueleto é montado combinando
+esse bloco no **formato real do conteúdo** (mesma grade/cartão/altura que o dado vai
+ocupar quando chegar), nunca um spinner solto — é isso que evita "pulo" de layout na hora
+que o dado substitui o esqueleto.
+
+Variantes prontas — usar em vez de montar um novo esqueleto do zero se o formato já existe:
+
+| Componente | Formato | Usado em |
+|---|---|---|
+| `DashboardSkeleton` | Header avatar/logo + grade de 4 KPI + 2 blocos de conteúdo — formato genérico das 3 dashboards | `dashboard`, `fornecedor/dashboard`, `seller/dashboard` |
+| `PedidoCardSkeleton` | Mesmo `<article>` + `dl` de 2 colunas de "Lista de pedidos em cards" (seção 2); prop `withCheckbox` pras telas com seleção em lote | `seller/pedidos`, `fornecedor/pedidos` |
+| `ProdutoGridSkeleton` | Grade de miniatura quadrada + 2 linhas de texto | grade de catálogo |
+| `ProdutoRowSkeleton` | Linha (miniatura 56px + 2 linhas de texto + toggle à direita) | `seller/produtos`, `fornecedor/produtos` |
+| `ProdutoLinhaSkeleton` | Mesma grade em carrossel horizontal, 3 cards visíveis | vitrine combinada de fornecedores no catálogo do seller |
+| `FormRowsSkeleton` | N linhas de label + campo (`rows` configurável) | `cadastro`, `plano`, `editar/[grupoKey]` |
+
+Se a tela não bate com nenhuma variante pronta, montar combinando `<Skeleton>` solto no
+grid/flex real da tela (ex.: `seller/integracoes-erp` faz isso pro card de cada conexão
+ERP) — não forçar uma variante pronta que não bate com o layout real só pra reaproveitar.
+
+Três formas de ligar ao estado de `loading`, dependendo do tipo de tela (ainda não é uma
+escolha travada única — seguir o padrão mais parecido com o tipo de tela que você está
+mexendo, perguntar se ficar em dúvida entre dois):
+
+1. **Página inteira troca pelo esqueleto** — `if (loading) return <wrapper>...</wrapper>`,
+   com o mesmo wrapper `app-bg`/`dropcore-shell-6xl` da tela carregada por fora e o
+   conteúdo interno virando esqueleto. Usado nas 3 dashboards e em telas de formulário
+   (`seller/cadastro`, `seller/plano`, `fornecedor/cadastro`).
+2. **Só o conteúdo troca, resto da tela sempre visível** — `{loading && <XSkeleton />}`
+   dentro do JSX que já renderiza sempre (nav, header, filtros ficam no lugar). Usado em
+   listas (`seller/pedidos`, `fornecedor/pedidos`, `seller/produtos`).
+3. **Overlay num card que recarrega sozinho** — `<Skeleton>` dentro de
+   `absolute inset-0 z-10 ... role="status" aria-live="polite"` cobrindo só aquele card
+   (o resto da tela continua interativo). Usado em `seller/integracoes-erp` pro card de
+   conexão ERP, que pode recarregar independente do resto da página. Manter
+   `role="status" aria-live="polite"` no container do overlay — é o que avisa leitor de
+   tela que aquele trecho está carregando.
+
+**Detalhe observado, não regra:** nas 3 dashboards e em `fornecedor/produtos` o nav
+(`SellerNav`/`FornecedorNav`) some durante o loading (só volta quando os dados chegam),
+enquanto `seller/cadastro`/`seller/plano` mantêm o nav visível mesmo no esqueleto — isso
+ainda varia por página, não uniformizar sozinho sem avisar antes.
+
+## 6. Checklist antes de terminar uma tela/componente
 
 - [ ] Toda cor usada vem de um token (`dropcorePalette.ts`, `amberPremium.ts`, `semanticPremium.ts`) — nenhum HEX ou classe Tailwind de cor solta reinventando um papel que já existe?
+- [ ] Tela com estado de loading usa um esqueleto no formato real do conteúdo (`web/components/ui/Skeleton.tsx`), não spinner genérico nem tela em branco?
 - [ ] Header, card de seção, ícone, badge e botão batem com as classes exatas da seção 2 (não um formato inventado)?
 - [ ] Botão de ação usa a escala compacta exata (seção 2) — nenhum botão em `rounded-lg`/`rounded-xl`, `text-sm`/padding antigo sobrando?
 - [ ] Chip de filtro é `rounded-full` + `py-1.5 text-[11px] font-medium`, sem largura fixa forçada — igual em todos os grupos de chip da tela?

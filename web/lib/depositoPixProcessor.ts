@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { criarSellerCreditLot } from "@/lib/sellerCreditLots";
 import { runPedidosErroSaldoRetry } from "@/lib/pedidosErroSaldoRetry";
 import { notifyUserEmail } from "@/lib/notifyEmail";
+import { SELLER_CREDITO_MESES_VALIDADE } from "@/lib/sellerCreditoTermos";
 
 export async function processarDepositoAprovado(extRef: string): Promise<boolean> {
   if (!extRef.trim() || !extRef.startsWith("deposito-")) return false;
@@ -103,7 +104,7 @@ export async function processarDepositoAprovado(extRef: string): Promise<boolean
   }
 
   if (sellerUserId) {
-    const mensagemSeller = `Sua recarga de ${valorBRL} virou crédito DropCore e já está disponível. Validade: 12 meses a partir de hoje.`;
+    const mensagemSeller = `Sua recarga de ${valorBRL} virou crédito DropCore e já está disponível. Validade: ${SELLER_CREDITO_MESES_VALIDADE} meses a partir de hoje.`;
     await supabaseAdmin.from("notifications").insert({
       user_id: sellerUserId,
       tipo: "deposito_aprovado",
