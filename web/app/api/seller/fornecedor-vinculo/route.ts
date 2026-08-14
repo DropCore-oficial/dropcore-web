@@ -103,6 +103,25 @@ export async function POST(req: Request) {
       }
     }
 
+    if (novoForn && novoForn !== curForn) {
+      const { data: deposito } = await supabaseAdmin
+        .from("seller_depositos_pix")
+        .select("id")
+        .eq("seller_id", seller.id)
+        .eq("status", "aprovado")
+        .limit(1)
+        .maybeSingle();
+      if (!deposito) {
+        return NextResponse.json(
+          {
+            error: "Faça sua primeira recarga PIX antes de vincular um fornecedor.",
+            code: "deposito_required",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const patch = buildSellerFornecedorIdPatch(
       {
         fornecedor_id: curForn,
