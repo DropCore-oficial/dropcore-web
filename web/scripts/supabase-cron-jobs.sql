@@ -208,6 +208,17 @@ SELECT cron.schedule(
   $$SELECT public.dropcore_cron_http_post('/api/cron/fornecedor-troca-janela-expira');$$
 );
 
+-- Limpeza da fila interna do pg_net (net._http_response) — todo POST via
+-- dropcore_cron_http_post grava uma linha aqui e NADA apaga sozinho. Sem isso a
+-- tabela incha até estourar o Disk IO Budget do projeto (aconteceu em 2026-08-17:
+-- 380 MB de bloat pra ~1.260 linhas reais; resolvido com VACUUM FULL + este cron).
+-- 03:00 UTC, mantém só os últimos 2 dias de histórico.
+SELECT cron.schedule(
+  'dropcore-cleanup-net-http-response',
+  '0 3 * * *',
+  $$ delete from net._http_response where created < now() - interval '2 days'; $$
+);
+
 -- -----------------------------------------------------------------------------
 -- 5) Conferir
 -- -----------------------------------------------------------------------------
