@@ -1262,10 +1262,10 @@ export default function SellerCalculadoraPage() {
                   </p>
                 </div>
                 <Link
-                  href="/seller/produtos"
+                  href="/seller/catalogo"
                   className="shrink-0 inline-flex items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
                 >
-                  Ligar em Produtos
+                  Ligar fornecedor
                 </Link>
               </div>
             </div>

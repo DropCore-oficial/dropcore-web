@@ -15,6 +15,7 @@ import {
 import { SellerCatalogoProdutoLinha } from "@/components/seller/SellerCatalogoProdutoLinha";
 import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { cn } from "@/lib/utils";
 import { ProdutoLinhaSkeleton, Skeleton } from "@/components/ui/Skeleton";
 
@@ -40,6 +41,7 @@ export function SellerCatalogoVitrineClient() {
   const [aceiteUso, setAceiteUso] = useState(false);
   const [vinculando, setVinculando] = useState<string | null>(null);
   const [vinculoErro, setVinculoErro] = useState<string | null>(null);
+  const [vinculoErroCode, setVinculoErroCode] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,6 +107,7 @@ export function SellerCatalogoVitrineClient() {
   async function vincularFornecedor(fornecedorId: string) {
     setVinculando(fornecedorId);
     setVinculoErro(null);
+    setVinculoErroCode(null);
     try {
       const {
         data: { session },
@@ -122,7 +125,11 @@ export function SellerCatalogoVitrineClient() {
         body: JSON.stringify({ fornecedor_id: fornecedorId, aceite_uso_operacional: true }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Erro ao vincular fornecedor");
+      if (!res.ok) {
+        setVinculoErro(json.error || "Erro ao vincular fornecedor");
+        setVinculoErroCode(typeof json.code === "string" ? json.code : null);
+        return;
+      }
       const newId = typeof json.fornecedor_id === "string" && json.fornecedor_id ? json.fornecedor_id : null;
       setFornecedorLigadoId(newId);
       setConfirmandoId(null);
@@ -132,6 +139,7 @@ export function SellerCatalogoVitrineClient() {
       if (r2.ok && j2.ok) setVinculo((j2.vinculo ?? null) as VinculoMeta | null);
     } catch (e: unknown) {
       setVinculoErro(e instanceof Error ? e.message : "Erro inesperado");
+      setVinculoErroCode(null);
     } finally {
       setVinculando(null);
     }
@@ -257,6 +265,7 @@ export function SellerCatalogoVitrineClient() {
                         setConfirmandoId(f.id);
                         setAceiteUso(false);
                         setVinculoErro(null);
+                        setVinculoErroCode(null);
                       }}
                       className={cn(
                         "hidden shrink-0 rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex",
@@ -315,13 +324,14 @@ export function SellerCatalogoVitrineClient() {
                             setConfirmandoId(null);
                             setAceiteUso(false);
                             setVinculoErro(null);
+                            setVinculoErroCode(null);
                           }}
                           className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 sm:w-auto"
                         >
                           Cancelar
                         </button>
                       </div>
-                      {vinculoErro && (
+                      {vinculoErro && vinculoErroCode !== "deposito_required" && (
                         <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "text-[12px]")}>{vinculoErro}</p>
                       )}
                     </div>
@@ -374,6 +384,36 @@ export function SellerCatalogoVitrineClient() {
       </div>
 
       <SellerNav active="fornecedores" wide />
+
+      {vinculoErro && vinculoErroCode === "deposito_required" && (
+        <div className={MODAL_OVERLAY_CLASS}>
+          <div className={MODAL_PANEL_CLASS}>
+            <div className={cn(MODAL_PANEL_BODY_CLASS, "p-5 space-y-4 text-center")}>
+              <h2 className="text-lg font-bold text-[var(--foreground)]">Recarregue para continuar</h2>
+              <p className="text-sm text-[var(--muted)] leading-relaxed">
+                Você precisa fazer sua primeira recarga PIX aprovada antes de vincular um fornecedor.
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push("/seller/dashboard?recarregar=1")}
+                className="w-full rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
+              >
+                Recarregar agora
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setVinculoErro(null);
+                  setVinculoErroCode(null);
+                }}
+                className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

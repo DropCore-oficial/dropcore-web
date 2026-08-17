@@ -38,10 +38,6 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Seller não encontrado." }, { status: 404 });
     }
 
-    if (!seller.fornecedor_id) {
-      return NextResponse.json({ precisa_depositar: false });
-    }
-
     const { data: deposito } = await supabaseAdmin
       .from("seller_depositos_pix")
       .select("id")
@@ -50,7 +46,15 @@ export async function GET(req: Request) {
       .limit(1)
       .maybeSingle();
 
-    return NextResponse.json({ precisa_depositar: !deposito });
+    const nuncaDepositou = !deposito;
+
+    return NextResponse.json({
+      // Vinculado a fornecedor e nunca depositou — bloqueia o portal inteiro (retroativo).
+      precisa_depositar: Boolean(seller.fornecedor_id) && nuncaDepositou,
+      // Nunca depositou, independente de já ter fornecedor vinculado — usado em telas
+      // operacionais específicas (ex.: integração ERP) que não dependem de vínculo.
+      nunca_depositou: nuncaDepositou,
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });
