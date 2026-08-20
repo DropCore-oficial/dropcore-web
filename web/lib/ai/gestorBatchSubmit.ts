@@ -61,7 +61,14 @@ export async function submeterGestoresIaDiario(): Promise<SubmeterGestoresResult
       custom_id: seller.id,
       params: {
         model: MODELO,
-        max_tokens: 4096,
+        // 8192 em vez de 4096: com maioria de SKUs até 96 (maior catálogo hoje), o JSON
+        // pode passar de 4096 mesmo com acao_recomendada curta — dobrar dá margem sem
+        // custo relevante (Batch API já é 50% mais barata).
+        max_tokens: 8192,
+        // Desligado de propósito: é classificação sobre dado que já mandamos pronto, não
+        // precisa de raciocínio — com thinking ligado (padrão do Sonnet 5) o budget de
+        // max_tokens pode se esgotar em "pensar" antes de emitir o JSON final.
+        thinking: { type: "disabled" },
         output_config: {
           format: { type: "json_schema", schema: SCHEMA_RISCO_RUPTURA_FULFILLMENT },
         },

@@ -55,7 +55,9 @@ export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBa
         const textBlock = item.result.message.content.find((b) => b.type === "text");
         let resultado: unknown = null;
         let erroMensagem: string | null = null;
-        if (textBlock && textBlock.type === "text") {
+        if (!textBlock || textBlock.type !== "text") {
+          erroMensagem = `Resposta do modelo sem bloco de texto (stop_reason: ${item.result.message.stop_reason ?? "?"}).`;
+        } else {
           try {
             resultado = JSON.parse(textBlock.text);
           } catch {

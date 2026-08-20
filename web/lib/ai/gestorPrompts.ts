@@ -104,6 +104,7 @@ export const PROMPT_RISCO_RUPTURA_FULFILLMENT: PromptTemplate<SkuRupturaContexto
   restricoes: [
     'O seller não controla o estoque, quem repõe é o fornecedor — nunca recomende "comprar mais estoque" ou "contatar o fornecedor pra repor". A ação recomendada tem que ser algo que o seller mesmo executa: pausar ou despriorizar o anúncio, redirecionar verba de anúncio pago pra outro produto, ou avisar o comprador sobre prazo.',
     'Se não houver dado de venda suficiente pra estimar a velocidade de um SKU, marque como "dado insuficiente" em vez de arriscar um chute.',
+    'acao_recomendada tem que ser curta (no máximo ~12 palavras) pra todo SKU, especialmente os de risco médio/baixo/dado insuficiente — o catálogo pode ter uma centena de SKUs e o texto de cada um soma no limite de saída.',
   ],
   formatoSaida: [
     'Tabela: SKU | Estoque atual | Vendas (30d) | Risco | Ação recomendada',
@@ -130,7 +131,7 @@ export const SCHEMA_RISCO_RUPTURA_FULFILLMENT = {
             type: 'string',
             enum: ['alto', 'medio', 'sem_risco', 'dado_insuficiente'],
           },
-          acao_recomendada: { type: 'string' },
+          acao_recomendada: { type: 'string', maxLength: 100 },
         },
         required: ['sku', 'estoque_atual', 'vendas_30d', 'risco', 'acao_recomendada'],
         additionalProperties: false,
