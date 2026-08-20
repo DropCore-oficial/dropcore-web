@@ -580,7 +580,11 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
               <span className="font-medium text-[var(--foreground)]">
                 sincronizar pedidos, preços e estoque automaticamente
               </span>{" "}
-              entre o DropCore e o seu ERP.
+              entre o DropCore e o seu ERP. Pra conectar sua conta do{" "}
+              <Link href="/seller/integracoes-marketplace" className="font-semibold text-[var(--foreground)] underline underline-offset-2">
+                Mercado Livre
+              </Link>{" "}
+              (usada pelos gestores de IA), acesse a tela de Marketplace.
             </>
           }
         />

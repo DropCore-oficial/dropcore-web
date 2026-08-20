@@ -108,6 +108,96 @@ que busca os dois casos separadamente (mesmo update nos dois): liberação antec
 sem liberação antecipada ativa. Sem mudança de RLS — leitura/escrita só via `supabaseAdmin`
 (mesmo padrão das outras colunas de vínculo de fornecedor).
 
+## `seller_ai_preferences` — Gestores de IA, preferência cacheada (2026-08-18)
+
+`web/scripts/create-seller-ai-preferences.sql`: 1 linha por seller (`seller_id unique`),
+guarda `nicho`, `momento_operacao`, `capital_disponivel`, `objetivo` (`CHECK` em
+`margem`/`volume`/`reputacao`) e `tom_comunicacao`. Perguntado ao seller uma vez só;
+os Gestores de IA reusam esse cache em vez de reperguntar a cada rodada.
+
+RLS: **deny-all** (sem policy pra `anon`/`authenticated`, mesmo padrão de `seller_invites`).
+Acesso só via duas funções `SECURITY DEFINER` (`search_path = public`, `REVOKE ALL FROM
+PUBLIC`, `EXECUTE` só pra `authenticated`), cada uma checando `fn_user_can_access_seller`
+por dentro antes de tocar na tabela:
+- `fn_seller_ai_preferences_get(p_seller_id uuid)` — leitura.
+- `fn_seller_ai_preferences_upsert(p_seller_id, p_nicho, p_momento_operacao,
+  p_capital_disponivel, p_objetivo, p_tom_comunicacao)` — `INSERT ... ON CONFLICT
+  (seller_id) DO UPDATE`, serve tanto pro primeiro cadastro quanto pra edição depois.
+
+Front deve chamar sempre via `supabase.rpc(...)`, nunca `.from('seller_ai_preferences')`
+(a tabela não libera acesso direto de propósito). Ver memória de projeto "Briefing Gestores
+de IA" pro contexto completo da feature (planos, BYOK, roadmap).
+
+## `seller_ai_runs` — Gestores de IA, resultado por rodada (2026-08-18)
+
+`web/scripts/create-seller-ai-runs.sql`: 1 linha por rodada de gestor (`gestor` travado por
+`CHECK` nos 6 valores fechados no briefing: `preco_concorrencia`, `anuncios_seo`,
+`estoque_fulfillment`, `reputacao`, `ads`, `atendimento`; `marketplace` travado em
+`mercado_livre`/`shopee`/`tiktok_shop`). `resultado jsonb` guarda o output estruturado
+(veredito/top 3/etc, pra virar componente no front, não texto solto). `origem_chave`
+(`casa`/`byok`) + `creditos_debitados` registram se aquela rodada saiu do ledger (Pro) ou da
+chave do próprio seller (Elite) — auditoria, nunca cobra duas vezes.
+
+RLS: **deny-all**, mesmo padrão de `seller_ai_preferences`. Única porta de entrada do client
+é `fn_seller_ai_runs_list(p_seller_id, p_limit default 20, p_before default null)` —
+paginada por cursor (`executado_em`), `limit` travado entre 1 e 50 mesmo se pedirem mais.
+Escrita **não** passa por RPC: só o cron do backend grava, via `supabaseAdmin` (service role
+já ignora RLS). Índice em `(seller_id, executado_em desc)` pra sustentar a paginação.
+
+**Batch tracking (2026-08-18):** `web/scripts/add-batch-tracking-seller-ai-runs.sql` — a
+Anthropic Batch API (usada pro desconto de 50%) é assíncrona e pode levar até 24h, então
+submissão e processamento de resultado são **dois crons separados**, não cabe numa função
+Vercel só. `status` ganhou o valor `'pendente'` (agora é o default) além de `'ok'`/`'erro'`,
+e `batch_id text` guarda o ID do batch da Anthropic enquanto a linha está pendente. Índice
+parcial `idx_seller_ai_runs_batch_pendente` em `(batch_id) WHERE status = 'pendente'` — o
+cron de verificação varre só linhas pendentes agrupadas por batch. Fluxo: cron A insere a
+linha com `status='pendente'` + `batch_id` na submissão; cron B (roda a cada ~10-15min)
+confere `batches.retrieve(batch_id).processing_status === 'ended'`, busca resultado via
+`batches.results(batch_id)` (sem ordem garantida, casar por `custom_id`) e faz `UPDATE` pra
+`status='ok'`/`'erro'` + `resultado` + `creditos_debitados`.
+
+## Gestores de IA — piloto "Risco de Ruptura & Fulfillment" implementado (2026-08-18)
+
+`marketplace` em `seller_ai_runs` virou nullable (`ALTER COLUMN ... DROP NOT NULL`, aplicado direto via migration, sem script em `web/scripts/` — mudança de 1 linha) — esse gestor não é específico de um marketplace, o estoque é compartilhado entre os canais que o seller vende.
+
+Código (`web/lib/ai/`):
+- `gestorPrompts.ts` — `PROMPT_RISCO_RUPTURA_FULFILLMENT` (reformulado do "Estoque & Fulfillment" original do briefing: seller não repõe estoque, então a ação nunca é "compre mais", sempre algo que ele controla — pausar/despriorizar anúncio, redirecionar ads) + `SCHEMA_RISCO_RUPTURA_FULFILLMENT` (JSON Schema do output estruturado).
+- `gestorRupturaFulfillmentDados.ts` — busca real: `skus.estoque_atual`/`estoque_minimo` (via `seller_skus_habilitados`) cruzado com venda dos últimos 30 dias de `pedido_itens` (fonte de verdade de item vendido — não `pedidos.sku_id`, que é campo legado de single-item), excluindo pedido `cancelado`.
+- `gestorBatchSubmit.ts` / `gestorBatchResultado.ts` — dois jobs separados porque a Anthropic Batch API é assíncrona (até 24h): um monta e submete o batch (1 request por seller `Pro`/`Elite` elegível, `isPro()` de `@/lib/planos`), outro confere `processing_status === "ended"` e grava resultado real em `seller_ai_runs` (ou erro).
+- Rotas: `/api/cron/gestores-ia-submeter` e `/api/cron/gestores-ia-resultado`, mesmo padrão de auth (`CRON_SECRET`) dos outros crons.
+- **`@anthropic-ai/sdk` instalado** (`^0.117.1`) — usado direto, **não** via Vercel AI Gateway/pacote `ai`: a Batch API não é exposta pelo Gateway (que só cobre chamada síncrona/streaming), então essa parte específica precisa do SDK oficial da Anthropic com a chave configurada direto.
+
+**Billing intencionalmente não implementado ainda**: `creditos_debitados` fica sempre `null` — o valor real de 1 crédito no ledger é item em aberto (não resolvido), não foi inventado número.
+
+**Cron NÃO está agendado no pg_cron ainda** (`web/scripts/supabase-cron-jobs.sql` tem os dois `cron.schedule` comentados) — falta: `ANTHROPIC_API_KEY` configurada na Vercel, valor de crédito resolvido, e confirmação explícita antes de rodar em sellers reais.
+
+## Conexão OAuth Mercado Livre (2026-08-19/20)
+
+`web/scripts/create-seller-mercadolivre-integrations.sql` — tabela
+`seller_mercadolivre_integrations` (`seller_id unique`, `org_id`, `ml_user_id unique`,
+`ml_access_token`/`ml_refresh_token` cifrados com `SELLER_ERP_CREDENTIALS_KEY`, mesma chave
+já usada pro Olist/Bling — não criou chave nova). RLS deny-all, mesmo padrão de
+`seller_bling_integrations`/`seller_olist_integrations` — acesso só via `supabaseAdmin`.
+
+App único no Mercado Livre DevCenter ("DropCore Marketplace", 1 client_id/secret) serve
+**todos os gestores de IA e a futura ingestão de pedido** — não cria app novo por
+feature, o seller autoriza uma vez só. Escopo inicial: só leitura (Usuários, Comunicações
+pré/pós-venda, Publicação e sincronização); zero tópico de webhook marcado (isso só entra
+quando a fase 2 — ingestão de pedido direto do ML, substituindo Olist pra quem não tem ERP —
+for construída; ver memória de projeto "Briefing Gestores de IA").
+
+Código: `web/lib/mercadoLivreOAuth.ts` (espelho de `blingOAuth.ts` — troca/renova token),
+`POST /api/seller/mercadolivre/oauth` (troca código por token), `GET
+/api/seller/mercadolivre` (status), `GET /api/seller/mercadolivre/connect` (redirect pra
+autorização), `web/components/seller/SellerMercadoLivreIntegrationPanel.tsx` +
+`web/app/seller/integracoes-marketplace/page.tsx` (tela nova, linkada a partir de
+`/seller/integracoes-erp`). `redirect_uri` cadastrado no app do ML:
+`https://www.dropcore.com.br/seller/integracoes-marketplace` (tem que bater exato).
+
+Env vars novas: `MERCADOLIVRE_CLIENT_ID`, `MERCADOLIVRE_CLIENT_SECRET` (já configuradas na
+Vercel, Production+Preview). **Nada disso foi commitado/deployado ainda** — só existe no
+working directory local até aprovação explícita de deploy.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
