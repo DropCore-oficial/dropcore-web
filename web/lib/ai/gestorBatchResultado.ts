@@ -15,11 +15,6 @@ export type ProcessarBatchesResultado = {
 
 type LinhaPendente = { id: string; seller_id: string; batch_id: string | null };
 
-function extrairSellerIdDoCustomId(customId: string): string | null {
-  const [sellerId] = customId.split("__");
-  return sellerId || null;
-}
-
 export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBatchesResultado> {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) {
@@ -51,8 +46,9 @@ export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBa
     const linhaPorSeller = new Map(linhasDoBatch.map((l) => [l.seller_id, l]));
 
     for await (const item of await client.messages.batches.results(batchId)) {
-      const sellerId = extrairSellerIdDoCustomId(item.custom_id);
-      const linha = sellerId ? linhaPorSeller.get(sellerId) : undefined;
+      // custom_id é o próprio seller_id (ver gestorBatchSubmit.ts — limite de 64
+      // caracteres da Batch API não sobra espaço pra mais nada junto).
+      const linha = linhaPorSeller.get(item.custom_id);
       if (!linha) continue;
 
       if (item.result.type === "succeeded") {

@@ -41,7 +41,6 @@ export async function submeterGestoresIaDiario(): Promise<SubmeterGestoresResult
 
   const elegiveis = ((sellersRaw ?? []) as SellerElegivel[]).filter((s) => isPro({ plano: s.plano }));
 
-  const hoje = new Date().toISOString().slice(0, 10);
   const requests: Array<{
     custom_id: string;
     params: Anthropic.Messages.MessageCreateParamsNonStreaming;
@@ -57,7 +56,9 @@ export async function submeterGestoresIaDiario(): Promise<SubmeterGestoresResult
     }
 
     requests.push({
-      custom_id: `${seller.id}__estoque_fulfillment__${hoje}`,
+      // custom_id tem limite de 64 caracteres na Batch API — seller_id (uuid, 36) sozinho
+      // já identifica a linha em gestorBatchResultado.ts, sem precisar de gestor/data juntos.
+      custom_id: seller.id,
       params: {
         model: MODELO,
         max_tokens: 4096,
