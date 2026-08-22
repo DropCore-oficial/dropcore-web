@@ -6,8 +6,9 @@ import { criarSellerCreditLot } from "@/lib/sellerCreditLots";
 import { runPedidosErroSaldoRetry } from "@/lib/pedidosErroSaldoRetry";
 import { notifyUserEmail } from "@/lib/notifyEmail";
 import { SELLER_CREDITO_MESES_VALIDADE } from "@/lib/sellerCreditoTermos";
+import { buscarPagamentoMpAprovado, valorLiquidoRecebidoMp } from "@/lib/mercadoPagoValorRecebido";
 
-export async function processarDepositoAprovado(extRef: string): Promise<boolean> {
+export async function processarDepositoAprovado(extRef: string, mpPaymentId?: string | null): Promise<boolean> {
   if (!extRef.trim() || !extRef.startsWith("deposito-")) return false;
 
   const depositoId = extRef.slice("deposito-".length);
@@ -26,6 +27,21 @@ export async function processarDepositoAprovado(extRef: string): Promise<boolean
 
   if (claimErr || !claimedRows?.length) return false;
   const deposito = claimedRows[0];
+
+  const mpId = mpPaymentId?.trim() || null;
+  if (mpId) {
+    try {
+      const payment = await buscarPagamentoMpAprovado(mpId);
+      if (payment) {
+        await supabaseAdmin
+          .from("seller_depositos_pix")
+          .update({ valor_liquido_mp: valorLiquidoRecebidoMp(payment) })
+          .eq("id", depositoId);
+      }
+    } catch (e) {
+      console.error("[depositoPixProcessor] valor_liquido_mp:", e);
+    }
+  }
 
   const valor = Number(deposito.valor);
   const valorBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);

@@ -8,6 +8,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createClient } from "@supabase/supabase-js";
 import { criarCobrancaPix } from "@/lib/mercadopago";
 import { parseValorMonetarioPtBr } from "@/lib/parseValorMonetarioPtBr";
+import { calcularTaxaPix } from "@/lib/mercadopagoFeeConfig";
 import {
   SELLER_CREDITO_TERMOS_VERSAO,
   SELLER_CREDITO_CHECKBOX_LABEL,
@@ -76,6 +77,44 @@ export async function POST(req: Request) {
     }
 
     const aceiteEm = new Date().toISOString();
+    const metodo = body?.metodo === "cartao" ? "cartao" : "pix";
+
+    // Cartão: só cria o depósito pendente aqui — a cobrança de verdade acontece em
+    // /api/seller/deposito-pix/[id]/cobranca-cartao, depois que o Card Brick devolve o
+    // token (a taxa por parcela só é conhecida quando o seller escolhe o parcelamento lá).
+    if (metodo === "cartao") {
+      const { data: row, error: insertErr } = await supabaseAdmin
+        .from("seller_depositos_pix")
+        .insert({
+          org_id: seller.org_id,
+          seller_id: seller.id,
+          valor,
+          chave_pix: null,
+          status: "pendente",
+          metodo: "cartao",
+          referencia: "Recarga cartão Mercado Pago",
+          credito_termos_versao: SELLER_CREDITO_TERMOS_VERSAO,
+          credito_aceite_em: aceiteEm,
+        })
+        .select("id, valor, criado_em")
+        .single();
+
+      if (insertErr) {
+        return NextResponse.json({ error: insertErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        ok: true,
+        deposito_id: row.id,
+        valor: Number(row.valor),
+        metodo: "cartao",
+        termos_versao: SELLER_CREDITO_TERMOS_VERSAO,
+        termos_label: SELLER_CREDITO_CHECKBOX_LABEL,
+      });
+    }
+
+    const taxaMp = calcularTaxaPix(valor);
+    const valorCobrado = Math.round((valor + taxaMp) * 100) / 100;
 
     const { data: row, error: insertErr } = await supabaseAdmin
       .from("seller_depositos_pix")
@@ -85,6 +124,10 @@ export async function POST(req: Request) {
         valor,
         chave_pix: null,
         status: "pendente",
+        metodo: "pix",
+        parcelas: 1,
+        taxa_mp: taxaMp,
+        valor_cobrado: valorCobrado,
         referencia: "Recarga PIX Mercado Pago",
         credito_termos_versao: SELLER_CREDITO_TERMOS_VERSAO,
         credito_aceite_em: aceiteEm,
@@ -97,8 +140,8 @@ export async function POST(req: Request) {
     }
 
     const result = await criarCobrancaPix({
-      valor,
-      descricao: `Recarga créditos DropCore — R$ ${valor.toFixed(2)}`,
+      valor: valorCobrado,
+      descricao: `Recarga créditos DropCore — R$ ${valor.toFixed(2)} + taxa Mercado Pago`,
       email,
       external_reference: `deposito-${row.id}`,
     });
@@ -120,6 +163,9 @@ export async function POST(req: Request) {
       ok: true,
       deposito_id: row.id,
       valor: Number(row.valor),
+      metodo: "pix",
+      taxa_mp: taxaMp,
+      valor_cobrado: valorCobrado,
       qr_code: result.qr_code,
       qr_code_base64: result.qr_code_base64,
       ticket_url: result.ticket_url,

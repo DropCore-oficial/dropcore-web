@@ -63,7 +63,14 @@ type NavKey = "dashboard" | "produtos" | "pedidos" | "cadastro" | "integracoes";
 /** Só mobile agora — desktop mostra as 5 categorias direto na barra, sem "Mais". */
 const NAV_MAIS_MENU_KEYS_MOBILE = ["integracoes", "cadastro"] as const satisfies readonly NavKey[];
 
-export function FornecedorNav({ active, wide = false }: { active: NavKey; wide?: boolean }) {
+export function FornecedorNav({
+  active,
+  wide = false,
+}: {
+  /** Sem valor = nenhuma aba destacada (ex.: páginas institucionais fora do menu principal). */
+  active?: NavKey;
+  wide?: boolean;
+}) {
   const router = useRouter();
   const [mobileMaisOpen, setMobileMaisOpen] = useState(false);
 
@@ -95,7 +102,7 @@ export function FornecedorNav({ active, wide = false }: { active: NavKey; wide?:
       active === key ? activeClass + " bg-emerald-100 dark:bg-emerald-900" : inactiveMobile
     }`;
 
-  const mobileMaisActive = (NAV_MAIS_MENU_KEYS_MOBILE as readonly string[]).includes(active);
+  const mobileMaisActive = active != null && (NAV_MAIS_MENU_KEYS_MOBILE as readonly string[]).includes(active);
   const mobileMaisBtnClass =
     `flex min-w-0 flex-1 flex-row items-center justify-center gap-1 overflow-hidden px-0.5 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ` +
     (mobileMaisActive

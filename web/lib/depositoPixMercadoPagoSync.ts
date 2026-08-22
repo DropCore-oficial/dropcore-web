@@ -126,7 +126,7 @@ export async function sincronizarDepositosPendentesSeller(sellerId: string): Pro
     const isUpgrade = String(row.referencia ?? "") === SELLER_DEPOSITO_REF_UPGRADE_PRO;
     const ok = isUpgrade
       ? await processarUpgradeProAprovado(`upgrade-pro-${row.id}`)
-      : await processarDepositoAprovado(`deposito-${row.id}`);
+      : await processarDepositoAprovado(`deposito-${row.id}`, row.mp_payment_id ?? null);
     if (ok) aprovados++;
   }
 

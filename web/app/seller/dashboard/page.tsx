@@ -44,6 +44,8 @@ import {
   SELLER_CREDITO_NAO_PAGA_MENSALIDADE,
 } from "@/lib/sellerCreditoTermos";
 import { SellerPixRecargaVsMensalidadeBox } from "@/components/seller/SellerPixRecargaVsMensalidadeBox";
+import { DepositoPixCardPaymentBrick } from "@/components/seller/DepositoPixCardPaymentBrick";
+import { getMercadoPagoPublicKey } from "@/lib/mercadopagoPublicKey";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { buildSellerSupportWhatsAppHref } from "@/lib/sellerSupportWhatsAppPrefill";
 import { DashboardSkeleton } from "@/components/ui/Skeleton";
@@ -347,6 +349,15 @@ export default function SellerDashboardPage() {
   const [depositoExpiraEm, setDepositoExpiraEm] = useState<string | null>(null);
   const [depositoRestanteSec, setDepositoRestanteSec] = useState<number | null>(null);
   const [depositoAceiteTermos, setDepositoAceiteTermos] = useState(false);
+  const [depositoMetodo, setDepositoMetodo] = useState<"pix" | "cartao">("pix");
+  const [depositoTaxaMp, setDepositoTaxaMp] = useState<number | null>(null);
+  const [depositoValorCobrado, setDepositoValorCobrado] = useState<number | null>(null);
+  const [depositoCartaoId, setDepositoCartaoId] = useState<string | null>(null);
+  const [depositoCartaoValor, setDepositoCartaoValor] = useState<number>(0);
+  const [depositoCartaoErro, setDepositoCartaoErro] = useState<string | null>(null);
+  const [depositoCartaoAprovado, setDepositoCartaoAprovado] = useState<{ taxaMp: number; valorCobrado: number } | null>(
+    null,
+  );
   const [creditoResumo, setCreditoResumo] = useState<CreditoResumo | null>(null);
   const [pixMensalidadeCopiado, setPixMensalidadeCopiado] = useState(false);
   const [modalPixMensalidade, setModalPixMensalidade] = useState<Mensalidade | null>(null);
@@ -576,22 +587,29 @@ export default function SellerDashboardPage() {
       if (!Number.isFinite(valorDep)) {
         throw new Error("Valor inválido. Digite só números e vírgula ou ponto (ex.: 777 ou 777,00). Evite espaços no meio do valor.");
       }
-      if (valorDep < 500) {
-        throw new Error(`Valor mínimo R$ 500,00. Interpretamos o campo como ${BRL.format(valorDep)} — confira se não há espaço ou caractere estranho entre os dígitos.`);
-      }
       const res = await fetch("/api/seller/deposito-pix", {
         method: "POST",
         headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ valor: valorDep, aceite_termos_credito: true }),
+        body: JSON.stringify({ valor: valorDep, aceite_termos_credito: true, metodo: depositoMetodo }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Erro ao solicitar recarga.");
+
+      if (depositoMetodo === "cartao") {
+        setDepositoCartaoId(json.deposito_id);
+        setDepositoCartaoValor(Number(json.valor ?? valorDep));
+        setDepositoValor("");
+        return;
+      }
+
       if (!json.qr_code_base64 && !json.qr_code) {
         throw new Error("Resposta sem QR Code PIX. A cobrança não foi concluída — tente de novo.");
       }
       setDepositoQrCode(json.qr_code_base64 ?? null);
       setDepositoCopiaCola(json.qr_code ?? null);
       setDepositoExpiraEm(json.expira_em ?? null);
+      setDepositoTaxaMp(typeof json.taxa_mp === "number" ? json.taxa_mp : null);
+      setDepositoValorCobrado(typeof json.valor_cobrado === "number" ? json.valor_cobrado : null);
       setDepositoSucesso(true);
       setDepositoValor("");
       load();
@@ -612,6 +630,13 @@ export default function SellerDashboardPage() {
     setDepositoExpiraEm(null);
     setDepositoRestanteSec(null);
     setDepositoAceiteTermos(false);
+    setDepositoMetodo("pix");
+    setDepositoTaxaMp(null);
+    setDepositoValorCobrado(null);
+    setDepositoCartaoId(null);
+    setDepositoCartaoValor(0);
+    setDepositoCartaoErro(null);
+    setDepositoCartaoAprovado(null);
   }
 
   // Cronômetro do PIX (expira em 30 min)
@@ -1980,13 +2005,58 @@ export default function SellerDashboardPage() {
           <div className={cn(MODAL_OVERLAY_CLASS, "animate-fade-in-up")}>
             <div className={cn(MODAL_PANEL_CLASS, "animate-fade-in-up animate-fade-in-up-delay-1")}>
               <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[var(--card-border)] shrink-0">
-                <h2 className="text-sm font-semibold text-[var(--foreground)]">Recarregar créditos via PIX</h2>
+                <h2 className="text-sm font-semibold text-[var(--foreground)]">Recarregar créditos</h2>
                 <button onClick={fecharModal} className="p-1 -m-1 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors rounded">
                   <IconX className="w-5 h-5" />
                 </button>
               </div>
 
-              {depositoSucesso ? (
+              {depositoCartaoAprovado ? (
+                <div className="p-5 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center mx-auto text-emerald-600">
+                    <IconCheck className="w-6 h-6" />
+                  </div>
+                  <p className="text-sm font-semibold text-[var(--foreground)]">Cartão aprovado!</p>
+                  <p className="text-xs text-[var(--muted)]">
+                    Crédito já disponível. Taxa Mercado Pago cobrada: {BRL.format(depositoCartaoAprovado.taxaMp)} — total no
+                    cartão: {BRL.format(depositoCartaoAprovado.valorCobrado)}.
+                  </p>
+                  <button
+                    onClick={() => {
+                      fecharModal();
+                      load();
+                    }}
+                    className="w-full rounded-md bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-1.5 text-[11px] hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors mt-2"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              ) : depositoCartaoId ? (
+                <div className={cn("p-5 space-y-3", MODAL_PANEL_BODY_CLASS)}>
+                  <p className="text-xs text-[var(--muted)]">
+                    Crédito: <strong className="text-[var(--foreground)]">{BRL.format(depositoCartaoValor)}</strong>
+                  </p>
+                  {depositoCartaoErro && (
+                    <p className={cn("text-xs rounded-xl px-3 py-2", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>
+                      {depositoCartaoErro}
+                    </p>
+                  )}
+                  <DepositoPixCardPaymentBrick
+                    depositoId={depositoCartaoId}
+                    amount={depositoCartaoValor}
+                    payerEmail={seller?.email ?? ""}
+                    publicKey={getMercadoPagoPublicKey()}
+                    onAprovado={(info) => setDepositoCartaoAprovado(info)}
+                    onErro={(msg) => setDepositoCartaoErro(msg || null)}
+                  />
+                  <button
+                    onClick={fecharModal}
+                    className="w-full rounded-md border border-[var(--card-border)] py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ) : depositoSucesso ? (
                 depositoQrCode ? (
                   <div className="p-5 space-y-4">
                     <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
@@ -2000,6 +2070,22 @@ export default function SellerDashboardPage() {
                     <p className="text-[11px] text-[var(--muted)] rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 leading-relaxed">
                       Ao pagar este PIX você confirma a recarga de créditos para pedidos (não paga mensalidade do plano).
                     </p>
+                    {depositoTaxaMp != null && depositoValorCobrado != null && (
+                      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 text-[11px] text-[var(--muted)] space-y-1">
+                        <div className="flex justify-between">
+                          <span>Crédito</span>
+                          <span className="text-[var(--foreground)]">{BRL.format(depositoValorCobrado - depositoTaxaMp)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Taxa Mercado Pago</span>
+                          <span className="text-[var(--foreground)]">{BRL.format(depositoTaxaMp)}</span>
+                        </div>
+                        <div className="flex justify-between font-semibold">
+                          <span>Total a pagar no PIX</span>
+                          <span className="text-[var(--foreground)]">{BRL.format(depositoValorCobrado)}</span>
+                        </div>
+                      </div>
+                    )}
                     {depositoRestanteSec !== null && (
                       <div
                         className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium ${
@@ -2074,6 +2160,31 @@ export default function SellerDashboardPage() {
                   </Alert>
 
                   <div>
+                    <label className="text-xs text-[var(--muted)] mb-1.5 block">Forma de pagamento</label>
+                    <div className="flex gap-2">
+                      {(["pix", "cartao"] as const).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setDepositoMetodo(m)}
+                          className={cn(
+                            "rounded-full px-3.5 py-1.5 text-[11px] font-medium transition-colors",
+                            depositoMetodo === m
+                              ? "bg-emerald-600 text-white"
+                              : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--muted)]/10",
+                          )}
+                        >
+                          {m === "pix" ? "Pix" : "Cartão de crédito"}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-[var(--muted)]">
+                      Uma taxa do Mercado Pago é somada ao valor do crédito — o seller paga a taxa, o crédito aplicado é
+                      sempre o valor cheio digitado abaixo. Cartão só parcelado (2x a 12x); para pagamento único use Pix.
+                    </p>
+                  </div>
+
+                  <div>
                     <label className="text-xs text-[var(--muted)] mb-1.5 block">Valor da recarga (mínimo R$ 500,00)</label>
                     <input
                       type="text"
@@ -2122,7 +2233,11 @@ export default function SellerDashboardPage() {
                       disabled={depositoLoading || !depositoValor || !depositoAceiteTermos}
                       className="flex-1 rounded-md bg-emerald-600 dark:bg-emerald-700 text-white font-semibold py-1.5 text-[11px] hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {depositoLoading ? "Gerando PIX..." : "Gerar PIX da recarga"}
+                      {depositoLoading
+                        ? "Gerando..."
+                        : depositoMetodo === "pix"
+                          ? "Gerar PIX da recarga"
+                          : "Continuar com cartão"}
                     </button>
                   </div>
                 </div>

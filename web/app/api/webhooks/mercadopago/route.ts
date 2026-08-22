@@ -33,7 +33,7 @@ async function processarPorExtRef(extRef: string, mpPaymentId?: string | null): 
   }
 
   if (extRef.startsWith("deposito-")) {
-    await processarDepositoAprovado(extRef);
+    await processarDepositoAprovado(extRef, mpPaymentId ?? null);
     return;
   }
 

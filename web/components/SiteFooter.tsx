@@ -61,8 +61,19 @@ const LINKS_UTEIS = [
  * `compactMobilePadding`: a landing pública (home, "/") não tem barra de navegação fixa
  * nenhuma — nela esse respiro extra é só espaço em branco sobrando à toa. Passado pelo
  * `ConditionalFooter` com base na rota.
+ *
+ * `areaPrefix`: quando o visitante já está dentro do painel de seller/fornecedor/admin,
+ * os links de "Links Úteis" apontam pra versão da página de dentro da área (ex.:
+ * `/seller/termos-de-uso`, que mantém o `SellerNav`) em vez da rota pública `/termos-de-uso`
+ * — sem isso, clicar no link tirava o usuário logado do menu da própria área.
  */
-export function SiteFooter({ compactMobilePadding = false }: { compactMobilePadding?: boolean }) {
+export function SiteFooter({
+  compactMobilePadding = false,
+  areaPrefix = "",
+}: {
+  compactMobilePadding?: boolean;
+  areaPrefix?: "" | "/seller" | "/fornecedor" | "/admin";
+}) {
   const ano = new Date().getFullYear();
   return (
     <footer className="w-full bg-[#FFFFFF] dark:bg-black">
@@ -86,7 +97,7 @@ export function SiteFooter({ compactMobilePadding = false }: { compactMobilePadd
               {LINKS_UTEIS.map((l) => (
                 <li key={l.href}>
                   <Link
-                    href={l.href}
+                    href={`${areaPrefix}${l.href}`}
                     className="text-[13px] text-neutral-600 hover:text-neutral-900 hover:underline dark:text-white/85 dark:hover:text-white"
                   >
                     {l.label}
