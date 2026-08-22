@@ -6,6 +6,11 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { enriquecerResultadoRuptura } from "./gestorRupturaFulfillmentDados";
+import { notificarSellerGestorConcluido } from "./gestorNotificacao";
+import type { GestorId } from "./gestorPrompts";
+import { customIdGestorSeller } from "./gestorBatchSubmit";
+import { parseGestorResposta } from "./gestorParseResposta";
 
 export type ProcessarBatchesResultado = {
   batches_verificados: number;
@@ -13,7 +18,7 @@ export type ProcessarBatchesResultado = {
   linhas_atualizadas: number;
 };
 
-type LinhaPendente = { id: string; seller_id: string; batch_id: string | null };
+type LinhaPendente = { id: string; seller_id: string; gestor: string; batch_id: string | null };
 
 export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBatchesResultado> {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
@@ -23,7 +28,7 @@ export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBa
 
   const { data: pendentesRaw, error } = await supabaseAdmin
     .from("seller_ai_runs")
-    .select("id, seller_id, batch_id")
+    .select("id, seller_id, gestor, batch_id")
     .eq("status", "pendente")
     .not("batch_id", "is", null);
   if (error) throw new Error(error.message);
@@ -43,25 +48,30 @@ export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBa
     }
 
     const linhasDoBatch = pendentes.filter((p) => p.batch_id === batchId);
-    const linhaPorSeller = new Map(linhasDoBatch.map((l) => [l.seller_id, l]));
+    // custom_id é "${seller_id}__${gestor}" (customIdGestorSeller) — precisa dos dois porque
+    // um mesmo seller pode ter mais de um gestor pendente no mesmo batch.
+    const linhaPorCustomId = new Map(
+      linhasDoBatch.map((l) => [customIdGestorSeller(l.seller_id, l.gestor as GestorId), l])
+    );
 
     for await (const item of await client.messages.batches.results(batchId)) {
-      // custom_id é o próprio seller_id (ver gestorBatchSubmit.ts — limite de 64
-      // caracteres da Batch API não sobra espaço pra mais nada junto).
-      const linha = linhaPorSeller.get(item.custom_id);
+      const linha = linhaPorCustomId.get(item.custom_id);
       if (!linha) continue;
 
       if (item.result.type === "succeeded") {
-        const textBlock = item.result.message.content.find((b) => b.type === "text");
-        let resultado: unknown = null;
-        let erroMensagem: string | null = null;
-        if (!textBlock || textBlock.type !== "text") {
-          erroMensagem = `Resposta do modelo sem bloco de texto (stop_reason: ${item.result.message.stop_reason ?? "?"}).`;
-        } else {
+        let { resultado, erroMensagem } = parseGestorResposta(item.result.message);
+
+        // Enriquecimento pós-IA (código puro, não gasta token): dias até ruptura, pedido
+        // aguardando estoque, fornecedor e comparação com a rodada anterior — só faz
+        // sentido pro gestor de estoque, os outros ficam com o resultado cru da IA.
+        if (!erroMensagem && resultado && linha.gestor === "estoque_fulfillment") {
           try {
-            resultado = JSON.parse(textBlock.text);
-          } catch {
-            erroMensagem = "Resposta do modelo não veio em JSON válido.";
+            resultado = await enriquecerResultadoRuptura(
+              linha.seller_id,
+              resultado as Parameters<typeof enriquecerResultadoRuptura>[1]
+            );
+          } catch (e) {
+            console.error("[gestorBatchResultado] enriquecimento ruptura falhou", e);
           }
         }
 
@@ -74,6 +84,12 @@ export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBa
             executado_em: new Date().toISOString(),
           })
           .eq("id", linha.id);
+
+        await notificarSellerGestorConcluido(
+          linha.seller_id,
+          linha.gestor as GestorId,
+          erroMensagem ? "erro" : "ok"
+        );
       } else {
         const motivo =
           item.result.type === "errored"
@@ -84,6 +100,8 @@ export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBa
           .from("seller_ai_runs")
           .update({ status: "erro", erro_mensagem: motivo, executado_em: new Date().toISOString() })
           .eq("id", linha.id);
+
+        await notificarSellerGestorConcluido(linha.seller_id, linha.gestor as GestorId, "erro");
       }
 
       atualizadas += 1;

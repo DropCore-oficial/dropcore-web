@@ -3,19 +3,13 @@
 // pacote externo de 49 prompts: persona → contexto (dado injetado automático, nunca colado
 // pelo seller) → tarefa → restrições → formato de saída.
 //
-// Piloto real (roda em produção): "estoque_fulfillment", único gestor com dado 100% real
-// hoje sem depender de conexão nova com marketplace (vem do sync Olist/Bling já existente).
-// "preco_concorrencia" fica escrito e pronto, mas em espera até a conexão com Mercado
-// Livre/Shopee/TikTok Shop existir de verdade (sem isso não tem preço de venda nem de
-// concorrente pra buscar).
+// "preco_concorrencia" foi descartado (2026-08-20): testado ao vivo contra a API do Mercado
+// Livre com conta real, e não existe caminho pra preço de concorrente pra catálogo não
+// catalogado (moda/marca própria) — price_to_win exige catalog_product_id (só produto
+// padrão tipo eletrônico) e /sites/{site}/search devolve 403 forbidden (ML fechou esse
+// endpoint pra app de terceiro). Ver memória de projeto "Briefing Gestores de IA".
 
-export type GestorId =
-  | 'preco_concorrencia'
-  | 'anuncios_seo'
-  | 'estoque_fulfillment'
-  | 'reputacao'
-  | 'ads'
-  | 'atendimento';
+export type GestorId = 'anuncios_seo' | 'estoque_fulfillment' | 'reputacao' | 'ads' | 'atendimento';
 
 export interface PromptTemplate<TContexto> {
   id: string;
@@ -28,61 +22,28 @@ export interface PromptTemplate<TContexto> {
   montarContexto: (dados: TContexto) => string;
 }
 
-export interface ProdutoPrecoContexto {
-  produto: string;
-  precoAtual: number;
-  custo: number;
-  precosConcorrentes: number[];
-}
-
-function formatarProdutosPreco(produtos: ProdutoPrecoContexto[]): string {
-  return produtos
-    .map((p) => {
-      const concorrentes = p.precosConcorrentes.length
-        ? p.precosConcorrentes.map((v) => `R$ ${v.toFixed(2)}`).join(', ')
-        : 'sem dado de concorrente';
-      return `- ${p.produto}: preço atual R$ ${p.precoAtual.toFixed(2)}, custo R$ ${p.custo.toFixed(2)}, concorrentes: ${concorrentes}`;
-    })
-    .join('\n');
-}
-
-// Base: "Encontrar o melhor preço pra cada produto" (cluster Operação & dados). Adaptado do
-// pacote original (que pedia "[cole: produto, preço atual, custo e preços de concorrentes]")
-// pra receber dado já buscado via API em vez de colado à mão pelo seller.
-export const PROMPT_PRECO_CONCORRENCIA: PromptTemplate<ProdutoPrecoContexto[]> = {
-  id: 'preco_concorrencia_melhor_preco',
-  gestor: 'preco_concorrencia',
-  titulo: 'Encontrar o melhor preço pra cada produto',
-  persona: 'Você é um especialista em pricing dinâmico pra vendedores de marketplace.',
-  tarefa: [
-    'Pra cada produto, sugira um preço ótimo que equilibre margem e competitividade.',
-    'Justifique cada sugestão em 1 linha.',
-    'Sinalize os produtos onde dá pra subir preço sem perder venda.',
-  ],
-  restricoes: [
-    'Considere o preço do concorrente, mas não recomende guerra de preço sem necessidade.',
-  ],
-  formatoSaida: [
-    'Tabela: Produto | Preço atual | Preço sugerido | Por quê',
-    'Bloco final: os produtos onde dá pra subir preço sem perder venda.',
-  ].join('\n'),
-  montarContexto: (produtos) => `Meus produtos:\n${formatarProdutosPreco(produtos)}`,
-};
-
 export interface SkuRupturaContexto {
   sku: string;
   nomeProduto: string;
   estoqueAtual: number;
   estoqueMinimo: number;
   vendas30d: number;
+  /** Estoque atual ÷ velocidade diária de venda — null quando não há venda suficiente pra estimar. */
+  diasAteRuptura: number | null;
+  /** Pedido já pago, esperando só o estoque chegar — sinal de urgência mais forte que venda histórica. */
+  pedidosAguardandoEstoque: number;
+  /** Não entra no texto do prompt (a IA não decide nada com isso) — só carregado pra reaproveitar
+   * esse mesmo fetch no enriquecimento pós-IA (gestorRupturaFulfillmentDados.enriquecerResultadoRuptura). */
+  fornecedorNome: string | null;
 }
 
 function formatarSkusRuptura(skus: SkuRupturaContexto[]): string {
   return skus
-    .map(
-      (s) =>
-        `- ${s.sku} (${s.nomeProduto}): estoque atual ${s.estoqueAtual}, estoque mínimo ${s.estoqueMinimo}, vendido nos últimos 30 dias: ${s.vendas30d} unidades`
-    )
+    .map((s) => {
+      const projecao = s.diasAteRuptura !== null ? `${s.diasAteRuptura} dias até esgotar` : 'sem projeção (pouca venda)';
+      const aguardando = s.pedidosAguardandoEstoque > 0 ? `, ${s.pedidosAguardandoEstoque} pedido(s) JÁ PAGO(S) esperando esse estoque` : '';
+      return `- ${s.sku} (${s.nomeProduto}): estoque atual ${s.estoqueAtual}, estoque mínimo ${s.estoqueMinimo}, vendido nos últimos 30 dias: ${s.vendas30d} unidades, ${projecao}${aguardando}`;
+    })
     .join('\n');
 }
 
@@ -97,9 +58,10 @@ export const PROMPT_RISCO_RUPTURA_FULFILLMENT: PromptTemplate<SkuRupturaContexto
     'Você é um especialista em fulfillment de e-commerce que ajuda vendedores que não ' +
     'controlam o próprio estoque (dropshipping) a evitar ruptura e cancelamento de venda.',
   tarefa: [
-    'Para cada SKU, avalie o risco de ruptura nos próximos dias com base no estoque disponível e na velocidade de venda dos últimos 30 dias.',
+    'Para cada SKU, avalie o risco de ruptura nos próximos dias com base no estoque disponível, na velocidade de venda dos últimos 30 dias, e nos dias até esgotar já calculados no contexto.',
     'Classifique cada SKU em: risco alto, risco médio, sem risco, ou dado insuficiente (quando não houver venda suficiente pra estimar velocidade).',
     'Para os SKUs de risco alto, recomende uma ação concreta que o próprio seller controle.',
+    'Se o SKU tiver pedido já pago esperando estoque, trate como prioridade máxima na ação recomendada — é cliente real esperando, não só uma projeção de venda.',
   ],
   restricoes: [
     'O seller não controla o estoque, quem repõe é o fornecedor — nunca recomende "comprar mais estoque" ou "contatar o fornecedor pra repor". A ação recomendada tem que ser algo que o seller mesmo executa: pausar ou despriorizar o anúncio, redirecionar verba de anúncio pago pra outro produto, ou avisar o comprador sobre prazo.',

@@ -96,6 +96,17 @@ function IconTruck({ active }: { active: boolean }) {
     </svg>
   );
 }
+function IconSparkles({ active }: { active: boolean }) {
+  return (
+    <svg className={`w-5 h-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+      <path d="M20 3v4" />
+      <path d="M22 5h-4" />
+      <path d="M4 17v2" />
+      <path d="M5 18H3" />
+    </svg>
+  );
+}
 function IconHelp({ active }: { active: boolean }) {
   return (
     <svg className={`w-5 h-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -122,13 +133,14 @@ function IconSuporte() {
   );
 }
 
-type NavKey = "dashboard" | "pedidos" | "fornecedores" | "produtos" | "calculadora" | "plano" | "cadastro" | "integracoes";
+type NavKey = "dashboard" | "pedidos" | "fornecedores" | "produtos" | "calculadora" | "gestores_ia" | "plano" | "cadastro" | "integracoes";
 
 /** Rotas agrupadas no menu “Mais” (só mobile agora — desktop mostra tudo direto na rail). */
 const NAV_MAIS_MENU_KEYS = ["integracoes", "plano", "cadastro"] as const satisfies readonly NavKey[];
-/** No mobile a barra de baixo só mostra 3 categorias — Calculadora e Fornecedores saem de
- * lá e entram no "Mais" (só no mobile; no desktop todos os itens são ícones próprios na rail). */
-const NAV_MAIS_MENU_KEYS_MOBILE = [...NAV_MAIS_MENU_KEYS, "calculadora", "fornecedores"] as const satisfies readonly NavKey[];
+/** No mobile a barra de baixo só mostra 3 categorias — Calculadora, Gestores de IA e
+ * Fornecedores saem de lá e entram no "Mais" (só no mobile; no desktop todos os itens são
+ * ícones próprios na rail). */
+const NAV_MAIS_MENU_KEYS_MOBILE = [...NAV_MAIS_MENU_KEYS, "calculadora", "gestores_ia", "fornecedores"] as const satisfies readonly NavKey[];
 
 const railActive = "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400";
 const railInactive = "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]";
@@ -225,7 +237,8 @@ export function SellerNav({
   calcOnly = false,
   wide = false,
 }: {
-  active: NavKey;
+  /** Sem valor = nenhuma aba destacada (ex.: páginas institucionais fora do menu principal). */
+  active?: NavKey;
   /** Só assinatura calculadora: esconde Dashboard e ERP */
   calcOnly?: boolean;
   /** Página já migrada pro padrão largo (dropcore-shell-6xl) — usado pra escalar a largura da barra inferior no mobile junto com o conteúdo. Não afeta mais o desktop (virou rail lateral de largura fixa). */
@@ -279,7 +292,7 @@ export function SellerNav({
       active === key ? activeClass + " bg-emerald-100 dark:bg-emerald-900" : inactiveMobile
     }`;
 
-  const mobileMaisActive = (NAV_MAIS_MENU_KEYS_MOBILE as readonly string[]).includes(active);
+  const mobileMaisActive = active != null && (NAV_MAIS_MENU_KEYS_MOBILE as readonly string[]).includes(active);
   const mobileMaisBtnClass =
     `flex min-w-0 flex-1 flex-row items-center justify-center gap-1 overflow-hidden px-0.5 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ` +
     (mobileMaisActive
@@ -389,6 +402,9 @@ export function SellerNav({
         <SellerNavRailItem href="/seller/calculadora" label="Calculadora" isActive={active === "calculadora"}>
           <IconCalculator active={active === "calculadora"} />
         </SellerNavRailItem>
+        <SellerNavRailItem href="/seller/gestores-ia" label="Gestores de IA" isActive={active === "gestores_ia"}>
+          <IconSparkles active={active === "gestores_ia"} />
+        </SellerNavRailItem>
         <div className="my-1 h-px w-6 shrink-0 bg-[var(--card-border)]" aria-hidden />
         <SellerNavRailItem href="/seller/integracoes-erp" label="ERP" isActive={active === "integracoes"}>
           <IconPlug active={active === "integracoes"} />
@@ -444,6 +460,19 @@ export function SellerNav({
             >
               <IconCalculator active={active === "calculadora"} />
               Calculadora
+            </Link>
+            <Link
+              href="/seller/gestores-ia"
+              role="menuitem"
+              className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+                active === "gestores_ia"
+                  ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                  : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
+              }`}
+              onClick={() => setMobileMaisOpen(false)}
+            >
+              <IconSparkles active={active === "gestores_ia"} />
+              Gestores de IA
             </Link>
             <Link
               href="/seller/integracoes-erp"

@@ -147,6 +147,12 @@ export function SellerMercadoLivreIntegrationPanel() {
               Acesso válido até {new Date(status.access_token_expires_at).toLocaleString("pt-BR")} — renova sozinho.
             </p>
           ) : null}
+          <a
+            href="/api/seller/mercadolivre/connect"
+            className="mt-3 inline-flex rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+          >
+            Reconectar
+          </a>
         </div>
       ) : (
         <a
