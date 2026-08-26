@@ -8,6 +8,7 @@ import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { MobileAppBar } from "@/components/MobileAppBar";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { buildSellerSupportWhatsAppHref, getSellerSupportWhatsAppPrefill } from "@/lib/sellerSupportWhatsAppPrefill";
+import { useGestoresIaPermitido } from "@/lib/ai/useGestoresIaPermitido";
 
 const activeClass = "text-emerald-600 dark:text-emerald-400 border-emerald-500";
 const inactiveDesktop =
@@ -248,6 +249,7 @@ export function SellerNav({
   const pathname = usePathname() ?? "";
   const supportHref = buildSellerSupportWhatsAppHref(getSellerSupportWhatsAppPrefill(pathname));
   const [mobileMaisOpen, setMobileMaisOpen] = useState(false);
+  const gestoresIaPermitido = useGestoresIaPermitido();
 
   useEffect(() => {
     setMobileMaisOpen(false);
@@ -402,9 +404,11 @@ export function SellerNav({
         <SellerNavRailItem href="/seller/calculadora" label="Calculadora" isActive={active === "calculadora"}>
           <IconCalculator active={active === "calculadora"} />
         </SellerNavRailItem>
-        <SellerNavRailItem href="/seller/gestores-ia" label="Gestores de IA" isActive={active === "gestores_ia"}>
-          <IconSparkles active={active === "gestores_ia"} />
-        </SellerNavRailItem>
+        {gestoresIaPermitido ? (
+          <SellerNavRailItem href="/seller/gestores-ia" label="Gestores de IA" isActive={active === "gestores_ia"}>
+            <IconSparkles active={active === "gestores_ia"} />
+          </SellerNavRailItem>
+        ) : null}
         <div className="my-1 h-px w-6 shrink-0 bg-[var(--card-border)]" aria-hidden />
         <SellerNavRailItem href="/seller/integracoes-erp" label="ERP" isActive={active === "integracoes"}>
           <IconPlug active={active === "integracoes"} />
@@ -461,19 +465,21 @@ export function SellerNav({
               <IconCalculator active={active === "calculadora"} />
               Calculadora
             </Link>
-            <Link
-              href="/seller/gestores-ia"
-              role="menuitem"
-              className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
-                active === "gestores_ia"
-                  ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
-                  : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
-              }`}
-              onClick={() => setMobileMaisOpen(false)}
-            >
-              <IconSparkles active={active === "gestores_ia"} />
-              Gestores de IA
-            </Link>
+            {gestoresIaPermitido ? (
+              <Link
+                href="/seller/gestores-ia"
+                role="menuitem"
+                className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+                  active === "gestores_ia"
+                    ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                    : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
+                }`}
+                onClick={() => setMobileMaisOpen(false)}
+              >
+                <IconSparkles active={active === "gestores_ia"} />
+                Gestores de IA
+              </Link>
+            ) : null}
             <Link
               href="/seller/integracoes-erp"
               role="menuitem"

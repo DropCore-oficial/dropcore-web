@@ -13,7 +13,7 @@ export type TabelaMedidasUpsertContext = {
   fornecedor_id?: string;
 };
 
-function paiKey(sku: string): string {
+export function paiKey(sku: string): string {
   const s = (sku || "").trim().toUpperCase();
   const m = s.match(/^([A-Z]+)(\d{3})(\d{3})$/);
   return m ? `${m[1]}${m[2]}000` : s;

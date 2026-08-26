@@ -12,7 +12,17 @@ import {
   montarPrompt,
 } from "./gestorPrompts";
 import { buscarDadosRupturaFulfillment } from "./gestorRupturaFulfillmentDados";
-import { PROMPT_ANUNCIOS_SEO, SCHEMA_ANUNCIOS_SEO, buscarDadosAnunciosSeo } from "./gestorAnunciosSeoDados";
+import {
+  PROMPT_ANUNCIOS_SEO,
+  SCHEMA_ANUNCIOS_SEO,
+  buscarDadosAnunciosSeo,
+  buscarDadosAnuncioUnico,
+} from "./gestorAnunciosSeoDados";
+import {
+  PROMPT_REPUTACAO_ATENDIMENTO,
+  SCHEMA_REPUTACAO_ATENDIMENTO,
+  buscarDadosReputacaoAtendimento,
+} from "./gestorReputacaoAtendimentoDados";
 
 export const MODELO_GESTORES_IA = "claude-sonnet-5";
 
@@ -42,11 +52,50 @@ export async function montarRequestAnunciosSeo(
   if (dados.length === 0) return null;
   return {
     model: MODELO_GESTORES_IA,
-    // Amostra fixa de até 20 anúncios (ver gestorAnunciosSeoDados.ts) — saída bem menor que a
-    // do gestor de estoque, 4096 sobra de margem.
-    max_tokens: 4096,
+    // Amostra fixa de até 20 grupos (ver gestorAnunciosSeoDados.ts). 4096 bastava quando a
+    // saída era só título+observação; desde que descricao_sugerida (até 1500 chars) e
+    // caracteristicas_sugeridas entraram no schema (2026-08-23), o JSON pode passar disso
+    // fácil e truncar no meio — mesmo tipo de bug já corrigido no gestor de estoque.
+    max_tokens: 16384,
     thinking: { type: "disabled" },
     output_config: { format: { type: "json_schema", schema: SCHEMA_ANUNCIOS_SEO } },
     messages: [{ role: "user", content: montarPrompt(PROMPT_ANUNCIOS_SEO, dados) }],
+  };
+}
+
+export async function montarRequestReputacaoAtendimento(
+  sellerId: string
+): Promise<Anthropic.Messages.MessageCreateParamsNonStreaming | null> {
+  const dados = await buscarDadosReputacaoAtendimento(sellerId);
+  if (!dados) return null;
+  return {
+    model: MODELO_GESTORES_IA,
+    // Reputação é sempre 1 registro + até 15 perguntas (MAX_PERGUNTAS) — contexto bem menor
+    // que os outros gestores, mas mantém a mesma margem generosa (mesma classe de bug de
+    // truncamento já corrigida nos outros dois).
+    max_tokens: 8192,
+    thinking: { type: "disabled" },
+    output_config: { format: { type: "json_schema", schema: SCHEMA_REPUTACAO_ATENDIMENTO } },
+    messages: [{ role: "user", content: montarPrompt(PROMPT_REPUTACAO_ATENDIMENTO, dados) }],
+  };
+}
+
+/** Análise sob demanda de 1 anúncio específico (não a amostra dos 20 piores) — usada pelo
+ * handoff do Gestor 1 ("analisar este anúncio"). Não persiste rodada nova em
+ * seller_ai_runs (ver app/api/seller/gestores-ia/diagnostico-anuncio) — é uma consulta
+ * pontual, não substitui a rodada principal do gestor. */
+export async function montarRequestAnuncioUnico(
+  sellerId: string,
+  itemId: string
+): Promise<Anthropic.Messages.MessageCreateParamsNonStreaming | null> {
+  const dado = await buscarDadosAnuncioUnico(sellerId, itemId);
+  if (!dado) return null;
+  return {
+    model: MODELO_GESTORES_IA,
+    // 1 grupo só, mas descricao_sugerida sozinha já pode chegar em ~1500 chars — 2048 dá margem.
+    max_tokens: 2048,
+    thinking: { type: "disabled" },
+    output_config: { format: { type: "json_schema", schema: SCHEMA_ANUNCIOS_SEO } },
+    messages: [{ role: "user", content: montarPrompt(PROMPT_ANUNCIOS_SEO, [dado]) }],
   };
 }

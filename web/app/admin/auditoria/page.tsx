@@ -41,6 +41,7 @@ const ACTION_LABELS: Record<string, string> = {
   "erp.olist.sync_manual": "Sincronizou Olist manualmente",
   "erp.olist.sync_precos_admin": "Sincronizou preços Olist (admin)",
   "erp.olist.sync_estoque_admin": "Sincronizou estoque Olist (admin)",
+  "disputa_fornecedor.decidir": "Decidiu disputa com fornecedor (Amanda)",
 };
 
 function actionLabel(action: string): string {

@@ -8,23 +8,35 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
+import { gestoresIaSellerPermitido } from "@/lib/ai/gestoresIaAcesso";
 import { isPro } from "@/lib/planos";
 import type { GestorId } from "@/lib/ai/gestorPrompts";
-import { MODELO_GESTORES_IA, montarRequestEstoqueFulfillment, montarRequestAnunciosSeo } from "@/lib/ai/gestorRequestBuilders";
+import {
+  MODELO_GESTORES_IA,
+  montarRequestEstoqueFulfillment,
+  montarRequestAnunciosSeo,
+  montarRequestReputacaoAtendimento,
+} from "@/lib/ai/gestorRequestBuilders";
 import { parseGestorResposta } from "@/lib/ai/gestorParseResposta";
 import { enriquecerResultadoRuptura } from "@/lib/ai/gestorRupturaFulfillmentDados";
+import { enriquecerResultadoAnunciosSeo } from "@/lib/ai/gestorAnunciosSeoDados";
+import { enriquecerResultadoReputacaoAtendimento } from "@/lib/ai/gestorReputacaoAtendimentoDados";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const COOLDOWN_HORAS = 6;
-const GESTORES_VALIDOS: GestorId[] = ["estoque_fulfillment", "anuncios_seo"];
+const GESTORES_VALIDOS: GestorId[] = ["estoque_fulfillment", "anuncios_seo", "reputacao"];
 
 export async function POST(req: Request) {
   const seller = await getSellerFromToken(req);
   if (!seller) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  }
+
+  if (!gestoresIaSellerPermitido(seller.id)) {
+    return NextResponse.json({ error: "Recurso não disponível." }, { status: 403 });
   }
 
   const body = (await req.json().catch(() => ({}))) as { gestor?: string };
@@ -38,16 +50,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY não configurada." }, { status: 500 });
   }
 
-  const { data: sellerPlano, error: planoErr } = await supabaseAdmin
+  const { data: sellerRow, error: sellerErr } = await supabaseAdmin
     .from("sellers")
-    .select("plano")
+    .select("plano, saldo_atual")
     .eq("id", seller.id)
     .maybeSingle();
-  if (planoErr) {
-    return NextResponse.json({ error: "Erro ao carregar plano do seller." }, { status: 500 });
+  if (sellerErr) {
+    return NextResponse.json({ error: "Erro ao carregar dados do seller." }, { status: 500 });
   }
-  if (!isPro({ plano: sellerPlano?.plano })) {
+  if (!isPro({ plano: sellerRow?.plano })) {
     return NextResponse.json({ error: "Gestores de IA são exclusivos do plano Pro." }, { status: 403 });
+  }
+  if (Math.max(0, Number(sellerRow?.saldo_atual ?? 0)) <= 0) {
+    return NextResponse.json({ error: "Recarregue seu saldo pra usar os Gestores de IA." }, { status: 402 });
   }
 
   const { data: ultima } = await supabaseAdmin
@@ -72,7 +87,9 @@ export async function POST(req: Request) {
   const params =
     gestor === "estoque_fulfillment"
       ? await montarRequestEstoqueFulfillment(seller.id)
-      : await montarRequestAnunciosSeo(seller.id);
+      : gestor === "anuncios_seo"
+        ? await montarRequestAnunciosSeo(seller.id)
+        : await montarRequestReputacaoAtendimento(seller.id);
   if (!params) {
     return NextResponse.json({ error: "Sem dado suficiente pra rodar esse gestor agora." }, { status: 422 });
   }
@@ -96,6 +113,26 @@ export async function POST(req: Request) {
       );
     } catch (e) {
       console.error("[gestores-ia/rodar] enriquecimento ruptura falhou", e);
+    }
+  }
+  if (!erroMensagem && resultado && gestor === "anuncios_seo") {
+    try {
+      resultado = await enriquecerResultadoAnunciosSeo(
+        seller.id,
+        resultado as Parameters<typeof enriquecerResultadoAnunciosSeo>[1]
+      );
+    } catch (e) {
+      console.error("[gestores-ia/rodar] enriquecimento anúncios falhou", e);
+    }
+  }
+  if (!erroMensagem && resultado && gestor === "reputacao") {
+    try {
+      resultado = await enriquecerResultadoReputacaoAtendimento(
+        seller.id,
+        resultado as Parameters<typeof enriquecerResultadoReputacaoAtendimento>[1]
+      );
+    } catch (e) {
+      console.error("[gestores-ia/rodar] enriquecimento reputação falhou", e);
     }
   }
 

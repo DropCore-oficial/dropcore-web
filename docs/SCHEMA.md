@@ -167,6 +167,76 @@ Código (`web/lib/ai/`):
 - Rotas: `/api/cron/gestores-ia-submeter` e `/api/cron/gestores-ia-resultado`, mesmo padrão de auth (`CRON_SECRET`) dos outros crons.
 - **`@anthropic-ai/sdk` instalado** (`^0.117.1`) — usado direto, **não** via Vercel AI Gateway/pacote `ai`: a Batch API não é exposta pelo Gateway (que só cobre chamada síncrona/streaming), então essa parte específica precisa do SDK oficial da Anthropic com a chave configurada direto.
 
+## Gestores de IA — 2º gestor (Anúncios & SEO), vínculo SKU↔ML, correções (2026-08-21/22)
+
+`gestor = 'preco_concorrencia'` foi **removido do código** (não é mais valor válido na
+prática, embora o `CHECK` do banco ainda liste — sem migration só por isso, nenhum código
+insere essa linha): testado ao vivo, a API do Mercado Livre não abre preço de concorrente
+pra catálogo não catalogado (`price_to_win` exige `catalog_product_id`, moda/marca própria
+não tem; `/sites/{site}/search` devolve 403 pra app de terceiro).
+
+**`custom_id` da Batch API corrigido:** era só `seller_id` (colidia assim que um seller
+tinha 2 gestores pendentes no mesmo batch — `Map` sobrescrevia a primeira linha). Agora
+`${seller_id}__${gestor}` (`customIdGestorSeller()` em `gestorBatchSubmit.ts`) — `__` como
+separador porque a Batch API só aceita `[a-zA-Z0-9_-]` no `custom_id` (sem `:`).
+
+**`web/lib/mercadoLivreApiClient.ts`** — cliente autenticado da API do ML pro lado
+servidor: `getValidMercadoLivreAccessToken(sellerId)` decripta/renova o token salvo (5min
+de folga antes de expirar), + wrappers `mlBuscarItensAtivos`, `mlBuscarItensDetalhe`
+(multiget, lotes de 20), `mlBuscarDescricao`, `mlBuscarVisitas30d`. Reutilizável por
+qualquer gestor futuro que precise da API do ML.
+
+**Gestor "Anúncios & SEO"** (`gestorAnunciosSeoDados.ts`) — amostra de até 20 anúncios
+ativos com pior venda histórica (só os com 30+ dias no ar, evita julgar anúncio novo),
+diagnostica título/descrição/fotos fracos e sugere título melhorado. Catálogo pode ter
+centenas de anúncios (563 na conta de teste) — só faz as chamadas caras (descrição +
+visitas, 1 por item) nos 20 selecionados, não no catálogo inteiro.
+
+**Gestor "Risco de Ruptura & Fulfillment" ganhou enriquecimento pós-IA** (código puro, não
+gasta token — `enriquecerResultadoRuptura()` em `gestorRupturaFulfillmentDados.ts`,
+chamado em `gestorBatchResultado.ts` só quando `gestor === 'estoque_fulfillment'`):
+`dias_ate_ruptura` (estoque ÷ velocidade diária), `pedidos_aguardando_estoque` (cruza com
+`pedidos.status = 'pendente_estoque'`), `fornecedor_nome` (via `skus.fornecedor_id`), e
+`piorou_desde_ontem` (compara `risco` com a rodada `status='ok'` anterior do mesmo
+seller+gestor). Dado recalculado **fresco** no momento do resultado, não usa o que foi
+mandado no submit (batch pode levar horas).
+
+**`web/lib/ai/gestorRequestBuilders.ts`** — `montarRequestEstoqueFulfillment(sellerId)` /
+`montarRequestAnunciosSeo(sellerId)` centralizam os params da Anthropic (model/thinking/
+schema/prompt) por gestor, usados tanto pelo cron em lote (`gestorBatchSubmit.ts`, Batch
+API) quanto pelo botão "Rodar de novo agora" do seller (`POST
+/api/seller/gestores-ia/rodar`, chamada síncrona `messages.create`, sem Batch — o seller
+espera na hora, cooldown de 6h por seller+gestor pra evitar spam/custo).
+`gestorParseResposta.ts` extrai o JSON estruturado (ou erro) da resposta da Anthropic —
+mesma lógica pro resultado de Batch e pra chamada síncrona.
+
+**Notificação in-app** (`gestorNotificacao.ts`, tabela `notifications` já existente) quando
+uma rodada termina (ok ou erro). **Bug real corrigido:** `lib/notificationContextFilter.ts`
+tem lista fechada de `tipo` permitido por portal (evita misturar alerta de admin com
+seller/fornecedor) — faltava `gestor_ia_concluido` na lista do `seller`, então a
+notificação existia no banco mas o sino filtrava em silêncio. Sempre que um `tipo` novo de
+notificação for criado, conferir esse allowlist.
+
+## `seller_mercadolivre_sku_map` — vínculo SKU (DropCore) ↔ anúncio ML (2026-08-22)
+
+`web/scripts/create-seller-mercadolivre-sku-map.sql`: `(seller_id, sku)` único →
+`ml_item_id` (+ `ml_variation_id` opcional, guardado mesmo sem uso ainda). Resolve o
+handoff Gestor1→Gestor2 e a futura ação semiautomática (pausar anúncio), que precisam saber
+qual anúncio corresponde a qual SKU — SKU interno e `item_id` do ML não tinham nenhum elo
+antes disso.
+
+**Achado real (testado, não assumido):** o Mercado Livre tem um atributo `SELLER_SKU`
+(`id: "SELLER_SKU"` dentro de `attributes` no nível do item, ou de `attribute_combinations`
+por variação) onde o seller guarda o próprio código — **não** é `seller_custom_field`
+(testado primeiro nesse campo, veio `null` em 100% da amostra, conclusão errada descartada
+depois). Cobertura real numa amostra de 100 anúncios ativos: **92 já tinham `SELLER_SKU`
+preenchido batendo com o padrão `DJU...`** do DropCore — vínculo é majoritariamente
+automático, não precisou virar tela de "vincular manualmente" como caminho principal.
+
+RLS: deny-all, sem RPC de leitura ainda (só `supabaseAdmin` lê/escreve — nenhuma tela do
+seller expõe isso diretamente por enquanto). Job de sync que popula a tabela ainda não foi
+escrito (próximo passo, ver memória de projeto "Briefing Gestores de IA").
+
 **Billing intencionalmente não implementado ainda**: `creditos_debitados` fica sempre `null` — o valor real de 1 crédito no ledger é item em aberto (não resolvido), não foi inventado número.
 
 **Cron NÃO está agendado no pg_cron ainda** (`web/scripts/supabase-cron-jobs.sql` tem os dois `cron.schedule` comentados) — falta: `ANTHROPIC_API_KEY` configurada na Vercel, valor de crédito resolvido, e confirmação explícita antes de rodar em sellers reais.
@@ -197,6 +267,99 @@ autorização), `web/components/seller/SellerMercadoLivreIntegrationPanel.tsx` +
 Env vars novas: `MERCADOLIVRE_CLIENT_ID`, `MERCADOLIVRE_CLIENT_SECRET` (já configuradas na
 Vercel, Production+Preview). **Nada disso foi commitado/deployado ainda** — só existe no
 working directory local até aprovação explícita de deploy.
+
+## `seller_ai_acoes` — auditoria de ação executada pelos gestores de IA (2026-08-23)
+
+`web/scripts/create-seller-ai-acoes.sql`: registra toda tentativa de ação que um gestor
+executa de fato num sistema externo (não é o resultado da análise — isso já mora em
+`seller_ai_runs.resultado` — é "isso foi escrito de verdade, por quem, quando, deu certo?").
+Colunas: `org_id`, `seller_id`, `run_id` (nullable, FK `seller_ai_runs`), `gestor` (mesmo
+check de `seller_ai_runs`, sem `preco_concorrencia`), `alvo_tipo`/`alvo_id`/`acao` (texto
+livre, não `CHECK` fechado — serve qualquer gestor futuro sem migration nova), `status`
+(`confirmado`/`executado`/`erro`), `detalhes jsonb`, `actor_user_id`, `ip_address`,
+`user_agent`, `criado_em`, `executado_em`.
+
+RLS: deny-all, mesmo padrão RPC-only de `seller_ai_runs` — leitura só via
+`fn_seller_ai_acoes_list(p_seller_id, p_limit default 20, p_before default null)`
+(`SECURITY DEFINER`, reaproveita `fn_user_can_access_seller`); escrita só via
+`supabaseAdmin` dentro da API route que executa a ação (não RPC de insert exposta).
+
+**Primeiro uso: "aplicar título sugerido" do Gestor 2 (Andrey)** —
+`POST /api/seller/gestores-ia/aplicar-titulo`. Antes de escrever, consulta
+`GET /items/{id}` no Mercado Livre (`mlBuscarItemTituloEstado` em
+`mercadoLivreApiClient.ts`) e recusa (409, grava `erro` em `seller_ai_acoes`) se
+`family_name` estiver preenchido OU `sold_quantity > 0` — **achado real testando ao vivo**:
+o ML bloqueia `PUT title` nos dois casos, não só família (mensagem de erro do ML é
+`"Cannot update title when item has bids"`, herança de nomenclatura de leilão, mas dispara
+pra qualquer venda já registrada). Numa amostra de 100 anúncios ativos da conta real, só 1
+estava livre pra edição — a maioria dos anúncios que o Andrey sinaliza (pior venda, não
+necessariamente zero venda) vai cair no bloqueio; UI mostra "Copiar sugestão" como
+alternativa sempre disponível.
+
+Checagem de dono do anúncio usa `estado.seller_id` (devolvido pela própria API do ML,
+comparado com `ctx.mlUserId` da conexão OAuth do seller) — **não** usa
+`seller_mercadolivre_sku_map` pra isso (cobertura parcial, ~59%, rejeitaria anúncio
+legítimo que o Andrey já analisou direto pela API).
+
+**Mais 2 ações do Andrey (2026-08-23, mesmo dia): `aplicar_descricao` e
+`aplicar_caracteristicas`.** Diferente de título, `PUT /items/{id}/description` e `PUT
+/items/{id}` com `attributes` **não têm** a trava de família nem de venda (testado ao
+vivo) — por isso essas duas rotas escrevem em **todos os `item_ids` do grupo de uma vez**,
+não só no representante:
+- `POST /api/seller/gestores-ia/aplicar-descricao` (`{item_ids, descricao_nova}`) —
+  `mlAtualizarDescricao`.
+- `POST /api/seller/gestores-ia/aplicar-caracteristicas` (`{item_ids, caracteristicas}`) —
+  `mlAtualizarAtributos`. Revalida cada valor contra o schema real da categoria do item
+  antes de escrever (não confia só no `valorValido` calculado no enriquecimento) — atributo
+  tipo `list` só escreve se o valor bater exato com uma opção real de
+  `mlBuscarAtributosCategoria`; tipo texto livre sempre passa.
+
+Ambas fazem 1 linha de auditoria por `item_id` (não 1 linha por chamada) — dá pra ver na
+`seller_ai_acoes` exatamente quais variações de uma família pegaram a escrita e quais não.
+
+## `seller_ai_disputas_fornecedor` — disputa fornecedor x seller detectada pela Amanda (2026-08-25)
+
+`web/scripts/create-seller-ai-disputas-fornecedor.sql`: quando a Amanda (Gestor 6,
+Reputação & Atendimento) detecta uma reclamação/devolução real do Mercado Livre com
+evidência (foto) anexada pelo comprador, monta um "caso" nessa tabela — evidência
+coletada, comparação da IA (anúncio vs. foto), resposta do fornecedor (se contestar) e
+decisão final do admin. **Admin-only, nunca visível pro seller.**
+
+Colunas: `org_id`, `seller_id`, `fornecedor_id`/`pedido_id`/`ledger_id` (nullable até
+resolvidos — `pedido_id` casado via `pedidos.marketplace_numero = claim.resource_id`),
+`ml_claim_id` (unique), `ml_item_id`, `ml_order_id`, `evidencia jsonb`, `analise_ia jsonb`,
+`veredito_ia` (`fornecedor_provavel`/`seller_provavel`/`indeterminado`), `status`
+(`aberto`/`aguardando_fornecedor`/`decidido`), `fornecedor_resposta`,
+`fornecedor_respondeu_em`, `decisao_admin`
+(`reverter_repasse`/`manter_repasse`/`sem_acao`), `decisao_detalhes`, `decidido_por`,
+`decidido_em`, `criado_em`.
+
+**Sem função financeira nova de propósito.** Quando o admin decide reverter, ele usa o
+fluxo de devolução que já existe em produção (`/admin/devolucoes`,
+`PATCH /api/org/financial/ledger/[id]` status `EM_DEVOLUCAO`→`DEVOLVIDO`, e
+`POST /api/org/financial/devolucao-pos-repasse` pra ledger já `PAGO`) — `ledger_id` nessa
+tabela só registra qual linha do ledger o admin de fato mexeu, é rastro/auditoria, não
+gatilho de movimentação.
+
+RLS: deny-all, **não** é RPC-only (padrão diferente de `seller_ai_acoes`) — segue o mesmo
+modelo de `financial_ledger`: acesso só via `supabaseAdmin` (service role) dentro de rotas
+admin (`requireAdmin`) e da rota do fornecedor (`getFornecedorContextFromBearer`, valida
+que o `fornecedor_id` do caso bate com o fornecedor autenticado antes de aceitar resposta).
+
+**Origem do dado — API de reclamação do Mercado Livre, testada ao vivo 2026-08-25 (mesma
+conexão OAuth já usada pelos outros gestores, sem escopo novo):**
+- `GET /post-purchase/v1/claims/search?player_role=respondent&player_user_id={id}` — lista
+  reclamações (parâmetro é `player_role`/`player_user_id`, **com underscore**, não
+  `player.role`/`player.user_id` como a doc sugere à primeira vista). Filtro
+  `status=opened` pra só as ativas.
+- `GET /post-purchase/v1/claims/{id}` — detalhe, inclui `available_actions` do lado
+  `respondent` (seller): `send_message_to_complainant`, `refund`, `open_dispute`.
+- `GET /post-purchase/v1/claims/{id}/evidences` — lista de evidência anexada (testado: foto
+  real de um comprador). **Endpoint de download do arquivo em si ainda não resolvido**
+  (`/attachments/{filename}` devolveu 404 num teste rápido — pendência, não bloqueia o
+  resto).
+- `GET /post-purchase/v1/claims/{id}/messages` — chat da reclamação (endpoint existe,
+  testado retornando vazio no caso de teste).
 
 ## Pendências conhecidas
 

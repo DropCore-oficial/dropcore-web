@@ -7,6 +7,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enriquecerResultadoRuptura } from "./gestorRupturaFulfillmentDados";
+import { enriquecerResultadoAnunciosSeo } from "./gestorAnunciosSeoDados";
+import { enriquecerResultadoReputacaoAtendimento } from "./gestorReputacaoAtendimentoDados";
 import { notificarSellerGestorConcluido } from "./gestorNotificacao";
 import type { GestorId } from "./gestorPrompts";
 import { customIdGestorSeller } from "./gestorBatchSubmit";
@@ -59,11 +61,12 @@ export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBa
       if (!linha) continue;
 
       if (item.result.type === "succeeded") {
-        let { resultado, erroMensagem } = parseGestorResposta(item.result.message);
+        const parsed = parseGestorResposta(item.result.message);
+        let resultado = parsed.resultado;
+        const erroMensagem = parsed.erroMensagem;
 
-        // Enriquecimento pós-IA (código puro, não gasta token): dias até ruptura, pedido
-        // aguardando estoque, fornecedor e comparação com a rodada anterior — só faz
-        // sentido pro gestor de estoque, os outros ficam com o resultado cru da IA.
+        // Enriquecimento pós-IA (código puro, não gasta token) — dias até ruptura, pedido
+        // aguardando estoque, fornecedor e comparação com a rodada anterior por gestor.
         if (!erroMensagem && resultado && linha.gestor === "estoque_fulfillment") {
           try {
             resultado = await enriquecerResultadoRuptura(
@@ -72,6 +75,26 @@ export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBa
             );
           } catch (e) {
             console.error("[gestorBatchResultado] enriquecimento ruptura falhou", e);
+          }
+        }
+        if (!erroMensagem && resultado && linha.gestor === "anuncios_seo") {
+          try {
+            resultado = await enriquecerResultadoAnunciosSeo(
+              linha.seller_id,
+              resultado as Parameters<typeof enriquecerResultadoAnunciosSeo>[1]
+            );
+          } catch (e) {
+            console.error("[gestorBatchResultado] enriquecimento anúncios falhou", e);
+          }
+        }
+        if (!erroMensagem && resultado && linha.gestor === "reputacao") {
+          try {
+            resultado = await enriquecerResultadoReputacaoAtendimento(
+              linha.seller_id,
+              resultado as Parameters<typeof enriquecerResultadoReputacaoAtendimento>[1]
+            );
+          } catch (e) {
+            console.error("[gestorBatchResultado] enriquecimento reputação falhou", e);
           }
         }
 

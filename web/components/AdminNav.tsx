@@ -13,6 +13,7 @@ const MAIS_GRUPOS = [
     label: "Financeiro",
     items: [
       { href: "/admin/devolucoes", label: "Devoluções" },
+      { href: "/admin/disputas-fornecedor", label: "Disputas com fornecedor" },
       { href: "/admin/mensalidades", label: "Mensalidades" },
       { href: "/admin/depositos-pix", label: "Depósitos PIX" },
     ],

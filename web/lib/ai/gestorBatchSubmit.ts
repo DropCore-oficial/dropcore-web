@@ -11,7 +11,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isPro } from "@/lib/planos";
 import type { GestorId } from "./gestorPrompts";
-import { MODELO_GESTORES_IA, montarRequestEstoqueFulfillment, montarRequestAnunciosSeo } from "./gestorRequestBuilders";
+import {
+  MODELO_GESTORES_IA,
+  montarRequestEstoqueFulfillment,
+  montarRequestAnunciosSeo,
+  montarRequestReputacaoAtendimento,
+} from "./gestorRequestBuilders";
 
 export type SubmeterGestoresResultado = {
   sellers_elegiveis: number;
@@ -20,7 +25,7 @@ export type SubmeterGestoresResultado = {
   requests_submetidos: number;
 };
 
-type SellerElegivel = { id: string; org_id: string; plano: string | null };
+type SellerElegivel = { id: string; org_id: string; plano: string | null; saldo_atual: number | null };
 
 // custom_id tem limite de 64 caracteres na Batch API E só aceita [a-zA-Z0-9_-] (sem ":").
 // seller_id (uuid, 36) sozinho não basta: com 2+ gestores por seller no mesmo batch, precisa
@@ -39,11 +44,15 @@ export async function submeterGestoresIaDiario(): Promise<SubmeterGestoresResult
 
   const { data: sellersRaw, error } = await supabaseAdmin
     .from("sellers")
-    .select("id, org_id, plano")
+    .select("id, org_id, plano, saldo_atual")
     .eq("status", "ativo");
   if (error) throw new Error(error.message);
 
-  const elegiveis = ((sellersRaw ?? []) as SellerElegivel[]).filter((s) => isPro({ plano: s.plano }));
+  // Sem saldo, o seller nem vê a tela (gate em /api/seller/gestores-ia) — não vale gastar
+  // com API paga pra rodada que ninguém vai ver.
+  const elegiveis = ((sellersRaw ?? []) as SellerElegivel[]).filter(
+    (s) => isPro({ plano: s.plano }) && Math.max(0, Number(s.saldo_atual ?? 0)) > 0
+  );
 
   const requests: Array<{
     custom_id: string;
@@ -65,6 +74,14 @@ export async function submeterGestoresIaDiario(): Promise<SubmeterGestoresResult
     if (paramsAnuncios) {
       requests.push({ custom_id: customIdGestorSeller(seller.id, "anuncios_seo"), params: paramsAnuncios });
       pendentes.push({ org_id: seller.org_id, seller_id: seller.id, gestor: "anuncios_seo" });
+    } else {
+      semDado += 1;
+    }
+
+    const paramsReputacao = await montarRequestReputacaoAtendimento(seller.id);
+    if (paramsReputacao) {
+      requests.push({ custom_id: customIdGestorSeller(seller.id, "reputacao"), params: paramsReputacao });
+      pendentes.push({ org_id: seller.org_id, seller_id: seller.id, gestor: "reputacao" });
     } else {
       semDado += 1;
     }
