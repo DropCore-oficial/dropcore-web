@@ -21,6 +21,7 @@ const modalOverlay: React.CSSProperties = { position: "fixed", inset: 0, backgro
 const modalBox: React.CSSProperties = { background: "#fff", padding: 20, borderRadius: 8, maxWidth: 380, width: "calc(100% - 32px)", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" };
 const btnPrimary: React.CSSProperties = { padding: "8px 16px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14 };
 const btnSecondary: React.CSSProperties = { padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 14 };
+const btnDanger: React.CSSProperties = { padding: "8px 16px", border: "1px solid #fecaca", color: "#991b1b", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 14 };
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
@@ -39,8 +40,9 @@ export default function AdminDepositosPixPage() {
 
   const [list, setList] = useState<Deposito[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"pendente" | "aprovado" | "todos">("pendente");
+  const [filter, setFilter] = useState<"pendente" | "aprovado" | "cancelado" | "todos">("pendente");
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -100,6 +102,27 @@ export default function AdminDepositosPixPage() {
     }
   }
 
+  async function cancelar(id: string) {
+    if (!confirm("Cancelar este depósito PIX? Use quando o valor nunca chegou (pagamento não realizado ou duplicado).")) return;
+    const { data: { session } } = await supabaseBrowser.auth.getSession();
+    if (!session?.access_token) return;
+    setCancelingId(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/org/sellers/depositos-pix/${id}/cancelar`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Erro ao cancelar");
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao cancelar");
+    } finally {
+      setCancelingId(null);
+    }
+  }
+
   return (
     <div className="dropcore-shell-6xl pb-10 md:pb-12" style={{ paddingTop: 24 }}>
       <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>Depósitos PIX</h1>
@@ -110,11 +133,12 @@ export default function AdminDepositosPixPage() {
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
         <select
           value={filter}
-          onChange={(e) => setFilter(e.target.value as "pendente" | "aprovado" | "todos")}
+          onChange={(e) => setFilter(e.target.value as "pendente" | "aprovado" | "cancelado" | "todos")}
           style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
         >
           <option value="pendente">Pendentes</option>
           <option value="aprovado">Aprovados</option>
+          <option value="cancelado">Cancelados</option>
           <option value="todos">Todos</option>
         </select>
         <button type="button" onClick={() => router.push("/admin/sellers")} style={btnSecondary}>
@@ -155,18 +179,31 @@ export default function AdminDepositosPixPage() {
                   {d.status === "aprovado" && d.aprovado_em && (
                     <span style={{ marginLeft: 8, color: "#166534" }}>Aprovado em {formatDate(d.aprovado_em)}</span>
                   )}
+                  {d.status === "cancelado" && (
+                    <span style={{ marginLeft: 8, color: "#991b1b" }}>Cancelado</span>
+                  )}
                 </div>
                 {d.chave_pix && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4, fontFamily: "monospace" }}>{d.chave_pix}</div>}
               </div>
               {d.status === "pendente" && (
-                <button
-                  type="button"
-                  onClick={() => aprovar(d.id)}
-                  disabled={approvingId === d.id}
-                  style={{ ...btnPrimary, opacity: approvingId === d.id ? 0.7 : 1, cursor: approvingId === d.id ? "not-allowed" : "pointer" }}
-                >
-                  {approvingId === d.id ? "Aprovando..." : "Aprovar (valor entrou)"}
-                </button>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => cancelar(d.id)}
+                    disabled={approvingId === d.id || cancelingId === d.id}
+                    style={{ ...btnDanger, opacity: cancelingId === d.id ? 0.7 : 1, cursor: cancelingId === d.id ? "not-allowed" : "pointer" }}
+                  >
+                    {cancelingId === d.id ? "Cancelando..." : "Cancelar (não chegou)"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => aprovar(d.id)}
+                    disabled={approvingId === d.id || cancelingId === d.id}
+                    style={{ ...btnPrimary, opacity: approvingId === d.id ? 0.7 : 1, cursor: approvingId === d.id ? "not-allowed" : "pointer" }}
+                  >
+                    {approvingId === d.id ? "Aprovando..." : "Aprovar (valor entrou)"}
+                  </button>
+                </div>
               )}
             </div>
           ))}
