@@ -56,7 +56,7 @@ async function pagamentoAprovadoPorIds(
   return false;
 }
 
-async function pagamentoAprovadoPorBusca(
+export async function pagamentoAprovadoPorBusca(
   mpToken: string,
   d: DepositoPendente,
 ): Promise<{ aprovado: boolean; payment_id?: string }> {

@@ -82,7 +82,7 @@ export default function AdminDepositosPixPage() {
     }
   }, [destaqueId, list, loading]);
 
-  async function aprovar(id: string) {
+  async function aprovar(id: string, force = false) {
     const { data: { session } } = await supabaseBrowser.auth.getSession();
     if (!session?.access_token) return;
     setApprovingId(id);
@@ -90,10 +90,21 @@ export default function AdminDepositosPixPage() {
     try {
       const res = await fetch(`/api/org/sellers/depositos-pix/${id}/aprovar`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ force }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Erro ao aprovar");
+      if (!res.ok) {
+        if (json?.code === "nao_confirmado_mp" && !force) {
+          setApprovingId(null);
+          const confirmar = confirm(
+            `${json.error}\n\nTem certeza ABSOLUTA que o valor está no extrato bancário? Só force se tiver o comprovante em mãos.`
+          );
+          if (confirmar) await aprovar(id, true);
+          return;
+        }
+        throw new Error(json?.error || "Erro ao aprovar");
+      }
       await load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro ao aprovar");
