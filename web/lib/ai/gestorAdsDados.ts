@@ -45,6 +45,7 @@ import {
   mlBuscarGastoAfiliadoReal,
   mlBuscarFaturamentoRealPeriodo,
   type MercadoLivreAuthContext,
+  type MercadoLivreCampanhaAds,
 } from "@/lib/mercadoLivreApiClient";
 
 export type UlissesPreferencias = {
@@ -198,7 +199,12 @@ async function buscarMetricasAdsPorChave(
   siteId: string,
   dateFrom: string,
   dateTo: string
-): Promise<{ porChave: Map<string, MetricaAdsReal>; gastoTotalMes: number; vendaAtribuidaTotalMes: number } | null> {
+): Promise<{
+  porChave: Map<string, MetricaAdsReal>;
+  gastoTotalMes: number;
+  vendaAtribuidaTotalMes: number;
+  campanhas: MercadoLivreCampanhaAds[];
+} | null> {
   const advertiserId = await mlBuscarAdvertiserId(ctx);
   if (!advertiserId) return null;
 
@@ -231,7 +237,75 @@ async function buscarMetricasAdsPorChave(
       organicUnitsAmount: atual.organicUnitsAmount + (ag.metrics.organic_units_amount ?? 0),
     });
   }
-  return { porChave, gastoTotalMes, vendaAtribuidaTotalMes };
+  return { porChave, gastoTotalMes, vendaAtribuidaTotalMes, campanhas };
+}
+
+export type DiagnosticoCampanha = "sem_conversao" | "acima_da_meta" | "performando_bem" | "dentro_da_meta";
+
+export type CampanhaAdsResultado = {
+  id: number;
+  nome: string;
+  status: string;
+  budget: number;
+  custoMes: number;
+  vendaAtribuidaMes: number;
+  unidadesMes: number;
+  acosRealPct: number | null;
+  acosMetaPct: number;
+  diagnostico: DiagnosticoCampanha;
+  recomendacao: string;
+};
+
+/** Folga (fração do ACOS-alvo) abaixo da qual a campanha está performando bem demais pra
+ * não ser mais agressiva — ex. alvo 14,29% × 0.7 = só marca "performando_bem" com ACOS
+ * real ≤ 10%. Estouro é o espelho: 20% acima do alvo já é sinal real de problema, não
+ * ruído de dia a dia. Cálculo 100% em código (não pedido pra IA) — é comparação
+ * determinística, mesmo padrão do teto de afiliado. */
+const CAMPANHA_ACOS_FOLGA_FRACAO = 0.7;
+const CAMPANHA_ACOS_ESTOURO_FRACAO = 1.2;
+
+function classificarCampanhas(campanhas: MercadoLivreCampanhaAds[]): CampanhaAdsResultado[] {
+  return campanhas
+    .map((c) => {
+      const custoMes = c.metrics?.cost ?? 0;
+      const vendaAtribuidaMes = c.metrics?.total_amount ?? 0;
+      const unidadesMes = c.metrics?.units_quantity ?? 0;
+      const acosRealPct = custoMes > 0 && vendaAtribuidaMes > 0 ? (custoMes / vendaAtribuidaMes) * 100 : null;
+
+      let diagnostico: DiagnosticoCampanha;
+      let recomendacao: string;
+      if (custoMes > 0 && unidadesMes === 0) {
+        diagnostico = "sem_conversao";
+        recomendacao = `Gastou R$ ${custoMes.toFixed(2)} sem nenhuma venda atribuída no período — candidata a pausar ou revisar segmentação antes de continuar investindo.`;
+      } else if (acosRealPct != null && acosRealPct > c.acos_target * CAMPANHA_ACOS_ESTOURO_FRACAO) {
+        diagnostico = "acima_da_meta";
+        recomendacao = `ACOS real ${acosRealPct.toFixed(1)}% bem acima da meta de ${c.acos_target.toFixed(1)}% — reduza orçamento ou revise a campanha.`;
+      } else if (acosRealPct != null && acosRealPct <= c.acos_target * CAMPANHA_ACOS_FOLGA_FRACAO) {
+        diagnostico = "performando_bem";
+        recomendacao = `ACOS real ${acosRealPct.toFixed(1)}% com folga real da meta de ${c.acos_target.toFixed(1)}% — já converte bem, considere aumentar orçamento pra capturar mais volume.`;
+      } else {
+        diagnostico = "dentro_da_meta";
+        recomendacao =
+          acosRealPct != null
+            ? `ACOS real ${acosRealPct.toFixed(1)}% dentro do esperado (meta ${c.acos_target.toFixed(1)}%) — sem ação necessária.`
+            : "Sem gasto/venda no período — sem ação necessária.";
+      }
+
+      return {
+        id: c.id,
+        nome: c.name,
+        status: c.status,
+        budget: c.budget,
+        custoMes,
+        vendaAtribuidaMes,
+        unidadesMes,
+        acosRealPct,
+        acosMetaPct: c.acos_target,
+        diagnostico,
+        recomendacao,
+      };
+    })
+    .sort((a, b) => b.custoMes - a.custoMes);
 }
 
 async function montarCandidatos(
@@ -333,6 +407,9 @@ export type AdsContextoCompleto = {
    * (chegou a menos de 1/3 numa conta testada), por isso busca pedido real à parte. */
   tacosContaRealMes: number | null;
   faturamentoRealMes: number;
+  /** 1 linha por campanha ativa, pior gasto primeiro — diagnóstico 100% em código
+   * (ACOS real vs. meta que o próprio seller configurou na campanha). */
+  campanhas: CampanhaAdsResultado[];
 };
 
 export async function buscarDadosAds(sellerId: string): Promise<AdsContextoCompleto | null> {
@@ -370,6 +447,7 @@ export async function buscarDadosAds(sellerId: string): Promise<AdsContextoCompl
   const roasContaMes =
     gastoTotalMes != null && gastoTotalMes > 0 ? (metricasAds?.vendaAtribuidaTotalMes ?? 0) / gastoTotalMes : null;
   const tacosContaRealMes = gastoTotalMes != null && faturamentoRealMes > 0 ? (gastoTotalMes / faturamentoRealMes) * 100 : null;
+  const campanhas = classificarCampanhas(metricasAds?.campanhas ?? []);
 
   return {
     candidatos,
@@ -383,6 +461,7 @@ export async function buscarDadosAds(sellerId: string): Promise<AdsContextoCompl
     roasContaMes,
     tacosContaRealMes,
     faturamentoRealMes,
+    campanhas,
   };
 }
 
@@ -536,7 +615,38 @@ export type ResultadoAdsEnriquecido = {
    * AdsContextoCompleto. */
   tacos_conta_real_mes: number | null;
   faturamento_real_mes: number;
+  campanhas: CampanhaAdsResultadoJson[];
 };
+
+export type CampanhaAdsResultadoJson = {
+  id: number;
+  nome: string;
+  status: string;
+  budget: number;
+  custo_mes: number;
+  venda_atribuida_mes: number;
+  unidades_mes: number;
+  acos_real_pct: number | null;
+  acos_meta_pct: number;
+  diagnostico: DiagnosticoCampanha;
+  recomendacao: string;
+};
+
+function campanhaParaJson(c: CampanhaAdsResultado): CampanhaAdsResultadoJson {
+  return {
+    id: c.id,
+    nome: c.nome,
+    status: c.status,
+    budget: c.budget,
+    custo_mes: c.custoMes,
+    venda_atribuida_mes: c.vendaAtribuidaMes,
+    unidades_mes: c.unidadesMes,
+    acos_real_pct: c.acosRealPct,
+    acos_meta_pct: c.acosMetaPct,
+    diagnostico: c.diagnostico,
+    recomendacao: c.recomendacao,
+  };
+}
 
 export async function enriquecerResultadoAds(
   sellerId: string,
@@ -591,5 +701,6 @@ export async function enriquecerResultadoAds(
     roas_conta_mes: dadosContexto?.roasContaMes ?? null,
     tacos_conta_real_mes: dadosContexto?.tacosContaRealMes ?? null,
     faturamento_real_mes: dadosContexto?.faturamentoRealMes ?? 0,
+    campanhas: (dadosContexto?.campanhas ?? []).map(campanhaParaJson),
   };
 }

@@ -30,6 +30,22 @@ type SkuResultado = {
   sinalizado_rodada_anterior: boolean;
 };
 
+type DiagnosticoCampanha = "sem_conversao" | "acima_da_meta" | "performando_bem" | "dentro_da_meta";
+
+type CampanhaResultado = {
+  id: number;
+  nome: string;
+  status: string;
+  budget: number;
+  custo_mes: number;
+  venda_atribuida_mes: number;
+  unidades_mes: number;
+  acos_real_pct: number | null;
+  acos_meta_pct: number;
+  diagnostico: DiagnosticoCampanha;
+  recomendacao: string;
+};
+
 export type AdsPricingResultado = {
   skus: SkuResultado[];
   destaque_atencao: string[];
@@ -38,6 +54,7 @@ export type AdsPricingResultado = {
   roas_conta_mes: number | null;
   tacos_conta_real_mes: number | null;
   faturamento_real_mes: number;
+  campanhas: CampanhaResultado[];
 };
 
 const DIAGNOSTICO_BADGE: Record<Diagnostico, string> = {
@@ -57,6 +74,68 @@ const TIPO_ANUNCIO_LABEL: Record<SkuResultado["tipo_anuncio"], string> = {
   premium: "Premium",
   desconhecido: "tipo não identificado",
 };
+
+const CAMPANHA_DIAGNOSTICO_BADGE: Record<DiagnosticoCampanha, string> = {
+  sem_conversao: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+  acima_da_meta: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+  performando_bem: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
+  dentro_da_meta: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800/60 dark:text-neutral-300",
+};
+
+const CAMPANHA_DIAGNOSTICO_LABEL: Record<DiagnosticoCampanha, string> = {
+  sem_conversao: "Gastando sem converter",
+  acima_da_meta: "ACOS acima da meta",
+  performando_bem: "Performando bem — oportunidade",
+  dentro_da_meta: "Dentro da meta",
+};
+
+function CampanhaBadge({ diagnostico }: { diagnostico: DiagnosticoCampanha }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex w-[12rem] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
+        CAMPANHA_DIAGNOSTICO_BADGE[diagnostico]
+      )}
+    >
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+      {CAMPANHA_DIAGNOSTICO_LABEL[diagnostico]}
+    </span>
+  );
+}
+
+function CampanhaCard({ c }: { c: CampanhaResultado }) {
+  return (
+    <article className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="font-medium text-[var(--foreground)]">{c.nome}</p>
+        <CampanhaBadge diagnostico={c.diagnostico} />
+      </div>
+      <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+        <div>
+          <dt className="text-neutral-500">Investido no mês</dt>
+          <dd className="font-medium text-[var(--foreground)]">R$ {c.custo_mes.toFixed(2)}</dd>
+        </div>
+        <div>
+          <dt className="text-neutral-500">Venda atribuída</dt>
+          <dd className="font-medium text-[var(--foreground)]">
+            R$ {c.venda_atribuida_mes.toFixed(2)} · {c.unidades_mes} un.
+          </dd>
+        </div>
+        <div>
+          <dt className="text-neutral-500">ACOS real</dt>
+          <dd className="font-medium text-[var(--foreground)]">
+            {c.acos_real_pct != null ? `${c.acos_real_pct.toFixed(1)}%` : "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-neutral-500">Meta de ACOS</dt>
+          <dd className="font-medium text-[var(--foreground)]">{c.acos_meta_pct.toFixed(1)}%</dd>
+        </div>
+      </dl>
+      <p className="mt-3 text-sm text-[var(--foreground)]">{c.recomendacao}</p>
+    </article>
+  );
+}
 
 function DiagnosticoBadge({ diagnostico }: { diagnostico: Diagnostico }) {
   return (
@@ -233,6 +312,14 @@ export function SellerGestorAdsPricingPanel({
                   seu faturamento REAL (pedido pago, não atribuição de Ads) virou custo de mídia paga — os dois
                   respondem perguntas diferentes, não são a mesma conta com nome trocado.
                 </p>
+              </div>
+            ) : null}
+            {(resultado.campanhas ?? []).length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs text-[var(--muted)]">Por campanha — pior gasto primeiro</p>
+                {resultado.campanhas.map((c) => (
+                  <CampanhaCard key={c.id} c={c} />
+                ))}
               </div>
             ) : null}
             <p className="text-sm text-[var(--muted)]">
