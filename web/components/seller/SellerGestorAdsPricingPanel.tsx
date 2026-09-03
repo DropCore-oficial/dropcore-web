@@ -225,7 +225,7 @@ export function SellerGestorAdsPricingPanel({
                   </div>
                   <div>
                     <dt className="text-neutral-500">Faturamento real do mês</dt>
-                    <dd className="font-medium text-[var(--foreground)]">R$ {resultado.faturamento_real_mes.toFixed(2)}</dd>
+                    <dd className="font-medium text-[var(--foreground)]">R$ {(resultado.faturamento_real_mes ?? 0).toFixed(2)}</dd>
                   </div>
                 </dl>
                 <p className="mt-2 text-xs text-[var(--muted)]">
