@@ -44,6 +44,7 @@ import {
   mlBuscarFreteReal,
   mlBuscarGastoAfiliadoReal,
   mlBuscarFaturamentoRealPeriodo,
+  mlBuscarPromocaoAtivaItem,
   type MercadoLivreAuthContext,
   type MercadoLivreCampanhaAds,
 } from "@/lib/mercadoLivreApiClient";
@@ -141,6 +142,23 @@ export type AdsSkuContexto = {
    * em exatamente 1 ponto. Logo teto = % configurado + folga atual acima do mínimo. `null`
    * quando o afiliado está desativado ou não há folga real (evita sugerir ruído). */
   afiliadoPctTetoSeguro: number | null;
+  /** Preço "de tabela" antes do desconto ativo — `null` quando não há desconto rodando. */
+  precoOriginal: number | null;
+  /** % de desconto rodando agora nesse item específico (0 quando não há). */
+  descontoAtivoPct: number;
+  /** Nome/tipo da promoção ativa (ex. "DEAL 9.9") — só informativo, pra seller identificar
+   * qual campanha é a causa. `null` quando não há desconto ativo. */
+  descontoAtivoNome: string | null;
+  descontoAtivoFim: string | null;
+  /** Desconto MÁXIMO seguro sem furar a margem mínima — cálculo determinístico, resolve
+   * `margem(P) = margemMinima` pro preço P, usando só custo+frete (fixos em R$) e
+   * comissão+imposto+perda (% do preço) — Ads/afiliado ficam de fora de propósito, são
+   * alavancas separadas já cobertas em outro lugar do diagnóstico, e a prioridade
+   * combinada é "resolve desconto antes de mexer no resto". `null` quando não há desconto
+   * ativo pra reduzir, ou quando nem sem desconto nenhum a margem mínima seria alcançável
+   * (custo/comissão/imposto/perda já estouram sozinhos). */
+  descontoMaximoSeguroPct: number | null;
+  precoMinimoSeguro: number | null;
 };
 
 const MAX_CANDIDATOS = 20;
@@ -148,6 +166,26 @@ const CEP_REFERENCIA_FRETE = "01310100";
 /** Folga mínima (pontos de margem) pra sugerir subir o % de afiliado — abaixo disso a
  * sugestão seria ruído (ex. "suba de 5% pra 5,4%"), não ajuda o seller a decidir nada. */
 const AFILIADO_HEADROOM_MINIMO_PCT = 2;
+/** Desconto mínimo (pontos percentuais) pra considerar "tem desconto ativo relevante" —
+ * evita ruído de arredondamento de centavo aparecendo como se fosse promoção. */
+const DESCONTO_ATIVO_MINIMO_PCT = 1;
+
+/** Resolve o preço mínimo P tal que a margem realizada bate exatamente a margem mínima,
+ * usando só os componentes fixos-em-R$ (custo+frete) e percentuais-do-preço (comissão,
+ * imposto, perda) — Ads e afiliado ficam de fora de propósito (ver comentário do tipo).
+ * `null` quando o denominador zera/vira negativo (nem preço infinito resolveria — custo
+ * fixo ou % já estouram a margem mínima sozinhos, sem depender do desconto). */
+function calcularPrecoMinimoSeguro(
+  custosFixos: number,
+  comissaoPct: number,
+  impostoPct: number,
+  perdaPct: number,
+  margemMinimaPct: number
+): number | null {
+  const denominador = 100 - comissaoPct - impostoPct - perdaPct - margemMinimaPct;
+  if (denominador <= 0) return null;
+  return (100 * custosFixos) / denominador;
+}
 
 async function buscarVinculosComCusto(
   sellerId: string
@@ -363,6 +401,32 @@ async function montarCandidatos(
         ? Math.round((afiliadoPctConfigurado + headroomAfiliado) * 10) / 10
         : null;
 
+    const precoOriginal = item.original_price ?? null;
+    const descontoAtivoPct =
+      precoOriginal != null && precoOriginal > item.price ? ((precoOriginal - item.price) / precoOriginal) * 100 : 0;
+
+    let descontoAtivoNome: string | null = null;
+    let descontoAtivoFim: string | null = null;
+    let descontoMaximoSeguroPct: number | null = null;
+    let precoMinimoSeguro: number | null = null;
+    if (descontoAtivoPct > DESCONTO_ATIVO_MINIMO_PCT && precoOriginal != null) {
+      const promosAtivas = await mlBuscarPromocaoAtivaItem(item.id, ctx);
+      const promo = promosAtivas[0];
+      descontoAtivoNome = promo ? `${promo.type}${promo.name ? ` "${promo.name}"` : ""}` : null;
+      descontoAtivoFim = promo?.finish_date?.slice(0, 10) ?? null;
+
+      const custosFixosSemAds = info.custo + (freteReal ?? 0);
+      precoMinimoSeguro = calcularPrecoMinimoSeguro(
+        custosFixosSemAds,
+        comissaoPct,
+        prefs.impostoPct,
+        prefs.perdaPct,
+        prefs.margemMinimaPct
+      );
+      descontoMaximoSeguroPct =
+        precoMinimoSeguro != null ? Math.max(0, Math.round(((precoOriginal - precoMinimoSeguro) / precoOriginal) * 1000) / 10) : null;
+    }
+
     candidatos.push({
       sku: info.sku,
       nomeProduto: info.nomeProduto,
@@ -381,6 +445,12 @@ async function montarCandidatos(
       margemMaximaPct: prefs.margemMaximaPct,
       afiliadoPctConfigurado,
       afiliadoPctTetoSeguro,
+      precoOriginal,
+      descontoAtivoPct,
+      descontoAtivoNome,
+      descontoAtivoFim,
+      descontoMaximoSeguroPct,
+      precoMinimoSeguro,
     });
   }
 
@@ -600,6 +670,12 @@ export type SkuResultadoEnriquecido = SkuResultadoIA & {
   margem_maxima_pct: number | null;
   afiliado_pct_configurado: number | null;
   afiliado_pct_teto_seguro: number | null;
+  preco_original: number | null;
+  desconto_ativo_pct: number;
+  desconto_ativo_nome: string | null;
+  desconto_ativo_fim: string | null;
+  desconto_maximo_seguro_pct: number | null;
+  preco_minimo_seguro: number | null;
   sinalizado_rodada_anterior: boolean;
 };
 
@@ -689,6 +765,12 @@ export async function enriquecerResultadoAds(
       margem_maxima_pct: c?.margemMaximaPct ?? null,
       afiliado_pct_configurado: c?.afiliadoPctConfigurado ?? null,
       afiliado_pct_teto_seguro: c?.afiliadoPctTetoSeguro ?? null,
+      preco_original: c?.precoOriginal ?? null,
+      desconto_ativo_pct: c?.descontoAtivoPct ?? 0,
+      desconto_ativo_nome: c?.descontoAtivoNome ?? null,
+      desconto_ativo_fim: c?.descontoAtivoFim ?? null,
+      desconto_maximo_seguro_pct: c?.descontoMaximoSeguroPct ?? null,
+      preco_minimo_seguro: c?.precoMinimoSeguro ?? null,
       sinalizado_rodada_anterior: s.diagnostico !== "margem_saudavel" && problemaAnteriorPorSku.has(s.sku),
     };
   });

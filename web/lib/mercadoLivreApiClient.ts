@@ -135,6 +135,11 @@ export type MercadoLivreItemDetail = {
   id: string;
   title: string;
   price: number;
+  /** Preço "de tabela" antes do desconto ativo — `null`/ausente quando o item não está em
+   * nenhuma promoção que altera o preço de vitrine. Comparar com `price` pra saber o
+   * desconto % real que está rodando agora (achado 2026-09-03: um SKU pode estar 49% OFF
+   * sem que isso apareça em nenhum outro campo do item). */
+  original_price?: number | null;
   available_quantity: number;
   sold_quantity: number;
   start_time: string;
@@ -657,6 +662,34 @@ export async function mlBuscarFaturamentoRealPeriodo(
     if (offset >= (json?.paging?.total ?? 0)) break;
   }
   return total;
+}
+
+export type MercadoLivrePromocaoItem = {
+  id: string;
+  type: string;
+  status: string;
+  price?: number;
+  original_price?: number;
+  name?: string | null;
+  start_date?: string | null;
+  finish_date?: string | null;
+};
+
+/** Promoção(ões) rodando de verdade num item específico (`status: "started"`, não
+ * candidata) — diferente de `mlBuscarPromocoesAtivas`, que só sabe o que existe no NÍVEL
+ * DA CONTA, sem confirmar se um SKU específico participa. Testado ao vivo (2026-09-03):
+ * é o único jeito de saber, por exemplo, que um item tem uma campanha DEAL rodando com
+ * 49% de desconto sobre o preço de tabela. Devolve só as ATIVAS (ignora `candidate`) —
+ * candidatas são oferta que o seller ainda não aceitou, não afetam a margem hoje. */
+export async function mlBuscarPromocaoAtivaItem(
+  itemId: string,
+  ctx: MercadoLivreAuthContext
+): Promise<MercadoLivrePromocaoItem[]> {
+  const json = await mlGet<MercadoLivrePromocaoItem[]>(
+    `/seller-promotions/items/${itemId}?app_version=v2`,
+    ctx.accessToken
+  );
+  return (json ?? []).filter((p) => p.status === "started");
 }
 
 /** Checagem mínima de dono, pra ações que não precisam do estado completo de título (ex.

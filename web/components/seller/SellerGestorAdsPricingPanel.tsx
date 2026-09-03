@@ -24,6 +24,12 @@ type SkuResultado = {
   margem_maxima_pct: number | null;
   afiliado_pct_configurado: number | null;
   afiliado_pct_teto_seguro: number | null;
+  preco_original: number | null;
+  desconto_ativo_pct: number;
+  desconto_ativo_nome: string | null;
+  desconto_ativo_fim: string | null;
+  desconto_maximo_seguro_pct: number | null;
+  preco_minimo_seguro: number | null;
   diagnostico: Diagnostico;
   recomendacao: string;
   observacao: string;
@@ -176,7 +182,12 @@ function SkuCard({ item }: { item: SkuResultado }) {
         </div>
         <div>
           <dt className="text-neutral-500">Preço atual</dt>
-          <dd className="font-medium text-[var(--foreground)]">R$ {item.preco.toFixed(2)}</dd>
+          <dd className="font-medium text-[var(--foreground)]">
+            R$ {item.preco.toFixed(2)}
+            {item.preco_original != null ? (
+              <span className="ml-1 font-normal text-neutral-500 line-through">R$ {item.preco_original.toFixed(2)}</span>
+            ) : null}
+          </dd>
         </div>
         <div>
           <dt className="text-neutral-500">Frete real</dt>
@@ -214,6 +225,22 @@ function SkuCard({ item }: { item: SkuResultado }) {
         </div>
       </dl>
 
+      {item.desconto_ativo_pct > 1 ? (
+        <p className="mt-3 text-sm text-[var(--foreground)]">
+          Desconto ativo{item.desconto_ativo_nome ? ` (${item.desconto_ativo_nome})` : ""}: {item.desconto_ativo_pct.toFixed(1)}%
+          OFF{item.desconto_ativo_fim ? ` até ${item.desconto_ativo_fim}` : ""}.{" "}
+          {item.desconto_maximo_seguro_pct != null ? (
+            <>
+              Sua margem aguenta no máximo{" "}
+              <span className="font-medium">{item.desconto_maximo_seguro_pct.toFixed(1)}% OFF</span> (preço mínimo R${" "}
+              {item.preco_minimo_seguro?.toFixed(2)}) sem furar o mínimo de {item.margem_minima_pct}% — resolva isso antes
+              de mexer em Ads.
+            </>
+          ) : (
+            "Mesmo sem desconto nenhum a margem mínima não seria alcançável com o custo/comissão atuais."
+          )}
+        </p>
+      ) : null}
       <p className="mt-3 text-sm text-[var(--foreground)]">{item.recomendacao}</p>
       {item.observacao ? <p className="mt-1 text-xs text-[var(--muted)]">{item.observacao}</p> : null}
       {item.afiliado_pct_teto_seguro != null ? (
