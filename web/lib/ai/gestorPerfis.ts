@@ -22,7 +22,7 @@ export const GESTORES_PERFIS: GestorPerfil[] = [
   { slug: "diogo", nome: "Diogo", funcao: "Risco de Ruptura & Fulfillment", gestorId: "estoque_fulfillment", ativo: true },
   { slug: "andrey", nome: "Andrey", funcao: "Anúncios & SEO", gestorId: "anuncios_seo", ativo: true },
   { slug: "amanda", nome: "Amanda", funcao: "Reputação & Atendimento", gestorId: "reputacao", ativo: true },
-  { slug: "ulisses", nome: "Ulisses", funcao: "Ads", gestorId: null, ativo: false },
+  { slug: "ulisses", nome: "Ulisses", funcao: "Ads, Preço & Promoção", gestorId: "ads", ativo: true },
   { slug: "laura", nome: "Laura", funcao: "Design & Criativo", gestorId: null, ativo: false },
   { slug: "tiago-silva", nome: "Tiago Silva", funcao: "Gestor Mestre", gestorId: null, ativo: false },
 ];

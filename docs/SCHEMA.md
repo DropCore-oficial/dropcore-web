@@ -128,6 +128,32 @@ Front deve chamar sempre via `supabase.rpc(...)`, nunca `.from('seller_ai_prefer
 (a tabela não libera acesso direto de propósito). Ver memória de projeto "Briefing Gestores
 de IA" pro contexto completo da feature (planos, BYOK, roadmap).
 
+## `seller_ulisses_preferencias` — Ulisses (Ads/Preço/Promoção), preferência do seller (2026-08-29)
+
+`web/scripts/create-seller-ulisses-preferencias.sql`: 1 linha por seller (`seller_id
+unique`), guarda `margem_minima_pct` (`> 0`, nunca zero/negativo), `margem_maxima_pct`
+(opcional, `CHECK >= margem_minima_pct` quando preenchida), `imposto_pct`, `perda_pct`, e
+3 blocos liga/desliga+parâmetro: `ads_ativo`/`ads_tacos_pct`/`ads_teto_valor`/
+`ads_teto_periodo` (`CHECK` em `dia`/`mes`), `afiliado_ativo`/`afiliado_pct`,
+`cupom_ativo`/`cupom_pct`. Perguntado ao seller na primeira vez que ele abre
+`/seller/gestores-ia/ulisses` (wizard, tabela ainda sem linha); editável por ele depois a
+qualquer momento — não é "configurou uma vez e travou" (diferente do
+`seller_ai_preferences` genérico, esse aqui é só do Ulisses).
+
+RLS: **deny-all**, mesmo padrão RPC-only de `seller_ai_preferences`:
+- `fn_seller_ulisses_preferencias_get(p_seller_id uuid)` — leitura.
+- `fn_seller_ulisses_preferencias_upsert(p_seller_id, p_margem_minima_pct,
+  p_margem_maxima_pct, p_imposto_pct, p_perda_pct, p_ads_ativo, p_ads_tacos_pct,
+  p_ads_teto_valor, p_ads_teto_periodo, p_afiliado_ativo, p_afiliado_pct, p_cupom_ativo,
+  p_cupom_pct)` — `INSERT ... ON CONFLICT (seller_id) DO UPDATE`.
+
+O motor de cálculo de margem/preço em si (`calcularMargem`, extraído da calculadora) fica
+em `web/lib/margemCalculo.ts` — não é dado de banco, é lib compartilhada entre a
+calculadora, o Andrey (preço-âncora de anúncio novo) e o Ulisses (margem real/promoção).
+Ver memória de projeto "Briefing Gestores de IA" pro desenho completo (margem
+mínima/máxima como faixa, não só piso; teto de gasto de ads como trava de segurança;
+cupom/afiliado sempre com valor definido pelo seller, nunca decisão autônoma do gestor).
+
 ## `seller_ai_runs` — Gestores de IA, resultado por rodada (2026-08-18)
 
 `web/scripts/create-seller-ai-runs.sql`: 1 linha por rodada de gestor (`gestor` travado por

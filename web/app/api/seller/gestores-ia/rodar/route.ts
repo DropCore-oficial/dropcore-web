@@ -16,18 +16,20 @@ import {
   montarRequestEstoqueFulfillment,
   montarRequestAnunciosSeo,
   montarRequestReputacaoAtendimento,
+  montarRequestAds,
 } from "@/lib/ai/gestorRequestBuilders";
 import { parseGestorResposta } from "@/lib/ai/gestorParseResposta";
 import { enriquecerResultadoRuptura } from "@/lib/ai/gestorRupturaFulfillmentDados";
 import { enriquecerResultadoAnunciosSeo } from "@/lib/ai/gestorAnunciosSeoDados";
 import { enriquecerResultadoReputacaoAtendimento } from "@/lib/ai/gestorReputacaoAtendimentoDados";
+import { enriquecerResultadoAds } from "@/lib/ai/gestorAdsDados";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const COOLDOWN_HORAS = 6;
-const GESTORES_VALIDOS: GestorId[] = ["estoque_fulfillment", "anuncios_seo", "reputacao"];
+const GESTORES_VALIDOS: GestorId[] = ["estoque_fulfillment", "anuncios_seo", "reputacao", "ads"];
 
 export async function POST(req: Request) {
   const seller = await getSellerFromToken(req);
@@ -89,7 +91,9 @@ export async function POST(req: Request) {
       ? await montarRequestEstoqueFulfillment(seller.id)
       : gestor === "anuncios_seo"
         ? await montarRequestAnunciosSeo(seller.id)
-        : await montarRequestReputacaoAtendimento(seller.id);
+        : gestor === "reputacao"
+          ? await montarRequestReputacaoAtendimento(seller.id)
+          : await montarRequestAds(seller.id);
   if (!params) {
     return NextResponse.json({ error: "Sem dado suficiente pra rodar esse gestor agora." }, { status: 422 });
   }
@@ -133,6 +137,13 @@ export async function POST(req: Request) {
       );
     } catch (e) {
       console.error("[gestores-ia/rodar] enriquecimento reputação falhou", e);
+    }
+  }
+  if (!erroMensagem && resultado && gestor === "ads") {
+    try {
+      resultado = await enriquecerResultadoAds(seller.id, resultado as Parameters<typeof enriquecerResultadoAds>[1]);
+    } catch (e) {
+      console.error("[gestores-ia/rodar] enriquecimento ads falhou", e);
     }
   }
 

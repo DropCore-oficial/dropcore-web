@@ -19,7 +19,7 @@ import { EMERALD_SCALE, PRIMARY_ACTION_BLUE_HEX, LOGO_GREEN_HEX, LOGO_NEUTRAL_LI
 
 export type AtividadeAoVivo = {
   texto: string;
-  gestor: "estoque_fulfillment" | "anuncios_seo" | "reputacao";
+  gestor: "estoque_fulfillment" | "anuncios_seo" | "reputacao" | "ads";
   tom: "sucesso" | "atencao" | "erro";
   quando: string;
 };
@@ -28,6 +28,7 @@ const NOME_POR_GESTOR: Record<AtividadeAoVivo["gestor"], NomeGestor> = {
   estoque_fulfillment: "Diogo",
   anuncios_seo: "Andrey",
   reputacao: "Amanda",
+  ads: "Ulisses",
 };
 
 const DOT_TOM: Record<AtividadeAoVivo["tom"], string> = {
@@ -731,11 +732,13 @@ function statusPorNome(
   nome: NomeGestor,
   statusDiogo: string,
   statusAndrey: string,
-  statusAmanda: string
+  statusAmanda: string,
+  statusUlisses: string
 ): string {
   if (nome === "Diogo") return statusDiogo;
   if (nome === "Andrey") return statusAndrey;
   if (nome === "Amanda") return statusAmanda;
+  if (nome === "Ulisses") return statusUlisses;
   if (nome === "Tiago Silva") return "Supervisiona a operação e prioriza as decisões dos outros gestores.";
   return "Em breve — painel ainda não construído.";
 }
@@ -750,11 +753,13 @@ export function SellerGestoresIaEscritorio3D({
   statusDiogo,
   statusAndrey,
   statusAmanda,
+  statusUlisses,
   atividades,
 }: {
   statusDiogo: string;
   statusAndrey: string;
   statusAmanda: string;
+  statusUlisses: string;
   atividades: AtividadeAoVivo[];
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -1239,6 +1244,7 @@ export function SellerGestoresIaEscritorio3D({
                 ["Diogo", statusDiogo],
                 ["Andrey", statusAndrey],
                 ["Amanda", statusAmanda],
+                ["Ulisses", statusUlisses],
               ] as const
             ).map(([nome, texto]) => (
               <button
@@ -1334,7 +1340,7 @@ export function SellerGestoresIaEscritorio3D({
                 </div>
               </div>
               <p className="mt-2 text-[10px] leading-snug text-neutral-300">
-                {statusPorNome(focoNome, statusDiogo, statusAndrey, statusAmanda)}
+                {statusPorNome(focoNome, statusDiogo, statusAndrey, statusAmanda, statusUlisses)}
               </p>
             </div>
           ) : null}
@@ -1354,6 +1360,9 @@ export function SellerGestoresIaEscritorio3D({
           </span>
           <span>
             <span className="font-semibold text-[var(--foreground)]">Amanda:</span> {statusAmanda}
+          </span>
+          <span>
+            <span className="font-semibold text-[var(--foreground)]">Ulisses:</span> {statusUlisses}
           </span>
         </div>
         {atividades.length > 0 ? (

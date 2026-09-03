@@ -16,6 +16,7 @@ import {
   montarRequestEstoqueFulfillment,
   montarRequestAnunciosSeo,
   montarRequestReputacaoAtendimento,
+  montarRequestAds,
 } from "./gestorRequestBuilders";
 
 export type SubmeterGestoresResultado = {
@@ -82,6 +83,14 @@ export async function submeterGestoresIaDiario(): Promise<SubmeterGestoresResult
     if (paramsReputacao) {
       requests.push({ custom_id: customIdGestorSeller(seller.id, "reputacao"), params: paramsReputacao });
       pendentes.push({ org_id: seller.org_id, seller_id: seller.id, gestor: "reputacao" });
+    } else {
+      semDado += 1;
+    }
+
+    const paramsAds = await montarRequestAds(seller.id);
+    if (paramsAds) {
+      requests.push({ custom_id: customIdGestorSeller(seller.id, "ads"), params: paramsAds });
+      pendentes.push({ org_id: seller.org_id, seller_id: seller.id, gestor: "ads" });
     } else {
       semDado += 1;
     }

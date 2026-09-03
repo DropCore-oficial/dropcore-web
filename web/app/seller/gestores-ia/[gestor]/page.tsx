@@ -22,6 +22,8 @@ import {
   SellerGestorReputacaoAtendimentoPanel,
   type ReputacaoAtendimentoResultado,
 } from "@/components/seller/SellerGestorReputacaoAtendimentoPanel";
+import { SellerGestorAdsPricingPanel, type AdsPricingResultado } from "@/components/seller/SellerGestorAdsPricingPanel";
+import { SellerGestorUlissesWizard, type UlissesPreferenciasForm } from "@/components/seller/SellerGestorUlissesWizard";
 import { buscarGestorPerfil } from "@/lib/ai/gestorPerfis";
 
 type RunsResponse = {
@@ -49,6 +51,10 @@ export default function SellerGestorDetalhePage() {
   const [saldoSuficiente, setSaldoSuficiente] = useState(true);
   const [runs, setRuns] = useState<Record<string, SellerAiRun<unknown>>>({});
   const [skuMlMap, setSkuMlMap] = useState<Record<string, string>>({});
+  /** undefined = ainda não checou; null = checou e não tem preferência salva (mostra wizard). */
+  const [ulissesPreferencias, setUlissesPreferencias] = useState<UlissesPreferenciasForm | null | undefined>(undefined);
+  /** true = seller clicou "Editar preferências" — reabre o wizard mesmo já tendo preferência salva. */
+  const [editandoPreferenciasUlisses, setEditandoPreferenciasUlisses] = useState(false);
 
   const carregar = async () => {
     const token = await getAccessToken();
@@ -71,6 +77,16 @@ export default function SellerGestorDetalhePage() {
     setSaldoSuficiente(json.saldo_suficiente ?? true);
     setRuns(json.runs ?? {});
     setSkuMlMap(json.sku_ml_map ?? {});
+
+    if (slug === "ulisses") {
+      const prefRes = await fetch("/api/seller/gestores-ia/ulisses-preferencias", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const prefJson = (await prefRes.json().catch(() => ({}))) as { preferencias?: UlissesPreferenciasForm | null };
+      setUlissesPreferencias(prefJson.preferencias ?? null);
+    }
+
     setLoading(false);
   };
 
@@ -160,6 +176,35 @@ export default function SellerGestorDetalhePage() {
                 run={(runs["reputacao"] as SellerAiRun<ReputacaoAtendimentoResultado> | undefined) ?? null}
                 onRodarAgora={() => dispararRodada("reputacao")}
               />
+            ) : perfil.slug === "ulisses" ? (
+              ulissesPreferencias === undefined ? (
+                <Skeleton className="h-40 w-full rounded-2xl" />
+              ) : ulissesPreferencias === null || editandoPreferenciasUlisses ? (
+                <SellerGestorUlissesWizard
+                  inicial={ulissesPreferencias}
+                  onSalvo={(prefs) => {
+                    setUlissesPreferencias(prefs);
+                    setEditandoPreferenciasUlisses(false);
+                  }}
+                />
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setEditandoPreferenciasUlisses(true)}
+                      className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                    >
+                      Editar preferências
+                    </button>
+                  </div>
+                  <SellerGestorAdsPricingPanel
+                    pro={pro}
+                    run={(runs["ads"] as SellerAiRun<AdsPricingResultado> | undefined) ?? null}
+                    onRodarAgora={() => dispararRodada("ads")}
+                  />
+                </div>
+              )
             ) : null}
           </>
         )}

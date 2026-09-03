@@ -23,6 +23,7 @@ import {
   SCHEMA_REPUTACAO_ATENDIMENTO,
   buscarDadosReputacaoAtendimento,
 } from "./gestorReputacaoAtendimentoDados";
+import { PROMPT_ADS, SCHEMA_ADS, buscarDadosAds } from "./gestorAdsDados";
 
 export const MODELO_GESTORES_IA = "claude-sonnet-5";
 
@@ -77,6 +78,23 @@ export async function montarRequestReputacaoAtendimento(
     thinking: { type: "disabled" },
     output_config: { format: { type: "json_schema", schema: SCHEMA_REPUTACAO_ATENDIMENTO } },
     messages: [{ role: "user", content: montarPrompt(PROMPT_REPUTACAO_ATENDIMENTO, dados) }],
+  };
+}
+
+export async function montarRequestAds(
+  sellerId: string
+): Promise<Anthropic.Messages.MessageCreateParamsNonStreaming | null> {
+  const dados = await buscarDadosAds(sellerId);
+  if (!dados) return null;
+  return {
+    model: MODELO_GESTORES_IA,
+    // Até 20 SKUs por rodada (mesma amostra dos outros gestores), saída bem mais enxuta
+    // que Andrey (sem descrição/características longas) — 8192 segue a mesma margem
+    // generosa padrão pra evitar o bug de truncamento já visto nos outros gestores.
+    max_tokens: 8192,
+    thinking: { type: "disabled" },
+    output_config: { format: { type: "json_schema", schema: SCHEMA_ADS } },
+    messages: [{ role: "user", content: montarPrompt(PROMPT_ADS, dados) }],
   };
 }
 

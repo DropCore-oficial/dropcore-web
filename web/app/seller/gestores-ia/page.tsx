@@ -13,6 +13,7 @@ import type { SellerAiRun } from "@/components/seller/SellerGestorRunShell";
 import type { RupturaFulfillmentResultado } from "@/components/seller/SellerGestorEstoqueFulfillmentPanel";
 import type { AnunciosSeoResultado } from "@/components/seller/SellerGestorAnunciosSeoPanel";
 import type { ReputacaoAtendimentoResultado } from "@/components/seller/SellerGestorReputacaoAtendimentoPanel";
+import type { AdsPricingResultado } from "@/components/seller/SellerGestorAdsPricingPanel";
 import type { AtividadeAoVivo } from "@/components/seller/SellerGestoresIaEscritorio3D";
 import { GESTORES_PERFIS } from "@/lib/ai/gestorPerfis";
 
@@ -65,6 +66,7 @@ const GESTOR_POR_VALOR: Record<string, AtividadeAoVivo["gestor"]> = {
   estoque_fulfillment: "estoque_fulfillment",
   anuncios_seo: "anuncios_seo",
   reputacao: "reputacao",
+  ads: "ads",
 };
 
 function acaoParaAtividade(row: AcaoRow): AtividadeAoVivo | null {
@@ -84,6 +86,7 @@ function montarAtividades(
   runDiogo: SellerAiRun<RupturaFulfillmentResultado> | undefined,
   runAndrey: SellerAiRun<AnunciosSeoResultado> | undefined,
   runAmanda: SellerAiRun<ReputacaoAtendimentoResultado> | undefined,
+  runUlisses: SellerAiRun<AdsPricingResultado> | undefined,
   acoes: AcaoRow[]
 ): AtividadeAoVivo[] {
   const atividades: AtividadeAoVivo[] = [];
@@ -138,6 +141,19 @@ function montarAtividades(
     }
   }
 
+  if (runUlisses?.status === "ok" && runUlisses.resultado) {
+    const destaqueSku = runUlisses.resultado.destaque_atencao?.[0];
+    const sku = runUlisses.resultado.skus.find((s) => s.sku === destaqueSku);
+    if (sku) {
+      atividades.push({
+        texto: `${sku.sku}: ${sku.recomendacao}`,
+        gestor: "ads",
+        tom: "atencao",
+        quando: runUlisses.executado_em,
+      });
+    }
+  }
+
   return atividades.sort((a, b) => new Date(b.quando).getTime() - new Date(a.quando).getTime()).slice(0, 5);
 }
 
@@ -169,6 +185,13 @@ function resumoStatusAmanda(run: SellerAiRun<ReputacaoAtendimentoResultado> | un
   return `${label} · ${perguntas} pergunta${perguntas > 1 ? "s" : ""} sem resposta`;
 }
 
+function resumoStatusUlisses(run: SellerAiRun<AdsPricingResultado> | undefined): string {
+  if (!run || run.status !== "ok" || !run.resultado) return "Ainda não rodou";
+  const abaixoMinima = run.resultado.skus.filter((s) => s.diagnostico === "margem_abaixo_minima").length;
+  if (abaixoMinima === 0) return "Nenhum SKU com margem abaixo do mínimo";
+  return `${abaixoMinima} SKU${abaixoMinima > 1 ? "s" : ""} com margem abaixo do mínimo`;
+}
+
 async function getAccessToken(): Promise<string | null> {
   const {
     data: { session },
@@ -188,6 +211,9 @@ function resumoParaCard(
   }
   if (slug === "amanda") {
     return resumoStatusAmanda(runs["reputacao"] as SellerAiRun<ReputacaoAtendimentoResultado> | undefined);
+  }
+  if (slug === "ulisses") {
+    return resumoStatusUlisses(runs["ads"] as SellerAiRun<AdsPricingResultado> | undefined);
   }
   return "Em breve";
 }
@@ -294,10 +320,12 @@ export default function SellerGestoresIaPage() {
               statusDiogo={resumoStatusDiogo(runs["estoque_fulfillment"] as SellerAiRun<RupturaFulfillmentResultado> | undefined)}
               statusAndrey={resumoStatusAndrey(runs["anuncios_seo"] as SellerAiRun<AnunciosSeoResultado> | undefined)}
               statusAmanda={resumoStatusAmanda(runs["reputacao"] as SellerAiRun<ReputacaoAtendimentoResultado> | undefined)}
+              statusUlisses={resumoStatusUlisses(runs["ads"] as SellerAiRun<AdsPricingResultado> | undefined)}
               atividades={montarAtividades(
                 runs["estoque_fulfillment"] as SellerAiRun<RupturaFulfillmentResultado> | undefined,
                 runs["anuncios_seo"] as SellerAiRun<AnunciosSeoResultado> | undefined,
                 runs["reputacao"] as SellerAiRun<ReputacaoAtendimentoResultado> | undefined,
+                runs["ads"] as SellerAiRun<AdsPricingResultado> | undefined,
                 acoes
               )}
             />

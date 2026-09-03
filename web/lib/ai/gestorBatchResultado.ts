@@ -9,6 +9,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enriquecerResultadoRuptura } from "./gestorRupturaFulfillmentDados";
 import { enriquecerResultadoAnunciosSeo } from "./gestorAnunciosSeoDados";
 import { enriquecerResultadoReputacaoAtendimento } from "./gestorReputacaoAtendimentoDados";
+import { enriquecerResultadoAds } from "./gestorAdsDados";
 import { notificarSellerGestorConcluido } from "./gestorNotificacao";
 import type { GestorId } from "./gestorPrompts";
 import { customIdGestorSeller } from "./gestorBatchSubmit";
@@ -95,6 +96,16 @@ export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBa
             );
           } catch (e) {
             console.error("[gestorBatchResultado] enriquecimento reputação falhou", e);
+          }
+        }
+        if (!erroMensagem && resultado && linha.gestor === "ads") {
+          try {
+            resultado = await enriquecerResultadoAds(
+              linha.seller_id,
+              resultado as Parameters<typeof enriquecerResultadoAds>[1]
+            );
+          } catch (e) {
+            console.error("[gestorBatchResultado] enriquecimento ads falhou", e);
           }
         }
 

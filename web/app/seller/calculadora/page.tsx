@@ -33,6 +33,7 @@ import {
   DANGER_PREMIUM_TEXT_SOFT,
 } from "@/lib/semanticPremium";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
+import { calcularMargem } from "@/lib/margemCalculo";
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const MARGEM_MINIMA = 5;
 
@@ -690,42 +691,35 @@ export default function SellerCalculadoraPage() {
     ) => {
       const { extraBrl, extraPct } = extrasTotais(isSheinChannel);
       const adsPct = isSheinChannel ? 0 : adsVal;
-      const affPct = Math.max(0, isSheinChannel ? 0 : afiliadoLinhaPct);
-      const brutoPct = marg + imp + adsPct + affPct + perdaPct + extraPct;
-      const percTotalLinha = brutoPct + comissao;
-      if (percTotalLinha >= 100) return null;
-      const baseFixos = custo + emb + freteEfetivo + extraBrl + perdaBrl;
-      /** Recebimento bruto quando o cliente paga já com cupom aplicado sobre a etiqueta (base dos % na simulação). */
-      const receitaCupom = baseFixos / (1 - percTotalLinha / 100);
-      const cupomFrac = Math.max(0, Math.min(cupomPct, 99.99));
-      const precoLista = cupomFrac > 0.000001 ? receitaCupom / (1 - cupomFrac / 100) : receitaCupom;
-      /** `precoVenda` canonical = receita efetiva (com cupom na compra), não a etiqueta. */
-      const precoVenda = receitaCupom;
-      const valorLucro = receitaCupom * (marg / 100);
-      const valorComissao = receitaCupom * (comissao / 100);
-      const valorImposto = receitaCupom * (imp / 100);
-      const valorAds = receitaCupom * (adsPct / 100);
-      const valorAfiliado = receitaCupom * (affPct / 100);
-      const valorPerda = perdaTipo === "pct" ? receitaCupom * (perdaPct / 100) : perdaBrl;
-      const valorExtrasPct = receitaCupom * (extraPct / 100);
-      const reducaoPreco = cupomFrac > 0.000001 ? Math.max(0, precoLista - receitaCupom) : 0;
-      const efeitoCupom: EfeitoCupom = {
+      const affPct = isSheinChannel ? 0 : afiliadoLinhaPct;
+      const resultado = calcularMargem({
+        custo,
+        embalagem: emb,
+        frete: freteEfetivo,
+        margemPct: marg,
+        comissaoPct: comissao,
+        impostoPct: imp,
+        adsPct,
+        afiliadoPct: affPct,
+        perdaPct,
+        perdaBrl,
+        extraPct,
+        extraBrl,
         cupomPct,
-        descontoPct: cupomFrac,
-        precoSemCupom: cupomFrac > 0.000001 ? precoLista : receitaCupom,
-        reducaoPreco,
-      };
+      });
+      if (!resultado) return null;
+      const efeitoCupom: EfeitoCupom = resultado.efeitoCupom;
       return {
-        precoVenda,
-        valorLucro,
-        custosFixos: baseFixos,
-        valorComissao,
-        valorImposto,
-        valorAds,
-        valorAfiliado,
-        valorPerda,
-        valorExtrasPct,
-        percTotal: percTotalLinha,
+        precoVenda: resultado.precoVenda,
+        valorLucro: resultado.valorLucro,
+        custosFixos: resultado.custosFixos,
+        valorComissao: resultado.valorComissao,
+        valorImposto: resultado.valorImposto,
+        valorAds: resultado.valorAds,
+        valorAfiliado: resultado.valorAfiliado,
+        valorPerda: resultado.valorPerda,
+        valorExtrasPct: resultado.valorExtrasPct,
+        percTotal: resultado.percTotal,
         efeitoCupom,
       };
     };
