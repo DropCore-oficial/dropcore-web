@@ -43,6 +43,7 @@ import {
   mlBuscarAdGroupsComMetricas,
   mlBuscarFreteReal,
   mlBuscarGastoAfiliadoReal,
+  mlBuscarFaturamentoRealPeriodo,
   type MercadoLivreAuthContext,
 } from "@/lib/mercadoLivreApiClient";
 
@@ -197,7 +198,7 @@ async function buscarMetricasAdsPorChave(
   siteId: string,
   dateFrom: string,
   dateTo: string
-): Promise<{ porChave: Map<string, MetricaAdsReal>; gastoTotalMes: number } | null> {
+): Promise<{ porChave: Map<string, MetricaAdsReal>; gastoTotalMes: number; vendaAtribuidaTotalMes: number } | null> {
   const advertiserId = await mlBuscarAdvertiserId(ctx);
   if (!advertiserId) return null;
 
@@ -207,6 +208,10 @@ async function buscarMetricasAdsPorChave(
   ]);
 
   const gastoTotalMes = campanhas.reduce((soma, c) => soma + (c.metrics?.cost ?? 0), 0);
+  // Soma de todas as campanhas (direct_amount + indirect_amount, campo total_amount da API
+  // de Ads) — fonte CERTA pro numerador do ROAS de conjunto, mas NUNCA usar isso como
+  // "faturamento" (é atribuição de marketing, não pedido real — ver mlBuscarFaturamentoRealPeriodo).
+  const vendaAtribuidaTotalMes = campanhas.reduce((soma, c) => soma + (c.metrics?.total_amount ?? 0), 0);
 
   const porChave = new Map<string, MetricaAdsReal>();
   for (const ag of adGroups) {
@@ -226,14 +231,14 @@ async function buscarMetricasAdsPorChave(
       organicUnitsAmount: atual.organicUnitsAmount + (ag.metrics.organic_units_amount ?? 0),
     });
   }
-  return { porChave, gastoTotalMes };
+  return { porChave, gastoTotalMes, vendaAtribuidaTotalMes };
 }
 
 async function montarCandidatos(
   sellerId: string,
   ctx: MercadoLivreAuthContext,
   prefs: UlissesPreferencias,
-  metricasAds: { porChave: Map<string, MetricaAdsReal>; gastoTotalMes: number } | null
+  metricasAds: { porChave: Map<string, MetricaAdsReal>; gastoTotalMes: number; vendaAtribuidaTotalMes: number } | null
 ): Promise<AdsSkuContexto[]> {
   const infoPorItemId = await buscarVinculosComCusto(sellerId);
   if (infoPorItemId.size === 0) return [];
@@ -319,6 +324,15 @@ export type AdsContextoCompleto = {
   afiliadoGastoRealConta: number;
   periodoInicio: string;
   periodoFim: string;
+  /** ROAS de conjunto do mês: venda ATRIBUÍDA ao Ads (todas campanhas) ÷ gasto de Ads —
+   * mede o retorno do próprio clique pago. `null` sem Ads habilitado. */
+  roasContaMes: number | null;
+  /** TACoS de conjunto do mês: gasto de Ads ÷ faturamento REAL total (pedido pago de
+   * verdade, não a atribuição de Ads) — mede quanto da receita virou custo de mídia paga.
+   * Achado 2026-09-03: usar o total_amount da API de Ads aqui subestima o faturamento real
+   * (chegou a menos de 1/3 numa conta testada), por isso busca pedido real à parte. */
+  tacosContaRealMes: number | null;
+  faturamentoRealMes: number;
 };
 
 export async function buscarDadosAds(sellerId: string): Promise<AdsContextoCompleto | null> {
@@ -334,10 +348,11 @@ export async function buscarDadosAds(sellerId: string): Promise<AdsContextoCompl
   const periodoFim = hoje.toISOString().slice(0, 10);
   const siteId = "MLB";
 
-  const [metricasAds, promocoesAtivas, afiliadoReal] = await Promise.all([
+  const [metricasAds, promocoesAtivas, afiliadoReal, faturamentoRealMes] = await Promise.all([
     buscarMetricasAdsPorChave(ctx, siteId, periodoInicio, periodoFim),
     mlBuscarPromocoesAtivas(ctx),
     mlBuscarGastoAfiliadoReal(ctx),
+    mlBuscarFaturamentoRealPeriodo(ctx, inicioMes.toISOString(), hoje.toISOString()),
   ]);
 
   const candidatos = await montarCandidatos(sellerId, ctx, prefs, metricasAds);
@@ -351,15 +366,23 @@ export async function buscarDadosAds(sellerId: string): Promise<AdsContextoCompl
           .map((p) => `${p.type}${p.name ? ` "${p.name}"` : ""} (status ${p.status}${p.finish_date ? `, até ${p.finish_date.slice(0, 10)}` : ""})`)
           .join("; ");
 
+  const gastoTotalMes = metricasAds?.gastoTotalMes ?? null;
+  const roasContaMes =
+    gastoTotalMes != null && gastoTotalMes > 0 ? (metricasAds?.vendaAtribuidaTotalMes ?? 0) / gastoTotalMes : null;
+  const tacosContaRealMes = gastoTotalMes != null && faturamentoRealMes > 0 ? (gastoTotalMes / faturamentoRealMes) * 100 : null;
+
   return {
     candidatos,
     prefs,
     promocoesContaResumo,
     cupomAtivoNaConta,
-    adsGastoTotalMes: metricasAds?.gastoTotalMes ?? null,
+    adsGastoTotalMes: gastoTotalMes,
     afiliadoGastoRealConta: afiliadoReal.gastoReal,
     periodoInicio,
     periodoFim,
+    roasContaMes,
+    tacosContaRealMes,
+    faturamentoRealMes,
   };
 }
 
@@ -506,6 +529,13 @@ export type ResultadoAdsEnriquecido = {
   destaque_atencao: string[];
   ads_gasto_total_mes: number | null;
   afiliado_gasto_real_conta: number;
+  /** ROAS de conjunto (venda atribuída ao Ads ÷ gasto) — mede o retorno da mídia paga em si. */
+  roas_conta_mes: number | null;
+  /** TACoS de conjunto (gasto de Ads ÷ faturamento REAL, pedido pago) — mede quanto da
+   * receita virou custo de mídia paga. Nunca confundir os dois: ver comentário em
+   * AdsContextoCompleto. */
+  tacos_conta_real_mes: number | null;
+  faturamento_real_mes: number;
 };
 
 export async function enriquecerResultadoAds(
@@ -558,5 +588,8 @@ export async function enriquecerResultadoAds(
     destaque_atencao: resultadoIA.destaque_atencao,
     ads_gasto_total_mes: dadosContexto?.adsGastoTotalMes ?? null,
     afiliado_gasto_real_conta: dadosContexto?.afiliadoGastoRealConta ?? 0,
+    roas_conta_mes: dadosContexto?.roasContaMes ?? null,
+    tacos_conta_real_mes: dadosContexto?.tacosContaRealMes ?? null,
+    faturamento_real_mes: dadosContexto?.faturamentoRealMes ?? 0,
   };
 }

@@ -623,6 +623,42 @@ export async function mlBuscarGastoAfiliadoReal(
   return { gastoReal, linhasVarridas };
 }
 
+type MercadoLivreOrderSearchResult = {
+  results?: { status: string; total_amount?: number }[];
+  paging?: { total?: number };
+};
+
+/** Soma o `total_amount` de pedidos PAGOS de verdade (`/orders/search`, fonte primária —
+ * pedido real, não atribuição de marketing) num período. Achado ao vivo (2026-09-03): o
+ * `total_amount` que a própria API de campanhas de Ads devolve é só a venda que o ML decide
+ * atribuir ao clique/impressão — numa conta real (Djulios) isso chegou a contar menos de
+ * 1/3 do faturamento verdadeiro do mesmo período. TACoS "de conjunto" da conta tem que
+ * usar ESSA função como denominador, nunca o total_amount de Ads (esse é a fonte certa só
+ * pra ROAS). `dateFrom`/`dateTo` em ISO completo (ex. "2026-09-01T00:00:00.000Z"). */
+export async function mlBuscarFaturamentoRealPeriodo(
+  ctx: MercadoLivreAuthContext,
+  dateFromIso: string,
+  dateToIso: string,
+  maxPaginas = 40
+): Promise<number> {
+  let offset = 0;
+  let total = 0;
+  for (let pagina = 0; pagina < maxPaginas; pagina++) {
+    const json = await mlGet<MercadoLivreOrderSearchResult>(
+      `/orders/search?seller=${ctx.mlUserId}&order.date_created.from=${encodeURIComponent(dateFromIso)}&order.date_created.to=${encodeURIComponent(dateToIso)}&limit=50&offset=${offset}`,
+      ctx.accessToken
+    );
+    const results = json?.results ?? [];
+    if (results.length === 0) break;
+    for (const o of results) {
+      if (o.status === "paid") total += o.total_amount ?? 0;
+    }
+    offset += results.length;
+    if (offset >= (json?.paging?.total ?? 0)) break;
+  }
+  return total;
+}
+
 /** Checagem mínima de dono, pra ações que não precisam do estado completo de título (ex.
  * aplicar descrição) — usa o `seller_id` que o próprio ML devolve, não o mapa interno de
  * SKU (cobertura parcial, ver mlBuscarItemTituloEstado). */

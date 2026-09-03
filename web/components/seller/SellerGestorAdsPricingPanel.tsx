@@ -35,6 +35,9 @@ export type AdsPricingResultado = {
   destaque_atencao: string[];
   ads_gasto_total_mes: number | null;
   afiliado_gasto_real_conta: number;
+  roas_conta_mes: number | null;
+  tacos_conta_real_mes: number | null;
+  faturamento_real_mes: number;
 };
 
 const DIAGNOSTICO_BADGE: Record<Diagnostico, string> = {
@@ -201,12 +204,36 @@ export function SellerGestorAdsPricingPanel({
         return (
           <div className="space-y-3">
             {resultado.ads_gasto_total_mes != null ? (
-              <p className="text-sm text-[var(--muted)]">
-                Investido em Ads este mês (dado real, todas as campanhas):{" "}
-                <span className="font-medium text-[var(--foreground)]">
-                  R$ {resultado.ads_gasto_total_mes.toFixed(2)}
-                </span>
-              </p>
+              <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4">
+                <p className="text-xs text-[var(--muted)]">Visão de conjunto — Ads este mês, todas as campanhas</p>
+                <dl className="mt-2 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                  <div>
+                    <dt className="text-neutral-500">Investido</dt>
+                    <dd className="font-medium text-[var(--foreground)]">R$ {resultado.ads_gasto_total_mes.toFixed(2)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-neutral-500">ROAS de conjunto</dt>
+                    <dd className="font-medium text-[var(--foreground)]">
+                      {resultado.roas_conta_mes != null ? `${resultado.roas_conta_mes.toFixed(2)}x` : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-neutral-500">TACoS real de conjunto</dt>
+                    <dd className="font-medium text-[var(--foreground)]">
+                      {resultado.tacos_conta_real_mes != null ? `${resultado.tacos_conta_real_mes.toFixed(2)}%` : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-neutral-500">Faturamento real do mês</dt>
+                    <dd className="font-medium text-[var(--foreground)]">R$ {resultado.faturamento_real_mes.toFixed(2)}</dd>
+                  </div>
+                </dl>
+                <p className="mt-2 text-xs text-[var(--muted)]">
+                  ROAS mede o retorno do próprio clique pago (venda atribuída ao Ads ÷ gasto). TACoS mede quanto do
+                  seu faturamento REAL (pedido pago, não atribuição de Ads) virou custo de mídia paga — os dois
+                  respondem perguntas diferentes, não são a mesma conta com nome trocado.
+                </p>
+              </div>
             ) : null}
             <p className="text-sm text-[var(--muted)]">
               Gasto real de afiliado no extrato de faturamento (checado de verdade, não estimativa):{" "}
