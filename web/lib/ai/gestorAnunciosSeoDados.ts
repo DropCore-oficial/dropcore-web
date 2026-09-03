@@ -24,6 +24,8 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { PromptTemplate } from "./gestorPrompts";
 import { paiKey } from "@/lib/produtoTabelaMedidasDb";
+import { calcularPrecoAncora } from "@/lib/margemCalculo";
+import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
 import {
   getValidMercadoLivreAccessToken,
   mlBuscarItensAtivos,
@@ -76,7 +78,23 @@ export type AnuncioSeoContexto = {
    * (anúncio pode ficar invisível na busca mesmo com título/descrição bons). */
   categoriaProvavelmenteErrada: boolean;
   categoriaSugeridaNome: string | null;
+  /** Sinal determinístico (comparação de título entre famílias ativas do próprio seller,
+   * não pedido pra IA) — indício de anúncio duplicado. Só o lado mais fraco (menos venda)
+   * recebe isso; o forte não é penalizado. Ver `detectarDuplicados`. */
+  duplicidade: DuplicidadeAnuncio | null;
   membros: MembroAnuncioSeo[];
+};
+
+export type DuplicidadeAnuncio = {
+  titulo_anuncio_forte: string;
+  vendas_anuncio_forte: number;
+  vendas_anuncio_atual: number;
+  /** false quando alguma variação do grupo fraco é Full ou tem oferta relâmpago ativa —
+   * nesses casos o botão "Pausar" não deve aparecer, só o aviso de texto explicando por quê
+   * (pausar Full prende estoque no centro de distribuição + cobra taxa de item parado;
+   * pausar com oferta ativa interrompe uma promoção convertendo agora). */
+  pode_pausar: boolean;
+  motivo_bloqueio: string | null;
 };
 
 const DIAS_MINIMOS_NO_AR = 30;
@@ -164,6 +182,89 @@ function agruparPorFamilia(itens: ItemComDias[]): { chave: string; membros: Item
   return Array.from(mapa.entries()).map(([chave, membros]) => ({ chave, membros }));
 }
 
+/** Tamanho/cor não conta pra comparação de título — senão "Camisa Azul P" e "Camisa Azul
+ * G" pareceriam famílias diferentes quando na real são a mesma coisa. */
+const STOPWORDS_DUPLICADO = new Set([
+  "p", "m", "g", "gg", "pp", "xg", "eg", "xgg", "egg", "xxg",
+  "branco", "branca", "preto", "preta", "azul", "vermelho", "vermelha",
+  "verde", "marrom", "bege", "cinza", "amarelo", "amarela", "rosa", "roxo",
+  "roxa", "laranja", "royal", "marinho", "bebe", "bebê", "mustang", "musgo",
+  "liso", "lisa", "de", "da", "do", "com", "para", "e", "a", "o",
+]);
+
+function normalizarTituloDuplicado(titulo: string): string {
+  const tokens = titulo
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length > 1 && !STOPWORDS_DUPLICADO.has(t));
+  return Array.from(new Set(tokens)).sort().join(" ");
+}
+
+function jaccardDuplicado(a: string, b: string): number {
+  const sa = new Set(a.split(" "));
+  const sb = new Set(b.split(" "));
+  const inter = [...sa].filter((x) => sb.has(x)).length;
+  const uni = new Set([...sa, ...sb]).size;
+  return uni === 0 ? 0 : inter / uni;
+}
+
+const JACCARD_MIN_DUPLICADO = 0.6;
+
+/** Compara título entre TODAS as famílias ativas buscadas (não só a amostra de 20 piores
+ * — o par forte de um duplicado costuma vender bem e cairia fora dessa amostra). "Kit N
+ * Camisas" nunca compara com anúncio avulso — são produtos diferentes de verdade, não
+ * duplicado (achado real 2026-09-02: comparação por similaridade pura dava falso positivo
+ * aqui). Só marca o lado com MENOS venda total — o forte fica limpo, sem aviso. */
+/** Pausar anúncio Full prende o estoque no centro de distribuição do próprio ML (o
+ * vendedor não controla mais o envio) e ainda passa a cobrar taxa de "item parado" — achado
+ * real pesquisado 2026-09-03. Pausar anúncio com oferta relâmpago ativa (`deal_ids`) mata
+ * uma promoção convertendo agora. Nos dois casos, não oferecer o botão de pausar — só o
+ * aviso de texto explicando por quê, revisão fica manual. */
+function motivoBloqueioPausa(membros: ItemComDias[]): string | null {
+  if (membros.some((m) => m.shipping?.logistic_type === "fulfillment")) {
+    return "Esse anúncio usa Mercado Envios Full — pausar prende o estoque no centro de distribuição do ML e ainda cobra taxa de \"item parado\". Revise manualmente com cuidado.";
+  }
+  if (membros.some((m) => (m.deal_ids ?? []).length > 0)) {
+    return "Esse anúncio tem uma promoção ativa agora (ex.: Oferta Relâmpago) — pausar interrompe a promoção no meio. Revise manualmente antes de agir.";
+  }
+  return null;
+}
+
+function detectarDuplicados(
+  grupos: { chave: string; membros: ItemComDias[]; vendasTotalGrupo: number }[]
+): Map<string, DuplicidadeAnuncio> {
+  const resultado = new Map<string, DuplicidadeAnuncio>();
+  const candidatos = grupos
+    .map((g) => {
+      const representante = [...g.membros].sort((a, b) => b.sold_quantity - a.sold_quantity)[0];
+      return { ...g, tituloRepresentante: representante?.title ?? "", fingerprint: normalizarTituloDuplicado(representante?.title ?? "") };
+    })
+    .filter((g) => g.tituloRepresentante && !g.tituloRepresentante.toLowerCase().includes("kit"));
+
+  for (const a of candidatos) {
+    for (const b of candidatos) {
+      if (a.chave === b.chave) continue;
+      if (b.vendasTotalGrupo <= a.vendasTotalGrupo) continue; // só o mais fraco recebe o aviso
+      if (jaccardDuplicado(a.fingerprint, b.fingerprint) < JACCARD_MIN_DUPLICADO) continue;
+      const atual = resultado.get(a.chave);
+      if (!atual || b.vendasTotalGrupo > atual.vendas_anuncio_forte) {
+        const motivoBloqueio = motivoBloqueioPausa(a.membros);
+        resultado.set(a.chave, {
+          titulo_anuncio_forte: b.tituloRepresentante,
+          vendas_anuncio_forte: b.vendasTotalGrupo,
+          vendas_anuncio_atual: a.vendasTotalGrupo,
+          pode_pausar: motivoBloqueio === null,
+          motivo_bloqueio: motivoBloqueio,
+        });
+      }
+    }
+  }
+  return resultado;
+}
+
 async function montarContextoGrupo(
   chave: string,
   membros: ItemComDias[],
@@ -213,6 +314,7 @@ async function montarContextoGrupo(
     tabelaMedidasFaltando,
     categoriaProvavelmenteErrada,
     categoriaSugeridaNome: categoriaProvavelmenteErrada ? (categoriasSugeridas[0]?.categoryName ?? null) : null,
+    duplicidade: null,
     membros: membrosContexto,
   };
 }
@@ -230,15 +332,22 @@ export async function buscarDadosAnunciosSeo(sellerId: string): Promise<AnuncioS
     .map((d) => ({ ...d, diasNoAr: Math.floor((agora - new Date(d.start_time).getTime()) / (1000 * 60 * 60 * 24)) }))
     .filter((d) => d.diasNoAr >= DIAS_MINIMOS_NO_AR);
 
-  const grupos = agruparPorFamilia(elegiveis)
-    .map((g) => ({ ...g, vendasTotalGrupo: g.membros.reduce((s, m) => s + m.sold_quantity, 0) }))
-    .sort((a, b) => a.vendasTotalGrupo - b.vendasTotalGrupo)
-    .slice(0, MAX_CANDIDATOS);
+  const todosGrupos = agruparPorFamilia(elegiveis).map((g) => ({
+    ...g,
+    vendasTotalGrupo: g.membros.reduce((s, m) => s + m.sold_quantity, 0),
+  }));
+
+  // Compara título entre TODOS os grupos ativos buscados, não só a amostra de 20 piores
+  // abaixo — o par forte de um duplicado costuma vender bem e ficaria fora dessa amostra.
+  const duplicidadePorChave = detectarDuplicados(todosGrupos);
+
+  const grupos = [...todosGrupos].sort((a, b) => a.vendasTotalGrupo - b.vendasTotalGrupo).slice(0, MAX_CANDIDATOS);
 
   const cacheAtributos = new Map<string, MercadoLivreAtributoCategoria[]>();
   const contexto: AnuncioSeoContexto[] = [];
   for (const grupo of grupos) {
-    contexto.push(await montarContextoGrupo(grupo.chave, grupo.membros, ctx, sellerId, cacheAtributos));
+    const c = await montarContextoGrupo(grupo.chave, grupo.membros, ctx, sellerId, cacheAtributos);
+    contexto.push({ ...c, duplicidade: duplicidadePorChave.get(grupo.chave) ?? null });
   }
   return contexto;
 }
@@ -264,6 +373,56 @@ export async function buscarDadosAnuncioUnico(
     diasNoAr: Math.floor((agora - new Date(item.start_time).getTime()) / (1000 * 60 * 60 * 24)),
   };
   return montarContextoGrupo(itemId, [itemComDias], ctx, sellerId, new Map());
+}
+
+export type SkuSemAnuncioSugestao = {
+  sku: string;
+  nomeProduto: string;
+  custo: number;
+  precoAncoraSugerido: number;
+};
+
+/** Preço-âncora do produto novo (pedido do Sr Stark, 2026-08-29): custo × 3 (200% de
+ * markup) por padrão — dá espaço pro Ulisses trabalhar depois com ads/cupom/afiliado sem
+ * precisar reeditar o preço a cada campanha. Cálculo puro (não pedido pra IA), mesmo
+ * princípio de `fotos_insuficientes`/`dias_ate_ruptura` nos outros gestores. NÃO cria
+ * anúncio nenhum — isso ainda depende do Andrey ganhar "criar anúncio do zero" (categoria +
+ * atributos obrigatórios, nunca testado), fora do escopo aqui. Isso é só a sugestão de
+ * preço, pro seller levar em conta quando for publicar manualmente. */
+const MULTIPLICADOR_PRECO_ANCORA_PADRAO = 200;
+
+/** SKU que o seller habilitou pra vender mas ainda não tem vínculo com nenhum anúncio no
+ * Mercado Livre (`seller_mercadolivre_sku_map`) — sinal que já existe de graça (join por
+ * ausência), sem precisar de chamada nova na API do ML. */
+export async function buscarSkusSemAnuncio(sellerId: string): Promise<SkuSemAnuncioSugestao[]> {
+  const [{ data: habilitadosRaw }, { data: mapeadosRaw }] = await Promise.all([
+    supabaseAdmin
+      .from("seller_skus_habilitados")
+      .select("skus(sku, nome_produto, custo_base, custo_dropcore)")
+      .eq("seller_id", sellerId),
+    supabaseAdmin.from("seller_mercadolivre_sku_map").select("sku").eq("seller_id", sellerId),
+  ]);
+
+  const skusMapeados = new Set((mapeadosRaw ?? []).map((m) => m.sku as string));
+  const habilitados = (habilitadosRaw ?? []) as unknown as {
+    skus: { sku: string; nome_produto: string | null; custo_base: number | null; custo_dropcore: number | null } | null;
+  }[];
+
+  const semAnuncio: SkuSemAnuncioSugestao[] = [];
+  for (const h of habilitados) {
+    const sku = h.skus;
+    if (!sku || skusMapeados.has(sku.sku)) continue;
+    // Fonte única do "custo que o seller paga" (mesma usada em api/seller/produtos).
+    const custo = sellerCustoTotalPagoUnitario(sku.custo_base, sku.custo_dropcore) ?? 0;
+    if (custo <= 0) continue;
+    semAnuncio.push({
+      sku: sku.sku,
+      nomeProduto: sku.nome_produto ?? sku.sku,
+      custo,
+      precoAncoraSugerido: calcularPrecoAncora(custo, MULTIPLICADOR_PRECO_ANCORA_PADRAO),
+    });
+  }
+  return semAnuncio;
 }
 
 function formatarAtributoFaltando(a: AtributoFaltando): string {
@@ -487,6 +646,9 @@ export type AnuncioResultadoEnriquecido = Omit<AnuncioResultadoIA, "caracteristi
    * não bateu com a categoria atual do anúncio. */
   categoria_provavelmente_errada: boolean;
   categoria_sugerida_nome: string | null;
+  /** Sinal determinístico (comparação de título entre famílias ativas do seller, não pedido
+   * pra IA): esse grupo parece duplicado de outro anúncio ativo com mais venda. */
+  duplicidade: DuplicidadeAnuncio | null;
   /** Preenchido só quando uma ação (aplicar título/descrição/características) foi executada
    * de verdade nesse grupo desde a rodada anterior — compara visita/venda antes vs. depois
    * pra fechar o loop (a sugestão funcionou?). null quando nenhuma ação foi aplicada ainda. */
@@ -496,6 +658,9 @@ export type AnuncioResultadoEnriquecido = Omit<AnuncioResultadoIA, "caracteristi
 export type ResultadoAnunciosSeoEnriquecido = {
   anuncios: AnuncioResultadoEnriquecido[];
   destaque_prioridade: string[];
+  /** SKUs habilitados sem anúncio no ML ainda, com preço-âncora sugerido (custo × 3) —
+   * cálculo puro, não vem da IA. Ver `buscarSkusSemAnuncio`. */
+  skus_sem_anuncio: SkuSemAnuncioSugestao[];
 };
 
 /**
@@ -508,7 +673,10 @@ export async function enriquecerResultadoAnunciosSeo(
   sellerId: string,
   resultadoIA: { anuncios: AnuncioResultadoIA[]; destaque_prioridade: string[] }
 ): Promise<ResultadoAnunciosSeoEnriquecido> {
-  const dadosContexto = await buscarDadosAnunciosSeo(sellerId);
+  const [dadosContexto, skusSemAnuncio] = await Promise.all([
+    buscarDadosAnunciosSeo(sellerId),
+    buscarSkusSemAnuncio(sellerId),
+  ]);
   const porChave = new Map(dadosContexto.map((d) => [d.chave, d]));
 
   const { data: anteriorRow } = await supabaseAdmin
@@ -599,6 +767,7 @@ export async function enriquecerResultadoAnunciosSeo(
       caracteristicas_sugeridas: caracteristicasSugeridas,
       categoria_provavelmente_errada: grupo?.categoriaProvavelmenteErrada ?? false,
       categoria_sugerida_nome: grupo?.categoriaSugeridaNome ?? null,
+      duplicidade: grupo?.duplicidade ?? null,
       resultado_acao_anterior: resultadoAcaoAnterior,
       membros: (grupo?.membros ?? []).map((m) => ({
         item_id: m.itemId,
@@ -612,5 +781,5 @@ export async function enriquecerResultadoAnunciosSeo(
     };
   });
 
-  return { anuncios, destaque_prioridade: resultadoIA.destaque_prioridade };
+  return { anuncios, destaque_prioridade: resultadoIA.destaque_prioridade, skus_sem_anuncio: skusSemAnuncio };
 }

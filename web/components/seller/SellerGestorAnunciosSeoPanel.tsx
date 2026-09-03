@@ -19,6 +19,14 @@ type MembroAnuncio = {
   foto_baixa_resolucao: boolean;
 };
 
+type DuplicidadeAnuncio = {
+  titulo_anuncio_forte: string;
+  vendas_anuncio_forte: number;
+  vendas_anuncio_atual: number;
+  pode_pausar: boolean;
+  motivo_bloqueio: string | null;
+};
+
 type ResultadoAcaoAnterior = {
   acao: string;
   quando: string;
@@ -33,6 +41,13 @@ type CaracteristicaSugerida = {
   atributo_nome: string;
   valor: string;
   valorValido: boolean;
+};
+
+type SkuSemAnuncio = {
+  sku: string;
+  nomeProduto: string;
+  custo: number;
+  precoAncoraSugerido: number;
 };
 
 type AnuncioDiagnostico = {
@@ -50,10 +65,15 @@ type AnuncioDiagnostico = {
   membros: MembroAnuncio[];
   categoria_provavelmente_errada: boolean;
   categoria_sugerida_nome: string | null;
+  duplicidade: DuplicidadeAnuncio | null;
   resultado_acao_anterior: ResultadoAcaoAnterior | null;
 };
 
-export type AnunciosSeoResultado = { anuncios: AnuncioDiagnostico[]; destaque_prioridade: string[] };
+export type AnunciosSeoResultado = {
+  anuncios: AnuncioDiagnostico[];
+  destaque_prioridade: string[];
+  skus_sem_anuncio: SkuSemAnuncio[];
+};
 
 const DIAGNOSTICO_BADGE: Record<Diagnostico, string> = {
   problema_titulo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
@@ -160,6 +180,108 @@ function CategoriaErradaAviso({ categoriaSugeridaNome }: { categoriaSugeridaNome
         categoria errada pode ficar invisível na busca, mesmo com título e descrição bons.
       </span>
     </p>
+  );
+}
+
+function DuplicidadeAviso({ duplicidade }: { duplicidade: DuplicidadeAnuncio }) {
+  return (
+    <>
+      <p className="mt-2 flex items-start gap-1.5 text-xs text-[var(--danger)]">
+        <span aria-hidden>⚠</span>
+        <span>
+          Parece duplicado de outro anúncio seu (&quot;{duplicidade.titulo_anuncio_forte}&quot;,{" "}
+          {duplicidade.vendas_anuncio_forte} vendas) — este aqui tem só {duplicidade.vendas_anuncio_atual} vendas.
+          {duplicidade.pode_pausar ? " Considere mesclar ou pausar este." : " Considere mesclar."}
+        </span>
+      </p>
+      {duplicidade.motivo_bloqueio ? (
+        <p className="mt-1 flex items-start gap-1.5 text-xs text-[var(--muted)]">
+          <span aria-hidden>ℹ</span>
+          <span>{duplicidade.motivo_bloqueio}</span>
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+type PausarDuplicadoEstado = "idle" | "confirmando" | "aplicando" | "aplicado" | "erro";
+
+function PausarAnuncioDuplicadoBotao({ itemIds }: { itemIds: string[] }) {
+  const [estado, setEstado] = useState<PausarDuplicadoEstado>("idle");
+  const [mensagem, setMensagem] = useState<string | null>(null);
+
+  async function aplicar() {
+    setEstado("aplicando");
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session?.access_token) {
+      setMensagem("Sessão expirada, faça login de novo.");
+      setEstado("erro");
+      return;
+    }
+    const res = await fetch("/api/seller/gestores-ia/pausar-anuncio-duplicado", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ item_ids: itemIds }),
+    });
+    const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+    if (!res.ok || !json.ok) {
+      setMensagem(json.error ?? "Erro ao pausar o anúncio.");
+      setEstado("erro");
+      return;
+    }
+    setMensagem(null);
+    setEstado("aplicado");
+  }
+
+  if (estado === "aplicado") {
+    return (
+      <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+        Anúncio pausado no Mercado Livre ✓
+      </p>
+    );
+  }
+
+  if (estado === "erro") {
+    return <p className="mt-2 text-xs text-[var(--danger)]">{mensagem}</p>;
+  }
+
+  if (estado === "confirmando") {
+    return (
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <p className="text-xs text-[var(--muted)]">
+          Pausar {itemIds.length > 1 ? `as ${itemIds.length} variações` : "esse anúncio"} agora?
+        </p>
+        <button
+          type="button"
+          onClick={() => void aplicar()}
+          className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
+        >
+          Sim, pausar
+        </button>
+        <button
+          type="button"
+          onClick={() => setEstado("idle")}
+          className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+        >
+          Cancelar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setEstado("confirmando")}
+        disabled={estado === "aplicando"}
+        className="rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400"
+      >
+        {estado === "aplicando" ? "Pausando…" : "Pausar este anúncio"}
+      </button>
+    </div>
   );
 }
 
@@ -528,6 +650,12 @@ function GrupoCard({ g }: { g: AnuncioDiagnostico }) {
       {g.categoria_provavelmente_errada ? (
         <CategoriaErradaAviso categoriaSugeridaNome={g.categoria_sugerida_nome} />
       ) : null}
+      {g.duplicidade ? (
+        <>
+          <DuplicidadeAviso duplicidade={g.duplicidade} />
+          {g.duplicidade.pode_pausar ? <PausarAnuncioDuplicadoBotao itemIds={todosItemIds} /> : null}
+        </>
+      ) : null}
       {g.resultado_acao_anterior ? <ResultadoAcaoAnteriorBloco resultado={g.resultado_acao_anterior} /> : null}
 
       {g.titulo_sugerido ? (
@@ -616,6 +744,7 @@ export function SellerGestorAnunciosSeoPanel({
   onRodarAgora?: DispararRodada;
 }) {
   const [verTodos, setVerTodos] = useState(false);
+  const [verSemAnuncio, setVerSemAnuncio] = useState(false);
 
   return (
     <SellerGestorRunShell
@@ -671,6 +800,38 @@ export function SellerGestorAnunciosSeoPanel({
                         </span>
                         <DiagnosticoBadge diagnostico={g.diagnostico} />
                       </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {(resultado.skus_sem_anuncio ?? []).length > 0 ? (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => setVerSemAnuncio((v) => !v)}
+                  className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                >
+                  {verSemAnuncio ? "Ocultar" : "Ver"} {(resultado.skus_sem_anuncio ?? []).length} SKU
+                  {(resultado.skus_sem_anuncio ?? []).length > 1 ? "s" : ""} sem anúncio no Mercado Livre
+                </button>
+                {verSemAnuncio ? (
+                  <div className="mt-3 space-y-2.5">
+                    {(resultado.skus_sem_anuncio ?? []).map((s) => (
+                      <article key={s.sku} className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4">
+                        <p className="font-medium text-[var(--foreground)]">{s.nomeProduto}</p>
+                        <p className="text-xs text-[var(--muted)]">SKU {s.sku} · custo R$ {s.custo.toFixed(2)}</p>
+                        <p className="mt-2 text-sm text-[var(--foreground)]">
+                          Preço sugerido pra publicar: <span className="font-medium">R$ {s.precoAncoraSugerido.toFixed(2)}</span> —
+                          deixa espaço pro Ulisses trabalhar com ads/cupom/afiliado depois sem precisar reeditar o preço.
+                        </p>
+                        <div className="mt-3">
+                          <CopiarSugestaoBotao
+                            texto={`Publicar "${s.nomeProduto}" (SKU ${s.sku}) a R$ ${s.precoAncoraSugerido.toFixed(2)}`}
+                          />
+                        </div>
+                      </article>
                     ))}
                   </div>
                 ) : null}

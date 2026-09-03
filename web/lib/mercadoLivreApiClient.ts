@@ -76,6 +76,22 @@ async function mlGet<T>(path: string, accessToken: string): Promise<T | null> {
   return (await res.json()) as T;
 }
 
+/** Igual `mlGet`, mas aceita headers extras — usada pela API de Ads, que exige
+ * `api-version` (a de Publicidade descontinuou os endpoints antigos em 27/05/2026 e a
+ * nova geração, baseada em `ad_group_id`, exige esse header). */
+async function mlGetComHeaders<T>(
+  path: string,
+  accessToken: string,
+  extraHeaders: Record<string, string>
+): Promise<T | null> {
+  const res = await fetch(`${ML_API_BASE}${path}`, {
+    headers: { Authorization: `Bearer ${accessToken}`, ...extraHeaders },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as T;
+}
+
 export type MercadoLivreItemSearchResult = { results: string[]; paging: { total: number } };
 
 export async function mlBuscarItensAtivos(
@@ -124,12 +140,35 @@ export type MercadoLivreItemDetail = {
   start_time: string;
   category_id: string;
   seller_id: number;
+  listing_type_id?: string;
   pictures?: { id: string; max_size?: string }[];
   attributes?: MercadoLivreAttribute[];
   variations?: MercadoLivreVariation[];
   family_id?: string | number | null;
   family_name?: string | null;
+  /** `logistic_type: "fulfillment"` = Mercado Envios Full (estoque no centro de distribuição
+   * do ML) — anúncio assim não pode ser pausado pelo fluxo manual normal (o ML controla o
+   * envio); se pausado mesmo assim, estoque fica preso e ainda cobra taxa de "item parado". */
+  shipping?: { logistic_type?: string };
+  /** IDs de promoção ativa no anúncio (ex. Oferta Relâmpago) — array vazio quando não tem
+   * nenhuma rodando agora. */
+  deal_ids?: string[];
 };
+
+/** `listing_type_id` do ML pro Mercado Livre Brasil: `gold_special` = Clássico,
+ * `gold_pro` = Premium. Comissão default espelha `COMISSOES.meli_classico`/
+ * `meli_premium` da calculadora (`web/app/seller/calculadora/page.tsx`) — mesmo valor,
+ * mantido em paralelo por enquanto (a calculadora deixa o seller sobrescrever por
+ * conta própria; aqui o Ulisses usa o default até ter um jeito de ler o valor
+ * negociado do seller). */
+export function mlComissaoPorListingType(listingTypeId: string | undefined): {
+  tipo: "classico" | "premium" | "desconhecido";
+  comissaoPct: number;
+} {
+  if (listingTypeId === "gold_pro") return { tipo: "premium", comissaoPct: 19 };
+  if (listingTypeId === "gold_special") return { tipo: "classico", comissaoPct: 14 };
+  return { tipo: "desconhecido", comissaoPct: 14 };
+}
 
 /** ML aceita até 20 ids por chamada no multiget — quem chama é responsável por dividir em lotes. */
 export async function mlBuscarItensDetalhe(
@@ -395,6 +434,193 @@ export async function mlAtualizarStatus(
     return { ok: false, erro: json.message ?? json.error ?? `HTTP ${res.status}` };
   }
   return { ok: true };
+}
+
+/** Atualiza o preço do anúncio (`PUT /items/{id}`). Reservada pro Ulisses — NÃO chamada
+ * em produção ainda nesta fase (só diagnóstico/sugestão, ver plano do gestor); cadastrada
+ * já agora pra não duplicar o padrão de escrita quando a escrita de verdade for ligada. */
+export async function mlAtualizarPreco(
+  itemId: string,
+  preco: number,
+  ctx: MercadoLivreAuthContext
+): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const res = await fetch(`${ML_API_BASE}/items/${itemId}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${ctx.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ price: preco }),
+  });
+  const json = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+  if (!res.ok) {
+    return { ok: false, erro: json.message ?? json.error ?? `HTTP ${res.status}` };
+  }
+  return { ok: true };
+}
+
+export type MercadoLivrePromocaoAtiva = {
+  id: string;
+  type: string;
+  status: string;
+  name?: string;
+  start_date?: string;
+  finish_date?: string;
+  deadline_date?: string;
+};
+
+/** Promoções/campanhas ativas do seller (`seller-promotions`) — testado ao vivo
+ * (2026-08-29) contra conta real: devolve LIGHTNING (oferta relâmpago, convite do ML),
+ * SMART/DEAL (campanhas, também por convite) e, quando existir, SELLER_COUPON_CAMPAIGN
+ * (cupom criado pelo próprio seller). Usado pelo Ulisses só pra diagnóstico nesta fase —
+ * criar promoção nova é dinheiro real do seller, fica fora do escopo até aprovação
+ * explícita (ver plano do gestor). */
+export async function mlBuscarPromocoesAtivas(ctx: MercadoLivreAuthContext): Promise<MercadoLivrePromocaoAtiva[]> {
+  const json = await mlGet<{ results: MercadoLivrePromocaoAtiva[] }>(
+    `/seller-promotions/users/${ctx.mlUserId}?app_version=v2`,
+    ctx.accessToken
+  );
+  return json?.results ?? [];
+}
+
+/** Anunciante (advertiser_id) do produto Ads (PADS) — precisa existir antes de qualquer
+ * chamada de campanha/ad group. `null` quando o seller não tem Ads habilitado
+ * (`Mercado Livre > Meu perfil > Publicidade`), não é erro. Testado ao vivo (2026-08-30). */
+export async function mlBuscarAdvertiserId(ctx: MercadoLivreAuthContext): Promise<number | null> {
+  const json = await mlGetComHeaders<{ advertisers: { advertiser_id: number; site_id: string }[] }>(
+    `/advertising/advertisers?product_id=PADS`,
+    ctx.accessToken,
+    { "Api-Version": "1" }
+  );
+  return json?.advertisers?.[0]?.advertiser_id ?? null;
+}
+
+export type MercadoLivreCampanhaAds = {
+  id: number;
+  name: string;
+  status: string;
+  budget: number;
+  acos_target: number;
+  metrics?: { cost: number; total_amount: number; units_quantity: number; clicks: number };
+};
+
+/** Campanhas de Ads + métricas reais do período — endpoint atual pós-descontinuação de
+ * 27/05/2026 (`/product_ads/campaigns` antigo dá 404). Path exige o `site_id` (ex. MLB)
+ * antes de `advertisers`, e header `api-version: 2` — sem isso também dá 404. Testado ao
+ * vivo (2026-08-30/31) contra a conta real da Djulios: bateu com o "Investimento" mostrado
+ * na tela de Publicidade dela. */
+export async function mlBuscarCampanhasAdsComMetricas(
+  ctx: MercadoLivreAuthContext,
+  advertiserId: number,
+  siteId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<MercadoLivreCampanhaAds[]> {
+  const json = await mlGetComHeaders<{ results: MercadoLivreCampanhaAds[] }>(
+    `/advertising/${siteId}/advertisers/${advertiserId}/product_ads/campaigns/search?date_from=${dateFrom}&date_to=${dateTo}&limit=50&metrics=clicks,cost,acos,total_amount,units_quantity`,
+    ctx.accessToken,
+    { "api-version": "2" }
+  );
+  return json?.results ?? [];
+}
+
+export type MercadoLivreAdGroupAds = {
+  id: number;
+  /** family_id (grupo com variação) ou item_id (anúncio isolado) — mesma chave de
+   * agrupamento já usada pelo Andrey (`chave` em gestorAnunciosSeoDados.ts). */
+  ad_group_external_id: string;
+  ad_group_type: "FAMILY" | "ITEM" | "CATALOG";
+  campaign_id: number;
+  title: string;
+  status: string;
+  metrics?: {
+    cost: number;
+    total_amount: number;
+    units_quantity: number;
+    clicks: number;
+    /** Venda SEM publicidade (fora do clique do anúncio) — precisa somar com `units_quantity`/
+     * `total_amount` pra chegar na venda TOTAL do produto, base real do TACoS. */
+    organic_units_quantity: number;
+    organic_units_amount: number;
+  };
+};
+
+/** Ad groups (nível família/item) + métricas reais de todos os anúncios promovidos do
+ * advertiser no período — é o que permite saber quanto foi gasto de Ads especificamente
+ * em CADA produto, não só o total da conta. Inclui métricas orgânicas (venda sem
+ * publicidade) pra calcular TACoS de verdade (gasto ÷ venda TOTAL), não ACOS (gasto ÷
+ * venda só atribuída ao clique) — são coisas diferentes, TACoS é o que o seller configura
+ * como meta. Mesmo cuidado de path/header da função acima. */
+export async function mlBuscarAdGroupsComMetricas(
+  ctx: MercadoLivreAuthContext,
+  advertiserId: number,
+  siteId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<MercadoLivreAdGroupAds[]> {
+  const json = await mlGetComHeaders<{ results: MercadoLivreAdGroupAds[] }>(
+    `/advertising/${siteId}/advertisers/${advertiserId}/product_ads/ad_groups/search?date_from=${dateFrom}&date_to=${dateTo}&limit=200&metrics=CLICKS,COST,TOTAL_AMOUNT,UNITS_QUANTITY,ORGANIC_UNITS_QUANTITY,ORGANIC_UNITS_AMOUNT&filters[channel]=marketplace`,
+    ctx.accessToken,
+    { "api-version": "2" }
+  );
+  return json?.results ?? [];
+}
+
+/** Custo de frete REAL que o seller paga nessa venda (`list_cost`) — diferente do que o
+ * comprador vê (`cost`, pode ser 0 com frete grátis). CEP é só referência pro cálculo (o
+ * valor varia por destino); usar uma capital como estimativa razoável na ausência de um
+ * pedido real pra basear o cálculo. Testado ao vivo (2026-08-30). */
+export async function mlBuscarFreteReal(
+  itemId: string,
+  ctx: MercadoLivreAuthContext,
+  cepReferencia = "01310100"
+): Promise<number | null> {
+  const json = await mlGet<{ options?: { list_cost: number }[] }>(
+    `/items/${itemId}/shipping_options?zip_code=${cepReferencia}`,
+    ctx.accessToken
+  );
+  return json?.options?.[0]?.list_cost ?? null;
+}
+
+type MercadoLivreBillingDetalhe = {
+  charge_info?: { transaction_detail?: string; detail_amount?: number };
+};
+
+/** Varre o extrato REAL de faturamento (`billing/integration`) do período aberto mais
+ * recente atrás de linhas de cobrança de afiliado — não existe API dedicada de afiliados
+ * (pesquisado a fundo em 2026-08-30, sem endpoint público), mas o extrato de faturamento
+ * lista toda cobrança que incide sobre a conta com descrição em texto
+ * (`transaction_detail`), então uma cobrança de afiliado apareceria aqui se existisse.
+ * Testado ao vivo (2026-08-31): varrido ~200 lançamentos reais da Djulios, nenhuma
+ * cobrança de afiliado encontrada — bate com a conta não ter venda por afiliado
+ * acontecendo agora (mesmo tipo de resposta real de "não tem ativo" já visto no cupom).
+ * Limitado a `maxPaginas` por custo/latência — período pode ter milhares de linhas. */
+export async function mlBuscarGastoAfiliadoReal(
+  ctx: MercadoLivreAuthContext,
+  maxPaginas = 3
+): Promise<{ gastoReal: number; linhasVarridas: number }> {
+  const periodos = await mlGet<{ results?: { key: string }[] }>(
+    `/billing/integration/monthly/periods?group=ML&document_type=BILL&limit=1`,
+    ctx.accessToken
+  );
+  const key = periodos?.results?.[0]?.key;
+  if (!key) return { gastoReal: 0, linhasVarridas: 0 };
+
+  let gastoReal = 0;
+  let linhasVarridas = 0;
+  for (let pagina = 0; pagina < maxPaginas; pagina++) {
+    const offset = pagina * 100;
+    const json = await mlGet<{ results?: MercadoLivreBillingDetalhe[]; total?: number }>(
+      `/billing/integration/periods/key/${encodeURIComponent(key)}/group/ML/details?document_type=BILL&limit=100&offset=${offset}`,
+      ctx.accessToken
+    );
+    const results = json?.results ?? [];
+    if (results.length === 0) break;
+    for (const r of results) {
+      const detalhe = r.charge_info?.transaction_detail ?? "";
+      if (/afiliad|affiliate/i.test(detalhe)) gastoReal += r.charge_info?.detail_amount ?? 0;
+    }
+    linhasVarridas += results.length;
+    if (json?.total != null && offset + results.length >= json.total) break;
+  }
+  return { gastoReal, linhasVarridas };
 }
 
 /** Checagem mínima de dono, pra ações que não precisam do estado completo de título (ex.
