@@ -22,6 +22,8 @@ type SkuResultado = {
   margem_atual_pct: number;
   margem_minima_pct: number;
   margem_maxima_pct: number | null;
+  afiliado_pct_configurado: number | null;
+  afiliado_pct_teto_seguro: number | null;
   diagnostico: Diagnostico;
   recomendacao: string;
   observacao: string;
@@ -132,6 +134,13 @@ function SkuCard({ item }: { item: SkuResultado }) {
 
       <p className="mt-3 text-sm text-[var(--foreground)]">{item.recomendacao}</p>
       {item.observacao ? <p className="mt-1 text-xs text-[var(--muted)]">{item.observacao}</p> : null}
+      {item.afiliado_pct_teto_seguro != null ? (
+        <p className="mt-1 text-xs text-[var(--muted)]">
+          Afiliado em {item.afiliado_pct_configurado?.toFixed(1)}% — sua margem aguenta subir até{" "}
+          <span className="font-medium text-[var(--foreground)]">{item.afiliado_pct_teto_seguro.toFixed(1)}%</span>{" "}
+          sem furar o mínimo de {item.margem_minima_pct}%.
+        </p>
+      ) : null}
       {item.sinalizado_rodada_anterior ? (
         <p className="mt-1 text-xs text-[var(--muted)]">Já sinalizado na rodada anterior.</p>
       ) : null}
@@ -170,9 +179,10 @@ export function SellerGestorAdsPricingPanel({
         <p>
           O Ulisses cruza o custo real de cada produto com o preço já publicado no Mercado Livre pra
           calcular a margem que você está de fato realizando, e compara com a faixa mínima/máxima que
-          você definiu. Ele só recomenda ativar ads, afiliado ou cupom se você já tiver deixado essa
-          alavanca ligada na configuração — nunca decide um valor novo sozinho, e nunca aplica nada sem
-          você confirmar.
+          você definiu. Ele só recomenda ativar ads ou cupom se você já tiver deixado essa alavanca
+          ligada na configuração. Pra afiliado, quando sua margem tem folga real, ele mostra até quanto
+          dá pra subir o % sem furar seu mínimo — a decisão de mudar continua sua, em &quot;Editar
+          preferências&quot;, nunca aplicada sozinha.
         </p>
       }
     >

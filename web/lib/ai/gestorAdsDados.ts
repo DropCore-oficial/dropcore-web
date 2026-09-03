@@ -131,10 +131,21 @@ export type AdsSkuContexto = {
   margemAtualPct: number;
   margemMinimaPct: number;
   margemMaximaPct: number | null;
+  /** % de afiliado que o seller configurou (só quando a alavanca está ativa). */
+  afiliadoPctConfigurado: number | null;
+  /** Teto seguro de % de afiliado pra esse SKU sem furar a margem mínima — cálculo
+   * determinístico (código, não pedido pra IA), possível porque `calcularMargemRealizada`
+   * é linear em `afiliadoPct` (coeficiente -1): subir 1 ponto de afiliado derruba a margem
+   * em exatamente 1 ponto. Logo teto = % configurado + folga atual acima do mínimo. `null`
+   * quando o afiliado está desativado ou não há folga real (evita sugerir ruído). */
+  afiliadoPctTetoSeguro: number | null;
 };
 
 const MAX_CANDIDATOS = 20;
 const CEP_REFERENCIA_FRETE = "01310100";
+/** Folga mínima (pontos de margem) pra sugerir subir o % de afiliado — abaixo disso a
+ * sugestão seria ruído (ex. "suba de 5% pra 5,4%"), não ajuda o seller a decidir nada. */
+const AFILIADO_HEADROOM_MINIMO_PCT = 2;
 
 async function buscarVinculosComCusto(
   sellerId: string
@@ -266,6 +277,13 @@ async function montarCandidatos(
       afiliadoPct: prefs.afiliadoAtivo ? (prefs.afiliadoPct ?? 0) : 0,
     });
 
+    const afiliadoPctConfigurado = prefs.afiliadoAtivo ? (prefs.afiliadoPct ?? 0) : null;
+    const headroomAfiliado = margemAtualPct - prefs.margemMinimaPct;
+    const afiliadoPctTetoSeguro =
+      afiliadoPctConfigurado != null && headroomAfiliado > AFILIADO_HEADROOM_MINIMO_PCT
+        ? Math.round((afiliadoPctConfigurado + headroomAfiliado) * 10) / 10
+        : null;
+
     candidatos.push({
       sku: info.sku,
       nomeProduto: info.nomeProduto,
@@ -282,6 +300,8 @@ async function montarCandidatos(
       margemAtualPct,
       margemMinimaPct: prefs.margemMinimaPct,
       margemMaximaPct: prefs.margemMaximaPct,
+      afiliadoPctConfigurado,
+      afiliadoPctTetoSeguro,
     });
   }
 
@@ -476,6 +496,8 @@ export type SkuResultadoEnriquecido = SkuResultadoIA & {
   frete_real: number | null;
   margem_minima_pct: number;
   margem_maxima_pct: number | null;
+  afiliado_pct_configurado: number | null;
+  afiliado_pct_teto_seguro: number | null;
   sinalizado_rodada_anterior: boolean;
 };
 
@@ -525,6 +547,8 @@ export async function enriquecerResultadoAds(
       frete_real: c?.freteReal ?? null,
       margem_minima_pct: c?.margemMinimaPct ?? 0,
       margem_maxima_pct: c?.margemMaximaPct ?? null,
+      afiliado_pct_configurado: c?.afiliadoPctConfigurado ?? null,
+      afiliado_pct_teto_seguro: c?.afiliadoPctTetoSeguro ?? null,
       sinalizado_rodada_anterior: s.diagnostico !== "margem_saudavel" && problemaAnteriorPorSku.has(s.sku),
     };
   });
