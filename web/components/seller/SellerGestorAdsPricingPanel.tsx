@@ -113,13 +113,13 @@ function SkuCard({ item }: { item: SkuResultado }) {
         <div>
           <dt className="text-neutral-500">TACoS real</dt>
           <dd className="font-medium text-[var(--foreground)]">
-            {item.ads_gasto_mes_real > 0 ? `${item.tacos_real_pct.toFixed(1)}%` : "—"}
+            {item.ads_gasto_mes_real > 0 ? `${(item.tacos_real_pct ?? 0).toFixed(1)}%` : "—"}
           </dd>
         </div>
         <div>
           <dt className="text-neutral-500">ROAS real</dt>
           <dd className="font-medium text-[var(--foreground)]">
-            {item.ads_gasto_mes_real > 0 ? `${item.roas_real.toFixed(2)}x` : "—"}
+            {item.ads_gasto_mes_real > 0 ? `${(item.roas_real ?? 0).toFixed(2)}x` : "—"}
           </dd>
         </div>
         <div>
