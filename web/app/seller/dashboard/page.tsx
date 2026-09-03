@@ -1949,7 +1949,7 @@ export default function SellerDashboardPage() {
                   </div>
                   <p className="text-sm font-medium text-[var(--muted)]">Nenhuma recarga ainda</p>
                   <p className="text-xs text-[var(--muted)] mt-1 max-w-sm mx-auto leading-relaxed">
-                    Recarregue créditos via PIX (mín. R$ 500) para pedidos. {SELLER_CREDITO_NAO_PAGA_MENSALIDADE}
+                    Recarregue créditos via PIX (mín. R$ 250) para pedidos. {SELLER_CREDITO_NAO_PAGA_MENSALIDADE}
                   </p>
                 <button onClick={() => setModalDeposito(true)} className="mt-6 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 text-[11px] font-semibold shadow-sm transition-colors">
                     + Recarregar créditos
@@ -2185,7 +2185,7 @@ export default function SellerDashboardPage() {
                   </div>
 
                   <div>
-                    <label className="text-xs text-[var(--muted)] mb-1.5 block">Valor da recarga (mínimo R$ 500,00)</label>
+                    <label className="text-xs text-[var(--muted)] mb-1.5 block">Valor da recarga (mínimo R$ 250,00)</label>
                     <input
                       type="text"
                       inputMode="decimal"

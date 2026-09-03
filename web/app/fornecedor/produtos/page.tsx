@@ -29,6 +29,7 @@ import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
 import { parseDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { cn } from "@/lib/utils";
 import { ProdutoRowSkeleton } from "@/components/ui/Skeleton";
+import { calcularCustoTotal } from "@/lib/taxaDropcore";
 
 const BRL_CUSTO_FORNECEDOR = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -225,6 +226,7 @@ export default function FornecedorProdutosPage() {
   const [error, setError] = useState<string | null>(null);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [helpAlteracoesOpen, setHelpAlteracoesOpen] = useState(false);
+  const [helpSellerPagaKey, setHelpSellerPagaKey] = useState<string | null>(null);
   const [modal, setModal] = useState<"none" | "edit">("none");
   const [editando, setEditando] = useState<Produto | null>(null);
   const [formLoading, setFormLoading] = useState(false);
@@ -1049,11 +1051,40 @@ export default function FornecedorProdutosPage() {
                             const min = Math.min(...custos);
                             const max = Math.max(...custos);
                             const txt = min === max ? fmtCustoBaseFornecedor(min) : `${fmtCustoBaseFornecedor(min)} a ${fmtCustoBaseFornecedor(max)}`;
+                            const totalMin = calcularCustoTotal(min);
+                            const totalMax = calcularCustoTotal(max);
+                            const totalTxt =
+                              totalMin === totalMax
+                                ? fmtCustoBaseFornecedor(totalMin)
+                                : `${fmtCustoBaseFornecedor(totalMin)} a ${fmtCustoBaseFornecedor(totalMax)}`;
                             return (
-                              <p className="mt-1 text-sm text-[var(--muted)]">
-                                Custo: <span className="font-semibold tabular-nums text-[var(--foreground)]">{txt}</span>
-                                <span className="text-[var(--muted)]"> / un.</span>
-                              </p>
+                              <div className="mt-1 flex flex-col gap-0.5 text-sm text-[var(--muted)] sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-1 sm:gap-y-0">
+                                <span>
+                                  Custo: <span className="font-semibold tabular-nums text-[var(--foreground)]">{txt}</span>
+                                  <span className="text-[var(--muted)]"> / un.</span>
+                                </span>
+                                <span className="hidden text-[var(--muted)] sm:inline"> · </span>
+                                <span className="flex items-center gap-1">
+                                  <span>
+                                    Seller paga: <span className="font-semibold tabular-nums text-[var(--foreground)]">{totalTxt}</span>
+                                    <span className="text-[var(--muted)]"> / un.</span>
+                                  </span>
+                                  <HelpBubble
+                                    open={helpSellerPagaKey === g.paiKey}
+                                    onOpen={() => setHelpSellerPagaKey(g.paiKey)}
+                                    onClose={() => setHelpSellerPagaKey((k) => (k === g.paiKey ? null : k))}
+                                    ariaLabel="Sobre a taxa de intermediação DropCore"
+                                  >
+                                    <p>
+                                      O DropCore soma uma <strong className="text-[var(--foreground)]">taxa de intermediação de 10%</strong> sobre
+                                      o seu preço de custo — ela cobre crédito ao seller e manutenção da plataforma.
+                                    </p>
+                                    <p className="mt-2">
+                                      Você continua recebendo <strong className="text-[var(--foreground)]">exatamente o valor de custo cadastrado</strong>, nunca menos.
+                                    </p>
+                                  </HelpBubble>
+                                </span>
+                              </div>
                             );
                           })()}
                         </div>
@@ -1425,6 +1456,14 @@ export default function FornecedorProdutosPage() {
                                       </span>
                                     </span>
                                     <span>
+                                      Seller paga{" "}
+                                      <span className="tabular-nums font-medium text-[var(--foreground)]">
+                                        {row.custo_base != null && row.custo_base > 0
+                                          ? fmtCustoBaseFornecedor(calcularCustoTotal(row.custo_base))
+                                          : "—"}
+                                      </span>
+                                    </span>
+                                    <span>
                                       Estoque{" "}
                                       <span className={`tabular-nums font-medium ${(row.estoque_atual ?? 0) <= 0 ? "text-[var(--danger)]" : "text-[var(--foreground)]"}`}>
                                         {row.estoque_atual != null ? row.estoque_atual : "—"}
@@ -1455,10 +1494,11 @@ export default function FornecedorProdutosPage() {
                                 <span className="block">Foto</span>
                                 <span className="block text-[10px] font-normal text-[var(--muted)]">SKU</span>
                               </th>
-                              <th className="w-[18%] px-2 py-2 font-medium lg:px-3">Cor</th>
+                              <th className="w-[15%] px-2 py-2 font-medium lg:px-3">Cor</th>
                               <th className="w-[7%] px-2 py-2 font-medium lg:px-3">Tam.</th>
-                              <th className="w-[20%] px-2 py-2 font-medium lg:px-3">SKU</th>
+                              <th className="w-[15%] px-2 py-2 font-medium lg:px-3">SKU</th>
                               <th className="w-[10%] px-2 py-2 text-right font-medium lg:px-3">Custo</th>
+                              <th className="w-[10%] px-2 py-2 text-right font-medium lg:px-3">Seller paga</th>
                               <th className="w-[6%] px-2 py-2 text-right font-medium lg:px-3">Est.</th>
                               <th className="w-[9%] px-2 py-2 font-medium lg:px-3">
                                 <span className="block">Fotos</span>
@@ -1519,6 +1559,11 @@ export default function FornecedorProdutosPage() {
                                   <td className="px-2 py-1.5 align-top font-mono text-[11px] leading-snug text-[var(--muted)] break-all lg:px-3">{row.sku}</td>
                                   <td className="px-2 py-1.5 align-top text-right text-xs tabular-nums font-medium text-[var(--foreground)] lg:px-3">
                                     {fmtCustoBaseFornecedor(row.custo_base)}
+                                  </td>
+                                  <td className="px-2 py-1.5 align-top text-right text-xs tabular-nums font-medium text-[var(--foreground)] lg:px-3">
+                                    {row.custo_base != null && row.custo_base > 0
+                                      ? fmtCustoBaseFornecedor(calcularCustoTotal(row.custo_base))
+                                      : "—"}
                                   </td>
                                   <td className="px-2 py-1.5 align-top text-right text-xs tabular-nums text-[var(--foreground)] lg:px-3">
                                     {row.estoque_atual != null ? row.estoque_atual : "—"}

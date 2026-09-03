@@ -61,7 +61,7 @@ export default function SellerCreditosRegrasPage() {
         <section className="space-y-4 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 text-sm text-[var(--foreground)] shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold">Dois PIX diferentes no painel</h2>
           <p className="text-[var(--muted)] break-words leading-relaxed">
-            <strong>Recarga de créditos</strong> — saldo para pedidos (mín. R$ 500). {SELLER_CREDITO_NAO_PAGA_MENSALIDADE}
+            <strong>Recarga de créditos</strong> — saldo para pedidos (mín. R$ 250). {SELLER_CREDITO_NAO_PAGA_MENSALIDADE}
           </p>
           <p className="text-[var(--muted)] break-words leading-relaxed">
             <strong>Mensalidade do plano</strong> — cobrança do acesso ao painel DropCore. {SELLER_MENSALIDADE_NAO_E_RECARGA}
@@ -69,7 +69,7 @@ export default function SellerCreditosRegrasPage() {
 
           <h2 className="text-lg font-semibold pt-2">Recarga mínima</h2>
           <p className="text-[var(--muted)] break-words">
-            O valor mínimo por recarga via PIX é R$ 500,00, salvo alteração comunicada pela DropCore.
+            O valor mínimo por recarga via PIX é R$ 250,00, salvo alteração comunicada pela DropCore.
           </p>
 
           <h2 className="text-lg font-semibold">Pagamento PIX</h2>

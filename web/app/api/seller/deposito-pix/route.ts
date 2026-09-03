@@ -17,7 +17,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MINIMO = 500;
+const MINIMO = 250;
 
 export async function POST(req: Request) {
   try {

@@ -15,6 +15,13 @@
  */
 export const MP_PIX_FEE_PERCENT = 0.0099;
 
+/**
+ * Gross-up: a MP cobra a taxa sobre o valor total transacionado (o que o cliente paga),
+ * não sobre o valor líquido do crédito — por isso a taxa é `valorCobrado - valor`, com
+ * `valorCobrado = valor / (1 - MP_PIX_FEE_PERCENT)`, não `valor * MP_PIX_FEE_PERCENT`
+ * direto (isso subestimava a taxa real repassada pelo MP em ~1% do valor da própria taxa).
+ */
 export function calcularTaxaPix(valor: number): number {
-  return Math.round(valor * MP_PIX_FEE_PERCENT * 100) / 100;
+  const valorCobrado = valor / (1 - MP_PIX_FEE_PERCENT);
+  return Math.round((valorCobrado - valor) * 100) / 100;
 }

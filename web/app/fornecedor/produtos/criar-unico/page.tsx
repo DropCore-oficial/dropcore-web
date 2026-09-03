@@ -8,6 +8,10 @@ import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toTitleCase } from "@/lib/formatText";
 import { CORES_PREDEFINIDAS } from "@/lib/fornecedorVariantesUi";
+import { HelpBubble } from "@/components/HelpBubble";
+import { calcularCustoTotal, TAXA_DROPCORE_PERCENT } from "@/lib/taxaDropcore";
+
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 const inputClass = "w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500";
 
@@ -28,6 +32,7 @@ export default function CriarUnicoPage() {
   const [addPeso, setAddPeso] = useState("");
   const [addCusto, setAddCusto] = useState("");
   const [addEstoque, setAddEstoque] = useState("");
+  const [helpTaxaOpen, setHelpTaxaOpen] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -177,6 +182,29 @@ export default function CriarUnicoPage() {
               <div>
                 <label className="block text-xs text-neutral-600 mb-1.5">Preço / Custo fornecedor (R$)</label>
                 <input type="text" inputMode="decimal" value={addCusto} onChange={(e) => setAddCusto(e.target.value)} placeholder="0" className="w-full rounded-lg bg-white border border-neutral-300 text-neutral-900 placeholder-neutral-400 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                {(() => {
+                  const cb = Number.parseFloat(addCusto.replace(",", "."));
+                  if (!Number.isFinite(cb) || cb <= 0) return null;
+                  return (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-500">
+                      Preço que o seller paga: <span className="font-medium text-neutral-700">{BRL.format(calcularCustoTotal(cb))}</span>
+                      <HelpBubble
+                        open={helpTaxaOpen}
+                        onOpen={() => setHelpTaxaOpen(true)}
+                        onClose={() => setHelpTaxaOpen(false)}
+                        ariaLabel="Sobre a taxa de intermediação DropCore"
+                      >
+                        <p>
+                          O DropCore soma uma <strong className="text-[var(--foreground)]">taxa de intermediação de {(TAXA_DROPCORE_PERCENT * 100).toFixed(0)}%</strong> sobre
+                          o seu preço de custo — ela cobre crédito ao seller e manutenção da plataforma.
+                        </p>
+                        <p className="mt-2">
+                          Você continua recebendo <strong className="text-[var(--foreground)]">exatamente o valor de custo que cadastrar aqui</strong>, nunca menos.
+                        </p>
+                      </HelpBubble>
+                    </div>
+                  );
+                })()}
               </div>
               <div>
                 <label className="block text-xs text-neutral-600 mb-1.5">Estoque</label>

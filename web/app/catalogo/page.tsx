@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { Badge, Card, Button, PageLayout, Alert } from "@/components/ui";
 import { toTitleCase } from "@/lib/formatText";
+import { calcularCustoTotal } from "@/lib/taxaDropcore";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -127,7 +128,7 @@ function BadgeEstoque({ atual, minimo }: { atual: number | null; minimo: number 
 function ItemCard({ item }: { item: ItemSKU }) {
   const cb = item.custo_base ?? 0;
   const cd = item.custo_dropcore ?? 0;
-  const total = cd > 0 ? cd : cb > 0 ? Math.round(cb * 1.15 * 100) / 100 : 0;
+  const total = cd > 0 ? cd : cb > 0 ? calcularCustoTotal(cb) : 0;
 
   const dimensoes = [
     item.comprimento_cm != null && item.largura_cm != null && item.altura_cm != null

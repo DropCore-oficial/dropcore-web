@@ -13,6 +13,10 @@ import { CORES_PREDEFINIDAS, TAMANHOS_PREDEFINIDOS } from "@/lib/fornecedorVaria
 import { VarianteExtrasTagInput } from "@/components/VarianteExtrasTagInput";
 import { inferirTipo, getColunasTabelaMedidas } from "@/lib/tipoProduto";
 import { tamanhosFaltantesNaTabelaMedidas } from "@/lib/fornecedorTabelaMedidas";
+import { HelpBubble } from "@/components/HelpBubble";
+import { calcularCustoTotal, TAXA_DROPCORE_PERCENT } from "@/lib/taxaDropcore";
+
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 import {
   AMBER_PREMIUM_LINK,
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
@@ -118,6 +122,7 @@ export default function EditarVariantesPage() {
   const [editAlt, setEditAlt] = useState("");
   const [editEstoque, setEditEstoque] = useState("");
   const [editCusto, setEditCusto] = useState("");
+  const [helpTaxaOpen, setHelpTaxaOpen] = useState(false);
   const [editNomeBasico, setEditNomeBasico] = useState("");
   const [editDescricaoGrupo, setEditDescricaoGrupo] = useState("");
   const [loadingBasico, setLoadingBasico] = useState(false);
@@ -1808,6 +1813,29 @@ export default function EditarVariantesPage() {
                       placeholder="0"
                       className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     />
+                    {(() => {
+                      const cb = Number.parseFloat(editCusto.replace(",", "."));
+                      if (!Number.isFinite(cb) || cb <= 0) return null;
+                      return (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+                          Preço que o seller paga: <span className="font-medium text-neutral-700 dark:text-neutral-200">{BRL.format(calcularCustoTotal(cb))}</span>
+                          <HelpBubble
+                            open={helpTaxaOpen}
+                            onOpen={() => setHelpTaxaOpen(true)}
+                            onClose={() => setHelpTaxaOpen(false)}
+                            ariaLabel="Sobre a taxa de intermediação DropCore"
+                          >
+                            <p>
+                              O DropCore soma uma <strong className="text-[var(--foreground)]">taxa de intermediação de {(TAXA_DROPCORE_PERCENT * 100).toFixed(0)}%</strong> sobre
+                              o seu preço de custo — ela cobre crédito ao seller e manutenção da plataforma.
+                            </p>
+                            <p className="mt-2">
+                              Você continua recebendo <strong className="text-[var(--foreground)]">exatamente o valor de custo que cadastrar aqui</strong>, nunca menos.
+                            </p>
+                          </HelpBubble>
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div>
                     <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Estoque</label>
