@@ -8,6 +8,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { resolveInvitePublicOrigin } from "@/lib/appOrigin";
 import { clampPortalTrialDiasConvite } from "@/lib/portalTrial";
+import { applyPortalTrialFromInviteForFornecedor } from "@/lib/applyPortalTrialFromInvite";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,6 +64,11 @@ export async function POST(
     if (inviteErr || !invite) {
       return NextResponse.json({ error: inviteErr?.message ?? "Erro ao gerar convite." }, { status: 500 });
     }
+
+    // Trial vale desde a criação do convite — não espera o aceite (senão, sem aceite, nunca é aplicado).
+    await applyPortalTrialFromInviteForFornecedor(supabaseAdmin, fornecedor_id, portal_trial_dias);
+    // Reativa status caso um convite anterior tenha expirado sem aceite.
+    await supabaseAdmin.from("fornecedores").update({ status: "ativo" }).eq("id", fornecedor_id);
 
     const baseUrl = resolveInvitePublicOrigin(req);
     const link = `${baseUrl}/fornecedor/register/${invite.token}`;
