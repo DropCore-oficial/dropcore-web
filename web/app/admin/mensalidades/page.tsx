@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { isPortalTrialAtivo } from "@/lib/portalTrial";
+import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 
 type Mensalidade = {
   id: string;
@@ -161,7 +162,8 @@ function cicloAtual(): string {
 }
 
 function proximoCiclo(ciclo: string): string {
-  const [y, m] = ciclo.split("-").map(Number);
+  const base = ciclo || cicloAtual();
+  const [y, m] = base.split("-").map(Number);
   if (m === 12) return `${y + 1}-01`;
   return `${y}-${String(m + 1).padStart(2, "0")}`;
 }
@@ -176,7 +178,7 @@ export default function MensalidadesPage() {
   const [gerando, setGerando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [ciclo, setCiclo] = useState(cicloAtual());
+  const [ciclo, setCiclo] = useState("");
   const [tipoFilter, setTipoFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [trialModal, setTrialModal] = useState(false);
@@ -188,6 +190,11 @@ export default function MensalidadesPage() {
   const [trialLoadingOpts, setTrialLoadingOpts] = useState(false);
   /** `add` = conceder dias; `remove` = limpar trial */
   const [trialBusy, setTrialBusy] = useState<false | "add" | "remove">(false);
+
+  const [detalhe, setDetalhe] = useState<{ tipo: string; id: string; nome: string } | null>(null);
+  const [detalheRows, setDetalheRows] = useState<Mensalidade[]>([]);
+  const [detalheLoading, setDetalheLoading] = useState(false);
+  const [detalheError, setDetalheError] = useState<string | null>(null);
 
   const cicloUrl = searchParams.get("ciclo")?.trim().slice(0, 7) ?? "";
   useEffect(() => {
@@ -236,6 +243,7 @@ export default function MensalidadesPage() {
   }, [destaqueId, rows]);
 
   async function gerar() {
+    const cicloParaGerar = ciclo || cicloAtual();
     setGerando(true);
     setError(null);
     setSuccess(null);
@@ -248,7 +256,7 @@ export default function MensalidadesPage() {
       const res = await fetch("/api/org/mensalidades/gerar", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ ciclo }),
+        body: JSON.stringify({ ciclo: cicloParaGerar }),
         cache: "no-store",
       });
       let json: { geradas?: number; message?: string; error?: string } = {};
@@ -261,14 +269,40 @@ export default function MensalidadesPage() {
       const n = json.geradas ?? 0;
       setSuccess(
         n > 0
-          ? `Geradas ${n} mensalidades para ${ciclo}.`
-          : json.message ?? `Nenhuma mensalidade nova. Já existem para ${ciclo} ou não há sellers/fornecedores ativos.`
+          ? `Geradas ${n} mensalidades para ${cicloParaGerar}.`
+          : json.message ?? `Nenhuma mensalidade nova. Já existem para ${cicloParaGerar} ou não há sellers/fornecedores ativos.`
       );
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro");
     } finally {
       setGerando(false);
+    }
+  }
+
+  async function abrirDetalheEntidade(tipo: string, id: string, nome: string) {
+    setDetalhe({ tipo, id, nome });
+    setDetalheLoading(true);
+    setDetalheError(null);
+    setDetalheRows([]);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        setDetalheError("Faça login novamente.");
+        return;
+      }
+      const params = new URLSearchParams({ tipo, entidade_id: id });
+      const res = await fetch(`/api/org/mensalidades?${params}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Erro ao carregar histórico.");
+      setDetalheRows(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setDetalheError(e instanceof Error ? e.message : "Erro");
+    } finally {
+      setDetalheLoading(false);
     }
   }
 
@@ -620,7 +654,7 @@ export default function MensalidadesPage() {
           className="w-full min-h-[44px] touch-manipulation sm:min-h-0 sm:w-auto sm:min-w-0"
           style={{ ...btnPrimary, opacity: gerando ? 0.7 : 1, cursor: gerando ? "not-allowed" : "pointer" }}
         >
-          {gerando ? "Gerando..." : `Gerar mensalidades de ${ciclo}`}
+          {gerando ? "Gerando..." : `Gerar mensalidades de ${ciclo || cicloAtual()}`}
         </button>
         <button
           type="button"
@@ -756,6 +790,92 @@ export default function MensalidadesPage() {
         </div>
       )}
 
+      {detalhe && (
+        <div
+          className={MODAL_OVERLAY_CLASS}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="detalhe-modal-title"
+          onClick={(ev) => {
+            if (ev.target === ev.currentTarget) setDetalhe(null);
+          }}
+        >
+          <div className={`${MODAL_PANEL_CLASS} max-w-md`}>
+            <div className="flex items-start justify-between gap-3 border-b border-[var(--card-border)] p-4 sm:p-5">
+              <div className="min-w-0">
+                <h2 id="detalhe-modal-title" className="truncate text-base font-semibold">
+                  {detalhe.nome || "—"}
+                </h2>
+                <p className="mt-0.5 text-xs text-neutral-500">
+                  {detalhe.tipo === "seller" ? "Seller" : "Fornecedor"} · histórico completo
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetalhe(null)}
+                aria-label="Fechar"
+                className="shrink-0 rounded-md px-2 py-1 text-lg leading-none text-neutral-500 hover:bg-[var(--muted)]/10"
+              >
+                ×
+              </button>
+            </div>
+            <div className={`${MODAL_PANEL_BODY_CLASS} p-4 sm:p-5`}>
+              {detalheError && (
+                <div className="mb-3 rounded-xl border border-red-200 bg-red-100 px-3 py-2 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-100">
+                  {detalheError}
+                </div>
+              )}
+              {detalheLoading ? (
+                <p className="text-sm text-neutral-500">Carregando...</p>
+              ) : detalheRows.length === 0 ? (
+                <p className="text-sm text-neutral-500">Nenhuma mensalidade encontrada.</p>
+              ) : (
+                <>
+                  {(() => {
+                    const inad = detalheRows.filter((r) => r.status === "inadimplente");
+                    const totalInad = inad.reduce((s, r) => s + r.valor, 0);
+                    return inad.length > 0 ? (
+                      <div className="mb-4 rounded-lg border border-red-200/80 bg-red-50/70 px-3 py-2.5 dark:border-red-900/50 dark:bg-red-950/25">
+                        <p className="text-[11px] font-medium text-red-800/80 dark:text-red-300/90">
+                          Inadimplente
+                        </p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-red-800 dark:text-red-300">
+                          {formatMoney(totalInad)}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-red-900/70 dark:text-red-400/80">
+                          {inad.length} {inad.length === 1 ? "mês em atraso" : "meses em atraso"}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="mb-4 text-sm text-neutral-500">Nenhum mês inadimplente.</p>
+                    );
+                  })()}
+                  <ul className="m-0 list-none space-y-2 p-0">
+                    {detalheRows.map((r) => (
+                      <li
+                        key={r.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-[var(--card-border)] px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{formatDateLocalYmd(r.ciclo)}</p>
+                          <p className="text-xs text-neutral-500">{prazoExibicaoAdmin(r)}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="text-sm font-medium tabular-nums">{formatMoney(r.valor)}</span>
+                          <span className={`inline-flex h-7 items-center justify-center whitespace-nowrap rounded-md px-1.5 text-xs font-semibold leading-none ${statusBadgeClass(statusExibicaoAdmin(r))}`}>
+                            {statusLabel(statusExibicaoAdmin(r))}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div
           className="rounded-xl border border-red-200 bg-red-100 px-4 py-3 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-100"
@@ -778,7 +898,7 @@ export default function MensalidadesPage() {
           <div className="sm:col-span-2 lg:col-span-5">
             <div className="grid grid-cols-1 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-3 sm:gap-y-2">
               <span className="text-sm font-medium leading-5 text-neutral-700 dark:text-neutral-300 sm:col-span-2">
-                Ciclo (mês)
+                Ciclo (mês) <span className="font-normal text-neutral-500">— vazio mostra todos</span>
               </span>
               <input
                 type="month"
@@ -786,13 +906,24 @@ export default function MensalidadesPage() {
                 onChange={(e) => setCiclo(e.target.value)}
                 className="h-11 w-full min-w-0 rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 shadow-sm dark:border-neutral-600 dark:bg-neutral-950 dark:text-neutral-100 dark:shadow-none"
               />
-              <button
-                type="button"
-                onClick={() => setCiclo(proximoCiclo(ciclo))}
-                className="h-11 w-full shrink-0 touch-manipulation rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700 sm:w-auto sm:min-w-[152px]"
-              >
-                Próximo mês →
-              </button>
+              <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row">
+                {ciclo && (
+                  <button
+                    type="button"
+                    onClick={() => setCiclo("")}
+                    className="h-11 w-full shrink-0 touch-manipulation rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700 sm:w-auto sm:min-w-[100px]"
+                  >
+                    Todos
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setCiclo(proximoCiclo(ciclo))}
+                  className="h-11 w-full shrink-0 touch-manipulation rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700 sm:w-auto sm:min-w-[152px]"
+                >
+                  Próximo mês →
+                </button>
+              </div>
             </div>
           </div>
           <label className="flex min-w-0 flex-col gap-2 sm:col-span-1 lg:col-span-3">
@@ -885,12 +1016,14 @@ export default function MensalidadesPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex max-w-full flex-wrap items-center gap-2">
-                      <span
-                        className="min-w-0 max-w-full truncate font-semibold text-base"
+                      <button
+                        type="button"
+                        onClick={() => abrirDetalheEntidade(r.tipo, r.entidade_id, r.entidade_nome ?? "")}
+                        className="min-w-0 max-w-full truncate font-semibold text-base text-left hover:underline"
                         title={r.entidade_nome?.trim() || undefined}
                       >
                         {primeiraPalavraRazaoSocial(r.entidade_nome)}
-                      </span>
+                      </button>
                       {badgeDiasGratisTexto(r) && (
                         <span className={trialChipClass}>{badgeDiasGratisTexto(r)}</span>
                       )}
@@ -989,12 +1122,14 @@ export default function MensalidadesPage() {
                     </div>
                     <div className="min-w-0 w-full overflow-hidden">
                       <div className="flex w-full min-w-0 items-center gap-2">
-                        <span
-                          className="min-w-0 flex-1 truncate text-sm font-medium"
+                        <button
+                          type="button"
+                          onClick={() => abrirDetalheEntidade(r.tipo, r.entidade_id, r.entidade_nome ?? "")}
+                          className="min-w-0 flex-1 truncate text-left text-sm font-medium hover:underline"
                           title={r.entidade_nome?.trim() || undefined}
                         >
                           {primeiraPalavraRazaoSocial(r.entidade_nome)}
-                        </span>
+                        </button>
                         {badgeDiasGratisTexto(r) && (
                           <span className="inline-flex h-7 shrink-0 items-center justify-center whitespace-nowrap rounded-md px-1 text-xs font-semibold leading-none ring-1 ring-inset bg-sky-500/15 text-sky-800 ring-sky-500/25 dark:bg-sky-500/20 dark:text-sky-100 dark:ring-sky-400/35">
                             {badgeDiasGratisTexto(r)}

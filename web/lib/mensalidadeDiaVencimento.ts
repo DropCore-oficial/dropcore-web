@@ -43,6 +43,16 @@ export function vencimentoEmNoCiclo(primeiroDiaMesYmd: string, diaVencimento: nu
   return `${m[1]}-${m[2]}-${String(use).padStart(2, "0")}`;
 }
 
+/** Data de hoje `YYYY-MM-DD` em America/Sao_Paulo. */
+export function hojeYmdSaoPaulo(d = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
 /** Ciclo atual `YYYY-MM` em America/Sao_Paulo. */
 export function cicloMesAtualSaoPaulo(d = new Date()): string {
   const partes = new Intl.DateTimeFormat("en-CA", {

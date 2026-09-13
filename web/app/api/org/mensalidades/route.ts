@@ -16,6 +16,7 @@ export async function GET(req: Request) {
     const ciclo = searchParams.get("ciclo")?.trim().slice(0, 7);
     const tipo = searchParams.get("tipo")?.trim();
     const status = searchParams.get("status")?.trim();
+    const entidadeId = searchParams.get("entidade_id")?.trim();
 
     let query = supabaseAdmin
       .from("financial_mensalidades")
@@ -32,6 +33,9 @@ export async function GET(req: Request) {
     }
     if (status && ["pendente", "pago", "inadimplente", "cancelado"].includes(status)) {
       query = query.eq("status", status);
+    }
+    if (entidadeId) {
+      query = query.eq("entidade_id", entidadeId);
     }
 
     const { data, error } = await query;

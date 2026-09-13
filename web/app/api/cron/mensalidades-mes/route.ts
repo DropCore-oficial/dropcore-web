@@ -7,7 +7,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { gerarMensalidadesParaOrgCiclo } from "@/lib/gerarMensalidadesCicloOrg";
-import { contarInadimplentes, marcarInadimplentes, reverterInadimplentesDuranteTrial } from "@/lib/inadimplencia";
+import { contarInadimplentes, marcarInadimplentes, cancelarMensalidadesDuranteTrial } from "@/lib/inadimplencia";
 import { syncInadimplentesOrgAdminNotifications } from "@/lib/inadimplenciaOrgNotifications";
 import { enviarEmailsMensalidadeVencida, enviarEmailsMensalidadeVencendo } from "@/lib/mensalidadeVencimentoEmail";
 import { cicloMesAtualSaoPaulo } from "@/lib/mensalidadeDiaVencimento";
@@ -58,7 +58,7 @@ export async function GET(req: Request) {
 
   for (const org_id of orgIds) {
     try {
-      await reverterInadimplentesDuranteTrial(supabaseAdmin, org_id);
+      await cancelarMensalidadesDuranteTrial(supabaseAdmin, org_id);
       const marcados = await marcarInadimplentes(supabaseAdmin, org_id);
       if (marcados.length) await enviarEmailsMensalidadeVencida(marcados);
       await enviarEmailsMensalidadeVencendo(org_id);

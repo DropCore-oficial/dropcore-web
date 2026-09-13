@@ -4,6 +4,11 @@
  * Regra: vencimento_em < hoje e status = pendente → inadimplente,
  * exceto quem ainda está em teste grátis do portal (trial_valido_ate > agora):
  * nesse caso não há cobrança efetiva — não marca inadimplente nem bloqueia pedidos.
+ *
+ * Enquanto o trial está ativo, qualquer mensalidade pendente/inadimplente da entidade
+ * (inclusive dívida anterior à concessão do trial) vira `cancelado` — mês grátis nunca
+ * vira cobrança quando o trial acabar. Quando o trial expira de verdade e nenhum novo
+ * trial é concedido, os ciclos seguintes voltam a cobrar normalmente.
  */
 
 import { isPortalTrialAtivo } from "@/lib/portalTrial";
@@ -31,9 +36,13 @@ async function entidadesComTrialAtivo(
 }
 
 /**
- * Corrige linhas já gravadas como inadimplente enquanto o trial ainda está ativo → volta para pendente.
+ * Cancela mensalidades pendentes/inadimplentes de entidades com trial de portal ativo —
+ * mês grátis não pode virar cobrança quando o trial acabar. Cobre tanto a linha do ciclo
+ * corrente (ainda `pendente`) quanto dívida antiga (`inadimplente`) que existia antes do
+ * trial ser concedido: se a entidade está em trial ativo agora, ela não deve pagar por
+ * nenhum desses ciclos.
  */
-export async function reverterInadimplentesDuranteTrial(
+export async function cancelarMensalidadesDuranteTrial(
   supabase: SupabaseClient,
   orgId: string
 ): Promise<number> {
@@ -42,25 +51,25 @@ export async function reverterInadimplentesDuranteTrial(
   if (forn.size > 0) {
     const { data, error } = await supabase
       .from("financial_mensalidades")
-      .update({ status: "pendente" })
+      .update({ status: "cancelado" })
       .eq("org_id", orgId)
       .eq("tipo", "fornecedor")
-      .eq("status", "inadimplente")
+      .in("status", ["pendente", "inadimplente"])
       .in("entidade_id", [...forn])
       .select("id");
-    if (error) console.error("[inadimplencia] reverter forn:", error.message);
+    if (error) console.error("[inadimplencia] cancelar forn (trial):", error.message);
     else n += data?.length ?? 0;
   }
   if (sell.size > 0) {
     const { data, error } = await supabase
       .from("financial_mensalidades")
-      .update({ status: "pendente" })
+      .update({ status: "cancelado" })
       .eq("org_id", orgId)
       .eq("tipo", "seller")
-      .eq("status", "inadimplente")
+      .in("status", ["pendente", "inadimplente"])
       .in("entidade_id", [...sell])
       .select("id");
-    if (error) console.error("[inadimplencia] reverter sell:", error.message);
+    if (error) console.error("[inadimplencia] cancelar sell (trial):", error.message);
     else n += data?.length ?? 0;
   }
   return n;
