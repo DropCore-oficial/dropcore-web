@@ -32,7 +32,26 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(data ?? []);
+    const [{ data: membros }, { data: invitesAtivos }] = await Promise.all([
+      supabaseAdmin.from("org_members").select("fornecedor_id").eq("org_id", orgId).not("fornecedor_id", "is", null),
+      supabaseAdmin
+        .from("fornecedor_invites")
+        .select("fornecedor_id, expira_em")
+        .eq("org_id", orgId)
+        .eq("usado", false)
+        .gte("expira_em", new Date().toISOString()),
+    ]);
+    const comMembro = new Set((membros ?? []).map((m) => m.fornecedor_id as string));
+    const conviteExpiraEmMap = new Map(
+      (invitesAtivos ?? []).map((i) => [i.fornecedor_id as string, i.expira_em as string])
+    );
+
+    const enriched = (data ?? []).map((f) => ({
+      ...f,
+      convite_pendente_expira_em: !comMembro.has(f.id) ? conviteExpiraEmMap.get(f.id) ?? null : null,
+    }));
+
+    return NextResponse.json(enriched);
   } catch (e: unknown) {
     if (e instanceof OrgAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.statusCode });

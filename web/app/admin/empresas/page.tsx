@@ -7,6 +7,9 @@ import { PlanLimitsBadge } from "@/components/PlanLimitsBadge";
 import { PageLayout, Card, Button, Alert, Input } from "@/components/ui";
 import { toTitleCase } from "@/lib/formatText";
 import { formatCnpjBr } from "@/lib/fornecedorCadastro";
+import { AMBER_PREMIUM_LINK } from "@/lib/amberPremium";
+import { DANGER_PREMIUM_TEXT_SOFT } from "@/lib/semanticPremium";
+import { cn } from "@/lib/utils";
 
 type Fornecedor = {
   id: string;
@@ -20,7 +23,12 @@ type Fornecedor = {
   cnpj?: string | null;
   telefone?: string | null;
   email_comercial?: string | null;
+  convite_pendente_expira_em?: string | null;
 };
+
+function diasParaVencerConvite(iso: string): number {
+  return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+}
 
 export default function AdminEmpresasPage() {
   const router = useRouter();
@@ -302,6 +310,15 @@ export default function AdminEmpresasPage() {
                 <div className="text-sm text-[var(--muted)] mt-1">
                   Status: {emp.status || "—"}
                   {emp.sla_postagem_dias != null && ` · SLA: ${emp.sla_postagem_dias} dias`}
+                  {emp.status === "convite_expirado" && (
+                    <span className={cn(DANGER_PREMIUM_TEXT_SOFT, "font-medium")}> · Convite expirado, nunca aceito</span>
+                  )}
+                  {emp.convite_pendente_expira_em && (
+                    <span className={cn(AMBER_PREMIUM_LINK, "font-medium")}>
+                      {" "}
+                      · Convite pendente — vence em {diasParaVencerConvite(emp.convite_pendente_expira_em)}d
+                    </span>
+                  )}
                 </div>
                 <dl className="mt-2 text-xs text-[var(--foreground)] space-y-1 border-t border-[var(--card-border)] pt-2">
                   <div className="flex flex-wrap gap-x-3 gap-y-0.5">

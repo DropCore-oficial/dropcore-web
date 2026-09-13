@@ -7,6 +7,7 @@ import { Button, PageLayout } from "@/components/ui";
 import { toTitleCase } from "@/lib/formatText";
 import { sellerCadastroPendente } from "@/lib/sellerDocumento";
 import { AMBER_PREMIUM_LINK } from "@/lib/amberPremium";
+import { DANGER_PREMIUM_TEXT_SOFT } from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
 
 type Seller = {
@@ -19,7 +20,12 @@ type Seller = {
   saldo_bloqueado: number;
   data_entrada: string | null;
   criado_em: string;
+  convite_pendente_expira_em?: string | null;
 };
+
+function diasParaVencerConvite(iso: string): number {
+  return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+}
 
 const modalOverlay: React.CSSProperties = {
   position: "fixed",
@@ -186,6 +192,15 @@ export default function AdminSellersPage() {
                 Saldo: {formatMoney(s.saldo_atual)} · Status: {s.status}
                 {sellerCadastroPendente(s.documento, s.plano) && (
                   <span className={cn(AMBER_PREMIUM_LINK)}> · Cadastro / plano pendente</span>
+                )}
+                {s.status === "convite_expirado" && (
+                  <span className={cn(DANGER_PREMIUM_TEXT_SOFT, "font-medium")}> · Convite expirado, nunca aceito</span>
+                )}
+                {s.convite_pendente_expira_em && (
+                  <span className={cn(AMBER_PREMIUM_LINK, "font-medium")}>
+                    {" "}
+                    · Convite pendente — vence em {diasParaVencerConvite(s.convite_pendente_expira_em)}d
+                  </span>
                 )}
               </div>
             </button>

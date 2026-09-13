@@ -16,7 +16,7 @@ export async function GET(req: Request) {
 
     let query = supabaseAdmin
       .from("sellers")
-      .select("id, nome, documento, plano, status, saldo_atual, saldo_bloqueado, data_entrada, criado_em")
+      .select("id, nome, documento, plano, status, saldo_atual, saldo_bloqueado, data_entrada, criado_em, user_id")
       .eq("org_id", org_id)
       .order("nome", { ascending: true });
 
@@ -29,7 +29,23 @@ export async function GET(req: Request) {
 
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json(data ?? []);
+
+    const { data: invitesAtivos } = await supabaseAdmin
+      .from("seller_invites")
+      .select("seller_id, expira_em")
+      .eq("org_id", org_id)
+      .eq("usado", false)
+      .gte("expira_em", new Date().toISOString());
+    const conviteExpiraEmMap = new Map(
+      (invitesAtivos ?? []).map((i) => [i.seller_id as string, i.expira_em as string])
+    );
+
+    const enriched = (data ?? []).map((s) => ({
+      ...s,
+      convite_pendente_expira_em: !s.user_id ? conviteExpiraEmMap.get(s.id) ?? null : null,
+    }));
+
+    return NextResponse.json(enriched);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     const status = msg === "Unauthorized" || msg === "Usuário sem organização." ? 401 : msg === "Sem permissão." ? 403 : 500;
