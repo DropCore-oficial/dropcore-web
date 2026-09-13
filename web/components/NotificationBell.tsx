@@ -26,6 +26,8 @@ type Notif = {
     pedido_id?: string;
     repasse_id?: string;
     alteracao_id?: string;
+    tem_seller?: boolean;
+    tem_fornecedor?: boolean;
   };
 };
 
@@ -215,6 +217,7 @@ export function NotificationBell({
                   const isDeposito = n.tipo === "deposito_aprovado" || n.tipo === "deposito_entrou";
                   const isMensalidadePagaAdmin = n.tipo === "mensalidade_paga_admin";
                   const isAlteracaoProduto = n.tipo === "alteracao_produto_pendente";
+                  const isConviteExpirando = n.tipo === "convite_expirando_org";
                   const isFornecedor = [
                     "mensalidade_paga",
                     "mensalidade_paga_fornecedor",
@@ -263,6 +266,8 @@ export function NotificationBell({
                           <span className="text-sm">✅</span>
                         ) : isAlteracaoProduto ? (
                           <span className="text-sm">📦</span>
+                        ) : isConviteExpirando ? (
+                          <span className="text-sm">📨</span>
                         ) : isFornecedor ? (
                           <span className="text-sm">📋</span>
                         ) : (
@@ -355,6 +360,15 @@ export function NotificationBell({
                                 className={cn("mt-2 inline-flex items-center gap-1 text-xs font-medium hover:underline", AMBER_PREMIUM_LINK)}
                               >
                                 Ver mensalidades →
+                              </a>
+                            )}
+                            {n.tipo === "convite_expirando_org" && (
+                              <a
+                                href={n.metadata?.tem_seller ? "/admin/sellers" : "/admin/empresas"}
+                                onClick={(e) => e.stopPropagation()}
+                                className={cn("mt-2 inline-flex items-center gap-1 text-xs font-medium hover:underline", AMBER_PREMIUM_LINK)}
+                              >
+                                {n.metadata?.tem_seller ? "Ver sellers →" : "Ver empresas →"}
                               </a>
                             )}
                             {(n.tipo === "mensalidade_vencida" || n.tipo === "mensalidade_vencendo") && (

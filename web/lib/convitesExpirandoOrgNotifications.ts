@@ -92,7 +92,7 @@ export async function syncConvitesExpirandoOrgAdminNotifications(
         tipo: TIPO,
         titulo: "Convite prestes a vencer",
         mensagem: msg,
-        metadata: {},
+        metadata: { tem_seller: nSellers > 0, tem_fornecedor: nForn > 0 },
       });
     }
   }
