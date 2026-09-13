@@ -12,6 +12,7 @@ import { syncInadimplentesOrgAdminNotifications } from "@/lib/inadimplenciaOrgNo
 import { enviarEmailsMensalidadeVencida, enviarEmailsMensalidadeVencendo } from "@/lib/mensalidadeVencimentoEmail";
 import { cicloMesAtualSaoPaulo } from "@/lib/mensalidadeDiaVencimento";
 import { expirarConvitesNaoAceitos } from "@/lib/expirarConvitesNaoAceitos";
+import { syncConvitesExpirandoOrgAdminNotifications } from "@/lib/convitesExpirandoOrgNotifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,6 +61,7 @@ export async function GET(req: Request) {
   for (const org_id of orgIds) {
     try {
       await expirarConvitesNaoAceitos(supabaseAdmin, org_id);
+      await syncConvitesExpirandoOrgAdminNotifications(supabaseAdmin, org_id);
       await cancelarMensalidadesDuranteTrial(supabaseAdmin, org_id);
       const marcados = await marcarInadimplentes(supabaseAdmin, org_id);
       if (marcados.length) await enviarEmailsMensalidadeVencida(marcados);
