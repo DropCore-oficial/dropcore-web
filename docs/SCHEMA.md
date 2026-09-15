@@ -387,6 +387,28 @@ conexão OAuth já usada pelos outros gestores, sem escopo novo):**
 - `GET /post-purchase/v1/claims/{id}/messages` — chat da reclamação (endpoint existe,
   testado retornando vazio no caso de teste).
 
+## `fn_cron_job_status()` + healthcheck de crons (2026-09-14)
+
+Função `SECURITY DEFINER` (só `service_role`, `REVOKE ALL FROM PUBLIC`) que expõe status
+de `cron.job`/`cron.job_run_details` (schema não acessível via API normal) — usada pelo
+cron novo `dropcore-cron-healthcheck` (`web/app/api/cron/cron-healthcheck/route.ts` +
+`web/lib/cronHealthCheck.ts`) pra conferir diariamente se todo cron esperado
+(`CRONS_ESPERADOS` em `cronHealthCheck.ts`) existe, rodou recentemente e com sucesso —
+avisa owner/admin (notificação interna, tipo `cron_saude`) se achar problema. Existe pra
+não repetir o que aconteceu com `dropcore-gestores-ia-sync-sku-ml` (12 dias sem rodar) e
+`dropcore-mensalidades-mp-sync` (nunca chegou a ser aplicado, apesar de estar no script
+como se estivesse ativo) sem ninguém perceber.
+
+**Achado no caminho**: `cron.job_run_details` tem 415k linhas, sem índice em
+`(jobid, start_time)` e sem limpeza nenhuma — mesma classe de bloat do
+`net._http_response` (incidente 2026-08-17). Não deu pra criar índice (tabela é do
+pg_cron, `must be owner of table job_run_details` até pra `service_role`) — contornado
+reescrevendo a função pra 1 scan (`DISTINCT ON`) em vez de N subqueries correlacionadas
+(ver `web/scripts/fix-fn-cron-job-status-single-pass.sql`). Fica ~5s por chamada (aceitável
+pra cron 1x/dia, não é rota user-facing). **Limpeza de `cron.job_run_details` ainda não
+decidida** — precisa de política de retenção (ex: apagar linha com mais de N dias), mesmo
+padrão do cron `dropcore-cleanup-net-http-response` já existente.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

@@ -1,0 +1,10 @@
+-- NUNCA APLICADO — falhou com "must be owner of table job_run_details" (tabela é do
+-- pg_cron, DDL bloqueado até pra service_role). Ficou registrado só pra não tentar de
+-- novo achando que é só falta de rodar. Contorno real usado:
+-- fn_cron_job_status() reescrita pra 1 scan (DISTINCT ON) em vez de N subqueries
+-- correlacionadas — resolve o timeout sem precisar de índice, ver create-fn-cron-job-status.sql.
+--
+-- cron.job_run_details tinha 415k linhas sem índice em (jobid, start_time) e sem
+-- limpeza nenhuma — mesma classe de bloat do net._http_response (incidente 2026-08-17).
+-- CREATE INDEX IF NOT EXISTS idx_cron_job_run_details_jobid_start
+--   ON cron.job_run_details (jobid, start_time DESC);
