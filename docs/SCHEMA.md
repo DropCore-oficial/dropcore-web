@@ -245,6 +245,16 @@ notificação for criado, conferir esse allowlist.
 
 ## `seller_mercadolivre_sku_map` — vínculo SKU (DropCore) ↔ anúncio ML (2026-08-22)
 
+**Correção 2026-09-16** (`fix-seller-mercadolivre-sku-map-permite-sku-repetido.sql`):
+o unique original `(seller_id, sku)` assumia 1 produto = 1 anúncio — errado, seller
+republica anúncio do mesmo produto normalmente, com o mesmo SKU, e o sync silenciosamente
+ignorava o 2º anúncio em diante (achado investigando itens sem custo numa oferta relâmpago
+da Galileus). Trocado pra `(seller_id, ml_item_id, ml_variation_id)` — agora SKU pode
+repetir entre anúncios, cada anúncio+variação é a linha única. `ml_variation_id` passou a
+ser `0` (não `null`) quando não há variação — `null` não conflita com `null` no Postgres,
+geraria linha duplicada a cada sync. `sincronizarSkuMercadoLivre` (`lib/ai/mercadoLivreSkuSync.ts`)
+ajustado no mesmo espírito: chave por `ml_item_id:ml_variation_id`, não mais por `sku`.
+
 `web/scripts/create-seller-mercadolivre-sku-map.sql`: `(seller_id, sku)` único →
 `ml_item_id` (+ `ml_variation_id` opcional, guardado mesmo sem uso ainda). Resolve o
 handoff Gestor1→Gestor2 e a futura ação semiautomática (pausar anúncio), que precisam saber

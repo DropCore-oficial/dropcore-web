@@ -18,13 +18,16 @@ export type SincronizarSkuResultado = {
   skus_encontrados: number;
 };
 
-type LinhaSkuMap = { seller_id: string; sku: string; ml_item_id: string; ml_variation_id: number | null };
+type LinhaSkuMap = { seller_id: string; sku: string; ml_item_id: string; ml_variation_id: number };
 
-function extrairSkusDoItem(item: MercadoLivreItemDetail): Array<{ sku: string; ml_variation_id: number | null }> {
-  const encontrados: Array<{ sku: string; ml_variation_id: number | null }> = [];
+/** `0` = sem variação (SKU no nível do anúncio, não por variação) — nunca `null`, porque
+ * duas linhas com `ml_variation_id` null não conflitam entre si no Postgres (o upsert
+ * criaria linha nova a cada sync em vez de atualizar a existente). */
+function extrairSkusDoItem(item: MercadoLivreItemDetail): Array<{ sku: string; ml_variation_id: number }> {
+  const encontrados: Array<{ sku: string; ml_variation_id: number }> = [];
 
   const topSku = (item.attributes ?? []).find((a) => a.id === "SELLER_SKU")?.value_name;
-  if (topSku) encontrados.push({ sku: topSku, ml_variation_id: null });
+  if (topSku) encontrados.push({ sku: topSku, ml_variation_id: 0 });
 
   for (const v of item.variations ?? []) {
     const vSku = (v.attribute_combinations ?? []).find((a) => a.id === "SELLER_SKU")?.value_name;
@@ -40,23 +43,23 @@ export async function sincronizarSkuMercadoLivre(sellerId: string): Promise<Sinc
   const ids = await mlBuscarTodosItensAtivos(ctx);
   const itens = await mlBuscarItensDetalhe(ids, ctx);
 
-  // Map em vez de array: se o mesmo SKU aparecer 2x (dado inconsistente no ML), o upsert
-  // com ON CONFLICT não aceita a mesma linha-alvo duas vezes no mesmo comando — o Map já
-  // resolve isso (última ocorrência vence) antes de chegar no banco.
-  const porSku = new Map<string, LinhaSkuMap>();
+  // Chave por anúncio+variação, não por SKU — o mesmo SKU pode estar em vários anúncios
+  // (seller republica anúncio do mesmo produto, é normal). Map só pra evitar mandar a
+  // mesma linha-alvo 2x no mesmo upsert (ON CONFLICT não aceita isso).
+  const porItemVariacao = new Map<string, LinhaSkuMap>();
   for (const item of itens) {
     for (const { sku, ml_variation_id } of extrairSkusDoItem(item)) {
-      porSku.set(sku, { seller_id: sellerId, sku, ml_item_id: item.id, ml_variation_id });
+      porItemVariacao.set(`${item.id}:${ml_variation_id}`, { seller_id: sellerId, sku, ml_item_id: item.id, ml_variation_id });
     }
   }
 
-  const linhas = Array.from(porSku.values());
+  const linhas = Array.from(porItemVariacao.values());
   if (linhas.length > 0) {
     const { error } = await supabaseAdmin
       .from("seller_mercadolivre_sku_map")
       .upsert(
         linhas.map((l) => ({ ...l, atualizado_em: new Date().toISOString() })),
-        { onConflict: "seller_id,sku" }
+        { onConflict: "seller_id,ml_item_id,ml_variation_id" }
       );
     if (error) throw new Error(error.message);
   }
