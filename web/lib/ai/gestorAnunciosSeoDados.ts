@@ -602,6 +602,14 @@ type AnuncioResultadoIA = {
   observacao: string;
 };
 
+// Testado ao vivo (2026-09-07): cogitei pular a IA pra grupo "estruturalmente limpo" (sem
+// atributo faltando, categoria ok, todo mundo com visita) e assumir "sem problema
+// aparente" — mas contra dado real, os 19 grupos da amostra vieram TODOS estruturalmente
+// limpos, e mesmo assim a IA encontrou "problema_descricao" em 9 deles. Diferente do
+// Ulisses/Diogo/Amanda, qualidade de título/descrição exige ler o texto — não tem sinal
+// estrutural que substitua isso com segurança. Não existe atalho aqui sem perder qualidade
+// de verdade; revertido, esse gestor continua 100% dependente da IA.
+
 export type MembroResultadoEnriquecido = {
   item_id: string;
   titulo_completo: string;

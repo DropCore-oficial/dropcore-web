@@ -11,18 +11,12 @@ import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 import { gestoresIaSellerPermitido } from "@/lib/ai/gestoresIaAcesso";
 import { isPro } from "@/lib/planos";
 import type { GestorId } from "@/lib/ai/gestorPrompts";
-import {
-  MODELO_GESTORES_IA,
-  montarRequestEstoqueFulfillment,
-  montarRequestAnunciosSeo,
-  montarRequestReputacaoAtendimento,
-  montarRequestAds,
-} from "@/lib/ai/gestorRequestBuilders";
+import { MODELO_GESTORES_IA, montarRequestAnunciosSeo } from "@/lib/ai/gestorRequestBuilders";
 import { parseGestorResposta } from "@/lib/ai/gestorParseResposta";
-import { enriquecerResultadoRuptura } from "@/lib/ai/gestorRupturaFulfillmentDados";
 import { enriquecerResultadoAnunciosSeo } from "@/lib/ai/gestorAnunciosSeoDados";
-import { enriquecerResultadoReputacaoAtendimento } from "@/lib/ai/gestorReputacaoAtendimentoDados";
-import { enriquecerResultadoAds } from "@/lib/ai/gestorAdsDados";
+import { montarResultadoReputacao } from "@/lib/ai/gestorReputacaoAtendimentoDados";
+import { montarResultadoAds } from "@/lib/ai/gestorAdsDados";
+import { montarResultadoRuptura } from "@/lib/ai/gestorRupturaFulfillmentDados";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +24,9 @@ export const maxDuration = 120;
 
 const COOLDOWN_HORAS = 6;
 const GESTORES_VALIDOS: GestorId[] = ["estoque_fulfillment", "anuncios_seo", "reputacao", "ads"];
+/** Gestores que não chamam a Anthropic — diagnóstico e recomendação são código puro (ver
+ * gestorAdsDados.ts / gestorRupturaFulfillmentDados.ts). */
+const GESTORES_SEM_IA: GestorId[] = ["ads", "estoque_fulfillment"];
 
 export async function POST(req: Request) {
   const seller = await getSellerFromToken(req);
@@ -47,8 +44,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Gestor inválido." }, { status: 400 });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
-  if (!apiKey) {
+  const semIa = GESTORES_SEM_IA.includes(gestor);
+  const apiKey = semIa ? null : process.env.ANTHROPIC_API_KEY?.trim();
+  if (!semIa && !apiKey) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY não configurada." }, { status: 500 });
   }
 
@@ -86,19 +84,74 @@ export async function POST(req: Request) {
     }
   }
 
-  const params =
-    gestor === "estoque_fulfillment"
-      ? await montarRequestEstoqueFulfillment(seller.id)
-      : gestor === "anuncios_seo"
-        ? await montarRequestAnunciosSeo(seller.id)
-        : gestor === "reputacao"
-          ? await montarRequestReputacaoAtendimento(seller.id)
-          : await montarRequestAds(seller.id);
+  if (semIa) {
+    const resultado = gestor === "ads" ? await montarResultadoAds(seller.id) : await montarResultadoRuptura(seller.id);
+    const semDado = !resultado || (gestor === "estoque_fulfillment" && (resultado as { skus: unknown[] }).skus.length === 0);
+    if (semDado) {
+      return NextResponse.json({ error: "Sem dado suficiente pra rodar esse gestor agora." }, { status: 422 });
+    }
+    const { data: novaLinha, error: insertErr } = await supabaseAdmin
+      .from("seller_ai_runs")
+      .insert({
+        org_id: seller.org_id,
+        seller_id: seller.id,
+        gestor,
+        modelo: "codigo-deterministico",
+        // Coluna é NOT NULL com check ('casa'|'byok') — não tem valor "não se aplica" pra
+        // quando não usou nenhuma chave (achado real: insert falhava com null antes desse
+        // fix). "casa" é o mais correto dos dois enums existentes aqui.
+        origem_chave: "casa",
+        batch_id: null,
+        status: "ok",
+        resultado,
+        erro_mensagem: null,
+        executado_em: new Date().toISOString(),
+      })
+      .select("id, status, resultado, erro_mensagem, executado_em")
+      .single();
+    if (insertErr) {
+      return NextResponse.json({ error: insertErr.message }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true, run: novaLinha });
+  }
+
+  // Reputação: diagnóstico é código puro, só chama a Anthropic se houver pergunta pendente
+  // de verdade (ver montarResultadoReputacao) — por isso não passa pelo pipeline genérico
+  // de request/parse abaixo, que é só pro Andrey (anuncios_seo) agora.
+  if (gestor === "reputacao") {
+    const resultado = await montarResultadoReputacao(seller.id, apiKey as string);
+    if (!resultado) {
+      return NextResponse.json({ error: "Sem dado suficiente pra rodar esse gestor agora." }, { status: 422 });
+    }
+    const chamouIa = resultado.perguntas.some((p) => p.resposta_sugerida);
+    const { data: novaLinha, error: insertErr } = await supabaseAdmin
+      .from("seller_ai_runs")
+      .insert({
+        org_id: seller.org_id,
+        seller_id: seller.id,
+        gestor,
+        modelo: chamouIa ? MODELO_GESTORES_IA : "codigo-deterministico",
+        origem_chave: "casa",
+        batch_id: null,
+        status: "ok",
+        resultado,
+        erro_mensagem: null,
+        executado_em: new Date().toISOString(),
+      })
+      .select("id, status, resultado, erro_mensagem, executado_em")
+      .single();
+    if (insertErr) {
+      return NextResponse.json({ error: insertErr.message }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true, run: novaLinha });
+  }
+
+  const params = await montarRequestAnunciosSeo(seller.id);
   if (!params) {
     return NextResponse.json({ error: "Sem dado suficiente pra rodar esse gestor agora." }, { status: 422 });
   }
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey: apiKey as string });
   let resultado: unknown;
   let erroMensagem: string | null;
   try {
@@ -109,16 +162,6 @@ export async function POST(req: Request) {
     resultado = null;
   }
 
-  if (!erroMensagem && resultado && gestor === "estoque_fulfillment") {
-    try {
-      resultado = await enriquecerResultadoRuptura(
-        seller.id,
-        resultado as Parameters<typeof enriquecerResultadoRuptura>[1]
-      );
-    } catch (e) {
-      console.error("[gestores-ia/rodar] enriquecimento ruptura falhou", e);
-    }
-  }
   if (!erroMensagem && resultado && gestor === "anuncios_seo") {
     try {
       resultado = await enriquecerResultadoAnunciosSeo(
@@ -129,24 +172,6 @@ export async function POST(req: Request) {
       console.error("[gestores-ia/rodar] enriquecimento anúncios falhou", e);
     }
   }
-  if (!erroMensagem && resultado && gestor === "reputacao") {
-    try {
-      resultado = await enriquecerResultadoReputacaoAtendimento(
-        seller.id,
-        resultado as Parameters<typeof enriquecerResultadoReputacaoAtendimento>[1]
-      );
-    } catch (e) {
-      console.error("[gestores-ia/rodar] enriquecimento reputação falhou", e);
-    }
-  }
-  if (!erroMensagem && resultado && gestor === "ads") {
-    try {
-      resultado = await enriquecerResultadoAds(seller.id, resultado as Parameters<typeof enriquecerResultadoAds>[1]);
-    } catch (e) {
-      console.error("[gestores-ia/rodar] enriquecimento ads falhou", e);
-    }
-  }
-
   const { data: novaLinha, error: insertErr } = await supabaseAdmin
     .from("seller_ai_runs")
     .insert({

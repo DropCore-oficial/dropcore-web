@@ -119,17 +119,52 @@ export async function buscarDadosRupturaFulfillment(
     });
 }
 
-// --- Enriquecimento pós-IA (código puro, não pedido pro modelo) -----------------------
+// --- Risco + ação recomendada — código puro, sem IA -----------------------
+//
+// Achado 2026-09-07 (mesmo padrão do Ulisses, ver gestorAdsDados.ts): classificar risco a
+// partir de dias-até-ruptura (já calculado em código) e decidir entre um punhado de ações
+// fixas (pausar anúncio, reduzir ads, avisar comprador) não precisa de IA — é comparação
+// de número contra limite. Tirar a IA daqui elimina custo de token e risco de truncamento
+// sem perder qualidade (a ação já era restrita a essas poucas opções no prompt antigo).
 
-type SkuResultadoIA = {
+export type Risco = "alto" | "medio" | "sem_risco" | "dado_insuficiente";
+
+/** Limiares em dias — abaixo disso já é urgência real, não estimativa distante. Mesmo
+ * espírito das frações de folga/estouro do Ulisses (CAMPANHA_ACOS_*), só que em dias em
+ * vez de fração, porque "dias até esgotar" já é a unidade natural aqui. */
+const DIAS_RUPTURA_RISCO_ALTO = 7;
+const DIAS_RUPTURA_RISCO_MEDIO = 20;
+
+function classificarSkuRuptura(s: SkuRupturaContexto): { risco: Risco; acaoRecomendada: string } {
+  if (s.diasAteRuptura === null) {
+    return { risco: "dado_insuficiente", acaoRecomendada: "Sem venda recente suficiente pra estimar risco." };
+  }
+
+  const semEstoque = s.estoqueAtual <= 0;
+  const temPedidoAguardando = s.pedidosAguardandoEstoque > 0;
+
+  if (temPedidoAguardando || semEstoque || s.diasAteRuptura <= DIAS_RUPTURA_RISCO_ALTO) {
+    // Pedido já pago esperando estoque é a prioridade máxima (cliente real esperando) —
+    // mesma regra que já estava explícita no prompt antigo.
+    const acaoRecomendada = temPedidoAguardando
+      ? `Avise o(s) ${s.pedidosAguardandoEstoque} comprador(es) pago(s) sobre o prazo — estoque crítico.`
+      : "Pause ou despriorize o anúncio até repor o estoque.";
+    return { risco: "alto", acaoRecomendada };
+  }
+
+  if (s.diasAteRuptura <= DIAS_RUPTURA_RISCO_MEDIO || s.estoqueAtual <= s.estoqueMinimo) {
+    return { risco: "medio", acaoRecomendada: "Considere reduzir a verba de Ads nesse anúncio por enquanto." };
+  }
+
+  return { risco: "sem_risco", acaoRecomendada: "Estoque saudável — nenhuma ação necessária." };
+}
+
+export type SkuResultadoEnriquecido = {
   sku: string;
   estoque_atual: number;
   vendas_30d: number;
-  risco: "alto" | "medio" | "sem_risco" | "dado_insuficiente";
+  risco: Risco;
   acao_recomendada: string;
-};
-
-export type SkuResultadoEnriquecido = SkuResultadoIA & {
   dias_ate_ruptura: number | null;
   pedidos_aguardando_estoque: number;
   fornecedor_nome: string | null;
@@ -143,16 +178,10 @@ export type ResultadoRupturaEnriquecido = {
 
 const RANK_RISCO: Record<string, number> = { sem_risco: 0, dado_insuficiente: 1, medio: 2, alto: 3 };
 
-/**
- * Roda depois que a Anthropic devolve o JSON: recalcula dias até ruptura/pedido aguardando/
- * fornecedor com dado FRESCO (não o que foi mandado no submit — o batch pode levar horas) e
- * compara com a rodada anterior pra marcar "piorou desde ontem". Tudo determinístico, não
- * gasta token nem depende do modelo acertar conta.
- */
-export async function enriquecerResultadoRuptura(
-  sellerId: string,
-  resultadoIA: { skus: SkuResultadoIA[]; destaque_risco_alto: string[] }
-): Promise<ResultadoRupturaEnriquecido> {
+/** Monta o resultado inteiro do gestor Estoque & Fulfillment — 100% código, sem chamar a
+ * Anthropic (ver comentário acima). Compara com a rodada anterior pra marcar "piorou desde
+ * ontem", igual antes. */
+export async function montarResultadoRuptura(sellerId: string): Promise<ResultadoRupturaEnriquecido> {
   const [dadosFrescos, anteriorRes] = await Promise.all([
     buscarDadosRupturaFulfillment(sellerId),
     supabaseAdmin
@@ -166,25 +195,28 @@ export async function enriquecerResultadoRuptura(
       .maybeSingle(),
   ]);
 
-  const dadosPorSku = new Map(dadosFrescos.map((d) => [d.sku, d]));
-
   const riscoAnteriorPorSku = new Map<string, string>();
   const resultadoAnterior = anteriorRes.data?.resultado as { skus?: { sku: string; risco: string }[] } | null;
   for (const s of resultadoAnterior?.skus ?? []) riscoAnteriorPorSku.set(s.sku, s.risco);
 
-  const skus = resultadoIA.skus.map((s) => {
-    const fresco = dadosPorSku.get(s.sku);
-    const riscoAnterior = riscoAnteriorPorSku.get(s.sku);
-    const piorou =
-      riscoAnterior !== undefined && (RANK_RISCO[s.risco] ?? 0) > (RANK_RISCO[riscoAnterior] ?? 0);
+  const skus: SkuResultadoEnriquecido[] = dadosFrescos.map((d) => {
+    const { risco, acaoRecomendada } = classificarSkuRuptura(d);
+    const riscoAnterior = riscoAnteriorPorSku.get(d.sku);
+    const piorou = riscoAnterior !== undefined && (RANK_RISCO[risco] ?? 0) > (RANK_RISCO[riscoAnterior] ?? 0);
     return {
-      ...s,
-      dias_ate_ruptura: fresco?.diasAteRuptura ?? null,
-      pedidos_aguardando_estoque: fresco?.pedidosAguardandoEstoque ?? 0,
-      fornecedor_nome: fresco?.fornecedorNome ?? null,
+      sku: d.sku,
+      estoque_atual: d.estoqueAtual,
+      vendas_30d: d.vendas30d,
+      risco,
+      acao_recomendada: acaoRecomendada,
+      dias_ate_ruptura: d.diasAteRuptura,
+      pedidos_aguardando_estoque: d.pedidosAguardandoEstoque,
+      fornecedor_nome: d.fornecedorNome,
       piorou_desde_ontem: piorou,
     };
   });
 
-  return { skus, destaque_risco_alto: resultadoIA.destaque_risco_alto };
+  const destaqueRiscoAlto = skus.filter((s) => s.risco === "alto").map((s) => s.sku);
+
+  return { skus, destaque_risco_alto: destaqueRiscoAlto };
 }

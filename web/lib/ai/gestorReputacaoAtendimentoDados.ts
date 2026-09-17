@@ -8,8 +8,8 @@
  * Diferente do Diogo/Andrey, esse gestor não escolhe "os 20 piores" — reputação é 1 número
  * só por conta (não por SKU/anúncio), então o contexto pro prompt é sempre pequeno.
  */
+import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import type { PromptTemplate } from "./gestorPrompts";
 import {
   getValidMercadoLivreAccessToken,
   mlBuscarReputacao,
@@ -18,6 +18,8 @@ import {
   type MercadoLivreAuthContext,
 } from "@/lib/mercadoLivreApiClient";
 import { detectarDisputasFornecedor } from "./gestorDisputasFornecedorDados";
+import { MODELO_GESTORES_IA } from "./gestorRequestBuilders";
+import { parseGestorResposta } from "./gestorParseResposta";
 
 const MAX_PERGUNTAS = 15;
 /** Só aponta fornecedor como causa provável com pelo menos essa quantidade de pedidos postados no período — 1 ou 2 pedidos não formam média confiável. */
@@ -162,83 +164,68 @@ function formatarPct(rate: number): string {
   return `${(rate * 100).toFixed(1)}%`;
 }
 
-function formatarContexto(d: ReputacaoAtendimentoContexto): string {
-  const nivel = d.levelId ?? "sem nível ainda (conta nova ou sem venda suficiente)";
-  const statusVendedor = d.powerSellerStatus ?? "nenhum";
-  const fornecedores =
-    d.fornecedoresAtraso.length > 0
-      ? d.fornecedoresAtraso
-          .map((f) => `  · ${f.fornecedorNome}: ${f.atrasoMedioDias} dias em média até postar (${f.pedidosPostados} pedidos no período)`)
-          .join("\n")
-      : "  (sem dado suficiente de fornecedor no período — menos de 3 pedidos postados)";
-  const perguntas =
-    d.perguntas.length > 0
-      ? d.perguntas
-          .map(
-            (p) =>
-              `  · pergunta_id ${p.perguntaId} sobre "${p.tituloAnuncio}" (item ${p.itemId}, pendente há ${p.diasPendente} dia(s)): "${p.pergunta}"`
-          )
-          .join("\n")
-      : "  (nenhuma pergunta pendente agora)";
+// --- Diagnóstico de reputação — código puro, sem IA -----------------------
+//
+// Achado 2026-09-07 (mesmo padrão do Ulisses/Diogo): classificar saudável/atenção/crítica
+// a partir de 3 taxas contra limite, e apontar fornecedor causa-provável quando o atraso
+// dele se destaca dos outros, também é comparação de número — não precisa de IA. A única
+// parte deste gestor que exige entender linguagem livre é responder a pergunta do
+// comprador (`responderPerguntasComIA` abaixo), que continua via IA — e só é chamada
+// quando existe pergunta pendente de verdade (economia: sem pergunta, zero tokens).
 
-  return (
-    `Reputação (período: ${d.periodoMetrica}):\n` +
-    `  nível: ${nivel} | status de vendedor: ${statusVendedor}\n` +
-    `  reclamações: ${formatarPct(d.taxaReclamacoes)} (${d.qtdReclamacoes} no período)\n` +
-    `  atraso no manuseio/envio: ${formatarPct(d.taxaAtrasoManuseio)} (${d.qtdAtrasoManuseio} no período)\n` +
-    `  cancelamentos: ${formatarPct(d.taxaCancelamento)}\n\n` +
-    `Atraso médio de postagem por fornecedor (dado interno DropCore, mesmo período):\n${fornecedores}\n\n` +
-    `Perguntas de comprador sem resposta:\n${perguntas}`
-  );
+const RECLAMACOES_ATENCAO_PCT = 0.015;
+const RECLAMACOES_CRITICO_PCT = 0.03;
+const ATRASO_ATENCAO_PCT = 0.05;
+const ATRASO_CRITICO_PCT = 0.1;
+const CANCELAMENTO_ATENCAO_PCT = 0.015;
+const CANCELAMENTO_CRITICO_PCT = 0.03;
+/** Fornecedor só vira "causa provável" se o atraso médio dele for pelo menos 50% maior que
+ * a média dos outros listados — "visivelmente maior", não qualquer diferença (mesma regra
+ * que já estava explícita no prompt antigo, só que agora com número em vez de julgamento). */
+const FORNECEDOR_ATRASO_DESTAQUE_FRACAO = 1.5;
+
+function classificarReputacao(d: ReputacaoAtendimentoContexto): {
+  diagnostico: "saudavel" | "atencao" | "critica";
+  observacao: string;
+} {
+  const critica =
+    d.taxaReclamacoes >= RECLAMACOES_CRITICO_PCT ||
+    d.taxaAtrasoManuseio >= ATRASO_CRITICO_PCT ||
+    d.taxaCancelamento >= CANCELAMENTO_CRITICO_PCT;
+  const atencao =
+    d.taxaReclamacoes >= RECLAMACOES_ATENCAO_PCT ||
+    d.taxaAtrasoManuseio >= ATRASO_ATENCAO_PCT ||
+    d.taxaCancelamento >= CANCELAMENTO_ATENCAO_PCT;
+  const diagnostico = critica ? "critica" : atencao ? "atencao" : "saudavel";
+
+  const partes: string[] = [];
+  if (d.taxaReclamacoes >= RECLAMACOES_ATENCAO_PCT) partes.push(`reclamações em ${formatarPct(d.taxaReclamacoes)}`);
+  if (d.taxaAtrasoManuseio >= ATRASO_ATENCAO_PCT) partes.push(`atraso no manuseio em ${formatarPct(d.taxaAtrasoManuseio)}`);
+  if (d.taxaCancelamento >= CANCELAMENTO_ATENCAO_PCT) partes.push(`cancelamentos em ${formatarPct(d.taxaCancelamento)}`);
+
+  let observacao =
+    partes.length > 0 ? `Métrica(s) fora do saudável: ${partes.join(", ")}.` : "Reclamações, atraso e cancelamento dentro do saudável.";
+
+  if (d.taxaAtrasoManuseio >= ATRASO_ATENCAO_PCT && d.fornecedoresAtraso.length > 0) {
+    const [pior, ...resto] = d.fornecedoresAtraso; // já vem ordenado desc por atrasoMedioDias
+    const destacaDosOutros =
+      resto.length === 0 ||
+      pior.atrasoMedioDias >= (resto.reduce((s, f) => s + f.atrasoMedioDias, 0) / resto.length) * FORNECEDOR_ATRASO_DESTAQUE_FRACAO;
+    if (destacaDosOutros) {
+      observacao += ` Possível causa: ${pior.fornecedorNome}, atraso médio de ${pior.atrasoMedioDias} dias pra postar (${pior.pedidosPostados} pedidos no período).`;
+    }
+  }
+
+  return { diagnostico, observacao };
 }
 
-export const PROMPT_REPUTACAO_ATENDIMENTO: PromptTemplate<ReputacaoAtendimentoContexto> = {
-  id: "reputacao_atendimento_diagnostico",
-  gestor: "reputacao",
-  titulo: "Reputação & Atendimento",
-  persona:
-    "Você é um especialista em reputação e atendimento ao cliente em marketplace, que ajuda vendedores " +
-    "a entender por que a reputação caiu e a não deixar pergunta de comprador parada sem resposta.",
-  tarefa: [
-    "Avalie a saúde da reputação com base nas métricas de reclamação, atraso no manuseio/envio e " +
-      "cancelamento do período informado.",
-    "Se a lista de atraso por fornecedor tiver um nome com atraso médio visivelmente maior que os " +
-      "outros, E a taxa de atraso no manuseio do marketplace estiver relevante, mencione esse fornecedor " +
-      "como possível causa raiz na observação — é um cruzamento que só esse sistema consegue fazer " +
-      "(vê o lado do vendedor no marketplace e o lado do fornecedor ao mesmo tempo).",
-    "Classifique a reputação em: saudável, atenção ou crítica.",
-    "Para cada pergunta pendente, sugira uma resposta curta e educada baseada no texto da pergunta e " +
-      "no título do anúncio, e classifique a urgência (pergunta sobre prazo/disponibilidade de produto " +
-      "é mais urgente que dúvida genérica de uso).",
-  ],
-  restricoes: [
-    "Só aponte um fornecedor como causa provável do atraso se o atraso médio dele for visivelmente " +
-      "maior que o dos outros listados — nunca acuse sem diferença real nos números, e nunca mencione " +
-      "fornecedor se a lista vier vazia (sem dado suficiente).",
-    "Nunca prometa prazo de reposição de estoque ou data específica que você não tem certeza — se a " +
-      "pergunta for sobre isso, a resposta sugerida deve pedir um retorno em breve, sem inventar data.",
-    "resposta_sugerida tem que ser curta (até 300 caracteres) e no tom de atendimento ao cliente educado.",
-    "Isso é sugestão pro vendedor revisar — nunca afirme que a resposta já foi enviada.",
-  ],
-  formatoSaida: [
-    "Bloco 1: diagnóstico geral da reputação (saudável/atenção/crítica) + observação.",
-    "Bloco 2: tabela de perguntas pendentes — pergunta_id | urgência | resposta sugerida.",
-  ].join("\n"),
-  montarContexto: formatarContexto,
-};
+// --- Resposta a pergunta de comprador — a única parte deste gestor que ainda precisa de
+// IA de verdade (ler texto livre e responder com naturalidade). Só chama a Anthropic
+// quando há pergunta pendente — sem pergunta, nem monta o request. -----------------------
 
-export const SCHEMA_REPUTACAO_ATENDIMENTO = {
+const SCHEMA_PERGUNTAS_RESPOSTA = {
   type: "object",
   properties: {
-    reputacao: {
-      type: "object",
-      properties: {
-        diagnostico: { type: "string", enum: ["saudavel", "atencao", "critica"] },
-        observacao: { type: "string", maxLength: 300 },
-      },
-      required: ["diagnostico", "observacao"],
-      additionalProperties: false,
-    },
     perguntas: {
       type: "array",
       items: {
@@ -253,16 +240,45 @@ export const SCHEMA_REPUTACAO_ATENDIMENTO = {
       },
     },
   },
-  required: ["reputacao", "perguntas"],
+  required: ["perguntas"],
   additionalProperties: false,
 } as const;
 
-// --- Enriquecimento pós-IA (código puro, não pedido pro modelo) -----------------------
+type PerguntaRespostaIA = { pergunta_id: number; urgencia: "alta" | "media" | "baixa"; resposta_sugerida: string };
 
-type ReputacaoResultadoIA = {
-  reputacao: { diagnostico: "saudavel" | "atencao" | "critica"; observacao: string };
-  perguntas: { pergunta_id: number; urgencia: "alta" | "media" | "baixa"; resposta_sugerida: string }[];
-};
+async function responderPerguntasComIA(perguntas: PerguntaContexto[], apiKey: string): Promise<Map<number, PerguntaRespostaIA>> {
+  const listaTexto = perguntas
+    .map(
+      (p) =>
+        `- pergunta_id ${p.perguntaId} sobre "${p.tituloAnuncio}" (pendente há ${p.diasPendente} dia(s)): "${p.pergunta}"`
+    )
+    .join("\n");
+  const prompt =
+    "Você é um especialista em atendimento ao cliente de marketplace. Pra cada pergunta de comprador " +
+    "abaixo, classifique a urgência (alta: prazo/disponibilidade de produto; média: dúvida específica " +
+    "sobre o produto; baixa: dúvida genérica) e sugira uma resposta curta (até 300 caracteres), educada, " +
+    "no tom de atendimento ao cliente.\n\n" +
+    "RESTRIÇÕES: nunca prometa prazo de reposição de estoque ou data específica que você não tem certeza " +
+    "— peça retorno em breve sem inventar data. Isso é sugestão pro vendedor revisar, nunca afirme que a " +
+    "resposta já foi enviada.\n\n" +
+    `Perguntas pendentes:\n${listaTexto}`;
+
+  const client = new Anthropic({ apiKey });
+  const message = await client.messages.create({
+    model: MODELO_GESTORES_IA,
+    max_tokens: 4096,
+    thinking: { type: "disabled" },
+    output_config: { format: { type: "json_schema", schema: SCHEMA_PERGUNTAS_RESPOSTA } },
+    messages: [{ role: "user", content: prompt }],
+  });
+  const { resultado, erroMensagem } = parseGestorResposta(message);
+  if (erroMensagem || !resultado) {
+    console.error("[gestorReputacaoAtendimentoDados] resposta a pergunta falhou", erroMensagem);
+    return new Map();
+  }
+  const parsed = resultado as { perguntas: PerguntaRespostaIA[] };
+  return new Map(parsed.perguntas.map((p) => [p.pergunta_id, p]));
+}
 
 export type PerguntaResultadoEnriquecido = {
   pergunta_id: number;
@@ -289,44 +305,46 @@ export type ResultadoReputacaoAtendimentoEnriquecido = {
   perguntas: PerguntaResultadoEnriquecido[];
 };
 
-/** Rebusca o contexto fresco (mesmo padrão dos outros gestores — batch pode levar horas,
- * não confiar no que foi mandado no submit) e junta com o veredito da IA por `pergunta_id`. */
-export async function enriquecerResultadoReputacaoAtendimento(
-  sellerId: string,
-  resultadoIA: ReputacaoResultadoIA
-): Promise<ResultadoReputacaoAtendimentoEnriquecido> {
+/** Monta o resultado inteiro do gestor Reputação & Atendimento — diagnóstico é código puro;
+ * só chama a Anthropic se houver pergunta pendente de verdade (economia real, não só
+ * teórica: a maioria das rodadas não tem pergunta nova). `apiKey` pode vir `null` quando
+ * não há pergunta — nesse caso nunca é usada. */
+export async function montarResultadoReputacao(sellerId: string, apiKey: string | null): Promise<ResultadoReputacaoAtendimentoEnriquecido | null> {
   const dados = await buscarDadosReputacaoAtendimento(sellerId);
-  const perguntaPorId = new Map(dados?.perguntas.map((p) => [p.perguntaId, p]) ?? []);
+  if (!dados) return null;
 
-  const perguntas: PerguntaResultadoEnriquecido[] = resultadoIA.perguntas
+  const { diagnostico, observacao } = classificarReputacao(dados);
+
+  const respostaPorPergunta =
+    dados.perguntas.length > 0 && apiKey ? await responderPerguntasComIA(dados.perguntas, apiKey) : new Map<number, PerguntaRespostaIA>();
+
+  const perguntas: PerguntaResultadoEnriquecido[] = dados.perguntas
     .map((p) => {
-      const original = perguntaPorId.get(p.pergunta_id);
-      if (!original) return null;
+      const resposta = respostaPorPergunta.get(p.perguntaId);
       return {
-        pergunta_id: p.pergunta_id,
-        item_id: original.itemId,
-        titulo_anuncio: original.tituloAnuncio,
-        pergunta: original.pergunta,
-        dias_pendente: original.diasPendente,
-        urgencia: p.urgencia,
-        resposta_sugerida: p.resposta_sugerida,
+        pergunta_id: p.perguntaId,
+        item_id: p.itemId,
+        titulo_anuncio: p.tituloAnuncio,
+        pergunta: p.pergunta,
+        dias_pendente: p.diasPendente,
+        urgencia: resposta?.urgencia ?? "media",
+        resposta_sugerida: resposta?.resposta_sugerida ?? "",
       };
     })
-    .filter((p): p is PerguntaResultadoEnriquecido => p !== null)
     .sort((a, b) => b.dias_pendente - a.dias_pendente);
 
   return {
-    diagnostico: resultadoIA.reputacao.diagnostico,
-    observacao: resultadoIA.reputacao.observacao,
-    nivel: dados?.levelId ?? null,
-    status_vendedor: dados?.powerSellerStatus ?? null,
-    taxa_reclamacoes: dados?.taxaReclamacoes ?? 0,
-    qtd_reclamacoes: dados?.qtdReclamacoes ?? 0,
-    taxa_atraso_manuseio: dados?.taxaAtrasoManuseio ?? 0,
-    qtd_atraso_manuseio: dados?.qtdAtrasoManuseio ?? 0,
-    taxa_cancelamento: dados?.taxaCancelamento ?? 0,
-    periodo_metrica: dados?.periodoMetrica ?? "60 days",
-    fornecedores_atraso: dados?.fornecedoresAtraso ?? [],
+    diagnostico,
+    observacao,
+    nivel: dados.levelId,
+    status_vendedor: dados.powerSellerStatus,
+    taxa_reclamacoes: dados.taxaReclamacoes,
+    qtd_reclamacoes: dados.qtdReclamacoes,
+    taxa_atraso_manuseio: dados.taxaAtrasoManuseio,
+    qtd_atraso_manuseio: dados.qtdAtrasoManuseio,
+    taxa_cancelamento: dados.taxaCancelamento,
+    periodo_metrica: dados.periodoMetrica,
+    fornecedores_atraso: dados.fornecedoresAtraso,
     perguntas,
   };
 }

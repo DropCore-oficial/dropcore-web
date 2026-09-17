@@ -30,7 +30,6 @@
  * seller como estimativa quando há cupom ativo.
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import type { PromptTemplate } from "./gestorPrompts";
 import { calcularMargemRealizada } from "@/lib/margemCalculo";
 import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
 import {
@@ -159,9 +158,23 @@ export type AdsSkuContexto = {
    * (custo/comissão/imposto/perda já estouram sozinhos). */
   descontoMaximoSeguroPct: number | null;
   precoMinimoSeguro: number | null;
+  /** URL real do item (vinda da própria API do ML) — ver comentário em `permalink` no
+   * `MercadoLivreItemDetail`. `null` quando a API não devolveu (raro). */
+  permalink: string | null;
+  /** family_id do ML (mesmo conceito já usado pelo Andrey) — agrupa variações (tamanho/cor)
+   * do mesmo produto que o seller cadastrou como anúncios/SKUs separados. `null` quando o
+   * item não pertence a nenhuma família (anúncio isolado). Vem de graça no multiget de
+   * `mlBuscarItensDetalhe`, sem chamada extra. */
+  familyId: string | null;
 };
 
-const MAX_CANDIDATOS = 20;
+/** Não é mais amostra pra caber num prompt de IA (2026-09-07: Ulisses não chama a Anthropic
+ * nenhuma vez, ver `classificarSkuAds`/`montarResultadoAds` abaixo) — o trabalho caro
+ * (frete real, checagem de promoção por item) já roda pra TODO SKU vinculado antes desse
+ * corte, então limitar aqui só descartava resultado já pronto sem economizar nada. Fica só
+ * como teto de segurança contra catálogo patológico (milhares de SKUs, risco de estourar o
+ * `maxDuration` da rota) — hoje (177 SKUs vinculados) nem chega perto disso. */
+const MAX_CANDIDATOS = 500;
 const CEP_REFERENCIA_FRETE = "01310100";
 /** Folga mínima (pontos de margem) pra sugerir subir o % de afiliado — abaixo disso a
  * sugestão seria ruído (ex. "suba de 5% pra 5,4%"), não ajuda o seller a decidir nada. */
@@ -175,7 +188,7 @@ const DESCONTO_ATIVO_MINIMO_PCT = 1;
  * imposto, perda) — Ads e afiliado ficam de fora de propósito (ver comentário do tipo).
  * `null` quando o denominador zera/vira negativo (nem preço infinito resolveria — custo
  * fixo ou % já estouram a margem mínima sozinhos, sem depender do desconto). */
-function calcularPrecoMinimoSeguro(
+export function calcularPrecoMinimoSeguro(
   custosFixos: number,
   comissaoPct: number,
   impostoPct: number,
@@ -184,10 +197,10 @@ function calcularPrecoMinimoSeguro(
 ): number | null {
   const denominador = 100 - comissaoPct - impostoPct - perdaPct - margemMinimaPct;
   if (denominador <= 0) return null;
-  return (100 * custosFixos) / denominador;
+  return Math.round(((100 * custosFixos) / denominador) * 100) / 100;
 }
 
-async function buscarVinculosComCusto(
+export async function buscarVinculosComCusto(
   sellerId: string
 ): Promise<Map<string, { sku: string; nomeProduto: string; custo: number }>> {
   const { data: vinculosRaw } = await supabaseAdmin
@@ -360,7 +373,11 @@ async function montarCandidatos(
   const candidatos: AdsSkuContexto[] = [];
   for (const item of detalhes) {
     const info = infoPorItemId.get(item.id);
-    if (!info || item.price <= 0) continue;
+    // Achado ao vivo 2026-09-08: anúncio sem estoque some da vitrine e o próprio ML pausa
+    // sozinho (status "paused", sub_status "out_of_stock") — não faz sentido recomendar
+    // preço/margem pra algo que não está à venda agora. Pulando aqui em vez de só na UI:
+    // evita gastar a chamada de frete real (que ia falhar com 404 mesmo) pra esses itens.
+    if (!info || item.price <= 0 || item.status !== "active") continue;
 
     const { tipo, comissaoPct } = mlComissaoPorListingType(item.listing_type_id);
     const chaveAds = item.family_id != null ? String(item.family_id) : item.id;
@@ -405,24 +422,27 @@ async function montarCandidatos(
     const descontoAtivoPct =
       precoOriginal != null && precoOriginal > item.price ? ((precoOriginal - item.price) / precoOriginal) * 100 : 0;
 
+    // Preço mínimo seguro — piso de margem mínima — calculado SEMPRE agora (2026-09-08,
+    // pedido do Sr Stark: "todo produto tem que estar em promoção", não só quem já tem
+    // desconto ativo). Antes só rodava dentro do `if` de desconto ativo; virou cálculo
+    // puro sobre custo/frete (já buscado de qualquer forma), sem custo de API extra.
+    const custosFixosSemAds = info.custo + (freteReal ?? 0);
+    const precoMinimoSeguro = calcularPrecoMinimoSeguro(
+      custosFixosSemAds,
+      comissaoPct,
+      prefs.impostoPct,
+      prefs.perdaPct,
+      prefs.margemMinimaPct
+    );
+
     let descontoAtivoNome: string | null = null;
     let descontoAtivoFim: string | null = null;
     let descontoMaximoSeguroPct: number | null = null;
-    let precoMinimoSeguro: number | null = null;
     if (descontoAtivoPct > DESCONTO_ATIVO_MINIMO_PCT && precoOriginal != null) {
       const promosAtivas = await mlBuscarPromocaoAtivaItem(item.id, ctx);
       const promo = promosAtivas[0];
       descontoAtivoNome = promo ? `${promo.type}${promo.name ? ` "${promo.name}"` : ""}` : null;
       descontoAtivoFim = promo?.finish_date?.slice(0, 10) ?? null;
-
-      const custosFixosSemAds = info.custo + (freteReal ?? 0);
-      precoMinimoSeguro = calcularPrecoMinimoSeguro(
-        custosFixosSemAds,
-        comissaoPct,
-        prefs.impostoPct,
-        prefs.perdaPct,
-        prefs.margemMinimaPct
-      );
       descontoMaximoSeguroPct =
         precoMinimoSeguro != null ? Math.max(0, Math.round(((precoOriginal - precoMinimoSeguro) / precoOriginal) * 1000) / 10) : null;
     }
@@ -451,6 +471,8 @@ async function montarCandidatos(
       descontoAtivoFim,
       descontoMaximoSeguroPct,
       precoMinimoSeguro,
+      permalink: item.permalink ?? null,
+      familyId: item.family_id != null ? String(item.family_id) : null,
     });
   }
 
@@ -535,127 +557,95 @@ export async function buscarDadosAds(sellerId: string): Promise<AdsContextoCompl
   };
 }
 
-function formatarCandidatos(ctx: AdsContextoCompleto): string {
-  const linhas = ctx.candidatos
-    .map((c) => {
-      const faixa = c.margemMaximaPct
-        ? `faixa desejada ${c.margemMinimaPct}%–${c.margemMaximaPct}%`
-        : `mínimo desejado ${c.margemMinimaPct}%`;
-      const metaTacos = ctx.prefs.adsAtivo && ctx.prefs.adsTacosPct != null ? ` (meta do seller: ${ctx.prefs.adsTacosPct}%)` : "";
-      const adsTxt =
-        c.adsGastoMesReal > 0
-          ? `Ads no mês: R$ ${c.adsGastoMesReal.toFixed(2)} gastos, ${c.adsVendasMesReal} venda(s) atribuída(s), TACoS real ${c.tacosRealPct.toFixed(1)}%${metaTacos}, ROAS real ${c.roasReal.toFixed(2)}x`
-          : "Ads no mês: sem gasto registrado nesse produto";
-      const freteTxt = c.freteReal != null ? `frete real R$ ${c.freteReal.toFixed(2)}` : "frete não disponível (estimativa 0)";
-      return (
-        `- ${c.sku} (${c.nomeProduto}) | anúncio ${c.itemId} (${c.tipoAnuncio}, comissão ${c.comissaoPct}%) | ` +
-        `custo R$ ${c.custo.toFixed(2)} | preço atual R$ ${c.preco.toFixed(2)} | ${freteTxt} | ${adsTxt} | ` +
-        `margem realizada (com ads/frete reais desse mês): ${c.margemAtualPct.toFixed(1)}% | ${faixa}`
+// --- Diagnóstico + recomendação — código puro, sem IA -----------------------
+//
+// Achado 2026-09-07: reler os textos que a IA gerava aqui mostrou que não existe
+// julgamento ambíguo nenhum — é sempre comparação de número contra limite (margem atual
+// vs. mínima/máxima, TACoS real vs. meta), igual ao que `classificarCampanhas` (acima)
+// já fazia sem IA desde o início. Gastar tokens da Anthropic pra "decidir" algo que só
+// tem uma resposta certa era desperdício — pior, arriscava truncar/variar a redação sem
+// motivo. Ver memória de projeto "Briefing Gestores de IA", seção 2026-09-07.
+
+export type DiagnosticoAds = "margem_abaixo_minima" | "margem_saudavel" | "margem_acima_maxima";
+
+/** Mesma fração usada em `classificarCampanhas` (ACOS) — reaproveitada aqui pro TACoS por
+ * SKU: 20% acima da meta já é estouro real, não ruído de dia a dia. */
+const TACOS_ESTOURO_FRACAO = CAMPANHA_ACOS_ESTOURO_FRACAO;
+
+function classificarSkuAds(
+  c: AdsSkuContexto,
+  prefs: UlissesPreferencias
+): { diagnostico: DiagnosticoAds; recomendacao: string; observacao: string } {
+  const temAds = c.adsGastoMesReal > 0;
+  const metaTacos = prefs.adsAtivo ? prefs.adsTacosPct : null;
+  const tacosEstourado = temAds && metaTacos != null && c.tacosRealPct > metaTacos * TACOS_ESTOURO_FRACAO;
+
+  if (c.margemAtualPct < c.margemMinimaPct) {
+    let recomendacao: string;
+    if (c.descontoAtivoPct > DESCONTO_ATIVO_MINIMO_PCT) {
+      recomendacao = temAds
+        ? "Desconto ativo já está furando a margem mínima — reduza/pause Ads neste anúncio até resolver o preço."
+        : "Desconto ativo furando a margem mínima — resolva o preço antes de considerar Ads.";
+    } else if (temAds && tacosEstourado) {
+      recomendacao = `TACoS real ${c.tacosRealPct.toFixed(1)}% bem acima da meta de ${(metaTacos as number).toFixed(1)}%, e a margem já está abaixo do mínimo — reduza ou pause Ads neste anúncio.`;
+    } else if (temAds) {
+      recomendacao = "Reduzir/pausar Ads neste anúncio e revisar preço - custo+frete já consome a margem antes do Ads.";
+    } else {
+      recomendacao = "Margem já abaixo do mínimo sem nem contar Ads — revise custo, frete ou preço de venda.";
+    }
+    const observacao =
+      temAds && metaTacos != null
+        ? tacosEstourado
+          ? `TACoS real ${c.tacosRealPct.toFixed(1)}% acima da meta ${metaTacos.toFixed(1)}%.`
+          : `TACoS real ${c.tacosRealPct.toFixed(1)}% perto/dentro da meta ${metaTacos.toFixed(1)}%, mas margem negativa mesmo assim; problema é preço/custo, não só Ads.`
+        : "";
+    return { diagnostico: "margem_abaixo_minima", recomendacao, observacao };
+  }
+
+  // Sem nenhuma promoção ativa e com espaço até o piso de margem mínima — regra do Sr Stark
+  // (2026-09-08): "todo produto tem que estar em promoção". Vale tanto pra quem já está
+  // acima do máximo quanto pra quem está só dentro da faixa (nesse caso não tem sobra de
+  // margem que "excede", mas ainda dá pra promocionar sem furar o mínimo).
+  const semPromocaoComEspaco = c.descontoAtivoPct <= DESCONTO_ATIVO_MINIMO_PCT && c.precoMinimoSeguro != null && c.preco > c.precoMinimoSeguro;
+  const sugestaoPromocional = semPromocaoComEspaco
+    ? `Sem nenhuma promoção ativa — dá pra vender a partir de R$ ${(c.precoMinimoSeguro as number).toFixed(2)} sem furar o mínimo de ${c.margemMinimaPct}%.`
+    : null;
+
+  if (c.margemMaximaPct != null && c.margemAtualPct > c.margemMaximaPct) {
+    const partes: string[] = [];
+    if (sugestaoPromocional) partes.push(sugestaoPromocional);
+    if (c.afiliadoPctConfigurado != null && c.afiliadoPctTetoSeguro != null) {
+      partes.push(
+        `afiliado ativo em ${c.afiliadoPctConfigurado.toFixed(1)}%, dá pra subir até ${c.afiliadoPctTetoSeguro.toFixed(1)}% sem furar o mínimo`
       );
-    })
-    .join("\n");
+    }
+    if (prefs.adsAtivo) {
+      partes.push("considere aumentar investimento em Ads pra ganhar mais volume, a margem aguenta");
+    }
+    const recomendacao =
+      partes.length > 0
+        ? `Margem acima do máximo desejado — ${partes.join("; ")}.`
+        : 'Margem acima do máximo desejado, mas nenhuma alavanca (Ads/afiliado/cupom) está ligada — ative alguma em "Editar preferências" se quiser usar essa folga.';
+    return { diagnostico: "margem_acima_maxima", recomendacao, observacao: "" };
+  }
 
-  const config = [
-    `Ads: ${ctx.prefs.adsAtivo ? `ativo, TACoS alvo ${ctx.prefs.adsTacosPct ?? 0}%${ctx.prefs.adsTetoValor ? `, teto R$ ${ctx.prefs.adsTetoValor}/${ctx.prefs.adsTetoPeriodo}` : ""}` : "desativado pelo seller"}`,
-    `Afiliado: ${ctx.prefs.afiliadoAtivo ? `ativo, ${ctx.prefs.afiliadoPct ?? 0}% configurado` : "desativado pelo seller"} | gasto real de afiliado no extrato de faturamento deste período (checado de verdade, não suposição): R$ ${ctx.afiliadoGastoRealConta.toFixed(2)}`,
-    `Cupom: ${ctx.prefs.cupomAtivo ? `seller quer usar, ${ctx.prefs.cupomPct ?? 0}%` : "desativado pelo seller"} | cupom SELLER_COUPON_CAMPAIGN ativo na conta agora (dado real): ${ctx.cupomAtivoNaConta ? "sim" : "não"}`,
-  ].join(" | ");
-
-  const gastoMesTxt =
-    ctx.adsGastoTotalMes != null
-      ? `Investimento total em Ads na conta, de ${ctx.periodoInicio} até ${ctx.periodoFim}: R$ ${ctx.adsGastoTotalMes.toFixed(2)}.`
-      : "Conta sem Ads (Product Ads) habilitado — sem dado de investimento.";
-
-  return `Configuração do seller: ${config}\n${gastoMesTxt}\nPromoções/campanhas ativas na conta (nível conta, não por SKU): ${ctx.promocoesContaResumo}\n\nSKUs vinculados ao Mercado Livre (pior margem primeiro):\n${linhas}`;
+  const observacao =
+    temAds && metaTacos != null && tacosEstourado
+      ? `TACoS real ${c.tacosRealPct.toFixed(1)}% acima da meta ${metaTacos.toFixed(1)}%, mas margem ainda dentro da faixa.`
+      : "";
+  return {
+    diagnostico: "margem_saudavel",
+    recomendacao: sugestaoPromocional ?? "Margem dentro da faixa desejada — sem ação necessária.",
+    observacao,
+  };
 }
 
-export const PROMPT_ADS: PromptTemplate<AdsContextoCompleto> = {
-  id: "ads_preco_promocao_diagnostico",
-  gestor: "ads",
-  titulo: "Diagnóstico de Ads, Preço e Promoção",
-  persona:
-    "Você é um especialista em precificação e mídia paga de marketplace, focado em manter a " +
-    "margem de lucro do vendedor dentro da faixa que ele mesmo definiu, decidindo quando vale " +
-    "a pena usar ads, afiliado ou cupom pra vender mais sem sacrificar o resultado financeiro.",
-  tarefa: [
-    "Para cada SKU, compare a margem realizada (já com ads e frete reais do mês embutidos) com a " +
-      "faixa mínima/máxima que o seller definiu.",
-    "Classifique cada SKU em: margem_abaixo_minima (perigo, precisa de ação), margem_saudavel " +
-      "(dentro da faixa, nenhuma mudança necessária), margem_acima_maxima (oportunidade — sobra " +
-      "margem pra ser mais agressivo com promoção/ads e vender mais volume).",
-    "Se um SKU já está gastando em Ads e a margem está abaixo do mínimo, considere recomendar " +
-      "reduzir ou pausar essa alavanca — é gasto real acontecendo agora, não hipótese. Compare o " +
-      "TACoS real (gasto ÷ venda TOTAL do produto, com Ads e orgânica) com a meta que o seller " +
-      "configurou — TACoS real bem acima da meta é sinal de que o Ads está custando mais do que " +
-      "deveria em relação ao volume de venda total daquele produto.",
-    "Só recomende ativar/ajustar afiliado ou cupom se o seller já tiver deixado aquela alavanca " +
-      "LIGADA na configuração dele — nunca sugira ligar uma alavanca que está desativada.",
-    "Para margem_acima_maxima, sugira usar as alavancas já ligadas pelo seller (dentro do % que " +
-      "ele configurou) pra ganhar mais volume, já que a margem projetada com elas ainda ficaria " +
-      "dentro ou perto da faixa desejada.",
-    "Se houver promoção/campanha ativa na conta (bloco de contexto), considere se ela é relevante " +
-      "pra esse SKU e mencione na observação, sem afirmar com certeza que o SKU participa dela " +
-      "(a informação é por conta, não por item, deixe isso claro).",
-  ],
-  restricoes: [
-    "Nunca recomende um valor de cupom ou afiliado FORA do que o seller já configurou — você " +
-      "decide SE vale usar a alavanca configurada, não decide um número novo. Ads já é dado real " +
-      "(gasto que já aconteceu), então pode recomendar reduzir/pausar quando fizer sentido.",
-    "Nunca sugira mudar a margem mínima ou máxima do seller — essa faixa é decisão dele, não sua.",
-    "Preço/promoção nunca é aplicado sozinho — isso é sempre sugestão pro seller revisar.",
-    "observacao curta e direta (o catálogo pode ter vários SKUs analisados de uma vez).",
-  ],
-  formatoSaida: [
-    "Tabela: SKU | Margem atual | Faixa desejada | Diagnóstico | Recomendação | Observação",
-    "Bloco final: os SKUs que mais precisam de atenção (margem abaixo do mínimo).",
-  ].join("\n"),
-  montarContexto: (ctx) => `Meus SKUs vinculados ao Mercado Livre, com margem calculada com dado real:\n${formatarCandidatos(ctx)}`,
-};
-
-export const SCHEMA_ADS = {
-  type: "object",
-  properties: {
-    skus: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          sku: { type: "string" },
-          margem_atual_pct: { type: "number" },
-          diagnostico: {
-            type: "string",
-            enum: ["margem_abaixo_minima", "margem_saudavel", "margem_acima_maxima"],
-          },
-          recomendacao: { type: "string", maxLength: 140 },
-          observacao: { type: "string", maxLength: 140 },
-        },
-        required: ["sku", "margem_atual_pct", "diagnostico", "recomendacao", "observacao"],
-        additionalProperties: false,
-      },
-    },
-    destaque_atencao: {
-      type: "array",
-      items: { type: "string" },
-      description: "SKUs com margem abaixo do mínimo que merecem atenção imediata.",
-    },
-  },
-  required: ["skus", "destaque_atencao"],
-  additionalProperties: false,
-} as const;
-
-// --- Enriquecimento pós-IA (código puro, não pedido pro modelo) -----------------------
-
-type DiagnosticoAds = "margem_abaixo_minima" | "margem_saudavel" | "margem_acima_maxima";
-
-type SkuResultadoIA = {
+export type SkuResultadoEnriquecido = {
   sku: string;
   margem_atual_pct: number;
   diagnostico: DiagnosticoAds;
   recomendacao: string;
   observacao: string;
-};
-
-export type SkuResultadoEnriquecido = SkuResultadoIA & {
   item_id: string;
   nome_produto: string;
   preco: number;
@@ -676,7 +666,9 @@ export type SkuResultadoEnriquecido = SkuResultadoIA & {
   desconto_ativo_fim: string | null;
   desconto_maximo_seguro_pct: number | null;
   preco_minimo_seguro: number | null;
+  permalink: string | null;
   sinalizado_rodada_anterior: boolean;
+  family_id: string | null;
 };
 
 export type ResultadoAdsEnriquecido = {
@@ -724,12 +716,12 @@ function campanhaParaJson(c: CampanhaAdsResultado): CampanhaAdsResultadoJson {
   };
 }
 
-export async function enriquecerResultadoAds(
-  sellerId: string,
-  resultadoIA: { skus: SkuResultadoIA[]; destaque_atencao: string[] }
-): Promise<ResultadoAdsEnriquecido> {
+/** Monta o resultado inteiro do gestor Ads/Preço/Promoção — 100% código, sem chamar a
+ * Anthropic (ver comentário "Diagnóstico + recomendação" acima). `null` só quando não há
+ * dado suficiente (mesmo caso que antes retornava erro 422 na rota). */
+export async function montarResultadoAds(sellerId: string): Promise<ResultadoAdsEnriquecido | null> {
   const dadosContexto = await buscarDadosAds(sellerId);
-  const porSku = new Map((dadosContexto?.candidatos ?? []).map((c) => [c.sku, c]));
+  if (!dadosContexto) return null;
 
   const { data: anteriorRow } = await supabaseAdmin
     .from("seller_ai_runs")
@@ -747,42 +739,50 @@ export async function enriquecerResultadoAds(
     if (s.diagnostico !== "margem_saudavel" && s.sku) problemaAnteriorPorSku.add(s.sku);
   }
 
-  const skus = resultadoIA.skus.map((s) => {
-    const c = porSku.get(s.sku);
+  const skus: SkuResultadoEnriquecido[] = dadosContexto.candidatos.map((c) => {
+    const { diagnostico, recomendacao, observacao } = classificarSkuAds(c, dadosContexto.prefs);
     return {
-      ...s,
-      item_id: c?.itemId ?? "",
-      nome_produto: c?.nomeProduto ?? s.sku,
-      preco: c?.preco ?? 0,
-      custo: c?.custo ?? 0,
-      tipo_anuncio: c?.tipoAnuncio ?? "desconhecido",
-      ads_gasto_mes_real: c?.adsGastoMesReal ?? 0,
-      ads_vendas_mes_real: c?.adsVendasMesReal ?? 0,
-      tacos_real_pct: c?.tacosRealPct ?? 0,
-      roas_real: c?.roasReal ?? 0,
-      frete_real: c?.freteReal ?? null,
-      margem_minima_pct: c?.margemMinimaPct ?? 0,
-      margem_maxima_pct: c?.margemMaximaPct ?? null,
-      afiliado_pct_configurado: c?.afiliadoPctConfigurado ?? null,
-      afiliado_pct_teto_seguro: c?.afiliadoPctTetoSeguro ?? null,
-      preco_original: c?.precoOriginal ?? null,
-      desconto_ativo_pct: c?.descontoAtivoPct ?? 0,
-      desconto_ativo_nome: c?.descontoAtivoNome ?? null,
-      desconto_ativo_fim: c?.descontoAtivoFim ?? null,
-      desconto_maximo_seguro_pct: c?.descontoMaximoSeguroPct ?? null,
-      preco_minimo_seguro: c?.precoMinimoSeguro ?? null,
-      sinalizado_rodada_anterior: s.diagnostico !== "margem_saudavel" && problemaAnteriorPorSku.has(s.sku),
+      sku: c.sku,
+      margem_atual_pct: c.margemAtualPct,
+      diagnostico,
+      recomendacao,
+      observacao,
+      item_id: c.itemId,
+      nome_produto: c.nomeProduto,
+      preco: c.preco,
+      custo: c.custo,
+      tipo_anuncio: c.tipoAnuncio,
+      ads_gasto_mes_real: c.adsGastoMesReal,
+      ads_vendas_mes_real: c.adsVendasMesReal,
+      tacos_real_pct: c.tacosRealPct,
+      roas_real: c.roasReal,
+      frete_real: c.freteReal,
+      margem_minima_pct: c.margemMinimaPct,
+      margem_maxima_pct: c.margemMaximaPct,
+      afiliado_pct_configurado: c.afiliadoPctConfigurado,
+      afiliado_pct_teto_seguro: c.afiliadoPctTetoSeguro,
+      preco_original: c.precoOriginal,
+      desconto_ativo_pct: c.descontoAtivoPct,
+      desconto_ativo_nome: c.descontoAtivoNome,
+      desconto_ativo_fim: c.descontoAtivoFim,
+      desconto_maximo_seguro_pct: c.descontoMaximoSeguroPct,
+      preco_minimo_seguro: c.precoMinimoSeguro,
+      permalink: c.permalink,
+      sinalizado_rodada_anterior: diagnostico !== "margem_saudavel" && problemaAnteriorPorSku.has(c.sku),
+      family_id: c.familyId,
     };
   });
 
+  const destaqueAtencao = skus.filter((s) => s.diagnostico === "margem_abaixo_minima").map((s) => s.sku);
+
   return {
     skus,
-    destaque_atencao: resultadoIA.destaque_atencao,
-    ads_gasto_total_mes: dadosContexto?.adsGastoTotalMes ?? null,
-    afiliado_gasto_real_conta: dadosContexto?.afiliadoGastoRealConta ?? 0,
-    roas_conta_mes: dadosContexto?.roasContaMes ?? null,
-    tacos_conta_real_mes: dadosContexto?.tacosContaRealMes ?? null,
-    faturamento_real_mes: dadosContexto?.faturamentoRealMes ?? 0,
-    campanhas: (dadosContexto?.campanhas ?? []).map(campanhaParaJson),
+    destaque_atencao: destaqueAtencao,
+    ads_gasto_total_mes: dadosContexto.adsGastoTotalMes,
+    afiliado_gasto_real_conta: dadosContexto.afiliadoGastoRealConta,
+    roas_conta_mes: dadosContexto.roasContaMes,
+    tacos_conta_real_mes: dadosContexto.tacosContaRealMes,
+    faturamento_real_mes: dadosContexto.faturamentoRealMes,
+    campanhas: dadosContexto.campanhas.map(campanhaParaJson),
   };
 }

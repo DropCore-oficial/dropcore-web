@@ -20,6 +20,24 @@ export function mlItemPermalink(itemId: string): string {
   return `https://produto.mercadolivre.com.br/${formatado}`;
 }
 
+/** Link direto pro dashboard de uma campanha de Ads específica dentro da Central de
+ * Publicidade do vendedor — confirmado ao vivo (2026-09-03): clicar numa campanha na lista
+ * (`.../product-ads/admin/campaigns?advertiser_id=...`) leva pra
+ * `.../product-ads/admin/campaigns/{campaignId}/dashboard`. Só funciona logado como o
+ * próprio seller (sessão de navegador), mesma categoria de link do `mlItemPermalink`. */
+export function mlCampanhaAdsPermalink(campaignId: number | string): string {
+  return `https://vendedores.mercadolivre.com.br/publicidade/product-ads/admin/campaigns/${campaignId}/dashboard`;
+}
+
+/** Link pra Central de promoções do vendedor já filtrada num item específico —
+ * confirmado ao vivo (2026-09-06): `.../anuncios/lista/promos?search={item_id}` chega
+ * direto no anúncio certo (precisa só expandir a linha pra ver a variação/SKU). Diferente
+ * do `mlItemPermalink`, que manda pro PDP público — este é onde dá pra ver/mexer na
+ * promoção ativa. Só funciona logado como o próprio seller. */
+export function mlPromocaoItemPermalink(itemId: string): string {
+  return `https://vendedores.mercadolivre.com.br/anuncios/lista/promos?search=${itemId}`;
+}
+
 /** Link direto pra tela de mediação/reclamação dentro da Central de Vendedores — achado
  * ao vivo (2026-08-25), navegando manualmente numa reclamação real. Só funciona pra quem
  * já está logado como aquele seller na conta do Mercado Livre (é onde ele consegue ver a
@@ -135,11 +153,21 @@ export type MercadoLivreItemDetail = {
   id: string;
   title: string;
   price: number;
+  /** "active" | "paused" | "closed" | ... — achado ao vivo 2026-09-08: item some do
+   * estoque (available_quantity 0) e o próprio ML pausa sozinho (`sub_status:
+   * ["out_of_stock"]`). Não filtrar por isso faz gestor de preço/margem analisar anúncio
+   * que nem está à venda. */
+  status: string;
   /** Preço "de tabela" antes do desconto ativo — `null`/ausente quando o item não está em
    * nenhuma promoção que altera o preço de vitrine. Comparar com `price` pra saber o
    * desconto % real que está rodando agora (achado 2026-09-03: um SKU pode estar 49% OFF
    * sem que isso apareça em nenhum outro campo do item). */
   original_price?: number | null;
+  /** URL real resolvida pelo próprio Mercado Livre pra essa variação específica do item —
+   * preferir sempre este campo a `mlItemPermalink` (que só reconstrói um link genérico e,
+   * quando o item pertence a um catálogo/família, pode cair numa página de catálogo com
+   * outra variação pré-selecionada em vez da variação exata que está na promoção). */
+  permalink?: string | null;
   available_quantity: number;
   sold_quantity: number;
   start_time: string;
@@ -407,7 +435,7 @@ export async function mlAtualizarTitulo(
  * de lista fechada que já veio de `valoresPermitidos` — nunca um valor solto pra esse tipo. */
 export async function mlAtualizarAtributos(
   itemId: string,
-  atributos: { id: string; value_name: string }[],
+  atributos: { id: string; value_name?: string; value_id?: string }[],
   ctx: MercadoLivreAuthContext
 ): Promise<{ ok: true } | { ok: false; erro: string }> {
   const res = await fetch(`${ML_API_BASE}/items/${itemId}`, {
@@ -441,24 +469,58 @@ export async function mlAtualizarStatus(
   return { ok: true };
 }
 
-/** Atualiza o preço do anúncio (`PUT /items/{id}`). Reservada pro Ulisses — NÃO chamada
- * em produção ainda nesta fase (só diagnóstico/sugestão, ver plano do gestor); cadastrada
- * já agora pra não duplicar o padrão de escrita quando a escrita de verdade for ligada. */
+/** Atualiza o preço do anúncio (`PUT /items/{id}`). Usada pelo Ulisses pra aplicar o
+ * "preço mínimo seguro" calculado (rota `ulisses-aplicar-preco-seguro`). Arredonda pra 2
+ * casas antes de mandar — achado ao vivo (2026-09-06): o ML rejeita com "Max. decimal
+ * precision allowed for currency Real (BRL) is 2" se o preço vier com mais casas (ex. de
+ * uma rodada salva antes do cálculo já vir arredondado), e é barato garantir aqui também. */
 export async function mlAtualizarPreco(
   itemId: string,
   preco: number,
   ctx: MercadoLivreAuthContext
 ): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const precoArredondado = Math.round(preco * 100) / 100;
   const res = await fetch(`${ML_API_BASE}/items/${itemId}`, {
     method: "PUT",
     headers: { Authorization: `Bearer ${ctx.accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ price: preco }),
+    body: JSON.stringify({ price: precoArredondado }),
   });
-  const json = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+  const json = (await res.json().catch(() => ({}))) as {
+    message?: string;
+    error?: string;
+    cause?: { code?: string; message?: string }[];
+  };
   if (!res.ok) {
-    return { ok: false, erro: json.message ?? json.error ?? `HTTP ${res.status}` };
+    const causa = json.cause?.map((c) => c.message ?? c.code).filter(Boolean).join("; ");
+    return { ok: false, erro: causa || json.message || json.error || `HTTP ${res.status}` };
   }
   return { ok: true };
+}
+
+const AGE_GROUP_FALTANDO_REGEX = /Attribute \[AGE_GROUP\][^(]*\((\d+)/;
+
+/** Mesma coisa que `mlAtualizarPreco`, mas trata ao vivo (achado 2026-09-06, SKU DJU001036)
+ * o bloqueio "Attribute [AGE_GROUP] to be added with values [(id,null)]" — o ML as vezes
+ * exige esse atributo (faixa etária) preenchido antes de aceitar qualquer PUT no item, mas
+ * ele é `hidden`/`read_only` na tela normal de edição, só dá pra corrigir via API. A própria
+ * mensagem de erro já vem com o value_id certo pra usar — só precisa extrair e reenviar. */
+export async function mlAtualizarPrecoSeguro(
+  itemId: string,
+  preco: number,
+  ctx: MercadoLivreAuthContext
+): Promise<{ ok: true; ageGroupCorrigido: boolean } | { ok: false; erro: string }> {
+  const primeira = await mlAtualizarPreco(itemId, preco, ctx);
+  if (primeira.ok) return { ok: true, ageGroupCorrigido: false };
+
+  const match = primeira.erro.match(AGE_GROUP_FALTANDO_REGEX);
+  if (!match) return primeira;
+
+  const attrRes = await mlAtualizarAtributos(itemId, [{ id: "AGE_GROUP", value_id: match[1] }], ctx);
+  if (!attrRes.ok) return { ok: false, erro: `${primeira.erro} (tentei corrigir AGE_GROUP e falhou: ${attrRes.erro})` };
+
+  const segunda = await mlAtualizarPreco(itemId, preco, ctx);
+  if (!segunda.ok) return segunda;
+  return { ok: true, ageGroupCorrigido: true };
 }
 
 export type MercadoLivrePromocaoAtiva = {
@@ -665,7 +727,9 @@ export async function mlBuscarFaturamentoRealPeriodo(
 }
 
 export type MercadoLivrePromocaoItem = {
-  id: string;
+  /** Ausente pra `type: "PRICE_DISCOUNT"` (self-service, sem campanha com id) — presente pra
+   * DEAL/SELLER_CAMPAIGN (campanha existente que o item integra/pode integrar). */
+  id?: string;
   type: string;
   status: string;
   price?: number;
@@ -673,7 +737,22 @@ export type MercadoLivrePromocaoItem = {
   name?: string | null;
   start_date?: string | null;
   finish_date?: string | null;
+  /** Faixa de preço promocional que o ML aceita pra esse item nessa promoção — só vem
+   * preenchido nas candidatas (achado ao vivo 2026-09-08). */
+  min_discounted_price?: number;
+  max_discounted_price?: number;
 };
+
+async function mlBuscarPromocoesItemBruto(
+  itemId: string,
+  ctx: MercadoLivreAuthContext
+): Promise<MercadoLivrePromocaoItem[]> {
+  const json = await mlGet<MercadoLivrePromocaoItem[]>(
+    `/seller-promotions/items/${itemId}?app_version=v2`,
+    ctx.accessToken
+  );
+  return json ?? [];
+}
 
 /** Promoção(ões) rodando de verdade num item específico (`status: "started"`, não
  * candidata) — diferente de `mlBuscarPromocoesAtivas`, que só sabe o que existe no NÍVEL
@@ -685,11 +764,156 @@ export async function mlBuscarPromocaoAtivaItem(
   itemId: string,
   ctx: MercadoLivreAuthContext
 ): Promise<MercadoLivrePromocaoItem[]> {
-  const json = await mlGet<MercadoLivrePromocaoItem[]>(
-    `/seller-promotions/items/${itemId}?app_version=v2`,
-    ctx.accessToken
-  );
-  return (json ?? []).filter((p) => p.status === "started");
+  const todas = await mlBuscarPromocoesItemBruto(itemId, ctx);
+  return todas.filter((p) => p.status === "started");
+}
+
+/** Faixa de preço aceita pelo ML pra inscrever o item numa promoção `PRICE_DISCOUNT`
+ * (self-service, sem convite) — usado só pra validar ANTES de tentar criar (evita round-trip
+ * de erro quando o preço digitado pelo seller estoura o teto/piso que o próprio ML aceita,
+ * que é diferente do "preço mínimo seguro" calculado pelo Ulisses). `null` quando o item não
+ * é candidato a esse tipo de promoção agora. */
+export async function mlBuscarLimitesPromocaoPrecoDesconto(
+  itemId: string,
+  ctx: MercadoLivreAuthContext
+): Promise<{ min: number; max: number } | null> {
+  const todas = await mlBuscarPromocoesItemBruto(itemId, ctx);
+  const candidata = todas.find((p) => p.type === "PRICE_DISCOUNT");
+  if (!candidata || candidata.min_discounted_price == null || candidata.max_discounted_price == null) return null;
+  return { min: candidata.min_discounted_price, max: candidata.max_discounted_price };
+}
+
+/** BRT é UTC-3 fixo (sem horário de verão no Brasil desde 2019) — o ML exige as datas de
+ * início/fim da promoção em "formato local" (achado ao vivo 2026-09-08: manda com sufixo de
+ * timezone e ele rejeita com "Start and finish dates must be in local format"), então
+ * convertemos aqui em vez de usar `toISOString()` cru (que devolveria UTC). */
+function dataLocalBrasilISO(data: Date): string {
+  const brt = new Date(data.getTime() - 3 * 60 * 60 * 1000);
+  return brt.toISOString().slice(0, 19);
+}
+
+function dataLocalBrasilFimDoDia(data: Date): string {
+  const brt = new Date(data.getTime() - 3 * 60 * 60 * 1000);
+  return `${brt.toISOString().slice(0, 10)}T23:59:59`;
+}
+
+const PROMOCAO_PRECO_DESCONTO_DURACAO_DIAS = 30;
+
+/** Cria uma promoção `PRICE_DISCOUNT` de verdade no item (contrato descoberto testando ao
+ * vivo 2026-09-08 — a doc oficial não é acessível por aqui): diferente de
+ * `mlAtualizarPrecoSeguro` (que só reescreve `price`, sem badge/prazo/"de-por"), isso
+ * inscreve o item numa promoção real — o ML passa a mostrar `original_price` riscado e o
+ * preço novo como oferta, com prazo. Duração fixa de 30 dias a partir de agora (sem pedido
+ * específico de prazo diferente ainda). */
+export async function mlCriarPromocaoPrecoDesconto(
+  itemId: string,
+  precoPromocional: number,
+  ctx: MercadoLivreAuthContext
+): Promise<{ ok: true; offerId: string } | { ok: false; erro: string }> {
+  const agora = new Date();
+  const fim = new Date(agora.getTime() + PROMOCAO_PRECO_DESCONTO_DURACAO_DIAS * 24 * 60 * 60 * 1000);
+  const res = await fetch(`${ML_API_BASE}/seller-promotions/items/${itemId}?app_version=v2`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ctx.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      promotion_type: "PRICE_DISCOUNT",
+      deal_price: Math.round(precoPromocional * 100) / 100,
+      start_date: dataLocalBrasilISO(agora),
+      finish_date: dataLocalBrasilFimDoDia(fim),
+    }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    offer_id?: string;
+    message?: string;
+    error?: string;
+    cause?: { error_code?: string; error_message?: string }[];
+  };
+  if (!res.ok) {
+    const causa = json.cause?.map((c) => c.error_message ?? c.error_code).filter(Boolean).join("; ");
+    return { ok: false, erro: causa || json.message || json.error || `HTTP ${res.status}` };
+  }
+  return { ok: true, offerId: json.offer_id ?? "" };
+}
+
+/** Container recorrente de Oferta Relâmpago da conta — confirmado ao vivo (2026-08-31 e
+ * 2026-09-16) que é sempre esse ID fixo (`LGH-MLB1000`), não muda por campanha. */
+const LIGHTNING_DEAL_ID = "LGH-MLB1000";
+
+export type MercadoLivreLightningCandidato = {
+  id: string;
+  dealId: string;
+  price: number;
+  originalPrice: number;
+  stockMax: number;
+};
+
+/** Itens que o ML selecionou automaticamente como candidatos à oferta relâmpago recorrente
+ * da conta, ainda não decididos (`status: "candidate"` — os já aceitos viram `OFFER-...` e
+ * somem daqui). Preço é sugerido pelo próprio ML, o seller só pode aceitar ou ignorar, não
+ * escolher outro valor (achado 2026-08-31, ver memória de projeto). */
+export async function mlBuscarCandidatosLightning(ctx: MercadoLivreAuthContext): Promise<MercadoLivreLightningCandidato[]> {
+  const candidatos = new Map<string, MercadoLivreLightningCandidato>();
+  let offset = 0;
+  for (let pagina = 0; pagina < 20; pagina++) {
+    const json = await mlGet<{
+      results?: Array<{ id: string; status?: string; price?: number; original_price?: number; stock?: { max?: number } }>;
+    }>(
+      `/seller-promotions/promotions/${LIGHTNING_DEAL_ID}/items?app_version=v2&promotion_type=LIGHTNING&limit=50&offset=${offset}`,
+      ctx.accessToken
+    );
+    const results = json?.results ?? [];
+    for (const r of results) {
+      if (r.status !== "candidate" || !r.price || !r.original_price) continue;
+      candidatos.set(r.id, {
+        id: r.id,
+        dealId: LIGHTNING_DEAL_ID,
+        price: r.price,
+        originalPrice: r.original_price,
+        stockMax: r.stock?.max ?? 0,
+      });
+    }
+    if (results.length < 50) break;
+    offset += 50;
+  }
+  return Array.from(candidatos.values());
+}
+
+/** Aceita um candidato de oferta relâmpago de verdade — escrita real confirmada ao vivo
+ * (2026-09-16, ver docs/SCHEMA.md): contrato só foi achado via doc pública (não testado por
+ * tentativa-e-erro como os outros — a doc oficial do Mercado Livre bate certo aqui). Preço
+ * não é negociável pelo seller, é sempre o `dealPrice` que o próprio ML já sugeriu no
+ * candidato. Não existe endpoint de "recusar" documentado — recusar é só não aceitar (item
+ * some da lista sozinho quando a janela do candidato expira). */
+export async function mlAceitarCandidatoLightning(
+  itemId: string,
+  dealId: string,
+  dealPrice: number,
+  originalPrice: number,
+  stock: number,
+  ctx: MercadoLivreAuthContext
+): Promise<{ ok: true; offerId: string } | { ok: false; erro: string }> {
+  const res = await fetch(`${ML_API_BASE}/seller-promotions/items/${itemId}?app_version=v2`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ctx.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      deal_id: dealId,
+      original_price: originalPrice,
+      deal_price: dealPrice,
+      promotion_type: "LIGHTNING",
+      stock,
+    }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    offer_id?: string;
+    message?: string;
+    error?: string;
+    cause?: { error_code?: string; error_message?: string }[];
+  };
+  if (!res.ok) {
+    const causa = json.cause?.map((c) => c.error_message ?? c.error_code).filter(Boolean).join("; ");
+    return { ok: false, erro: causa || json.message || json.error || `HTTP ${res.status}` };
+  }
+  return { ok: true, offerId: json.offer_id ?? "" };
 }
 
 /** Checagem mínima de dono, pra ações que não precisam do estado completo de título (ex.

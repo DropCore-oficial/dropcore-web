@@ -6,10 +6,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { enriquecerResultadoRuptura } from "./gestorRupturaFulfillmentDados";
 import { enriquecerResultadoAnunciosSeo } from "./gestorAnunciosSeoDados";
-import { enriquecerResultadoReputacaoAtendimento } from "./gestorReputacaoAtendimentoDados";
-import { enriquecerResultadoAds } from "./gestorAdsDados";
 import { notificarSellerGestorConcluido } from "./gestorNotificacao";
 import type { GestorId } from "./gestorPrompts";
 import { customIdGestorSeller } from "./gestorBatchSubmit";
@@ -66,18 +63,8 @@ export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBa
         let resultado = parsed.resultado;
         const erroMensagem = parsed.erroMensagem;
 
-        // Enriquecimento pós-IA (código puro, não gasta token) — dias até ruptura, pedido
-        // aguardando estoque, fornecedor e comparação com a rodada anterior por gestor.
-        if (!erroMensagem && resultado && linha.gestor === "estoque_fulfillment") {
-          try {
-            resultado = await enriquecerResultadoRuptura(
-              linha.seller_id,
-              resultado as Parameters<typeof enriquecerResultadoRuptura>[1]
-            );
-          } catch (e) {
-            console.error("[gestorBatchResultado] enriquecimento ruptura falhou", e);
-          }
-        }
+        // "estoque_fulfillment" e "ads" não entram mais aqui — deixaram de chamar a
+        // Anthropic (2026-09-07), nunca são submetidos em `gestorBatchSubmit.ts`.
         if (!erroMensagem && resultado && linha.gestor === "anuncios_seo") {
           try {
             resultado = await enriquecerResultadoAnunciosSeo(
@@ -88,26 +75,8 @@ export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBa
             console.error("[gestorBatchResultado] enriquecimento anúncios falhou", e);
           }
         }
-        if (!erroMensagem && resultado && linha.gestor === "reputacao") {
-          try {
-            resultado = await enriquecerResultadoReputacaoAtendimento(
-              linha.seller_id,
-              resultado as Parameters<typeof enriquecerResultadoReputacaoAtendimento>[1]
-            );
-          } catch (e) {
-            console.error("[gestorBatchResultado] enriquecimento reputação falhou", e);
-          }
-        }
-        if (!erroMensagem && resultado && linha.gestor === "ads") {
-          try {
-            resultado = await enriquecerResultadoAds(
-              linha.seller_id,
-              resultado as Parameters<typeof enriquecerResultadoAds>[1]
-            );
-          } catch (e) {
-            console.error("[gestorBatchResultado] enriquecimento ads falhou", e);
-          }
-        }
+        // "reputacao" também não entra mais aqui (2026-09-07) — diagnóstico é código puro e
+        // a resposta a pergunta é síncrona, ver `montarResultadoReputacao`.
 
         await supabaseAdmin
           .from("seller_ai_runs")
