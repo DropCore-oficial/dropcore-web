@@ -75,6 +75,23 @@ type Kpis = {
   pedidos_atencao?: number;
 };
 
+/** Formato devolvido por fn_seller_dashboard_analytics_30d (RPC, sem cap de linha) —
+ * substitui o cálculo em JS que reduzia só as 200 linhas mais recentes do extrato. */
+type Analytics30dApi = {
+  pedidos_30d: number;
+  custo_30d: number;
+  receita_30d: number;
+  lucro_30d: number;
+  margem_30d_pct: number | null;
+  ticket_medio_30d: number | null;
+  tem_dados_venda: boolean;
+  top_produto: Array<{ nome: string; vendas: number }>;
+  vendas_por_dia: Array<{ dia: string; receita: number; custo: number; count: number }>;
+  por_canal: Array<{ canal: string; receita: number; lucro: number }>;
+  pedidos_mes: number;
+  volume_mes: number;
+};
+
 type SaldoAlerta = {
   nivel: "ok" | "atencao" | "critico";
   saldo_disponivel: number;
@@ -329,6 +346,7 @@ export default function SellerDashboardPage() {
   const [planoEscolhaErro, setPlanoEscolhaErro] = useState<string | null>(null);
   const [kpis, setKpis] = useState<Kpis | null>(null);
   const [saldoAlerta, setSaldoAlerta] = useState<SaldoAlerta | null>(null);
+  const [analytics30dApi, setAnalytics30dApi] = useState<Analytics30dApi | null>(null);
   const [vinculoFornecedor, setVinculoFornecedor] = useState<VinculoFornecedor | null>(null);
   const [extrato, setExtrato] = useState<LedgerEntry[]>([]);
   const [depositos, setDepositos] = useState<Deposito[]>([]);
@@ -407,6 +425,7 @@ export default function SellerDashboardPage() {
       setSeller(json.seller);
       setPlanoPrecos(json.plano_precos_mensalidade ?? null);
       setKpis(json.kpis ?? null);
+      setAnalytics30dApi(json.analytics_30d ?? null);
       setSaldoAlerta(json.saldo_alerta ?? null);
       setVinculoFornecedor(json.vinculo_fornecedor ?? null);
       // Deduplica extrato por id
@@ -803,9 +822,41 @@ export default function SellerDashboardPage() {
   const extratoAgrupado = groupByDate(extratoPagina);
   const previewExtrato = extrato.slice(0, 3);
 
-  // Analytics Pro — calculado a partir do extrato (últimos 30 dias)
+  // Analytics Pro — vem de fn_seller_dashboard_analytics_30d (agregação no Postgres, sem
+  // cap de linha). Fallback pro cálculo antigo em cima do extrato (capado em 200) só se a
+  // RPC falhar por algum motivo — achado ao vivo 2026-09-22: acima de 200 lançamentos no
+  // período, o cálculo em JS subcontava tudo silenciosamente.
   const analytics30d = (() => {
     if (!isPro) return null;
+    if (analytics30dApi) {
+      const dias: Record<string, { receita: number; custo: number }> = {};
+      const agoraChart = new Date();
+      for (let i = 13; i >= 0; i--) {
+        const d = new Date(agoraChart.getTime() - i * 24 * 60 * 60 * 1000);
+        dias[d.toISOString().slice(0, 10)] = { receita: 0, custo: 0 };
+      }
+      for (const v of analytics30dApi.vendas_por_dia) {
+        if (v.dia in dias) dias[v.dia] = { receita: v.receita, custo: v.custo };
+      }
+      const topProdutoApi = analytics30dApi.top_produto[0] ?? null;
+      return {
+        pedidos: analytics30dApi.pedidos_30d,
+        custoTotal: analytics30dApi.custo_30d,
+        receitaTotal: analytics30dApi.receita_30d,
+        lucroTotal: analytics30dApi.lucro_30d,
+        margemMedia: analytics30dApi.margem_30d_pct,
+        ticketMedioVenda: analytics30dApi.ticket_medio_30d,
+        vendasPorDia: Object.entries(dias),
+        topProduto: topProdutoApi ? { nome: topProdutoApi.nome, count: topProdutoApi.vendas } : null,
+        porCanal: analytics30dApi.por_canal.map((c) => ({
+          canal: c.canal,
+          receita: c.receita,
+          lucro: c.lucro,
+          margem: c.receita > 0 ? (c.lucro / c.receita) * 100 : null,
+        })),
+        temDadosVenda: analytics30dApi.tem_dados_venda,
+      };
+    }
     const agora = new Date();
     const inicio30d = new Date(agora.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const pedidos30d = extrato.filter(

@@ -419,6 +419,29 @@ pra cron 1x/dia, não é rota user-facing). **Limpeza de `cron.job_run_details` 
 decidida** — precisa de política de retenção (ex: apagar linha com mais de N dias), mesmo
 padrão do cron `dropcore-cleanup-net-http-response` já existente.
 
+## `fn_seller_dashboard_analytics_30d` — analytics do dashboard do seller sem cap de linha (2026-09-22)
+
+Função `SECURITY DEFINER` (só `service_role`, `REVOKE ALL FROM PUBLIC`,
+`web/scripts/add-seller-dashboard-analytics-rpc.sql`) que agrega direto em `pedidos`
+(`SUM`/`COUNT`/`GROUP BY`, sem limite de linha) pra alimentar o card "Lucro"/"Receita"/
+"Margem" e os KPIs de mês calendário do dashboard do seller (`GET /api/seller/me`).
+
+**Achado ao vivo**: o extrato (`financial_ledger`) que alimentava `GET /api/seller/me` é
+buscado com `.limit(200)` (linha 108) — cap correto pra lista visual "Extrato recente",
+mas o cálculo antigo de analytics (`analytics30d`, `pedidosMes`/`totalMes`,
+`custoMedioPedidosRecentes`) reduzia esse MESMO array de 200 linhas em JavaScript no
+front. Qualquer seller com mais de 200 lançamentos no período (ex.: import em lote, ou
+seller de alto volume de verdade) tinha Lucro/Receita/Pedidos(mês) subcontados
+silenciosamente, sem erro nenhum. Confirmado testando com 683 pedidos importados (seller
+de teste): dashboard mostrava R$4.352,38 de lucro quando o real era R$13.444,56.
+
+`GET /api/seller/me` agora chama a RPC (`analytics_30d` na resposta) e usa o resultado
+pra: analytics de 30 dias corridos, KPIs de mês calendário (`kpis.pedidos_mes`/
+`kpis.total_mes`) e a média de custo por pedido usada em `saldo_alerta` (quantos pedidos
+o saldo ainda cobre). O extrato capado em 200 linhas continua existindo só pra lista
+visual — não alimenta mais nenhuma conta agregada. Fallback pro cálculo antigo em JS
+existe só pro caso raro da RPC falhar (rede/erro), não é o caminho normal.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

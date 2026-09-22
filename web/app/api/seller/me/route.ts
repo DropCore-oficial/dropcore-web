@@ -105,7 +105,11 @@ export async function GET(req: Request) {
       liberado_antecipado: fornecedor_desvinculo_liberado,
     };
 
-    // Extrato recente (últimas 200 movimentações do ledger — necessário para gráfico de 120 dias)
+    // Extrato recente (últimas 200 movimentações do ledger — só pra lista visual "Extrato
+    // recente"; analytics/KPIs usam fn_seller_dashboard_analytics_30d abaixo, que agrega
+    // direto em pedidos sem cap de linha — achado ao vivo 2026-09-22: seller com mais de
+    // 200 lançamentos no período tinha Lucro/Receita/Pedidos(mês) subcontados porque a
+    // conta antiga somava só essas 200 linhas mais recentes em JS).
     const { data: extrato } = await supabaseAdmin
       .from("financial_ledger")
       .select("id, tipo, fornecedor_id, valor_total, status, data_evento, referencia, pedido_id")
@@ -113,6 +117,13 @@ export async function GET(req: Request) {
       .eq("seller_id", seller.id)
       .order("data_evento", { ascending: false })
       .limit(200);
+
+    const { data: analyticsRaw, error: analyticsErr } = await supabaseAdmin.rpc("fn_seller_dashboard_analytics_30d", {
+      p_seller_id: seller.id,
+      p_org_id: seller.org_id,
+    });
+    if (analyticsErr) console.error("[seller/me] fn_seller_dashboard_analytics_30d:", analyticsErr.message);
+    const analytics_30d = analyticsErr ? null : analyticsRaw;
 
     // Enriquecer extrato com nome do fornecedor
     const fornIds = [...new Set((extrato ?? []).map((e) => e.fornecedor_id).filter(Boolean))] as string[];
@@ -191,35 +202,30 @@ export async function GET(req: Request) {
      */
     const saldoDisponivel = Math.max(0, Number(seller.saldo_atual ?? 0));
 
-    /** Custo médio por pedido (BLOQUEIO/VENDA) para estimar quantos pedidos o saldo ainda cobre. */
-    function custoMedioPedidosRecentes(dias: number): { media: number | null; amostra: number } {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - dias);
-      cutoff.setHours(0, 0, 0, 0);
-      const cutoffIso = cutoff.toISOString();
+    /** Custo médio por pedido (BLOQUEIO/VENDA) para estimar quantos pedidos o saldo ainda cobre.
+     * Fallback só entra em cena se a RPC de analytics falhar — o extrato capado em 200 linhas
+     * ainda serve de aproximação razoável nesse caso raro. */
+    function custoMedioPedidosRecentesFallback(): { media: number | null; amostra: number } {
       const linhas = extratoEnriquecido.filter(
-        (e) =>
-          (e.tipo === "BLOQUEIO" || e.tipo === "VENDA") &&
-          String(e.status).toUpperCase() !== "CANCELADO" &&
-          typeof e.data_evento === "string" &&
-          e.data_evento >= cutoffIso
+        (e) => (e.tipo === "BLOQUEIO" || e.tipo === "VENDA") && String(e.status).toUpperCase() !== "CANCELADO"
       );
       if (linhas.length === 0) return { media: null, amostra: 0 };
       const soma = linhas.reduce((s, e) => s + (Number.isFinite(e.valor_total) ? e.valor_total : 0), 0);
       return { media: soma / linhas.length, amostra: linhas.length };
     }
 
-    let { media: custoMedioPedido, amostra: amostraPedidos } = custoMedioPedidosRecentes(30);
-    if (custoMedioPedido == null || amostraPedidos === 0) {
-      const fallback = extratoEnriquecido.filter(
-        (e) =>
-          (e.tipo === "BLOQUEIO" || e.tipo === "VENDA") && String(e.status).toUpperCase() !== "CANCELADO"
-      );
-      if (fallback.length > 0) {
-        const soma = fallback.reduce((s, e) => s + (Number.isFinite(e.valor_total) ? e.valor_total : 0), 0);
-        custoMedioPedido = soma / fallback.length;
-        amostraPedidos = fallback.length;
-      }
+    const analyticsPedidos30d = typeof analytics_30d?.pedidos_30d === "number" ? analytics_30d.pedidos_30d : null;
+    const analyticsCusto30d = typeof analytics_30d?.custo_30d === "number" ? analytics_30d.custo_30d : null;
+
+    let custoMedioPedido: number | null;
+    let amostraPedidos: number;
+    if (analyticsPedidos30d != null && analyticsPedidos30d > 0 && analyticsCusto30d != null) {
+      custoMedioPedido = analyticsCusto30d / analyticsPedidos30d;
+      amostraPedidos = analyticsPedidos30d;
+    } else {
+      const fallback = custoMedioPedidosRecentesFallback();
+      custoMedioPedido = fallback.media;
+      amostraPedidos = fallback.amostra;
     }
 
     const pedidosEstimados =
@@ -242,13 +248,21 @@ export async function GET(req: Request) {
       pedidos_estimados: pedidosEstimados,
     };
 
-    // KPIs do mês atual
-    const now = new Date();
-    const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    const pedidosMes = extratoEnriquecido.filter(
-      (e) => (e.tipo === "BLOQUEIO" || e.tipo === "VENDA") && e.data_evento >= inicioMes && e.status !== "CANCELADO"
-    );
-    const totalMes = pedidosMes.reduce((s, e) => s + e.valor_total, 0);
+    // KPIs do mês atual — vem da RPC (sem cap de linha); cai pro extrato capado só se a RPC falhar.
+    let pedidosMesCount: number;
+    let totalMes: number;
+    if (typeof analytics_30d?.pedidos_mes === "number" && typeof analytics_30d?.volume_mes === "number") {
+      pedidosMesCount = analytics_30d.pedidos_mes;
+      totalMes = analytics_30d.volume_mes;
+    } else {
+      const now = new Date();
+      const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const pedidosMesFallback = extratoEnriquecido.filter(
+        (e) => (e.tipo === "BLOQUEIO" || e.tipo === "VENDA") && e.data_evento >= inicioMes && e.status !== "CANCELADO"
+      );
+      pedidosMesCount = pedidosMesFallback.length;
+      totalMes = pedidosMesFallback.reduce((s, e) => s + e.valor_total, 0);
+    }
 
     // Depósitos PIX recentes
     const { data: depositos } = await supabaseAdmin
@@ -313,12 +327,13 @@ export async function GET(req: Request) {
         logo_url,
       },
       kpis: {
-        pedidos_mes: pedidosMes.length,
+        pedidos_mes: pedidosMesCount,
         total_mes: totalMes,
         pedidos_atencao: pedidosAtencaoCount ?? 0,
       },
       saldo_alerta: saldo_alerta,
       vinculo_fornecedor: vinculo_fornecedor,
+      analytics_30d,
       extrato: extratoEnriquecido,
       depositos: depositos ?? [],
       credito_resumo,
