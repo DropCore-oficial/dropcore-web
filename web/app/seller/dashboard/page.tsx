@@ -1456,12 +1456,17 @@ export default function SellerDashboardPage() {
             ) : (
               <>
                 <div className="flex items-end gap-1 h-32 relative">
-                  {chartData.map((d) => {
+                  {chartData.map((d, idx) => {
                     const periodLabel = d.dia?.length >= 10 ? `${d.dia.slice(8)}/${d.dia.slice(5, 7)}` : d.dia;
                     const count = (d as { count?: number }).count ?? 0;
                     const ticketMedio = count > 0 ? d.valor / count : null;
                     const barMaxH = 96;
                     const barH = d.valor > 0 ? Math.max(20, (d.valor / chartMax) * barMaxH) : 4;
+                    // Achado ao vivo 2026-09-22: tooltip centralizado na barra estoura a borda
+                    // direita da tela pras últimas barras (ex. "hoje", sempre a mais à
+                    // direita) — mais visível agora que os números ficaram maiores (fix do
+                    // cap de 200). Ancora pela direita nas 2 últimas barras em vez de centralizar.
+                    const pertoDaBordaDireita = idx >= chartData.length - 2;
                     return (
                       <div
                         key={d.dia}
@@ -1475,7 +1480,12 @@ export default function SellerDashboardPage() {
                           title={`${periodLabel}: ${BRL.format(d.valor)}${count ? ` · ${count} pedidos` : ""}`}
                         />
                         {chartTooltipHover?.dia === d.dia && (
-                          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+                          <div
+                            className={cn(
+                              "absolute bottom-full mb-2 z-20 pointer-events-none",
+                              pertoDaBordaDireita ? "right-0" : "left-1/2 -translate-x-1/2"
+                            )}
+                          >
                             <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-xl py-3 px-4 min-w-[180px]">
                               <p className="text-xs font-semibold text-[var(--foreground)] mb-2.5">{periodLabel}</p>
                               <div className="space-y-1.5 text-xs">
@@ -1498,7 +1508,12 @@ export default function SellerDashboardPage() {
                                   </>
                                 )}
                               </div>
-                              <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 border-r border-b border-[var(--card-border)] bg-[var(--card)]" />
+                              <div
+                                className={cn(
+                                  "absolute -bottom-1.5 w-3 h-3 rotate-45 border-r border-b border-[var(--card-border)] bg-[var(--card)]",
+                                  pertoDaBordaDireita ? "right-4" : "left-1/2 -translate-x-1/2"
+                                )}
+                              />
                             </div>
                           </div>
                         )}
