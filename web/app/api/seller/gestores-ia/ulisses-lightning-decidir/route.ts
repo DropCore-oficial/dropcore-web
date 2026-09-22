@@ -1,9 +1,13 @@
 /**
  * POST /api/seller/gestores-ia/ulisses-lightning-decidir — aceita ou recusa candidato(s) de
- * Oferta Relâmpago (Lightning) de verdade no Mercado Livre. Preço não é editável pelo seller
- * aqui (diferente de ulisses-aplicar-promocao-lote) — o ML já sugeriu o valor, a única
- * decisão é binária. "Recusar" não tem chamada de API (não existe endpoint de recusa
- * documentado, ver mercadoLivreApiClient.ts) — só marca a decisão pra auditoria/histórico.
+ * Oferta Relâmpago (Lightning) de verdade no Mercado Livre. Preço é editável (corrigido
+ * 2026-09-20 — a tela do próprio ML também deixa editar antes de confirmar): aceita um
+ * `preco_escolhido` opcional por item, mas sempre recalcula/limita no servidor contra a
+ * faixa [min, max] que o ML reporta pro item (nunca confia no valor que o front manda) —
+ * quando não vem `preco_escolhido`, usa o `precoRecomendado` que o Ulisses já calculou
+ * (mais raso possível dentro da faixa, protegendo a margem). "Recusar" não tem chamada de
+ * API (não existe endpoint de recusa documentado, ver mercadoLivreApiClient.ts) — só marca
+ * a decisão pra auditoria/histórico.
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -12,7 +16,7 @@ import { gestoresIaSellerPermitido } from "@/lib/ai/gestoresIaAcesso";
 import { isPro } from "@/lib/planos";
 import { getRequestIp } from "@/lib/requestIp";
 import { getValidMercadoLivreAccessToken, mlBuscarItemTituloEstado, mlAceitarCandidatoLightning } from "@/lib/mercadoLivreApiClient";
-import { buscarCandidatosLightningComMargem } from "@/lib/ai/gestorLightningDados";
+import { buscarCandidatosLightningComMargem, calcularMargemLightningEm, limitarPrecoLightning } from "@/lib/ai/gestorLightningDados";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,10 +64,12 @@ export async function POST(req: Request) {
     item_ids?: string[];
     acao?: string;
     confirmar_abaixo_minimo?: boolean;
+    precos?: Record<string, number>;
   };
   const itemIds = Array.isArray(body.item_ids) ? body.item_ids.map((id) => id.trim()).filter(Boolean) : [];
   const acao = body.acao === "aceitar" || body.acao === "recusar" ? body.acao : null;
   const confirmarAbaixoMinimo = body.confirmar_abaixo_minimo === true;
+  const precosEscolhidos = body.precos && typeof body.precos === "object" ? body.precos : {};
   if (itemIds.length === 0 || !acao) {
     return NextResponse.json({ error: "item_ids (lista) e acao ('aceitar'|'recusar') são obrigatórios." }, { status: 400 });
   }
@@ -111,10 +117,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Conecte o Mercado Livre pra decidir sobre o candidato." }, { status: 422 });
   }
 
-  const itensAbaixoMinimo = itemIds
-    .map((itemId) => candidatoPorItemId.get(itemId))
-    .filter((c): c is NonNullable<typeof c> => c != null && c.margemResultantePct < c.margemMinimaPct)
-    .map((c) => ({ item_id: c.itemId, margem_resultante_pct: c.margemResultantePct, margem_minima_pct: c.margemMinimaPct }));
+  // Preço escolhido por item: o que veio do front, limitado à faixa real do ML — nunca
+  // confia no valor cru do front, só usa como "intenção" e recalcula em cima da faixa e da
+  // margem buscadas agora mesmo no servidor. Sem valor do front, cai pro precoRecomendado.
+  const decididos = itemIds
+    .map((itemId) => {
+      const candidato = candidatoPorItemId.get(itemId);
+      if (!candidato) return null;
+      const desejado = precosEscolhidos[itemId];
+      const precoEscolhido = limitarPrecoLightning(
+        typeof desejado === "number" && Number.isFinite(desejado) ? desejado : candidato.precoRecomendado,
+        candidato.faixaMl,
+        candidato.precoOriginal,
+        candidato.precoSugeridoMl
+      );
+      const margemNoPreco = calcularMargemLightningEm(candidato, precoEscolhido);
+      return { itemId, candidato, precoEscolhido, margemNoPreco };
+    })
+    .filter((d): d is NonNullable<typeof d> => d != null);
+
+  const itensAbaixoMinimo = decididos
+    .filter((d) => d.margemNoPreco < d.candidato.margemMinimaPct)
+    .map((d) => ({ item_id: d.itemId, margem_resultante_pct: d.margemNoPreco, margem_minima_pct: d.candidato.margemMinimaPct }));
 
   if (itensAbaixoMinimo.length > 0 && !confirmarAbaixoMinimo) {
     return NextResponse.json(
@@ -127,14 +151,16 @@ export async function POST(req: Request) {
     );
   }
 
+  const decididoPorItemId = new Map(decididos.map((d) => [d.itemId, d]));
   const resultados: { item_id: string; ok: boolean; erro?: string }[] = [];
 
   for (const itemId of itemIds) {
-    const candidato = candidatoPorItemId.get(itemId);
-    if (!candidato) {
+    const decidido = decididoPorItemId.get(itemId);
+    if (!decidido) {
       resultados.push({ item_id: itemId, ok: false, erro: "Candidato não encontrado (pode já ter expirado ou sido decidido)." });
       continue;
     }
+    const { candidato, precoEscolhido, margemNoPreco } = decidido;
 
     const estado = await mlBuscarItemTituloEstado(itemId, ctx);
     if (!estado || String(estado.seller_id) !== ctx.mlUserId) {
@@ -145,7 +171,7 @@ export async function POST(req: Request) {
     const resultadoAceite = await mlAceitarCandidatoLightning(
       itemId,
       candidato.dealId,
-      candidato.precoSugerido,
+      precoEscolhido,
       candidato.precoOriginal,
       candidato.estoqueMax,
       ctx
@@ -160,7 +186,7 @@ export async function POST(req: Request) {
         itemId,
         acao: "lightning_aceitar",
         status: "erro",
-        detalhes: { erro: resultadoAceite.erro, preco_sugerido: candidato.precoSugerido, lote: true },
+        detalhes: { erro: resultadoAceite.erro, preco_escolhido: precoEscolhido, preco_sugerido_ml: candidato.precoSugeridoMl, lote: true },
       });
       continue;
     }
@@ -175,10 +201,11 @@ export async function POST(req: Request) {
       acao: "lightning_aceitar",
       status: "executado",
       detalhes: {
-        preco_sugerido: candidato.precoSugerido,
-        margem_resultante_pct: candidato.margemResultantePct,
+        preco_escolhido: precoEscolhido,
+        preco_sugerido_ml: candidato.precoSugeridoMl,
+        margem_resultante_pct: margemNoPreco,
         margem_minima_pct: candidato.margemMinimaPct,
-        furou_minimo: candidato.margemResultantePct < candidato.margemMinimaPct,
+        furou_minimo: margemNoPreco < candidato.margemMinimaPct,
         offer_id: resultadoAceite.offerId,
         lote: true,
       },

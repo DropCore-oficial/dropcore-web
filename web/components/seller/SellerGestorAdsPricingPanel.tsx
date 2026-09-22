@@ -3,8 +3,14 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { SellerGestorRunShell, type SellerAiRun, type DispararRodada } from "./SellerGestorRunShell";
-import { mlItemPermalink, mlCampanhaAdsPermalink, mlPromocaoItemPermalink } from "@/lib/mercadoLivreApiClient";
+import {
+  mlItemPermalink,
+  mlCampanhaAdsPermalink,
+  mlPromocaoItemPermalink,
+  mlPublicidadeHubPermalink,
+} from "@/lib/mercadoLivreApiClient";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { HelpBubble } from "@/components/HelpBubble";
 
 type Diagnostico = "margem_abaixo_minima" | "margem_saudavel" | "margem_acima_maxima";
 
@@ -35,11 +41,20 @@ type SkuResultado = {
   diagnostico: Diagnostico;
   recomendacao: string;
   observacao: string;
+  sugestao_primeira_campanha: string | null;
   sinalizado_rodada_anterior: boolean;
   family_id: string | null;
 };
 
-type DiagnosticoCampanha = "sem_conversao" | "acima_da_meta" | "performando_bem" | "dentro_da_meta";
+type DiagnosticoCampanha =
+  | "pausada"
+  | "sem_tracao_atencao"
+  | "sem_tracao_recriar"
+  | "sem_conversao"
+  | "acima_da_meta"
+  | "validada_travar"
+  | "performando_bem"
+  | "dentro_da_meta";
 
 type CampanhaResultado = {
   id: number;
@@ -67,15 +82,23 @@ export type AdsPricingResultado = {
 };
 
 const CAMPANHA_DIAGNOSTICO_BADGE: Record<DiagnosticoCampanha, string> = {
+  pausada: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400",
+  sem_tracao_atencao: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+  sem_tracao_recriar: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   sem_conversao: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   acima_da_meta: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+  validada_travar: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
   performando_bem: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
   dentro_da_meta: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800/60 dark:text-neutral-300",
 };
 
 const CAMPANHA_DIAGNOSTICO_LABEL: Record<DiagnosticoCampanha, string> = {
+  pausada: "Pausada",
+  sem_tracao_atencao: "Sem tração — atenção",
+  sem_tracao_recriar: "Sem tração — recriar",
   sem_conversao: "Gastando sem converter",
   acima_da_meta: "ACOS acima da meta",
+  validada_travar: "Validada de vez",
   performando_bem: "Performando bem — oportunidade",
   dentro_da_meta: "Dentro da meta",
 };
@@ -132,6 +155,54 @@ function CampanhaCard({ c }: { c: CampanhaResultado }) {
           className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
         >
           Ver campanha ↗
+        </a>
+        {c.diagnostico === "sem_tracao_recriar" || c.diagnostico === "pausada" ? (
+          <a
+            href={mlPublicidadeHubPermalink()}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
+          >
+            Criar campanha nova ↗
+          </a>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+/** Anúncio sem nenhuma campanha de Ads ainda (mesmo grupo de dados que alimenta
+ * `classificarSkuAds`, mas fora do agrupamento por margem — pedido do Sr Stark 2026-09-21:
+ * "sempre que estiver sem campanha, pode sugerir"). Só renderiza quando o backend já decidiu
+ * que faz sentido sugerir (`sugestao_primeira_campanha` não nulo) — nunca junto de margem
+ * abaixo do mínimo nem sem o seller ter ligado Ads nas preferências. */
+function SemCampanhaCard({ item }: { item: SkuResultado }) {
+  return (
+    <article className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="font-medium text-[var(--foreground)]">{item.nome_produto}</p>
+        <span className="inline-flex w-[9rem] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-neutral-100 px-2 py-1 text-[11px] font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+          Sem campanha
+        </span>
+      </div>
+      <p className="mt-3 text-sm text-[var(--foreground)]">{item.sugestao_primeira_campanha}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <a
+          href={item.permalink ?? mlItemPermalink(item.item_id)}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+        >
+          Ver anúncio ↗
+        </a>
+        <a
+          href={mlPublicidadeHubPermalink()}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
+        >
+          Criar campanha nova ↗
         </a>
       </div>
     </article>
@@ -459,7 +530,10 @@ type LightningCandidato = {
   custo: number;
   frete_real: number | null;
   preco_original: number;
-  preco_sugerido: number;
+  preco_sugerido_ml: number;
+  preco_recomendado: number;
+  faixa_ml: { min: number; max: number } | null;
+  editavel: boolean;
   estoque_max: number;
   margem_resultante_pct: number;
   margem_minima_pct: number;
@@ -470,7 +544,8 @@ type LightningCandidato = {
 async function decidirLightning(
   itemIds: string[],
   acao: "aceitar" | "recusar",
-  confirmarAbaixoMinimo: boolean
+  confirmarAbaixoMinimo: boolean,
+  precos?: Record<string, number>
 ): Promise<{ ok: boolean; error?: string; requerConfirmacao?: boolean; resultados?: { item_id: string; ok: boolean; erro?: string }[] }> {
   const {
     data: { session },
@@ -479,7 +554,7 @@ async function decidirLightning(
   const res = await fetch("/api/seller/gestores-ia/ulisses-lightning-decidir", {
     method: "POST",
     headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ item_ids: itemIds, acao, confirmar_abaixo_minimo: confirmarAbaixoMinimo }),
+    body: JSON.stringify({ item_ids: itemIds, acao, confirmar_abaixo_minimo: confirmarAbaixoMinimo, precos }),
   });
   const json = (await res.json().catch(() => ({}))) as {
     ok?: boolean;
@@ -495,8 +570,10 @@ async function decidirLightning(
 
 type LightningEstado = "idle" | "confirmando" | "enviando" | "erro";
 
-/** Linha de 1 candidato de Oferta Relâmpago — preço não é editável (o ML já sugeriu, só dá
- * pra aceitar ou recusar), diferente das outras promoções do Ulisses. */
+/** Linha de 1 candidato de Oferta Relâmpago. Quando o ML reporta faixa pro item (`editavel`),
+ * o Ulisses já vem com o desconto mais raso (menor) dentro dela que ainda protege sua margem
+ * — pré-preenchido no campo, mas ajustável antes de aceitar (corrigido 2026-09-20: a tela do
+ * próprio ML também deixa editar o valor/% antes de confirmar, não é fixo). */
 function LightningCandidatoCard({
   c,
   onDecidido,
@@ -506,12 +583,13 @@ function LightningCandidatoCard({
 }) {
   const [estado, setEstado] = useState<LightningEstado>("idle");
   const [mensagem, setMensagem] = useState<string | null>(null);
+  const [preco, setPreco] = useState(c.preco_recomendado);
   const furaMinimo = c.recomendacao === "recusar";
-  const descontoPct = ((c.preco_original - c.preco_sugerido) / c.preco_original) * 100;
+  const descontoPct = ((c.preco_original - preco) / c.preco_original) * 100;
 
   async function decidir(acao: "aceitar" | "recusar", confirmar: boolean) {
     setEstado("enviando");
-    const resultado = await decidirLightning([c.item_id], acao, confirmar);
+    const resultado = await decidirLightning([c.item_id], acao, confirmar, { [c.item_id]: preco });
     if (!resultado.ok) {
       if (resultado.requerConfirmacao) {
         setEstado("confirmando");
@@ -525,7 +603,7 @@ function LightningCandidatoCard({
   }
 
   return (
-    <article className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4">
+    <div className="border-t border-[var(--card-border)] pt-3 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <a
@@ -550,12 +628,46 @@ function LightningCandidatoCard({
           {furaMinimo ? "Fura margem mínima" : "Margem OK"}
         </span>
       </div>
+      {/* Margem exibida (`margem_resultante_pct`) só é válida pro `preco_recomendado` que veio
+          do servidor — cálculo de margem é lógica de negócio, não duplica em JS no front (ver
+          CLAUDE.md). Preço editado manualmente mostra texto neutro em vez de reaproveitar esse
+          número errado (achado 2026-09-22: mostrava sempre a margem do valor original mesmo
+          depois de editar o campo). */}
       <p className="mt-2 text-sm text-[var(--foreground)]">
-        R$ {c.preco_original.toFixed(2)} → <span className="font-medium">R$ {c.preco_sugerido.toFixed(2)}</span> (
-        {descontoPct.toFixed(0)}% off, preço fixado pelo ML) · margem resultante{" "}
-        <span className="font-medium">{c.margem_resultante_pct.toFixed(1)}%</span> (mínima {c.margem_minima_pct}%) ·
-        até {c.estoque_max} un.
+        R$ {c.preco_original.toFixed(2)} → <span className="font-medium">R$ {preco.toFixed(2)}</span> (
+        {descontoPct.toFixed(0)}% off) ·{" "}
+        {preco === c.preco_recomendado ? (
+          <>
+            margem resultante <span className="font-medium">{c.margem_resultante_pct.toFixed(1)}%</span> (mínima{" "}
+            {c.margem_minima_pct}%)
+          </>
+        ) : (
+          <>margem recalculada no servidor ao confirmar (mínima {c.margem_minima_pct}%)</>
+        )}{" "}
+        · até {c.estoque_max} un.
       </p>
+      {c.editavel ? (
+        <div className="mt-2 flex items-center gap-1.5">
+          <span className="text-xs text-[var(--muted)]">Ajustar preço (R$)</span>
+          <input
+            type="number"
+            step="0.01"
+            min={c.faixa_ml?.min ?? 0}
+            max={c.faixa_ml ? Math.min(c.faixa_ml.max, c.preco_original) : c.preco_original}
+            value={Number.isFinite(preco) ? preco : ""}
+            onChange={(e) => setPreco(e.target.valueAsNumber)}
+            disabled={estado === "enviando"}
+            className="w-24 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)]"
+          />
+          {c.faixa_ml ? (
+            <span className="text-[11px] text-[var(--muted)]">
+              faixa do ML: R$ {c.faixa_ml.min.toFixed(2)} – R$ {c.faixa_ml.max.toFixed(2)}
+            </span>
+          ) : null}
+        </div>
+      ) : (
+        <p className="mt-2 text-[11px] text-[var(--muted)]">ML não reportou faixa pra esse item — preço fixo.</p>
+      )}
       {estado === "erro" ? <p className="mt-2 text-xs text-[var(--danger)]">{mensagem}</p> : null}
       {estado === "confirmando" ? (
         <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
@@ -588,14 +700,14 @@ function LightningCandidatoCard({
           <button
             type="button"
             onClick={() => void decidir("aceitar", false)}
-            disabled={estado === "enviando"}
+            disabled={estado === "enviando" || !Number.isFinite(preco) || preco <= 0}
             className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
           >
             {estado === "enviando" ? "Enviando…" : "Aceitar"}
           </button>
         </div>
       )}
-    </article>
+    </div>
   );
 }
 
@@ -617,7 +729,8 @@ function AceitarRecomendadosLoteBotao({
   async function aceitarTodos() {
     setEnviando(true);
     setMensagem(null);
-    const resultado = await decidirLightning(recomendados.map((c) => c.item_id), "aceitar", false);
+    const precos = Object.fromEntries(recomendados.map((c) => [c.item_id, c.preco_recomendado]));
+    const resultado = await decidirLightning(recomendados.map((c) => c.item_id), "aceitar", false, precos);
     setEnviando(false);
     if (!resultado.ok) {
       setMensagem(resultado.error ?? "Erro ao aceitar em lote.");
@@ -646,8 +759,11 @@ function AceitarRecomendadosLoteBotao({
  * busca direto, toda vez que a aba abre, sem custo de IA nem cooldown (ver rota GET). */
 function LightningCandidatosSection() {
   const [candidatos, setCandidatos] = useState<LightningCandidato[] | null>(null);
+  const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [decididos, setDecididos] = useState<Set<string>>(new Set());
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [aberto, setAberto] = useState(false);
 
   useEffect(() => {
     let cancelado = false;
@@ -655,7 +771,10 @@ function LightningCandidatosSection() {
       const {
         data: { session },
       } = await supabaseBrowser.auth.getSession();
-      if (!session?.access_token) return;
+      if (!session?.access_token) {
+        if (!cancelado) setCarregando(false);
+        return;
+      }
       const res = await fetch("/api/seller/gestores-ia/ulisses-lightning-candidatos", {
         headers: { Authorization: `Bearer ${session.access_token}` },
         cache: "no-store",
@@ -664,9 +783,11 @@ function LightningCandidatosSection() {
       if (cancelado) return;
       if (!res.ok) {
         setErro(json.error ?? "Erro ao buscar candidatos de oferta relâmpago.");
+        setCarregando(false);
         return;
       }
       setCandidatos(json.candidatos ?? []);
+      setCarregando(false);
     })();
     return () => {
       cancelado = true;
@@ -675,6 +796,20 @@ function LightningCandidatosSection() {
 
   const marcarDecididos = (itemIds: string[]) => setDecididos((prev) => new Set([...prev, ...itemIds]));
 
+  // Busca real leva vários segundos (uma chamada de frete + faixa de preço por candidato na
+  // API do ML) — sem isso aqui a seção some da tela nesse meio tempo e parece quebrada
+  // (achado testando ao vivo 2026-09-21).
+  if (carregando) {
+    return (
+      <p className="flex items-center gap-2 text-xs text-[var(--muted)]">
+        <span
+          className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-neutral-200 border-t-emerald-500 dark:border-neutral-700 dark:border-t-emerald-400"
+          aria-hidden
+        />
+        Buscando ofertas relâmpago pendentes no Mercado Livre…
+      </p>
+    );
+  }
   if (erro) return null; // silencioso — feature nova, não trava o resto da tela se a API falhar
   if (!candidatos || candidatos.length === 0) return null;
 
@@ -682,18 +817,44 @@ function LightningCandidatosSection() {
   if (visiveis.length === 0) return null;
 
   return (
-    <div className="space-y-2">
+    <article className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-[var(--muted)]">
+        <button
+          type="button"
+          onClick={() => setAberto((v) => !v)}
+          className="flex min-w-0 items-center gap-1.5 text-left text-sm font-medium text-[var(--foreground)]"
+        >
+          <span className={cn("inline-block shrink-0 transition-transform", aberto && "rotate-90")} aria-hidden>
+            ▶
+          </span>
           Oferta Relâmpago — {visiveis.length} candidato{visiveis.length > 1 ? "s" : ""} pendente
-          {visiveis.length > 1 ? "s" : ""} (o Mercado Livre escolhe o item e o preço; você só decide aceitar ou não)
-        </p>
-        <AceitarRecomendadosLoteBotao candidatos={visiveis} onDecididos={marcarDecididos} />
+          {visiveis.length > 1 ? "s" : ""}
+        </button>
+        <div className="flex items-center gap-3">
+          <HelpBubble
+            ariaLabel="Como funciona a Oferta Relâmpago com o Ulisses"
+            open={helpOpen}
+            onOpen={() => setHelpOpen(true)}
+            onClose={() => setHelpOpen(false)}
+          >
+            <p>
+              É semiautomático: você (ou sua equipe) reserva o horário direto na Central de Vendedores do
+              Mercado Livre — isso o DropCore não faz. Depois que o horário está reservado, o ML propõe os
+              candidatos e é aqui que o Ulisses entra: calcula o menor desconto dentro da faixa que o ML
+              permite pra cada item, olhando sua margem real, e você decide aceitar, ajustar ou recusar.
+            </p>
+          </HelpBubble>
+          <AceitarRecomendadosLoteBotao candidatos={visiveis} onDecididos={marcarDecididos} />
+        </div>
       </div>
-      {visiveis.map((c) => (
-        <LightningCandidatoCard key={c.item_id} c={c} onDecidido={(itemId) => marcarDecididos([itemId])} />
-      ))}
-    </div>
+      {aberto ? (
+        <div className="mt-3 space-y-2">
+          {visiveis.map((c) => (
+            <LightningCandidatoCard key={c.item_id} c={c} onDecidido={(itemId) => marcarDecididos([itemId])} />
+          ))}
+        </div>
+      ) : null}
+    </article>
   );
 }
 
@@ -978,6 +1139,7 @@ export function SellerGestorAdsPricingPanel({
             </p>
           );
         }
+        const semCampanhaSkus = resultado.skus.filter((s) => s.sugestao_primeira_campanha != null);
         return (
           <div className="space-y-3">
             <div className="flex gap-2">
@@ -1035,9 +1197,17 @@ export function SellerGestorAdsPricingPanel({
                       <CampanhaCard key={c.id} c={c} />
                     ))}
                   </div>
-                ) : (
+                ) : semCampanhaSkus.length === 0 ? (
                   <p className="text-sm text-[var(--muted)]">Sem campanha de Ads ativa na conta agora.</p>
-                )}
+                ) : null}
+                {semCampanhaSkus.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-[var(--muted)]">Sem campanha ainda — candidatos a testar Ads do zero</p>
+                    {semCampanhaSkus.map((item) => (
+                      <SemCampanhaCard key={item.sku} item={item} />
+                    ))}
+                  </div>
+                ) : null}
               </>
             ) : aba === "promocoes" ? (
               <>

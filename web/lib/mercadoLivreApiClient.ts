@@ -38,6 +38,30 @@ export function mlPromocaoItemPermalink(itemId: string): string {
   return `https://vendedores.mercadolivre.com.br/anuncios/lista/promos?search=${itemId}`;
 }
 
+/** Hub de Publicidade do vendedor — usado pra mandar o seller criar uma campanha nova na
+ * mão (ver `sem_tracao_recriar`/`sugestao_primeira_campanha` em gestorAdsDados.ts). Não
+ * linka direto pro assistente de criação porque esse fluxo pede `advertiser_id`/
+ * `account_id` específicos da conta e passa por telas que exigem escolher o anúncio
+ * manualmente de qualquer forma — o hub é o link estável que sempre funciona logado como o
+ * próprio seller (achado ao vivo 2026-09-21: inspecionando o assistente de criar campanha,
+ * as chamadas de sugestão de orçamento/ROAS vão pra um BFF interno `pa.mercadolivre.com.br`,
+ * não pra API pública — não dá pra criar a campanha automaticamente, só apontar pro seller
+ * ir lá). **Correção 2026-09-22**: `/publicidade` sozinho redireciona pro "Resumo" (não
+ * chega na tela de Publicidade) — confirmado ao vivo navegando pelo menu do próprio painel
+ * do seller (Djulios) que o link real é `/publicidade/resumo-anunciante`, que já chega com
+ * o botão "Criar campanha" visível no topo. */
+export function mlPublicidadeHubPermalink(): string {
+  return "https://vendedores.mercadolivre.com.br/publicidade/resumo-anunciante";
+}
+
+/** Converte ACOS objetivo (%) pro ROAS objetivo equivalente que a tela do ML mostra desde
+ * 15/out/2025 (trocaram o campo principal da UI de ACOS pra ROAS, mesmo a API ainda
+ * devolvendo `acos_target` — ver memória de projeto). ROAS = 100/ACOS. Arredonda pra 1 casa
+ * pra bater com o step que a tela usa (5x, 6x, 10x...). */
+export function roasObjetivoEquivalente(acosPct: number): number {
+  return Math.round((100 / acosPct) * 10) / 10;
+}
+
 /** Link direto pra tela de mediação/reclamação dentro da Central de Vendedores — achado
  * ao vivo (2026-08-25), navegando manualmente numa reclamação real. Só funciona pra quem
  * já está logado como aquele seller na conta do Mercado Livre (é onde ele consegue ver a
@@ -564,8 +588,25 @@ export type MercadoLivreCampanhaAds = {
   name: string;
   status: string;
   budget: number;
+  /** Vem de graça na resposta, não precisa pedir como métrica (confirmado ao vivo
+   * 2026-09-21) — orçamento diário configurado, usado pra distinguir "sem tração por falta
+   * de dinheiro" (gasto real perto do teto) de "sem tração por qualidade" (sobra dinheiro
+   * sem gastar). */
+  daily_budget: number;
+  /** Também vem de graça, sem precisar pedir — data de criação da campanha, usada pra medir
+   * há quantos dias ela existe sem tração. */
+  date_created: string;
   acos_target: number;
-  metrics?: { cost: number; total_amount: number; units_quantity: number; clicks: number };
+  metrics?: {
+    cost: number;
+    total_amount: number;
+    units_quantity: number;
+    clicks: number;
+    /** Impressões — confirmado ao vivo 2026-09-21 que esse metric name funciona nesse
+     * endpoint (diferente de `impression_share`/`top_impression_share`, que dão 400
+     * "not allowed at endpoint campaigns_metrics" — não existe esse detalhamento aqui). */
+    prints: number;
+  };
 };
 
 /** Campanhas de Ads + métricas reais do período — endpoint atual pós-descontinuação de
@@ -581,7 +622,7 @@ export async function mlBuscarCampanhasAdsComMetricas(
   dateTo: string
 ): Promise<MercadoLivreCampanhaAds[]> {
   const json = await mlGetComHeaders<{ results: MercadoLivreCampanhaAds[] }>(
-    `/advertising/${siteId}/advertisers/${advertiserId}/product_ads/campaigns/search?date_from=${dateFrom}&date_to=${dateTo}&limit=50&metrics=clicks,cost,acos,total_amount,units_quantity`,
+    `/advertising/${siteId}/advertisers/${advertiserId}/product_ads/campaigns/search?date_from=${dateFrom}&date_to=${dateTo}&limit=50&metrics=clicks,cost,acos,total_amount,units_quantity,prints`,
     ctx.accessToken,
     { "api-version": "2" }
   );
@@ -741,6 +782,11 @@ export type MercadoLivrePromocaoItem = {
    * preenchido nas candidatas (achado ao vivo 2026-09-08). */
   min_discounted_price?: number;
   max_discounted_price?: number;
+  /** Sugestão do próprio ML dentro da faixa min/max — nem sempre bate com `price` (achado
+   * ao vivo 2026-09-20: pra LIGHTNING, `price` do candidato pode vir fora do intervalo
+   * [min_discounted_price, max_discounted_price] reportado aqui, os dois parecem vir de
+   * motores de sugestão diferentes — ver `mlBuscarLimitesLightning`). */
+  suggested_discounted_price?: number;
 };
 
 async function mlBuscarPromocoesItemBruto(
@@ -781,6 +827,34 @@ export async function mlBuscarLimitesPromocaoPrecoDesconto(
   const candidata = todas.find((p) => p.type === "PRICE_DISCOUNT");
   if (!candidata || candidata.min_discounted_price == null || candidata.max_discounted_price == null) return null;
   return { min: candidata.min_discounted_price, max: candidata.max_discounted_price };
+}
+
+/** Faixa de preço que o ML reporta pro tipo `LIGHTNING` do item — mesma família de campo do
+ * `PRICE_DISCOUNT` acima, mas **ainda não confirmado ao vivo se o ML de fato valida
+ * `deal_price` contra esse intervalo na hora de aceitar** (achado 2026-09-20: nesse mesmo
+ * endpoint, o `price` do candidato pode vir maior que o `max_discounted_price` reportado
+ * aqui, o que não faria sentido se `max` fosse mesmo o teto aceito). Usar como sugestão pra
+ * calcular a margem, não como garantia de que o ML vai aceitar qualquer valor dentro dela —
+ * o accept real ainda é a fonte da verdade (ver `mlAceitarCandidatoLightning`). */
+export async function mlBuscarLimitesLightning(
+  itemId: string,
+  ctx: MercadoLivreAuthContext
+): Promise<{ min: number; max: number; sugerido: number } | null> {
+  const todas = await mlBuscarPromocoesItemBruto(itemId, ctx);
+  const candidata = todas.find((p) => p.type === "LIGHTNING");
+  if (
+    !candidata ||
+    candidata.min_discounted_price == null ||
+    candidata.max_discounted_price == null ||
+    candidata.suggested_discounted_price == null
+  ) {
+    return null;
+  }
+  return {
+    min: candidata.min_discounted_price,
+    max: candidata.max_discounted_price,
+    sugerido: candidata.suggested_discounted_price,
+  };
 }
 
 /** BRT é UTC-3 fixo (sem horário de verão no Brasil desde 2019) — o ML exige as datas de
@@ -880,10 +954,24 @@ export async function mlBuscarCandidatosLightning(ctx: MercadoLivreAuthContext):
 
 /** Aceita um candidato de oferta relâmpago de verdade — escrita real confirmada ao vivo
  * (2026-09-16, ver docs/SCHEMA.md): contrato só foi achado via doc pública (não testado por
- * tentativa-e-erro como os outros — a doc oficial do Mercado Livre bate certo aqui). Preço
- * não é negociável pelo seller, é sempre o `dealPrice` que o próprio ML já sugeriu no
- * candidato. Não existe endpoint de "recusar" documentado — recusar é só não aceitar (item
- * some da lista sozinho quando a janela do candidato expira). */
+ * tentativa-e-erro como os outros — a doc oficial do Mercado Livre bate certo aqui).
+ * **Correção 2026-09-20**: `dealPrice` NÃO precisa ser o valor cru que o ML sugeriu no
+ * candidato — confirmado ao vivo (logado como o seller) que a tela "Revise e confirme as
+ * propostas" tem o valor/% editável antes de confirmar.
+ * **Teste ao vivo controlado 2026-09-22 (aprovado pelo Sr Stark, 1 item real da Djulios,
+ * SKU DJU005015)**: mandado `deal_price: 89.91` contra um candidato cujo `precoSugeridoMl`
+ * era 94.90 — **o ML aceitou de verdade**, devolveu `offer_id` real
+ * (`OFFER-MLB7191922108-13894616129`), status 200. Confirma que dá pra liberar essa edição
+ * em lote sem ressalva — não é mais só teoria.
+ * **Teste ao vivo 2026-09-22 (mesma sessão) — limite de cima confirmado**: mandar
+ * `deal_price` MAIOR que o `precoSugeridoMl` (desconto mais raso que o padrão do ML) é
+ * **sempre rejeitado** — `400 "The discounted price is not credible."` — testado 2x contra
+ * itens reais (SKU DJU005008, 94.90→97 rejeitado; e um erro incidental 69.81→89.91 também
+ * rejeitado). Ou seja: o ML só aceita igual ou MAIS raso que o próprio sugerido, nunca mais
+ * raso pra menos desconto. Isso confirma que o teto de `limitarPrecoLightning`
+ * (`precoSugeridoMl`) não é conservador à toa — é o limite real da API, não vale a pena
+ * tentar afrouxar. Não existe endpoint de "recusar" documentado — recusar é só não aceitar
+ * (item some da lista sozinho quando a janela do candidato expira). */
 export async function mlAceitarCandidatoLightning(
   itemId: string,
   dealId: string,

@@ -44,6 +44,7 @@ import {
   mlBuscarGastoAfiliadoReal,
   mlBuscarFaturamentoRealPeriodo,
   mlBuscarPromocaoAtivaItem,
+  roasObjetivoEquivalente,
   type MercadoLivreAuthContext,
   type MercadoLivreCampanhaAds,
 } from "@/lib/mercadoLivreApiClient";
@@ -291,7 +292,15 @@ async function buscarMetricasAdsPorChave(
   return { porChave, gastoTotalMes, vendaAtribuidaTotalMes, campanhas };
 }
 
-export type DiagnosticoCampanha = "sem_conversao" | "acima_da_meta" | "performando_bem" | "dentro_da_meta";
+export type DiagnosticoCampanha =
+  | "pausada"
+  | "sem_tracao_atencao"
+  | "sem_tracao_recriar"
+  | "sem_conversao"
+  | "acima_da_meta"
+  | "validada_travar"
+  | "performando_bem"
+  | "dentro_da_meta";
 
 export type CampanhaAdsResultado = {
   id: number;
@@ -315,22 +324,138 @@ export type CampanhaAdsResultado = {
 const CAMPANHA_ACOS_FOLGA_FRACAO = 0.7;
 const CAMPANHA_ACOS_ESTOURO_FRACAO = 1.2;
 
+/** Passo de ajuste quando o ACOS real estoura a meta — combinado com o Sr Stark 2026-09-22:
+ * desce 1 ponto percentual do ACOS objetivo (não zera o investimento nem pausa de cara). */
+const CAMPANHA_ACOS_ESTOURO_PASSO_PP = 1;
+
+/** Limiar pra travar uma campanha como "validada de vez" (deixar rodando exatamente como
+ * está, sem sugerir mexer mais) — combinado com o Sr Stark 2026-09-22: ACOS real baixo +
+ * ROAS real alto sozinhos não bastam (podem ser sorte de 1-2 vendas isoladas), por isso
+ * exige também um volume mínimo de unidades no período. Fica ACIMA do corte de
+ * `performando_bem` — quem não bate esse volume ainda cai em `performando_bem` (que segue
+ * sugerindo aumentar orçamento pra crescer até bater aqui). */
+const CAMPANHA_VALIDADA_TRAVAR_ACOS_MAX_PCT = 3;
+const CAMPANHA_VALIDADA_TRAVAR_ROAS_MIN = 10;
+const CAMPANHA_VALIDADA_TRAVAR_UNIDADES_MIN = 10;
+
+/** Janela de paciência pra campanha nova sem nenhuma impressão/gasto — combinada com o Sr
+ * Stark 2026-09-21 depois de comparar Mercado Livre (5-7 dias na prática dele) e Shopee
+ * (recomendação oficial de 15 dias/2 semanas): dia 7 já avisa ("atenção"), dia 14 vira
+ * gatilho de "matar e recriar". `lost_impression_share_by_budget`/`by_ad_rank` (que
+ * distinguiriam de vez "falta dinheiro" de "falta qualidade") não existem nesse endpoint —
+ * testado ao vivo, devolve 400 "not allowed at endpoint campaigns_metrics" — por isso a
+ * recomendação do dia 14 apresenta as duas frentes possíveis, não finge saber qual é. */
+const CAMPANHA_SEM_TRACAO_DIAS_ATENCAO = 7;
+const CAMPANHA_SEM_TRACAO_DIAS_RECRIAR = 14;
+
+/** Ponto de partida sugerido pra campanha nova do zero de anúncio que NUNCA validou (nunca
+ * vendeu por Ads) — combinado com o Sr Stark 2026-09-21, é o que ele já usa na prática
+ * (teste barato antes de soltar mais dinheiro, ver seção da memória de projeto). Não dá pra
+ * criar a campanha de verdade via API (BFF interno do ML, achado ao vivo 2026-09-21) — isso
+ * vira instrução pro seller fazer na mão. */
+const CAMPANHA_RECRIACAO_ACOS_INICIAL_PCT = 7;
+const CAMPANHA_RECRIACAO_ORCAMENTO_INICIAL = 10;
+
+/** Ponto de partida pra RECRIAR uma campanha que já validou antes (teve venda de verdade,
+ * não só gasto) — combinado com o Sr Stark 2026-09-22: mais forte que o ponto de partida
+ * inicial porque já tem prova de que o anúncio vende, não precisa testar no talo mínimo de
+ * novo. */
+const CAMPANHA_VALIDADA_ACOS_PCT = 10;
+const CAMPANHA_VALIDADA_ORCAMENTO = 15;
+
+type TierCampanhaNova = "inicial" | "validada";
+
+function numerosCampanhaNova(tier: TierCampanhaNova): { acosPct: number; orcamento: number } {
+  return tier === "validada"
+    ? { acosPct: CAMPANHA_VALIDADA_ACOS_PCT, orcamento: CAMPANHA_VALIDADA_ORCAMENTO }
+    : { acosPct: CAMPANHA_RECRIACAO_ACOS_INICIAL_PCT, orcamento: CAMPANHA_RECRIACAO_ORCAMENTO_INICIAL };
+}
+
+/** Texto passo-a-passo (sem o "pause a campanha X" — quem chama decide se esse passo cabe)
+ * pra criar/recriar uma campanha do zero, com os números do tier certo. Fonte única
+ * reaproveitada por `classificarCampanhas` (campanha morta/pausada) e `classificarSkuAds`
+ * (SKU sem campanha nenhuma). */
+function textoCriarCampanhaNova(tier: TierCampanhaNova): string {
+  const { acosPct, orcamento } = numerosCampanhaNova(tier);
+  const roas = roasObjetivoEquivalente(acosPct);
+  return (
+    `Publicidade → Criar campanha → Campanha manual, só com esse anúncio (nunca misture com ` +
+    `um que já vende); ROAS Objetivo ~${roas}x (equivale a ACOS ${acosPct}%), orçamento diário R$ ${orcamento}.`
+  );
+}
+
+/** Texto pra subir a primeira campanha de um anúncio que nunca teve Ads — sempre tier
+ * "inicial" (por definição nunca validou nada ainda). */
+function textoSugerirPrimeiraCampanha(): string {
+  return (
+    `Nenhuma campanha de Ads ainda pra esse anúncio. O Ulisses não cria por você (o Mercado ` +
+    `Livre não abre isso pra API de terceiro) — se quiser testar, no Mercado Livre: ${textoCriarCampanhaNova("inicial")}`
+  );
+}
+
+function diasDesde(dataIso: string): number {
+  return Math.floor((Date.now() - new Date(dataIso).getTime()) / (1000 * 60 * 60 * 24));
+}
+
 function classificarCampanhas(campanhas: MercadoLivreCampanhaAds[]): CampanhaAdsResultado[] {
   return campanhas
     .map((c) => {
       const custoMes = c.metrics?.cost ?? 0;
       const vendaAtribuidaMes = c.metrics?.total_amount ?? 0;
       const unidadesMes = c.metrics?.units_quantity ?? 0;
+      const prints = c.metrics?.prints ?? 0;
       const acosRealPct = custoMes > 0 && vendaAtribuidaMes > 0 ? (custoMes / vendaAtribuidaMes) * 100 : null;
+      const diasDesdeCriacao = diasDesde(c.date_created);
+      const semTracao = prints === 0 && custoMes === 0;
 
       let diagnostico: DiagnosticoCampanha;
       let recomendacao: string;
-      if (custoMes > 0 && unidadesMes === 0) {
+      // Achado ao vivo 2026-09-21: campanha pausada pelo seller continuava sendo avaliada
+      // pelo ACOS do gasto histórico do mês (de antes de pausar) e recomendando "reduza
+      // orçamento" — como se ainda estivesse rodando. Checa o status ANTES de qualquer
+      // conta de ACOS: campanha pausada não tem ação de orçamento possível.
+      if (c.status !== "active") {
+        diagnostico = "pausada";
+        // Pedido do Sr Stark 2026-09-22: campanha pausada também é candidata a "criar nova"
+        // (não só a que nunca teve tração) — reativar a antiga não é a única saída, e o
+        // seller pode preferir começar do zero em vez de mexer na configuração antiga.
+        // Tier "validada" quando já teve venda de verdade antes de pausar (não só gasto sem
+        // conversão) — recriar mais forte em vez de testar no talo mínimo de novo.
+        const tierPausada: TierCampanhaNova = unidadesMes > 0 ? "validada" : "inicial";
+        recomendacao =
+          custoMes > 0
+            ? `Pausada no Mercado Livre — investiu R$ ${custoMes.toFixed(2)} neste período antes de pausar, sem gasto novo enquanto estiver assim. Se não pretende reativar, considere criar uma campanha nova: ${textoCriarCampanhaNova(tierPausada)}`
+            : `Pausada no Mercado Livre — sem gasto neste período. Se não pretende reativar, considere criar uma campanha nova: ${textoCriarCampanhaNova(tierPausada)}`;
+      } else if (semTracao && diasDesdeCriacao >= CAMPANHA_SEM_TRACAO_DIAS_RECRIAR) {
+        diagnostico = "sem_tracao_recriar";
+        recomendacao =
+          `${diasDesdeCriacao} dias sem nenhuma impressão ou gasto — candidata a matar e criar do zero. ` +
+          `O Ulisses não cria a campanha por você (o Mercado Livre não abre isso pra API de terceiro) — no Mercado Livre: ` +
+          `1) pause "${c.name}"; 2) ${textoCriarCampanhaNova("inicial")} ` +
+          `Pode ser ACOS/orçamento baixo demais pro leilão da categoria, ou qualidade do anúncio (foto/título/preço) — vale revisar as duas frentes, inclusive com o Andrey.`;
+      } else if (semTracao && diasDesdeCriacao >= CAMPANHA_SEM_TRACAO_DIAS_ATENCAO) {
+        diagnostico = "sem_tracao_atencao";
+        recomendacao = `${diasDesdeCriacao} dias sem nenhuma impressão ou gasto — ainda dentro do normal pra campanha nova, mas fique de olho: sem sinal até o dia ${CAMPANHA_SEM_TRACAO_DIAS_RECRIAR}, vira candidata a recriar.`;
+      } else if (custoMes > 0 && unidadesMes === 0) {
         diagnostico = "sem_conversao";
         recomendacao = `Gastou R$ ${custoMes.toFixed(2)} sem nenhuma venda atribuída no período — candidata a pausar ou revisar segmentação antes de continuar investindo.`;
       } else if (acosRealPct != null && acosRealPct > c.acos_target * CAMPANHA_ACOS_ESTOURO_FRACAO) {
         diagnostico = "acima_da_meta";
-        recomendacao = `ACOS real ${acosRealPct.toFixed(1)}% bem acima da meta de ${c.acos_target.toFixed(1)}% — reduza orçamento ou revise a campanha.`;
+        const acosSugerido = Math.max(0, c.acos_target - CAMPANHA_ACOS_ESTOURO_PASSO_PP);
+        recomendacao =
+          `ACOS real ${acosRealPct.toFixed(1)}% bem acima da meta de ${c.acos_target.toFixed(1)}% — converte, mas caro demais. ` +
+          `Desça o ACOS objetivo ${CAMPANHA_ACOS_ESTOURO_PASSO_PP} ponto percentual (pra ~${acosSugerido.toFixed(1)}%).`;
+      } else if (
+        acosRealPct != null &&
+        acosRealPct <= CAMPANHA_VALIDADA_TRAVAR_ACOS_MAX_PCT &&
+        vendaAtribuidaMes / custoMes >= CAMPANHA_VALIDADA_TRAVAR_ROAS_MIN &&
+        unidadesMes >= CAMPANHA_VALIDADA_TRAVAR_UNIDADES_MIN
+      ) {
+        diagnostico = "validada_travar";
+        const roasReal = vendaAtribuidaMes / custoMes;
+        recomendacao =
+          `Validada de vez — ACOS real ${acosRealPct.toFixed(1)}%, ROAS real ${roasReal.toFixed(1)}x, ` +
+          `${unidadesMes} unidades no período. Deixe rodando exatamente como está, não precisa mexer.`;
       } else if (acosRealPct != null && acosRealPct <= c.acos_target * CAMPANHA_ACOS_FOLGA_FRACAO) {
         diagnostico = "performando_bem";
         recomendacao = `ACOS real ${acosRealPct.toFixed(1)}% com folga real da meta de ${c.acos_target.toFixed(1)}% — já converte bem, considere aumentar orçamento pra capturar mais volume.`;
@@ -356,7 +481,14 @@ function classificarCampanhas(campanhas: MercadoLivreCampanhaAds[]): CampanhaAds
         recomendacao,
       };
     })
-    .sort((a, b) => b.custoMes - a.custoMes);
+    // Pausada não precisa de ação nenhuma — fica sempre depois das ativas, mesmo que tenha
+    // tido gasto alto antes de pausar (não é mais "pior gasto" que precisa de atenção).
+    .sort((a, b) => {
+      const aPausada = a.diagnostico === "pausada" ? 1 : 0;
+      const bPausada = b.diagnostico === "pausada" ? 1 : 0;
+      if (aPausada !== bPausada) return aPausada - bPausada;
+      return b.custoMes - a.custoMes;
+    });
 }
 
 async function montarCandidatos(
@@ -370,111 +502,123 @@ async function montarCandidatos(
 
   const detalhes = await mlBuscarItensDetalhe(Array.from(infoPorItemId.keys()), ctx);
 
-  const candidatos: AdsSkuContexto[] = [];
-  for (const item of detalhes) {
-    const info = infoPorItemId.get(item.id);
-    // Achado ao vivo 2026-09-08: anúncio sem estoque some da vitrine e o próprio ML pausa
-    // sozinho (status "paused", sub_status "out_of_stock") — não faz sentido recomendar
-    // preço/margem pra algo que não está à venda agora. Pulando aqui em vez de só na UI:
-    // evita gastar a chamada de frete real (que ia falhar com 404 mesmo) pra esses itens.
-    if (!info || item.price <= 0 || item.status !== "active") continue;
+  // Um SKU por vez em sequência (frete real + checagem de promoção, cada um sua própria
+  // chamada à API do ML) levava minutos pro catálogo inteiro em conta grande (achado ao
+  // vivo 2026-09-22, testando com a Djulios: "rodar agora" ficava preso sem nunca voltar) —
+  // mesmo padrão de bug já visto e corrigido em `buscarCandidatosLightningComMargem`.
+  // Paraleliza com Promise.all; item filtrado (sem vínculo/preço zerado/pausado) vira
+  // `null` e é descartado no filter final, no lugar do `continue` de antes.
+  const candidatos = (
+    await Promise.all(
+      detalhes.map(async (item): Promise<AdsSkuContexto | null> => {
+        const info = infoPorItemId.get(item.id);
+        // Achado ao vivo 2026-09-08: anúncio sem estoque some da vitrine e o próprio ML
+        // pausa sozinho (status "paused", sub_status "out_of_stock") — não faz sentido
+        // recomendar preço/margem pra algo que não está à venda agora. Pulando aqui em vez
+        // de só na UI: evita gastar a chamada de frete real (que ia falhar com 404 mesmo)
+        // pra esses itens.
+        if (!info || item.price <= 0 || item.status !== "active") return null;
 
-    const { tipo, comissaoPct } = mlComissaoPorListingType(item.listing_type_id);
-    const chaveAds = item.family_id != null ? String(item.family_id) : item.id;
-    const metricaAds = metricasAds?.porChave.get(chaveAds);
-    const adsGastoMesReal = metricaAds?.cost ?? 0;
-    const adsVendasMesReal = metricaAds?.unitsQuantity ?? 0;
-    // TACoS de verdade = gasto ÷ venda TOTAL (com Ads + orgânica), não só a venda
-    // atribuída ao clique (isso seria ACOS, métrica diferente) — pedido explícito do Sr
-    // Stark (2026-08-31): o gasto de Ads beneficia a venda do produto como um todo, então
-    // o custo por unidade é rateado pelo total de unidades vendidas no período, não só
-    // as que vieram de clique no anúncio.
-    const totalUnidadesVendidasMes = adsVendasMesReal + (metricaAds?.organicUnitsQuantity ?? 0);
-    const adsPctReal = totalUnidadesVendidasMes > 0 ? (adsGastoMesReal / totalUnidadesVendidasMes / item.price) * 100 : 0;
-    const vendaTotalMesReal = (metricaAds?.totalAmount ?? 0) + (metricaAds?.organicUnitsAmount ?? 0);
-    const tacosRealPct = vendaTotalMesReal > 0 ? (adsGastoMesReal / vendaTotalMesReal) * 100 : 0;
-    // ROAS usa só a venda ATRIBUÍDA ao Ads (total_amount), não a orgânica — mede o
-    // retorno do próprio clique pago, diferente do TACoS (que olha a venda toda).
-    const roasReal = adsGastoMesReal > 0 ? (metricaAds?.totalAmount ?? 0) / adsGastoMesReal : 0;
+        const { tipo, comissaoPct } = mlComissaoPorListingType(item.listing_type_id);
+        const chaveAds = item.family_id != null ? String(item.family_id) : item.id;
+        const metricaAds = metricasAds?.porChave.get(chaveAds);
+        const adsGastoMesReal = metricaAds?.cost ?? 0;
+        const adsVendasMesReal = metricaAds?.unitsQuantity ?? 0;
+        // TACoS de verdade = gasto ÷ venda TOTAL (com Ads + orgânica), não só a venda
+        // atribuída ao clique (isso seria ACOS, métrica diferente) — pedido explícito do Sr
+        // Stark (2026-08-31): o gasto de Ads beneficia a venda do produto como um todo, então
+        // o custo por unidade é rateado pelo total de unidades vendidas no período, não só
+        // as que vieram de clique no anúncio.
+        const totalUnidadesVendidasMes = adsVendasMesReal + (metricaAds?.organicUnitsQuantity ?? 0);
+        const adsPctReal = totalUnidadesVendidasMes > 0 ? (adsGastoMesReal / totalUnidadesVendidasMes / item.price) * 100 : 0;
+        const vendaTotalMesReal = (metricaAds?.totalAmount ?? 0) + (metricaAds?.organicUnitsAmount ?? 0);
+        const tacosRealPct = vendaTotalMesReal > 0 ? (adsGastoMesReal / vendaTotalMesReal) * 100 : 0;
+        // ROAS usa só a venda ATRIBUÍDA ao Ads (total_amount), não a orgânica — mede o
+        // retorno do próprio clique pago, diferente do TACoS (que olha a venda toda).
+        const roasReal = adsGastoMesReal > 0 ? (metricaAds?.totalAmount ?? 0) / adsGastoMesReal : 0;
 
-    const freteReal = await mlBuscarFreteReal(item.id, ctx, CEP_REFERENCIA_FRETE);
+        const freteReal = await mlBuscarFreteReal(item.id, ctx, CEP_REFERENCIA_FRETE);
 
-    const margemAtualPct = calcularMargemRealizada({
-      precoVenda: item.price,
-      custo: info.custo,
-      frete: freteReal ?? 0,
-      comissaoPct,
-      impostoPct: prefs.impostoPct,
-      perdaPct: prefs.perdaPct,
-      adsPct: adsPctReal,
-      // Afiliado sem API pública (ver cabeçalho) — continua estimado pelo % configurado.
-      afiliadoPct: prefs.afiliadoAtivo ? (prefs.afiliadoPct ?? 0) : 0,
-    });
+        const margemAtualPct = calcularMargemRealizada({
+          precoVenda: item.price,
+          custo: info.custo,
+          frete: freteReal ?? 0,
+          comissaoPct,
+          impostoPct: prefs.impostoPct,
+          perdaPct: prefs.perdaPct,
+          adsPct: adsPctReal,
+          // Afiliado sem API pública (ver cabeçalho) — continua estimado pelo % configurado.
+          afiliadoPct: prefs.afiliadoAtivo ? (prefs.afiliadoPct ?? 0) : 0,
+        });
 
-    const afiliadoPctConfigurado = prefs.afiliadoAtivo ? (prefs.afiliadoPct ?? 0) : null;
-    const headroomAfiliado = margemAtualPct - prefs.margemMinimaPct;
-    const afiliadoPctTetoSeguro =
-      afiliadoPctConfigurado != null && headroomAfiliado > AFILIADO_HEADROOM_MINIMO_PCT
-        ? Math.round((afiliadoPctConfigurado + headroomAfiliado) * 10) / 10
-        : null;
+        const afiliadoPctConfigurado = prefs.afiliadoAtivo ? (prefs.afiliadoPct ?? 0) : null;
+        const headroomAfiliado = margemAtualPct - prefs.margemMinimaPct;
+        const afiliadoPctTetoSeguro =
+          afiliadoPctConfigurado != null && headroomAfiliado > AFILIADO_HEADROOM_MINIMO_PCT
+            ? Math.round((afiliadoPctConfigurado + headroomAfiliado) * 10) / 10
+            : null;
 
-    const precoOriginal = item.original_price ?? null;
-    const descontoAtivoPct =
-      precoOriginal != null && precoOriginal > item.price ? ((precoOriginal - item.price) / precoOriginal) * 100 : 0;
+        const precoOriginal = item.original_price ?? null;
+        const descontoAtivoPct =
+          precoOriginal != null && precoOriginal > item.price ? ((precoOriginal - item.price) / precoOriginal) * 100 : 0;
 
-    // Preço mínimo seguro — piso de margem mínima — calculado SEMPRE agora (2026-09-08,
-    // pedido do Sr Stark: "todo produto tem que estar em promoção", não só quem já tem
-    // desconto ativo). Antes só rodava dentro do `if` de desconto ativo; virou cálculo
-    // puro sobre custo/frete (já buscado de qualquer forma), sem custo de API extra.
-    const custosFixosSemAds = info.custo + (freteReal ?? 0);
-    const precoMinimoSeguro = calcularPrecoMinimoSeguro(
-      custosFixosSemAds,
-      comissaoPct,
-      prefs.impostoPct,
-      prefs.perdaPct,
-      prefs.margemMinimaPct
-    );
+        // Preço mínimo seguro — piso de margem mínima — calculado SEMPRE agora (2026-09-08,
+        // pedido do Sr Stark: "todo produto tem que estar em promoção", não só quem já tem
+        // desconto ativo). Antes só rodava dentro do `if` de desconto ativo; virou cálculo
+        // puro sobre custo/frete (já buscado de qualquer forma), sem custo de API extra.
+        const custosFixosSemAds = info.custo + (freteReal ?? 0);
+        const precoMinimoSeguro = calcularPrecoMinimoSeguro(
+          custosFixosSemAds,
+          comissaoPct,
+          prefs.impostoPct,
+          prefs.perdaPct,
+          prefs.margemMinimaPct
+        );
 
-    let descontoAtivoNome: string | null = null;
-    let descontoAtivoFim: string | null = null;
-    let descontoMaximoSeguroPct: number | null = null;
-    if (descontoAtivoPct > DESCONTO_ATIVO_MINIMO_PCT && precoOriginal != null) {
-      const promosAtivas = await mlBuscarPromocaoAtivaItem(item.id, ctx);
-      const promo = promosAtivas[0];
-      descontoAtivoNome = promo ? `${promo.type}${promo.name ? ` "${promo.name}"` : ""}` : null;
-      descontoAtivoFim = promo?.finish_date?.slice(0, 10) ?? null;
-      descontoMaximoSeguroPct =
-        precoMinimoSeguro != null ? Math.max(0, Math.round(((precoOriginal - precoMinimoSeguro) / precoOriginal) * 1000) / 10) : null;
-    }
+        let descontoAtivoNome: string | null = null;
+        let descontoAtivoFim: string | null = null;
+        let descontoMaximoSeguroPct: number | null = null;
+        if (descontoAtivoPct > DESCONTO_ATIVO_MINIMO_PCT && precoOriginal != null) {
+          const promosAtivas = await mlBuscarPromocaoAtivaItem(item.id, ctx);
+          const promo = promosAtivas[0];
+          descontoAtivoNome = promo ? `${promo.type}${promo.name ? ` "${promo.name}"` : ""}` : null;
+          descontoAtivoFim = promo?.finish_date?.slice(0, 10) ?? null;
+          descontoMaximoSeguroPct =
+            precoMinimoSeguro != null
+              ? Math.max(0, Math.round(((precoOriginal - precoMinimoSeguro) / precoOriginal) * 1000) / 10)
+              : null;
+        }
 
-    candidatos.push({
-      sku: info.sku,
-      nomeProduto: info.nomeProduto,
-      itemId: item.id,
-      custo: info.custo,
-      preco: item.price,
-      tipoAnuncio: tipo,
-      comissaoPct,
-      adsGastoMesReal,
-      adsVendasMesReal,
-      tacosRealPct,
-      roasReal,
-      freteReal,
-      margemAtualPct,
-      margemMinimaPct: prefs.margemMinimaPct,
-      margemMaximaPct: prefs.margemMaximaPct,
-      afiliadoPctConfigurado,
-      afiliadoPctTetoSeguro,
-      precoOriginal,
-      descontoAtivoPct,
-      descontoAtivoNome,
-      descontoAtivoFim,
-      descontoMaximoSeguroPct,
-      precoMinimoSeguro,
-      permalink: item.permalink ?? null,
-      familyId: item.family_id != null ? String(item.family_id) : null,
-    });
-  }
+        return {
+          sku: info.sku,
+          nomeProduto: info.nomeProduto,
+          itemId: item.id,
+          custo: info.custo,
+          preco: item.price,
+          tipoAnuncio: tipo,
+          comissaoPct,
+          adsGastoMesReal,
+          adsVendasMesReal,
+          tacosRealPct,
+          roasReal,
+          freteReal,
+          margemAtualPct,
+          margemMinimaPct: prefs.margemMinimaPct,
+          margemMaximaPct: prefs.margemMaximaPct,
+          afiliadoPctConfigurado,
+          afiliadoPctTetoSeguro,
+          precoOriginal,
+          descontoAtivoPct,
+          descontoAtivoNome,
+          descontoAtivoFim,
+          descontoMaximoSeguroPct,
+          precoMinimoSeguro,
+          permalink: item.permalink ?? null,
+          familyId: item.family_id != null ? String(item.family_id) : null,
+        };
+      })
+    )
+  ).filter((c): c is AdsSkuContexto => c != null);
 
   // Prioriza quem está mais longe da margem mínima (pior caso primeiro) — mesmo
   // princípio dos outros gestores (pior situação primeiro, não amostra aleatória).
@@ -575,10 +719,17 @@ const TACOS_ESTOURO_FRACAO = CAMPANHA_ACOS_ESTOURO_FRACAO;
 function classificarSkuAds(
   c: AdsSkuContexto,
   prefs: UlissesPreferencias
-): { diagnostico: DiagnosticoAds; recomendacao: string; observacao: string } {
+): { diagnostico: DiagnosticoAds; recomendacao: string; observacao: string; sugestaoPrimeiraCampanha: string | null } {
   const temAds = c.adsGastoMesReal > 0;
   const metaTacos = prefs.adsAtivo ? prefs.adsTacosPct : null;
   const tacosEstourado = temAds && metaTacos != null && c.tacosRealPct > metaTacos * TACOS_ESTOURO_FRACAO;
+
+  // Só sugere subir a primeira campanha quando a margem aguenta (nunca junto de "resolva o
+  // preço antes de considerar Ads", ver ramo abaixo) e quando o seller já deixou a alavanca
+  // de Ads ligada na configuração — mesma regra que já vale pro resto do gestor (ver texto
+  // de ajuda do painel: "só recomenda ativar ads ... se você já tiver deixado essa alavanca
+  // ligada"). Pedido do Sr Stark 2026-09-21: "sempre que estiver sem campanha, pode sugerir".
+  const podeSugerirPrimeiraCampanha = prefs.adsAtivo && !temAds;
 
   if (c.margemAtualPct < c.margemMinimaPct) {
     let recomendacao: string;
@@ -599,7 +750,7 @@ function classificarSkuAds(
           ? `TACoS real ${c.tacosRealPct.toFixed(1)}% acima da meta ${metaTacos.toFixed(1)}%.`
           : `TACoS real ${c.tacosRealPct.toFixed(1)}% perto/dentro da meta ${metaTacos.toFixed(1)}%, mas margem negativa mesmo assim; problema é preço/custo, não só Ads.`
         : "";
-    return { diagnostico: "margem_abaixo_minima", recomendacao, observacao };
+    return { diagnostico: "margem_abaixo_minima", recomendacao, observacao, sugestaoPrimeiraCampanha: null };
   }
 
   // Sem nenhuma promoção ativa e com espaço até o piso de margem mínima — regra do Sr Stark
@@ -626,7 +777,12 @@ function classificarSkuAds(
       partes.length > 0
         ? `Margem acima do máximo desejado — ${partes.join("; ")}.`
         : 'Margem acima do máximo desejado, mas nenhuma alavanca (Ads/afiliado/cupom) está ligada — ative alguma em "Editar preferências" se quiser usar essa folga.';
-    return { diagnostico: "margem_acima_maxima", recomendacao, observacao: "" };
+    return {
+      diagnostico: "margem_acima_maxima",
+      recomendacao,
+      observacao: "",
+      sugestaoPrimeiraCampanha: podeSugerirPrimeiraCampanha ? textoSugerirPrimeiraCampanha() : null,
+    };
   }
 
   const observacao =
@@ -637,6 +793,7 @@ function classificarSkuAds(
     diagnostico: "margem_saudavel",
     recomendacao: sugestaoPromocional ?? "Margem dentro da faixa desejada — sem ação necessária.",
     observacao,
+    sugestaoPrimeiraCampanha: podeSugerirPrimeiraCampanha ? textoSugerirPrimeiraCampanha() : null,
   };
 }
 
@@ -646,6 +803,10 @@ export type SkuResultadoEnriquecido = {
   diagnostico: DiagnosticoAds;
   recomendacao: string;
   observacao: string;
+  /** Passo a passo pra subir a primeira campanha, só preenchido quando: seller já ligou Ads
+   * nas preferências, o anúncio não tem nenhuma campanha ainda e a margem aguenta (nunca
+   * junto de "margem_abaixo_minima" — ver `classificarSkuAds`). */
+  sugestao_primeira_campanha: string | null;
   item_id: string;
   nome_produto: string;
   preco: number;
@@ -740,13 +901,14 @@ export async function montarResultadoAds(sellerId: string): Promise<ResultadoAds
   }
 
   const skus: SkuResultadoEnriquecido[] = dadosContexto.candidatos.map((c) => {
-    const { diagnostico, recomendacao, observacao } = classificarSkuAds(c, dadosContexto.prefs);
+    const { diagnostico, recomendacao, observacao, sugestaoPrimeiraCampanha } = classificarSkuAds(c, dadosContexto.prefs);
     return {
       sku: c.sku,
       margem_atual_pct: c.margemAtualPct,
       diagnostico,
       recomendacao,
       observacao,
+      sugestao_primeira_campanha: sugestaoPrimeiraCampanha,
       item_id: c.itemId,
       nome_produto: c.nomeProduto,
       preco: c.preco,
