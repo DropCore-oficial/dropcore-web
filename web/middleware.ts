@@ -197,12 +197,20 @@ export async function middleware(req: NextRequest) {
   const isInviteRoute =
     /^\/api\/(fornecedor|seller)\/invite\/[^/]+$/.test(path);
   const isDadosBancariosConfirmar = path === "/api/fornecedor/dados-bancarios/confirmar";
+  // Achado ao vivo 2026-09-22: "Conectar Mercado Livre" é `<a href>` (navegação de página
+  // inteira, não fetch) — só manda o cookie de sessão, nunca o Bearer token que o resto do
+  // app usa. Sempre exigiu sessão aqui mesmo a rota em si nunca precisando (só monta a URL
+  // de autorização do ML, sem ler dado nenhum do seller) — se o cookie não estivesse 100%
+  // presente no exato momento do clique, devolvia 401 em JSON sem tratamento nenhum (parecia
+  // "não acontece nada" pro seller). Libera igual já é feito pra invite/dados-bancários.
+  const isMercadoLivreConnect = path === "/api/seller/mercadolivre/connect";
   const isApiProtected =
     (path.startsWith("/api/org/") ||
       path.startsWith("/api/seller/") ||
       path.startsWith("/api/fornecedor/")) &&
     !isInviteRoute &&
-    !isDadosBancariosConfirmar;
+    !isDadosBancariosConfirmar &&
+    !isMercadoLivreConnect;
   if (isApiProtected && !user) {
     // Verifica se há Bearer token no header (sellers/fornecedores usam token, não cookie)
     const authHeader = req.headers.get("authorization");
