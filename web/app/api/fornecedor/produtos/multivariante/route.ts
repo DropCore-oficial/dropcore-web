@@ -23,6 +23,7 @@ import { linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
 import { fornecedorSkuCatalogExtrasFromBody } from "@/lib/fornecedorSkuCatalogExtras";
 import { upsertProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
 import { parseTabelaMedidasRecord, type TabelaMedidasPayload } from "@/lib/fornecedorTabelaMedidas";
+import { parseDataImageUrl, BUCKET_PRODUTO_IMAGENS } from "@/lib/fornecedorImagemPublicaOlist";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -225,6 +226,36 @@ export async function POST(req: Request) {
         imagemUrlPorCorMap[k.trim().toLowerCase()] = s;
       }
       if (Object.keys(imagemUrlPorCorMap).length === 0) imagemUrlPorCorMap = null;
+
+      // Achado ao vivo 2026-09-22: base64 (`data:image/*`) ficava gravado cru na coluna
+      // `imagem_url` de cada SKU filho — até 600KB de texto por variação, vira payload de
+      // vários MB em qualquer tela que lista o catálogo do fornecedor (vitrine do seller
+      // quebrava com "Erro inesperado" genérico pra fornecedor com bastante imagem assim).
+      // Sobe pro storage aqui, antes de qualquer SKU existir, e troca pela URL pública —
+      // mesma lógica já usada pro caminho de exportação Olist (`ensurePublicImagemUrlForOlist`),
+      // reaproveitada via `parseDataImageUrl` pra não duplicar o parse do data URL.
+      if (imagemUrlPorCorMap) {
+        for (const [cor, valor] of Object.entries(imagemUrlPorCorMap)) {
+          if (!valor.startsWith("data:image/")) continue;
+          const parsed = parseDataImageUrl(valor);
+          if (!parsed) {
+            delete imagemUrlPorCorMap[cor];
+            continue;
+          }
+          const path = `${ctx.fornecedor_id}/multivariante/${Date.now()}-${cor.replace(/[^a-z0-9]/gi, "")}.${parsed.ext}`;
+          const { error: uploadErr } = await supabaseAdmin.storage
+            .from(BUCKET_PRODUTO_IMAGENS)
+            .upload(path, parsed.buffer, { upsert: true, contentType: parsed.contentType });
+          if (uploadErr) {
+            console.warn("[multivariante] upload imagem_url_por_cor:", cor, uploadErr.message);
+            delete imagemUrlPorCorMap[cor];
+            continue;
+          }
+          const { data: urlData } = supabaseAdmin.storage.from(BUCKET_PRODUTO_IMAGENS).getPublicUrl(path);
+          imagemUrlPorCorMap[cor] = urlData.publicUrl;
+        }
+        if (Object.keys(imagemUrlPorCorMap).length === 0) imagemUrlPorCorMap = null;
+      }
     }
 
     const custo_base = body?.custo_base != null ? (typeof body.custo_base === "number" ? body.custo_base : parseFloat(String(body.custo_base).replace(",", "."))) : null;

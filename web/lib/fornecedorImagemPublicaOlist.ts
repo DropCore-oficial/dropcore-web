@@ -5,14 +5,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { urlImagemExportOlist } from "@/lib/sellerCatalogOlistExport";
 
-const BUCKET = "produto-imagens";
+export const BUCKET_PRODUTO_IMAGENS = "produto-imagens";
+const BUCKET = BUCKET_PRODUTO_IMAGENS;
 const MAX_DATA_URL_BYTES = 5 * 1024 * 1024;
 
 export function isDataImageUrl(url: string | null | undefined): boolean {
   return typeof url === "string" && url.trim().startsWith("data:image/");
 }
 
-function parseDataImageUrl(dataUrl: string): { buffer: Buffer; contentType: string; ext: string } | null {
+export function parseDataImageUrl(dataUrl: string): { buffer: Buffer; contentType: string; ext: string } | null {
   const m = dataUrl.trim().match(/^data:(image\/(?:jpeg|jpg|png|webp|gif));base64,(.+)$/i);
   if (!m) return null;
   const contentType = m[1]!.toLowerCase().replace("jpg", "jpeg");
