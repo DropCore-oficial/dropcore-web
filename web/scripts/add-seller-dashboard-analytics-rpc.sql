@@ -15,7 +15,10 @@ SET search_path = public
 AS $$
 DECLARE
   v_d30 timestamptz := (now() - interval '30 days');
-  v_d14 timestamptz := (now() - interval '14 days');
+  -- 90 dias cobre os 5 períodos numéricos do seletor "Volume de pedidos" (7/14/30/60/90d) —
+  -- esse gráfico também vivia do extrato capado em 200 linhas pros períodos != 14d, mesmo
+  -- bug do Lucro/Receita (achado ao vivo 2026-09-22, mesma sessão).
+  v_d90 timestamptz := (now() - interval '90 days');
   v_inicio_mes timestamptz := date_trunc('month', now());
   v_pedidos_30d int;
   v_custo_30d float8;
@@ -74,7 +77,7 @@ BEGIN
       count(*)::int AS count
     FROM public.pedidos
     WHERE seller_id = p_seller_id AND org_id = p_org_id
-      AND criado_em >= v_d14
+      AND criado_em >= v_d90
       AND status NOT IN ('cancelado', 'erro_saldo')
     GROUP BY (criado_em AT TIME ZONE 'UTC')::date
   ) t;

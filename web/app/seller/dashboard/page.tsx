@@ -929,14 +929,22 @@ export default function SellerDashboardPage() {
     };
   })();
 
-  // Gráfico — usa dados do Desempenho quando Pro+14d (garantido funcionar); senão calcula do extrato
+  // Gráfico — períodos numéricos (7/14/30/60/90d) vêm de fn_seller_dashboard_analytics_30d
+  // (vendas_por_dia cobre até 90 dias, sem cap de linha). Achado ao vivo 2026-09-22: esse
+  // gráfico vivia do extrato capado em 200 pros períodos != 14d, mesmo bug do Lucro/Receita
+  // — mês específico (seletor "Mês...") continua no extrato capado por enquanto, caso raro.
   const chartData = (() => {
-    if (isPro && analytics30d && chartPeriodo === 14) {
-      return (analytics30d.vendasPorDia as [string, { receita: number; custo: number; count?: number }][]).map(([dia, v]) => ({
-        dia,
-        valor: v.custo,
-        count: (v as { count?: number }).count ?? 0,
-      }));
+    if (isPro && analytics30dApi && typeof chartPeriodo === "number") {
+      const porDiaMap = new Map(analytics30dApi.vendas_por_dia.map((v) => [v.dia, v]));
+      const agoraNum = new Date();
+      const diasNum: { dia: string; valor: number; count: number }[] = [];
+      for (let i = chartPeriodo - 1; i >= 0; i--) {
+        const d = new Date(agoraNum.getTime() - i * 24 * 60 * 60 * 1000);
+        const key = d.toISOString().slice(0, 10);
+        const v = porDiaMap.get(key);
+        diasNum.push({ dia: key, valor: v?.custo ?? 0, count: v?.count ?? 0 });
+      }
+      return diasNum;
     }
     const toKey = (d: Date) => d.toISOString().slice(0, 10);
     const agora = new Date();
