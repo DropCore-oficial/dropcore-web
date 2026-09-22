@@ -28,6 +28,7 @@ export function SellerMercadoLivreIntegrationPanel() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<MercadoLivreStatus | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const exchangedCode = useRef<string | null>(null);
 
   const load = useCallback(async () => {
@@ -86,6 +87,34 @@ export function SellerMercadoLivreIntegrationPanel() {
   }, []);
 
   const connected = Boolean(status?.connected);
+
+  /** Desconecta pra liberar a conta ML pra outro seller — ml_user_id é UNIQUE (achado ao
+   * vivo 2026-09-22: sem isso, trocar de conta ML exigia mexer direto no banco). Some com
+   * o dado real dos gestores de IA até reconectar, mesmo padrão de aviso que o Olist já
+   * mostra no "Remover" da tela de ERP (`app/seller/integracoes-erp/page.tsx`). */
+  async function desconectar() {
+    setDisconnecting(true);
+    setError(null);
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const res = await fetch("/api/seller/mercadolivre", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(json.error ?? "Não foi possível desconectar o Mercado Livre.");
+        return;
+      }
+      await load();
+    } finally {
+      setDisconnecting(false);
+    }
+  }
 
   return (
     <section className="relative rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm transition-shadow hover:shadow-md sm:p-6">
@@ -147,12 +176,26 @@ export function SellerMercadoLivreIntegrationPanel() {
               Acesso válido até {new Date(status.access_token_expires_at).toLocaleString("pt-BR")} — renova sozinho.
             </p>
           ) : null}
-          <a
-            href="/api/seller/mercadolivre/connect"
-            className="mt-3 inline-flex rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
-          >
-            Reconectar
-          </a>
+          <p className="mt-2 text-xs text-[var(--muted)]">
+            Desconectar interrompe o dado real do Mercado Livre nos gestores de IA (Ulisses, Andrey, Amanda) até
+            reconectar — útil se precisar trocar pra outra conta ML.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a
+              href="/api/seller/mercadolivre/connect"
+              className="inline-flex rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+            >
+              Reconectar
+            </a>
+            <button
+              type="button"
+              onClick={() => void desconectar()}
+              disabled={disconnecting}
+              className="inline-flex rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
+            >
+              {disconnecting ? "Desconectando..." : "Desconectar"}
+            </button>
+          </div>
         </div>
       ) : (
         <a
