@@ -396,6 +396,7 @@ export default function SellerDashboardPage() {
   const autoOpenedRef = useRef(false);
   const extratoRef = useRef<HTMLDivElement>(null);
   const [chartTooltipHover, setChartTooltipHover] = useState<{ dia: string; valor: number; count: number } | null>(null);
+  const [miniChartTooltipHover, setMiniChartTooltipHover] = useState<string | null>(null);
 
   const temMensalidadeVencida = mensalidades.some((m) => m.vencido);
   const cobrancaMensalidadeAtiva = !trialAtivo;
@@ -942,7 +943,7 @@ export default function SellerDashboardPage() {
         const d = new Date(agoraNum.getTime() - i * 24 * 60 * 60 * 1000);
         const key = d.toISOString().slice(0, 10);
         const v = porDiaMap.get(key);
-        diasNum.push({ dia: key, valor: v?.custo ?? 0, count: v?.count ?? 0 });
+        diasNum.push({ dia: key, valor: v?.receita ?? 0, count: v?.count ?? 0 });
       }
       return diasNum;
     }
@@ -998,7 +999,7 @@ export default function SellerDashboardPage() {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
       const row = map.get(key);
       if (row) {
-        row.valor += Number(e.valor_total) || 0;
+        row.valor += Number(e.preco_venda ?? e.valor_total) || 0;
         row.count += 1;
       }
     });
@@ -1626,12 +1627,31 @@ export default function SellerDashboardPage() {
             )}
             {analytics30d.vendasPorDia.some(([, v]) => (v as { receita: number; custo: number }).receita > 0 || (v as { receita: number; custo: number }).custo > 0) && (
               <div className="px-4 pb-3 pt-1">
-                <div className="flex items-end gap-[2px] h-10 rounded overflow-hidden">
+                <div className="flex items-end gap-[2px] h-10">
                   {(analytics30d.vendasPorDia as [string, { receita: number; custo: number }][]).map(([dia, val]) => {
                     const principal = analytics30d!.temDadosVenda ? val.receita : val.custo;
                     const max = Math.max(...(analytics30d!.vendasPorDia as [string, { receita: number; custo: number }][]).map(([, v]) => analytics30d!.temDadosVenda ? v.receita : v.custo), 1);
+                    const periodLabel = dia.length >= 10 ? `${dia.slice(8)}/${dia.slice(5, 7)}` : dia;
                     return (
-                      <div key={dia} title={`${dia}: ${BRL.format(principal)}`} className="flex-1 min-w-0 bg-emerald-600 hover:bg-emerald-700 rounded-t" style={{ height: `${Math.max((principal / max) * 100, principal > 0 ? 4 : 2)}%` }} />
+                      <div
+                        key={dia}
+                        className="flex-1 min-w-0 relative"
+                        onMouseEnter={() => setMiniChartTooltipHover(dia)}
+                        onMouseLeave={() => setMiniChartTooltipHover(null)}
+                      >
+                        <div
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 rounded-t"
+                          style={{ height: `${Math.max((principal / max) * 100, principal > 0 ? 4 : 2)}%` }}
+                        />
+                        {miniChartTooltipHover === dia && (
+                          <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 z-20 pointer-events-none whitespace-nowrap">
+                            <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] shadow-xl py-1.5 px-2.5 text-[11px]">
+                              <span className="text-[var(--muted)]">{periodLabel}: </span>
+                              <span className="font-semibold text-[var(--foreground)] tabular-nums">{BRL.format(principal)}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
