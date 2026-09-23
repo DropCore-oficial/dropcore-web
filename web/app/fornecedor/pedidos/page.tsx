@@ -5,7 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { FornecedorNav } from "../FornecedorNav";
 import { AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
-import { DANGER_PREMIUM_SURFACE, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
+import {
+  DANGER_PREMIUM_SURFACE,
+  DANGER_PREMIUM_TEXT_PRIMARY,
+  INFO_PREMIUM_TEXT_PRIMARY,
+} from "@/lib/semanticPremium";
 import { IconClipboard } from "@/components/seller/Icons";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { PedidoCardSkeleton } from "@/components/ui/Skeleton";
@@ -63,6 +67,8 @@ type Pedido = {
   criado_em: string;
   tem_etiqueta_oficial?: boolean;
   etiqueta_impressa_em?: string | null;
+  canal_venda?: string | null;
+  etiqueta_ml_previsao?: string | null;
 };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -728,7 +734,51 @@ export default function FornecedorPedidosPage() {
                     <p className={cn("mt-3 text-sm", DANGER_PREMIUM_TEXT_PRIMARY)}>{p.motivo_bloqueio}</p>
                   ) : null}
 
-                  {p.status === "enviado" && !p.tem_etiqueta_oficial && (
+                  {p.status === "enviado" && !p.tem_etiqueta_oficial && p.canal_venda === "mercado_livre" && (
+                    <div
+                      role="status"
+                      className="relative mt-3 overflow-hidden rounded-xl border border-[var(--info)]/40 bg-transparent"
+                    >
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-[var(--info)]/70"
+                      />
+                      <div className="pl-4 pr-3 py-3 sm:pl-5 sm:pr-4 sm:py-3.5">
+                        <div className="flex min-w-0 items-start gap-2.5">
+                          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--info)]/35 bg-[var(--info)]/10">
+                            <svg
+                              className={cn(INFO_PREMIUM_TEXT_PRIMARY, "h-5 w-5")}
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden
+                            >
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="12" y1="8" x2="12" y2="12" />
+                              <line x1="12" y1="16" x2="12.01" y2="16" />
+                            </svg>
+                          </span>
+                          <div className="min-w-0">
+                            <p className={cn(INFO_PREMIUM_TEXT_PRIMARY, "text-base font-bold leading-snug tracking-tight")}>
+                              Aguardando o Mercado Livre liberar a etiqueta
+                            </p>
+                            <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">
+                              {p.etiqueta_ml_previsao
+                                ? `Previsão: ${formatDate(p.etiqueta_ml_previsao)}. `
+                                : ""}
+                              Buffer automático do próprio ML (capacidade de transportadora) — não conta
+                              como atraso do fornecedor, nem depende do seller.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {p.status === "enviado" && !p.tem_etiqueta_oficial && p.canal_venda !== "mercado_livre" && (
                     <div
                       role="status"
                       className="relative mt-3 overflow-hidden rounded-xl border border-[var(--danger)]/55 bg-transparent shadow-sm shadow-red-500/10 dark:border-red-400/55 dark:bg-transparent dark:shadow-none"

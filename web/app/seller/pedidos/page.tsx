@@ -16,6 +16,9 @@ import {
   DANGER_PREMIUM_SHELL,
   DANGER_PREMIUM_SURFACE_TRANSPARENT,
   DANGER_PREMIUM_TEXT_PRIMARY,
+  INFO_PREMIUM_SHELL,
+  INFO_PREMIUM_SURFACE_TRANSPARENT,
+  INFO_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/semanticPremium";
 import {
   MSG_SKU_NAO_HABILITADO_PLANO_STARTER,
@@ -75,6 +78,8 @@ type Pedido = {
   tem_etiqueta: boolean;
   etiqueta_tentativas: number;
   is_reserva?: boolean;
+  canal_venda?: string | null;
+  etiqueta_ml_previsao?: string | null;
 };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -490,7 +495,36 @@ export default function SellerPedidosPage() {
                     </ul>
                   ) : null}
 
-                  {p.status === "enviado" && !p.tem_etiqueta && (
+                  {p.status === "enviado" && !p.tem_etiqueta && p.canal_venda === "mercado_livre" && (
+                    <div className={cn(INFO_PREMIUM_SURFACE_TRANSPARENT, "mt-3 flex items-start gap-3 rounded-xl px-3 py-2.5")}>
+                      <span
+                        className={cn(
+                          INFO_PREMIUM_SHELL,
+                          INFO_PREMIUM_TEXT_PRIMARY,
+                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                        )}
+                      >
+                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="8" x2="12" y2="12" />
+                          <line x1="12" y1="16" x2="12.01" y2="16" />
+                        </svg>
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className={cn(INFO_PREMIUM_TEXT_PRIMARY, "block text-sm font-semibold")}>
+                          Etiqueta ainda não liberada pelo Mercado Livre
+                        </span>
+                        <span className="mt-0.5 block text-xs text-[var(--muted)]">
+                          {p.etiqueta_ml_previsao
+                            ? `Previsão de liberação: ${formatDate(p.etiqueta_ml_previsao)}. `
+                            : ""}
+                          É automático (buffer de transportadora do próprio ML) — não precisa fazer nada.
+                        </span>
+                      </span>
+                    </div>
+                  )}
+
+                  {p.status === "enviado" && !p.tem_etiqueta && p.canal_venda !== "mercado_livre" && (
                       <button
                         type="button"
                         onClick={() => setEtiquetaModalPedidoId(p.id)}

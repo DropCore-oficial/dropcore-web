@@ -32,6 +32,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Informe o código de autorização do Mercado Livre." }, { status: 400 });
     }
 
+    // Exclusivo com Olist: mesmo motivo do guard espelhado em /api/seller/olist (PUT) —
+    // evita a mesma venda do ML entrar duas vezes (via sync Olist e via webhook ML direto).
+    const { data: olistIntegracao } = await supabaseAdmin
+      .from("seller_olist_integrations")
+      .select("olist_token_ciphertext")
+      .eq("seller_id", seller.id)
+      .maybeSingle();
+    if (olistIntegracao?.olist_token_ciphertext) {
+      return NextResponse.json(
+        {
+          error:
+            "Este seller já tem a Olist/Tiny conectada — desconecte-a antes de conectar o Mercado Livre direto, pra não duplicar pedido do mesmo marketplace.",
+        },
+        { status: 409 },
+      );
+    }
+
     const tokens = await exchangeMercadoLivreAuthorizationCode(code);
     const expiresAt = computeMercadoLivreAccessTokenExpiresAt(tokens.expires_in);
 

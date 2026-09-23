@@ -393,6 +393,25 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Informe o token API gerado na Olist/Tiny." }, { status: 400 });
     }
 
+    // Exclusivo com ML direto: os dois caminhos gravam pedido com referencia_externa
+    // diferente ("olist:{id}" vs "ml:{numero}") pro mesmo pedido físico do Mercado Livre —
+    // sem essa trava, a mesma venda entraria duas vezes (estoque e saldo debitados em
+    // dobro). Ver lib/pedidoEtiquetaMercadoLivreBuffer.ts / /api/webhooks/mercadolivre.
+    const { data: mlIntegracao } = await supabaseAdmin
+      .from("seller_mercadolivre_integrations")
+      .select("ml_access_token")
+      .eq("seller_id", seller.id)
+      .maybeSingle();
+    if (mlIntegracao?.ml_access_token) {
+      return NextResponse.json(
+        {
+          error:
+            "Este seller já tem o Mercado Livre conectado direto — desconecte-o antes de conectar a Olist/Tiny, pra não duplicar pedido do mesmo marketplace.",
+        },
+        { status: 409 },
+      );
+    }
+
     let accountInfo;
     try {
       accountInfo = await fetchOlistAccountInfo(apiToken);

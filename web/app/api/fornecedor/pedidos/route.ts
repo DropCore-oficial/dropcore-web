@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { motivoBloqueioParaPortal } from "@/lib/pedidoBloqueioResponsavel";
+import { buscarPrevisaoEtiquetaMlPendentes } from "@/lib/pedidoEtiquetaMercadoLivreBuffer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -33,6 +34,7 @@ type PedidoRow = {
   comprador_fone?: string | null;
   metodo_envio?: string | null;
   tracking_codigo?: string | null;
+  canal_venda?: string | null;
 };
 
 type PedidoItemRow = {
@@ -87,7 +89,7 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_impressa_em, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa, metodo_envio, tracking_codigo",
+        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_impressa_em, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa, metodo_envio, tracking_codigo, canal_venda",
         { count: "exact" }
       )
       .eq("org_id", ctx.org_id)
@@ -193,6 +195,16 @@ export async function GET(req: Request) {
       }
     }
 
+    const alvoParaMl: {
+      id: string;
+      seller_id: string;
+      status: string;
+      canal_venda: string | null;
+      referencia_externa: string | null;
+      marketplace_numero: string | null;
+      tem_etiqueta: boolean;
+    }[] = [];
+
     const items = (data ?? []).map((p) => {
       const itens = itensPorPedido.get(p.id) ?? [];
       const primeiro = itens[0] ?? null;
@@ -200,6 +212,15 @@ export async function GET(req: Request) {
       const url = (p as { etiqueta_pdf_url?: string | null }).etiqueta_pdf_url?.trim() ?? "";
       const b64 = (p as { etiqueta_pdf_base64?: string | null }).etiqueta_pdf_base64;
       const tem_etiqueta_oficial = Boolean(url) || Boolean(b64 && String(b64).trim().length > 0);
+      alvoParaMl.push({
+        id: p.id,
+        seller_id: p.seller_id,
+        status: p.status,
+        canal_venda: p.canal_venda ?? null,
+        referencia_externa: p.referencia_externa,
+        marketplace_numero: p.marketplace_numero ?? null,
+        tem_etiqueta: tem_etiqueta_oficial,
+      });
       const {
         etiqueta_pdf_url: _u,
         etiqueta_pdf_base64: _b,
@@ -221,8 +242,20 @@ export async function GET(req: Request) {
         linha_despacho: primeiro?.linha_despacho ?? expedicaoPadrao,
         itens,
         tem_etiqueta_oficial,
+        etiqueta_ml_previsao: null as string | null,
       };
     });
+
+    // Mesma lógica do `/api/seller/pedidos`: pedido "enviado" sem etiqueta que veio direto
+    // do ML mostra a data real de liberação em vez do alerta "Sem etiqueta" (que é
+    // especificamente pro caso Olist, onde o seller precisa colar o link manualmente).
+    const previsaoMlPorPedido = await buscarPrevisaoEtiquetaMlPendentes(alvoParaMl);
+    for (let i = 0; i < items.length; i++) {
+      const previsao = previsaoMlPorPedido.get(alvoParaMl[i].id);
+      if (previsao !== undefined) {
+        (items[i] as { etiqueta_ml_previsao: string | null }).etiqueta_ml_previsao = previsao;
+      }
+    }
 
     return NextResponse.json({ items, total: total ?? items.length, page, limit, expedicao_padrao: expedicaoPadrao });
   } catch (e: unknown) {

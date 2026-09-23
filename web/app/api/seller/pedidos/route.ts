@@ -3,6 +3,7 @@
  */
 import { NextResponse } from "next/server";
 import { motivoBloqueioParaPortal } from "@/lib/pedidoBloqueioResponsavel";
+import { buscarPrevisaoEtiquetaMlPendentes } from "@/lib/pedidoEtiquetaMercadoLivreBuffer";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -28,6 +29,7 @@ type PedidoRow = {
   comprador_cidade?: string | null;
   comprador_uf?: string | null;
   comprador_fone?: string | null;
+  canal_venda?: string | null;
 };
 
 const STATUS_FILTER = [
@@ -68,7 +70,7 @@ export async function GET(req: Request) {
       let query = supabaseAdmin
         .from("pedidos")
         .select(
-          "id, nome_produto, valor_total, preco_venda, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, referencia_externa, tracking_codigo, metodo_envio, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_tentativas",
+          "id, nome_produto, valor_total, preco_venda, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, referencia_externa, tracking_codigo, metodo_envio, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, canal_venda, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_tentativas",
           { count: "exact" }
         )
         .eq("org_id", seller.org_id)
@@ -161,8 +163,30 @@ export async function GET(req: Request) {
             (p as { etiqueta_pdf_base64?: string | null }).etiqueta_pdf_base64?.trim()
         ),
         is_reserva: false,
+        etiqueta_ml_previsao: null as string | null,
       };
     });
+
+    // Pedidos "enviado" sem etiqueta que vieram direto do ML (não via Olist) — busca a
+    // data em que o próprio Mercado Livre prevê liberar a etiqueta (buffer de
+    // transportadora, achado ao vivo 2026-09-22), pra não confundir com o caso Olist
+    // (onde o seller precisa colar o link manualmente — ver "Etiqueta pendente" no JSX).
+    const previsaoMlPorPedido = await buscarPrevisaoEtiquetaMlPendentes(
+      items.map((p) => ({
+        id: p.id,
+        seller_id: seller.id,
+        status: p.status,
+        canal_venda: p.canal_venda ?? null,
+        referencia_externa: p.referencia_externa,
+        marketplace_numero: p.marketplace_numero ?? null,
+        tem_etiqueta: p.tem_etiqueta,
+      }))
+    );
+    for (const p of items) {
+      if (previsaoMlPorPedido.has(p.id)) {
+        p.etiqueta_ml_previsao = previsaoMlPorPedido.get(p.id) ?? null;
+      }
+    }
 
     // Pedidos Olist "Em aberto" (aguardando pagamento) — reserva estoque mas ainda não
     // vira `pedidos`/`financial_ledger`. Só entra na lista quando o filtro é "Todos" ou
@@ -237,12 +261,14 @@ export async function GET(req: Request) {
         comprador_cidade: null,
         comprador_uf: null,
         comprador_fone: null,
+        canal_venda: g.canal_venda,
         itens: g.itens,
         etiqueta_pdf_url: null,
         etiqueta_pdf_base64: null,
         etiqueta_tentativas: 0,
         tem_etiqueta: false,
         is_reserva: true,
+        etiqueta_ml_previsao: null as string | null,
       }));
     }
 

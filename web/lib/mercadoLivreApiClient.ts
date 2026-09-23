@@ -1121,3 +1121,23 @@ export async function mlAtualizarDescricao(
   }
   return { ok: true };
 }
+
+/** Data em que o ML deve liberar a etiqueta pro pedido (buffer próprio de capacidade de
+ * transportadora — não é rate limit nosso). Confirmado ao vivo (2026-09-22): enquanto o
+ * shipment está nesse buffer, `GET /shipment_labels` devolve `NOT_PRINTABLE_STATUS`, mas
+ * `GET /shipments/{id}/lead_time` já expõe a data real que o próprio ML mostra pro
+ * vendedor ("Para enviar no dia X"). Retorna `null` se o pedido não existir mais, não tiver
+ * envio, ou a API falhar — chamador deve tratar como "sem previsão conhecida", nunca erro. */
+export async function mlBuscarPrevisaoLiberacaoEtiqueta(
+  ctx: MercadoLivreAuthContext,
+  marketplaceNumero: string
+): Promise<string | null> {
+  const order = await mlGet<{ shipping?: { id?: number | string } }>(`/orders/${marketplaceNumero}`, ctx.accessToken);
+  const shippingId = order?.shipping?.id;
+  if (!shippingId) return null;
+  const lead = await mlGet<{ estimated_handling_limit?: { date?: string } }>(
+    `/shipments/${shippingId}/lead_time`,
+    ctx.accessToken
+  );
+  return lead?.estimated_handling_limit?.date ?? null;
+}

@@ -676,7 +676,7 @@ export default function FornecedorDashboardPage() {
                         onMouseLeave={() => setTooltipHover(null)}
                       >
                         <div
-                          className="w-full rounded-t bg-emerald-600 hover:bg-emerald-700 transition-colors cursor-default"
+                          className="w-full rounded-t-[6px] bg-gradient-to-b from-emerald-400 to-emerald-600 shadow-sm ring-1 ring-emerald-600/25 transition hover:opacity-90 cursor-default dark:from-emerald-500 dark:to-emerald-600 dark:ring-emerald-500/30"
                           style={{ height: `${barH}px` }}
                           title={`${periodLabel}: ${BRL.format(d.valor)} · ${d.count ?? 0} pedidos`}
                         />
