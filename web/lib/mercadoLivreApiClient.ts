@@ -1141,3 +1141,48 @@ export async function mlBuscarPrevisaoLiberacaoEtiqueta(
   );
   return lead?.estimated_handling_limit?.date ?? null;
 }
+
+/** Mesmo teto usado pro PDF da Olist (`MAX_ETIQUETA_PDF_BYTES` em olistTinyApi.ts) — limite
+ * de tamanho de coluna/linha no Postgres pra guardar o base64, não é limite do ML. */
+const MAX_ETIQUETA_PDF_BYTES_ML = Math.floor(1.35 * 1024 * 1024);
+
+/** Busca o PDF real da etiqueta de envio no ML e devolve em base64 — usado pelo retry
+ * dedicado (`etiquetaMlRetry.ts`), já que o webhook não avisa quando ela libera (ver
+ * comentário em `/api/webhooks/mercadolivre`) e a tentativa não pode rodar só uma vez.
+ * `GET /shipment_labels?response_type=pdf` devolve o PDF binário quando pronto, ou um JSON
+ * de erro (`NOT_PRINTABLE_STATUS` enquanto no buffer da transportadora, ou outro código se o
+ * shipment não existir/token não tiver permissão) — em qualquer caso de erro devolve `null`,
+ * nunca lança, pra o chamador tratar como "ainda não tem etiqueta" e tentar de novo depois. */
+export async function mlBuscarEtiquetaPdf(
+  ctx: MercadoLivreAuthContext,
+  marketplaceNumero: string
+): Promise<string | null> {
+  const order = await mlGet<{ shipping?: { id?: number | string } }>(`/orders/${marketplaceNumero}`, ctx.accessToken);
+  const shippingId = order?.shipping?.id;
+  if (!shippingId) return null;
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 45_000);
+  try {
+    const res = await fetch(`${ML_API_BASE}/shipment_labels?shipment_ids=${shippingId}&response_type=pdf`, {
+      headers: { Authorization: `Bearer ${ctx.accessToken}` },
+      signal: ctrl.signal,
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+
+    const ct = (res.headers.get("content-type") ?? "").toLowerCase();
+    if (!ct.includes("pdf")) return null;
+
+    const cl = res.headers.get("content-length");
+    if (cl && Number(cl) > MAX_ETIQUETA_PDF_BYTES_ML) return null;
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength > MAX_ETIQUETA_PDF_BYTES_ML) return null;
+
+    return Buffer.from(buf).toString("base64");
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}

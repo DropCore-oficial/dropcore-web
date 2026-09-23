@@ -37,8 +37,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  // "shipments" (mudança de status de envio) fica de fora por ora — a previsão de
-  // liberação de etiqueta já é buscada sob demanda (ver pedidoEtiquetaMercadoLivreBuffer.ts).
+  // "shipments" (mudança de status de envio) fica de fora — o ML não avisa quando a
+  // etiqueta libera, então quem cobre isso é o retry dedicado (etiquetaMlRetry.ts, a cada
+  // 15 min) e a previsão de liberação mostrada sob demanda na tela
+  // (pedidoEtiquetaMercadoLivreBuffer.ts), não este webhook.
   if (body.topic !== "orders_v2" && body.topic !== "orders") return NextResponse.json({ ok: true });
 
   const orderId = String(body.resource ?? "").match(/\/orders\/(\d+)/)?.[1];
