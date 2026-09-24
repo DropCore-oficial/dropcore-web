@@ -18,6 +18,7 @@ export const NOTIFICATION_TIPOS_POR_CONTEXTO: Record<NotificationPortalContext, 
     "mensalidade_vencendo",
     "mensalidade_paga_admin",
     "alteracao_produto_pendente",
+    "sla_atraso_admin",
   ],
   seller: [
     "deposito_aprovado",
@@ -45,6 +46,7 @@ export const NOTIFICATION_TIPOS_POR_CONTEXTO: Record<NotificationPortalContext, 
     "repasse_recebido",
     "alteracao_aprovada",
     "alteracao_rejeitada",
+    "pedido_sla_atrasado",
   ],
 };
 

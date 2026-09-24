@@ -38,6 +38,8 @@ const PEDIDO_TIPO_SEVERIDADE: Record<string, "danger" | "warning" | "success"> =
   pedido_pendente_estoque: "warning",
   pedido_novo: "success",
   produto_nao_vinculado: "warning",
+  pedido_sla_atrasado: "danger",
+  sla_atraso_admin: "danger",
 };
 
 const PEDIDO_TIPO_ICON: Record<string, string> = {
@@ -46,6 +48,8 @@ const PEDIDO_TIPO_ICON: Record<string, string> = {
   pedido_pendente_estoque: "⏳",
   pedido_novo: "🛒",
   produto_nao_vinculado: "🧩",
+  pedido_sla_atrasado: "⏰",
+  sla_atraso_admin: "⏰",
 };
 
 function pedidoDestino(context: NotificationPortalContext, pedidoId: string): string {
@@ -412,6 +416,24 @@ export function NotificationBell({
                             {n.tipo === "pedido_para_postar" && (
                               <a
                                 href="/fornecedor/pedidos?status=enviado"
+                                onClick={(e) => e.stopPropagation()}
+                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline"
+                              >
+                                Ver pedidos →
+                              </a>
+                            )}
+                            {n.tipo === "pedido_sla_atrasado" && (
+                              <a
+                                href="/fornecedor/pedidos?status=enviado"
+                                onClick={(e) => e.stopPropagation()}
+                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline"
+                              >
+                                Ver pedidos →
+                              </a>
+                            )}
+                            {n.tipo === "sla_atraso_admin" && (
+                              <a
+                                href="/admin/pedidos"
                                 onClick={(e) => e.stopPropagation()}
                                 className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline"
                               >

@@ -2,6 +2,7 @@ import { mapWithConcurrency } from "@/lib/mapWithConcurrency";
 import { getValidMercadoLivreAccessToken, mlBuscarEtiquetaPdf } from "@/lib/mercadoLivreApiClient";
 import { notifyAdminsEtiquetaMlFalha } from "@/lib/notifyAdminsEtiquetaMlFalha";
 import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
+import { calcularPrazoDespachoPedido } from "@/lib/pedidoSlaDespacho";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const RETRY_CONCURRENCY = 2;
@@ -90,6 +91,23 @@ export async function runEtiquetaMlRetry(): Promise<EtiquetaMlRetrySummary> {
     }
 
     const pdfBase64 = await mlBuscarEtiquetaPdf(ctx, pedido.marketplace_numero);
+
+    // SLA de despacho (Fase 2) — a data que o ML prevê já pode mudar até a véspera do
+    // despacho (buffer de transportadora), então refaz a cada rodada enquanto o pedido
+    // seguir sem etiqueta; best-effort, nunca derruba o retry principal da etiqueta.
+    try {
+      const prazo = await calcularPrazoDespachoPedido({
+        canalVenda: "mercado_livre",
+        etiquetaImpressaEm: null,
+        sellerId: pedido.seller_id,
+        marketplaceNumero: pedido.marketplace_numero,
+      });
+      if (prazo) {
+        await supabaseAdmin.from("pedidos").update({ sla_prazo_despacho: prazo.toISOString() }).eq("id", pedido.id);
+      }
+    } catch (e: unknown) {
+      console.error("[etiquetaMlRetry] sla_prazo_despacho:", pedido.id, e);
+    }
 
     if (pdfBase64) {
       const { error: updateErr } = await supabaseAdmin

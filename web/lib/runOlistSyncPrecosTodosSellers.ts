@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isSellerOlistRateLimited } from "@/lib/olistRateLimitCooldown";
+import { releaseSellerOlistSync, tryLockSellerOlistSync } from "@/lib/olistSyncSellerLock";
 import { getSellerOlistApiToken } from "@/lib/sellerOlistIntegration";
 import {
   deriveSellerOlistPrecosSyncStatus,
@@ -9,6 +10,7 @@ import {
 import { syncOlistPrecosCatalogoSeller } from "@/lib/sellerOlistSyncPrecosCatalogo";
 
 const SELLER_PAUSE_MS = 1500;
+const SYNC_LOCK_HOLDER = "olist-sync-precos";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -47,62 +49,69 @@ export async function runOlistSyncPrecosTodosSellers(): Promise<{
     const apiToken = await getSellerOlistApiToken(sellerId);
     if (!apiToken) continue;
 
-    const { data: seller, error: sellerErr } = await supabaseAdmin
-      .from("sellers")
-      .select("id, org_id, fornecedor_id")
-      .eq("id", sellerId)
-      .maybeSingle();
-
-    if (sellerErr || !seller) continue;
-    const fornecedorId = (seller as { fornecedor_id?: string | null }).fornecedor_id ?? null;
-    const orgId = (seller as { org_id?: string }).org_id;
-    if (!fornecedorId || !orgId) continue;
+    const lockOk = await tryLockSellerOlistSync(sellerId, SYNC_LOCK_HOLDER);
+    if (!lockOk) continue; // outro cron Olist está usando o token deste seller agora
 
     try {
-      const sync = await syncOlistPrecosCatalogoSeller({
-        apiToken,
-        orgId,
-        sellerId,
-        fornecedorId,
-        supabase: supabaseAdmin,
-        scope: "todos",
-      });
-      if (sync.grupos > 0) sellersSynced += 1;
-      okTotal += sync.ok;
-      falhasTotal += sync.falhas.length;
-      detalhes.push({
-        seller_id: sellerId,
-        grupos_ok: sync.grupos_ok,
-        ok: sync.ok,
-        falhas: sync.falhas.length,
-      });
-      const summary = summaryFromPrecosCatalogoResult(sync, "cron");
+      const { data: seller, error: sellerErr } = await supabaseAdmin
+        .from("sellers")
+        .select("id, org_id, fornecedor_id")
+        .eq("id", sellerId)
+        .maybeSingle();
+
+      if (sellerErr || !seller) continue;
+      const fornecedorId = (seller as { fornecedor_id?: string | null }).fornecedor_id ?? null;
+      const orgId = (seller as { org_id?: string }).org_id;
+      if (!fornecedorId || !orgId) continue;
+
       try {
-        await saveSellerOlistPrecosSyncResult(sellerId, {
-          status: deriveSellerOlistPrecosSyncStatus(summary),
-          summary,
+        const sync = await syncOlistPrecosCatalogoSeller({
+          apiToken,
+          orgId,
+          sellerId,
+          fornecedorId,
+          supabase: supabaseAdmin,
+          scope: "todos",
         });
+        if (sync.grupos > 0) sellersSynced += 1;
+        okTotal += sync.ok;
+        falhasTotal += sync.falhas.length;
+        detalhes.push({
+          seller_id: sellerId,
+          grupos_ok: sync.grupos_ok,
+          ok: sync.ok,
+          falhas: sync.falhas.length,
+        });
+        const summary = summaryFromPrecosCatalogoResult(sync, "cron");
+        try {
+          await saveSellerOlistPrecosSyncResult(sellerId, {
+            status: deriveSellerOlistPrecosSyncStatus(summary),
+            summary,
+          });
+        } catch (e: unknown) {
+          console.warn("[runOlistSyncPrecosTodosSellers] persist:", sellerId, e);
+        }
       } catch (e: unknown) {
-        console.warn("[runOlistSyncPrecosTodosSellers] persist:", sellerId, e);
-      }
-    } catch (e: unknown) {
-      falhasTotal += 1;
-      detalhes.push({
-        seller_id: sellerId,
-        grupos_ok: 0,
-        ok: 0,
-        falhas: 1,
-      });
-      try {
-        await saveSellerOlistPrecosSyncResult(sellerId, {
-          status: "erro",
-          error: e instanceof Error ? e.message : "Erro ao sincronizar preços na Olist.",
-          summary: { grupos: 0, grupos_ok: 0, ok: 0, falhas: 1, origem: "cron" },
+        falhasTotal += 1;
+        detalhes.push({
+          seller_id: sellerId,
+          grupos_ok: 0,
+          ok: 0,
+          falhas: 1,
         });
-      } catch (persistErr: unknown) {
-        console.warn("[runOlistSyncPrecosTodosSellers] persist erro:", sellerId, persistErr);
+        try {
+          await saveSellerOlistPrecosSyncResult(sellerId, {
+            status: "erro",
+            error: e instanceof Error ? e.message : "Erro ao sincronizar preços na Olist.",
+            summary: { grupos: 0, grupos_ok: 0, ok: 0, falhas: 1, origem: "cron" },
+          });
+        } catch (persistErr: unknown) {
+          console.warn("[runOlistSyncPrecosTodosSellers] persist erro:", sellerId, persistErr);
+        }
+        console.error("[runOlistSyncPrecosTodosSellers]", sellerId, e);
       }
-      console.error("[runOlistSyncPrecosTodosSellers]", sellerId, e);
+    } finally {
+      await releaseSellerOlistSync(sellerId, SYNC_LOCK_HOLDER);
     }
 
     if (i + 1 < sellerIds.length) await sleep(SELLER_PAUSE_MS);

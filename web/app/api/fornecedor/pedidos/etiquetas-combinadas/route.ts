@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument } from "pdf-lib";
+import { calcularPrazoDespachoPedido } from "@/lib/pedidoSlaDespacho";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -107,7 +108,7 @@ export async function POST(req: Request) {
 
     const { data: rows, error: qErr } = await supabaseAdmin
       .from("pedidos")
-      .select("id, etiqueta_pdf_url, etiqueta_pdf_base64, marketplace_pack_id")
+      .select("id, etiqueta_pdf_url, etiqueta_pdf_base64, marketplace_pack_id, canal_venda")
       .eq("org_id", ctx.org_id)
       .eq("fornecedor_id", ctx.fornecedor_id)
       .in("id", ids);
@@ -203,6 +204,27 @@ export async function POST(req: Request) {
         .is("etiqueta_impressa_em", null);
       if (marcarImpressaErr) {
         console.error("[etiquetas-combinadas] marcar etiqueta_impressa_em:", marcarImpressaErr.message);
+      } else {
+        // SLA de despacho (Shopee/Shein/TikTok) — o relógio começa agora que a etiqueta
+        // está impressa. Mercado Livre calcula à parte (prazo vem direto da API do ML,
+        // ver web/lib/etiquetaMlRetry.ts), não depende de etiqueta impressa.
+        for (const id of idsParaMarcarImpresso) {
+          const canalVenda = (byId.get(id)?.canal_venda as string | null) ?? null;
+          if (!canalVenda || canalVenda === "mercado_livre") continue;
+          try {
+            const prazo = await calcularPrazoDespachoPedido({
+              canalVenda,
+              etiquetaImpressaEm: agora,
+              sellerId: "",
+              marketplaceNumero: null,
+            });
+            if (prazo) {
+              await supabaseAdmin.from("pedidos").update({ sla_prazo_despacho: prazo.toISOString() }).eq("id", id);
+            }
+          } catch (e: unknown) {
+            console.error("[etiquetas-combinadas] sla_prazo_despacho:", id, e);
+          }
+        }
       }
     }
 

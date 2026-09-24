@@ -2,6 +2,7 @@ import { submitSellerErpPedido } from "@/lib/erp/submitSellerErpPedido";
 import { shouldSkipSituacaoTextOnPesquisa } from "@/lib/olistPedidoImportPolicy";
 import { isTinyRateLimitMessage, pesquisarPedidosOlist, type OlistPedidoResumo } from "@/lib/olistTinyApi";
 import { isSellerOlistRateLimited, markSellerOlistRateLimited } from "@/lib/olistRateLimitCooldown";
+import { releaseSellerOlistSync, tryLockSellerOlistSync } from "@/lib/olistSyncSellerLock";
 import { processOlistPedidoImport } from "@/lib/sellerOlistPedidoImport";
 import { decryptSellerErpSecret, describeSellerErpSecretDecryptFailure } from "@/lib/sellerErpSecretBox";
 import { mapWithConcurrency } from "@/lib/mapWithConcurrency";
@@ -187,7 +188,38 @@ async function collectPedidosForSync(
   return [...byId.values()];
 }
 
+const SYNC_LOCK_HOLDER = "olist-sync";
+
+/**
+ * Trava o token Olist deste seller enquanto sincroniza — evita bater junto com
+ * etiqueta-olist-retry/olist-sync-precos no mesmo seller (ver web/lib/olistSyncSellerLock.ts).
+ */
 async function syncSellerOlistOrders(
+  row: SellerOlistSyncRow,
+  now: Date,
+  mode: SellerOlistSyncMode = "cron"
+): Promise<SellerOlistSyncSellerResult> {
+  const lockOk = await tryLockSellerOlistSync(row.seller_id, SYNC_LOCK_HOLDER);
+  if (!lockOk) {
+    return {
+      seller_id: row.seller_id,
+      org_id: row.org_id,
+      status: "ignorado",
+      imported: 0,
+      skipped: 0,
+      reservado: 0,
+      errors: [],
+      warnings: ["Outro cron Olist está usando o token deste seller agora — sync pulado nesta rodada."],
+    };
+  }
+  try {
+    return await syncSellerOlistOrdersInner(row, now, mode);
+  } finally {
+    await releaseSellerOlistSync(row.seller_id, SYNC_LOCK_HOLDER);
+  }
+}
+
+async function syncSellerOlistOrdersInner(
   row: SellerOlistSyncRow,
   now: Date,
   mode: SellerOlistSyncMode = "cron"

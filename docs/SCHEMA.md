@@ -458,6 +458,58 @@ populada a partir do `pack_id` que `web/lib/mercadoLivrePedidoIngest.ts` já lê
 `/orders/{orderId}` do ML. Escopo só ML direto (`canal_venda = 'mercado_livre'`) — Olist/
 Bling não mostraram esse padrão.
 
+## `seller_olist_integrations.olist_sync_locked_until`/`olist_sync_locked_by` — lock de concorrência por seller (2026-09-24)
+
+`web/scripts/add-olist-sync-lock-to-seller-integrations.sql`: 2 colunas nullable
+(`timestamptz`, `text`). Evita `olist-sync` (1min), `etiqueta-olist-retry` (15min) e
+`olist-sync-precos` (10min) baterem no token Olist do MESMO seller ao mesmo tempo (a Tiny
+tem um erro específico pra "excesso de requisições concorrentes", diferente do rate limit
+de volume já coberto por `olist_rate_limited_until`/`olistRateLimitCooldown.ts`).
+`fornecedor-olist-sync-estoque` fica de fora de propósito — usa token do FORNECEDOR
+(`fornecedor_olist_integrations`), bucket diferente. Lock via coluna com TTL, não advisory
+lock do Postgres: `supabaseAdmin` fala com o banco via PostgREST (HTTP), então "pegar" e
+"soltar" em chamadas separadas não garante a mesma conexão/sessão — premissa que o
+`pg_try_advisory_lock`/`pg_advisory_unlock` exige. Lib única:
+`web/lib/olistSyncSellerLock.ts` (`tryLockSellerOlistSync`/`releaseSellerOlistSync`),
+self-healing (TTL expira sozinho se o release não rodar, ex.: crash no meio do cron).
+
+## `pedidos.sla_prazo_despacho`/`sla_atraso_notificado_em` — SLA de postagem por marketplace (2026-09-24)
+
+`web/scripts/add-sla-despacho-to-pedidos.sql`: 2 colunas nullable (`timestamptz`) + índice
+parcial em `(status, sla_prazo_despacho)`. Fase 2 da frente de etiqueta/SLA (pausada em
+2026-09-22, retomada depois da ingestão direta do ML existir) — **v1 só notifica, sem
+penalidade financeira**. Regra de desenho: o relógio conta a partir da ETIQUETA
+DISPONÍVEL (`etiqueta_impressa_em`), nunca da criação do pedido — atraso causado pela
+etiqueta demorar (buffer do próprio ML, fila da Olist) não pode virar "culpa do
+fornecedor". Fórmulas por `canal_venda` (valores canônicos de `normalizeCanalVenda()`,
+`olistTinyApi.ts`) em `web/lib/pedidoSlaDespacho.ts`, confirmadas com o Sr Stark em
+2026-09-24 e validadas com casos de teste antes de commitar:
+- `mercado_livre`: usa o prazo real que a própria API do ML devolve
+  (`estimated_handling_limit`, via `mlBuscarPrevisaoLiberacaoEtiqueta`) — independe de
+  etiqueta impressa, busca de novo a cada rodada do `etiqueta-ml-retry` (a data pode mudar
+  até a véspera do despacho).
+- `shopee`: etiqueta impressa até 13h → despachar no mesmo dia até 23:59 (vale sábado
+  também); depois das 13h → dia seguinte até 23:59, pulando domingo (nunca é dia de
+  despacho válido).
+- `shein`: 24h em dias úteis — equivale a "1 dia útil depois, mesma hora" (sábado, domingo
+  e feriado nacional não contam).
+- `tiktok_shop`: 2 dias úteis a partir do dia da etiqueta (esse dia não conta como um dos
+  2), prazo final 23:59:59 do 2º dia útil seguinte.
+- Feriados nacionais calculados programaticamente (fixos + móveis via algoritmo de Páscoa
+  de Meeus/Jones/Butcher) — não precisa de lista atualizada ano a ano; cobre só feriados
+  NACIONAIS (não estaduais/municipais), limitação conhecida e aceita pra v1.
+
+Gravada em dois pontos: `web/app/api/fornecedor/pedidos/etiquetas-combinadas/route.ts`
+(Shopee/Shein/TikTok, no momento em que `etiqueta_impressa_em` é setado) e
+`web/lib/etiquetaMlRetry.ts` (ML, a cada rodada do retry). Checada pelo cron
+`web/app/api/cron/pedidos-sla-despacho-check/route.ts` (a cada 30 min,
+`web/scripts/add-pedidos-sla-despacho-check-cron.sql`) — pedido "enviado" com prazo
+vencido e ainda não notificado (`sla_atraso_notificado_em IS NULL`) notifica fornecedor
+(`notifyFornecedorSlaAtraso.ts`) + admin (`notifyAdminsSlaAtraso.ts`) e marca
+`sla_atraso_notificado_em` (nunca notifica o mesmo pedido 2x). Novos tipos de notificação:
+`pedido_sla_atrasado` (fornecedor) e `sla_atraso_admin` (admin) — registrados em
+`web/lib/notificationContextFilter.ts` e `web/components/NotificationBell.tsx`.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

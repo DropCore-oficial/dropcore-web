@@ -3,11 +3,13 @@ import { notifyAdminsEtiquetaOlistFalha } from "@/lib/notifyAdminsEtiquetaOlistF
 import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
 import { isTinyRateLimitMessage } from "@/lib/olistTinyApi";
 import { isSellerOlistRateLimited, markSellerOlistRateLimited } from "@/lib/olistRateLimitCooldown";
+import { releaseSellerOlistSync, tryLockSellerOlistSync } from "@/lib/olistSyncSellerLock";
 import { getSellerOlistApiToken } from "@/lib/sellerOlistIntegration";
 import { tryAttachOlistEtiquetaPdf } from "@/lib/sellerOlistPedidoImport";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const RETRY_CONCURRENCY = 2;
+const ETIQUETA_RETRY_LOCK_HOLDER = "etiqueta-olist-retry";
 const MAX_PEDIDOS_PER_RUN = 100;
 const MAX_TENTATIVAS_ANTES_ALERTA = 20;
 const HORAS_ANTES_ALERTA = 24;
@@ -106,79 +108,98 @@ export async function runEtiquetaOlistRetry(): Promise<EtiquetaOlistRetrySummary
     }
   }
 
-  await mapWithConcurrency(pedidos, RETRY_CONCURRENCY, async (pedido) => {
-    if (sellersBloqueados.has(pedido.seller_id)) {
-      pendentes += 1;
-      return;
-    }
+  // Trava o token de cada seller (não bloqueado por rate limit) enquanto esta rodada roda
+  // — evita olist-sync/olist-sync-precos baterem no mesmo token ao mesmo tempo. Granularidade
+  // é a rodada inteira (não por pedido individual): os pedidos ficam intercalados entre
+  // vários sellers com concorrência 2, não dá pra saber barato quando UM seller específico
+  // "terminou" no meio da leva — mas isso ainda cobre certinho a janela real de risco.
+  const sellersTravados = new Set<string>();
+  for (const sellerId of sellerIds) {
+    if (sellersBloqueados.has(sellerId)) continue;
+    const lockOk = await tryLockSellerOlistSync(sellerId, ETIQUETA_RETRY_LOCK_HOLDER);
+    if (lockOk) sellersTravados.add(sellerId);
+    else sellersBloqueados.add(sellerId);
+  }
 
-    const olistPedidoId = extrairOlistPedidoId(pedido.referencia_externa);
-    if (olistPedidoId == null) {
-      falhas += 1;
-      return;
-    }
+  try {
+    await mapWithConcurrency(pedidos, RETRY_CONCURRENCY, async (pedido) => {
+      if (sellersBloqueados.has(pedido.seller_id)) {
+        pendentes += 1;
+        return;
+      }
 
-    const token = await getSellerOlistApiToken(pedido.seller_id);
-    if (!token) {
-      falhas += 1;
-      return;
-    }
+      const olistPedidoId = extrairOlistPedidoId(pedido.referencia_externa);
+      if (olistPedidoId == null) {
+        falhas += 1;
+        return;
+      }
 
-    const warnings = await tryAttachOlistEtiquetaPdf({
-      org_id: pedido.org_id,
-      pedido_id: pedido.id,
-      olist_pedido_id: olistPedidoId,
-      token,
-    });
+      const token = await getSellerOlistApiToken(pedido.seller_id);
+      if (!token) {
+        falhas += 1;
+        return;
+      }
 
-    if (warnings.length === 0) {
-      obtidas += 1;
-      return;
-    }
-
-    if (warnings.some((w) => isTinyRateLimitMessage(w))) {
-      sellersBloqueados.add(pedido.seller_id);
-      await markSellerOlistRateLimited(pedido.seller_id);
-    }
-
-    pendentes += 1;
-    const novasTentativas = (pedido.etiqueta_tentativas ?? 0) + 1;
-    const criadoHaMuito = Date.now() - new Date(pedido.criado_em).getTime() > HORAS_ANTES_ALERTA * 3_600_000;
-    const ultimoAlertaMs = pedido.etiqueta_alerta_enviado_em ? new Date(pedido.etiqueta_alerta_enviado_em).getTime() : null;
-    const podeLembrarDeNovo = !ultimoAlertaMs || Date.now() - ultimoAlertaMs > HORAS_ENTRE_LEMBRETES * 3_600_000;
-    const deveAlertar =
-      podeLembrarDeNovo &&
-      (novasTentativas >= MAX_TENTATIVAS_ANTES_ALERTA ||
-        (criadoHaMuito && novasTentativas >= MIN_TENTATIVAS_PARA_ALERTA_POR_IDADE));
-    const agora = new Date().toISOString();
-
-    const { error: updateErr } = await supabaseAdmin
-      .from("pedidos")
-      .update({
-        etiqueta_tentativas: novasTentativas,
-        etiqueta_ultima_tentativa_em: agora,
-        ...(deveAlertar ? { etiqueta_alerta_enviado_em: agora } : {}),
-      })
-      .eq("id", pedido.id);
-    if (updateErr) {
-      console.error("[etiquetaOlistRetry] update:", pedido.id, updateErr.message);
-    }
-
-    if (deveAlertar) {
-      await notifyAdminsEtiquetaOlistFalha({ org_id: pedido.org_id, pedido_id: pedido.id });
-      // O seller é quem tem acesso à Olist (token em seller_olist_integrations) — só ele
-      // consegue ir lá pegar o link da etiqueta manualmente. Aviso ao admin acima fica
-      // como visibilidade extra pra org, mas quem precisa agir é o seller.
-      await notifySellerPedidoAtencao({
+      const warnings = await tryAttachOlistEtiquetaPdf({
         org_id: pedido.org_id,
-        seller_id: pedido.seller_id,
         pedido_id: pedido.id,
-        tipo: "etiqueta_pendente_manual",
-        motivo: `A etiqueta real de envio (Olist) não foi encontrada automaticamente depois de ${novasTentativas} tentativas. Entre em Pedidos e cole o link da etiqueta desse pedido.`,
+        olist_pedido_id: olistPedidoId,
+        token,
       });
-      alertasEnviados += 1;
+
+      if (warnings.length === 0) {
+        obtidas += 1;
+        return;
+      }
+
+      if (warnings.some((w) => isTinyRateLimitMessage(w))) {
+        sellersBloqueados.add(pedido.seller_id);
+        await markSellerOlistRateLimited(pedido.seller_id);
+      }
+
+      pendentes += 1;
+      const novasTentativas = (pedido.etiqueta_tentativas ?? 0) + 1;
+      const criadoHaMuito = Date.now() - new Date(pedido.criado_em).getTime() > HORAS_ANTES_ALERTA * 3_600_000;
+      const ultimoAlertaMs = pedido.etiqueta_alerta_enviado_em ? new Date(pedido.etiqueta_alerta_enviado_em).getTime() : null;
+      const podeLembrarDeNovo = !ultimoAlertaMs || Date.now() - ultimoAlertaMs > HORAS_ENTRE_LEMBRETES * 3_600_000;
+      const deveAlertar =
+        podeLembrarDeNovo &&
+        (novasTentativas >= MAX_TENTATIVAS_ANTES_ALERTA ||
+          (criadoHaMuito && novasTentativas >= MIN_TENTATIVAS_PARA_ALERTA_POR_IDADE));
+      const agora = new Date().toISOString();
+
+      const { error: updateErr } = await supabaseAdmin
+        .from("pedidos")
+        .update({
+          etiqueta_tentativas: novasTentativas,
+          etiqueta_ultima_tentativa_em: agora,
+          ...(deveAlertar ? { etiqueta_alerta_enviado_em: agora } : {}),
+        })
+        .eq("id", pedido.id);
+      if (updateErr) {
+        console.error("[etiquetaOlistRetry] update:", pedido.id, updateErr.message);
+      }
+
+      if (deveAlertar) {
+        await notifyAdminsEtiquetaOlistFalha({ org_id: pedido.org_id, pedido_id: pedido.id });
+        // O seller é quem tem acesso à Olist (token em seller_olist_integrations) — só ele
+        // consegue ir lá pegar o link da etiqueta manualmente. Aviso ao admin acima fica
+        // como visibilidade extra pra org, mas quem precisa agir é o seller.
+        await notifySellerPedidoAtencao({
+          org_id: pedido.org_id,
+          seller_id: pedido.seller_id,
+          pedido_id: pedido.id,
+          tipo: "etiqueta_pendente_manual",
+          motivo: `A etiqueta real de envio (Olist) não foi encontrada automaticamente depois de ${novasTentativas} tentativas. Entre em Pedidos e cole o link da etiqueta desse pedido.`,
+        });
+        alertasEnviados += 1;
+      }
+    });
+  } finally {
+    for (const sellerId of sellersTravados) {
+      await releaseSellerOlistSync(sellerId, ETIQUETA_RETRY_LOCK_HOLDER);
     }
-  });
+  }
 
   return { avaliados: pedidos.length, obtidas, pendentes, alertas_enviados: alertasEnviados, falhas };
 }
