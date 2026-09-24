@@ -8,7 +8,6 @@ import { AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import {
   DANGER_PREMIUM_SURFACE,
   DANGER_PREMIUM_TEXT_PRIMARY,
-  INFO_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/semanticPremium";
 import { IconClipboard } from "@/components/seller/Icons";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
@@ -33,6 +32,11 @@ const STATUS_PILL: Record<string, string> = {
   devolvido: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
   erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
 };
+
+// Mesma cor (roxo) e mesmo racional de web/app/seller/pedidos/page.tsx: etiqueta em buffer
+// do próprio ML não é uma pendência real, não faz sentido usar âmbar ("precisa agir") pra ela.
+const ML_BUFFER_BADGE_CLASS = "bg-violet-100 text-violet-900 dark:bg-violet-950/40 dark:text-violet-300";
+const ML_BUFFER_TEXT_PRIMARY = "text-violet-900 dark:text-violet-300";
 
 type PedidoItem = {
   sku: string;
@@ -69,6 +73,9 @@ type Pedido = {
   etiqueta_impressa_em?: string | null;
   canal_venda?: string | null;
   etiqueta_ml_previsao?: string | null;
+  /** Vários order_id do ML podem ser o mesmo pacote/etiqueta — este card representa todos
+   * esses ids (ver pedidos.marketplace_pack_id em docs/SCHEMA.md). Sem pack, é só `[id]`. */
+  pack_pedido_ids: string[];
 };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -103,6 +110,13 @@ function tituloPedido(p: Pedido): string {
   }
   const outros = nomesUnicos.length - 1;
   return `${nomesUnicos[0]} + ${outros} outro${outros > 1 ? "s" : ""}`;
+}
+
+/** Etiqueta em buffer do próprio ML (capacidade de transportadora) — ainda não existe
+ * etiqueta real pra imprimir nem pra marcar como postado, então não entra em nenhuma
+ * seleção em lote (checkbox individual e "selecionar todos"). */
+function emBufferMl(p: Pedido): boolean {
+  return p.status === "enviado" && !p.tem_etiqueta_oficial && p.canal_venda === "mercado_livre";
 }
 
 const statusLabel: Record<string, string> = {
@@ -247,9 +261,11 @@ export default function FornecedorPedidosPage() {
     }
   }
 
-  const idsEnviados = pedidos.filter((p) => p.status === "enviado").map((p) => p.id);
+  const idsEnviados = pedidos.filter((p) => p.status === "enviado" && !emBufferMl(p)).flatMap((p) => p.pack_pedido_ids);
   const selecionadosParaSeparacao = [...selectedIds].filter((id) => idsEnviados.includes(id));
-  const pedidosSelecionadosParaSeparacao = pedidos.filter((p) => selecionadosParaSeparacao.includes(p.id));
+  const pedidosSelecionadosParaSeparacao = pedidos.filter((p) =>
+    p.pack_pedido_ids.some((id) => selecionadosParaSeparacao.includes(id))
+  );
 
   function imprimirListaSeparacaoEmLote() {
     if (selecionadosParaSeparacao.length === 0) {
@@ -268,18 +284,25 @@ export default function FornecedorPedidosPage() {
   }
 
   const selecionadosComEtiqueta = [...selectedIds].filter((id) =>
-    pedidos.some((p) => p.id === id && p.tem_etiqueta_oficial)
+    pedidos.some((p) => p.pack_pedido_ids.includes(id) && p.tem_etiqueta_oficial)
   );
 
   const selecionadosProntosParaPostar = [...selectedIds].filter((id) =>
-    pedidos.some((p) => p.id === id && p.status === "enviado" && p.tem_etiqueta_oficial && p.etiqueta_impressa_em)
+    pedidos.some(
+      (p) => p.pack_pedido_ids.includes(id) && p.status === "enviado" && p.tem_etiqueta_oficial && p.etiqueta_impressa_em
+    )
   );
 
-  function toggleSelecionar(id: string) {
+  // Card pode representar vários pedidos (mesmo pack do ML, mesma etiqueta/envio) —
+  // marcar/desmarcar o checkbox afeta todos os ids do grupo de uma vez, nunca só 1.
+  function toggleSelecionar(ids: string[]) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const todosMarcados = ids.every((id) => next.has(id));
+      for (const id of ids) {
+        if (todosMarcados) next.delete(id);
+        else next.add(id);
+      }
       return next;
     });
   }
@@ -642,11 +665,17 @@ export default function FornecedorPedidosPage() {
                     <div className="flex min-w-0 items-start gap-2.5">
                       <input
                         type="checkbox"
-                        checked={selectedIds.has(p.id)}
-                        onChange={() => toggleSelecionar(p.id)}
-                        disabled={p.status !== "enviado"}
+                        checked={p.pack_pedido_ids.every((id) => selectedIds.has(id))}
+                        onChange={() => toggleSelecionar(p.pack_pedido_ids)}
+                        disabled={p.status !== "enviado" || emBufferMl(p)}
                         aria-label={`Incluir pedido ${p.id} no lote`}
-                        title={p.status !== "enviado" ? "Só pedidos aguardando postagem entram no lote" : "Incluir no lote"}
+                        title={
+                          p.status !== "enviado"
+                            ? "Só pedidos aguardando postagem entram no lote"
+                            : emBufferMl(p)
+                              ? "Etiqueta ainda em buffer do Mercado Livre — não dá pra incluir no lote"
+                              : "Incluir no lote"
+                        }
                         className="mt-1 shrink-0 rounded border-neutral-300 disabled:cursor-not-allowed dark:border-neutral-600"
                       />
                       <div className="min-w-0">
@@ -657,11 +686,13 @@ export default function FornecedorPedidosPage() {
                     <span
                       className={cn(
                         "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
-                        STATUS_PILL[p.status] ?? "bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800"
+                        emBufferMl(p)
+                          ? ML_BUFFER_BADGE_CLASS
+                          : STATUS_PILL[p.status] ?? "bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800"
                       )}
                     >
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                      {statusLabel[p.status] ?? p.status}
+                      {emBufferMl(p) ? "Etiqueta em buffer (ML)" : statusLabel[p.status] ?? p.status}
                     </span>
                   </div>
 
@@ -734,20 +765,20 @@ export default function FornecedorPedidosPage() {
                     <p className={cn("mt-3 text-sm", DANGER_PREMIUM_TEXT_PRIMARY)}>{p.motivo_bloqueio}</p>
                   ) : null}
 
-                  {p.status === "enviado" && !p.tem_etiqueta_oficial && p.canal_venda === "mercado_livre" && (
+                  {emBufferMl(p) && (
                     <div
                       role="status"
-                      className="relative mt-3 overflow-hidden rounded-xl border border-[var(--info)]/40 bg-transparent"
+                      className="relative mt-3 overflow-hidden rounded-xl border border-violet-500/40 bg-transparent dark:border-violet-400/45"
                     >
                       <div
                         aria-hidden
-                        className="pointer-events-none absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-[var(--info)]/70"
+                        className="pointer-events-none absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-violet-500/70 dark:bg-violet-400/70"
                       />
                       <div className="pl-4 pr-3 py-3 sm:pl-5 sm:pr-4 sm:py-3.5">
                         <div className="flex min-w-0 items-start gap-2.5">
-                          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--info)]/35 bg-[var(--info)]/10">
+                          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-violet-500/35 bg-violet-500/10 dark:border-violet-400/40 dark:bg-violet-500/12">
                             <svg
-                              className={cn(INFO_PREMIUM_TEXT_PRIMARY, "h-5 w-5")}
+                              className={cn(ML_BUFFER_TEXT_PRIMARY, "h-5 w-5")}
                               viewBox="0 0 24 24"
                               fill="none"
                               stroke="currentColor"
@@ -762,7 +793,7 @@ export default function FornecedorPedidosPage() {
                             </svg>
                           </span>
                           <div className="min-w-0">
-                            <p className={cn(INFO_PREMIUM_TEXT_PRIMARY, "text-base font-bold leading-snug tracking-tight")}>
+                            <p className={cn(ML_BUFFER_TEXT_PRIMARY, "text-base font-bold leading-snug tracking-tight")}>
                               Aguardando o Mercado Livre liberar a etiqueta
                             </p>
                             <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">

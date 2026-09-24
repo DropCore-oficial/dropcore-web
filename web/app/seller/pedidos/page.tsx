@@ -16,9 +16,6 @@ import {
   DANGER_PREMIUM_SHELL,
   DANGER_PREMIUM_SURFACE_TRANSPARENT,
   DANGER_PREMIUM_TEXT_PRIMARY,
-  INFO_PREMIUM_SHELL,
-  INFO_PREMIUM_SURFACE_TRANSPARENT,
-  INFO_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/semanticPremium";
 import {
   MSG_SKU_NAO_HABILITADO_PLANO_STARTER,
@@ -116,6 +113,7 @@ function tituloPedido(p: Pedido): string {
 const statusLabel: Record<string, string> = {
   pendente_estoque: "Aguardando estoque",
   bloqueado: "Bloqueado",
+  produto_nao_vinculado: "Fora do catálogo",
   enviado: "Aguardando postagem",
   aguardando_repasse: "Postado",
   entregue: "Entregue",
@@ -123,6 +121,7 @@ const statusLabel: Record<string, string> = {
   cancelado: "Cancelado",
   erro_saldo: "Erro de saldo",
   aguardando_pagamento: "Aguardando pagamento",
+  etiqueta_buffer_ml: "Etiqueta em buffer (ML)",
 };
 
 // Status = informação, não ação: sem borda, fundo suave + bolinha (bg-current) em vez de
@@ -130,6 +129,7 @@ const statusLabel: Record<string, string> = {
 const STATUS_PILL: Record<string, string> = {
   bloqueado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   pendente_estoque: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  produto_nao_vinculado: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
   enviado: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
   aguardando_repasse: "bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
   entregue: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
@@ -137,6 +137,15 @@ const STATUS_PILL: Record<string, string> = {
   erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   aguardando_pagamento: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
 };
+
+// Cor própria (roxo) pra distinguir "etiqueta em buffer do ML" de um "aguardando postagem"
+// genérico — não é uma pendência real, é o próprio ML segurando por causa de capacidade de
+// transportadora, então nem faz sentido usar âmbar (que aqui sempre significa "precisa agir").
+const ML_BUFFER_BADGE_CLASS = "bg-violet-100 text-violet-900 dark:bg-violet-950/40 dark:text-violet-300";
+const ML_BUFFER_SURFACE_TRANSPARENT = "border border-violet-500/40 bg-transparent dark:border-violet-400/45 dark:bg-transparent";
+const ML_BUFFER_SHELL =
+  "border border-violet-500/30 bg-violet-500/15 ring-1 ring-violet-500/10 dark:border-violet-400/40 dark:bg-violet-500/12 dark:ring-violet-400/15";
+const ML_BUFFER_TEXT_PRIMARY = "text-violet-900 dark:text-violet-300";
 
 export default function SellerPedidosPage() {
   const router = useRouter();
@@ -379,7 +388,9 @@ export default function SellerPedidosPage() {
                 <option value="">Todos</option>
                 <option value="pendente_estoque">Aguardando estoque</option>
                 <option value="bloqueado">Bloqueado</option>
+                <option value="produto_nao_vinculado">Fora do catálogo</option>
                 <option value="enviado">Aguardando postagem</option>
+                <option value="etiqueta_buffer_ml">Etiqueta em buffer (ML)</option>
                 <option value="aguardando_repasse">Postados</option>
                 <option value="entregue">Entregues</option>
                 <option value="erro_saldo">Erro de saldo</option>
@@ -414,6 +425,9 @@ export default function SellerPedidosPage() {
           <div className="space-y-3">
             {pedidos.map((p) => {
               const comprador = [p.comprador_nome, p.comprador_cidade, p.comprador_uf].filter(Boolean).join(" · ");
+              // Etiqueta em buffer do próprio ML (não é "aguardando postagem" real — ver
+              // caixa abaixo) merece badge própria, senão parece que está parado sem motivo.
+              const etiquetaEmBufferMl = p.status === "enviado" && !p.tem_etiqueta && p.canal_venda === "mercado_livre";
 
               return (
                 <article
@@ -432,11 +446,13 @@ export default function SellerPedidosPage() {
                     <span
                       className={cn(
                         "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
-                        STATUS_PILL[p.status] ?? "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                        etiquetaEmBufferMl
+                          ? ML_BUFFER_BADGE_CLASS
+                          : STATUS_PILL[p.status] ?? "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
                       )}
                     >
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                      {statusLabel[p.status] ?? p.status}
+                      {etiquetaEmBufferMl ? "Etiqueta em buffer (ML)" : statusLabel[p.status] ?? p.status}
                     </span>
                   </div>
 
@@ -495,12 +511,12 @@ export default function SellerPedidosPage() {
                     </ul>
                   ) : null}
 
-                  {p.status === "enviado" && !p.tem_etiqueta && p.canal_venda === "mercado_livre" && (
-                    <div className={cn(INFO_PREMIUM_SURFACE_TRANSPARENT, "mt-3 flex items-start gap-3 rounded-xl px-3 py-2.5")}>
+                  {etiquetaEmBufferMl && (
+                    <div className={cn(ML_BUFFER_SURFACE_TRANSPARENT, "mt-3 flex items-start gap-3 rounded-xl px-3 py-2.5")}>
                       <span
                         className={cn(
-                          INFO_PREMIUM_SHELL,
-                          INFO_PREMIUM_TEXT_PRIMARY,
+                          ML_BUFFER_SHELL,
+                          ML_BUFFER_TEXT_PRIMARY,
                           "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
                         )}
                       >
@@ -511,7 +527,7 @@ export default function SellerPedidosPage() {
                         </svg>
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className={cn(INFO_PREMIUM_TEXT_PRIMARY, "block text-sm font-semibold")}>
+                        <span className={cn(ML_BUFFER_TEXT_PRIMARY, "block text-sm font-semibold")}>
                           Etiqueta ainda não liberada pelo Mercado Livre
                         </span>
                         <span className="mt-0.5 block text-xs text-[var(--muted)]">
@@ -564,6 +580,10 @@ export default function SellerPedidosPage() {
                     <p className="mt-3 text-sm text-amber-800 dark:text-amber-200">
                       Aguardando estoque no DropCore. O fornecedor precisa repor saldo ou sincronizar estoque da Olist.
                     </p>
+                  ) : null}
+
+                  {p.status === "produto_nao_vinculado" && p.motivo_bloqueio ? (
+                    <p className={cn(AMBER_PREMIUM_TEXT_PRIMARY, "mt-3 text-sm")}>{p.motivo_bloqueio}</p>
                   ) : null}
 
                   {p.status === "bloqueado" && p.motivo_bloqueio ? (

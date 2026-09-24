@@ -18,10 +18,19 @@ type MlOrderDetalhe = {
   buyer?: { nickname?: string | null };
   total_amount?: number;
   paid_amount?: number;
+  /** Comprador que leva >1 unidade num único checkout pode gerar vários order_id
+   * separados com o mesmo pack_id — 1 pacote, 1 etiqueta só (confirmado ao vivo
+   * 2026-09-23). Repassado pro DropCore só pra permitir agrupar na exibição (ver
+   * pedidos.marketplace_pack_id em docs/SCHEMA.md) — não muda nada no processamento
+   * deste pedido em si. */
+  pack_id?: number | string | null;
 };
 
 export type IngerirPedidoMlResultado =
-  | { ok: true; status: "novo" | "duplicado" | "bloqueado" | "pendente_estoque" | "ignorado_olist_ativo" }
+  | {
+      ok: true;
+      status: "novo" | "duplicado" | "bloqueado" | "pendente_estoque" | "produto_nao_vinculado" | "ignorado_olist_ativo";
+    }
   | { ok: false; retryable: boolean; motivo: string };
 
 async function fetchOrder(
@@ -103,11 +112,15 @@ export async function ingerirPedidoMercadoLivrePorSeller(params: {
       comprador_nome: orderRes.order.buyer?.nickname ?? null,
       canal_venda: "mercado_livre",
       preco_venda: Number(orderRes.order.total_amount ?? orderRes.order.paid_amount ?? 0) || null,
+      marketplace_pack_id: orderRes.order.pack_id != null ? String(orderRes.order.pack_id) : null,
     },
   });
 
   if (result.ok) {
-    const status = result.status === "bloqueado" ? "bloqueado" : result.status === "pendente_estoque" ? "pendente_estoque" : "novo";
+    const status =
+      result.status === "bloqueado" || result.status === "pendente_estoque" || result.status === "produto_nao_vinculado"
+        ? result.status
+        : "novo";
     return { ok: true, status };
   }
   if (result.error_code === "PEDIDO_DUPLICADO") return { ok: true, status: "duplicado" };

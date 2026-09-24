@@ -13,6 +13,7 @@ const TITULOS = {
   erro_saldo: "Erro de saldo",
   erro_saldo_expirado: "Pedido cancelado por saldo",
   etiqueta_pendente_manual: "Etiqueta não chegou automaticamente",
+  produto_nao_vinculado: "Produto fora do catálogo do fornecedor",
 } as const;
 
 export async function notifySellerPedidoAtencao(params: {
@@ -25,7 +26,8 @@ export async function notifySellerPedidoAtencao(params: {
     | "pedido_pendente_estoque"
     | "erro_saldo"
     | "erro_saldo_expirado"
-    | "etiqueta_pendente_manual";
+    | "etiqueta_pendente_manual"
+    | "produto_nao_vinculado";
   motivo: string;
 }): Promise<void> {
   const { data: sellerRow } = await supabaseAdmin

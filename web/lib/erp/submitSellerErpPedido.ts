@@ -42,6 +42,9 @@ export type SubmitSellerErpPedidoInput = {
      * `OlistPedidoDetalhe.preco_venda` em `olistTinyApi.ts`. Só informativo pro seller ver
      * a margem; não entra em nenhum cálculo de saldo/repasse. */
     preco_venda?: number | null;
+    /** Pack do Mercado Livre (ver pedidos.marketplace_pack_id em docs/SCHEMA.md) — só pra
+     * a tela agrupar na exibição; não muda nada no processamento deste pedido. */
+    marketplace_pack_id?: string | null;
   };
 };
 
@@ -121,7 +124,7 @@ async function insertPedidoPlaceholder(params: {
   valor_total: number;
   items: SubmitSellerErpPedidoItem[];
   skuRows: SkuRowResolved[];
-  status: "pendente_estoque" | "bloqueado";
+  status: "pendente_estoque" | "bloqueado" | "produto_nao_vinculado";
   motivo_bloqueio?: string | null;
   motivo_bloqueio_responsavel?: PedidoBloqueioResponsavel | null;
   evento: { tipo: string; descricao: string };
@@ -152,6 +155,7 @@ async function insertPedidoPlaceholder(params: {
       comprador_fone: meta.comprador_fone?.trim() || null,
       canal_venda: meta.canal_venda?.trim() || null,
       preco_venda: meta.preco_venda ?? null,
+      marketplace_pack_id: meta.marketplace_pack_id?.trim() || null,
     })
     .select("id, valor_total")
     .single();
@@ -343,13 +347,54 @@ export async function submitSellerErpPedido(
       }
     }
 
-    if (skuErr || !sku) {
+    if (skuErr) {
       return {
         ok: false,
-        error_code: "SKU_NOT_FOUND",
-        error_message: `SKU não encontrado ou inativo: ${item.sku}`,
-        http_status: 404,
+        error_code: "INTERNAL_ERROR",
+        error_message: `Erro ao buscar SKU: ${skuErr.message}`,
+        http_status: 500,
       };
+    }
+
+    // SKU de verdade não existe no catálogo do fornecedor vinculado a este seller — hoje
+    // DropCore só suporta 1 fornecedor por seller (sem esse vínculo, não tem como saber se
+    // o produto é de outro fornecedor ou só um cadastro faltando). Em vez de sumir sem
+    // ninguém saber (era o comportamento antigo — ver incidente Galileus), grava um
+    // placeholder visível pro seller conferir, sem entrar no saldo/repasse/etiqueta.
+    if (!sku) {
+      const motivoSeller = `O produto vendido (SKU "${item.sku}") não está no catálogo do fornecedor vinculado à sua conta. Essa venda não gera saldo nem etiqueta automática — confira se o SKU está certo ou se esse produto precisa ser cadastrado.`;
+      return insertPedidoPlaceholder({
+        org_id,
+        seller_id: seller.id,
+        fornecedor_id,
+        referencia_externa,
+        tracking_codigo,
+        metodo_envio,
+        meta: {
+          ...meta,
+          nome_produto: meta.nome_produto?.trim() || `Produto fora do catálogo (SKU: ${item.sku})`,
+        },
+        valor_fornecedor: 0,
+        valor_dropcore: 0,
+        valor_total: 0,
+        items: [],
+        skuRows: [],
+        status: "produto_nao_vinculado",
+        motivo_bloqueio: motivoSeller,
+        motivo_bloqueio_responsavel: "seller",
+        evento: {
+          tipo: "produto_nao_vinculado",
+          descricao: `Pedido com produto fora do catálogo do fornecedor vinculado (SKU: ${item.sku}).`,
+        },
+        notify: (pedido_id) =>
+          notifySellerPedidoAtencao({
+            org_id,
+            seller_id: seller.id,
+            pedido_id,
+            tipo: "produto_nao_vinculado",
+            motivo: motivoSeller,
+          }),
+      });
     }
 
     const estoque = Number(sku.estoque_atual ?? 0);
@@ -611,6 +656,7 @@ export async function submitSellerErpPedido(
       comprador_fone: meta.comprador_fone?.trim() || null,
       canal_venda: meta.canal_venda?.trim() || null,
       preco_venda: meta.preco_venda ?? null,
+      marketplace_pack_id: meta.marketplace_pack_id?.trim() || null,
     })
     .select("id, valor_total, criado_em")
     .single();

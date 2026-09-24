@@ -21,10 +21,12 @@ type PedidoRow = {
   tracking_codigo: string | null;
   metodo_envio: string | null;
   etiqueta_pdf_url: string | null;
+  etiqueta_pdf_base64?: string | null;
   etiqueta_tentativas: number | null;
   motivo_bloqueio?: string | null;
   motivo_bloqueio_responsavel?: "seller" | "fornecedor" | null;
   marketplace_numero?: string | null;
+  marketplace_pack_id?: string | null;
   comprador_nome?: string | null;
   comprador_cidade?: string | null;
   comprador_uf?: string | null;
@@ -35,6 +37,7 @@ type PedidoRow = {
 const STATUS_FILTER = [
   "pendente_estoque",
   "bloqueado",
+  "produto_nao_vinculado",
   "enviado",
   "aguardando_repasse",
   "entregue",
@@ -46,6 +49,11 @@ const STATUS_FILTER = [
 /** Status sintético (não existe em `pedidos.status`) — pedido Olist "Em aberto"
  * (aguardando pagamento), montado a partir de `estoque_reservas`, sem valor nem ação. */
 const STATUS_AGUARDANDO_PAGAMENTO = "aguardando_pagamento";
+
+/** Filtro sintético — não é um `pedidos.status` real, é a mesma condição computada em
+ * `tem_etiqueta`/`emBufferMl` (ver web/app/seller/pedidos/page.tsx): "enviado" do ML sem
+ * etiqueta ainda (buffer automático de transportadora do próprio Mercado Livre). */
+const STATUS_ETIQUETA_BUFFER_ML = "etiqueta_buffer_ml";
 
 export async function GET(req: Request) {
   try {
@@ -70,7 +78,7 @@ export async function GET(req: Request) {
       let query = supabaseAdmin
         .from("pedidos")
         .select(
-          "id, nome_produto, valor_total, preco_venda, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, referencia_externa, tracking_codigo, metodo_envio, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, canal_venda, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_tentativas",
+          "id, nome_produto, valor_total, preco_venda, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, referencia_externa, tracking_codigo, metodo_envio, marketplace_numero, marketplace_pack_id, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, canal_venda, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_tentativas",
           { count: "exact" }
         )
         .eq("org_id", seller.org_id)
@@ -78,7 +86,13 @@ export async function GET(req: Request) {
         .order("criado_em", { ascending: false })
         .range(from, to);
 
-      if (status && (STATUS_FILTER as readonly string[]).includes(status)) {
+      if (status === STATUS_ETIQUETA_BUFFER_ML) {
+        query = query
+          .eq("status", "enviado")
+          .eq("canal_venda", "mercado_livre")
+          .is("etiqueta_pdf_url", null)
+          .is("etiqueta_pdf_base64", null);
+      } else if (status && (STATUS_FILTER as readonly string[]).includes(status)) {
         query = query.eq("status", status);
       }
 
@@ -107,7 +121,13 @@ export async function GET(req: Request) {
           .eq("seller_id", seller.id)
           .order("criado_em", { ascending: false })
           .range(from, to);
-        if (status && (STATUS_FILTER as readonly string[]).includes(status)) {
+        if (status === STATUS_ETIQUETA_BUFFER_ML) {
+          fallbackQuery = fallbackQuery
+            .eq("status", "enviado")
+            .eq("canal_venda", "mercado_livre")
+            .is("etiqueta_pdf_url", null)
+            .is("etiqueta_pdf_base64", null);
+        } else if (status && (STATUS_FILTER as readonly string[]).includes(status)) {
           fallbackQuery = fallbackQuery.eq("status", status);
         }
         const fallback = await fallbackQuery;
@@ -147,8 +167,11 @@ export async function GET(req: Request) {
       }
     }
 
-    const items = (data ?? []).map((p) => {
-      const row = p as typeof p & { motivo_bloqueio_responsavel?: "seller" | "fornecedor" | null };
+    const itemsSemAgrupar = (data ?? []).map((p) => {
+      const row = p as typeof p & {
+        motivo_bloqueio_responsavel?: "seller" | "fornecedor" | null;
+        marketplace_pack_id?: string | null;
+      };
       return {
         ...p,
         motivo_bloqueio: motivoBloqueioParaPortal({
@@ -164,8 +187,48 @@ export async function GET(req: Request) {
         ),
         is_reserva: false,
         etiqueta_ml_previsao: null as string | null,
+        pack_pedido_ids: [p.id] as string[],
       };
     });
+
+    // Comprador que leva >1 unidade num único checkout do ML às vezes gera vários
+    // order_id/pedidos separados que são, na prática, 1 pacote/1 etiqueta só (confirmado
+    // ao vivo 2026-09-23 — ver docs/SCHEMA.md). Agrupa nessa página antes de tudo (inclusive
+    // antes da busca de previsão de etiqueta, pra não repetir a mesma chamada por irmão).
+    const porPack = new Map<string, typeof itemsSemAgrupar>();
+    const items: typeof itemsSemAgrupar = [];
+    for (const p of itemsSemAgrupar) {
+      const packId = (p as { marketplace_pack_id?: string | null }).marketplace_pack_id;
+      if (!packId) {
+        items.push(p);
+        continue;
+      }
+      const grupo = porPack.get(packId);
+      if (!grupo) {
+        porPack.set(packId, [p]);
+        items.push(p);
+        continue;
+      }
+      grupo.push(p);
+      const principal = items.find((it) => it.pack_pedido_ids[0] === grupo[0].id);
+      if (principal) {
+        principal.valor_total = Number(principal.valor_total ?? 0) + Number(p.valor_total ?? 0);
+        principal.preco_venda = (principal.preco_venda ?? 0) + (p.preco_venda ?? 0);
+        principal.itens = [...principal.itens, ...p.itens];
+        principal.pack_pedido_ids = [...principal.pack_pedido_ids, p.id];
+        // Mostra o pack_id como "Pedido marketplace" quando agrupado — é o número que o
+        // ML/Upseller usam pra identificar o pacote (não o order_id individual de 1 item).
+        principal.marketplace_numero = packId;
+        // Mesmo pacote/mesma etiqueta física — se qualquer irmão já tiver o PDF (o cron
+        // processa cada order_id separado, pode não bater exatamente no mesmo instante),
+        // o grupo inteiro já conta como "tem etiqueta".
+        if (!principal.tem_etiqueta && p.tem_etiqueta) {
+          principal.tem_etiqueta = true;
+          principal.etiqueta_pdf_url = p.etiqueta_pdf_url;
+          principal.etiqueta_pdf_base64 = p.etiqueta_pdf_base64;
+        }
+      }
+    }
 
     // Pedidos "enviado" sem etiqueta que vieram direto do ML (não via Olist) — busca a
     // data em que o próprio Mercado Livre prevê liberar a etiqueta (buffer de
@@ -248,6 +311,7 @@ export async function GET(req: Request) {
 
       reservaItems = Array.from(porReferencia.entries()).map(([referenciaExterna, g]) => ({
         id: `reserva:${referenciaExterna}`,
+        pack_pedido_ids: [`reserva:${referenciaExterna}`] as string[],
         nome_produto: g.itens.map((i) => i.nome_produto).find(Boolean) ?? null,
         valor_total: 0,
         status: STATUS_AGUARDANDO_PAGAMENTO,

@@ -78,6 +78,7 @@ export async function GET(req: Request) {
       pedido_bloqueado: "bloqueado",
       pedido_pendente_estoque: "pendente_estoque",
       erro_saldo: "erro_saldo",
+      produto_nao_vinculado: "produto_nao_vinculado",
     };
     const alertasDePedido = items.filter(
       (n) => !n.lido && TIPO_STATUS_ATIVO[n.tipo ?? ""] && (n.metadata as { pedido_id?: string } | null)?.pedido_id

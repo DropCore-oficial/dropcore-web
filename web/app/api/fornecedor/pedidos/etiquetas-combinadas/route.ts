@@ -107,7 +107,7 @@ export async function POST(req: Request) {
 
     const { data: rows, error: qErr } = await supabaseAdmin
       .from("pedidos")
-      .select("id, etiqueta_pdf_url, etiqueta_pdf_base64")
+      .select("id, etiqueta_pdf_url, etiqueta_pdf_base64, marketplace_pack_id")
       .eq("org_id", ctx.org_id)
       .eq("fornecedor_id", ctx.fornecedor_id)
       .in("id", ids);
@@ -130,9 +130,23 @@ export async function POST(req: Request) {
     const incluidos: string[] = [];
     const semEtiqueta: string[] = [];
     const falhaDownload: string[] = [];
+    // Pedidos do mesmo pack do ML compartilham a mesma etiqueta física (1 pacote, 1
+    // etiqueta) — mesclar o PDF de cada irmão geraria páginas duplicadas da mesma
+    // etiqueta. Só o primeiro id de cada pack entra no PDF; os outros só são marcados
+    // como impressos também (ver `marcarComoImpressos` abaixo).
+    const packsJaIncluidos = new Set<string>();
+    const duplicatasDoMesmoPack: string[] = [];
 
     for (const id of ids) {
       const row = byId.get(id)!;
+      const packId = (row.marketplace_pack_id as string | null)?.trim() || null;
+      if (packId) {
+        if (packsJaIncluidos.has(packId)) {
+          duplicatasDoMesmoPack.push(id);
+          continue;
+        }
+        packsJaIncluidos.add(packId);
+      }
       const bytes = await bytesFromPedido(
         row.etiqueta_pdf_url as string | null | undefined,
         row.etiqueta_pdf_base64 as string | null | undefined
@@ -179,12 +193,13 @@ export async function POST(req: Request) {
     }
     const out = await merged.save();
 
-    if (incluidos.length > 0) {
+    const idsParaMarcarImpresso = [...incluidos, ...duplicatasDoMesmoPack];
+    if (idsParaMarcarImpresso.length > 0) {
       const agora = new Date().toISOString();
       const { error: marcarImpressaErr } = await supabaseAdmin
         .from("pedidos")
         .update({ etiqueta_impressa_em: agora })
-        .in("id", incluidos)
+        .in("id", idsParaMarcarImpresso)
         .is("etiqueta_impressa_em", null);
       if (marcarImpressaErr) {
         console.error("[etiquetas-combinadas] marcar etiqueta_impressa_em:", marcarImpressaErr.message);

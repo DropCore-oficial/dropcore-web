@@ -32,6 +32,7 @@ export const NOTIFICATION_TIPOS_POR_CONTEXTO: Record<NotificationPortalContext, 
     "pedido_pendente_estoque",
     "erro_saldo",
     "gestor_ia_concluido",
+    "produto_nao_vinculado",
   ],
   fornecedor: [
     "mensalidade_paga_fornecedor",

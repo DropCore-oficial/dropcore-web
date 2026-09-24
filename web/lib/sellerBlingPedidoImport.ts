@@ -34,7 +34,11 @@ export type ProcessBlingPedidoImportInput = {
 };
 
 export type ProcessBlingPedidoImportResult =
-  | { ok: true; outcome: "imported" | "imported_pendente_estoque" | "imported_bloqueado"; pedido_id_dropcore: string }
+  | {
+      ok: true;
+      outcome: "imported" | "imported_pendente_estoque" | "imported_bloqueado" | "imported_produto_nao_vinculado";
+      pedido_id_dropcore: string;
+    }
   | { ok: true; outcome: "promoted_bloqueado"; pedido_id_dropcore: string }
   | { ok: true; outcome: "skipped_duplicate"; pedido_id_dropcore?: string }
   | { ok: true; outcome: "skipped_sem_itens" }
@@ -152,7 +156,9 @@ export async function processBlingPedidoImport(
       ? "imported_bloqueado"
       : result.status === "pendente_estoque"
         ? "imported_pendente_estoque"
-        : "imported";
+        : result.status === "produto_nao_vinculado"
+          ? "imported_produto_nao_vinculado"
+          : "imported";
 
   return { ok: true, outcome, pedido_id_dropcore: result.pedido_id };
 }

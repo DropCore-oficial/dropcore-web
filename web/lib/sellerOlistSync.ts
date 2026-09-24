@@ -332,6 +332,7 @@ async function syncSellerOlistOrders(
       proc.outcome === "imported" ||
       proc.outcome === "imported_pendente_estoque" ||
       proc.outcome === "imported_bloqueado" ||
+      proc.outcome === "imported_produto_nao_vinculado" ||
       proc.outcome === "promoted_pendente_estoque"
     ) {
       if (proc.warnings.length > 0) {
@@ -344,6 +345,9 @@ async function syncSellerOlistOrders(
       }
       if (proc.outcome === "imported_bloqueado") {
         result.warnings.push(`Pedido ${resumo.id}: bloqueado — veja o motivo na tela de Pedidos.`);
+      }
+      if (proc.outcome === "imported_produto_nao_vinculado") {
+        result.warnings.push(`Pedido ${resumo.id}: produto fora do catálogo do fornecedor vinculado — não gera saldo nem etiqueta.`);
       }
       if (proc.warnings.some(isTinyRateLimitMessage)) {
         // O pedido em si importou, mas a busca de etiqueta (chamada dentro do import

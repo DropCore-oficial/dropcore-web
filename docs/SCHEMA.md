@@ -442,6 +442,22 @@ o saldo ainda cobre). O extrato capado em 200 linhas continua existindo só pra 
 visual — não alimenta mais nenhuma conta agregada. Fallback pro cálculo antigo em JS
 existe só pro caso raro da RPC falhar (rede/erro), não é o caminho normal.
 
+## `pedidos.marketplace_pack_id` — agrupar pack do Mercado Livre (2026-09-23)
+
+`web/scripts/add-marketplace-pack-id-to-pedidos.sql`: coluna nullable (`text`) + índice
+parcial em `(org_id, seller_id, marketplace_pack_id)`. Comprador que leva >1 unidade num
+único checkout às vezes gera vários `order_id` separados no ML, todos com o mesmo
+`pack_id` e o mesmo `shipping_id` (1 pacote, 1 etiqueta só — confirmado ao vivo com pedido
+real da LINA1745173: 3 `order_id`, mesmo `pack_id` **e** mesmo `shipping_id`). Cada
+`order_id` continua virando seu próprio `pedidos` (sem merge, sem tocar `pedido_itens`,
+sem recálculo de `valor_fornecedor`/`valor_dropcore`/`valor_total`) — a coluna só permite
+`web/app/api/seller/pedidos/route.ts` e `web/app/api/fornecedor/pedidos/route.ts`
+agruparem na resposta pra tela mostrar 1 card e o fornecedor imprimir/postar 1 vez só, não
+3. Gravada em `web/lib/erp/submitSellerErpPedido.ts` (ambos os caminhos de insert),
+populada a partir do `pack_id` que `web/lib/mercadoLivrePedidoIngest.ts` já lê do
+`/orders/{orderId}` do ML. Escopo só ML direto (`canal_venda = 'mercado_livre'`) — Olist/
+Bling não mostraram esse padrão.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

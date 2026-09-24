@@ -28,6 +28,7 @@ type PedidoRow = {
   motivo_bloqueio?: string | null;
   motivo_bloqueio_responsavel?: "seller" | "fornecedor" | null;
   marketplace_numero?: string | null;
+  marketplace_pack_id?: string | null;
   comprador_nome?: string | null;
   comprador_cidade?: string | null;
   comprador_uf?: string | null;
@@ -89,11 +90,15 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_impressa_em, marketplace_numero, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa, metodo_envio, tracking_codigo, canal_venda",
+        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_impressa_em, marketplace_numero, marketplace_pack_id, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa, metodo_envio, tracking_codigo, canal_venda",
         { count: "exact" }
       )
       .eq("org_id", ctx.org_id)
       .eq("fornecedor_id", ctx.fornecedor_id)
+      // Pedido com produto fora do catálogo do fornecedor vinculado nunca é dele de
+      // verdade (sem saldo, sem etiqueta) — não aparece na tela do fornecedor, só na do
+      // seller (ver web/lib/erp/submitSellerErpPedido.ts).
+      .neq("status", "produto_nao_vinculado")
       .order("criado_em", { ascending: false })
       .range(from, to);
 
@@ -122,6 +127,7 @@ export async function GET(req: Request) {
           )
           .eq("org_id", ctx.org_id)
           .eq("fornecedor_id", ctx.fornecedor_id)
+          .neq("status", "produto_nao_vinculado")
           .order("criado_em", { ascending: false })
           .range(from, to);
         if (status && ["enviado", "aguardando_repasse", "entregue", "devolvido", "cancelado", "erro_saldo", "pendente_estoque", "bloqueado"].includes(status)) {
@@ -230,6 +236,8 @@ export async function GET(req: Request) {
       } = p as Record<string, unknown>;
       return {
         ...rest,
+        id: p.id,
+        valor_fornecedor: p.valor_fornecedor,
         motivo_bloqueio: motivoBloqueioParaPortal({
           portal: "fornecedor",
           responsavel: responsavel as "seller" | "fornecedor" | null,
@@ -243,21 +251,63 @@ export async function GET(req: Request) {
         itens,
         tem_etiqueta_oficial,
         etiqueta_ml_previsao: null as string | null,
+        pack_pedido_ids: [p.id] as string[],
       };
     });
+
+    // Comprador que leva >1 unidade num único checkout do ML às vezes gera vários
+    // order_id/pedidos separados que são, na prática, 1 pacote/1 etiqueta só (confirmado
+    // ao vivo 2026-09-23 — ver docs/SCHEMA.md). Agrupa nessa página antes da previsão de
+    // etiqueta, pra não repetir a mesma chamada por irmão.
+    const idsPrincipais = new Set<string>();
+    const porPack = new Map<string, typeof items>();
+    const itemsAgrupados: typeof items = [];
+    for (const p of items) {
+      const packId = (p as { marketplace_pack_id?: string | null }).marketplace_pack_id;
+      if (!packId) {
+        itemsAgrupados.push(p);
+        idsPrincipais.add(p.id);
+        continue;
+      }
+      const grupo = porPack.get(packId);
+      if (!grupo) {
+        porPack.set(packId, [p]);
+        itemsAgrupados.push(p);
+        idsPrincipais.add(p.id);
+        continue;
+      }
+      grupo.push(p);
+      const principal = itemsAgrupados.find((it) => it.pack_pedido_ids[0] === grupo[0].id);
+      if (principal) {
+        principal.valor_fornecedor = Number(principal.valor_fornecedor ?? 0) + Number(p.valor_fornecedor ?? 0);
+        principal.itens = [...principal.itens, ...p.itens];
+        principal.pack_pedido_ids = [...principal.pack_pedido_ids, p.id];
+        (principal as { marketplace_numero?: string | null }).marketplace_numero = packId;
+        if (!principal.tem_etiqueta_oficial && p.tem_etiqueta_oficial) {
+          principal.tem_etiqueta_oficial = true;
+        }
+      }
+    }
+    const alvoParaMlAgrupado = alvoParaMl.filter((a) => idsPrincipais.has(a.id));
 
     // Mesma lógica do `/api/seller/pedidos`: pedido "enviado" sem etiqueta que veio direto
     // do ML mostra a data real de liberação em vez do alerta "Sem etiqueta" (que é
     // especificamente pro caso Olist, onde o seller precisa colar o link manualmente).
-    const previsaoMlPorPedido = await buscarPrevisaoEtiquetaMlPendentes(alvoParaMl);
-    for (let i = 0; i < items.length; i++) {
-      const previsao = previsaoMlPorPedido.get(alvoParaMl[i].id);
+    const previsaoMlPorPedido = await buscarPrevisaoEtiquetaMlPendentes(alvoParaMlAgrupado);
+    for (let i = 0; i < itemsAgrupados.length; i++) {
+      const previsao = previsaoMlPorPedido.get(itemsAgrupados[i].id);
       if (previsao !== undefined) {
-        (items[i] as { etiqueta_ml_previsao: string | null }).etiqueta_ml_previsao = previsao;
+        (itemsAgrupados[i] as { etiqueta_ml_previsao: string | null }).etiqueta_ml_previsao = previsao;
       }
     }
 
-    return NextResponse.json({ items, total: total ?? items.length, page, limit, expedicao_padrao: expedicaoPadrao });
+    return NextResponse.json({
+      items: itemsAgrupados,
+      total: total ?? itemsAgrupados.length,
+      page,
+      limit,
+      expedicao_padrao: expedicaoPadrao,
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

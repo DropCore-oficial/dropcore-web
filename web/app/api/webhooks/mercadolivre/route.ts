@@ -19,6 +19,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { ingerirPedidoMercadoLivrePorSeller } from "@/lib/mercadoLivrePedidoIngest";
+import { processarShipmentMercadoLivre } from "@/lib/mercadoLivreShipmentIngest";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,14 +38,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  // "shipments" (mudança de status de envio) fica de fora — o ML não avisa quando a
-  // etiqueta libera, então quem cobre isso é o retry dedicado (etiquetaMlRetry.ts, a cada
-  // 15 min) e a previsão de liberação mostrada sob demanda na tela
-  // (pedidoEtiquetaMercadoLivreBuffer.ts), não este webhook.
-  if (body.topic !== "orders_v2" && body.topic !== "orders") return NextResponse.json({ ok: true });
+  // "shipments" avisa mudança de status de envio (postado/coletado, entregue) — tratado
+  // abaixo pra promover o pedido sozinho (ver mercadoLivreShipmentIngest.ts). A previsão de
+  // liberação da ETIQUETA em si continua sendo o retry dedicado (etiquetaMlRetry.ts) e a
+  // busca sob demanda (pedidoEtiquetaMercadoLivreBuffer.ts) — coisas diferentes.
+  if (body.topic !== "orders_v2" && body.topic !== "orders" && body.topic !== "shipments") {
+    return NextResponse.json({ ok: true });
+  }
 
-  const orderId = String(body.resource ?? "").match(/\/orders\/(\d+)/)?.[1];
-  if (!orderId || body.user_id == null) return NextResponse.json({ ok: true });
+  if (body.user_id == null) return NextResponse.json({ ok: true });
 
   try {
     const { data: integracao } = await supabaseAdmin
@@ -53,6 +55,23 @@ export async function POST(req: Request) {
       .eq("ml_user_id", String(body.user_id))
       .maybeSingle();
     if (!integracao?.seller_id) return NextResponse.json({ ok: true });
+
+    if (body.topic === "shipments") {
+      const shipmentId = String(body.resource ?? "").match(/\/shipments\/(\d+)/)?.[1];
+      if (!shipmentId) return NextResponse.json({ ok: true });
+
+      const resultado = await processarShipmentMercadoLivre({ sellerId: integracao.seller_id, shipmentId });
+      if (!resultado.ok) {
+        console.error(`[webhooks/mercadolivre] shipment ${shipmentId}:`, resultado.motivo);
+        if (resultado.retryable) {
+          return NextResponse.json({ ok: false, error: resultado.motivo }, { status: 500 });
+        }
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    const orderId = String(body.resource ?? "").match(/\/orders\/(\d+)/)?.[1];
+    if (!orderId) return NextResponse.json({ ok: true });
 
     const resultado = await ingerirPedidoMercadoLivrePorSeller({ sellerId: integracao.seller_id, orderId });
 

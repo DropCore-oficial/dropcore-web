@@ -78,7 +78,12 @@ export async function runMercadoLivrePedidosReconciliacao(): Promise<MercadoLivr
       const resultado = await ingerirPedidoMercadoLivrePorSeller({ sellerId: integ.seller_id, orderId });
       if (resultado.ok) {
         if (resultado.status === "duplicado") summary.pedidos_ja_existentes += 1;
-        else if (resultado.status === "novo" || resultado.status === "bloqueado" || resultado.status === "pendente_estoque") {
+        else if (
+          resultado.status === "novo" ||
+          resultado.status === "bloqueado" ||
+          resultado.status === "pendente_estoque" ||
+          resultado.status === "produto_nao_vinculado"
+        ) {
           summary.pedidos_novos += 1;
         }
       } else {

@@ -37,6 +37,7 @@ const PEDIDO_TIPO_SEVERIDADE: Record<string, "danger" | "warning" | "success"> =
   erro_saldo: "danger",
   pedido_pendente_estoque: "warning",
   pedido_novo: "success",
+  produto_nao_vinculado: "warning",
 };
 
 const PEDIDO_TIPO_ICON: Record<string, string> = {
@@ -44,6 +45,7 @@ const PEDIDO_TIPO_ICON: Record<string, string> = {
   erro_saldo: "⚠️",
   pedido_pendente_estoque: "⏳",
   pedido_novo: "🛒",
+  produto_nao_vinculado: "🧩",
 };
 
 function pedidoDestino(context: NotificationPortalContext, pedidoId: string): string {
@@ -428,7 +430,8 @@ export function NotificationBell({
                             {(n.tipo === "pedido_novo" ||
                               n.tipo === "pedido_bloqueado" ||
                               n.tipo === "pedido_pendente_estoque" ||
-                              n.tipo === "erro_saldo") &&
+                              n.tipo === "erro_saldo" ||
+                              n.tipo === "produto_nao_vinculado") &&
                               n.metadata?.pedido_id && (
                                 <a
                                   href={pedidoDestino(context, n.metadata.pedido_id)}

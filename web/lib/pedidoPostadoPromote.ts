@@ -75,6 +75,50 @@ export async function promoverPedidoParaPostado(params: {
 }
 
 /**
+ * Núcleo compartilhado da transição `pedidos.status: aguardando_repasse → entregue` —
+ * o cliente final recebeu o pedido. Diferente de `promoverPedidoParaPostado`, não mexe em
+ * `financial_ledger`/ciclo de repasse: o repasse já se resolve inteiro na postagem, entrega
+ * é só um marco informativo (histórico do pedido, filtro de status). Quem chama já deve ter
+ * validado que `pedidos.status === "aguardando_repasse"` antes de invocar.
+ */
+export async function promoverPedidoParaEntregue(params: {
+  org_id: string;
+  pedido_id: string;
+  evento: {
+    tipo: string;
+    origem: "manual" | "erp" | "sistema";
+    actor_id?: string | null;
+    actor_tipo?: "seller" | "fornecedor" | "admin" | "sistema" | null;
+    descricao?: string | null;
+    metadata?: Record<string, unknown> | null;
+  };
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { org_id, pedido_id } = params;
+  const now = new Date().toISOString();
+
+  const { error: upPedido } = await supabaseAdmin
+    .from("pedidos")
+    .update({ status: "entregue", atualizado_em: now })
+    .eq("id", pedido_id)
+    .eq("org_id", org_id);
+
+  if (upPedido) return { ok: false, error: upPedido.message };
+
+  await supabaseAdmin.from("pedido_eventos").insert({
+    org_id,
+    pedido_id,
+    tipo: params.evento.tipo,
+    origem: params.evento.origem,
+    actor_id: params.evento.actor_id ?? null,
+    actor_tipo: params.evento.actor_tipo ?? null,
+    descricao: params.evento.descricao ?? null,
+    metadata: params.evento.metadata ?? null,
+  });
+
+  return { ok: true };
+}
+
+/**
  * Repara o caso legado: pedido já em `aguardando_repasse` mas o `financial_ledger`
  * vinculado ficou parado em `BLOQUEADO` (ex.: `pedido.ledger_id` não existia ainda no
  * momento da promoção). Sem isso, o extrato do seller mostra "aguardando envio" pra um

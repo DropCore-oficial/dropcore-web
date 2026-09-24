@@ -174,6 +174,7 @@ export type ProcessOlistPedidoImportResult =
   | { ok: true; outcome: "imported"; pedido_id_dropcore: string; warnings: string[] }
   | { ok: true; outcome: "imported_pendente_estoque"; pedido_id_dropcore: string; warnings: string[] }
   | { ok: true; outcome: "imported_bloqueado"; pedido_id_dropcore: string; warnings: string[] }
+  | { ok: true; outcome: "imported_produto_nao_vinculado"; pedido_id_dropcore: string; warnings: string[] }
   | { ok: true; outcome: "promoted_pendente_estoque"; pedido_id_dropcore: string; warnings: string[] }
   | { ok: true; outcome: "promoted_bloqueado"; pedido_id_dropcore: string; warnings: string[] }
   | { ok: true; outcome: "skipped_duplicate"; pedido_id_dropcore?: string; warnings?: string[] }
@@ -401,6 +402,12 @@ export async function processOlistPedidoImport(
       return { ok: true, outcome: "skipped_duplicate" };
     }
     return { ok: false, error: submit.error_message };
+  }
+
+  // Placeholder sem produto real vinculado — nunca vai ter expedição/etiqueta na Olist (não
+  // é um pedido de verdade pro fornecedor atender), então nem tenta buscar etiqueta aqui.
+  if (submit.status === "produto_nao_vinculado") {
+    return { ok: true, outcome: "imported_produto_nao_vinculado", pedido_id_dropcore: submit.pedido_id, warnings: [] };
   }
 
   const labelWarnings = await tryAttachOlistEtiquetaPdf({
