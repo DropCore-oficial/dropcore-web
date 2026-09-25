@@ -38,6 +38,7 @@ const STATUS_FILTER = [
   "pendente_estoque",
   "bloqueado",
   "produto_nao_vinculado",
+  "anuncio_sem_sku",
   "enviado",
   "aguardando_repasse",
   "entregue",

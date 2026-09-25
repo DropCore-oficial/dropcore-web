@@ -291,7 +291,7 @@ export async function GET(req: Request) {
         .select("id", { count: "exact", head: true })
         .eq("org_id", seller.org_id)
         .eq("seller_id", seller.id)
-        .in("status", ["bloqueado", "pendente_estoque", "produto_nao_vinculado"]),
+        .in("status", ["bloqueado", "pendente_estoque", "produto_nao_vinculado", "anuncio_sem_sku"]),
       supabaseAdmin
         .from("seller_olist_integrations")
         .select("olist_token_ciphertext")

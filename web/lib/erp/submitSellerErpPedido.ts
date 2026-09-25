@@ -111,7 +111,7 @@ export async function addPedidoEvento(params: {
  * normal ainda (estoque zerado ou bloqueio de regra de negócio) — sem isso, o pedido
  * simplesmente some do DropCore em vez de aparecer pro seller resolver.
  */
-async function insertPedidoPlaceholder(params: {
+export async function insertPedidoPlaceholder(params: {
   org_id: string;
   seller_id: string;
   fornecedor_id: string;
@@ -124,9 +124,12 @@ async function insertPedidoPlaceholder(params: {
   valor_total: number;
   items: SubmitSellerErpPedidoItem[];
   skuRows: SkuRowResolved[];
-  status: "pendente_estoque" | "bloqueado" | "produto_nao_vinculado";
+  status: "pendente_estoque" | "bloqueado" | "produto_nao_vinculado" | "anuncio_sem_sku";
   motivo_bloqueio?: string | null;
   motivo_bloqueio_responsavel?: PedidoBloqueioResponsavel | null;
+  /** Só usado por `anuncio_sem_sku` hoje — prazo real de despacho do marketplace (ver
+   * `calcularPrazoDespachoPedido`), pra saber quando o alerta de urgência deve disparar. */
+  sla_prazo_despacho?: string | null;
   evento: { tipo: string; descricao: string };
   notify: (pedido_id: string) => Promise<void>;
 }): Promise<SubmitSellerErpPedidoResult> {
@@ -156,6 +159,7 @@ async function insertPedidoPlaceholder(params: {
       canal_venda: meta.canal_venda?.trim() || null,
       preco_venda: meta.preco_venda ?? null,
       marketplace_pack_id: meta.marketplace_pack_id?.trim() || null,
+      sla_prazo_despacho: params.sla_prazo_despacho ?? null,
     })
     .select("id, valor_total")
     .single();

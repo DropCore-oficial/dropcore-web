@@ -36,6 +36,7 @@ type PedidoRow = {
   metodo_envio?: string | null;
   tracking_codigo?: string | null;
   canal_venda?: string | null;
+  e_teste?: boolean;
 };
 
 type PedidoItemRow = {
@@ -90,7 +91,7 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_impressa_em, marketplace_numero, marketplace_pack_id, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa, metodo_envio, tracking_codigo, canal_venda",
+        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_impressa_em, marketplace_numero, marketplace_pack_id, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa, metodo_envio, tracking_codigo, canal_venda, e_teste",
         { count: "exact" }
       )
       .eq("org_id", ctx.org_id)
@@ -99,6 +100,7 @@ export async function GET(req: Request) {
       // verdade (sem saldo, sem etiqueta) — não aparece na tela do fornecedor, só na do
       // seller (ver web/lib/erp/submitSellerErpPedido.ts).
       .neq("status", "produto_nao_vinculado")
+      .neq("status", "anuncio_sem_sku")
       .order("criado_em", { ascending: false })
       .range(from, to);
 
@@ -122,12 +124,13 @@ export async function GET(req: Request) {
         let fallbackQuery = supabaseAdmin
           .from("pedidos")
           .select(
-            "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, referencia_externa",
+            "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, referencia_externa, e_teste",
             { count: "exact" }
           )
           .eq("org_id", ctx.org_id)
           .eq("fornecedor_id", ctx.fornecedor_id)
           .neq("status", "produto_nao_vinculado")
+          .neq("status", "anuncio_sem_sku")
           .order("criado_em", { ascending: false })
           .range(from, to);
         if (status && ["enviado", "aguardando_repasse", "entregue", "devolvido", "cancelado", "erro_saldo", "pendente_estoque", "bloqueado"].includes(status)) {

@@ -79,6 +79,8 @@ export async function GET(req: Request) {
       pedido_pendente_estoque: "pendente_estoque",
       erro_saldo: "erro_saldo",
       produto_nao_vinculado: "produto_nao_vinculado",
+      anuncio_sem_sku: "anuncio_sem_sku",
+      anuncio_sem_sku_urgente: "anuncio_sem_sku",
     };
     const alertasDePedido = items.filter(
       (n) => !n.lido && TIPO_STATUS_ATIVO[n.tipo ?? ""] && (n.metadata as { pedido_id?: string } | null)?.pedido_id
@@ -93,7 +95,9 @@ export async function GET(req: Request) {
         .filter((n) => {
           const pid = (n.metadata as { pedido_id?: string }).pedido_id!;
           const statusAtual = statusPorPedido.get(pid);
-          return statusAtual != null && statusAtual !== TIPO_STATUS_ATIVO[n.tipo ?? ""];
+          // Pedido não encontrado (ex: anuncio_sem_sku promovido apaga o placeholder e
+          // reingere com um id novo) também conta como "não está mais nesse status".
+          return statusAtual == null || statusAtual !== TIPO_STATUS_ATIVO[n.tipo ?? ""];
         })
         .map((n) => n.id);
       if (idsParaResolver.length > 0) {

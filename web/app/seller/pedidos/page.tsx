@@ -16,6 +16,7 @@ import {
   DANGER_PREMIUM_SHELL,
   DANGER_PREMIUM_SURFACE_TRANSPARENT,
   DANGER_PREMIUM_TEXT_PRIMARY,
+  INFO_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/semanticPremium";
 import {
   MSG_SKU_NAO_HABILITADO_PLANO_STARTER,
@@ -114,6 +115,7 @@ const statusLabel: Record<string, string> = {
   pendente_estoque: "Aguardando estoque",
   bloqueado: "Bloqueado",
   produto_nao_vinculado: "Fora do catálogo",
+  anuncio_sem_sku: "Anúncio sem SKU",
   enviado: "Aguardando postagem",
   aguardando_repasse: "Postado",
   entregue: "Entregue",
@@ -129,7 +131,8 @@ const statusLabel: Record<string, string> = {
 const STATUS_PILL: Record<string, string> = {
   bloqueado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   pendente_estoque: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
-  produto_nao_vinculado: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
+  produto_nao_vinculado: cn(INFO_PREMIUM_TEXT_PRIMARY, "bg-neutral-100 dark:bg-neutral-800/40"),
+  anuncio_sem_sku: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
   enviado: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
   aguardando_repasse: "bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
   entregue: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
@@ -389,6 +392,7 @@ export default function SellerPedidosPage() {
                 <option value="pendente_estoque">Aguardando estoque</option>
                 <option value="bloqueado">Bloqueado</option>
                 <option value="produto_nao_vinculado">Fora do catálogo</option>
+                <option value="anuncio_sem_sku">Anúncio sem SKU</option>
                 <option value="enviado">Aguardando postagem</option>
                 <option value="etiqueta_buffer_ml">Etiqueta em buffer (ML)</option>
                 <option value="aguardando_repasse">Postados</option>
@@ -583,6 +587,10 @@ export default function SellerPedidosPage() {
                   ) : null}
 
                   {p.status === "produto_nao_vinculado" && p.motivo_bloqueio ? (
+                    <p className={cn(INFO_PREMIUM_TEXT_PRIMARY, "mt-3 text-sm")}>{p.motivo_bloqueio}</p>
+                  ) : null}
+
+                  {p.status === "anuncio_sem_sku" && p.motivo_bloqueio ? (
                     <p className={cn(AMBER_PREMIUM_TEXT_PRIMARY, "mt-3 text-sm")}>{p.motivo_bloqueio}</p>
                   ) : null}
 

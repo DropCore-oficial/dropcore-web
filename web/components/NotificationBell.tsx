@@ -38,6 +38,8 @@ const PEDIDO_TIPO_SEVERIDADE: Record<string, "danger" | "warning" | "success"> =
   pedido_pendente_estoque: "warning",
   pedido_novo: "success",
   produto_nao_vinculado: "warning",
+  anuncio_sem_sku: "warning",
+  anuncio_sem_sku_urgente: "danger",
   pedido_sla_atrasado: "danger",
   sla_atraso_admin: "danger",
 };
@@ -48,6 +50,8 @@ const PEDIDO_TIPO_ICON: Record<string, string> = {
   pedido_pendente_estoque: "⏳",
   pedido_novo: "🛒",
   produto_nao_vinculado: "🧩",
+  anuncio_sem_sku: "🏷️",
+  anuncio_sem_sku_urgente: "⏰",
   pedido_sla_atrasado: "⏰",
   sla_atraso_admin: "⏰",
 };
@@ -453,7 +457,9 @@ export function NotificationBell({
                               n.tipo === "pedido_bloqueado" ||
                               n.tipo === "pedido_pendente_estoque" ||
                               n.tipo === "erro_saldo" ||
-                              n.tipo === "produto_nao_vinculado") &&
+                              n.tipo === "produto_nao_vinculado" ||
+                              n.tipo === "anuncio_sem_sku" ||
+                              n.tipo === "anuncio_sem_sku_urgente") &&
                               n.metadata?.pedido_id && (
                                 <a
                                   href={pedidoDestino(context, n.metadata.pedido_id)}

@@ -3,6 +3,7 @@
  * Usado após venda via ERP/Olist do seller — valor exibido é só valor_fornecedor.
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { notifyUserEmail } from "@/lib/notifyEmail";
 
 export async function notifyFornecedorPedidoParaPostar(params: {
   org_id: string;
@@ -66,4 +67,17 @@ export async function notifyFornecedorPedidoParaPostar(params: {
     mensagem,
     metadata: { pedido_id: params.pedido_id },
   });
+
+  // E-mail só no caso feliz ("novo pedido para postar") — estoque/bloqueado continuam só
+  // no painel por enquanto (decisão explícita do Sr Stark, 2026-09-25).
+  if (!params.motivo) {
+    await notifyUserEmail({
+      userId: memberUserId,
+      subject: "Novo pedido para postar",
+      titulo: "Novo pedido para postar",
+      mensagem,
+      ctaUrl: "https://www.dropcore.com.br/fornecedor/pedidos",
+      ctaLabel: "Ver pedido",
+    });
+  }
 }
