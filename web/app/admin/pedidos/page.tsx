@@ -12,13 +12,23 @@ import {
   SUCCESS_PREMIUM_TEXT_PRIMARY,
   DANGER_PREMIUM_SURFACE,
   DANGER_PREMIUM_TEXT_PRIMARY,
+  INFO_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/semanticPremium";
 import { AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
 
 type Seller = { id: string; nome: string; documento: string | null };
 type Fornecedor = { id: string; nome: string };
-type Sku = { id: string; sku: string; nome_produto: string | null; custo_base: number | null; custo_dropcore: number | null; status?: string | null };
+type Sku = {
+  id: string;
+  sku: string;
+  nome_produto: string | null;
+  custo_base: number | null;
+  custo_dropcore: number | null;
+  status?: string | null;
+  cor?: string | null;
+  tamanho?: string | null;
+};
 type Pedido = {
   id: string;
   seller_id: string;
@@ -54,6 +64,8 @@ const STATUS_PILL: Record<string, string> = {
   devolvido: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
   erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   cancelado: "bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800",
+  produto_nao_vinculado: cn(INFO_PREMIUM_TEXT_PRIMARY, "bg-neutral-100 dark:bg-neutral-800/40"),
+  anuncio_sem_sku: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
 };
 const STATUS_LABEL: Record<string, string> = {
   enviado: "Enviado (bloqueado)",
@@ -62,7 +74,10 @@ const STATUS_LABEL: Record<string, string> = {
   devolvido: "Devolvido",
   erro_saldo: "Erro (saldo insuf.)",
   cancelado: "Cancelado",
+  produto_nao_vinculado: "Fora do catálogo",
+  anuncio_sem_sku: "Anúncio sem SKU",
 };
+const STATUS_RESOLVIVEIS = ["produto_nao_vinculado", "anuncio_sem_sku"];
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
@@ -92,6 +107,13 @@ export default function PedidosPage() {
   const [precoVenda, setPrecoVenda] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [entregandoId, setEntregandoId] = useState<string | null>(null);
+  const [resolverPedido, setResolverPedido] = useState<Pedido | null>(null);
+  const [resolverSkus, setResolverSkus] = useState<Sku[]>([]);
+  const [resolverSkusLoading, setResolverSkusLoading] = useState(false);
+  const [resolverSkuId, setResolverSkuId] = useState("");
+  const [resolverQtd, setResolverQtd] = useState("1");
+  const [resolverSaving, setResolverSaving] = useState(false);
+  const [resolverError, setResolverError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -191,6 +213,57 @@ export default function PedidosPage() {
       setError("Erro ao confirmar envio.");
     } finally {
       setEntregandoId(null);
+    }
+  }
+
+  async function abrirResolver(p: Pedido) {
+    setResolverPedido(p);
+    setResolverSkuId("");
+    setResolverQtd("1");
+    setResolverError(null);
+    setResolverSkusLoading(true);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch(
+        `/api/org/catalogo/search?fornecedorId=${encodeURIComponent(p.fornecedor_id)}&q=`,
+        { headers: { Authorization: `Bearer ${session.access_token}` } }
+      );
+      const json = await res.json();
+      const lista = Array.isArray(json) ? json : (json?.items ?? []);
+      setResolverSkus(lista.filter((s: Sku) => s.status === "ativo" || s.status === "Ativo"));
+    } catch {
+      setResolverSkus([]);
+    } finally {
+      setResolverSkusLoading(false);
+    }
+  }
+
+  async function confirmarResolver() {
+    if (!resolverPedido || !resolverSkuId) return;
+    const qtd = Math.max(1, Math.floor(Number(resolverQtd)) || 1);
+    setResolverSaving(true);
+    setResolverError(null);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch(`/api/org/pedidos/${resolverPedido.id}/resolver-sku`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ sku_id: resolverSkuId, quantidade: qtd }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Erro ao resolver pedido.");
+      setSuccess("Pedido resolvido — entrou pelo pipeline normal (saldo/estoque/etiqueta).");
+      setResolverPedido(null);
+      load();
+    } catch (e: unknown) {
+      setResolverError(e instanceof Error ? e.message : "Erro inesperado.");
+    } finally {
+      setResolverSaving(false);
     }
   }
 
@@ -431,6 +504,82 @@ export default function PedidosPage() {
         </div>
       )}
 
+      {resolverPedido && (
+        <div
+          className={cn(MODAL_OVERLAY_CLASS, "animate-fade-in-up")}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-resolver-title"
+          onClick={() => setResolverPedido(null)}
+        >
+          <div
+            className={cn(MODAL_PANEL_CLASS, "max-w-lg animate-fade-in-up animate-fade-in-up-delay-1")}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex shrink-0 items-center justify-between border-b border-[var(--card-border)] px-5 pb-4 pt-5">
+              <h2 id="modal-resolver-title" className="text-base font-semibold text-[var(--foreground)]">
+                Resolver pedido — escolher produto certo
+              </h2>
+              <button
+                type="button"
+                onClick={() => setResolverPedido(null)}
+                aria-label="Fechar"
+                className="-m-1 rounded p-1 text-xl leading-none text-neutral-400 transition-colors hover:text-neutral-900 dark:hover:text-neutral-200"
+              >
+                ×
+              </button>
+            </div>
+            <div className={cn(MODAL_PANEL_BODY_CLASS, "px-5 pb-5 pt-4")}>
+              <div className="flex flex-col gap-4">
+                <p className="text-sm text-[var(--muted)]">
+                  {STATUS_LABEL[resolverPedido.status] ?? resolverPedido.status} — venda real de{" "}
+                  <span className="font-medium text-[var(--foreground)]">{resolverPedido.seller_nome ?? "—"}</span> no
+                  fornecedor <span className="font-medium text-[var(--foreground)]">{resolverPedido.fornecedor_nome ?? "—"}</span>.
+                  Escolha qual produto do catálogo desse fornecedor é o certo.
+                </p>
+                <div>
+                  <label className={labelClass}>Produto / SKU {resolverSkusLoading ? "(carregando...)" : "*"}</label>
+                  <select
+                    value={resolverSkuId}
+                    onChange={(e) => setResolverSkuId(e.target.value)}
+                    disabled={resolverSkusLoading}
+                    className={inputClass}
+                  >
+                    <option value="">Selecione</option>
+                    {resolverSkus.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.sku} — {s.nome_produto || "sem nome"} {s.cor ? `· ${s.cor}` : ""} {s.tamanho ? `· ${s.tamanho}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="max-w-[10rem]">
+                  <label className={labelClass}>Quantidade</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={resolverQtd}
+                    onChange={(e) => setResolverQtd(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+                {resolverError && (
+                  <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "text-sm")}>{resolverError}</p>
+                )}
+                <button
+                  type="button"
+                  onClick={confirmarResolver}
+                  disabled={resolverSaving || !resolverSkuId}
+                  className={cn(btnPrimaryCompactClass, "self-start")}
+                >
+                  {resolverSaving ? "Resolvendo..." : "Resolver pedido"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <section className="overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
       {pedidos.length === 0 ? (
         <div className="py-16 text-center">
@@ -502,6 +651,15 @@ export default function PedidosPage() {
                             {entregandoId === p.id ? "Confirmando..." : "↑ Confirmar envio"}
                           </button>
                         )}
+                        {STATUS_RESOLVIVEIS.includes(p.status) && (
+                          <button
+                            type="button"
+                            onClick={() => abrirResolver(p)}
+                            className={btnPrimaryCompactClass}
+                          >
+                            Resolver
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -544,6 +702,11 @@ export default function PedidosPage() {
                     className="mt-2 w-full rounded-md bg-amber-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-amber-600/20 transition-colors hover:bg-amber-700 disabled:opacity-50"
                   >
                     {entregandoId === p.id ? "Confirmando..." : "↑ Confirmar envio"}
+                  </button>
+                )}
+                {STATUS_RESOLVIVEIS.includes(p.status) && (
+                  <button type="button" onClick={() => abrirResolver(p)} className={cn(btnPrimaryCompactClass, "mt-2 w-full")}>
+                    Resolver
                   </button>
                 )}
               </div>

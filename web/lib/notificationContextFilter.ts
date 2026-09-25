@@ -19,6 +19,7 @@ export const NOTIFICATION_TIPOS_POR_CONTEXTO: Record<NotificationPortalContext, 
     "mensalidade_paga_admin",
     "alteracao_produto_pendente",
     "sla_atraso_admin",
+    "pedido_precisa_resolucao_admin",
   ],
   seller: [
     "deposito_aprovado",

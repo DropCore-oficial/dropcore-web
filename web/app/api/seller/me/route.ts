@@ -284,14 +284,23 @@ export async function GET(req: Request) {
     const plano_pendente = !planoSellerDefinido(seller.plano);
     const cadastro_pendente = sellerCadastroPendente(seller.documento, seller.plano);
 
-    const [plano_precos_mensalidade, pedidosAtencaoRes, olistLiteRow] = await Promise.all([
+    const [plano_precos_mensalidade, pedidosAtencaoRes, anunciosProblemaRes, olistLiteRow] = await Promise.all([
       fetchMensalidadeSellerPorPlano(supabaseAdmin),
       supabaseAdmin
         .from("pedidos")
         .select("id", { count: "exact", head: true })
         .eq("org_id", seller.org_id)
         .eq("seller_id", seller.id)
-        .in("status", ["bloqueado", "pendente_estoque", "produto_nao_vinculado", "anuncio_sem_sku"]),
+        .in("status", ["bloqueado", "pendente_estoque"]),
+      // Placeholder de venda que nunca completou (produto fora do catálogo / anúncio sem
+      // SKU) — não é "pedido" travado com dinheiro, é cadastro/anúncio pra corrigir. Card
+      // separado do de cima pra não misturar as duas naturezas.
+      supabaseAdmin
+        .from("pedidos")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", seller.org_id)
+        .eq("seller_id", seller.id)
+        .in("status", ["produto_nao_vinculado", "anuncio_sem_sku"]),
       supabaseAdmin
         .from("seller_olist_integrations")
         .select("olist_token_ciphertext")
@@ -299,6 +308,7 @@ export async function GET(req: Request) {
         .maybeSingle(),
     ]);
     const pedidosAtencaoCount = pedidosAtencaoRes.count;
+    const anunciosProblemaCount = anunciosProblemaRes.count;
     const olist_connected = Boolean(olistLiteRow.data?.olist_token_ciphertext?.trim());
 
     return NextResponse.json({
@@ -330,6 +340,7 @@ export async function GET(req: Request) {
         pedidos_mes: pedidosMesCount,
         total_mes: totalMes,
         pedidos_atencao: pedidosAtencaoCount ?? 0,
+        anuncios_problema: anunciosProblemaCount ?? 0,
       },
       saldo_alerta: saldo_alerta,
       vinculo_fornecedor: vinculo_fornecedor,

@@ -167,6 +167,8 @@ export default function SellerPedidosPage() {
   const [etiquetaLinkError, setEtiquetaLinkError] = useState<Record<string, string>>({});
   const [etiquetaModo, setEtiquetaModo] = useState<Record<string, "link" | "arquivo">>({});
   const [etiquetaFileInputs, setEtiquetaFileInputs] = useState<Record<string, File | null>>({});
+  const [chamandoAdminId, setChamandoAdminId] = useState<string | null>(null);
+  const [adminChamadoIds, setAdminChamadoIds] = useState<Set<string>>(new Set());
   const [etiquetaModalPedidoId, setEtiquetaModalPedidoId] = useState<string | null>(null);
   const [bloqueioModalPedidoId, setBloqueioModalPedidoId] = useState<string | null>(null);
   const [planoCapacidade, setPlanoCapacidade] = useState<{
@@ -243,6 +245,27 @@ export default function SellerPedidosPage() {
       }));
     } finally {
       setEtiquetaLinkSaving((prev) => ({ ...prev, [pedidoId]: false }));
+    }
+  }
+
+  async function chamarAdmin(pedidoId: string) {
+    setChamandoAdminId(pedidoId);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const res = await fetch(`/api/seller/pedidos/${pedidoId}/chamar-admin`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) throw new Error("Erro ao chamar admin.");
+      setAdminChamadoIds((prev) => new Set(prev).add(pedidoId));
+    } catch {
+      // silencioso — botão só volta a ficar clicável, seller pode tentar de novo
+    } finally {
+      setChamandoAdminId(null);
     }
   }
 
@@ -593,6 +616,25 @@ export default function SellerPedidosPage() {
                   {p.status === "anuncio_sem_sku" && p.motivo_bloqueio ? (
                     <p className={cn(AMBER_PREMIUM_TEXT_PRIMARY, "mt-3 text-sm")}>{p.motivo_bloqueio}</p>
                   ) : null}
+
+                  {(p.status === "produto_nao_vinculado" || p.status === "anuncio_sem_sku") && (
+                    <div className="mt-3">
+                      {adminChamadoIds.has(p.id) ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--muted)]/10 px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)]">
+                          Admin avisado — aguarde a resolução
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => chamarAdmin(p.id)}
+                          disabled={chamandoAdminId === p.id}
+                          className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {chamandoAdminId === p.id ? "Chamando..." : "Chamar Admin pra resolver"}
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   {p.status === "bloqueado" && p.motivo_bloqueio ? (
                     <button

@@ -73,6 +73,7 @@ type Kpis = {
   pedidos_mes: number;
   total_mes: number;
   pedidos_atencao?: number;
+  anuncios_problema?: number;
 };
 
 /** Formato devolvido por fn_seller_dashboard_analytics_30d (RPC, sem cap de linha) —
@@ -1181,6 +1182,31 @@ export default function SellerDashboardPage() {
                 {kpis?.pedidos_atencao} {kpis?.pedidos_atencao === 1 ? "pedido precisa" : "pedidos precisam"} de atenção
               </p>
               <p className="text-xs text-red-700/80 dark:text-red-300/80">Bloqueado ou aguardando estoque — clique para ver</p>
+            </div>
+          </Link>
+        )}
+
+        {(kpis?.anuncios_problema ?? 0) > 0 && (
+          <Link
+            href="/seller/pedidos"
+            className={cn(
+              "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left hover:bg-amber-100/60 dark:hover:bg-amber-950/40",
+              AMBER_PREMIUM_SURFACE_TRANSPARENT,
+            )}
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white dark:bg-amber-950/40">
+              <span className={cn("text-lg", AMBER_PREMIUM_TEXT_PRIMARY)} aria-hidden>
+                🏷️
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className={cn("text-sm font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>
+                {kpis?.anuncios_problema} {kpis?.anuncios_problema === 1 ? "anúncio" : "anúncios"} ou catálogo com
+                problema
+              </p>
+              <p className="text-xs text-amber-700/80 dark:text-amber-300/80">
+                Produto fora do catálogo do fornecedor ou SKU não cadastrado — corrija pra a venda entrar
+              </p>
             </div>
           </Link>
         )}

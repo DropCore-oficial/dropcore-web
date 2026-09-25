@@ -42,6 +42,7 @@ const PEDIDO_TIPO_SEVERIDADE: Record<string, "danger" | "warning" | "success"> =
   anuncio_sem_sku_urgente: "danger",
   pedido_sla_atrasado: "danger",
   sla_atraso_admin: "danger",
+  pedido_precisa_resolucao_admin: "warning",
 };
 
 const PEDIDO_TIPO_ICON: Record<string, string> = {
@@ -54,6 +55,7 @@ const PEDIDO_TIPO_ICON: Record<string, string> = {
   anuncio_sem_sku_urgente: "⏰",
   pedido_sla_atrasado: "⏰",
   sla_atraso_admin: "⏰",
+  pedido_precisa_resolucao_admin: "🏷️",
 };
 
 function pedidoDestino(context: NotificationPortalContext, pedidoId: string): string {
@@ -436,6 +438,15 @@ export function NotificationBell({
                               </a>
                             )}
                             {n.tipo === "sla_atraso_admin" && (
+                              <a
+                                href="/admin/pedidos"
+                                onClick={(e) => e.stopPropagation()}
+                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline"
+                              >
+                                Ver pedidos →
+                              </a>
+                            )}
+                            {n.tipo === "pedido_precisa_resolucao_admin" && (
                               <a
                                 href="/admin/pedidos"
                                 onClick={(e) => e.stopPropagation()}
