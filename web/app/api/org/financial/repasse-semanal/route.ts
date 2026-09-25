@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { cadastroMinimoCompleto } from "@/lib/fornecedorCadastro";
+import { semPedidosDeTeste } from "@/lib/pedidoTesteFilter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,14 +46,14 @@ export async function GET(req: Request) {
     const [ledgerRes, ledgerAllRes] = await Promise.all([
       supabaseAdmin
         .from("financial_ledger")
-        .select("id, fornecedor_id, valor_fornecedor, valor_dropcore, valor_total")
+        .select("id, fornecedor_id, pedido_id, valor_fornecedor, valor_dropcore, valor_total")
         .eq("org_id", org_id)
         .eq("ciclo_repasse", ciclo_repasse)
         .in("tipo", ["BLOQUEIO", "VENDA"])
         .in("status", [...READY_STATUSES]),
       supabaseAdmin
         .from("financial_ledger")
-        .select("status")
+        .select("status, pedido_id")
         .eq("org_id", org_id)
         .eq("ciclo_repasse", ciclo_repasse)
         .in("tipo", ["BLOQUEIO", "VENDA"])
@@ -69,16 +70,17 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: ledgerAllErr.message }, { status: 500 });
     }
 
-    const entries = ledgerRows ?? [];
+    const entries = await semPedidosDeTeste(ledgerRows ?? []);
+    const ledgerAllSemTeste = await semPedidosDeTeste(ledgerAllRows ?? []);
     const status_counts: Record<string, number> = {};
-    for (const r of ledgerAllRows ?? []) {
+    for (const r of ledgerAllSemTeste) {
       const s = (r as any)?.status ?? "DESCONHECIDO";
       status_counts[s] = (status_counts[s] ?? 0) + 1;
     }
 
     const { data: debitos, error: debErr } = await supabaseAdmin
       .from("financial_debito_descontar")
-      .select("id, fornecedor_id, valor_fornecedor, valor_dropcore, valor_total")
+      .select("id, fornecedor_id, pedido_id, valor_fornecedor, valor_dropcore, valor_total")
       .eq("org_id", org_id)
       .eq("ciclo_a_descontar", ciclo_repasse)
       .eq("descontado", false);
@@ -87,7 +89,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: debErr.message }, { status: 500 });
     }
 
-    const debitosList = debitos ?? [];
+    const debitosList = await semPedidosDeTeste(debitos ?? []);
     const porFornecedor: Record<string, { valor_fornecedor: number; valor_dropcore: number }> = {};
 
     for (const e of entries) {
@@ -206,7 +208,7 @@ export async function POST(req: Request) {
     // 1) Ledger do ciclo com status ENTREGUE ou AGUARDANDO_REPASSE
     const { data: ledgerRows, error: ledgerErr } = await supabaseAdmin
       .from("financial_ledger")
-      .select("id, fornecedor_id, valor_fornecedor, valor_dropcore, valor_total")
+      .select("id, fornecedor_id, pedido_id, valor_fornecedor, valor_dropcore, valor_total")
       .eq("org_id", org_id)
       .eq("ciclo_repasse", ciclo_repasse)
       .in("tipo", ["BLOQUEIO", "VENDA"])
@@ -216,12 +218,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: ledgerErr.message }, { status: 500 });
     }
 
-    const entries = ledgerRows ?? [];
+    // Ledger de pedido de teste nunca fecha ciclo — fica parado no status atual pra sempre
+    // (não vira PAGO, não gera repasse real). Ver `semPedidosDeTeste`.
+    const entries = await semPedidosDeTeste(ledgerRows ?? []);
 
     // 2) Débitos a descontar neste ciclo
     const { data: debitos, error: debErr } = await supabaseAdmin
       .from("financial_debito_descontar")
-      .select("id, fornecedor_id, valor_fornecedor, valor_dropcore, valor_total")
+      .select("id, fornecedor_id, pedido_id, valor_fornecedor, valor_dropcore, valor_total")
       .eq("org_id", org_id)
       .eq("ciclo_a_descontar", ciclo_repasse)
       .eq("descontado", false);
@@ -230,7 +234,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: debErr.message }, { status: 500 });
     }
 
-    const debitosList = debitos ?? [];
+    const debitosList = await semPedidosDeTeste(debitos ?? []);
     const porFornecedor: Record<
       string,
       { valor_fornecedor: number; valor_dropcore: number; debito_ids: string[] }
@@ -342,11 +346,12 @@ export async function POST(req: Request) {
       .in("tipo", ["BLOQUEIO", "VENDA"])
       .eq("status", "PAGO");
 
-    const { data: allDebitos } = await supabaseAdmin
+    const { data: allDebitosRows } = await supabaseAdmin
       .from("financial_debito_descontar")
-      .select("fornecedor_id, valor_fornecedor, valor_dropcore")
+      .select("fornecedor_id, pedido_id, valor_fornecedor, valor_dropcore")
       .eq("org_id", org_id)
       .eq("ciclo_a_descontar", ciclo_repasse);
+    const allDebitos = await semPedidosDeTeste(allDebitosRows ?? []);
 
     const cicloTotais: Record<string, { vf: number; vd: number }> = {};
     for (const row of allPago ?? []) {

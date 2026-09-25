@@ -8,6 +8,7 @@ import { loadOrgDashboardPro30d } from "@/lib/orgDashboardProLegacy";
 import { loadCalculadoraRecebimentosWidget } from "@/lib/calculadoraRecebimentosWidget";
 import { portalTrialDays } from "@/lib/portalTrial";
 import { proximoCicloRepasse } from "@/lib/cicloRepasse";
+import { semPedidosDeTeste } from "@/lib/pedidoTesteFilter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,7 +62,7 @@ export async function GET(req: Request) {
         supabase.from("fornecedores").select("id", { count: "exact", head: true }).eq("org_id", org_id).ilike("status", "ativo"),
         supabase.from("skus").select("id", { count: "exact", head: true }).eq("org_id", org_id).not("sku", "ilike", `${PREFIXO_OCULTO}%`),
         supabase.from("skus").select("id", { count: "exact", head: true }).eq("org_id", org_id).ilike("status", "ativo").not("sku", "ilike", `${PREFIXO_OCULTO}%`),
-        supabase.from("sellers").select("id", { count: "exact", head: true }).eq("org_id", org_id).ilike("status", "ativo"),
+        supabase.from("sellers").select("id", { count: "exact", head: true }).eq("org_id", org_id).ilike("status", "ativo").eq("e_teste", false),
         supabase.from("seller_depositos_pix").select("id", { count: "exact", head: true }).eq("org_id", org_id).eq("status", "pendente"),
         supabase.from("financial_repasse_fornecedor").select("id", { count: "exact", head: true }).eq("org_id", org_id).eq("status", "pendente"),
         supabase
@@ -282,14 +283,16 @@ export async function GET(req: Request) {
 
     let repasse_ledger_pronto_proximo_ciclo = 0;
     if (cicloRepasseRow?.status !== "fechado") {
-      const { count } = await supabase
+      const { data: ledgerProntoRows } = await supabase
         .from("financial_ledger")
-        .select("id", { count: "exact", head: true })
+        .select("id, pedido_id")
         .eq("org_id", org_id)
         .eq("ciclo_repasse", repasse_proximo_ciclo)
         .in("tipo", ["BLOQUEIO", "VENDA"])
         .in("status", ["ENTREGUE", "AGUARDANDO_REPASSE"]);
-      repasse_ledger_pronto_proximo_ciclo = count ?? 0;
+      // Pedido de teste nunca conta como "pronto pra repasse" no card da dashboard.
+      const semTeste = await semPedidosDeTeste((ledgerProntoRows ?? []) as { id: string; pedido_id: string | null }[]);
+      repasse_ledger_pronto_proximo_ciclo = semTeste.length;
     }
 
     const {

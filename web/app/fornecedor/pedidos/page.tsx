@@ -76,6 +76,8 @@ type Pedido = {
   /** Vários order_id do ML podem ser o mesmo pacote/etiqueta — este card representa todos
    * esses ids (ver pedidos.marketplace_pack_id em docs/SCHEMA.md). Sem pack, é só `[id]`. */
   pack_pedido_ids: string[];
+  /** Pedido fictício (conta de teste) — nunca conta em soma real, só sinalizado aqui. */
+  e_teste?: boolean;
 };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -683,17 +685,28 @@ export default function FornecedorPedidosPage() {
                         <p className="mt-1 text-sm text-neutral-500">{formatDate(p.criado_em)}</p>
                       </div>
                     </div>
-                    <span
-                      className={cn(
-                        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
-                        emBufferMl(p)
-                          ? ML_BUFFER_BADGE_CLASS
-                          : STATUS_PILL[p.status] ?? "bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800"
-                      )}
-                    >
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                      {emBufferMl(p) ? "Etiqueta em buffer (ML)" : statusLabel[p.status] ?? p.status}
-                    </span>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <span
+                        className={cn(
+                          "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
+                          emBufferMl(p)
+                            ? ML_BUFFER_BADGE_CLASS
+                            : STATUS_PILL[p.status] ?? "bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800"
+                        )}
+                      >
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                        {emBufferMl(p) ? "Etiqueta em buffer (ML)" : statusLabel[p.status] ?? p.status}
+                      </span>
+                      {p.e_teste ? (
+                        <span
+                          className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-neutral-100 px-2 py-1 text-[11px] font-medium text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400"
+                          title="Pedido de conta de teste — nunca conta em repasse ou saldo real."
+                        >
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                          Pedido de teste
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
                   <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">

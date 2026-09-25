@@ -60,12 +60,14 @@ async function legacyStats(
       .select("id", { count: "exact", head: true })
       .eq("org_id", org_id)
       .eq("fornecedor_id", fornecedor_id)
-      .eq("status", "enviado"),
+      .eq("status", "enviado")
+      .eq("e_teste", false),
     supabaseAdmin
       .from("pedidos")
       .select("valor_fornecedor")
       .eq("org_id", org_id)
       .eq("fornecedor_id", fornecedor_id)
+      .eq("e_teste", false)
       .in("status", ["enviado", "aguardando_repasse", "entregue"])
       .gte("criado_em", startIso)
       .lte("criado_em", endIso),
@@ -131,6 +133,7 @@ export async function GET(req: Request) {
         .select("id", { count: "exact", head: true })
         .eq("org_id", ctx.org_id)
         .eq("fornecedor_id", ctx.fornecedor_id)
+        .eq("e_teste", false)
         .in("status", ["bloqueado", "pendente_estoque"]),
       loadFornecedorRepasseList(ctx.org_id, ctx.fornecedor_id, { includePreview: true }),
       loadFornecedorDesempenho(ctx.org_id, ctx.fornecedor_id, modo, periodoParam).catch(() => null),

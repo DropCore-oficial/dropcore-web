@@ -65,6 +65,7 @@ export async function loadFornecedorDesempenho(
     .select("id, criado_em, valor_fornecedor, nome_produto")
     .eq("org_id", orgId)
     .eq("fornecedor_id", fornecedorId)
+    .eq("e_teste", false)
     .in("status", ["enviado", "aguardando_repasse", "entregue"])
     .gte("criado_em", inicio.toISOString())
     .lt("criado_em", fim.toISOString())
@@ -164,6 +165,7 @@ export async function loadFornecedorDesempenho(
       .select("valor_fornecedor")
       .eq("org_id", orgId)
       .eq("fornecedor_id", fornecedorId)
+      .eq("e_teste", false)
       .in("status", ["enviado", "aguardando_repasse", "entregue"])
       .gte("criado_em", inicioAnt.toISOString())
       .lt("criado_em", inicio.toISOString());

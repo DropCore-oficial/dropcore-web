@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { semPedidosDeTeste } from "@/lib/pedidoTesteFilter";
 
 export type FornecedorRepasseItem = {
   id: string;
@@ -17,7 +18,7 @@ export type FornecedorRepasseList = {
   futuros: FornecedorRepasseFuturo[];
 };
 
-type LedgerPreviewRow = { ciclo_repasse: string | null; valor_fornecedor: number | null };
+type LedgerPreviewRow = { ciclo_repasse: string | null; valor_fornecedor: number | null; pedido_id: string | null };
 
 /** Repasses do fornecedor (financial_repasse_fornecedor) + preview de futuros vindo do ledger. */
 export async function loadFornecedorRepasseList(
@@ -59,9 +60,9 @@ export async function loadFornecedorRepasseList(
     const d = String(hoje.getDate()).padStart(2, "0");
     const hojeStr = `${y}-${m}-${d}`;
 
-    const { data: prevRows, error: prevErr } = await supabaseAdmin
+    const { data: prevRowsRaw, error: prevErr } = await supabaseAdmin
       .from("financial_ledger")
-      .select("ciclo_repasse, valor_fornecedor")
+      .select("ciclo_repasse, valor_fornecedor, pedido_id")
       .eq("org_id", orgId)
       .eq("fornecedor_id", fornecedorId)
       .in("tipo", ["BLOQUEIO", "VENDA"])
@@ -72,8 +73,12 @@ export async function loadFornecedorRepasseList(
 
     if (prevErr) throw new Error(prevErr.message);
 
+    // Pedido de teste nunca entra na previsão "a receber" do fornecedor — dinheiro
+    // fictício não pode parecer dinheiro real esperado.
+    const prevRows = await semPedidosDeTeste((prevRowsRaw ?? []) as LedgerPreviewRow[]);
+
     const byCycle: Record<string, { valor: number; pedidos: number }> = {};
-    for (const r of (prevRows ?? []) as LedgerPreviewRow[]) {
+    for (const r of prevRows) {
       const ciclo = r.ciclo_repasse;
       if (!ciclo) continue;
       if (!byCycle[ciclo]) byCycle[ciclo] = { valor: 0, pedidos: 0 };

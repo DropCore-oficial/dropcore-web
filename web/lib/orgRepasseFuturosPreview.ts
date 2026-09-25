@@ -1,5 +1,6 @@
 import type { OrgRepasseFuturosPreview } from "@/lib/orgDashboardRpc";
 import { fetchOrgRepasseFuturosPreview } from "@/lib/orgDashboardRpc";
+import { semPedidosDeTeste } from "@/lib/pedidoTesteFilter";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any;
@@ -18,9 +19,9 @@ async function legacyFromLedger(
   orgId: string,
   hojeStr: string
 ): Promise<OrgRepasseFuturosPreview> {
-  const { data: prevRows, error: prevErr } = await supabase
+  const { data: prevRowsRaw, error: prevErr } = await supabase
     .from("financial_ledger")
-    .select("ciclo_repasse, valor_fornecedor")
+    .select("ciclo_repasse, valor_fornecedor, pedido_id")
     .eq("org_id", orgId)
     .in("tipo", ["BLOQUEIO", "VENDA"])
     .in("status", ["ENTREGUE", "AGUARDANDO_REPASSE"])
@@ -30,8 +31,14 @@ async function legacyFromLedger(
 
   if (prevErr) throw prevErr;
 
+  // Pedido de teste nunca conta no preview de repasse futuro (mesmo motivo do fix na RPC
+  // `fn_org_repasse_futuros_preview` — esse fallback só roda se a RPC falhar).
+  const prevRows = await semPedidosDeTeste(
+    (prevRowsRaw ?? []) as { ciclo_repasse: string | null; valor_fornecedor: number | null; pedido_id: string | null }[]
+  );
+
   const byCycle: Record<string, { valor: number; pedidos: number }> = {};
-  for (const r of prevRows ?? []) {
+  for (const r of prevRows) {
     const ciclo = r.ciclo_repasse as string | null;
     if (!ciclo) continue;
     if (!byCycle[ciclo]) byCycle[ciclo] = { valor: 0, pedidos: 0 };

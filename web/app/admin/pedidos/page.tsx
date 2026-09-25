@@ -30,6 +30,8 @@ type Pedido = {
   criado_em: string;
   seller_nome?: string;
   fornecedor_nome?: string;
+  /** Pedido fictício (conta de teste) — nunca conta em soma real, só sinalizado aqui. */
+  e_teste?: boolean;
 };
 
 const inputClass =
@@ -459,7 +461,17 @@ export default function PedidosPage() {
                   <tr key={p.id} className="border-b border-[var(--card-border)]/60 transition-colors hover:bg-[var(--muted)]/8">
                     <td className="px-4 py-3 text-[var(--muted)]">{formatDate(p.criado_em)}</td>
                     <td className="px-4 py-3">{p.seller_nome ?? "—"}</td>
-                    <td className="px-4 py-3">{p.fornecedor_nome ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      {p.fornecedor_nome ?? "—"}
+                      {p.e_teste ? (
+                        <span
+                          className="ml-1.5 inline-flex items-center rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400"
+                          title="Pedido de conta de teste — não conta em repasse ou saldo real."
+                        >
+                          teste
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={p.nome_produto ? "text-[var(--foreground)]" : "text-[var(--muted)]"}>
                         {p.nome_produto ?? "—"}
@@ -509,6 +521,7 @@ export default function PedidosPage() {
                 <p className="mt-0.5 text-xs text-[var(--muted)] truncate">
                   {p.fornecedor_nome ?? "—"}
                   {p.nome_produto ? ` · ${p.nome_produto}` : ""}
+                  {p.e_teste ? " · teste" : ""}
                 </p>
                 <div className="mt-2 flex items-center justify-between gap-2">
                   <span className="text-xs text-[var(--muted)]">{formatDate(p.criado_em)}</span>

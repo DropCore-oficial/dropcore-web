@@ -54,7 +54,7 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, valor_dropcore, valor_total, status, ledger_id, criado_em"
+        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, valor_dropcore, valor_total, status, ledger_id, criado_em, e_teste"
       )
       .eq("org_id", org_id)
       .order("criado_em", { ascending: false })
