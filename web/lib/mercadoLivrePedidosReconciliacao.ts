@@ -82,7 +82,8 @@ export async function runMercadoLivrePedidosReconciliacao(): Promise<MercadoLivr
           resultado.status === "novo" ||
           resultado.status === "bloqueado" ||
           resultado.status === "pendente_estoque" ||
-          resultado.status === "produto_nao_vinculado"
+          resultado.status === "produto_nao_vinculado" ||
+          resultado.status === "anuncio_sem_sku"
         ) {
           summary.pedidos_novos += 1;
         }

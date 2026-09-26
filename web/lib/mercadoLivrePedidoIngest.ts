@@ -20,6 +20,7 @@ type MlOrderDetalhe = {
   buyer?: { nickname?: string | null };
   total_amount?: number;
   paid_amount?: number;
+  date_created?: string;
   /** Comprador que leva >1 unidade num único checkout pode gerar vários order_id
    * separados com o mesmo pack_id — 1 pacote, 1 etiqueta só (confirmado ao vivo
    * 2026-09-23). Repassado pro DropCore só pra permitir agrupar na exibição (ver
@@ -38,7 +39,8 @@ export type IngerirPedidoMlResultado =
         | "pendente_estoque"
         | "produto_nao_vinculado"
         | "anuncio_sem_sku"
-        | "ignorado_olist_ativo";
+        | "ignorado_olist_ativo"
+        | "ignorado_anterior_conexao";
     }
   | { ok: false; retryable: boolean; motivo: string };
 
@@ -91,6 +93,25 @@ export async function ingerirPedidoMercadoLivrePorSeller(params: {
       retryable: orderRes.retryable,
       motivo: `Falha ao buscar pedido ${params.orderId} na API do ML (status ${orderRes.status}).`,
     };
+  }
+
+  // Pedido feito ANTES do seller conectar essa conta ML ao DropCore não é dele — é
+  // histórico de quem usava esse token antes (ou backlog de notificação atrasada do
+  // próprio ML). Achado real 2026-09-26: conta reconectada pra teste vazou quase um mês
+  // de pedido real de outra empresa pro seller errado, tudo corretamente bloqueado como
+  // produto_nao_vinculado mas sem nenhuma razão de existir aqui. Ignora silenciosamente —
+  // não é erro, não precisa placeholder nem notificação.
+  const { data: integracaoRow } = await supabaseAdmin
+    .from("seller_mercadolivre_integrations")
+    .select("created_at")
+    .eq("seller_id", sellerRow.id)
+    .maybeSingle();
+  if (integracaoRow?.created_at && orderRes.order.date_created) {
+    const conectadoEm = new Date(integracaoRow.created_at).getTime();
+    const pedidoEm = new Date(orderRes.order.date_created).getTime();
+    if (!Number.isNaN(conectadoEm) && !Number.isNaN(pedidoEm) && pedidoEm < conectadoEm) {
+      return { ok: true, status: "ignorado_anterior_conexao" };
+    }
   }
 
   const items = (orderRes.order.order_items ?? [])
