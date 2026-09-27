@@ -157,6 +157,14 @@ export default function SellerGestorDetalhePage() {
                   Esse gestor ({perfil.funcao}) ainda não está disponível. Assim que estiver pronto, aparece aqui.
                 </p>
               </section>
+            ) : !perfil.disponivelNoPro ? (
+              <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 text-center shadow-sm sm:p-8">
+                <p className="font-medium text-[var(--foreground)]">🔒 {perfil.nome} é exclusivo do plano Elite</p>
+                <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">
+                  Esse gestor ({perfil.funcao}) já está pronto, mas faz parte do plano Elite, que ainda não foi
+                  lançado. Assim que estiver disponível, avisamos por aqui.
+                </p>
+              </section>
             ) : perfil.slug === "diogo" ? (
               <SellerGestorEstoqueFulfillmentPanel
                 pro={pro}

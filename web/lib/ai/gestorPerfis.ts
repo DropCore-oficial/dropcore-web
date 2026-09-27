@@ -16,16 +16,27 @@ export type GestorPerfil = {
   gestorId: GestorId | null;
   /** true = já tem painel de verdade construído; false = tela "em breve". */
   ativo: boolean;
+  /** true = liberado pro plano Pro hoje (2026-09-27: só o Ulisses). Diogo/Andrey/Amanda
+   * já têm painel construído (`ativo: true`), mas ficam reservados pro plano Elite (ainda
+   * não lançado) — decisão de pricing, não falta de código. Quando Elite existir de
+   * verdade, esse campo deixa de ser um bool fixo e passa a checar o plano real do seller. */
+  disponivelNoPro: boolean;
 };
 
 export const GESTORES_PERFIS: GestorPerfil[] = [
-  { slug: "diogo", nome: "Diogo", funcao: "Risco de Ruptura & Fulfillment", gestorId: "estoque_fulfillment", ativo: true },
-  { slug: "andrey", nome: "Andrey", funcao: "Anúncios & SEO", gestorId: "anuncios_seo", ativo: true },
-  { slug: "amanda", nome: "Amanda", funcao: "Reputação & Atendimento", gestorId: "reputacao", ativo: true },
-  { slug: "ulisses", nome: "Ulisses", funcao: "Ads, Preço & Promoção", gestorId: "ads", ativo: true },
-  { slug: "laura", nome: "Laura", funcao: "Design & Criativo", gestorId: null, ativo: false },
-  { slug: "tiago-silva", nome: "Tiago Silva", funcao: "Gestor Mestre", gestorId: null, ativo: false },
+  { slug: "diogo", nome: "Diogo", funcao: "Risco de Ruptura & Fulfillment", gestorId: "estoque_fulfillment", ativo: true, disponivelNoPro: false },
+  { slug: "andrey", nome: "Andrey", funcao: "Anúncios & SEO", gestorId: "anuncios_seo", ativo: true, disponivelNoPro: false },
+  { slug: "amanda", nome: "Amanda", funcao: "Reputação & Atendimento", gestorId: "reputacao", ativo: true, disponivelNoPro: false },
+  { slug: "ulisses", nome: "Ulisses", funcao: "Ads, Preço & Promoção", gestorId: "ads", ativo: true, disponivelNoPro: true },
+  { slug: "laura", nome: "Laura", funcao: "Design & Criativo", gestorId: null, ativo: false, disponivelNoPro: false },
+  { slug: "tiago-silva", nome: "Tiago Silva", funcao: "Gestor Mestre", gestorId: null, ativo: false, disponivelNoPro: false },
 ];
+
+/** Gestores (por `gestorId`) liberados pro plano Pro hoje — usado pelo backend
+ * (submissão diária + botão "rodar agora") pra decidir o que de fato processa. */
+export const GESTORES_ID_DISPONIVEIS_NO_PRO: GestorId[] = GESTORES_PERFIS.filter(
+  (g) => g.disponivelNoPro && g.gestorId
+).map((g) => g.gestorId as GestorId);
 
 export function buscarGestorPerfil(slug: string): GestorPerfil | undefined {
   return GESTORES_PERFIS.find((g) => g.slug === slug);

@@ -78,6 +78,11 @@ export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBa
         // "reputacao" também não entra mais aqui (2026-09-07) — diagnóstico é código puro e
         // a resposta a pergunta é síncrona, ver `montarResultadoReputacao`.
 
+        // Consumo real de tokens da rodada — hoje só pra medir custo de verdade antes de
+        // fechar o valor de 1 crédito no ledger (creditos_debitados continua null; ver
+        // comentário em gestorBatchSubmit.ts).
+        const usage = item.result.message.usage;
+
         await supabaseAdmin
           .from("seller_ai_runs")
           .update({
@@ -85,6 +90,8 @@ export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBa
             resultado,
             erro_mensagem: erroMensagem,
             executado_em: new Date().toISOString(),
+            tokens_input: usage?.input_tokens ?? null,
+            tokens_output: usage?.output_tokens ?? null,
           })
           .eq("id", linha.id);
 

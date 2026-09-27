@@ -1,10 +1,11 @@
 /**
- * Gestores de IA em piloto restrito — só o seller Galileus (Galileus Comércio De Roupas
- * Ltda) tem acesso hoje; os demais não veem o menu nem conseguem chamar a API. Remover essa
- * restrição quando o Sr Stark decidir abrir pra todos os sellers.
+ * Gate de acesso aos Gestores de IA — até 2026-09-27 era piloto restrito só ao seller
+ * Galileus (Galileus Comércio De Roupas Ltda), decisão do Sr Stark de abrir geral depois
+ * de medir o custo real de rodada (ver memória de projeto "Gestores de IA — chat Elite").
+ * Aberto pra qualquer seller agora; o gate de plano continua sendo `isPro()` nas rotas
+ * (e, dentro do plano Pro, só o Ulisses está liberado — ver GESTORES_ID_DISPONIVEIS_NO_PRO
+ * em gestorPerfis.ts).
  */
-export const GESTORES_IA_SELLER_ID_PERMITIDO = "4e46e749-8103-4a71-9b70-195ba73cba14";
-
 export function gestoresIaSellerPermitido(sellerId: string | null | undefined): boolean {
-  return sellerId === GESTORES_IA_SELLER_ID_PERMITIDO;
+  return Boolean(sellerId);
 }

@@ -219,24 +219,64 @@ function resumoParaCard(
   return "Em breve";
 }
 
-function GestorCard({ slug, nome, funcao, ativo, resumo }: { slug: string; nome: string; funcao: string; ativo: boolean; resumo: string }) {
-  return (
-    <Link
-      href={`/seller/gestores-ia/${slug}`}
-      className="group block rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 hover:shadow-md dark:hover:border-emerald-700"
-    >
+function GestorCard({
+  slug,
+  nome,
+  funcao,
+  ativo,
+  disponivelNoPro,
+  resumo,
+}: {
+  slug: string;
+  nome: string;
+  funcao: string;
+  ativo: boolean;
+  disponivelNoPro: boolean;
+  resumo: string;
+}) {
+  // Já tem painel construído (ativo), mas reservado pro plano Elite — mostra trancado,
+  // cinza claro, sem link (não é bug/"em breve", é feature paga ainda não liberada).
+  const bloqueadoPorPlano = ativo && !disponivelNoPro;
+
+  const conteudo = (
+    <>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-semibold text-[var(--foreground)]">{nome}</p>
+          <p className={cn("font-semibold", bloqueadoPorPlano ? "text-[var(--muted)]" : "text-[var(--foreground)]")}>
+            {nome}
+          </p>
           <p className="text-xs text-[var(--muted)]">{funcao}</p>
         </div>
         {!ativo ? (
           <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md bg-[var(--muted)]/15 px-2 py-1 text-[11px] font-medium text-[var(--muted)]">
             Em breve
           </span>
+        ) : bloqueadoPorPlano ? (
+          <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md bg-[var(--muted)]/15 px-2 py-1 text-[11px] font-medium text-[var(--muted)]">
+            🔒 Exclusivo Elite
+          </span>
         ) : null}
       </div>
-      <p className="mt-3 text-sm text-[var(--foreground)]">{resumo}</p>
+      <p className={cn("mt-3 text-sm", bloqueadoPorPlano ? "text-[var(--muted)]" : "text-[var(--foreground)]")}>
+        {bloqueadoPorPlano ? "Disponível no plano Elite." : resumo}
+      </p>
+    </>
+  );
+
+  if (bloqueadoPorPlano) {
+    return (
+      <div className="block cursor-not-allowed rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left opacity-70">
+        {conteudo}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={`/seller/gestores-ia/${slug}`}
+      className="group block rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 hover:shadow-md dark:hover:border-emerald-700"
+    >
+      {conteudo}
     </Link>
   );
 }
@@ -341,6 +381,7 @@ export default function SellerGestoresIaPage() {
                   nome={g.nome}
                   funcao={g.funcao}
                   ativo={g.ativo}
+                  disponivelNoPro={g.disponivelNoPro}
                   resumo={resumoParaCard(g.slug, runs)}
                 />
               ))}

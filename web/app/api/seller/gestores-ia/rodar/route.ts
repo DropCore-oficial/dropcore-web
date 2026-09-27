@@ -10,6 +10,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 import { gestoresIaSellerPermitido } from "@/lib/ai/gestoresIaAcesso";
 import { isPro } from "@/lib/planos";
+import { GESTORES_ID_DISPONIVEIS_NO_PRO } from "@/lib/ai/gestorPerfis";
 import type { GestorId } from "@/lib/ai/gestorPrompts";
 import { MODELO_GESTORES_IA, montarRequestAnunciosSeo } from "@/lib/ai/gestorRequestBuilders";
 import { parseGestorResposta } from "@/lib/ai/gestorParseResposta";
@@ -42,6 +43,12 @@ export async function POST(req: Request) {
   const gestor = body.gestor as GestorId | undefined;
   if (!gestor || !GESTORES_VALIDOS.includes(gestor)) {
     return NextResponse.json({ error: "Gestor inválido." }, { status: 400 });
+  }
+  // Diogo/Andrey/Amanda já têm painel construído, mas ficam reservados pro plano Elite
+  // (2026-09-27, decisão de pricing — ver lib/ai/gestorPerfis.ts). Defesa em profundidade:
+  // o botão "rodar agora" nem aparece pro seller nesses gestores, mas checa aqui também.
+  if (!GESTORES_ID_DISPONIVEIS_NO_PRO.includes(gestor)) {
+    return NextResponse.json({ error: "Esse gestor é exclusivo do plano Elite." }, { status: 403 });
   }
 
   const semIa = GESTORES_SEM_IA.includes(gestor);

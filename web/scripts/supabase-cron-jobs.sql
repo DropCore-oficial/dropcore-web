@@ -208,25 +208,25 @@ SELECT cron.schedule(
   $$SELECT public.dropcore_cron_http_post('/api/cron/fornecedor-troca-janela-expira');$$
 );
 
--- Gestores de IA — submete o batch diário (Anthropic Batch API) pro gestor piloto "Risco
--- de Ruptura & Fulfillment" — 07:00 UTC (~4h BRT, resultado pronto de manhã pro seller).
--- ⚠️ NÃO DESCOMENTAR ainda: falta (1) ANTHROPIC_API_KEY configurada na Vercel, (2) valor
--- real de crédito por rodada resolvido (billing não debita nada por enquanto, de propósito
--- — ver web/lib/ai/gestorBatchSubmit.ts), (3) confirmação do Sr Stark pra ir ao ar de
--- verdade em sellers reais. Ver memória de projeto "Briefing Gestores de IA".
--- SELECT cron.schedule(
---   'dropcore-gestores-ia-submeter',
---   '0 7 * * *',
---   $$SELECT public.dropcore_cron_http_post('/api/cron/gestores-ia-submeter');$$
--- );
+-- Gestores de IA — submete o batch diário (Anthropic Batch API) — 07:00 UTC (~4h BRT,
+-- resultado pronto de manhã pro seller). Ligado em produção 2026-09-27: ANTHROPIC_API_KEY
+-- configurada, custo real medido (~R$0,27/rodada do único gestor que chama IA — Andrey),
+-- confirmação do Sr Stark. Hoje só o Ulisses roda de fato pro plano Pro (Diogo/Andrey/
+-- Amanda reservados pro Elite, ver GESTORES_ID_DISPONIVEIS_NO_PRO em
+-- web/lib/ai/gestorPerfis.ts) — Ulisses é código determinístico, sem custo de IA.
+SELECT cron.schedule(
+  'dropcore-gestores-ia-submeter',
+  '0 7 * * *',
+  $$SELECT public.dropcore_cron_http_post('/api/cron/gestores-ia-submeter');$$
+);
 
 -- Gestores de IA — confere batch pendente e grava resultado quando terminar (até 24h pra
--- processar, por isso roda a cada 15min em vez de 1x por dia). Mesma ressalva acima.
--- SELECT cron.schedule(
---   'dropcore-gestores-ia-resultado',
---   '*/15 * * * *',
---   $$SELECT public.dropcore_cron_http_post('/api/cron/gestores-ia-resultado');$$
--- );
+-- processar, por isso roda a cada 15min em vez de 1x por dia). Mesma decisão acima.
+SELECT cron.schedule(
+  'dropcore-gestores-ia-resultado',
+  '*/15 * * * *',
+  $$SELECT public.dropcore_cron_http_post('/api/cron/gestores-ia-resultado');$$
+);
 
 -- Limpeza da fila interna do pg_net (net._http_response) — todo POST via
 -- dropcore_cron_http_post grava uma linha aqui e NADA apaga sozinho. Sem isso a

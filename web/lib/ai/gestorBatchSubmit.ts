@@ -15,6 +15,7 @@ import { MODELO_GESTORES_IA, montarRequestAnunciosSeo } from "./gestorRequestBui
 import { montarResultadoAds } from "./gestorAdsDados";
 import { montarResultadoRuptura } from "./gestorRupturaFulfillmentDados";
 import { montarResultadoReputacao } from "./gestorReputacaoAtendimentoDados";
+import { GESTORES_ID_DISPONIVEIS_NO_PRO } from "./gestorPerfis";
 
 export type SubmeterGestoresResultado = {
   sellers_elegiveis: number;
@@ -60,77 +61,89 @@ export async function submeterGestoresIaDiario(): Promise<SubmeterGestoresResult
   let semDado = 0;
 
   for (const seller of elegiveis) {
-    // Estoque & Fulfillment também deixou de chamar a Anthropic (2026-09-07, mesmo motivo
-    // do Ads — ver gestorRupturaFulfillmentDados.ts): risco vem de dias-até-ruptura, já
-    // calculado em código.
-    const resultadoRuptura = await montarResultadoRuptura(seller.id);
-    if (resultadoRuptura.skus.length > 0) {
-      await supabaseAdmin.from("seller_ai_runs").insert({
-        org_id: seller.org_id,
-        seller_id: seller.id,
-        gestor: "estoque_fulfillment",
-        modelo: "codigo-deterministico",
-        // Coluna é NOT NULL (check 'casa'|'byok') — "casa" é o mais correto quando não usou
-        // nenhuma chave de IA.
-        origem_chave: "casa",
-        batch_id: null,
-        status: "ok",
-        resultado: resultadoRuptura,
-        executado_em: new Date().toISOString(),
-      });
-    } else {
-      semDado += 1;
+    // Diogo/Andrey/Amanda já têm painel construído, mas ficam reservados pro plano Elite
+    // (2026-09-27, decisão de pricing — ver lib/ai/gestorPerfis.ts). Não gera rodada nova
+    // pra eles hoje, mesmo pra quem tem saldo — não faz sentido gastar (mesmo que barato,
+    // caso do Andrey) num diagnóstico que o seller Pro não consegue ver.
+    if (GESTORES_ID_DISPONIVEIS_NO_PRO.includes("estoque_fulfillment")) {
+      // Estoque & Fulfillment também deixou de chamar a Anthropic (2026-09-07, mesmo motivo
+      // do Ads — ver gestorRupturaFulfillmentDados.ts): risco vem de dias-até-ruptura, já
+      // calculado em código.
+      const resultadoRuptura = await montarResultadoRuptura(seller.id);
+      if (resultadoRuptura.skus.length > 0) {
+        await supabaseAdmin.from("seller_ai_runs").insert({
+          org_id: seller.org_id,
+          seller_id: seller.id,
+          gestor: "estoque_fulfillment",
+          modelo: "codigo-deterministico",
+          // Coluna é NOT NULL (check 'casa'|'byok') — "casa" é o mais correto quando não usou
+          // nenhuma chave de IA.
+          origem_chave: "casa",
+          batch_id: null,
+          status: "ok",
+          resultado: resultadoRuptura,
+          executado_em: new Date().toISOString(),
+        });
+      } else {
+        semDado += 1;
+      }
     }
 
-    const paramsAnuncios = await montarRequestAnunciosSeo(seller.id);
-    if (paramsAnuncios) {
-      requests.push({ custom_id: customIdGestorSeller(seller.id, "anuncios_seo"), params: paramsAnuncios });
-      pendentes.push({ org_id: seller.org_id, seller_id: seller.id, gestor: "anuncios_seo" });
-    } else {
-      semDado += 1;
+    if (GESTORES_ID_DISPONIVEIS_NO_PRO.includes("anuncios_seo")) {
+      const paramsAnuncios = await montarRequestAnunciosSeo(seller.id);
+      if (paramsAnuncios) {
+        requests.push({ custom_id: customIdGestorSeller(seller.id, "anuncios_seo"), params: paramsAnuncios });
+        pendentes.push({ org_id: seller.org_id, seller_id: seller.id, gestor: "anuncios_seo" });
+      } else {
+        semDado += 1;
+      }
     }
 
-    // Reputação também não entra no batch assíncrono (2026-09-07, ver
-    // gestorReputacaoAtendimentoDados.ts) — o diagnóstico é código puro, e a resposta a
-    // pergunta pendente (única parte com IA de verdade) só chama a Anthropic quando existe
-    // pergunta de verdade, direto aqui (perde o desconto de 50% do Batch nesse caso raro,
-    // ganha simplicidade — a maioria das rodadas não tem pergunta pendente nova).
-    const resultadoReputacao = await montarResultadoReputacao(seller.id, apiKey);
-    if (resultadoReputacao) {
-      await supabaseAdmin.from("seller_ai_runs").insert({
-        org_id: seller.org_id,
-        seller_id: seller.id,
-        gestor: "reputacao",
-        modelo: resultadoReputacao.perguntas.some((p) => p.resposta_sugerida) ? MODELO_GESTORES_IA : "codigo-deterministico",
-        origem_chave: "casa",
-        batch_id: null,
-        status: "ok",
-        resultado: resultadoReputacao,
-        executado_em: new Date().toISOString(),
-      });
-    } else {
-      semDado += 1;
+    if (GESTORES_ID_DISPONIVEIS_NO_PRO.includes("reputacao")) {
+      // Reputação também não entra no batch assíncrono (2026-09-07, ver
+      // gestorReputacaoAtendimentoDados.ts) — o diagnóstico é código puro, e a resposta a
+      // pergunta pendente (única parte com IA de verdade) só chama a Anthropic quando existe
+      // pergunta de verdade, direto aqui (perde o desconto de 50% do Batch nesse caso raro,
+      // ganha simplicidade — a maioria das rodadas não tem pergunta pendente nova).
+      const resultadoReputacao = await montarResultadoReputacao(seller.id, apiKey);
+      if (resultadoReputacao) {
+        await supabaseAdmin.from("seller_ai_runs").insert({
+          org_id: seller.org_id,
+          seller_id: seller.id,
+          gestor: "reputacao",
+          modelo: resultadoReputacao.perguntas.some((p) => p.resposta_sugerida) ? MODELO_GESTORES_IA : "codigo-deterministico",
+          origem_chave: "casa",
+          batch_id: null,
+          status: "ok",
+          resultado: resultadoReputacao,
+          executado_em: new Date().toISOString(),
+        });
+      } else {
+        semDado += 1;
+      }
     }
 
-    // Ads/Preço/Promoção não chama a Anthropic (2026-09-07, ver gestorAdsDados.ts) — não
-    // entra no batch, grava o resultado direto (síncrono, sem custo de token nenhum).
-    const resultadoAds = await montarResultadoAds(seller.id);
-    if (resultadoAds) {
-      await supabaseAdmin.from("seller_ai_runs").insert({
-        org_id: seller.org_id,
-        seller_id: seller.id,
-        gestor: "ads",
-        modelo: "codigo-deterministico",
-        // Coluna é NOT NULL (check 'casa'|'byok') — "casa" é o mais correto quando não usou
-        // nenhuma chave de IA.
-        origem_chave: "casa",
-        batch_id: null,
-        status: "ok",
-        resultado: resultadoAds,
-        executado_em: new Date().toISOString(),
-      });
-    } else {
-      semDado += 1;
+    if (GESTORES_ID_DISPONIVEIS_NO_PRO.includes("ads")) {
+      // Ads/Preço/Promoção não chama a Anthropic (2026-09-07, ver gestorAdsDados.ts) — não
+      // entra no batch, grava o resultado direto (síncrono, sem custo de token nenhum).
+      const resultadoAds = await montarResultadoAds(seller.id);
+      if (resultadoAds) {
+        await supabaseAdmin.from("seller_ai_runs").insert({
+          org_id: seller.org_id,
+          seller_id: seller.id,
+          gestor: "ads",
+          modelo: "codigo-deterministico",
+          // Coluna é NOT NULL (check 'casa'|'byok') — "casa" é o mais correto quando não usou
+          // nenhuma chave de IA.
+          origem_chave: "casa",
+          batch_id: null,
+          status: "ok",
+          resultado: resultadoAds,
+          executado_em: new Date().toISOString(),
+        });
+      } else {
+        semDado += 1;
+      }
     }
   }
 

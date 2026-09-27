@@ -8,7 +8,7 @@ import { gestoresIaSellerPermitido } from "./gestoresIaAcesso";
  * (SellerNav é remontado em toda página do seller, não vive num layout compartilhado). */
 let cache: boolean | null = null;
 
-/** true só pro seller Galileus (piloto restrito dos Gestores de IA) — ver gestoresIaAcesso.ts. */
+/** true pra qualquer seller (piloto restrito encerrado 2026-09-27) — ver gestoresIaAcesso.ts. */
 export function useGestoresIaPermitido(): boolean {
   const [permitido, setPermitido] = useState(cache ?? false);
 
