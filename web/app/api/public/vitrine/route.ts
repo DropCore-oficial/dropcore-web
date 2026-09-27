@@ -15,8 +15,8 @@ import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const AMOSTRA_TAMANHO = 12;
-const CANDIDATOS_LIMITE = 400;
+const AMOSTRA_TAMANHO = 24;
+const CANDIDATOS_LIMITE = 800;
 
 function embaralhar<T>(arr: T[]): T[] {
   const copia = [...arr];

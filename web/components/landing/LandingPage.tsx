@@ -503,7 +503,7 @@ function VitrineCard({ item }: { item: VitrineItem }) {
         ) : null}
       </div>
       <div className="px-4 py-4">
-        <p className="whitespace-nowrap text-center text-[1.6rem] text-[var(--muted)] sm:text-xl">
+        <p className="whitespace-nowrap text-center text-xl text-[var(--muted)]">
           Você paga apenas{" "}
           <span className="font-extrabold tabular-nums text-[var(--foreground)]">{BRL.format(atual?.preco ?? 0)}</span>
         </p>
