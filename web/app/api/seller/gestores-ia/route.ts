@@ -33,7 +33,7 @@ export async function GET(req: Request) {
 
   const { data: sellerRow, error: sellerErr } = await supabaseAdmin
     .from("sellers")
-    .select("plano, saldo_atual")
+    .select("plano, saldo_atual, nome_responsavel")
     .eq("id", seller.id)
     .maybeSingle();
   if (sellerErr) {
@@ -41,15 +41,17 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Erro ao carregar dados do seller." }, { status: 500 });
   }
 
+  const nome_responsavel = sellerRow?.nome_responsavel ?? null;
+
   if (!isPro({ plano: sellerRow?.plano })) {
-    return NextResponse.json({ pro: false, runs: {} });
+    return NextResponse.json({ pro: false, runs: {}, nome_responsavel });
   }
 
   // Gestor de IA consome API paga — sem saldo, nem mostra a tela (evita Pro zerado usando
   // de graça enquanto o preço por rodada ainda não foi fechado).
   const saldoDisponivel = Math.max(0, Number(sellerRow?.saldo_atual ?? 0));
   if (saldoDisponivel <= 0) {
-    return NextResponse.json({ pro: true, saldo_suficiente: false, runs: {} });
+    return NextResponse.json({ pro: true, saldo_suficiente: false, runs: {}, nome_responsavel });
   }
 
   const { data: runsRaw, error: runsErr } = await supabaseAdmin
@@ -88,5 +90,12 @@ export async function GET(req: Request) {
     .order("criado_em", { ascending: false })
     .limit(8);
 
-  return NextResponse.json({ pro: true, saldo_suficiente: true, runs, sku_ml_map, acoes: acoesRaw ?? [] });
+  return NextResponse.json({
+    pro: true,
+    saldo_suficiente: true,
+    runs,
+    sku_ml_map,
+    acoes: acoesRaw ?? [],
+    nome_responsavel,
+  });
 }

@@ -48,9 +48,14 @@ function tempoRelativo(iso: string): string {
   return `há ${d}d`;
 }
 
-type NomeGestor = "Diogo" | "Andrey" | "Amanda" | "Ulisses" | "Laura" | "Tiago Silva";
+/** "Seller" é chave técnica fixa pro personagem que representa o dono(a) da conta — o nome
+ * exibido de verdade (sellers.nome_responsavel) é resolvido em runtime, ver `nomeExibicao`
+ * dentro do componente. Laura e Tiago Silva (Gestor Mestre) saíram do escritório — nenhum
+ * dos dois tem pipeline construído ainda; quando o Gestor Mestre for construído de verdade,
+ * ele senta na mesa comum junto dos outros gestores de IA, não ganha sala isolada. */
+type NomeGestor = "Diogo" | "Andrey" | "Amanda" | "Ulisses" | "Seller";
 
-const NOMES_GESTOR: NomeGestor[] = ["Diogo", "Andrey", "Amanda", "Ulisses", "Laura", "Tiago Silva"];
+const NOMES_GESTOR: NomeGestor[] = ["Diogo", "Andrey", "Amanda", "Ulisses", "Seller"];
 
 const SUIT_NEUTRAL = "#374151";
 const SUIT_LIDER = "#022c22";
@@ -70,8 +75,8 @@ type GestorConfig = {
 };
 
 /** Posições validadas no protótipo — mesa larga compartilhada (3 de um lado se encarando
- * 2 do outro + 1 lugar vago pra crescer) pros 5 gestores de linha, sala executiva isolada
- * pro Tiago Silva com mesa própria. Sem balcão de recepção, sem sala de jogos. */
+ * 1 do outro + 2 lugares vagos pra crescer) pros 4 gestores de IA, sala executiva isolada
+ * pro Seller (dono da conta) com mesa própria. Sem balcão de recepção, sem sala de jogos. */
 const GESTORES: Record<NomeGestor, GestorConfig> = {
   Diogo: {
     funcao: "Risco de Ruptura",
@@ -121,20 +126,8 @@ const GESTORES: Record<NomeGestor, GestorConfig> = {
     hairColor: 0x4a2c11,
     genero: "m",
   },
-  Laura: {
-    funcao: "Design & Criativo",
-    icone: "🎨",
-    corDot: SUIT_NEUTRAL,
-    deskPos: [4, 0, 7.75],
-    deskRot: Math.PI,
-    meetingPos: [-4.8, 0, -6.5],
-    meetingRot: Math.PI / 2,
-    shirtColor: 0xff7722,
-    hairColor: 0x2b1d14,
-    genero: "f",
-  },
-  "Tiago Silva": {
-    funcao: "Gestor Mestre",
+  Seller: {
+    funcao: "Dono(a) da conta",
     icone: "👑",
     corDot: SUIT_LIDER,
     deskPos: [-7, 0, 8.75],
@@ -560,7 +553,7 @@ function criarMonitorGrande(mats: Materiais, localX: number, lado: "A" | "B"): T
 
 /** Personagem "chibi" estilo The Sims — cabeça grande, corpo arredondado, rosto simples
  * (olhos + sobrancelha + nariz + boca), cabelo com franja/lateral (rabo de cavalo se
- * `genero==='f'`), terno com lapela em V só quando `jacketColor` existe (o Tiago Silva). */
+ * `genero==='f'`), terno com lapela em V só quando `jacketColor` existe (o Seller). */
 function criarPersonagem(mats: Materiais, cfg: GestorConfig): THREE.Group {
   const charGroup = new THREE.Group();
   const torsoMat = new THREE.MeshStandardMaterial({ color: cfg.shirtColor, roughness: 0.55 });
@@ -739,7 +732,7 @@ function statusPorNome(
   if (nome === "Andrey") return statusAndrey;
   if (nome === "Amanda") return statusAmanda;
   if (nome === "Ulisses") return statusUlisses;
-  if (nome === "Tiago Silva") return "Supervisiona a operação e prioriza as decisões dos outros gestores.";
+  if (nome === "Seller") return "Acompanha o desempenho da própria loja.";
   return "Em breve — painel ainda não construído.";
 }
 
@@ -755,18 +748,29 @@ export function SellerGestoresIaEscritorio3D({
   statusAmanda,
   statusUlisses,
   atividades,
+  nomeResponsavel,
 }: {
   statusDiogo: string;
   statusAndrey: string;
   statusAmanda: string;
   statusUlisses: string;
   atividades: AtividadeAoVivo[];
+  /** Nome de exibição do personagem "Seller" (dono da conta) — `sellers.nome_responsavel`.
+   * Fallback "Você" quando o seller ainda não preencheu esse dado no cadastro. */
+  nomeResponsavel?: string | null;
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<CenaAPI | null>(null);
   const [focoNome, setFocoNome] = useState<NomeGestor | null>(null);
   const [modo, setModoState] = useState<"individual" | "reuniao">("individual");
+  const nomeExibicao: Record<NomeGestor, string> = {
+    Diogo: "Diogo",
+    Andrey: "Andrey",
+    Amanda: "Amanda",
+    Ulisses: "Ulisses",
+    Seller: nomeResponsavel?.trim() || "Você",
+  };
 
   useEffect(() => {
     const container = mountRef.current;
@@ -906,7 +910,7 @@ export function SellerGestoresIaEscritorio3D({
     clockDisplay.position.set(CLOCK_X, CLOCK_Y, CLOCK_Z + 0.045);
     office.add(clockDisplay);
 
-    // Salas de vidro — executiva do Tiago Silva + conferência
+    // Salas de vidro — executiva do Seller + conferência
     office.add(criarDivisoriaVidro(mats, -7, 10, 7, 0));
     office.add(criarDivisoriaVidro(mats, -10.5, 7.5, 0, 5.2));
     office.add(criarDivisoriaVidro(mats, -3.5, 7.5, 0, 5.2));
@@ -914,7 +918,7 @@ export function SellerGestoresIaEscritorio3D({
     office.add(criarDivisoriaVidro(mats, -11, -6.5, 0, 5.2));
     office.add(criarDivisoriaVidro(mats, -4, -6.5, 0, 5.2));
 
-    // Mesa larga compartilhada (3 de um lado, 2 do outro + 1 lugar vago)
+    // Mesa larga compartilhada (3 de um lado, 1 do outro + 2 lugares vagos pra crescer)
     const teamTable = new THREE.Group();
     teamTable.position.set(4, 0, 6);
     office.add(teamTable);
@@ -943,6 +947,12 @@ export function SellerGestoresIaEscritorio3D({
     cadeiraVaga.rotation.y = Math.PI;
     office.add(cadeiraVaga);
 
+    // Lugar vago onde a Laura sentava (Design & Criativo saiu do escritório, não construída)
+    const cadeiraVagaLaura = criarCadeira(mats);
+    cadeiraVagaLaura.position.set(4, 0, 7.75);
+    cadeiraVagaLaura.rotation.y = Math.PI;
+    office.add(cadeiraVagaLaura);
+
     // Sala de conferência — mesa branca + quadro
     const confTable = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.12, 2.4), mats.woodMedio);
     confTable.position.set(-7.5, 1.4, -6.5);
@@ -965,7 +975,7 @@ export function SellerGestoresIaEscritorio3D({
     whiteboardFrame.position.set(-7.5, 4.3, -8.88);
     office.add(whiteboardFrame);
 
-    // Mesa do Tiago Silva + 2 monitores
+    // Mesa do Seller + 2 monitores
     const execTable = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.1, 1.6), mats.woodMedio);
     execTable.position.set(-7, 1.4, 7.6);
     execTable.castShadow = true;
@@ -1042,8 +1052,16 @@ export function SellerGestoresIaEscritorio3D({
       const tag = document.createElement("div");
       tag.className =
         "pointer-events-auto absolute flex -translate-x-1/2 -translate-y-full cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full bg-neutral-900/85 px-2.5 py-1 text-[11px] font-semibold text-white shadow-lg backdrop-blur transition-colors hover:bg-neutral-800/90";
-      const primeiroNome = nome.split(" ")[0];
-      tag.innerHTML = `<span class="h-1.5 w-1.5 shrink-0 rounded-full" style="background:${cfg.corDot};box-shadow:0 0 6px ${cfg.corDot}"></span>${primeiroNome.toUpperCase()}`;
+      const dot = document.createElement("span");
+      dot.className = "h-1.5 w-1.5 shrink-0 rounded-full";
+      dot.style.background = cfg.corDot;
+      dot.style.boxShadow = `0 0 6px ${cfg.corDot}`;
+      tag.appendChild(dot);
+      const nomeSpan = document.createElement("span");
+      // Nome vem de sellers.nome_responsavel (dado do usuário) pro personagem "Seller" —
+      // textContent em vez de innerHTML pra não interpretar HTML/script no nome cadastrado.
+      nomeSpan.textContent = nomeExibicao[nome].split(" ")[0].toUpperCase();
+      tag.appendChild(nomeSpan);
       tag.addEventListener("click", () => focar(nome));
       labelsContainer.appendChild(tag);
       agentLabels[nome] = tag;
@@ -1234,7 +1252,7 @@ export function SellerGestoresIaEscritorio3D({
             </span>
             <div>
               <p className="text-[10px] font-bold leading-tight text-white">ESCRITÓRIO 3D</p>
-              <p className="text-[8px] leading-tight text-neutral-400">6 gestores de IA · DropCore</p>
+              <p className="text-[8px] leading-tight text-neutral-400">4 gestores de IA · DropCore</p>
             </div>
           </div>
 
@@ -1293,7 +1311,7 @@ export function SellerGestoresIaEscritorio3D({
                   focoNome === nome ? "bg-emerald-500 text-white" : "text-neutral-300 hover:text-white"
                 )}
               >
-                {nome}
+                {nomeExibicao[nome]}
               </button>
             ))}
             <button
@@ -1335,7 +1353,7 @@ export function SellerGestoresIaEscritorio3D({
                   {GESTORES[focoNome].icone}
                 </span>
                 <div>
-                  <p className="text-[11px] font-bold text-white">{focoNome.toUpperCase()}</p>
+                  <p className="text-[11px] font-bold text-white">{nomeExibicao[focoNome].toUpperCase()}</p>
                   <p className="text-[9px] text-neutral-400">{GESTORES[focoNome].funcao}</p>
                 </div>
               </div>

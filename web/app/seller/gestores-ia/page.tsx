@@ -44,6 +44,7 @@ type RunsResponse = {
   runs: Record<string, SellerAiRun<unknown>>;
   sku_ml_map?: Record<string, string>;
   acoes?: AcaoRow[];
+  nome_responsavel?: string | null;
   error?: string;
 };
 
@@ -247,6 +248,7 @@ export default function SellerGestoresIaPage() {
   const [saldoSuficiente, setSaldoSuficiente] = useState(true);
   const [runs, setRuns] = useState<Record<string, SellerAiRun<unknown>>>({});
   const [acoes, setAcoes] = useState<AcaoRow[]>([]);
+  const [nomeResponsavel, setNomeResponsavel] = useState<string | null>(null);
 
   useEffect(() => {
     async function carregar() {
@@ -270,6 +272,7 @@ export default function SellerGestoresIaPage() {
       setSaldoSuficiente(json.saldo_suficiente ?? true);
       setRuns(json.runs ?? {});
       setAcoes(json.acoes ?? []);
+      setNomeResponsavel(json.nome_responsavel ?? null);
       setLoading(false);
     }
     void carregar();
@@ -328,9 +331,10 @@ export default function SellerGestoresIaPage() {
                 runs["ads"] as SellerAiRun<AdsPricingResultado> | undefined,
                 acoes
               )}
+              nomeResponsavel={nomeResponsavel}
             />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {GESTORES_PERFIS.map((g) => (
+              {GESTORES_PERFIS.filter((g) => g.ativo).map((g) => (
                 <GestorCard
                   key={g.slug}
                   slug={g.slug}
