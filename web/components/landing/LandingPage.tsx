@@ -26,7 +26,7 @@ import {
   landingSalesWhatsapp,
 } from "@/lib/landingContent";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
-import { proxiedCatalogoImageSrc } from "@/lib/supabaseStorageImageUrl";
+import { publicProxiedCatalogoImageSrc } from "@/lib/supabaseStorageImageUrl";
 
 const NAV = [
   { href: "#solucao", label: "Solução" },
@@ -491,7 +491,7 @@ function VitrineCardSkeleton() {
  * Stark) — mostra a primeira cor/foto do produto-pai. */
 function VitrineCard({ item }: { item: VitrineItem }) {
   const atual = item.cores[0];
-  const src = proxiedCatalogoImageSrc(atual?.imagem_url ?? null, 640);
+  const src = publicProxiedCatalogoImageSrc(atual?.imagem_url ?? null, 640);
   const nome = item.nome_produto ?? "Produto";
 
   return (
