@@ -19,7 +19,6 @@ import {
   LANDING_HERO,
   LANDING_HERO_PROOF,
   LANDING_HERO_VIDEO,
-  LANDING_INLINE_CTA,
   LANDING_INTEGRATIONS_BAR,
   LANDING_MARKETPLACES_BAR,
   LANDING_SECTIONS,
@@ -27,6 +26,7 @@ import {
   landingSalesWhatsapp,
 } from "@/lib/landingContent";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { proxiedCatalogoImageSrc } from "@/lib/supabaseStorageImageUrl";
 
 const NAV = [
   { href: "#solucao", label: "Solução" },
@@ -463,6 +463,124 @@ function IntegrationsBar() {
   );
 }
 
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+
+type VitrineCor = { cor: string | null; imagem_url: string | null; preco: number };
+
+type VitrineItem = {
+  id: string;
+  nome_produto: string | null;
+  categoria: string | null;
+  cores: VitrineCor[];
+};
+
+function VitrineCardSkeleton() {
+  return (
+    <div className="w-[80vw] shrink-0 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-white sm:w-80">
+      <div className="mx-4 mt-4 aspect-[3/4] animate-pulse rounded-xl bg-[var(--muted)]/15" />
+      <div className="px-4 py-4">
+        <div className="h-5 w-2/3 animate-pulse rounded bg-[var(--muted)]/10" />
+        <div className="mt-2.5 h-[3px] w-full animate-pulse rounded-full bg-[var(--muted)]/15" />
+      </div>
+    </div>
+  );
+}
+
+/** Card "poster de produto" (mock aprovado 2026-09-26, foto no topo + preço/linha emerald
+ * embaixo): sem nome de produto nem seletor de cor de propósito (decisão final do Sr
+ * Stark) — mostra a primeira cor/foto do produto-pai. */
+function VitrineCard({ item }: { item: VitrineItem }) {
+  const atual = item.cores[0];
+  const src = proxiedCatalogoImageSrc(atual?.imagem_url ?? null, 640);
+  const nome = item.nome_produto ?? "Produto";
+
+  return (
+    <div className="w-[80vw] shrink-0 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-white shadow-sm sm:w-80">
+      <div className="relative mx-4 mt-4 aspect-[3/4] overflow-hidden rounded-xl bg-[var(--surface-hover)]">
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt={nome} className="h-full w-full object-cover" loading="lazy" />
+        ) : null}
+      </div>
+      <div className="px-4 py-4">
+        <p className="whitespace-nowrap text-center text-[1.6rem] text-[var(--muted)] sm:text-xl">
+          Você paga apenas{" "}
+          <span className="font-extrabold tabular-nums text-[var(--foreground)]">{BRL.format(atual?.preco ?? 0)}</span>
+        </p>
+        <div className="mt-2.5 h-[3px] w-full rounded-full bg-emerald-500" aria-hidden />
+      </div>
+    </div>
+  );
+}
+
+/** Amostra real do catálogo (todos os fornecedores misturados, sem identificar nenhum) —
+ * preço mostrado é o mesmo `custo_total` que o seller vê depois de logado (ver
+ * `api/public/vitrine`), nunca um número "de marketing" separado. Some da tela sem quebrar
+ * nada (`return null`) se a amostra vier vazia ou a busca falhar — mesmo padrão de
+ * `LightningCandidatosSection` no painel do Ulisses. */
+function CatalogoVitrineSection() {
+  const [items, setItems] = useState<VitrineItem[] | null>(null);
+  const [falhou, setFalhou] = useState(false);
+
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/public/vitrine", { cache: "no-store" });
+        const json = (await res.json().catch(() => ({}))) as { items?: VitrineItem[] };
+        if (cancelado) return;
+        if (!res.ok || !Array.isArray(json.items)) {
+          setFalhou(true);
+          return;
+        }
+        setItems(json.items);
+      } catch {
+        if (!cancelado) setFalhou(true);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  if (falhou || (items && items.length === 0)) return null;
+
+  return (
+    <section className="border-b border-[var(--border-subtle)] bg-white py-14 sm:py-20">
+      <div className="dropcore-shell-6xl">
+        <Reveal>
+          <SectionHeader id="catalogo-titulo" title={LANDING_SECTIONS.catalogo.title} />
+        </Reveal>
+        {items ? (
+          <div className="mt-10 flex gap-5 overflow-x-auto pb-2 [scrollbar-width:thin] snap-x snap-mandatory">
+            {items.map((item) => (
+              <div key={item.id} className="snap-start">
+                <VitrineCard item={item} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-10 flex gap-4 overflow-hidden">
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <VitrineCardSkeleton key={idx} />
+            ))}
+          </div>
+        )}
+        <Reveal className="mt-10 text-center">
+          <a
+            href={`#${CTA_FINAL_ANCHOR}`}
+            onClick={scrollToFinalCta}
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:scale-[1.03] hover:bg-emerald-700 active:scale-[0.97]"
+          >
+            Quero vender esses produtos
+            <IconArrow />
+          </a>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
 function ComparisonSection() {
   return (
     <section id="solucao" className="border-b border-white/15 bg-[var(--foreground)] py-14 sm:py-20">
@@ -498,29 +616,6 @@ function ComparisonSection() {
             </RevealLi>
           ))}
         </ul>
-      </div>
-    </section>
-  );
-}
-
-function InlineCtaSection() {
-  return (
-    <section className="bg-white py-10 sm:py-12">
-      <div className="dropcore-shell-6xl">
-        <Reveal className="flex flex-col items-center justify-between gap-6 rounded-3xl bg-emerald-600 px-6 py-9 text-center shadow-lg shadow-emerald-900/10 sm:flex-row sm:px-10 sm:py-8 sm:text-left">
-          <div>
-            <h3 className="text-2xl font-semibold text-white sm:text-3xl">{LANDING_INLINE_CTA.title}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-emerald-50 sm:text-base">{LANDING_INLINE_CTA.subtitle}</p>
-          </div>
-          <a
-            href={`#${CTA_FINAL_ANCHOR}`}
-            onClick={scrollToFinalCta}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-medium text-emerald-700 shadow-sm transition hover:scale-[1.03] hover:bg-emerald-50 active:scale-[0.97]"
-          >
-            {LANDING_INLINE_CTA.label}
-            <IconArrow />
-          </a>
-        </Reveal>
       </div>
     </section>
   );
@@ -805,9 +900,9 @@ export function LandingPage() {
       <LandingHeader />
       <main>
         <HeroSection />
-        <IntegrationsBar />
+        <CatalogoVitrineSection />
         <ComparisonSection />
-        <InlineCtaSection />
+        <IntegrationsBar />
         <StepsSection />
         <FlowSection />
         <FitSection />

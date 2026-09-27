@@ -5,6 +5,7 @@ import { SkuInlineSeller } from "@/components/seller/SkuInlineSeller";
 import { parseDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { formatPesoCatalogo } from "@/lib/formatPesoCatalogo";
 import { skuProntoParaVender, skuReadinessLabelsFalha } from "@/lib/sellerSkuReadiness";
+import { corParaHex } from "@/lib/corSwatchHex";
 import {
   AMBER_PREMIUM_SHELL,
   AMBER_PREMIUM_TEXT_BODY,
@@ -208,28 +209,10 @@ function urlImagem(imagemUrl: string | null): string | null {
   return url;
 }
 
-const CORES_HEX: Record<string, string> = {
-  preto: "#1a1a1a",
-  branco: "#f5f5f5",
-  azul: "#2563eb",
-  vermelho: "#dc2626",
-  verde: "#16a34a",
-  amarelo: "#eab308",
-  rosa: "#ec4899",
-  marrom: "#92400e",
-  bege: "#d4b896",
-  cinza: "#6b7280",
-  laranja: "#ea580c",
-  roxo: "#7c3aed",
-  nude: "#e8d5c4",
-  estampado: "linear-gradient(135deg,#6366f1 25%,#ec4899 50%,#eab308 75%)",
-};
-
 const DESCRICAO_PREVIEW = 180;
 
 function CorSwatch({ cor, size = "md" }: { cor: string; size?: "sm" | "md" }) {
-  const nome = cor.trim().toLowerCase();
-  const hex = CORES_HEX[nome] ?? (nome ? "#94a3b8" : undefined);
+  const hex = corParaHex(cor);
   const dotClass = size === "sm" ? "w-3.5 h-3.5" : "w-5 h-5";
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full pl-1 pr-2.5 py-0.5 text-xs font-medium border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 shadow-sm ring-1 ring-neutral-200/50 dark:ring-neutral-600/50">

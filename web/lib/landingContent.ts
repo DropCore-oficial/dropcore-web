@@ -78,12 +78,6 @@ export const LANDING_HERO_VIDEO = {
   title: "Como funciona o DropCore",
 } as const;
 
-export const LANDING_INLINE_CTA = {
-  title: "Já deu pra ver a diferença?",
-  subtitle: "Sem planilha, sem cobrar fornecedor — só o catálogo, o pedido e o repasse rodando sozinhos.",
-  label: "Chega de operar sozinho",
-} as const;
-
 export const LANDING_COMPARISON = [
   {
     before: "Você negocia, cobra e reconcilia fornecedor sozinho",
@@ -165,6 +159,9 @@ export const LANDING_FAQ = [
 ] as const;
 
 export const LANDING_SECTIONS = {
+  catalogo: {
+    title: "Produto real, preço real",
+  },
   comparison: {
     title: "O que trava o seller antes de vender",
   },
