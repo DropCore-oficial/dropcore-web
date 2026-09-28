@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sincronizarSkuMercadoLivre } from "@/lib/ai/mercadoLivreSkuSync";
+import { notifySellerAnunciosSemSkuCatalogo } from "@/lib/notifySellerAnunciosSemSkuCatalogo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,12 +47,16 @@ async function run(req: Request) {
     for (const { seller_id } of sellersConectados ?? []) {
       const r = await sincronizarSkuMercadoLivre(seller_id);
       resultados.push({ seller_id, ...r });
+      if (r.itens_sem_sku.length > 0) {
+        await notifySellerAnunciosSemSkuCatalogo({ sellerId: seller_id, itens: r.itens_sem_sku });
+      }
     }
 
     return NextResponse.json({
       ok: true,
       sellers_sincronizados: resultados.length,
       total_skus_encontrados: resultados.reduce((s, r) => s + r.skus_encontrados, 0),
+      total_itens_sem_sku: resultados.reduce((s, r) => s + r.itens_sem_sku.length, 0),
       detalhe: resultados,
     });
   } catch (e: unknown) {

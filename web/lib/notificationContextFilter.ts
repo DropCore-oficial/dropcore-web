@@ -37,6 +37,7 @@ export const NOTIFICATION_TIPOS_POR_CONTEXTO: Record<NotificationPortalContext, 
     "produto_nao_vinculado",
     "anuncio_sem_sku",
     "anuncio_sem_sku_urgente",
+    "anuncios_sem_sku_catalogo",
   ],
   fornecedor: [
     "mensalidade_paga_fornecedor",

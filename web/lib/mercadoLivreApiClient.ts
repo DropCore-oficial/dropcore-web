@@ -171,6 +171,14 @@ export type MercadoLivreAttribute = { id: string; value_name: string | null };
 export type MercadoLivreVariation = {
   id: number;
   attribute_combinations?: MercadoLivreAttribute[];
+  /** Atributos "extras" da variação (SELLER_SKU, MAIN_COLOR, etc) — diferente de
+   * `attribute_combinations` (só os que definem a combinação, ex. cor/tamanho). Só vem
+   * preenchido quando a chamada usa `include_attributes=all` (ver
+   * mlBuscarItensDetalheComAtributosVariacao) — achado ao vivo 2026-09-28: o multiget
+   * padrão (`mlBuscarItensDetalhe`) nunca traz este array, então SELLER_SKU de variação
+   * nunca aparecia mesmo estando cadastrado de verdade no anúncio (falso positivo de
+   * "anúncio sem SKU"). */
+  attributes?: MercadoLivreAttribute[];
 };
 
 export type MercadoLivreItemDetail = {
@@ -205,8 +213,11 @@ export type MercadoLivreItemDetail = {
   family_name?: string | null;
   /** `logistic_type: "fulfillment"` = Mercado Envios Full (estoque no centro de distribuição
    * do ML) — anúncio assim não pode ser pausado pelo fluxo manual normal (o ML controla o
-   * envio); se pausado mesmo assim, estoque fica preso e ainda cobra taxa de "item parado". */
-  shipping?: { logistic_type?: string };
+   * envio); se pausado mesmo assim, estoque fica preso e ainda cobra taxa de "item parado".
+   * `free_shipping: false` = frete cobrado do COMPRADOR, não do seller (ver `mlBuscarFreteReal`
+   * — bug real encontrado 2026-09-28: o `list_cost` de `shipping_options` só é custo do seller
+   * quando `free_shipping: true`). */
+  shipping?: { logistic_type?: string; free_shipping?: boolean };
   /** IDs de promoção ativa no anúncio (ex. Oferta Relâmpago) — array vazio quando não tem
    * nenhuma rodando agora. */
   deal_ids?: string[];
@@ -240,6 +251,32 @@ export async function mlBuscarItensDetalhe(
   for (const lote of lotes) {
     const json = await mlGet<Array<{ code: number; body: MercadoLivreItemDetail }>>(
       `/items?ids=${lote.join(",")}`,
+      ctx.accessToken
+    );
+    for (const entry of json ?? []) {
+      if (entry.code === 200 && entry.body) itens.push(entry.body);
+    }
+  }
+  return itens;
+}
+
+/** Igual a `mlBuscarItensDetalhe`, mas pede `include_attributes=all` — só assim
+ * `variations[].attributes` vem preenchido (onde SELLER_SKU de variação realmente mora,
+ * ver comentário em `MercadoLivreVariation`). Função separada de propósito: o multiget
+ * padrão é usado por vários gestores que não precisam desse array extra; só o sync de
+ * vínculo SKU↔anúncio (mercadoLivreSkuSync.ts) precisa da versão completa. */
+export async function mlBuscarItensDetalheComAtributosVariacao(
+  ids: string[],
+  ctx: MercadoLivreAuthContext
+): Promise<MercadoLivreItemDetail[]> {
+  if (ids.length === 0) return [];
+  const lotes: string[][] = [];
+  for (let i = 0; i < ids.length; i += 20) lotes.push(ids.slice(i, i + 20));
+
+  const itens: MercadoLivreItemDetail[] = [];
+  for (const lote of lotes) {
+    const json = await mlGet<Array<{ code: number; body: MercadoLivreItemDetail }>>(
+      `/items?ids=${lote.join(",")}&include_attributes=all`,
       ctx.accessToken
     );
     for (const entry of json ?? []) {
@@ -671,20 +708,35 @@ export async function mlBuscarAdGroupsComMetricas(
   return json?.results ?? [];
 }
 
-/** Custo de frete REAL que o seller paga nessa venda (`list_cost`) — diferente do que o
- * comprador vê (`cost`, pode ser 0 com frete grátis). CEP é só referência pro cálculo (o
- * valor varia por destino); usar uma capital como estimativa razoável na ausência de um
- * pedido real pra basear o cálculo. Testado ao vivo (2026-08-30). */
+/** Custo de frete REAL que o SELLER paga por esse item — usa o endpoint oficial de
+ * simulação "no momento de publicar/editar" (`/users/{user_id}/shipping_options/free`), NÃO
+ * o de checkout do comprador (`/items/{id}/shipping_options?zip_code=...`, usado até
+ * 2026-09-28 — esse devolve o custo que o COMPRADOR paga no carrinho, não o do seller).
+ *
+ * Bug real corrigido em duas rodadas nessa data, testando ao vivo o Coimbra:
+ * 1ª rodada (errada): código original tratava `list_cost` do endpoint de checkout como
+ * custo do seller sempre — descontava R$43,99 de frete de um anúncio onde quem paga é o
+ * comprador.
+ * 2ª rodada (esse fix): a doc oficial do ML (https://developers.mercadolivre.com.br/pt_br/
+ * custos-de-envio) deixa explícito que existe custo REAL pro seller mesmo com
+ * `free_shipping: false` — uma tarifa por peso/dimensão da embalagem que incide mesmo
+ * quando "o frete fica a cargo do comprador" (ver print do próprio ML: "A pagar R$8,45...
+ * se aplica mesmo que o comprador pague o frete"). A doc pede explicitamente pra chamar
+ * esse endpoint com `free_shipping=true` E `free_shipping=false` porque as duas dão
+ * "opções de custo corretas e possíveis PARA O VENDEDOR" — ou seja, zerar o frete quando
+ * `free_shipping` é `false` (a correção anterior) também estava errado. Não tinha como
+ * confirmar 100% ao vivo por bloqueio de rede no ambiente de teste — validar no primeiro
+ * rodar real do Ulisses após deploy. */
 export async function mlBuscarFreteReal(
   itemId: string,
   ctx: MercadoLivreAuthContext,
-  cepReferencia = "01310100"
+  freeShipping: boolean | undefined
 ): Promise<number | null> {
-  const json = await mlGet<{ options?: { list_cost: number }[] }>(
-    `/items/${itemId}/shipping_options?zip_code=${cepReferencia}`,
+  const json = await mlGet<{ coverage?: { all_country?: { list_cost?: number } } }>(
+    `/users/${ctx.mlUserId}/shipping_options/free?item_id=${itemId}&free_shipping=${freeShipping ? "true" : "false"}`,
     ctx.accessToken
   );
-  return json?.options?.[0]?.list_cost ?? null;
+  return json?.coverage?.all_country?.list_cost ?? null;
 }
 
 type MercadoLivreBillingDetalhe = {

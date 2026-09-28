@@ -3,8 +3,10 @@
  * (`skus.custo_base + skus.custo_dropcore`, via `sellerCustoTotalPagoUnitario` — mesma
  * fonte usada na tela de produtos do seller) com o preço já publicado, a comissão do tipo
  * de anúncio (Clássico/Premium), o **gasto real de Ads do mês** (dia 1 até hoje, por
- * família/item, não só o total da conta) e o **frete real** que o ML cobra do seller
- * (`list_cost`) pra calcular a margem REALIZADA de cada SKU — e recomenda ajuste de
+ * família/item, não só o total da conta) e o **frete real que o SELLER paga** (só existe
+ * quando o anúncio é frete grátis — `item.shipping.free_shipping`; em "envio por conta do
+ * comprador" o frete é 0 pro seller, ver `mlBuscarFreteReal`) pra calcular a margem
+ * REALIZADA de cada SKU — e recomenda ajuste de
  * ads/afiliado/cupom dentro da faixa (mínima/máxima) e dos liga/desliga que o próprio
  * seller configurou em `seller_ulisses_preferencias`.
  *
@@ -176,7 +178,6 @@ export type AdsSkuContexto = {
  * como teto de segurança contra catálogo patológico (milhares de SKUs, risco de estourar o
  * `maxDuration` da rota) — hoje (177 SKUs vinculados) nem chega perto disso. */
 const MAX_CANDIDATOS = 500;
-const CEP_REFERENCIA_FRETE = "01310100";
 /** Folga mínima (pontos de margem) pra sugerir subir o % de afiliado — abaixo disso a
  * sugestão seria ruído (ex. "suba de 5% pra 5,4%"), não ajuda o seller a decidir nada. */
 const AFILIADO_HEADROOM_MINIMO_PCT = 2;
@@ -537,7 +538,7 @@ async function montarCandidatos(
         // retorno do próprio clique pago, diferente do TACoS (que olha a venda toda).
         const roasReal = adsGastoMesReal > 0 ? (metricaAds?.totalAmount ?? 0) / adsGastoMesReal : 0;
 
-        const freteReal = await mlBuscarFreteReal(item.id, ctx, CEP_REFERENCIA_FRETE);
+        const freteReal = await mlBuscarFreteReal(item.id, ctx, item.shipping?.free_shipping);
 
         const margemAtualPct = calcularMargemRealizada({
           precoVenda: item.price,

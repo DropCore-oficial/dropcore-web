@@ -18,10 +18,6 @@ import {
 } from "@/lib/mercadoLivreApiClient";
 import { buscarPreferenciasUlisses, buscarVinculosComCusto } from "@/lib/ai/gestorAdsDados";
 
-/** Mesma referência de CEP já usada no resto do Ulisses (frete real varia por região, mas
- * precisa de um ponto fixo de comparação — ver gestorAdsDados.ts). */
-const CEP_REFERENCIA_FRETE = "01310100";
-
 export type LightningCandidatoResultado = {
   itemId: string;
   dealId: string;
@@ -115,7 +111,7 @@ export async function buscarCandidatosLightningComMargem(sellerId: string): Prom
 
       const { comissaoPct } = mlComissaoPorListingType(item.listing_type_id);
       const [freteReal, limites] = await Promise.all([
-        mlBuscarFreteReal(candidato.id, ctx, CEP_REFERENCIA_FRETE),
+        mlBuscarFreteReal(candidato.id, ctx, item.shipping?.free_shipping),
         mlBuscarLimitesLightning(candidato.id, ctx),
       ]);
       const faixaMl = limites ? { min: limites.min, max: limites.max } : null;

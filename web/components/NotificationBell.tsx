@@ -43,6 +43,7 @@ const PEDIDO_TIPO_SEVERIDADE: Record<string, "danger" | "warning" | "success"> =
   pedido_sla_atrasado: "danger",
   sla_atraso_admin: "danger",
   pedido_precisa_resolucao_admin: "warning",
+  anuncios_sem_sku_catalogo: "warning",
 };
 
 const PEDIDO_TIPO_ICON: Record<string, string> = {
@@ -56,6 +57,7 @@ const PEDIDO_TIPO_ICON: Record<string, string> = {
   pedido_sla_atrasado: "⏰",
   sla_atraso_admin: "⏰",
   pedido_precisa_resolucao_admin: "🏷️",
+  anuncios_sem_sku_catalogo: "🏷️",
 };
 
 function pedidoDestino(context: NotificationPortalContext, pedidoId: string): string {
