@@ -119,6 +119,9 @@ export default function FornecedorCadastroPage() {
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
+  const [pendenteBancarioExpiraEm, setPendenteBancarioExpiraEm] = useState<string | null>(null);
+  const [reenviandoConfirmacao, setReenviandoConfirmacao] = useState(false);
+  const [reenvioOkMsg, setReenvioOkMsg] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({
     nome: "",
     cnpj: "",
@@ -215,6 +218,9 @@ export default function FornecedorCadastroPage() {
       setEnvioIgualMatriz(enderecoDespachoIgualMatriz(nextForm));
       const lu = f.logo_url;
       setLogoUrl(typeof lu === "string" && lu.length > 0 ? lu : null);
+      setPendenteBancarioExpiraEm(
+        typeof f.dados_bancarios_pendente_expira_em === "string" ? f.dados_bancarios_pendente_expira_em : null
+      );
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
@@ -473,6 +479,9 @@ export default function FornecedorCadastroPage() {
           ? "Cadastro atualizado. A troca dos dados bancários (PIX/conta) só vale depois de confirmar pelo link enviado no seu e-mail."
           : "Cadastro atualizado."
       );
+      if (json?.dados_bancarios_pendente_confirmacao) {
+        await load();
+      }
       setConfirmoRepasseTitularCnpj(false);
       if (cnpjDigits.length === 14) {
         setForm((prev) => ({ ...prev, cnpj: formatCnpjDisplay(cnpjDigits) }));
@@ -481,6 +490,33 @@ export default function FornecedorCadastroPage() {
       setError(e instanceof Error ? e.message : "Erro ao salvar.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function reenviarConfirmacaoBancaria() {
+    setReenviandoConfirmacao(true);
+    setError(null);
+    setReenvioOkMsg(null);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/fornecedor/login");
+        return;
+      }
+      const res = await fetch("/api/fornecedor/cadastro/reenviar-confirmacao-bancaria", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error ?? "Erro ao reenviar.");
+      }
+      setPendenteBancarioExpiraEm(json.expira_em ?? null);
+      setReenvioOkMsg("E-mail reenviado. Confira sua caixa de entrada.");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao reenviar.");
+    } finally {
+      setReenviandoConfirmacao(false);
     }
   }
 
@@ -1018,6 +1054,40 @@ export default function FornecedorCadastroPage() {
                 (mesma razão social e CNPJ deste cadastro). Contas de terceiros não são aceitas. A equipe DropCore
                 confere os dados antes de liberar repasses.
               </p>
+              {pendenteBancarioExpiraEm ? (
+                <div className={cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, "space-y-2 rounded-lg px-3 py-3 text-xs leading-relaxed")}>
+                  <p className={AMBER_PREMIUM_TEXT_SECONDARY}>
+                    {new Date(pendenteBancarioExpiraEm).getTime() > Date.now() ? (
+                      <>
+                        Você tem uma troca de PIX/conta <strong className={cn("font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>aguardando confirmação por e-mail</strong>{" "}
+                        — sem isso, o repasse continua indo pros dados antigos. O link vale até{" "}
+                        <strong className={cn("font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>
+                          {new Date(pendenteBancarioExpiraEm).toLocaleTimeString("pt-BR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            timeZone: "America/Sao_Paulo",
+                          })}
+                        </strong>
+                        . Não achou o e-mail? Reenvia aqui.
+                      </>
+                    ) : (
+                      <>
+                        Uma troca de PIX/conta que você pediu <strong className={cn("font-semibold", AMBER_PREMIUM_TEXT_PRIMARY)}>expirou sem confirmação</strong>{" "}
+                        — ela não valeu. Clique em reenviar pra gerar um novo link.
+                      </>
+                    )}
+                  </p>
+                  {reenvioOkMsg ? <p className={cn("font-medium", SUCCESS_PREMIUM_TEXT_BODY)}>{reenvioOkMsg}</p> : null}
+                  <button
+                    type="button"
+                    onClick={reenviarConfirmacaoBancaria}
+                    disabled={reenviandoConfirmacao}
+                    className="inline-flex items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
+                  >
+                    {reenviandoConfirmacao ? "Reenviando..." : "Reenviar e-mail de confirmação"}
+                  </button>
+                </div>
+              ) : null}
               <div>
                 <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Chave PIX</label>
                 <input

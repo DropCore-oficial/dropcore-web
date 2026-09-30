@@ -129,6 +129,18 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Conta inativa. Entre em contato com o suporte." }, { status: 403 });
     }
 
+    /** Troca de PIX/conta não aplica na hora (ver PATCH /api/fornecedor/cadastro) — o
+     * fornecedor precisa ver isso na própria tela de Cadastro pra saber que precisa
+     * confirmar pelo e-mail, sem depender de alguém do DropCore avisar manualmente. */
+    const { data: pendenteBancario } = await supabaseAdmin
+      .from("fornecedor_dados_bancarios_pendentes")
+      .select("expira_em")
+      .eq("fornecedor_id", member.fornecedor_id)
+      .maybeSingle();
+    // Devolve mesmo se já expirou — a tela usa isso pra mostrar "expirou, reenviar" em vez
+    // de simplesmente esconder o aviso (senão o fornecedor nunca sabe que ficou pendente).
+    const dadosBancariosPendenteExpiraEm = pendenteBancario?.expira_em ?? null;
+
     const cadastro = {
       cnpj: frow.cnpj ?? null,
       telefone: frow.telefone ?? null,
@@ -191,6 +203,7 @@ export async function GET(req: Request) {
         cadastro_minimo_completo: cadastroMinimoCompleto(cadastro as FornecedorCadastroFields),
         trial_valido_ate: frow.trial_valido_ate ?? null,
         trial_ativo: isPortalTrialAtivo(frow.trial_valido_ate),
+        dados_bancarios_pendente_expira_em: dadosBancariosPendenteExpiraEm,
       },
     });
   } catch (e: unknown) {
