@@ -769,8 +769,8 @@ export default function SellerDashboardPage() {
         : "bg-emerald-600 text-white shadow-sm shadow-emerald-600/20 hover:bg-emerald-700 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-700"
     );
     const badgeTitle = isPro
-      ? `Plano ${SELLER_PLANO_NOME_PRO} — analytics e desempenho ampliados`
-      : `Plano ${SELLER_PLANO_NOME_START} — resumo e operação essencial`;
+      ? `Plano ${SELLER_PLANO_NOME_PRO} — inclui o gestor de IA Ulisses (Ads, Preço & Promoção)`
+      : `Plano ${SELLER_PLANO_NOME_START} — resumo, desempenho e operação essencial`;
     const badge = (
       <span translate="no" lang="en" className={badgeClass} title={badgeTitle}>
         {nomeExibicaoPlanoSeller(seller?.plano)}
@@ -829,7 +829,6 @@ export default function SellerDashboardPage() {
   // RPC falhar por algum motivo — achado ao vivo 2026-09-22: acima de 200 lançamentos no
   // período, o cálculo em JS subcontava tudo silenciosamente.
   const analytics30d = (() => {
-    if (!isPro) return null;
     if (analytics30dApi) {
       const dias: Record<string, { receita: number; custo: number }> = {};
       const agoraChart = new Date();
@@ -936,7 +935,7 @@ export default function SellerDashboardPage() {
   // gráfico vivia do extrato capado em 200 pros períodos != 14d, mesmo bug do Lucro/Receita
   // — mês específico (seletor "Mês...") continua no extrato capado por enquanto, caso raro.
   const chartData = (() => {
-    if (isPro && analytics30dApi && typeof chartPeriodo === "number") {
+    if (analytics30dApi && typeof chartPeriodo === "number") {
       const porDiaMap = new Map(analytics30dApi.vendas_por_dia.map((v) => [v.dia, v]));
       const agoraNum = new Date();
       const diasNum: { dia: string; valor: number; count: number }[] = [];
@@ -1564,14 +1563,14 @@ export default function SellerDashboardPage() {
           </div>
         </section>
 
-        {/* 2b. Analytics Pro — desempenho detalhado */}
-        {isPro && analytics30d && (
+        {/* 2b. Analytics — desempenho detalhado (liberado em qualquer plano desde 2026-09-30) */}
+        {analytics30d && (
           <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
             <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--card-border)] bg-[var(--card)]">
               <div className="flex items-center gap-2">
                 <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Desempenho</p>
                 <span translate="no" lang="en" className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-bold text-white">
-                  {SELLER_PLANO_NOME_PRO} · 30 dias
+                  30 dias
                 </span>
               </div>
             </div>

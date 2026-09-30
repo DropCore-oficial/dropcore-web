@@ -1,7 +1,7 @@
 /**
  * Helpers para planos da **organização** (chave BD `starter` | `pro`).
- * Starter: máx 15 pares (produto+cor). Pro: ilimitado.
- * Tamanho não entra no limite.
+ * Desde 2026-09-30 Start e Pro têm catálogo ilimitado (o limite de 15 pares produto+cor do
+ * Start foi removido — ver docs/SCHEMA.md, reprecificação Pro + add-on Gestores de IA).
  */
 
 export type PlanoOrg = "starter" | "pro";
@@ -10,17 +10,28 @@ export function isPro(org: { plano?: string | null } | null): boolean {
   return String(org?.plano || "").toLowerCase() === "pro";
 }
 
-const PRODUTO_COR_MAX_STARTER = 15;
+/** Add-on "Gestores de IA" (Diogo/Andrey/Amanda + futuros gestores) ativo pro seller —
+ * independe do plano (Start ou Pro). Ulisses não depende disso, ver `isGestorUlissesLiberado`. */
+export function temAddonGestoresIaAtivo(seller: { gestores_ia_addon_ativo?: boolean | null } | null): boolean {
+  return seller?.gestores_ia_addon_ativo === true;
+}
 
-/** SKUs com este prefixo (ex.: linha DJU999) não entram no limite de pares produto+cor da org Starter. */
+/** Ulisses (Ads, Preço & Promoção) é o único gestor liberado de graça só por ser Pro — os
+ * demais (Diogo/Andrey/Amanda) exigem o add-on Gestores de IA em qualquer plano. */
+export function isGestorUlissesLiberado(seller: { plano?: string | null; gestores_ia_addon_ativo?: boolean | null } | null): boolean {
+  return isPro({ plano: seller?.plano }) || temAddonGestoresIaAtivo(seller);
+}
+
+/** SKUs com este prefixo (ex.: linha DJU999) nunca entraram no limite antigo de pares produto+cor. */
 export const PREFIXO_SKU_SISTEMA = "DJU999";
 
 /**
- * Retorna quantos pares (produto+cor) a org pode ter. Pro = ilimitado (retorna null).
+ * Retorna quantos pares (produto+cor) a org pode ter. Sempre ilimitado (`null`) hoje —
+ * mantido como função (em vez de remover as chamadas) pra não precisar reescrever
+ * `assertPodeAtivarMaisSkus` se algum limite por plano voltar no futuro.
  */
-export function produtoCorMaxPorPlano(plano: string | null): number | null {
-  if (String(plano || "").toLowerCase() === "pro") return null;
-  return PRODUTO_COR_MAX_STARTER;
+export function produtoCorMaxPorPlano(_plano: string | null): number | null {
+  return null;
 }
 
 function toComboKey(nome: string | null | undefined, cor: string | null | undefined): string {

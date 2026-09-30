@@ -761,7 +761,7 @@ export default function SellerProdutosPage() {
           <div className={cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY, "mt-6 rounded-2xl px-5 py-4 text-sm md:px-6")}>
             A lista de SKUs habilitados para venda ainda não está disponível na base (migração pendente). Execute o script{" "}
             <code className="rounded border border-[var(--card-border)] bg-[var(--card)] px-1.5 py-0.5 font-mono text-xs">web/scripts/create-seller-skus-habilitados.sql</code> no
-            Supabase para ativar o limite de 15 no Start e a integração ERP alinhada ao catálogo.
+            Supabase para ativar a lista de SKUs habilitados e a integração ERP alinhada ao catálogo.
           </div>
         )}
 

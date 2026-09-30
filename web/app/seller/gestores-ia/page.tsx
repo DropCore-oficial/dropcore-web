@@ -45,6 +45,7 @@ type RunsResponse = {
   sku_ml_map?: Record<string, string>;
   acoes?: AcaoRow[];
   nome_responsavel?: string | null;
+  gestores_liberados?: Record<string, boolean>;
   error?: string;
 };
 
@@ -224,19 +225,19 @@ function GestorCard({
   nome,
   funcao,
   ativo,
-  disponivelNoPro,
+  liberado,
   resumo,
 }: {
   slug: string;
   nome: string;
   funcao: string;
   ativo: boolean;
-  disponivelNoPro: boolean;
+  liberado: boolean;
   resumo: string;
 }) {
-  // Já tem painel construído (ativo), mas reservado pro plano Elite — mostra trancado,
-  // cinza claro, sem link (não é bug/"em breve", é feature paga ainda não liberada).
-  const bloqueadoPorPlano = ativo && !disponivelNoPro;
+  // Já tem painel construído (ativo), mas exige o add-on Gestores de IA — mostra trancado,
+  // cinza claro, sem link (não é bug/"em breve", é feature paga ainda não contratada).
+  const bloqueadoPorPlano = ativo && !liberado;
 
   const conteudo = (
     <>
@@ -253,21 +254,24 @@ function GestorCard({
           </span>
         ) : bloqueadoPorPlano ? (
           <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md bg-[var(--muted)]/15 px-2 py-1 text-[11px] font-medium text-[var(--muted)]">
-            🔒 Exclusivo Elite
+            🔒 Add-on Gestores de IA
           </span>
         ) : null}
       </div>
       <p className={cn("mt-3 text-sm", bloqueadoPorPlano ? "text-[var(--muted)]" : "text-[var(--foreground)]")}>
-        {bloqueadoPorPlano ? "Disponível no plano Elite." : resumo}
+        {bloqueadoPorPlano ? "Contrate o add-on Gestores de IA →" : resumo}
       </p>
     </>
   );
 
   if (bloqueadoPorPlano) {
     return (
-      <div className="block cursor-not-allowed rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left opacity-70">
+      <Link
+        href="/seller/plano"
+        className="group block rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left opacity-80 transition-all hover:border-emerald-300 hover:opacity-100 hover:shadow-md dark:hover:border-emerald-700"
+      >
         {conteudo}
-      </div>
+      </Link>
     );
   }
 
@@ -289,6 +293,7 @@ export default function SellerGestoresIaPage() {
   const [runs, setRuns] = useState<Record<string, SellerAiRun<unknown>>>({});
   const [acoes, setAcoes] = useState<AcaoRow[]>([]);
   const [nomeResponsavel, setNomeResponsavel] = useState<string | null>(null);
+  const [gestoresLiberados, setGestoresLiberados] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     async function carregar() {
@@ -313,10 +318,21 @@ export default function SellerGestoresIaPage() {
       setRuns(json.runs ?? {});
       setAcoes(json.acoes ?? []);
       setNomeResponsavel(json.nome_responsavel ?? null);
+      setGestoresLiberados(json.gestores_liberados ?? {});
       setLoading(false);
     }
     void carregar();
   }, []);
+
+  // Esconde rodada/ação de gestor que o seller não tem acesso (ativou o add-on depois de
+  // uma rodada antiga já ter ficado gravada, ou nunca chegou a contratar) — sem isso o
+  // escritório e o feed "ao vivo" mostravam diagnóstico de gestor bloqueado como se tivesse
+  // rodado de verdade pra ele.
+  const runsLiberados: Record<string, SellerAiRun<unknown>> = {};
+  for (const [gestorId, run] of Object.entries(runs)) {
+    if (gestoresLiberados[gestorId]) runsLiberados[gestorId] = run;
+  }
+  const acoesLiberadas = acoes.filter((a) => gestoresLiberados[a.gestor]);
 
   return (
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
@@ -360,16 +376,16 @@ export default function SellerGestoresIaPage() {
         ) : (
           <div className="space-y-5">
             <SellerGestoresIaEscritorio3D
-              statusDiogo={resumoStatusDiogo(runs["estoque_fulfillment"] as SellerAiRun<RupturaFulfillmentResultado> | undefined)}
-              statusAndrey={resumoStatusAndrey(runs["anuncios_seo"] as SellerAiRun<AnunciosSeoResultado> | undefined)}
-              statusAmanda={resumoStatusAmanda(runs["reputacao"] as SellerAiRun<ReputacaoAtendimentoResultado> | undefined)}
-              statusUlisses={resumoStatusUlisses(runs["ads"] as SellerAiRun<AdsPricingResultado> | undefined)}
+              statusDiogo={resumoStatusDiogo(runsLiberados["estoque_fulfillment"] as SellerAiRun<RupturaFulfillmentResultado> | undefined)}
+              statusAndrey={resumoStatusAndrey(runsLiberados["anuncios_seo"] as SellerAiRun<AnunciosSeoResultado> | undefined)}
+              statusAmanda={resumoStatusAmanda(runsLiberados["reputacao"] as SellerAiRun<ReputacaoAtendimentoResultado> | undefined)}
+              statusUlisses={resumoStatusUlisses(runsLiberados["ads"] as SellerAiRun<AdsPricingResultado> | undefined)}
               atividades={montarAtividades(
-                runs["estoque_fulfillment"] as SellerAiRun<RupturaFulfillmentResultado> | undefined,
-                runs["anuncios_seo"] as SellerAiRun<AnunciosSeoResultado> | undefined,
-                runs["reputacao"] as SellerAiRun<ReputacaoAtendimentoResultado> | undefined,
-                runs["ads"] as SellerAiRun<AdsPricingResultado> | undefined,
-                acoes
+                runsLiberados["estoque_fulfillment"] as SellerAiRun<RupturaFulfillmentResultado> | undefined,
+                runsLiberados["anuncios_seo"] as SellerAiRun<AnunciosSeoResultado> | undefined,
+                runsLiberados["reputacao"] as SellerAiRun<ReputacaoAtendimentoResultado> | undefined,
+                runsLiberados["ads"] as SellerAiRun<AdsPricingResultado> | undefined,
+                acoesLiberadas
               )}
               nomeResponsavel={nomeResponsavel}
             />
@@ -381,8 +397,8 @@ export default function SellerGestoresIaPage() {
                   nome={g.nome}
                   funcao={g.funcao}
                   ativo={g.ativo}
-                  disponivelNoPro={g.disponivelNoPro}
-                  resumo={resumoParaCard(g.slug, runs)}
+                  liberado={g.gestorId ? gestoresLiberados[g.gestorId] === true : false}
+                  resumo={resumoParaCard(g.slug, runsLiberados)}
                 />
               ))}
             </div>

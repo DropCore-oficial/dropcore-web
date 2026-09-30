@@ -510,6 +510,25 @@ vencido e ainda não notificado (`sla_atraso_notificado_em IS NULL`) notifica fo
 `pedido_sla_atrasado` (fornecedor) e `sla_atraso_admin` (admin) — registrados em
 `web/lib/notificationContextFilter.ts` e `web/components/NotificationBell.tsx`.
 
+## `sellers.mensalidade_valor_travado`/`gestores_ia_addon_ativo`/`gestores_ia_addon_ativado_em` — reprecificação Pro + add-on Gestores de IA (2026-09-30)
+
+`web/scripts/add-gestores-ia-addon-e-preco-pro.sql`. Pro sobe de R$147,90 pra R$197,90
+(`financial_planos.Pro.valor_seller`); os 5 sellers que já pagavam Pro antes da mudança
+ficaram com `mensalidade_valor_travado = 147.90` (grandfathering — `gerarMensalidadesCicloOrg.ts`
+usa esse valor no lugar do preço da tabela quando não for `null`). Start não muda
+(R$97,90).
+
+`gestores_ia_addon_ativo` é o add-on "Gestores de IA" (Diogo/Andrey/Amanda + futuros
+gestores — Ulisses já é liberado de graça só pro Pro, sem precisar do add-on). Preço do
+add-on depende do plano base: **+R$700/mês no Start, +R$600/mês no Pro** — os dois casos
+chegam no mesmo total (R$797,90), Pro só chega lá com 1 gestor a menos pra pagar porque o
+Ulisses já vem incluso. `gestores_ia_addon_ativado_em` é só auditoria/histórico, não entra
+em cálculo nenhum.
+
+Start deixou de ter cap de 15 pares produto+cor e ganhou o bloco Desempenho
+(receita/custo/margem) que antes era exclusivo do Pro — a única diferença real entre Start
+e Pro hoje é o Ulisses de graça.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

@@ -31,6 +31,7 @@ type RunsResponse = {
   saldo_suficiente?: boolean;
   runs: Record<string, SellerAiRun<unknown>>;
   sku_ml_map?: Record<string, string>;
+  gestores_liberados?: Record<string, boolean>;
   error?: string;
 };
 
@@ -51,6 +52,7 @@ export default function SellerGestorDetalhePage() {
   const [saldoSuficiente, setSaldoSuficiente] = useState(true);
   const [runs, setRuns] = useState<Record<string, SellerAiRun<unknown>>>({});
   const [skuMlMap, setSkuMlMap] = useState<Record<string, string>>({});
+  const [gestoresLiberados, setGestoresLiberados] = useState<Record<string, boolean>>({});
   /** undefined = ainda não checou; null = checou e não tem preferência salva (mostra wizard). */
   const [ulissesPreferencias, setUlissesPreferencias] = useState<UlissesPreferenciasForm | null | undefined>(undefined);
   /** true = seller clicou "Editar preferências" — reabre o wizard mesmo já tendo preferência salva. */
@@ -77,6 +79,7 @@ export default function SellerGestorDetalhePage() {
     setSaldoSuficiente(json.saldo_suficiente ?? true);
     setRuns(json.runs ?? {});
     setSkuMlMap(json.sku_ml_map ?? {});
+    setGestoresLiberados(json.gestores_liberados ?? {});
 
     if (slug === "ulisses") {
       const prefRes = await fetch("/api/seller/gestores-ia/ulisses-preferencias", {
@@ -157,12 +160,16 @@ export default function SellerGestorDetalhePage() {
                   Esse gestor ({perfil.funcao}) ainda não está disponível. Assim que estiver pronto, aparece aqui.
                 </p>
               </section>
-            ) : !perfil.disponivelNoPro ? (
+            ) : perfil.gestorId && !gestoresLiberados[perfil.gestorId] ? (
               <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 text-center shadow-sm sm:p-8">
-                <p className="font-medium text-[var(--foreground)]">🔒 {perfil.nome} é exclusivo do plano Elite</p>
+                <p className="font-medium text-[var(--foreground)]">🔒 {perfil.nome} exige o add-on Gestores de IA</p>
                 <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">
-                  Esse gestor ({perfil.funcao}) já está pronto, mas faz parte do plano Elite, que ainda não foi
-                  lançado. Assim que estiver disponível, avisamos por aqui.
+                  Esse gestor ({perfil.funcao}) já está pronto, mas exige o add-on Gestores de IA
+                  {perfil.gratisNoPro ? " (ou o plano Pro, que já inclui esse gestor)" : ""}.{" "}
+                  <Link href="/seller/plano" className="font-semibold underline">
+                    Ver planos e add-on
+                  </Link>
+                  .
                 </p>
               </section>
             ) : perfil.slug === "diogo" ? (

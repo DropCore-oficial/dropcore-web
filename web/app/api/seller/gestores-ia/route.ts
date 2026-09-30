@@ -1,13 +1,15 @@
 /**
- * GET /api/seller/gestores-ia — última rodada de cada gestor pro seller autenticado (hoje:
- * estoque_fulfillment e anuncios_seo). Gate por plano Pro (isPro), igual ao cron que
- * submete o batch (gestorBatchSubmit.ts).
+ * GET /api/seller/gestores-ia — última rodada de cada gestor pro seller autenticado. Gate
+ * real por gestor (Ulisses = Pro; Diogo/Andrey/Amanda = add-on "Gestores de IA"), igual ao
+ * cron que submete o batch (gestorBatchSubmit.ts) — fonte única em gestorLiberadoPorPlano.
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 import { gestoresIaSellerPermitido } from "@/lib/ai/gestoresIaAcesso";
-import { isPro } from "@/lib/planos";
+import { isPro, temAddonGestoresIaAtivo } from "@/lib/planos";
+import { GESTORES_PERFIS, gestorLiberadoPorPlano } from "@/lib/ai/gestorPerfis";
+import type { GestorId } from "@/lib/ai/gestorPrompts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +35,7 @@ export async function GET(req: Request) {
 
   const { data: sellerRow, error: sellerErr } = await supabaseAdmin
     .from("sellers")
-    .select("plano, saldo_atual, nome_responsavel")
+    .select("plano, saldo_atual, nome_responsavel, gestores_ia_addon_ativo")
     .eq("id", seller.id)
     .maybeSingle();
   if (sellerErr) {
@@ -43,15 +45,24 @@ export async function GET(req: Request) {
 
   const nome_responsavel = sellerRow?.nome_responsavel ?? null;
 
-  if (!isPro({ plano: sellerRow?.plano })) {
-    return NextResponse.json({ pro: false, runs: {}, nome_responsavel });
+  const gestores_liberados = GESTORES_PERFIS.filter((g) => g.gestorId).reduce(
+    (acc, g) => {
+      acc[g.gestorId as GestorId] = gestorLiberadoPorPlano(g.gestorId as GestorId, sellerRow);
+      return acc;
+    },
+    {} as Record<GestorId, boolean>
+  );
+
+  const temAlgumGestor = isPro({ plano: sellerRow?.plano }) || temAddonGestoresIaAtivo(sellerRow);
+  if (!temAlgumGestor) {
+    return NextResponse.json({ pro: false, runs: {}, nome_responsavel, gestores_liberados });
   }
 
   // Gestor de IA consome API paga — sem saldo, nem mostra a tela (evita Pro zerado usando
   // de graça enquanto o preço por rodada ainda não foi fechado).
   const saldoDisponivel = Math.max(0, Number(sellerRow?.saldo_atual ?? 0));
   if (saldoDisponivel <= 0) {
-    return NextResponse.json({ pro: true, saldo_suficiente: false, runs: {}, nome_responsavel });
+    return NextResponse.json({ pro: true, saldo_suficiente: false, runs: {}, nome_responsavel, gestores_liberados });
   }
 
   const { data: runsRaw, error: runsErr } = await supabaseAdmin
@@ -97,5 +108,6 @@ export async function GET(req: Request) {
     sku_ml_map,
     acoes: acoesRaw ?? [],
     nome_responsavel,
+    gestores_liberados,
   });
 }

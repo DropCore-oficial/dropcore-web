@@ -10,7 +10,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 import { gestoresIaSellerPermitido } from "@/lib/ai/gestoresIaAcesso";
-import { isPro } from "@/lib/planos";
+import { gestorLiberadoPorPlano } from "@/lib/ai/gestorPerfis";
 import { montarRequestAnuncioUnico } from "@/lib/ai/gestorRequestBuilders";
 import { parseGestorResposta } from "@/lib/ai/gestorParseResposta";
 
@@ -41,14 +41,14 @@ export async function POST(req: Request) {
 
   const { data: sellerRow, error: sellerErr } = await supabaseAdmin
     .from("sellers")
-    .select("plano, saldo_atual")
+    .select("plano, saldo_atual, gestores_ia_addon_ativo")
     .eq("id", seller.id)
     .maybeSingle();
   if (sellerErr) {
     return NextResponse.json({ error: "Erro ao carregar dados do seller." }, { status: 500 });
   }
-  if (!isPro({ plano: sellerRow?.plano })) {
-    return NextResponse.json({ error: "Gestores de IA são exclusivos do plano Pro." }, { status: 403 });
+  if (!gestorLiberadoPorPlano("anuncios_seo", sellerRow)) {
+    return NextResponse.json({ error: "Esse gestor exige o add-on Gestores de IA (ou plano Pro, no caso do Ulisses)." }, { status: 403 });
   }
   if (Math.max(0, Number(sellerRow?.saldo_atual ?? 0)) <= 0) {
     return NextResponse.json({ error: "Recarregue seu saldo pra usar os Gestores de IA." }, { status: 402 });

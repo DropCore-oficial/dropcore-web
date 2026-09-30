@@ -345,6 +345,15 @@ export function NotificationBell({
                                 Ver plano →
                               </a>
                             )}
+                            {n.tipo === "gestores_ia_addon_ativo" && (
+                              <a
+                                href="/seller/gestores-ia"
+                                onClick={(e) => e.stopPropagation()}
+                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
+                              >
+                                Ver Gestores de IA →
+                              </a>
+                            )}
                             {n.tipo === "mensalidade_paga_admin" && (
                               <a
                                 href={n.metadata?.mensalidade_id ? `/admin/mensalidades?destaque=${n.metadata.mensalidade_id}` : "/admin/mensalidades"}

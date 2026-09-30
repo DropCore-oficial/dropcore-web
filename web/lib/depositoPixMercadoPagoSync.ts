@@ -8,6 +8,10 @@ import {
   mercadoPagoOrderValorCompativel,
 } from "@/lib/mercadoPagoOrderPaid";
 import { processarUpgradeProAprovado, SELLER_DEPOSITO_REF_UPGRADE_PRO } from "@/lib/upgradeProPixProcessor";
+import {
+  processarAddonGestoresIaAprovado,
+  SELLER_DEPOSITO_REF_ADDON_GESTORES_IA,
+} from "@/lib/addonGestoresIaPixProcessor";
 
 type DepositoPendente = {
   id: string;
@@ -28,6 +32,8 @@ async function pagamentoAprovadoPorIds(
   isTestMode: boolean,
 ): Promise<boolean> {
   const isUpgrade = String(d.referencia ?? "") === SELLER_DEPOSITO_REF_UPGRADE_PRO;
+  const isAddon = String(d.referencia ?? "") === SELLER_DEPOSITO_REF_ADDON_GESTORES_IA;
+  const pulaConferenciaValor = isUpgrade || isAddon;
   const valorDep = Number(d.valor ?? 0);
 
   if (isTestMode && d.mp_order_id) {
@@ -38,7 +44,7 @@ async function pagamentoAprovadoPorIds(
     return (
       res.ok &&
       mercadoPagoOrderIndicaPagamentoCredito(order) &&
-      (isUpgrade || mercadoPagoOrderValorCompativel(order, valorDep))
+      (pulaConferenciaValor || mercadoPagoOrderValorCompativel(order, valorDep))
     );
   }
 
@@ -49,7 +55,7 @@ async function pagamentoAprovadoPorIds(
     const payment = await res.json();
     if (!res.ok || payment?.status !== "approved") return false;
     const amount = Number(payment?.transaction_amount ?? 0);
-    if (!isUpgrade && Number.isFinite(amount) && Math.abs(amount - valorDep) > 0.02) return false;
+    if (!pulaConferenciaValor && Number.isFinite(amount) && Math.abs(amount - valorDep) > 0.02) return false;
     return true;
   }
 
@@ -61,7 +67,9 @@ export async function pagamentoAprovadoPorBusca(
   d: DepositoPendente,
 ): Promise<{ aprovado: boolean; payment_id?: string }> {
   const isUpgrade = String(d.referencia ?? "") === SELLER_DEPOSITO_REF_UPGRADE_PRO;
-  const extRef = isUpgrade ? `upgrade-pro-${d.id}` : `deposito-${d.id}`;
+  const isAddon = String(d.referencia ?? "") === SELLER_DEPOSITO_REF_ADDON_GESTORES_IA;
+  const pulaConferenciaValor = isUpgrade || isAddon;
+  const extRef = isUpgrade ? `upgrade-pro-${d.id}` : isAddon ? `addon-gestores-ia-${d.id}` : `deposito-${d.id}`;
 
   const url = new URL("https://api.mercadopago.com/v1/payments/search");
   url.searchParams.set("external_reference", extRef);
@@ -80,7 +88,7 @@ export async function pagamentoAprovadoPorBusca(
 
   const amount = Number(approved.transaction_amount ?? 0);
   const valorDep = Number(d.valor ?? 0);
-  if (!isUpgrade && Number.isFinite(amount) && Math.abs(amount - valorDep) > 0.02) {
+  if (!pulaConferenciaValor && Number.isFinite(amount) && Math.abs(amount - valorDep) > 0.02) {
     return { aprovado: false };
   }
 
@@ -124,9 +132,12 @@ export async function sincronizarDepositosPendentesSeller(sellerId: string): Pro
     if (!aprovado) continue;
 
     const isUpgrade = String(row.referencia ?? "") === SELLER_DEPOSITO_REF_UPGRADE_PRO;
+    const isAddon = String(row.referencia ?? "") === SELLER_DEPOSITO_REF_ADDON_GESTORES_IA;
     const ok = isUpgrade
       ? await processarUpgradeProAprovado(`upgrade-pro-${row.id}`)
-      : await processarDepositoAprovado(`deposito-${row.id}`, row.mp_payment_id ?? null);
+      : isAddon
+        ? await processarAddonGestoresIaAprovado(`addon-gestores-ia-${row.id}`)
+        : await processarDepositoAprovado(`deposito-${row.id}`, row.mp_payment_id ?? null);
     if (ok) aprovados++;
   }
 

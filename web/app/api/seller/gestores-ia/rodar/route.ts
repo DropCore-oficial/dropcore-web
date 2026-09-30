@@ -9,8 +9,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 import { gestoresIaSellerPermitido } from "@/lib/ai/gestoresIaAcesso";
-import { isPro } from "@/lib/planos";
-import { GESTORES_ID_DISPONIVEIS_NO_PRO } from "@/lib/ai/gestorPerfis";
+import { gestorLiberadoPorPlano } from "@/lib/ai/gestorPerfis";
 import type { GestorId } from "@/lib/ai/gestorPrompts";
 import { MODELO_GESTORES_IA, montarRequestAnunciosSeo } from "@/lib/ai/gestorRequestBuilders";
 import { parseGestorResposta } from "@/lib/ai/gestorParseResposta";
@@ -44,29 +43,25 @@ export async function POST(req: Request) {
   if (!gestor || !GESTORES_VALIDOS.includes(gestor)) {
     return NextResponse.json({ error: "Gestor inválido." }, { status: 400 });
   }
-  // Diogo/Andrey/Amanda já têm painel construído, mas ficam reservados pro plano Elite
-  // (2026-09-27, decisão de pricing — ver lib/ai/gestorPerfis.ts). Defesa em profundidade:
-  // o botão "rodar agora" nem aparece pro seller nesses gestores, mas checa aqui também.
-  if (!GESTORES_ID_DISPONIVEIS_NO_PRO.includes(gestor)) {
-    return NextResponse.json({ error: "Esse gestor é exclusivo do plano Elite." }, { status: 403 });
+
+  const { data: sellerRow, error: sellerErr } = await supabaseAdmin
+    .from("sellers")
+    .select("plano, saldo_atual, gestores_ia_addon_ativo")
+    .eq("id", seller.id)
+    .maybeSingle();
+  if (sellerErr) {
+    return NextResponse.json({ error: "Erro ao carregar dados do seller." }, { status: 500 });
+  }
+  // Defesa em profundidade: o botão "rodar agora" nem aparece pro seller sem acesso a esse
+  // gestor, mas checa aqui também (Ulisses = Pro; Diogo/Andrey/Amanda = add-on).
+  if (!gestorLiberadoPorPlano(gestor, sellerRow)) {
+    return NextResponse.json({ error: "Esse gestor exige o add-on Gestores de IA (ou plano Pro, no caso do Ulisses)." }, { status: 403 });
   }
 
   const semIa = GESTORES_SEM_IA.includes(gestor);
   const apiKey = semIa ? null : process.env.ANTHROPIC_API_KEY?.trim();
   if (!semIa && !apiKey) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY não configurada." }, { status: 500 });
-  }
-
-  const { data: sellerRow, error: sellerErr } = await supabaseAdmin
-    .from("sellers")
-    .select("plano, saldo_atual")
-    .eq("id", seller.id)
-    .maybeSingle();
-  if (sellerErr) {
-    return NextResponse.json({ error: "Erro ao carregar dados do seller." }, { status: 500 });
-  }
-  if (!isPro({ plano: sellerRow?.plano })) {
-    return NextResponse.json({ error: "Gestores de IA são exclusivos do plano Pro." }, { status: 403 });
   }
   if (Math.max(0, Number(sellerRow?.saldo_atual ?? 0)) <= 0) {
     return NextResponse.json({ error: "Recarregue seu saldo pra usar os Gestores de IA." }, { status: 402 });

@@ -5,6 +5,7 @@
  * - type=order: usa external_reference da order (modo teste / API Orders)
  * - external_reference = mensalidade_id → marca mensalidade como paga
  * - external_reference = upgrade-pro-{id} → ativa Pro (não credita saldo)
+ * - external_reference = addon-gestores-ia-{id} → ativa add-on Gestores de IA (não credita saldo)
  * - external_reference = deposito-{id} → aprova depósito e credita seller
  *
  * Assinatura: header `x-signature` + `MERCADOPAGO_WEBHOOK_SECRET` (painel MP → Webhooks).
@@ -15,6 +16,7 @@ import { mercadoPagoOrderIndicaPagamentoCredito } from "@/lib/mercadoPagoOrderPa
 import { processarDepositoAprovado } from "@/lib/depositoPixProcessor";
 import { processarMensalidadePaga } from "@/lib/mensalidadePixProcessor";
 import { processarUpgradeProAprovado } from "@/lib/upgradeProPixProcessor";
+import { processarAddonGestoresIaAprovado } from "@/lib/addonGestoresIaPixProcessor";
 import { processarCalculadoraRenovacaoPaga } from "@/lib/calculadoraRenovacaoPixProcessor";
 import {
   resolveMercadoPagoWebhookDataId,
@@ -29,6 +31,11 @@ async function processarPorExtRef(extRef: string, mpPaymentId?: string | null): 
 
   if (extRef.startsWith("upgrade-pro-")) {
     await processarUpgradeProAprovado(extRef);
+    return;
+  }
+
+  if (extRef.startsWith("addon-gestores-ia-")) {
+    await processarAddonGestoresIaAprovado(extRef);
     return;
   }
 

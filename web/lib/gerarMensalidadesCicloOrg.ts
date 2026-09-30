@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { clampMensalidadeDiaVencimento, hojeYmdSaoPaulo, vencimentoEmNoCiclo } from "@/lib/mensalidadeDiaVencimento";
 import { isPortalTrialAtivo } from "@/lib/portalTrial";
+import { valorAddonGestoresIaPorPlano } from "@/lib/gestoresIaAddonPrecos";
 
 const VALOR_DEFAULT_SELLER = 97.9;
 const VALOR_DEFAULT_FORNECEDOR = 97.9;
@@ -33,7 +34,11 @@ export async function gerarMensalidadesParaOrgCiclo(orgId: string, cicloYYYY_MM:
 
   const [{ data: planos }, sellersRes, fornRes, inadRes, cicloAtualRes] = await Promise.all([
     supabaseAdmin.from("financial_planos").select("plano, valor_seller, valor_fornecedor"),
-    supabaseAdmin.from("sellers").select("id, nome, plano, mensalidade_dia_vencimento, trial_valido_ate").eq("org_id", orgId).ilike("status", "ativo"),
+    supabaseAdmin
+      .from("sellers")
+      .select("id, nome, plano, mensalidade_dia_vencimento, trial_valido_ate, mensalidade_valor_travado, gestores_ia_addon_ativo")
+      .eq("org_id", orgId)
+      .ilike("status", "ativo"),
     supabaseAdmin.from("fornecedores").select("id, nome, mensalidade_dia_vencimento, trial_valido_ate").eq("org_id", orgId).ilike("status", "ativo"),
     supabaseAdmin.from("financial_mensalidades").select("tipo, entidade_id").eq("org_id", orgId).eq("status", "inadimplente"),
     supabaseAdmin.from("financial_mensalidades").select("tipo, entidade_id").eq("org_id", orgId).eq("ciclo", primeiroDia),
@@ -64,7 +69,11 @@ export async function gerarMensalidadesParaOrgCiclo(orgId: string, cicloYYYY_MM:
     const p = (s.plano?.trim() || "").toLowerCase();
     const planoKey = p === "pro" ? "Pro" : p === "starter" ? "Starter" : "default";
     const pc = planosMap.get(planoKey) ?? planosMap.get("default");
-    const valor = pc ? Number(pc.valor_seller) : VALOR_DEFAULT_SELLER;
+    const valorTravado = (s as { mensalidade_valor_travado?: number | string | null }).mensalidade_valor_travado;
+    const valorBase = valorTravado != null ? Number(valorTravado) : pc ? Number(pc.valor_seller) : VALOR_DEFAULT_SELLER;
+    const addonAtivo = (s as { gestores_ia_addon_ativo?: boolean | null }).gestores_ia_addon_ativo === true;
+    const valorAddon = addonAtivo ? valorAddonGestoresIaPorPlano(p) : 0;
+    const valor = valorBase + valorAddon;
     const diaRaw = (s as { mensalidade_dia_vencimento?: number | null }).mensalidade_dia_vencimento;
     const dia = diaRaw == null ? 10 : clampMensalidadeDiaVencimento(Number(diaRaw));
     const vencimento_em = vencimentoEmNoCiclo(primeiroDia, dia);

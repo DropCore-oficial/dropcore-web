@@ -39,7 +39,9 @@ export async function GET(req: Request) {
     // Busca o seller vinculado a esse user_id
     const { data: seller, error: sellerErr } = await supabaseAdmin
       .from("sellers")
-      .select("id, org_id, nome, documento, plano, status, saldo_atual, saldo_bloqueado, data_entrada, email, telefone")
+      .select(
+        "id, org_id, nome, documento, plano, status, saldo_atual, saldo_bloqueado, data_entrada, email, telefone, gestores_ia_addon_ativo"
+      )
       .eq("user_id", user_id)
       .maybeSingle();
 
@@ -323,6 +325,7 @@ export async function GET(req: Request) {
         nome: seller.nome,
         documento: seller.documento ? String(seller.documento).replace(/\d(?=\d{4})/g, "*") : null,
         plano: seller.plano,
+        gestores_ia_addon_ativo: seller.gestores_ia_addon_ativo === true,
         status: seller.status,
         saldo_atual: Number(seller.saldo_atual ?? 0),
         saldo_bloqueado: Number(seller.saldo_bloqueado ?? 0),

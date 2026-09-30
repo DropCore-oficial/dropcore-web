@@ -13,6 +13,7 @@ import {
   SELLER_PLANO_NOME_START,
 } from "@/lib/sellerPlanoLabels";
 import { VALOR_DEFAULT_MENSALIDADE_SELLER, VALOR_DEFAULT_MENSALIDADE_SELLER_PRO } from "@/lib/sellerPlanoPrecos";
+import { valorAddonGestoresIaPorPlano } from "@/lib/gestoresIaAddonPrecos";
 import { planoSellerDefinido } from "@/lib/sellerDocumento";
 import {
   AMBER_PREMIUM_SURFACE,
@@ -30,6 +31,7 @@ type SellerMe = {
   nome: string;
   documento: string | null;
   plano: string | null;
+  gestores_ia_addon_ativo?: boolean;
 };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -38,15 +40,14 @@ const FEATURES_START = [
   "Resumo financeiro e extrato de movimentações",
   "Gráfico de volume por dia",
   "Operação com armazém (fornecedor) vinculado",
-  "Até 15 cores (produto + cor) habilitadas no catálogo para concretizar vendas no plano Start",
-  "Pedidos com SKU do catálogo obrigatório no plano Start",
+  "Catálogo ilimitado (produto + cor)",
+  "Bloco Desempenho: receita, custo e margem",
+  "Pedidos com SKU do catálogo obrigatório",
 ] as const;
 
 const FEATURES_PRO_EXTRA = [
   "Tudo do plano Start",
-  "Bloco Desempenho: receita, custo e margem",
-  "Analytics ampliados no painel quando houver dados de venda",
-  "Limites ampliados no catálogo conforme regras da plataforma",
+  "1 Gestor de IA liberado: Ulisses (Ads, Preço & Promoção)",
 ] as const;
 
 function FeatureLine({ children }: { children: ReactNode }) {
@@ -80,6 +81,15 @@ export default function SellerPlanoPage() {
   const [upgradeExpiraEm, setUpgradeExpiraEm] = useState<string | null>(null);
   const [upgradeRestSec, setUpgradeRestSec] = useState<number | null>(null);
   const [upgradeCopiado, setUpgradeCopiado] = useState(false);
+
+  const [modalAddon, setModalAddon] = useState(false);
+  const [addonLoading, setAddonLoading] = useState(false);
+  const [addonErro, setAddonErro] = useState<string | null>(null);
+  const [addonQr, setAddonQr] = useState<string | null>(null);
+  const [addonCopia, setAddonCopia] = useState<string | null>(null);
+  const [addonExpiraEm, setAddonExpiraEm] = useState<string | null>(null);
+  const [addonRestSec, setAddonRestSec] = useState<number | null>(null);
+  const [addonCopiado, setAddonCopiado] = useState(false);
 
   const loadMe = useCallback(async () => {
     setLoading(true);
@@ -160,6 +170,49 @@ export default function SellerPlanoPage() {
     return () => clearInterval(id);
   }, [upgradeQr]);
 
+  useEffect(() => {
+    if (!addonExpiraEm || !addonQr) return;
+    const tick = () => {
+      const rest = Math.max(0, Math.floor((new Date(addonExpiraEm).getTime() - Date.now()) / 1000));
+      setAddonRestSec(rest);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [addonExpiraEm, addonQr]);
+
+  useEffect(() => {
+    if (!addonQr) return;
+    const poll = async () => {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return;
+      const syncRes = await fetch("/api/seller/deposito-pix/sync", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const syncJson = await syncRes.json().catch(() => ({}));
+      if (syncJson.ok && syncJson.aprovados > 0) {
+        const meRes = await fetch("/api/seller/me", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: "no-store",
+        });
+        const meJson = await meRes.json();
+        if (meRes.ok && meJson.seller?.gestores_ia_addon_ativo === true) {
+          setSeller(meJson.seller);
+          setCadastroDadosPendente(!!meJson.cadastro_dados_pendente);
+          setModalAddon(false);
+          setAddonQr(null);
+          setAddonCopia(null);
+          setAddonExpiraEm(null);
+          setAddonErro(null);
+        }
+      }
+    };
+    const id = setInterval(poll, 10000);
+    void poll();
+    return () => clearInterval(id);
+  }, [addonQr]);
+
   function fecharModalUpgrade() {
     setModalUpgrade(false);
     setUpgradeErro(null);
@@ -209,6 +262,55 @@ export default function SellerPlanoPage() {
     setUpgradeExpiraEm(null);
   }
 
+  function fecharModalAddon() {
+    setModalAddon(false);
+    setAddonErro(null);
+    setAddonLoading(false);
+    setAddonQr(null);
+    setAddonCopia(null);
+    setAddonExpiraEm(null);
+    setAddonRestSec(null);
+    setAddonCopiado(false);
+  }
+
+  async function gerarPixAddon() {
+    setAddonErro(null);
+    setAddonLoading(true);
+    setAddonQr(null);
+    setAddonCopia(null);
+    setAddonExpiraEm(null);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const res = await fetch("/api/seller/plano/ativar-addon-gestores-ia-pix", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Não foi possível gerar o PIX.");
+      if (json.qr_code_base64) {
+        setAddonQr(json.qr_code_base64);
+        setAddonCopia(json.qr_code ?? null);
+        setAddonExpiraEm(json.expira_em ?? null);
+      }
+    } catch (e: unknown) {
+      setAddonErro(e instanceof Error ? e.message : "Erro inesperado.");
+    } finally {
+      setAddonLoading(false);
+    }
+  }
+
+  function abrirModalAddon() {
+    setModalAddon(true);
+    setAddonErro(null);
+    setAddonQr(null);
+    setAddonCopia(null);
+    setAddonExpiraEm(null);
+  }
+
   const precoStart = planoPrecos?.starter ?? VALOR_DEFAULT_MENSALIDADE_SELLER;
   const precoPro = planoPrecos?.pro ?? VALOR_DEFAULT_MENSALIDADE_SELLER_PRO;
   const diffUpgrade = Math.round((precoPro - precoStart) * 100) / 100;
@@ -219,6 +321,10 @@ export default function SellerPlanoPage() {
   const planoDefinido = planoSellerDefinido(seller?.plano);
   const docOk = !cadastroDadosPendente;
   const podeUpgradePix = planoDefinido && isStarter && docOk;
+
+  const addonAtivo = seller?.gestores_ia_addon_ativo === true;
+  const precoAddon = valorAddonGestoresIaPorPlano(seller?.plano);
+  const podeAtivarAddonPix = planoDefinido && docOk && !addonAtivo;
 
   const pillRef =
     "rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-center text-sm font-medium text-[var(--foreground)]";
@@ -302,7 +408,7 @@ export default function SellerPlanoPage() {
                 {SELLER_PLANO_NOME_START}
               </span>
             </h2>
-            <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">Resumo, volume por dia e armazém no dia a dia.</p>
+            <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">Resumo, desempenho e operação essencial — catálogo ilimitado.</p>
             <div className="mt-5">
               <p className="text-3xl font-bold tabular-nums tracking-tight text-[var(--foreground)]">
                 {BRL.format(precoStart)}
@@ -335,7 +441,7 @@ export default function SellerPlanoPage() {
                 Recomendado
               </span>
             </div>
-            <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">Desempenho (receita, custo, margem) e analytics ampliados.</p>
+            <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">Tudo do Start + o gestor de IA Ulisses incluso.</p>
             <div className="mt-5">
               <p className="text-3xl font-bold tabular-nums tracking-tight text-[var(--foreground)]">
                 {BRL.format(precoPro)}
@@ -395,6 +501,49 @@ export default function SellerPlanoPage() {
             </div>
           </section>
         </div>
+
+        {/* Add-on Gestores de IA — vendável em qualquer plano, preço depende do plano base */}
+        <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--foreground)]">Gestores de IA</h2>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
+                Libera Diogo (Risco de Ruptura), Andrey (Anúncios & SEO) e Amanda (Reputação & Atendimento)
+                {isPro ? "" : " + Ulisses (Ads, Preço & Promoção)"} — inclusive gestores futuros, sem custo extra.
+              </p>
+            </div>
+            {addonAtivo && (
+              <span className="shrink-0 rounded-md border border-emerald-200/90 bg-emerald-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:border-emerald-800/50 dark:bg-emerald-950/50 dark:text-emerald-300">
+                Ativo
+              </span>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-2xl font-bold tabular-nums tracking-tight text-[var(--foreground)]">
+              +{BRL.format(precoAddon)}
+              <span className="text-sm font-semibold text-[var(--muted)]">/mês</span>
+            </p>
+            {addonAtivo ? (
+              <p className="text-xs text-[var(--muted)]">
+                Já incluso na sua mensalidade.{" "}
+                <Link href="/seller/gestores-ia" className="font-semibold text-emerald-700 underline underline-offset-2 dark:text-emerald-400">
+                  Ver Gestores de IA
+                </Link>
+              </p>
+            ) : podeAtivarAddonPix ? (
+              <button
+                type="button"
+                onClick={abrirModalAddon}
+                className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:brightness-[0.92]"
+              >
+                Ativar — PIX {BRL.format(precoAddon)}
+              </button>
+            ) : !docOk ? (
+              <p className="text-xs text-[var(--muted)]">Complete o cadastro pra ativar.</p>
+            ) : null}
+          </div>
+        </section>
       </div>
 
       {modalUpgrade && (
@@ -483,6 +632,104 @@ export default function SellerPlanoPage() {
                   <button
                     type="button"
                     onClick={fecharModalUpgrade}
+                    className="w-full rounded-md bg-emerald-600 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
+                  >
+                    Fechar
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalAddon && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-md sm:p-6">
+          <div className="max-h-[min(90dvh,calc(100vh-2rem))] w-full max-w-sm overflow-y-auto rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 pb-4 pt-5">
+              <h2 className="text-sm font-semibold text-[var(--foreground)]">Ativar Gestores de IA — PIX</h2>
+              <button
+                type="button"
+                onClick={fecharModalAddon}
+                className="-m-1 rounded p-1 text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
+                aria-label="Fechar"
+              >
+                <IconX className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 p-5">
+              {!addonQr ? (
+                <>
+                  <p className="text-sm text-[var(--muted)]">
+                    Valor mensal: <strong className="text-[var(--foreground)]">{BRL.format(precoAddon)}</strong>, somado à sua mensalidade atual a
+                    partir do próximo ciclo.
+                  </p>
+                  {addonErro && (
+                    <p className={cn("rounded-xl px-3 py-2 text-xs", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>{addonErro}</p>
+                  )}
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={fecharModalAddon}
+                      className="flex-1 rounded-md border border-[var(--card-border)] bg-[var(--card)] py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void gerarPixAddon()}
+                      disabled={addonLoading || !podeAtivarAddonPix}
+                      className="flex-1 rounded-md bg-emerald-600 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {addonLoading ? "Gerando…" : "Gerar PIX"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                    <IconCheck className="h-5 w-5" />
+                    <p className="text-sm font-semibold text-[var(--foreground)]">PIX gerado — pague no app do banco</p>
+                  </div>
+                  <p className="text-xs text-[var(--muted)]">Liberamos os gestores após confirmação do pagamento.</p>
+                  {addonRestSec !== null && (
+                    <div
+                      className={cn(
+                        "flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-medium",
+                        addonRestSec <= 60 ? cn(AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY) : "bg-[var(--surface-subtle)] text-[var(--muted)]"
+                      )}
+                    >
+                      <IconClock className={`h-4 w-4 shrink-0 ${addonRestSec <= 60 ? "animate-pulse" : ""}`} />
+                      Válido por {Math.floor(addonRestSec / 60)}:{(addonRestSec % 60).toString().padStart(2, "0")}
+                    </div>
+                  )}
+                  <div className="flex justify-center rounded-xl bg-[var(--card)] p-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`data:image/png;base64,${addonQr}`} alt="QR Code PIX" className="h-40 w-40" />
+                  </div>
+                  {addonCopia && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-[var(--muted)]">Copia e cola</p>
+                      <div className="max-h-20 overflow-y-auto break-all rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2 font-mono text-xs text-[var(--muted)]">
+                        {addonCopia}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await navigator.clipboard.writeText(addonCopia);
+                          setAddonCopiado(true);
+                          setTimeout(() => setAddonCopiado(false), 2000);
+                        }}
+                        className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
+                      >
+                        {addonCopiado ? "Copiado!" : "Copiar código PIX"}
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={fecharModalAddon}
                     className="w-full rounded-md bg-emerald-600 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
                   >
                     Fechar

@@ -554,7 +554,10 @@ function criarMonitorGrande(mats: Materiais, localX: number, lado: "A" | "B"): T
 /** Personagem "chibi" estilo The Sims — cabeça grande, corpo arredondado, rosto simples
  * (olhos + sobrancelha + nariz + boca), cabelo com franja/lateral (rabo de cavalo se
  * `genero==='f'`), terno com lapela em V só quando `jacketColor` existe (o Seller). */
-function criarPersonagem(mats: Materiais, cfg: GestorConfig): THREE.Group {
+function criarPersonagem(
+  mats: Materiais,
+  cfg: GestorConfig
+): { grupo: THREE.Group; handL: THREE.Mesh; handR: THREE.Mesh } {
   const charGroup = new THREE.Group();
   const torsoMat = new THREE.MeshStandardMaterial({ color: cfg.shirtColor, roughness: 0.55 });
 
@@ -707,16 +710,23 @@ function criarPersonagem(mats: Materiais, cfg: GestorConfig): THREE.Group {
   handR.position.set(0.36, 1.44, 0.5);
   charGroup.add(handR);
 
-  return charGroup;
+  return { grupo: charGroup, handL, handR };
 }
 
-function criarAgente(mats: Materiais, cfg: GestorConfig): THREE.Group {
+function criarAgente(
+  mats: Materiais,
+  cfg: GestorConfig
+): { grupo: THREE.Group; personagem: THREE.Group; handL: THREE.Mesh; handR: THREE.Mesh } {
   const grupo = new THREE.Group();
+  const { grupo: personagem, handL, handR } = criarPersonagem(mats, cfg);
   grupo.add(criarCadeira(mats));
-  grupo.add(criarPersonagem(mats, cfg));
+  grupo.add(personagem);
   grupo.position.set(...cfg.deskPos);
   grupo.rotation.y = cfg.deskRot;
-  return grupo;
+  // `personagem`/`handL`/`handR` ficam em espaço local de `grupo` — dá pra animar digitação e
+  // olhada de lado neles direto, sem brigar com o TWEEN que move `grupo` inteiro no modo
+  // mesa/reunião.
+  return { grupo, personagem, handL, handR };
 }
 
 const NOMES_FOCO = NOMES_GESTOR;
@@ -1040,14 +1050,34 @@ export function SellerGestoresIaEscritorio3D({
 
     // Os 6 gestores
     const agentMeshes: Partial<Record<NomeGestor, THREE.Group>> = {};
+    type AgentAnim = {
+      personagem: THREE.Group;
+      handL: THREE.Mesh;
+      handR: THREE.Mesh;
+      fase: number;
+      sinalOlhar: number;
+      emViagem: boolean;
+    };
+    const agentAnim: Partial<Record<NomeGestor, AgentAnim>> = {};
     const agentLabels: Partial<Record<NomeGestor, HTMLDivElement>> = {};
 
-    NOMES_GESTOR.forEach((nome) => {
+    NOMES_GESTOR.forEach((nome, indiceGestor) => {
       const cfg = GESTORES[nome];
-      const grupo = criarAgente(mats, cfg);
+      const { grupo, personagem, handL, handR } = criarAgente(mats, cfg);
       grupo.name = nome;
       scene.add(grupo);
       agentMeshes[nome] = grupo;
+      // Fase própria por gestor (baseada no índice) — sem isso todo mundo digita/olha
+      // exatamente igual e sincronizado, o que parece mais robótico que vivo. `sinalOlhar`
+      // alterna a direção da olhada (pra quem tá do lado par vs ímpar na mesa).
+      agentAnim[nome] = {
+        personagem,
+        handL,
+        handR,
+        fase: indiceGestor * 1.7,
+        sinalOlhar: indiceGestor % 2 === 0 ? 1 : -1,
+        emViagem: false,
+      };
 
       const tag = document.createElement("div");
       tag.className =
@@ -1068,7 +1098,9 @@ export function SellerGestoresIaEscritorio3D({
     });
 
     // Modo mesa vs reunião — TWEEN anima posição + rotação de verdade
+    let modoAtual: "individual" | "reuniao" = "individual";
     function aplicarModo(m: "individual" | "reuniao") {
+      modoAtual = m;
       setModoState(m);
       NOMES_GESTOR.forEach((nome) => {
         const cfg = GESTORES[nome];
@@ -1085,6 +1117,79 @@ export function SellerGestoresIaEscritorio3D({
       const alvoOlhar = m === "reuniao" ? { x: -7.5, y: 1.5, z: -6.5 } : { x: 0, y: 0, z: 0 };
       new TWEEN.Tween(controls.target).to(alvoOlhar, 1200).easing(TWEEN.Easing.Cubic.InOut).start();
     }
+
+    // Passeio espontâneo: de vez em quando um gestor levanta, anda até o bebedouro (bebe
+    // água) ou até o sofá da sala de estar (senta um pouco) e volta pra mesa sozinho. Anima
+    // só `personagem` (corpo), não `grupo` (mesa/cadeira ficam paradas no lugar) — por isso
+    // converte o ponto de destino (coordenada do mundo) pro espaço local de `grupo` antes de
+    // animar, e por isso também não briga com o TWEEN de "modo mesa/reunião" acima, que só
+    // mexe em `grupo`.
+    const PONTOS_PASSEIO: { mundo: THREE.Vector3; rotMundo: number; pausaMs: number }[] = [
+      { mundo: new THREE.Vector3(10.15, 0, -8), rotMundo: Math.PI / 2, pausaMs: 3200 }, // bebedouro
+      { mundo: new THREE.Vector3(4, 0, -4.7), rotMundo: Math.PI, pausaMs: 7000 }, // sofá da sala de estar
+    ];
+    const timeoutsPasseio: number[] = [];
+
+    function agendarProximaViagem(nome: NomeGestor) {
+      const esperaMs = 18000 + Math.random() * 25000; // 18–43s — espontâneo, sem padrão fixo
+      timeoutsPasseio.push(
+        window.setTimeout(() => {
+          const anim = agentAnim[nome];
+          const grupo = agentMeshes[nome];
+          if (!anim || !grupo || anim.emViagem || modoAtual !== "individual") {
+            agendarProximaViagem(nome);
+            return;
+          }
+          iniciarViagem(nome, grupo, anim);
+        }, esperaMs)
+      );
+    }
+
+    function iniciarViagem(nome: NomeGestor, grupo: THREE.Group, anim: AgentAnim) {
+      const destino = PONTOS_PASSEIO[Math.floor(Math.random() * PONTOS_PASSEIO.length)];
+      anim.emViagem = true;
+      grupo.updateMatrixWorld();
+      const alvoLocal = grupo.worldToLocal(destino.mundo.clone());
+      const rotLocalAlvo = destino.rotMundo - grupo.rotation.y;
+      const distancia = Math.hypot(alvoLocal.x, alvoLocal.z);
+      const duracaoTrecho = Math.max(1400, distancia * 550);
+
+      new TWEEN.Tween(anim.personagem.position)
+        .to({ x: alvoLocal.x, y: 0, z: alvoLocal.z }, duracaoTrecho)
+        .easing(TWEEN.Easing.Quadratic.InOut)
+        .start();
+      new TWEEN.Tween(anim.personagem.rotation)
+        .to({ y: rotLocalAlvo }, Math.min(700, duracaoTrecho))
+        .easing(TWEEN.Easing.Quadratic.Out)
+        .start();
+
+      timeoutsPasseio.push(
+        window.setTimeout(() => {
+          timeoutsPasseio.push(
+            window.setTimeout(() => {
+              new TWEEN.Tween(anim.personagem.position)
+                .to({ x: 0, y: 0, z: 0 }, duracaoTrecho)
+                .easing(TWEEN.Easing.Quadratic.InOut)
+                .start();
+              new TWEEN.Tween(anim.personagem.rotation)
+                .to({ y: 0 }, Math.min(700, duracaoTrecho))
+                .delay(Math.max(0, duracaoTrecho - 700))
+                .easing(TWEEN.Easing.Quadratic.In)
+                .start();
+
+              timeoutsPasseio.push(
+                window.setTimeout(() => {
+                  anim.emViagem = false;
+                  agendarProximaViagem(nome);
+                }, duracaoTrecho)
+              );
+            }, destino.pausaMs)
+          );
+        }, duracaoTrecho)
+      );
+    }
+
+    NOMES_GESTOR.forEach((nome) => agendarProximaViagem(nome));
 
     function focar(nome: NomeGestor) {
       const mesh = agentMeshes[nome];
@@ -1167,9 +1272,31 @@ export function SellerGestoresIaEscritorio3D({
       TWEEN.update();
       controls.update();
 
+      const tIdle = performance.now() * 0.001;
       NOMES_GESTOR.forEach((nome) => {
         const mesh = agentMeshes[nome];
         const label = agentLabels[nome];
+        const anim = agentAnim[nome];
+        if (anim) {
+          if (anim.emViagem) {
+            // Andando até o bebedouro/sofá: o TWEEN de iniciarViagem já controla
+            // position/rotation do personagem — só soma um leve "solavanco de passo" em cima,
+            // sem sobrescrever o destino que o TWEEN calculou.
+            anim.personagem.position.y += Math.abs(Math.sin(tIdle * 9 + anim.fase)) * 0.06;
+          } else {
+            // "Digitando": mãos alternam batida rápida (uma sobe enquanto a outra desce, como
+            // teclando de verdade) — fase própria por gestor pra não ficarem sincronizados.
+            const golpe = tIdle * 20 + anim.fase;
+            anim.handL.position.y = 1.44 + (Math.sin(golpe) * 0.5 + 0.5) * 0.07;
+            anim.handR.position.y = 1.44 + (Math.sin(golpe + Math.PI) * 0.5 + 0.5) * 0.07;
+
+            // "Olhada pro lado" esporádica: fica a maior parte do tempo olhando pra frente
+            // (pulso ~0) e de vez em quando vira um pouco pro colega ao lado — seno elevado a
+            // uma potência alta fica achatado perto de 0 e só "pulsa" perto do pico.
+            const pulso = Math.max(0, Math.sin(tIdle * 0.11 + anim.fase * 2.3)) ** 6;
+            anim.personagem.rotation.y = pulso * anim.sinalOlhar * 0.55;
+          }
+        }
         if (!mesh || !label) return;
         mesh.getWorldPosition(tempV);
         tempV.y += 2.8;
@@ -1200,6 +1327,7 @@ export function SellerGestoresIaEscritorio3D({
     return () => {
       cancelAnimationFrame(animId);
       window.clearInterval(clockIntervalId);
+      timeoutsPasseio.forEach((id) => window.clearTimeout(id));
       resizeObserver.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
       renderer.domElement.removeEventListener("pointerdown", aoClicarCanvas);

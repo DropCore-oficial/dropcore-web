@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 import { gestoresIaSellerPermitido } from "@/lib/ai/gestoresIaAcesso";
-import { isPro } from "@/lib/planos";
+import { gestorLiberadoPorPlano } from "@/lib/ai/gestorPerfis";
 import { buscarCandidatosLightningComMargem } from "@/lib/ai/gestorLightningDados";
 
 export const runtime = "nodejs";
@@ -26,10 +26,10 @@ export async function GET(req: Request) {
 
   const { data: sellerRow } = await supabaseAdmin
     .from("sellers")
-    .select("plano, saldo_atual")
+    .select("plano, saldo_atual, gestores_ia_addon_ativo")
     .eq("id", seller.id)
     .maybeSingle();
-  if (!isPro({ plano: sellerRow?.plano })) {
+  if (!gestorLiberadoPorPlano("ads", sellerRow)) {
     return NextResponse.json({ candidatos: [] });
   }
   if (Math.max(0, Number(sellerRow?.saldo_atual ?? 0)) <= 0) {

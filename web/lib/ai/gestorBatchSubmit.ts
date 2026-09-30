@@ -9,13 +9,13 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { isPro } from "@/lib/planos";
+import { isPro, temAddonGestoresIaAtivo } from "@/lib/planos";
 import type { GestorId } from "./gestorPrompts";
 import { MODELO_GESTORES_IA, montarRequestAnunciosSeo } from "./gestorRequestBuilders";
 import { montarResultadoAds } from "./gestorAdsDados";
 import { montarResultadoRuptura } from "./gestorRupturaFulfillmentDados";
 import { montarResultadoReputacao } from "./gestorReputacaoAtendimentoDados";
-import { GESTORES_ID_DISPONIVEIS_NO_PRO } from "./gestorPerfis";
+import { gestorLiberadoPorPlano } from "./gestorPerfis";
 
 export type SubmeterGestoresResultado = {
   sellers_elegiveis: number;
@@ -24,7 +24,13 @@ export type SubmeterGestoresResultado = {
   requests_submetidos: number;
 };
 
-type SellerElegivel = { id: string; org_id: string; plano: string | null; saldo_atual: number | null };
+type SellerElegivel = {
+  id: string;
+  org_id: string;
+  plano: string | null;
+  saldo_atual: number | null;
+  gestores_ia_addon_ativo: boolean | null;
+};
 
 // custom_id tem limite de 64 caracteres na Batch API E só aceita [a-zA-Z0-9_-] (sem ":").
 // seller_id (uuid, 36) sozinho não basta: com 2+ gestores por seller no mesmo batch, precisa
@@ -43,14 +49,17 @@ export async function submeterGestoresIaDiario(): Promise<SubmeterGestoresResult
 
   const { data: sellersRaw, error } = await supabaseAdmin
     .from("sellers")
-    .select("id, org_id, plano, saldo_atual")
+    .select("id, org_id, plano, saldo_atual, gestores_ia_addon_ativo")
     .eq("status", "ativo");
   if (error) throw new Error(error.message);
 
   // Sem saldo, o seller nem vê a tela (gate em /api/seller/gestores-ia) — não vale gastar
-  // com API paga pra rodada que ninguém vai ver.
+  // com API paga pra rodada que ninguém vai ver. Elegível = Pro OU add-on ativo (Start com
+  // add-on também roda os gestores).
   const elegiveis = ((sellersRaw ?? []) as SellerElegivel[]).filter(
-    (s) => isPro({ plano: s.plano }) && Math.max(0, Number(s.saldo_atual ?? 0)) > 0
+    (s) =>
+      (isPro({ plano: s.plano }) || temAddonGestoresIaAtivo(s)) &&
+      Math.max(0, Number(s.saldo_atual ?? 0)) > 0
   );
 
   const requests: Array<{
@@ -61,11 +70,10 @@ export async function submeterGestoresIaDiario(): Promise<SubmeterGestoresResult
   let semDado = 0;
 
   for (const seller of elegiveis) {
-    // Diogo/Andrey/Amanda já têm painel construído, mas ficam reservados pro plano Elite
-    // (2026-09-27, decisão de pricing — ver lib/ai/gestorPerfis.ts). Não gera rodada nova
-    // pra eles hoje, mesmo pra quem tem saldo — não faz sentido gastar (mesmo que barato,
-    // caso do Andrey) num diagnóstico que o seller Pro não consegue ver.
-    if (GESTORES_ID_DISPONIVEIS_NO_PRO.includes("estoque_fulfillment")) {
+    // Diogo/Andrey/Amanda exigem o add-on "Gestores de IA" (qualquer plano); Ulisses libera
+    // de graça só por ser Pro. Não gera rodada pra quem não tem acesso — não faz sentido
+    // gastar (mesmo que barato, caso do Andrey) num diagnóstico que o seller não consegue ver.
+    if (gestorLiberadoPorPlano("estoque_fulfillment", seller)) {
       // Estoque & Fulfillment também deixou de chamar a Anthropic (2026-09-07, mesmo motivo
       // do Ads — ver gestorRupturaFulfillmentDados.ts): risco vem de dias-até-ruptura, já
       // calculado em código.
@@ -89,7 +97,7 @@ export async function submeterGestoresIaDiario(): Promise<SubmeterGestoresResult
       }
     }
 
-    if (GESTORES_ID_DISPONIVEIS_NO_PRO.includes("anuncios_seo")) {
+    if (gestorLiberadoPorPlano("anuncios_seo", seller)) {
       const paramsAnuncios = await montarRequestAnunciosSeo(seller.id);
       if (paramsAnuncios) {
         requests.push({ custom_id: customIdGestorSeller(seller.id, "anuncios_seo"), params: paramsAnuncios });
@@ -99,7 +107,7 @@ export async function submeterGestoresIaDiario(): Promise<SubmeterGestoresResult
       }
     }
 
-    if (GESTORES_ID_DISPONIVEIS_NO_PRO.includes("reputacao")) {
+    if (gestorLiberadoPorPlano("reputacao", seller)) {
       // Reputação também não entra no batch assíncrono (2026-09-07, ver
       // gestorReputacaoAtendimentoDados.ts) — o diagnóstico é código puro, e a resposta a
       // pergunta pendente (única parte com IA de verdade) só chama a Anthropic quando existe
@@ -123,7 +131,7 @@ export async function submeterGestoresIaDiario(): Promise<SubmeterGestoresResult
       }
     }
 
-    if (GESTORES_ID_DISPONIVEIS_NO_PRO.includes("ads")) {
+    if (gestorLiberadoPorPlano("ads", seller)) {
       // Ads/Preço/Promoção não chama a Anthropic (2026-09-07, ver gestorAdsDados.ts) — não
       // entra no batch, grava o resultado direto (síncrono, sem custo de token nenhum).
       const resultadoAds = await montarResultadoAds(seller.id);

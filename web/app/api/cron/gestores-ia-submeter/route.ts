@@ -1,7 +1,7 @@
 /**
  * GET/POST /api/cron/gestores-ia-submeter
- * Cron A dos Gestores de IA: submete o batch diário (Anthropic Batch API) pro gestor piloto
- * "Risco de Ruptura & Fulfillment", 1 request por seller Pro/Elite elegível.
+ * Cron A dos Gestores de IA: submete o batch diário (Anthropic Batch API) por seller
+ * elegível (Pro, ou qualquer plano com o add-on "Gestores de IA" ativo) e gestor liberado.
  * Agendamento: Supabase pg_cron (web/scripts/supabase-cron-jobs.sql), não Vercel Cron.
  */
 import { NextResponse } from "next/server";
