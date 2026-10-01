@@ -69,11 +69,16 @@ export async function gerarMensalidadesParaOrgCiclo(orgId: string, cicloYYYY_MM:
     const p = (s.plano?.trim() || "").toLowerCase();
     const planoKey = p === "pro" ? "Pro" : p === "starter" ? "Starter" : "default";
     const pc = planosMap.get(planoKey) ?? planosMap.get("default");
+    // mensalidade_valor_travado, quando preenchido, é o TOTAL final já travado (achado
+    // 2026-10-01: Galileus/Segatto precisavam de add-on ativo sem cobrança nenhuma — só
+    // travar a base e somar o add-on em cima não dava R$0) — o add-on só soma em cima do
+    // valor de tabela do plano, nunca em cima de um valor travado.
     const valorTravado = (s as { mensalidade_valor_travado?: number | string | null }).mensalidade_valor_travado;
-    const valorBase = valorTravado != null ? Number(valorTravado) : pc ? Number(pc.valor_seller) : VALOR_DEFAULT_SELLER;
     const addonAtivo = (s as { gestores_ia_addon_ativo?: boolean | null }).gestores_ia_addon_ativo === true;
-    const valorAddon = addonAtivo ? valorAddonGestoresIaPorPlano(p) : 0;
-    const valor = valorBase + valorAddon;
+    const valor =
+      valorTravado != null
+        ? Number(valorTravado)
+        : (pc ? Number(pc.valor_seller) : VALOR_DEFAULT_SELLER) + (addonAtivo ? valorAddonGestoresIaPorPlano(p) : 0);
     const diaRaw = (s as { mensalidade_dia_vencimento?: number | null }).mensalidade_dia_vencimento;
     const dia = diaRaw == null ? 10 : clampMensalidadeDiaVencimento(Number(diaRaw));
     const vencimento_em = vencimentoEmNoCiclo(primeiroDia, dia);

@@ -548,6 +548,15 @@ Start deixou de ter cap de 15 pares produto+cor e ganhou o bloco Desempenho
 (receita/custo/margem) que antes era exclusivo do Pro — a única diferença real entre Start
 e Pro hoje é o Ulisses de graça.
 
+**`mensalidade_valor_travado` é o TOTAL final (2026-10-01):** quando preenchido,
+`gerarMensalidadesCicloOrg.ts` usa esse valor como a mensalidade inteira do seller — o
+add-on (se `gestores_ia_addon_ativo`) **não** soma em cima. Só soma em cima do preço de
+tabela do plano quando `mensalidade_valor_travado` é `null`. Motivo: Galileus (conta de
+teste do Sr Stark) e Segatto (`e_teste = true`) precisavam do add-on ativo com mensalidade
+R$0 — `mensalidade_valor_travado = 0` nos dois. Sem essa mudança, qualquer seller com valor
+travado e add-on ativo pagaria base travada + R$600/700 do add-on em cima, mesmo quando o
+valor travado já deveria ser o preço final combinado.
+
 ## `seller_ai_chat_sessions`/`seller_ai_chat_mensagens` — chat com o Tiago Silva (Gestor Mestre, 2026-09-30)
 
 `web/scripts/create-seller-ai-chat-tiago.sql`. Chat síncrono (Messages API, não Batch) onde o Tiago Silva orquestra os outros gestores via
