@@ -20,7 +20,7 @@ export async function GET(req: Request) {
 
   const { data, error } = await supabaseAdmin
     .from("seller_mercadolivre_integrations")
-    .select("ml_user_id, ml_access_token_expires_at, updated_at")
+    .select("ml_user_id, ml_access_token_expires_at, updated_at, linked_seller_id")
     .eq("seller_id", seller.id)
     .maybeSingle();
 
@@ -29,11 +29,23 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Erro ao carregar integração Mercado Livre." }, { status: 500 });
   }
 
+  // Conta demo compartilhada (linked_seller_id) — mostra o status real da linha dona, não da
+  // própria (que fica sem token nenhum de propósito, ver getValidMercadoLivreAccessToken).
+  const origem = data?.linked_seller_id
+    ? (
+        await supabaseAdmin
+          .from("seller_mercadolivre_integrations")
+          .select("ml_user_id, ml_access_token_expires_at, updated_at")
+          .eq("seller_id", data.linked_seller_id)
+          .maybeSingle()
+      ).data
+    : data;
+
   return NextResponse.json({
-    connected: Boolean(data),
-    ml_user_id: data?.ml_user_id ?? null,
-    access_token_expires_at: data?.ml_access_token_expires_at ?? null,
-    updated_at: data?.updated_at ?? null,
+    connected: Boolean(origem?.ml_user_id),
+    ml_user_id: origem?.ml_user_id ?? null,
+    access_token_expires_at: origem?.ml_access_token_expires_at ?? null,
+    updated_at: origem?.updated_at ?? null,
   });
 }
 

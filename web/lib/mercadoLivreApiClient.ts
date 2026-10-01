@@ -78,10 +78,23 @@ const RENOVAR_ANTES_MS = 5 * 60 * 1000;
 export async function getValidMercadoLivreAccessToken(
   sellerId: string
 ): Promise<MercadoLivreAuthContext | null> {
+  const { data: linkRow, error: linkErr } = await supabaseAdmin
+    .from("seller_mercadolivre_integrations")
+    .select("linked_seller_id")
+    .eq("seller_id", sellerId)
+    .maybeSingle();
+  if (linkErr) return null;
+
+  // Conta demo compartilhada (ex: Segatto apontando pra conexão real do Galileus) — nunca
+  // guarda token próprio, sempre lê/renova na linha dona de verdade (achado 2026-10-01: o
+  // refresh_token do ML é de uso único, duplicar token em 2 linhas quebraria um dos dois
+  // assim que o outro renovasse). Sem suporte a encadear 2 links — 1 nível só.
+  const sellerIdDaConexao = linkRow?.linked_seller_id ?? sellerId;
+
   const { data: row, error } = await supabaseAdmin
     .from("seller_mercadolivre_integrations")
     .select("ml_user_id, ml_access_token, ml_refresh_token, ml_access_token_expires_at")
-    .eq("seller_id", sellerId)
+    .eq("seller_id", sellerIdDaConexao)
     .maybeSingle();
   if (error || !row?.ml_access_token || !row.ml_user_id) return null;
 
@@ -104,7 +117,7 @@ export async function getValidMercadoLivreAccessToken(
       ml_access_token_expires_at: computeMercadoLivreAccessTokenExpiresAt(tokens.expires_in),
       updated_at: new Date().toISOString(),
     })
-    .eq("seller_id", sellerId);
+    .eq("seller_id", sellerIdDaConexao);
 
   return { accessToken: tokens.access_token, mlUserId: row.ml_user_id };
 }

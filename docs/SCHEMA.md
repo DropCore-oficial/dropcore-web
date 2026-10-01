@@ -616,6 +616,28 @@ digitando…" enquanto espera, não texto aparecendo aos poucos.
      e creditava **saldo de pedido** em vez do crédito do chat (bug real encontrado e
      corrigido na mesma sessão, antes de qualquer teste ao vivo).
 
+## `seller_mercadolivre_integrations.linked_seller_id` — 2 sellers compartilhando 1 conexão ML (2026-10-01)
+
+`web/scripts/add-linked-seller-mercadolivre-integrations.sql`. Caso de uso: Galileus e
+Segatto são as 2 contas de demonstração internas do Sr Stark — Galileus já estava
+conectada na conta ML real "Djulios"; a Segatto precisava ver dado da mesma conta sem ter
+uma conexão OAuth própria.
+
+`ml_user_id` é `UNIQUE` e o `refresh_token` do Mercado Livre é de uso único (renovar
+invalida o anterior) — duplicar o token em 2 linhas quebraria uma das duas assim que a
+outra renovasse. Em vez disso, a linha "secundária" (Segatto) fica com
+`ml_user_id`/tokens **sempre `null`** e só preenche `linked_seller_id` apontando pra linha
+"dona" de verdade (Galileus). `getValidMercadoLivreAccessToken` (`mercadoLivreApiClient.ts`)
+segue esse link antes de ler/renovar — nunca duplica token, 1 nível só (sem encadear
+link→link). `GET /api/seller/mercadolivre` também resolve o link pra mostrar o status real
+(ml_user_id/validade) da linha dona, não da própria linha vazia.
+
+Efeito colateral aceito de propósito: ação "aplicar" disparada do painel da Segatto escreve
+na mesma conta ML real que o Galileus usa — não é espelho isolado, as duas são contas de
+teste internas, sem seller de verdade nos dois lados. Webhook em tempo real (pergunta/
+reclamação) só dispara pelo `ml_user_id` de verdade (Galileus) — a Segatto recebe a mesma
+atualização via cron diário/botão manual, não instantânea.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
