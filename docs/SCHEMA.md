@@ -638,6 +638,30 @@ teste internas, sem seller de verdade nos dois lados. Webhook em tempo real (per
 reclamação) só dispara pelo `ml_user_id` de verdade (Galileus) — a Segatto recebe a mesma
 atualização via cron diário/botão manual, não instantânea.
 
+**Pedido novo NÃO ingere pra Segatto** — `lib/mercadoLivrePedidosReconciliacao.ts` pula
+toda linha de `seller_mercadolivre_integrations` com `ml_user_id` nulo (`if
+(!integ.ml_user_id) continue`), e a da Segatto é exatamente essa. Pedido real da conta
+"Djulios" só é importado pelo Galileus (que já tinha 32 pedidos reais via fornecedor
+**Consenso** antes dessa mudança — inverter a posse do `ml_user_id` pra Segatto quebraria
+esse fluxo real e ativo; por isso não foi essa a escolha). Ver próxima seção pra como a
+Segatto ganha pedido novo sem depender do ML real.
+
+## `cron/segatto-pedido-demo` — pedido fictício novo periódico pra conta demo (2026-10-01)
+
+`web/lib/segattoPedidoDemo.ts` + job `dropcore-segatto-pedido-demo` em
+`web/scripts/supabase-cron-jobs.sql`. A Segatto
+é a conta usada pra mostrar pra possíveis sellers como o DropCore funciona — precisava
+continuar parecendo "viva" (pedido novo chegando) sem depender de venda real nenhuma e sem
+duplicar o pedido real que já entra pelo Galileus (ver seção anterior).
+
+Cron a cada 3h (`dropcore-segatto-pedido-demo`) chama `gerarPedidoDemoSegatto()`: sorteia 1
+SKU ativo real do fornecedor Djulios, monta 1 pedido com comprador fictício (nome/cidade
+aleatórios de uma lista curta) e `status: "enviado"`, sempre `e_teste = true`. De propósito
+**não** reusa `submitSellerErpPedido` (lib/erp/submitSellerErpPedido.ts) — aquele fluxo
+debitaria estoque real do catálogo da Djulios e dispararia webhook/notificação real pro
+fornecedor, o que não pode acontecer aqui. Também não grava `financial_ledger` — o pedido
+fica visível pro fornecedor sem mexer no saldo fictício da Segatto.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

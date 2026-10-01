@@ -230,6 +230,16 @@ SELECT cron.schedule(
   $$SELECT public.dropcore_cron_http_post('/api/cron/gestores-ia-resultado');$$
 );
 
+-- Conta demo Segatto (mostrada a possíveis sellers, 2026-10-01): gera 1 pedido fictício
+-- novo a cada 3h contra o fornecedor real Djulios, pra parecer viva sem depender de venda
+-- real — sempre `e_teste = true`, nunca soma em repasse/dashboard real (ver
+-- web/lib/segattoPedidoDemo.ts e docs/SCHEMA.md).
+SELECT cron.schedule(
+  'dropcore-segatto-pedido-demo',
+  '0 */3 * * *',
+  $$SELECT public.dropcore_cron_http_post('/api/cron/segatto-pedido-demo');$$
+);
+
 -- Limpeza da fila interna do pg_net (net._http_response) — todo POST via
 -- dropcore_cron_http_post grava uma linha aqui e NADA apaga sozinho. Sem isso a
 -- tabela incha até estourar o Disk IO Budget do projeto (aconteceu em 2026-08-17:
