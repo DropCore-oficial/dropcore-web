@@ -46,6 +46,7 @@ type RunsResponse = {
   acoes?: AcaoRow[];
   nome_responsavel?: string | null;
   gestores_liberados?: Record<string, boolean>;
+  chat_liberado?: boolean;
   error?: string;
 };
 
@@ -294,6 +295,7 @@ export default function SellerGestoresIaPage() {
   const [acoes, setAcoes] = useState<AcaoRow[]>([]);
   const [nomeResponsavel, setNomeResponsavel] = useState<string | null>(null);
   const [gestoresLiberados, setGestoresLiberados] = useState<Record<string, boolean>>({});
+  const [chatLiberado, setChatLiberado] = useState(false);
 
   useEffect(() => {
     async function carregar() {
@@ -319,6 +321,7 @@ export default function SellerGestoresIaPage() {
       setAcoes(json.acoes ?? []);
       setNomeResponsavel(json.nome_responsavel ?? null);
       setGestoresLiberados(json.gestores_liberados ?? {});
+      setChatLiberado(json.chat_liberado === true);
       setLoading(false);
     }
     void carregar();
@@ -397,8 +400,8 @@ export default function SellerGestoresIaPage() {
                   nome={g.nome}
                   funcao={g.funcao}
                   ativo={g.ativo}
-                  liberado={g.gestorId ? gestoresLiberados[g.gestorId] === true : false}
-                  resumo={resumoParaCard(g.slug, runsLiberados)}
+                  liberado={g.slug === "tiago-silva" ? chatLiberado : g.gestorId ? gestoresLiberados[g.gestorId] === true : false}
+                  resumo={g.slug === "tiago-silva" ? "Converse sobre o que a equipe já analisou." : resumoParaCard(g.slug, runsLiberados)}
                 />
               ))}
             </div>

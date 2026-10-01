@@ -332,6 +332,16 @@ export async function mlBuscarReclamacoesAbertas(
   }));
 }
 
+/** Status atual de 1 reclamação específica, direto na API (não a lista de "abertas") —
+ * usado pra filtrar caso o ML já tenha fechado a reclamação depois que o caso foi gravado
+ * em `seller_ai_disputas_fornecedor` (achado real 2026-10-01: reclamação fechada desde
+ * 25/08 continuava aparecendo pro seller como pendente, e o link "Ver reclamação" quebra
+ * no próprio Mercado Livre quando a reclamação já foi fechada). */
+export async function mlReclamacaoAindaAberta(claimId: string, ctx: MercadoLivreAuthContext): Promise<boolean> {
+  const json = await mlGet<{ status?: string }>(`/post-purchase/v1/claims/${claimId}`, ctx.accessToken);
+  return json?.status === "opened";
+}
+
 export type MercadoLivreEvidenciaAnexo = { filename: string; originalFilename: string; type: string; dateCreated: string };
 
 /** Lista de evidência (foto/vídeo) anexada pelo comprador numa reclamação — testado ao vivo,

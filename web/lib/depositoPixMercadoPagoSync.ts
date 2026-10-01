@@ -12,6 +12,10 @@ import {
   processarAddonGestoresIaAprovado,
   SELLER_DEPOSITO_REF_ADDON_GESTORES_IA,
 } from "@/lib/addonGestoresIaPixProcessor";
+import {
+  processarCreditoChatIaAprovado,
+  SELLER_DEPOSITO_REF_CREDITO_CHAT_IA,
+} from "@/lib/creditoChatIaPixProcessor";
 
 type DepositoPendente = {
   id: string;
@@ -68,8 +72,15 @@ export async function pagamentoAprovadoPorBusca(
 ): Promise<{ aprovado: boolean; payment_id?: string }> {
   const isUpgrade = String(d.referencia ?? "") === SELLER_DEPOSITO_REF_UPGRADE_PRO;
   const isAddon = String(d.referencia ?? "") === SELLER_DEPOSITO_REF_ADDON_GESTORES_IA;
+  const isCreditoChatIa = String(d.referencia ?? "") === SELLER_DEPOSITO_REF_CREDITO_CHAT_IA;
   const pulaConferenciaValor = isUpgrade || isAddon;
-  const extRef = isUpgrade ? `upgrade-pro-${d.id}` : isAddon ? `addon-gestores-ia-${d.id}` : `deposito-${d.id}`;
+  const extRef = isUpgrade
+    ? `upgrade-pro-${d.id}`
+    : isAddon
+      ? `addon-gestores-ia-${d.id}`
+      : isCreditoChatIa
+        ? `chatia-${d.id}`
+        : `deposito-${d.id}`;
 
   const url = new URL("https://api.mercadopago.com/v1/payments/search");
   url.searchParams.set("external_reference", extRef);
@@ -133,11 +144,14 @@ export async function sincronizarDepositosPendentesSeller(sellerId: string): Pro
 
     const isUpgrade = String(row.referencia ?? "") === SELLER_DEPOSITO_REF_UPGRADE_PRO;
     const isAddon = String(row.referencia ?? "") === SELLER_DEPOSITO_REF_ADDON_GESTORES_IA;
+    const isCreditoChatIa = String(row.referencia ?? "") === SELLER_DEPOSITO_REF_CREDITO_CHAT_IA;
     const ok = isUpgrade
       ? await processarUpgradeProAprovado(`upgrade-pro-${row.id}`)
       : isAddon
         ? await processarAddonGestoresIaAprovado(`addon-gestores-ia-${row.id}`)
-        : await processarDepositoAprovado(`deposito-${row.id}`, row.mp_payment_id ?? null);
+        : isCreditoChatIa
+          ? await processarCreditoChatIaAprovado(`chatia-${row.id}`)
+          : await processarDepositoAprovado(`deposito-${row.id}`, row.mp_payment_id ?? null);
     if (ok) aprovados++;
   }
 

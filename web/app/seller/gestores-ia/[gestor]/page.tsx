@@ -24,6 +24,7 @@ import {
 } from "@/components/seller/SellerGestorReputacaoAtendimentoPanel";
 import { SellerGestorAdsPricingPanel, type AdsPricingResultado } from "@/components/seller/SellerGestorAdsPricingPanel";
 import { SellerGestorUlissesWizard, type UlissesPreferenciasForm } from "@/components/seller/SellerGestorUlissesWizard";
+import { SellerGestorTiagoChatPanel } from "@/components/seller/SellerGestorTiagoChatPanel";
 import { buscarGestorPerfil } from "@/lib/ai/gestorPerfis";
 
 type RunsResponse = {
@@ -32,6 +33,7 @@ type RunsResponse = {
   runs: Record<string, SellerAiRun<unknown>>;
   sku_ml_map?: Record<string, string>;
   gestores_liberados?: Record<string, boolean>;
+  chat_liberado?: boolean;
   error?: string;
 };
 
@@ -53,6 +55,7 @@ export default function SellerGestorDetalhePage() {
   const [runs, setRuns] = useState<Record<string, SellerAiRun<unknown>>>({});
   const [skuMlMap, setSkuMlMap] = useState<Record<string, string>>({});
   const [gestoresLiberados, setGestoresLiberados] = useState<Record<string, boolean>>({});
+  const [chatLiberado, setChatLiberado] = useState(false);
   /** undefined = ainda não checou; null = checou e não tem preferência salva (mostra wizard). */
   const [ulissesPreferencias, setUlissesPreferencias] = useState<UlissesPreferenciasForm | null | undefined>(undefined);
   /** true = seller clicou "Editar preferências" — reabre o wizard mesmo já tendo preferência salva. */
@@ -80,6 +83,7 @@ export default function SellerGestorDetalhePage() {
     setRuns(json.runs ?? {});
     setSkuMlMap(json.sku_ml_map ?? {});
     setGestoresLiberados(json.gestores_liberados ?? {});
+    setChatLiberado(json.chat_liberado === true);
 
     if (slug === "ulisses") {
       const prefRes = await fetch("/api/seller/gestores-ia/ulisses-preferencias", {
@@ -139,7 +143,7 @@ export default function SellerGestorDetalhePage() {
               <div className={cn("rounded-2xl p-4 text-sm", DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY)}>
                 {error}
               </div>
-            ) : pro && !saldoSuficiente ? (
+            ) : pro && !saldoSuficiente && perfil.slug !== "tiago-silva" ? (
               <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 text-center shadow-sm sm:p-8">
                 <p className="font-medium text-[var(--foreground)]">Recarregue seu saldo pra usar os Gestores de IA</p>
                 <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">
@@ -160,7 +164,7 @@ export default function SellerGestorDetalhePage() {
                   Esse gestor ({perfil.funcao}) ainda não está disponível. Assim que estiver pronto, aparece aqui.
                 </p>
               </section>
-            ) : perfil.gestorId && !gestoresLiberados[perfil.gestorId] ? (
+            ) : (perfil.slug === "tiago-silva" ? !chatLiberado : perfil.gestorId ? !gestoresLiberados[perfil.gestorId] : false) ? (
               <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 text-center shadow-sm sm:p-8">
                 <p className="font-medium text-[var(--foreground)]">🔒 {perfil.nome} exige o add-on Gestores de IA</p>
                 <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">
@@ -220,6 +224,8 @@ export default function SellerGestorDetalhePage() {
                   />
                 </div>
               )
+            ) : perfil.slug === "tiago-silva" ? (
+              <SellerGestorTiagoChatPanel />
             ) : null}
           </>
         )}

@@ -28,7 +28,7 @@ export const GESTORES_PERFIS: GestorPerfil[] = [
   { slug: "amanda", nome: "Amanda", funcao: "Reputação & Atendimento", gestorId: "reputacao", ativo: true, gratisNoPro: false },
   { slug: "ulisses", nome: "Ulisses", funcao: "Ads, Preço & Promoção", gestorId: "ads", ativo: true, gratisNoPro: true },
   { slug: "laura", nome: "Laura", funcao: "Design & Criativo", gestorId: null, ativo: false, gratisNoPro: false },
-  { slug: "tiago-silva", nome: "Tiago Silva", funcao: "Gestor Mestre", gestorId: null, ativo: false, gratisNoPro: false },
+  { slug: "tiago-silva", nome: "Tiago Silva", funcao: "Gestor Mestre", gestorId: null, ativo: true, gratisNoPro: false },
 ];
 
 /** Fonte única de verdade do gate por plano/add-on — usada pelas rotas de API, pelo cron

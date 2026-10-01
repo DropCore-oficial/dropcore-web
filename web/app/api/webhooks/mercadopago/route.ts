@@ -6,6 +6,7 @@
  * - external_reference = mensalidade_id → marca mensalidade como paga
  * - external_reference = upgrade-pro-{id} → ativa Pro (não credita saldo)
  * - external_reference = addon-gestores-ia-{id} → ativa add-on Gestores de IA (não credita saldo)
+ * - external_reference = chatia-{id} → credita crédito extra do chat do Tiago Silva (não credita saldo)
  * - external_reference = deposito-{id} → aprova depósito e credita seller
  *
  * Assinatura: header `x-signature` + `MERCADOPAGO_WEBHOOK_SECRET` (painel MP → Webhooks).
@@ -17,6 +18,7 @@ import { processarDepositoAprovado } from "@/lib/depositoPixProcessor";
 import { processarMensalidadePaga } from "@/lib/mensalidadePixProcessor";
 import { processarUpgradeProAprovado } from "@/lib/upgradeProPixProcessor";
 import { processarAddonGestoresIaAprovado } from "@/lib/addonGestoresIaPixProcessor";
+import { processarCreditoChatIaAprovado } from "@/lib/creditoChatIaPixProcessor";
 import { processarCalculadoraRenovacaoPaga } from "@/lib/calculadoraRenovacaoPixProcessor";
 import {
   resolveMercadoPagoWebhookDataId,
@@ -36,6 +38,11 @@ async function processarPorExtRef(extRef: string, mpPaymentId?: string | null): 
 
   if (extRef.startsWith("addon-gestores-ia-")) {
     await processarAddonGestoresIaAprovado(extRef);
+    return;
+  }
+
+  if (extRef.startsWith("chatia-")) {
+    await processarCreditoChatIaAprovado(extRef);
     return;
   }
 

@@ -211,9 +211,11 @@ SELECT cron.schedule(
 -- Gestores de IA — submete o batch diário (Anthropic Batch API) — 07:00 UTC (~4h BRT,
 -- resultado pronto de manhã pro seller). Ligado em produção 2026-09-27: ANTHROPIC_API_KEY
 -- configurada, custo real medido (~R$0,27/rodada do único gestor que chama IA — Andrey),
--- confirmação do Sr Stark. Hoje só o Ulisses roda de fato pro plano Pro (Diogo/Andrey/
--- Amanda reservados pro Elite, ver GESTORES_ID_DISPONIVEIS_NO_PRO em
--- web/lib/ai/gestorPerfis.ts) — Ulisses é código determinístico, sem custo de IA.
+-- confirmação do Sr Stark. Gate real por seller é `gestorLiberadoPorPlano` em
+-- web/lib/ai/gestorPerfis.ts (atualizado 2026-09-30, pós add-on): com o add-on "Gestores de
+-- IA" ativo, os 4 (Diogo/Andrey/Amanda/Ulisses) rodam; sem add-on, só o Ulisses roda (de
+-- graça, só se o seller for Pro) — Diogo e Ulisses são código determinístico, sem custo de
+-- IA; só Andrey chama a Anthropic de verdade hoje, Amanda só quando tem pergunta pendente.
 SELECT cron.schedule(
   'dropcore-gestores-ia-submeter',
   '0 7 * * *',

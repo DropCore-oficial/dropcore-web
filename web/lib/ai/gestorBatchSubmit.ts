@@ -113,17 +113,19 @@ export async function submeterGestoresIaDiario(): Promise<SubmeterGestoresResult
       // pergunta pendente (única parte com IA de verdade) só chama a Anthropic quando existe
       // pergunta de verdade, direto aqui (perde o desconto de 50% do Batch nesse caso raro,
       // ganha simplicidade — a maioria das rodadas não tem pergunta pendente nova).
-      const resultadoReputacao = await montarResultadoReputacao(seller.id, apiKey);
-      if (resultadoReputacao) {
+      const reputacao = await montarResultadoReputacao(seller.id, apiKey);
+      if (reputacao) {
         await supabaseAdmin.from("seller_ai_runs").insert({
           org_id: seller.org_id,
           seller_id: seller.id,
           gestor: "reputacao",
-          modelo: resultadoReputacao.perguntas.some((p) => p.resposta_sugerida) ? MODELO_GESTORES_IA : "codigo-deterministico",
+          modelo: reputacao.resultado.perguntas.some((p) => p.resposta_sugerida) ? MODELO_GESTORES_IA : "codigo-deterministico",
           origem_chave: "casa",
           batch_id: null,
           status: "ok",
-          resultado: resultadoReputacao,
+          resultado: reputacao.resultado,
+          tokens_input: reputacao.usage?.input_tokens ?? null,
+          tokens_output: reputacao.usage?.output_tokens ?? null,
           executado_em: new Date().toISOString(),
         });
       } else {

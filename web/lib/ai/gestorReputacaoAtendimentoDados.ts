@@ -246,7 +246,12 @@ const SCHEMA_PERGUNTAS_RESPOSTA = {
 
 type PerguntaRespostaIA = { pergunta_id: number; urgencia: "alta" | "media" | "baixa"; resposta_sugerida: string };
 
-async function responderPerguntasComIA(perguntas: PerguntaContexto[], apiKey: string): Promise<Map<number, PerguntaRespostaIA>> {
+export type UsoAnthropicGestor = { input_tokens: number; output_tokens: number };
+
+async function responderPerguntasComIA(
+  perguntas: PerguntaContexto[],
+  apiKey: string
+): Promise<{ respostas: Map<number, PerguntaRespostaIA>; usage: UsoAnthropicGestor }> {
   const listaTexto = perguntas
     .map(
       (p) =>
@@ -271,13 +276,17 @@ async function responderPerguntasComIA(perguntas: PerguntaContexto[], apiKey: st
     output_config: { format: { type: "json_schema", schema: SCHEMA_PERGUNTAS_RESPOSTA } },
     messages: [{ role: "user", content: prompt }],
   });
+  const usage: UsoAnthropicGestor = {
+    input_tokens: message.usage.input_tokens,
+    output_tokens: message.usage.output_tokens,
+  };
   const { resultado, erroMensagem } = parseGestorResposta(message);
   if (erroMensagem || !resultado) {
     console.error("[gestorReputacaoAtendimentoDados] resposta a pergunta falhou", erroMensagem);
-    return new Map();
+    return { respostas: new Map(), usage };
   }
   const parsed = resultado as { perguntas: PerguntaRespostaIA[] };
-  return new Map(parsed.perguntas.map((p) => [p.pergunta_id, p]));
+  return { respostas: new Map(parsed.perguntas.map((p) => [p.pergunta_id, p])), usage };
 }
 
 export type PerguntaResultadoEnriquecido = {
@@ -305,18 +314,31 @@ export type ResultadoReputacaoAtendimentoEnriquecido = {
   perguntas: PerguntaResultadoEnriquecido[];
 };
 
+export type ResultadoReputacaoComUso = {
+  resultado: ResultadoReputacaoAtendimentoEnriquecido;
+  /** Tokens reais da chamada à Anthropic (achado 2026-10-01: antes ficava descartado, o
+   * custo de verdade dessa rodada nunca batia no teto diário compartilhado). `null` quando
+   * não teve pergunta pendente — não chamou a Anthropic, custo zero de verdade. */
+  usage: UsoAnthropicGestor | null;
+};
+
 /** Monta o resultado inteiro do gestor Reputação & Atendimento — diagnóstico é código puro;
  * só chama a Anthropic se houver pergunta pendente de verdade (economia real, não só
  * teórica: a maioria das rodadas não tem pergunta nova). `apiKey` pode vir `null` quando
  * não há pergunta — nesse caso nunca é usada. */
-export async function montarResultadoReputacao(sellerId: string, apiKey: string | null): Promise<ResultadoReputacaoAtendimentoEnriquecido | null> {
+export async function montarResultadoReputacao(sellerId: string, apiKey: string | null): Promise<ResultadoReputacaoComUso | null> {
   const dados = await buscarDadosReputacaoAtendimento(sellerId);
   if (!dados) return null;
 
   const { diagnostico, observacao } = classificarReputacao(dados);
 
-  const respostaPorPergunta =
-    dados.perguntas.length > 0 && apiKey ? await responderPerguntasComIA(dados.perguntas, apiKey) : new Map<number, PerguntaRespostaIA>();
+  let respostaPorPergunta = new Map<number, PerguntaRespostaIA>();
+  let usage: UsoAnthropicGestor | null = null;
+  if (dados.perguntas.length > 0 && apiKey) {
+    const r = await responderPerguntasComIA(dados.perguntas, apiKey);
+    respostaPorPergunta = r.respostas;
+    usage = r.usage;
+  }
 
   const perguntas: PerguntaResultadoEnriquecido[] = dados.perguntas
     .map((p) => {
@@ -334,17 +356,20 @@ export async function montarResultadoReputacao(sellerId: string, apiKey: string 
     .sort((a, b) => b.dias_pendente - a.dias_pendente);
 
   return {
-    diagnostico,
-    observacao,
-    nivel: dados.levelId,
-    status_vendedor: dados.powerSellerStatus,
-    taxa_reclamacoes: dados.taxaReclamacoes,
-    qtd_reclamacoes: dados.qtdReclamacoes,
-    taxa_atraso_manuseio: dados.taxaAtrasoManuseio,
-    qtd_atraso_manuseio: dados.qtdAtrasoManuseio,
-    taxa_cancelamento: dados.taxaCancelamento,
-    periodo_metrica: dados.periodoMetrica,
-    fornecedores_atraso: dados.fornecedoresAtraso,
-    perguntas,
+    resultado: {
+      diagnostico,
+      observacao,
+      nivel: dados.levelId,
+      status_vendedor: dados.powerSellerStatus,
+      taxa_reclamacoes: dados.taxaReclamacoes,
+      qtd_reclamacoes: dados.qtdReclamacoes,
+      taxa_atraso_manuseio: dados.taxaAtrasoManuseio,
+      qtd_atraso_manuseio: dados.qtdAtrasoManuseio,
+      taxa_cancelamento: dados.taxaCancelamento,
+      periodo_metrica: dados.periodoMetrica,
+      fornecedores_atraso: dados.fornecedoresAtraso,
+      perguntas,
+    },
+    usage,
   };
 }

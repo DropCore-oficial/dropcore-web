@@ -4,11 +4,19 @@
  * evidência direto pela API — ver docs/SCHEMA.md). Resposta enxuta de propósito: o seller
  * nunca vê resposta do fornecedor nem decisão do admin, só "existe uma reclamação, envie
  * uma foto se conseguir ver".
+ *
+ * Achado real 2026-10-01: um caso gravado aqui nunca é atualizado depois (só sai da lista
+ * quando vira "decidido" — ação manual do admin/fornecedor). Se o Mercado Livre fechar a
+ * reclamação sozinho nesse meio tempo (comprador favorecido, devolução concluída etc.), o
+ * caso continuava aparecendo pro seller como pendente e o link "Ver reclamação" quebrava no
+ * próprio Mercado Livre (eles não abrem mais a tela de mediação de reclamação já fechada).
+ * Checa o status ao vivo antes de devolver — filtra o que já não está mais "opened" no ML.
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 import { gestoresIaSellerPermitido } from "@/lib/ai/gestoresIaAcesso";
+import { getValidMercadoLivreAccessToken, mlReclamacaoAindaAberta } from "@/lib/mercadoLivreApiClient";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +43,17 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const casos = (casosRaw ?? []).map((c) => ({
+  let candidatos = casosRaw ?? [];
+
+  const ctx = await getValidMercadoLivreAccessToken(seller.id);
+  if (ctx && candidatos.length > 0) {
+    const aindaAbertas = await Promise.all(
+      candidatos.map((c) => mlReclamacaoAindaAberta(c.ml_claim_id, ctx))
+    );
+    candidatos = candidatos.filter((_, i) => aindaAbertas[i]);
+  }
+
+  const casos = candidatos.map((c) => ({
     id: c.id,
     ml_order_id: c.ml_order_id,
     ml_item_id: c.ml_item_id,

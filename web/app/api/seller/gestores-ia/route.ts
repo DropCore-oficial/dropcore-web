@@ -53,16 +53,27 @@ export async function GET(req: Request) {
     {} as Record<GestorId, boolean>
   );
 
+  // Chat do Tiago Silva exige o add-on completo (mesmo gate de Diogo/Andrey/Amanda) — Pro
+  // sozinho (só Ulisses) não libera, diferente do resto do hub que também aceita isPro.
+  const chat_liberado = temAddonGestoresIaAtivo(sellerRow);
+
   const temAlgumGestor = isPro({ plano: sellerRow?.plano }) || temAddonGestoresIaAtivo(sellerRow);
   if (!temAlgumGestor) {
-    return NextResponse.json({ pro: false, runs: {}, nome_responsavel, gestores_liberados });
+    return NextResponse.json({ pro: false, runs: {}, nome_responsavel, gestores_liberados, chat_liberado });
   }
 
   // Gestor de IA consome API paga — sem saldo, nem mostra a tela (evita Pro zerado usando
   // de graça enquanto o preço por rodada ainda não foi fechado).
   const saldoDisponivel = Math.max(0, Number(sellerRow?.saldo_atual ?? 0));
   if (saldoDisponivel <= 0) {
-    return NextResponse.json({ pro: true, saldo_suficiente: false, runs: {}, nome_responsavel, gestores_liberados });
+    return NextResponse.json({
+      pro: true,
+      saldo_suficiente: false,
+      runs: {},
+      nome_responsavel,
+      gestores_liberados,
+      chat_liberado,
+    });
   }
 
   const { data: runsRaw, error: runsErr } = await supabaseAdmin
@@ -109,5 +120,6 @@ export async function GET(req: Request) {
     acoes: acoesRaw ?? [],
     nome_responsavel,
     gestores_liberados,
+    chat_liberado,
   });
 }

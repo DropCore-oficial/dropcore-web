@@ -25,6 +25,7 @@ import {
   mlBuscarPedidoItemPrincipal,
 } from "@/lib/mercadoLivreApiClient";
 import { parseGestorResposta } from "./gestorParseResposta";
+import { gastoHojeReais, tetoHojeReais } from "./gestorTiagoChatOrcamentoDia";
 
 export const DISPUTAS_EVIDENCIAS_BUCKET = "disputas-evidencias";
 
@@ -148,10 +149,18 @@ const SCHEMA_ANALISE_EVIDENCIA = {
 export async function analisarEvidenciaFoto(disputaId: string): Promise<void> {
   const { data: disputa } = await supabaseAdmin
     .from("seller_ai_disputas_fornecedor")
-    .select("id, seller_id, ml_order_id, evidencia_seller_path, evidencia")
+    .select("id, org_id, seller_id, ml_order_id, evidencia_seller_path, evidencia")
     .eq("id", disputaId)
     .maybeSingle();
   if (!disputa?.evidencia_seller_path) return;
+
+  // Mesmo teto diário compartilhado do chat do Tiago Silva/outros gestores (ver
+  // gestorTiagoChatOrcamentoDia.ts) — achado 2026-10-01: o seller podia reenviar a foto
+  // (reupload sobrescreve, só trava quando o caso vira "decidido") sem limite nenhum, cada
+  // reenvio disparando uma análise por visão de novo. Fica "indeterminado" (mesmo estado de
+  // antes) até o teto liberar de novo à meia-noite.
+  const [gastoHoje, tetoHoje] = await Promise.all([gastoHojeReais(disputa.seller_id), tetoHojeReais(disputa.seller_id)]);
+  if (gastoHoje >= tetoHoje) return;
 
   const { data: arquivo, error: downloadErr } = await supabaseAdmin.storage
     .from(DISPUTAS_EVIDENCIAS_BUCKET)
@@ -205,6 +214,24 @@ export async function analisarEvidenciaFoto(disputaId: string): Promise<void> {
   });
 
   const { resultado, erroMensagem } = parseGestorResposta(message);
+
+  // "atendimento" já é valor aceito pelo CHECK de seller_ai_runs.gestor e nenhum card do hub
+  // lê esse gestor — não aparece na UI, serve só de registro de custo real pro teto diário.
+  await supabaseAdmin.from("seller_ai_runs").insert({
+    org_id: disputa.org_id,
+    seller_id: disputa.seller_id,
+    gestor: "atendimento",
+    modelo: MODELO_ANALISE_EVIDENCIA,
+    origem_chave: "casa",
+    batch_id: null,
+    status: erroMensagem || !resultado ? "erro" : "ok",
+    resultado: null,
+    erro_mensagem: erroMensagem ?? null,
+    tokens_input: message.usage?.input_tokens ?? null,
+    tokens_output: message.usage?.output_tokens ?? null,
+    executado_em: new Date().toISOString(),
+  });
+
   if (erroMensagem || !resultado) return;
   const analise = resultado as { veredito: "fornecedor_provavel" | "seller_provavel" | "indeterminado"; comparacao: string };
 

@@ -5,6 +5,25 @@
 > Última atualização: correção de segurança de 2026-07-08 (ver
 > `web/scripts/fix-security-*.sql`).
 
+## ⚠️ `revoke ... from public` NÃO revoga de `anon`/`authenticated` — achado 2026-09-30
+
+O Supabase concede `EXECUTE` em função nova pra `anon`/`authenticated`/`service_role`
+**direto** via ACL padrão do schema `public` (`pg_default_acl`), não por herança de
+`public` (o role genérico do Postgres). Rodar só `revoke all on function X from public;`
+deixa a função **continuar executável por qualquer usuário anônimo via REST**
+(`/rest/v1/rpc/...`), mesmo com o `grant ... to authenticated` mais embaixo parecendo
+"restringir". Confirmado com `has_function_privilege('anon', oid, 'EXECUTE')` — `fn_seller_ai_runs_list`
+(já em produção) tem esse mesmo padrão (inofensivo ali porque a função checa
+`auth.uid()` por dentro e nega sem sessão), mas uma função de **escrita** sem checagem
+própria (ex: `fn_seller_ai_chat_gravar_mensagem`) ficaria aberta de verdade pra qualquer
+um mandar `POST` sem login.
+
+**Regra daqui pra frente:** toda função nova que não deva ser pública precisa de
+`revoke all on function ... from public, anon;` no mínimo — e se for só pro backend
+(service role), `revoke ... from public, anon, authenticated;` também, concedendo só a
+`service_role`. Nunca confiar que "não dei grant pra anon" seja suficiente — sempre revogar
+explícito.
+
 ## Ciclo de repasse ao fornecedor (`fn_ciclo_repasse`) — corrigido em 2026-07-13
 
 Regra de negócio: tudo vendido/postado de segunda a sábado é pago na
@@ -528,6 +547,65 @@ em cálculo nenhum.
 Start deixou de ter cap de 15 pares produto+cor e ganhou o bloco Desempenho
 (receita/custo/margem) que antes era exclusivo do Pro — a única diferença real entre Start
 e Pro hoje é o Ulisses de graça.
+
+## `seller_ai_chat_sessions`/`seller_ai_chat_mensagens` — chat com o Tiago Silva (Gestor Mestre, 2026-09-30)
+
+`web/scripts/create-seller-ai-chat-tiago.sql`. Chat síncrono (Messages API, não Batch) onde o Tiago Silva orquestra os outros gestores via
+tool-calling, lendo só `seller_ai_runs` (nunca dispara rodada nova de gestor no meio da
+conversa, por custo/latência). Parte do add-on "Gestores de IA" (mesmo gate de
+Diogo/Andrey/Amanda — `gestores_ia_addon_ativo`).
+
+**v1 não tem streaming token-a-token de verdade** (`app/api/seller/gestores-ia/tiago/chat/route.ts`):
+o endpoint roda o loop de tool-calling inteiro (até 4 idas-e-voltas com a Anthropic) e só
+devolve a resposta final pronta — streaming exigiria multiplexar várias chamadas da API num
+SSE só pro cliente, complexidade real que ficou pra depois. UX hoje é "Tiago está
+digitando…" enquanto espera, não texto aparecendo aos poucos.
+
+- `seller_ai_chat_sessions` (id, seller_id, org_id, titulo, criado_em, atualizado_em) e
+  `seller_ai_chat_mensagens` (id, session_id, role, content, tokens_input, tokens_output,
+  criado_em) — deny-all, RPC-only, mesmo padrão de `seller_ai_runs`.
+- Orçamento mensal (reserva-e-concilia) **não usa `api_rate_limits`** — essa tabela tem
+  `CHECK` travando `key_type` em `'ip'/'api_key'` e nenhum índice único pra upsert, não serve
+  pra isso. Em vez de criar tabela nova, 2 colunas direto em `sellers`:
+  `gestor_mestre_chat_custo_mes` (numeric, R$ gasto no mês corrente) e
+  `gestor_mestre_chat_mes_ref` (date, zera o contador quando o mês muda). Controlado em
+  **reais**, não tokens brutos (input/output da Anthropic têm preço bem diferente).
+- RPCs: `fn_seller_ai_chat_historico` (1 função só pra tela: sessões + mensagens da ativa),
+  `fn_seller_ai_chat_criar_sessao`, `fn_seller_ai_chat_gravar_mensagem`,
+  `fn_seller_ai_chat_orcamento_reservar`/`_conciliar`/`_status` — **as 6 são
+  `service_role`-only** (só o backend chama, já autenticou o seller via
+  `getSellerFromToken` antes). Nenhuma checa `auth.uid()` por dentro — diferente de
+  `fn_seller_ai_runs_list` (pensada pro browser chamar direto), aqui é sempre o servidor,
+  e `auth.uid()` vem sempre `null` em chamada por `service_role` (achado real no mesmo dia,
+  quebrava a checagem se deixasse).
+- **Achado de segurança no mesmo dia** (ver seção "`revoke from public` não basta" no topo
+  deste arquivo): todas as 6 estavam executáveis por `anon`/`authenticated` até eu revogar
+  explícito desses 2 roles — não só de `public`.
+- Teto: R$120/mês por seller (custo real, banco pela margem do add-on R$600/700) — decisão
+  confirmada 2026-09-30, ver [[project_gestores_ia_chat_elite_pendente]].
+- **Bloqueio DIÁRIO real (2026-09-30, mesmo dia, sessão seguinte):** além do teto mensal
+  acima (rede de segurança), o chat bloqueia de verdade quando o gasto de hoje atinge
+  `TETO_CHAT_TIAGO_REAIS_DIA` (R$4 = R$120/30) — calculado por agregação read-only em cima
+  de `seller_ai_chat_mensagens` (`gestorTiagoChatOrcamentoDia.ts`), sem coluna/contador novo
+  (o corte por data BRT já é o reset). Tela mostra % + tokens equivalentes (não R$), com
+  "Redefine às 00:00" — nunca mostra o valor em dinheiro gasto (só o teto mensal antigo
+  mostrava R$, isso foi removido da UI por pedido explícito, a trava em si continua real).
+- **Crédito extra do chat via PIX** (`web/scripts/add-credito-extra-chat-tiago.sql`):
+  2 colunas novas em `sellers` — `gestor_mestre_chat_credito_extra_reais` (numeric, R$ de
+  uso liberado) e `gestor_mestre_chat_credito_extra_dia_ref` (date, expira se não for hoje
+  em BRT — não acumula pro dia seguinte). Reaproveita `seller_depositos_pix` (mesmo padrão
+  do add-on "Gestores de IA", sem tabela nova): `referencia = CREDITO_CHAT_IA`,
+  `external_reference = chatia-{id}`. 2 pacotes fixos com margem de 100%: pago R$10 →
+  libera R$5; pago R$20 → libera R$10 (`web/lib/creditoChatIaPixProcessor.ts`,
+  `PACOTES_CREDITO_CHAT_IA`). Processor plugado em 2 lugares — esquecer um dos dois quebra
+  o fluxo local/produção silenciosamente:
+  1. Webhook do Mercado Pago (`app/api/webhooks/mercadopago/route.ts`), branch do prefixo
+     `chatia-`.
+  2. **`lib/depositoPixMercadoPagoSync.ts`** (fallback de sync manual/local, usado pelo botão
+     de polling quando o webhook não alcança `localhost`) — tem um `if/else` explícito por
+     tipo de depósito; sem branch próprio pro `CREDITO_CHAT_IA` ele caía no `else` genérico
+     e creditava **saldo de pedido** em vez do crédito do chat (bug real encontrado e
+     corrigido na mesma sessão, antes de qualquer teste ao vivo).
 
 ## Pendências conhecidas
 

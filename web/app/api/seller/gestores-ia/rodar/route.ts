@@ -121,11 +121,11 @@ export async function POST(req: Request) {
   // de verdade (ver montarResultadoReputacao) — por isso não passa pelo pipeline genérico
   // de request/parse abaixo, que é só pro Andrey (anuncios_seo) agora.
   if (gestor === "reputacao") {
-    const resultado = await montarResultadoReputacao(seller.id, apiKey as string);
-    if (!resultado) {
+    const reputacao = await montarResultadoReputacao(seller.id, apiKey as string);
+    if (!reputacao) {
       return NextResponse.json({ error: "Sem dado suficiente pra rodar esse gestor agora." }, { status: 422 });
     }
-    const chamouIa = resultado.perguntas.some((p) => p.resposta_sugerida);
+    const chamouIa = reputacao.resultado.perguntas.some((p) => p.resposta_sugerida);
     const { data: novaLinha, error: insertErr } = await supabaseAdmin
       .from("seller_ai_runs")
       .insert({
@@ -136,7 +136,9 @@ export async function POST(req: Request) {
         origem_chave: "casa",
         batch_id: null,
         status: "ok",
-        resultado,
+        resultado: reputacao.resultado,
+        tokens_input: reputacao.usage?.input_tokens ?? null,
+        tokens_output: reputacao.usage?.output_tokens ?? null,
         erro_mensagem: null,
         executado_em: new Date().toISOString(),
       })
@@ -156,8 +158,12 @@ export async function POST(req: Request) {
   const client = new Anthropic({ apiKey: apiKey as string });
   let resultado: unknown;
   let erroMensagem: string | null;
+  let tokensInput: number | null = null;
+  let tokensOutput: number | null = null;
   try {
     const message = await client.messages.create(params);
+    tokensInput = message.usage?.input_tokens ?? null;
+    tokensOutput = message.usage?.output_tokens ?? null;
     ({ resultado, erroMensagem } = parseGestorResposta(message));
   } catch (e: unknown) {
     erroMensagem = e instanceof Error ? e.message : "Erro ao chamar a Anthropic.";
@@ -185,6 +191,8 @@ export async function POST(req: Request) {
       batch_id: null,
       status: erroMensagem ? "erro" : "ok",
       resultado,
+      tokens_input: tokensInput,
+      tokens_output: tokensOutput,
       erro_mensagem: erroMensagem,
       executado_em: new Date().toISOString(),
     })
