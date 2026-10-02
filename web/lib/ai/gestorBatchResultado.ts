@@ -78,9 +78,9 @@ export async function processarGestoresIaBatchesPendentes(): Promise<ProcessarBa
         // "reputacao" também não entra mais aqui (2026-09-07) — diagnóstico é código puro e
         // a resposta a pergunta é síncrona, ver `montarResultadoReputacao`.
 
-        // Consumo real de tokens da rodada — hoje só pra medir custo de verdade antes de
-        // fechar o valor de 1 crédito no ledger (creditos_debitados continua null; ver
-        // comentário em gestorBatchSubmit.ts).
+        // Consumo real de tokens da rodada — alimenta o teto diário compartilhado
+        // (gestorTiagoChatOrcamentoDia.ts), não um crédito por rodada (ver gestorBatchSubmit.ts
+        // — creditos_debitados é coluna de modelo antigo, não preencher).
         const usage = item.result.message.usage;
 
         await supabaseAdmin

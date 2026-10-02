@@ -180,8 +180,9 @@ cupom/afiliado sempre com valor definido pelo seller, nunca decisão autônoma d
 `estoque_fulfillment`, `reputacao`, `ads`, `atendimento`; `marketplace` travado em
 `mercado_livre`/`shopee`/`tiktok_shop`). `resultado jsonb` guarda o output estruturado
 (veredito/top 3/etc, pra virar componente no front, não texto solto). `origem_chave`
-(`casa`/`byok`) + `creditos_debitados` registram se aquela rodada saiu do ledger (Pro) ou da
-chave do próprio seller (Elite) — auditoria, nunca cobra duas vezes.
+(`casa`/`byok`) registra se aquela rodada saiu da chave da DropCore ou da do próprio seller
+(BYOK) — auditoria, nunca cobra duas vezes. `creditos_debitados` é coluna de um modelo de
+cobrança por rodada que nunca foi pra frente — ver nota em "Billing" mais abaixo.
 
 RLS: **deny-all**, mesmo padrão de `seller_ai_preferences`. Única porta de entrada do client
 é `fn_seller_ai_runs_list(p_seller_id, p_limit default 20, p_before default null)` —
@@ -289,12 +290,19 @@ preenchido batendo com o padrão `DJU...`** do DropCore — vínculo é majorita
 automático, não precisou virar tela de "vincular manualmente" como caminho principal.
 
 RLS: deny-all, sem RPC de leitura ainda (só `supabaseAdmin` lê/escreve — nenhuma tela do
-seller expõe isso diretamente por enquanto). Job de sync que popula a tabela ainda não foi
-escrito (próximo passo, ver memória de projeto "Briefing Gestores de IA").
+seller expõe isso diretamente por enquanto). Job de sync que popula a tabela: **escrito e no
+ar** (`/api/cron/gestores-ia-sync-sku-ml`).
 
-**Billing intencionalmente não implementado ainda**: `creditos_debitados` fica sempre `null` — o valor real de 1 crédito no ledger é item em aberto (não resolvido), não foi inventado número.
+**Billing por crédito por rodada: decisão fechada, não é mais o modelo (2026-10-02).**
+`creditos_debitados` fica sempre `null` de propósito — a cobrança virou add-on flat mensal
+(R$600/700) com teto diário compartilhado de R$4 (gestores + chat do Tiago) e recarga via
+PIX quando estoura, não débito de crédito por rodada individual. Ver
+`gestorTiagoChatOrcamentoDia.ts` e `tiago/credito-extra-pix/route.ts`. Não preencher essa
+coluna.
 
-**Cron NÃO está agendado no pg_cron ainda** (`web/scripts/supabase-cron-jobs.sql` tem os dois `cron.schedule` comentados) — falta: `ANTHROPIC_API_KEY` configurada na Vercel, valor de crédito resolvido, e confirmação explícita antes de rodar em sellers reais.
+**Cron dos Gestores de IA: ligado em produção** (`dropcore-gestores-ia-submeter` 07:00 UTC,
+`dropcore-gestores-ia-resultado` a cada 15min) — `ANTHROPIC_API_KEY` configurada, custo real
+protegido pelo teto diário acima.
 
 ## Conexão OAuth Mercado Livre (2026-08-19/20)
 

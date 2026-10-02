@@ -4,8 +4,13 @@
  * resultado aqui, só grava a linha "pendente" em seller_ai_runs; o cron B
  * (gestorBatchResultado.ts) é quem confere se terminou e grava o resultado de verdade.
  *
- * Billing: creditos_debitados fica null por enquanto — o valor real de 1 crédito no ledger
- * ainda não foi validado (item em aberto no briefing), não vou inventar um número aqui.
+ * Billing: `seller_ai_runs.creditos_debitados` fica sempre `null` de propósito — é coluna
+ * de um modelo antigo (cobrar X créditos fixos por rodada, do briefing original de
+ * ago/2026) que foi **substituído** pelo add-on flat mensal + teto diário compartilhado de
+ * R$4 (gestores + chat do Tiago, ver gestorTiagoChatOrcamentoDia.ts) com recarga via PIX
+ * quando estoura (tiago/credito-extra-pix/route.ts) — decisão fechada 2026-10-02, não é
+ * pendência. Custo real de IA vira custo operacional (margem do add-on), não cobrança por
+ * rodada. Não preencher essa coluna.
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
