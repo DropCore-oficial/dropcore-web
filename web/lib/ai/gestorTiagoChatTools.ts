@@ -16,6 +16,12 @@ const GESTORES_CONSULTAVEIS: { id: GestorId; nome: string; funcao: string }[] = 
   { id: "ads", nome: "Ulisses", funcao: "Ads, Preço & Promoção" },
 ];
 
+/** Nome amigável do gestor por `gestorId` — usado pro status transitório durante o
+ * streaming do chat ("Consultando o Andrey…", ver chat/route.ts). */
+export function nomeGestorConsultavel(gestorId: string): string | null {
+  return GESTORES_CONSULTAVEIS.find((g) => g.id === gestorId)?.nome ?? null;
+}
+
 export const TIAGO_CHAT_TOOLS: Anthropic.Messages.Tool[] = [
   {
     name: "consultar_gestor",

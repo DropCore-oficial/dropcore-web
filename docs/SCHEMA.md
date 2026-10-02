@@ -572,11 +572,16 @@ tool-calling, lendo só `seller_ai_runs` (nunca dispara rodada nova de gestor no
 conversa, por custo/latência). Parte do add-on "Gestores de IA" (mesmo gate de
 Diogo/Andrey/Amanda — `gestores_ia_addon_ativo`).
 
-**v1 não tem streaming token-a-token de verdade** (`app/api/seller/gestores-ia/tiago/chat/route.ts`):
-o endpoint roda o loop de tool-calling inteiro (até 4 idas-e-voltas com a Anthropic) e só
-devolve a resposta final pronta — streaming exigiria multiplexar várias chamadas da API num
-SSE só pro cliente, complexidade real que ficou pra depois. UX hoje é "Tiago está
-digitando…" enquanto espera, não texto aparecendo aos poucos.
+**Streaming token-a-token real desde 2026-10-02**
+(`app/api/seller/gestores-ia/tiago/chat/route.ts`): cada iteração do loop de tool-calling
+usa `client.messages.stream(...)` da SDK oficial, repassando cada delta de texto pro
+cliente em tempo real. Corpo da resposta é **NDJSON** (1 evento JSON por linha), não
+SSE/`EventSource` — o endpoint é POST com `Authorization` no header, que `EventSource` não
+suporta; o client (`SellerGestorTiagoChatPanel.tsx`) lê via `fetch` + `ReadableStream`
+manualmente. Eventos: `delta` (texto), `tool_status` (rótulo tipo "Consultando o
+Andrey…" enquanto uma tool roda, limpo no próximo delta), `error`, `done` (fecha a rodada,
+dispara a gravação da mensagem/orçamento no banco). Texto que o modelo solta antes de
+decidir chamar uma tool já estream normal (não é tudo-ou-nada por iteração).
 
 - `seller_ai_chat_sessions` (id, seller_id, org_id, titulo, criado_em, atualizado_em) e
   `seller_ai_chat_mensagens` (id, session_id, role, content, tokens_input, tokens_output,

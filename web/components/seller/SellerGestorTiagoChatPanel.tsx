@@ -59,6 +59,12 @@ export function SellerGestorTiagoChatPanel() {
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [erroEnvio, setErroEnvio] = useState<string | null>(null);
+  /** Texto do Tiago sendo montado em tempo real (streaming) — `null` = ainda não chegou
+   * nenhum delta nessa resposta (mostra "está digitando…" em vez da bolha). */
+  const [streamingTexto, setStreamingTexto] = useState<string | null>(null);
+  /** Rótulo transitório enquanto uma tool roda (ex: "Consultando o Andrey…") — some no
+   * próximo delta de texto. */
+  const [statusFerramenta, setStatusFerramenta] = useState<string | null>(null);
   const fimRef = useRef<HTMLDivElement | null>(null);
 
   const [modalCredito, setModalCredito] = useState(false);
@@ -233,6 +239,9 @@ export function SellerGestorTiagoChatPanel() {
       { id: `local-${Date.now()}`, role: "user", content: mensagem, criado_em: new Date().toISOString() },
     ]);
 
+    setStreamingTexto(null);
+    setStatusFerramenta(null);
+
     try {
       const token = await getAccessToken();
       if (!token) {
@@ -244,18 +253,63 @@ export function SellerGestorTiagoChatPanel() {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId, mensagem }),
       });
-      const json = await res.json().catch(() => ({}));
+
+      // Erro antes de começar a estremar (gate de orçamento, auth etc.) ainda vem como JSON
+      // normal, sem corpo em stream — mesmo contrato de antes.
       if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
         setErroEnvio(json?.error ?? "Erro ao falar com o Tiago Silva.");
         if (json?.bloqueado_hoje === true) setBloqueadoHoje(true);
         return;
       }
-      setMensagens((prev) => [
-        ...prev,
-        { id: `local-resp-${Date.now()}`, role: "assistant", content: json.resposta, criado_em: new Date().toISOString() },
-      ]);
+      if (!res.body) {
+        setErroEnvio("Erro ao falar com o Tiago Silva.");
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let respostaFinal: string | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let quebraIdx: number;
+        while ((quebraIdx = buffer.indexOf("\n")) >= 0) {
+          const linha = buffer.slice(0, quebraIdx).trim();
+          buffer = buffer.slice(quebraIdx + 1);
+          if (!linha) continue;
+          const evento = JSON.parse(linha) as
+            | { type: "delta"; text: string }
+            | { type: "tool_status"; label: string }
+            | { type: "error"; error: string }
+            | { type: "done"; resposta: string };
+
+          if (evento.type === "delta") {
+            setStatusFerramenta(null);
+            setStreamingTexto((prev) => (prev ?? "") + evento.text);
+          } else if (evento.type === "tool_status") {
+            setStatusFerramenta(evento.label);
+          } else if (evento.type === "error") {
+            setErroEnvio(evento.error);
+          } else if (evento.type === "done") {
+            respostaFinal = evento.resposta;
+          }
+        }
+      }
+
+      if (respostaFinal) {
+        setMensagens((prev) => [
+          ...prev,
+          { id: `local-resp-${Date.now()}`, role: "assistant", content: respostaFinal as string, criado_em: new Date().toISOString() },
+        ]);
+      }
       await carregar(sessionId);
     } finally {
+      setStreamingTexto(null);
+      setStatusFerramenta(null);
       setEnviando(false);
     }
   }
@@ -399,10 +453,18 @@ export function SellerGestorTiagoChatPanel() {
               </div>
             ))
           )}
-          {enviando && (
+          {enviando && streamingTexto !== null && (
+            <div className="flex justify-start">
+              <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3.5 py-2.5 text-sm leading-relaxed text-[var(--foreground)] sm:max-w-[75%]">
+                {streamingTexto}
+                <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-[var(--muted)]/60 align-text-bottom" aria-hidden />
+              </div>
+            </div>
+          )}
+          {enviando && streamingTexto === null && (
             <div className="flex justify-start">
               <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3.5 py-2.5 text-sm text-[var(--muted)]">
-                Tiago Silva está digitando…
+                {statusFerramenta ?? "Tiago Silva está digitando…"}
               </div>
             </div>
           )}
