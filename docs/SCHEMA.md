@@ -442,9 +442,17 @@ como se estivesse ativo) sem ninguém perceber.
 pg_cron, `must be owner of table job_run_details` até pra `service_role`) — contornado
 reescrevendo a função pra 1 scan (`DISTINCT ON`) em vez de N subqueries correlacionadas
 (ver `web/scripts/fix-fn-cron-job-status-single-pass.sql`). Fica ~5s por chamada (aceitável
-pra cron 1x/dia, não é rota user-facing). **Limpeza de `cron.job_run_details` ainda não
-decidida** — precisa de política de retenção (ex: apagar linha com mais de N dias), mesmo
-padrão do cron `dropcore-cleanup-net-http-response` já existente.
+pra cron 1x/dia, não é rota user-facing).
+
+**Limpeza resolvida em 2026-10-03** (`web/scripts/cleanup-cron-job-run-details.sql`):
+`cron.job_run_details` tinha chegado a 519.951 linhas / 197 MB (banco todo em 339 MB).
+Rodado `DELETE` (mantém só 7 dias) + `VACUUM FULL` nela e em `net._http_response` (que já
+tinha `DELETE` diário mas nunca `VACUUM`, por isso voltava a acumular bloat — mesma classe
+do incidente 2026-08-17). Banco caiu pra 181 MB. Dois crons novos de manutenção permanente:
+`dropcore-cleanup-cron-job-run-details` (03:10 UTC, mantém 7 dias) e
+`dropcore-vacuum-cron-logs` (03:20 UTC, `VACUUM FULL` nas duas tabelas — trava a tabela por
+poucos segundos, ACCESS EXCLUSIVE, só atrasa o registro de um cron que termine nesse
+instante exato, não afeta a execução do cron em si).
 
 ## `fn_seller_dashboard_analytics_30d` — analytics do dashboard do seller sem cap de linha (2026-09-22)
 
