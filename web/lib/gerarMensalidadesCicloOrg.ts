@@ -83,6 +83,11 @@ export async function gerarMensalidadesParaOrgCiclo(orgId: string, cicloYYYY_MM:
     const dia = diaRaw == null ? 10 : clampMensalidadeDiaVencimento(Number(diaRaw));
     const vencimento_em = vencimentoEmNoCiclo(primeiroDia, dia);
     if (!jaTemCicloSeller.has(s.id) && vencimento_em < hoje) continue;
+    // valor_travado = 0 (Galileus/Segatto) é isenção de verdade, não "cobrança de R$0" —
+    // criar a linha geraria `pendente` que o cron de inadimplência (lib/inadimplencia.ts)
+    // marcaria `inadimplente` ao vencer (ele não olha o valor), bloqueando o portal de quem
+    // devia ficar sempre liberado. Sem linha nenhuma, não tem o que vencer.
+    if (valor === 0) continue;
     rows.push({
       org_id: orgId,
       tipo: "seller",
