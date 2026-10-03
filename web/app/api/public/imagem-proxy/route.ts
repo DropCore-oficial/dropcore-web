@@ -14,15 +14,6 @@ export const dynamic = "force-dynamic";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
-function supabaseObjectUrlToRenderUrl(original: string, width: number): string | null {
-  const base = original.split("?")[0];
-  if (!base.includes("/storage/v1/object/public/")) return null;
-  const renderBase = base.replace("/storage/v1/object/public/", "/storage/v1/render/image/public/");
-  const w = Math.min(2048, Math.max(320, Math.round(width)));
-  const q = new URLSearchParams({ width: String(w), quality: "88", resize: "contain" });
-  return `${renderBase}?${q.toString()}`;
-}
-
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -34,14 +25,10 @@ export async function GET(req: Request) {
     if (!SUPABASE_URL || !isSameProjectSupabaseStorageUrl(decoded)) {
       return NextResponse.json({ error: "URL não permitida." }, { status: 403 });
     }
-    const wParam = searchParams.get("w");
-    const width = wParam ? Number(wParam) : 960;
-    const renderUrl = supabaseObjectUrlToRenderUrl(decoded, Number.isFinite(width) ? width : 960);
-    const fetchUrl = renderUrl ?? decoded;
-    let res = await fetch(fetchUrl, { headers: { Accept: "image/*" } });
-    if (!res.ok && renderUrl) {
-      res = await fetch(decoded, { headers: { Accept: "image/*" } });
-    }
+    // Imagem já sai redimensionada/comprimida do upload (ver lib/imageOptimize.ts) — não
+    // usa mais o Image Transformation do Supabase Storage (cobrado por imagem de origem
+    // distinta no ciclo, estourava a cota do plano Pro com o tráfego da vitrine).
+    const res = await fetch(decoded, { headers: { Accept: "image/*" } });
     if (!res.ok) {
       return NextResponse.json({ error: "Imagem não encontrada." }, { status: 404 });
     }

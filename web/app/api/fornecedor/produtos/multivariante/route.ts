@@ -24,6 +24,7 @@ import { fornecedorSkuCatalogExtrasFromBody } from "@/lib/fornecedorSkuCatalogEx
 import { upsertProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
 import { parseTabelaMedidasRecord, type TabelaMedidasPayload } from "@/lib/fornecedorTabelaMedidas";
 import { parseDataImageUrl, BUCKET_PRODUTO_IMAGENS } from "@/lib/fornecedorImagemPublicaOlist";
+import { optimizeImageBuffer } from "@/lib/imageOptimize";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -243,9 +244,10 @@ export async function POST(req: Request) {
             continue;
           }
           const path = `${ctx.fornecedor_id}/multivariante/${Date.now()}-${cor.replace(/[^a-z0-9]/gi, "")}.${parsed.ext}`;
+          const otimizado = await optimizeImageBuffer(parsed.buffer, parsed.contentType);
           const { error: uploadErr } = await supabaseAdmin.storage
             .from(BUCKET_PRODUTO_IMAGENS)
-            .upload(path, parsed.buffer, { upsert: true, contentType: parsed.contentType });
+            .upload(path, otimizado, { upsert: true, contentType: parsed.contentType });
           if (uploadErr) {
             console.warn("[multivariante] upload imagem_url_por_cor:", cor, uploadErr.message);
             delete imagemUrlPorCorMap[cor];

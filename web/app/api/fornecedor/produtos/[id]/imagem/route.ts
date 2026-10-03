@@ -10,6 +10,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 import { grupoKeyFromSkuString, syncOlistImagensFornecedorGrupo } from "@/lib/sellerOlistSyncImagensOnChange";
+import { optimizeImageBuffer } from "@/lib/imageOptimize";
 
 export const runtime = "nodejs";
 
@@ -78,7 +79,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
     const path = `${ctx.fornecedor_id}/${skuId}/foto.${ext}`;
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const rawBuffer = Buffer.from(await file.arrayBuffer());
+    const buffer = await optimizeImageBuffer(rawBuffer, file.type);
 
     const { error: uploadErr } = await supabaseAdmin.storage
       .from(BUCKET)

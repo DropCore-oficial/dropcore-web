@@ -4,6 +4,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { urlImagemExportOlist } from "@/lib/sellerCatalogOlistExport";
+import { optimizeImageBuffer } from "@/lib/imageOptimize";
 
 export const BUCKET_PRODUTO_IMAGENS = "produto-imagens";
 const BUCKET = BUCKET_PRODUTO_IMAGENS;
@@ -48,9 +49,10 @@ export async function ensurePublicImagemUrlForOlist(opts: {
   if (!parsed) return null;
 
   const path = `${opts.fornecedorId}/${opts.skuDbId}/foto-olist.${parsed.ext}`;
+  const otimizado = await optimizeImageBuffer(parsed.buffer, parsed.contentType);
   const { error: uploadErr } = await opts.supabase.storage
     .from(BUCKET)
-    .upload(path, parsed.buffer, { upsert: true, contentType: parsed.contentType });
+    .upload(path, otimizado, { upsert: true, contentType: parsed.contentType });
 
   if (uploadErr) {
     console.warn("[ensurePublicImagemUrlForOlist] upload:", uploadErr.message);
