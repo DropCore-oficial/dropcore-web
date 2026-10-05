@@ -2076,11 +2076,16 @@ export default function CriarVariantesPage() {
         const results = await Promise.all(reqs);
         let enviadosParaAnalise = 0;
         let publicadosDireto = 0;
+        let estoqueAtualizado = 0;
         for (const r of results) {
           const j = await r.json().catch(() => ({}));
           if (!r.ok) {
             throw new Error(j?.error ?? "Erro ao salvar alterações do produto.");
           }
+          // `_estoque_publicado` aplica na hora (sem aprovação) e pode vir junto com
+          // `_enviado_para_analise` no mesmo PATCH (ex.: estoque + custo editados juntos) —
+          // por isso é contado à parte, não dentro do else-if abaixo.
+          if (j?._estoque_publicado) estoqueAtualizado++;
           if (j?._enviado_para_analise) enviadosParaAnalise++;
           else if (j?._detalhes_publicados || j?._tabela_publicada) publicadosDireto++;
         }
@@ -2096,11 +2101,14 @@ export default function CriarVariantesPage() {
           publicadosDireto++;
         }
         if (enviadosParaAnalise === 0) {
+          const diretoMsgs: string[] = [];
+          if (estoqueAtualizado > 0) diretoMsgs.push("Estoque atualizado direto (não passa por aprovação).");
+          if (publicadosDireto > 0) diretoMsgs.push("Características, mídia e/ou tabela de medidas salvas direto (não passam por aprovação).");
           setSubmitResumo({
             tipo: "aviso",
             texto:
-              publicadosDireto > 0
-                ? "Características, mídia e/ou tabela de medidas salvas direto (não passam por aprovação). Nenhuma alteração de catálogo (nome, categoria, preço, estoque etc.) foi detectada para enviar ao DropCore."
+              diretoMsgs.length > 0
+                ? `${diretoMsgs.join(" ")} Nenhuma alteração de catálogo (nome, categoria, preço etc.) foi detectada para enviar ao DropCore.`
                 : "Nenhuma alteração foi detectada nos campos do produto — confira se os valores digitados são realmente diferentes dos já salvos antes de tentar de novo.",
           });
           setFormLoading(false);
