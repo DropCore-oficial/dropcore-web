@@ -1,6 +1,7 @@
 import { getFornecedorOlistApiToken } from "@/lib/fornecedorOlistIntegration";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSellerOlistApiToken } from "@/lib/sellerOlistIntegration";
+import { loadCatalogSkusForOlistExport } from "@/lib/sellerCatalogOlistLoad";
 import type { CatalogSkuForOlistExport } from "@/lib/sellerCatalogOlistExport";
 import {
   estoqueDisponivelParaVenda,
@@ -9,6 +10,7 @@ import {
   syncOlistEstoqueSkusSeller,
 } from "@/lib/sellerOlistSyncEstoque";
 import { grupoKeyFromSkuString } from "@/lib/sellerOlistSyncPrecosOnCustoChange";
+import { syncMercadoLivreEstoqueSkusSeller } from "@/lib/sellerMercadoLivreSyncEstoque";
 
 export type SyncOlistEstoqueOutboundOpts = {
   orgId: string;
@@ -158,21 +160,35 @@ export async function syncOlistEstoqueFornecedorSkus(
 
   for (const row of sellers ?? []) {
     const sellerId = String((row as { id: string }).id);
+
+    // Olist é opcional por seller — nem todo mundo tem Olist/Bling conectado. O push pro
+    // ML abaixo roda SEMPRE, direto pela API, sem depender desse token.
     const apiToken = await getSellerOlistApiToken(sellerId);
-    if (!apiToken) continue;
+    if (apiToken) {
+      try {
+        const result = await syncOlistEstoqueSkusSeller({
+          apiToken,
+          orgId: opts.orgId,
+          fornecedorId: opts.fornecedorId,
+          supabase: supabaseAdmin,
+          skuCodes,
+        });
+        synced += 1;
+        okTotal += result.ok;
+      } catch (e: unknown) {
+        console.error("[syncOlistEstoqueFornecedorSkus]", sellerId, e);
+      }
+    }
 
     try {
-      const result = await syncOlistEstoqueSkusSeller({
-        apiToken,
+      await syncMercadoLivreEstoqueSkusSeller({
+        sellerId,
         orgId: opts.orgId,
         fornecedorId: opts.fornecedorId,
-        supabase: supabaseAdmin,
         skuCodes,
       });
-      synced += 1;
-      okTotal += result.ok;
     } catch (e: unknown) {
-      console.error("[syncOlistEstoqueFornecedorSkus]", sellerId, e);
+      console.error("[syncMercadoLivreEstoqueSkusSeller]", sellerId, e);
     }
   }
 
@@ -218,22 +234,46 @@ export async function syncOlistEstoqueFornecedorGrupo(
 
   for (const row of sellers ?? []) {
     const sellerId = String((row as { id: string }).id);
+
+    // Olist é opcional por seller — o push pro ML abaixo roda SEMPRE, sem depender dele.
     const apiToken = await getSellerOlistApiToken(sellerId);
-    if (!apiToken) continue;
+    if (apiToken) {
+      try {
+        const result = await syncOlistEstoqueGrupoSeller({
+          apiToken,
+          orgId: opts.orgId,
+          sellerId,
+          fornecedorId: opts.fornecedorId,
+          supabase: supabaseAdmin,
+          grupoKey,
+        });
+        synced += 1;
+        okTotal += result.ok;
+      } catch (e: unknown) {
+        console.error("[syncOlistEstoqueFornecedorGrupo]", sellerId, grupoKey, e);
+      }
+    }
 
     try {
-      const result = await syncOlistEstoqueGrupoSeller({
-        apiToken,
+      const loaded = await loadCatalogSkusForOlistExport({
         orgId: opts.orgId,
         sellerId,
         fornecedorId: opts.fornecedorId,
-        supabase: supabaseAdmin,
         grupoKey,
+        scope: "todos",
+        supabase: supabaseAdmin,
       });
-      synced += 1;
-      okTotal += result.ok;
+      if (loaded.ok) {
+        const { skuCodes: skuCodesGrupo } = skusParaSyncEstoqueOlistComPaiSoma(loaded.items, grupoKey);
+        await syncMercadoLivreEstoqueSkusSeller({
+          sellerId,
+          orgId: opts.orgId,
+          fornecedorId: opts.fornecedorId,
+          skuCodes: skuCodesGrupo,
+        });
+      }
     } catch (e: unknown) {
-      console.error("[syncOlistEstoqueFornecedorGrupo]", sellerId, grupoKey, e);
+      console.error("[syncMercadoLivreEstoqueSkusSeller]", sellerId, grupoKey, e);
     }
   }
 

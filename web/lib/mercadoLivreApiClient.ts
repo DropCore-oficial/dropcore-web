@@ -553,6 +553,46 @@ export async function mlAtualizarStatus(
   return { ok: true };
 }
 
+export type MercadoLivreEstoqueAtualizacao = { variationId: number; availableQuantity: number };
+
+/** Escreve `available_quantity` no anúncio (`PUT /items/{id}`) — usada pelo sync direto de
+ * estoque fornecedor→ML (ver sellerMercadoLivreSyncEstoque.ts). `variationId === 0` (sem
+ * variação, ver ml_variation_id em seller_mercadolivre_sku_map) manda o campo no nível do
+ * item; qualquer outro valor manda dentro de `variations`, que o ML trata como atualização
+ * pontual daquela variação por `id` — não precisa (nem deve) mandar as outras variações do
+ * mesmo anúncio que não mudaram. Agrupar por item_id é responsabilidade de quem chama. */
+export async function mlAtualizarEstoque(
+  itemId: string,
+  atualizacoes: MercadoLivreEstoqueAtualizacao[],
+  ctx: MercadoLivreAuthContext
+): Promise<{ ok: true } | { ok: false; erro: string }> {
+  if (atualizacoes.length === 0) return { ok: true };
+
+  const semVariacao = atualizacoes.find((a) => a.variationId === 0);
+  const comVariacao = atualizacoes.filter((a) => a.variationId !== 0);
+
+  const body: Record<string, unknown> =
+    comVariacao.length > 0
+      ? { variations: comVariacao.map((a) => ({ id: a.variationId, available_quantity: Math.max(0, Math.floor(a.availableQuantity)) })) }
+      : { available_quantity: Math.max(0, Math.floor(semVariacao?.availableQuantity ?? 0)) };
+
+  const res = await fetch(`${ML_API_BASE}/items/${itemId}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${ctx.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    message?: string;
+    error?: string;
+    cause?: { code?: string; message?: string }[];
+  };
+  if (!res.ok) {
+    const causa = json.cause?.map((c) => c.message ?? c.code).filter(Boolean).join("; ");
+    return { ok: false, erro: causa || json.message || json.error || `HTTP ${res.status}` };
+  }
+  return { ok: true };
+}
+
 /** Atualiza o preço do anúncio (`PUT /items/{id}`). Usada pelo Ulisses pra aplicar o
  * "preço mínimo seguro" calculado (rota `ulisses-aplicar-preco-seguro`). Arredonda pra 2
  * casas antes de mandar — achado ao vivo (2026-09-06): o ML rejeita com "Max. decimal

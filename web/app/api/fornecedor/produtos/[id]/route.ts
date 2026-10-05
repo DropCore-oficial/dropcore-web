@@ -9,6 +9,7 @@ import { mergeDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { parseTabelaMedidasRecord } from "@/lib/fornecedorTabelaMedidas";
 import { upsertProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
 import { notifyAdminsAlteracaoProdutoPendente } from "@/lib/notifyAdminsAlteracaoProduto";
+import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -183,6 +184,33 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         dadosPropostos[k] = v;
       }
     }
+    /** Estoque: aplica na hora, fora da fila de aprovação — diferente de preço/custo (onde
+     * fraude/erro de precificação merece revisão humana), baixa de estoque atrasada pelo
+     * admin aprovar gera overselling real no ML/Olist (o anúncio continua vendendo com o
+     * número antigo enquanto a pendência espera). Mesmo tratamento que o import em massa
+     * (import-estoque/route.ts) já dá. */
+    let estoquePublicado = false;
+    if ("estoque_atual" in dadosPropostos) {
+      const novoEstoque = dadosPropostos.estoque_atual as number | null;
+      const { error: estErr } = await supabaseAdmin
+        .from("skus")
+        .update({ estoque_atual: novoEstoque })
+        .eq("id", skuId)
+        .eq("org_id", ctx.org_id);
+      if (estErr) return NextResponse.json({ error: estErr.message }, { status: 500 });
+      delete dadosPropostos.estoque_atual;
+      estoquePublicado = true;
+
+      const skuCode = String(sku.sku ?? "").trim().toUpperCase();
+      if (skuCode) {
+        dispararSyncEstoqueOlistFornecedorSkus({
+          orgId: ctx.org_id,
+          fornecedorId: ctx.fornecedor_id,
+          skuCodes: [skuCode],
+        });
+      }
+    }
+
     /** Tabela de medidas: grava na hora em `produto_tabela_medidas` (seller e resumo leem daqui). */
     let tabelaPublicada = false;
     if (tabelaMedidas) {
@@ -224,6 +252,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     if (Object.keys(dadosPropostos).length === 0) {
       const msgs: string[] = [];
+      if (estoquePublicado) msgs.push("Estoque atualizado.");
       if (tabelaPublicada) msgs.push("Tabela de medidas salva.");
       if (detalhesPublicados) msgs.push("Características e dados do formulário publicados.");
       return NextResponse.json({
@@ -232,6 +261,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           msgs.length > 0
             ? msgs.join(" ")
             : "Nenhuma alteração detectada.",
+        _estoque_publicado: estoquePublicado,
         _detalhes_publicados: detalhesPublicados,
         _tabela_publicada: tabelaPublicada,
       });
@@ -323,13 +353,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         })()
       : skuAtual;
 
+    const mensagemAnalise = existente
+      ? "Alteração atualizada e segue em análise. O admin verá a última versão em Alterações de produtos."
+      : "Alteração enviada para análise. O admin verá em Alterações de produtos.";
+
     return NextResponse.json({
       ...skuExibicao,
       _enviado_para_analise: true,
       _alteracao_atualizada: !!existente,
-      mensagem: existente
-        ? "Alteração atualizada e segue em análise. O admin verá a última versão em Alterações de produtos."
-        : "Alteração enviada para análise. O admin verá em Alterações de produtos.",
+      _estoque_publicado: estoquePublicado,
+      mensagem: estoquePublicado ? `Estoque atualizado. ${mensagemAnalise}` : mensagemAnalise,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
