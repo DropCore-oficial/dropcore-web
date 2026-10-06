@@ -111,7 +111,7 @@ export default function CalculadoraRegisterPage() {
       }
 
       // Navegação completa evita falha de chunk/sessão no Safari após login (página genérica da Vercel).
-      window.location.assign("/seller/calculadora");
+      window.location.assign(meBody?.inclui_gestores_ia === true ? "/seller/gestores-ia-avulso" : "/seller/calculadora");
     } catch (e: unknown) {
       setFormError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {

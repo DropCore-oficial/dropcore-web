@@ -7,6 +7,13 @@ import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPrem
 import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
 
+/**
+ * Convites do pacote "Gestores de IA" (R$797,90/mês, inclui a Calculadora junto) — página
+ * própria, separada de /admin/calculadora-convites (essa aqui sempre manda
+ * inclui_gestores_ia=true; a outra nunca manda). Mesma conta/tabela por baixo
+ * (calculadora_assinantes), login e portal próprios (/gestores-ia/login).
+ */
+
 type Invite = {
   id: string;
   token: string;
@@ -26,67 +33,25 @@ type Assinante = {
   email: string | null;
   valido_ate: string;
   ativo: boolean;
+  inclui_gestores_ia: boolean;
   dias_restantes: number;
   expirado: boolean;
 };
 
-type RecebimentoCalc = {
-  id: string;
-  user_id: string;
-  email: string | null;
-  mp_payment_id: string;
-  valor: number;
-  external_reference: string | null;
-  pago_em: string;
-};
-
-const fmtBrl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-
-export default function AdminCalculadoraConvitesPage() {
+export default function AdminGestoresIaConvitesPage() {
   const [emailAlvo, setEmailAlvo] = useState("");
-  const [validadeDias, setValidadeDias] = useState("7");
+  const [validadeDias, setValidadeDias] = useState("30");
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [ultimoConvite, setUltimoConvite] = useState<Invite | null>(null);
   const [assinantes, setAssinantes] = useState<Assinante[]>([]);
   const [assinantesLoading, setAssinantesLoading] = useState(false);
   const [assinantesErro, setAssinantesErro] = useState<string | null>(null);
-  const [recebimentos, setRecebimentos] = useState<RecebimentoCalc[]>([]);
-  const [recebimentosSomaTotal, setRecebimentosSomaTotal] = useState<number | null>(null);
-  const [recebimentosLoading, setRecebimentosLoading] = useState(false);
-  const [recebimentosErro, setRecebimentosErro] = useState<string | null>(null);
   const [apagarLoginModal, setApagarLoginModal] = useState<{ userId: string; emailHint: string } | null>(null);
   const [apagarLoginEmail, setApagarLoginEmail] = useState("");
   const [apagarLoginSending, setApagarLoginSending] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [copiarErro, setCopiarErro] = useState<string | null>(null);
-
-  async function carregarRecebimentos() {
-    setRecebimentosErro(null);
-    setRecebimentosLoading(true);
-    try {
-      const json = await apiGet<{
-        items?: RecebimentoCalc[];
-        soma_total_geral?: number;
-        error?: string;
-      }>("/api/org/calculadora/recebimentos?limit=100");
-      if (typeof json?.error === "string" && json.error && !json.items?.length) {
-        setRecebimentosErro(json.error);
-        setRecebimentos([]);
-        setRecebimentosSomaTotal(null);
-        return;
-      }
-      setRecebimentos(Array.isArray(json.items) ? json.items : []);
-      setRecebimentosSomaTotal(typeof json.soma_total_geral === "number" ? json.soma_total_geral : null);
-      if (typeof json?.error === "string" && json.error) setRecebimentosErro(json.error);
-    } catch (e: unknown) {
-      setRecebimentosErro(e instanceof Error ? e.message : "Erro ao carregar recebimentos.");
-      setRecebimentos([]);
-      setRecebimentosSomaTotal(null);
-    } finally {
-      setRecebimentosLoading(false);
-    }
-  }
 
   async function carregarAssinantes() {
     setAssinantesErro(null);
@@ -98,7 +63,9 @@ export default function AdminCalculadoraConvitesPage() {
       if (!session?.access_token) {
         throw new Error("Sem sessão. Faça login novamente.");
       }
-      const json = await apiGet<{ items?: Assinante[] }>("/api/org/calculadora/assinantes");
+      const json = await apiGet<{ items?: Assinante[] }>(
+        "/api/org/calculadora/assinantes?inclui_gestores_ia=true",
+      );
       setAssinantes(Array.isArray(json.items) ? json.items : []);
     } catch (e: unknown) {
       setAssinantesErro(e instanceof Error ? e.message : "Erro inesperado ao carregar assinantes.");
@@ -109,7 +76,6 @@ export default function AdminCalculadoraConvitesPage() {
 
   useEffect(() => {
     carregarAssinantes();
-    carregarRecebimentos();
   }, []);
 
   async function gerarConvite() {
@@ -136,6 +102,7 @@ export default function AdminCalculadoraConvitesPage() {
       const json = await apiPost<{ invite: Invite }>("/api/org/calculadora/invites", {
         email_alvo: emailAlvo.trim() || null,
         validade_dias: diasNum,
+        inclui_gestores_ia: true,
       });
       setUltimoConvite(json.invite);
     } catch (e: unknown) {
@@ -149,9 +116,9 @@ export default function AdminCalculadoraConvitesPage() {
 
   const mailtoConviteHref = useMemo(() => {
     if (!linkMostrar) return "";
-    const subject = encodeURIComponent("Convite — DropCore Calculadora (teste grátis)");
+    const subject = encodeURIComponent("Convite — Gestores de IA (DropCore)");
     const body = encodeURIComponent(
-      `Olá,\n\nSegue o link para criar a sua conta e ativar o teste grátis da DropCore Calculadora:\n\n${linkMostrar}\n\nAtenciosamente,`
+      `Olá,\n\nSegue o link para criar a sua conta e ativar o acesso aos Gestores de IA (inclui a Calculadora também):\n\n${linkMostrar}\n\nAtenciosamente,`
     );
     const toRaw = ultimoConvite?.email_alvo?.trim();
     const to = toRaw ? encodeURIComponent(toRaw) : "";
@@ -186,13 +153,13 @@ export default function AdminCalculadoraConvitesPage() {
   return (
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg">
       <main className="dropcore-shell-6xl pt-8 pb-10 md:pb-12 space-y-6">
-        <p className="text-xs text-[var(--muted)]">Admin · Convites da calculadora</p>
+        <p className="text-xs text-[var(--muted)]">Admin · Convites — Gestores de IA</p>
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 shadow-sm">
-          <h1 className="text-lg font-semibold mb-1">Teste grátis da DropCore Calculadora</h1>
+          <h1 className="text-lg font-semibold mb-1">Pacote Gestores de IA (R$797,90/mês)</h1>
           <p className="text-sm text-[var(--muted)] mb-5">
-            Gere um link de teste grátis para a calculadora e envie para o cliente ativar o acesso. Informação oficial para cliente
-            (plano pago): dia de renovação fixo no calendário, sem juros; inadimplência bloqueia o uso até quitar — o dia da
-            renovação não migra só porque o último pagamento foi atrasado (está também nas telas /calculadora).
+            Gere um link de convite pro pacote completo — Gestores de IA + Calculadora juntos, fora do hub (sem org, sem
+            fornecedor). Login próprio em <span className="font-mono">/gestores-ia/login</span>, mesma conta por baixo
+            da Calculadora avulsa.
           </p>
 
           <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
@@ -224,7 +191,7 @@ export default function AdminCalculadoraConvitesPage() {
                   className="w-full rounded-xl bg-[var(--card)] border border-[var(--card-border)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/50"
                 />
                 <p className="mt-1 text-[11px] text-[var(--muted)]">
-                  Padrão: 7 dias (teste). Máximo: 365 dias.
+                  Padrão: 30 dias.
                 </p>
               </div>
             </div>
@@ -236,7 +203,7 @@ export default function AdminCalculadoraConvitesPage() {
                 disabled={loading}
                 className="w-full rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-2.5 py-1.5 text-[11px] shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {loading ? "Gerando link..." : "Gerar link de teste"}
+                {loading ? "Gerando link..." : "Gerar link de convite"}
               </button>
 
               {erro && (
@@ -303,9 +270,9 @@ export default function AdminCalculadoraConvitesPage() {
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 shadow-sm space-y-4">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <h2 className="text-sm font-semibold">Assinantes da calculadora</h2>
+              <h2 className="text-sm font-semibold">Assinantes do pacote Gestores de IA</h2>
               <p className="text-xs text-[var(--muted)]">
-                Usuários com acesso à DropCore Calculadora (teste grátis ou acesso pago/manual).
+                Usuários com o pacote completo (Gestores de IA + Calculadora) ativo.
               </p>
             </div>
             <button
@@ -325,7 +292,7 @@ export default function AdminCalculadoraConvitesPage() {
           )}
 
           {assinantes.length === 0 && !assinantesLoading && !assinantesErro && (
-            <p className="text-xs text-[var(--muted)]">Nenhum assinante encontrado ainda.</p>
+            <p className="text-xs text-[var(--muted)]">Nenhum assinante do pacote ainda.</p>
           )}
 
           {assinantes.length > 0 && (
@@ -385,45 +352,14 @@ export default function AdminCalculadoraConvitesPage() {
                                         "Content-Type": "application/json",
                                         Authorization: `Bearer ${session.access_token}`,
                                       },
-                                      body: JSON.stringify({ dias: 7 }),
-                                    },
-                                  );
-                                  const j = await res.json().catch(() => ({}));
-                                  if (!res.ok) throw new Error(j?.error ?? "Erro ao prorrogar teste.");
-                                  await carregarAssinantes();
-                                } catch (e: unknown) {
-                                  setAssinantesErro(e instanceof Error ? e.message : "Erro ao prorrogar teste.");
-                                }
-                              }}
-                              className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-2 py-1 text-[10px] text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
-                            >
-                              +7 dias
-                            </button>
-                            <button
-                              type="button"
-                              disabled={assinantesLoading}
-                              onClick={async () => {
-                                try {
-                                  const {
-                                    data: { session },
-                                  } = await supabaseBrowser.auth.getSession();
-                                  if (!session?.access_token) throw new Error("Sem sessão.");
-                                  const res = await fetch(
-                                    `/api/org/calculadora/assinantes/${a.user_id}/prorrogar`,
-                                    {
-                                      method: "POST",
-                                      headers: {
-                                        "Content-Type": "application/json",
-                                        Authorization: `Bearer ${session.access_token}`,
-                                      },
                                       body: JSON.stringify({ dias: 30 }),
                                     },
                                   );
                                   const j = await res.json().catch(() => ({}));
-                                  if (!res.ok) throw new Error(j?.error ?? "Erro ao prorrogar plano pago.");
+                                  if (!res.ok) throw new Error(j?.error ?? "Erro ao prorrogar.");
                                   await carregarAssinantes();
                                 } catch (e: unknown) {
-                                  setAssinantesErro(e instanceof Error ? e.message : "Erro ao prorrogar plano pago.");
+                                  setAssinantesErro(e instanceof Error ? e.message : "Erro ao prorrogar.");
                                 }
                               }}
                               className="rounded-lg border border-emerald-500/40 bg-emerald-100 px-2 py-1 text-[10px] text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
@@ -466,7 +402,7 @@ export default function AdminCalculadoraConvitesPage() {
                                 const label = a.email ?? a.user_id;
                                 if (
                                   !confirm(
-                                    `Excluir ${label} da calculadora?\n\nRemove só o acesso à calculadora (a conta no login continua a existir).`,
+                                    `Excluir ${label} do pacote?\n\nRemove só o acesso (a conta no login continua a existir).`,
                                   )
                                 ) {
                                   return;
@@ -524,81 +460,6 @@ export default function AdminCalculadoraConvitesPage() {
                   })}
                 </tbody>
               </table>
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-semibold">Recebimentos — renovação PIX (calculadora)</h2>
-              <p className="text-xs text-[var(--muted)]">
-                Valores quando o Mercado Pago aprova o PIX: preferimos o líquido creditado (após taxas), conforme a API; se não vier, mostramos o valor da cobrança. O dinheiro fica no seu MP — aqui é só espelho.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={carregarRecebimentos}
-              disabled={recebimentosLoading}
-              className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] disabled:opacity-50 shrink-0"
-            >
-              {recebimentosLoading ? "Atualizando..." : "Atualizar"}
-            </button>
-          </div>
-
-          {recebimentosSomaTotal != null && recebimentosSomaTotal >= 0 && (
-            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-              Total registrado (líquido quando o MP informa): {fmtBrl.format(recebimentosSomaTotal)}
-            </p>
-          )}
-
-          {recebimentosErro && (
-            <div className={cn("rounded-xl px-3 py-2 text-xs", AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY)}>
-              {recebimentosErro}
-            </div>
-          )}
-
-          {recebimentos.length === 0 && !recebimentosLoading && !recebimentosErro && (
-            <p className="text-xs text-[var(--muted)]">Nenhum pagamento registrado ainda (após rodar o SQL da tabela e novas renovações).</p>
-          )}
-
-          {recebimentos.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-xs border-separate border-spacing-y-1">
-                <thead>
-                  <tr className="text-[11px] text-[var(--muted)]">
-                    <th className="text-left px-2 py-1.5">Pago em</th>
-                    <th className="text-left px-2 py-1.5">E-mail</th>
-                    <th className="text-right px-2 py-1.5">Valor líquido</th>
-                    <th className="text-left px-2 py-1.5 font-mono">Payment MP</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recebimentos.map((r) => {
-                    const d = new Date(r.pago_em);
-                    const dataStr = Number.isNaN(d.getTime())
-                      ? "—"
-                      : d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-                    return (
-                      <tr key={r.id} className="align-middle">
-                        <td className="px-2 py-1.5 text-[var(--muted)] whitespace-nowrap">{dataStr}</td>
-                        <td className="px-2 py-1.5 text-[var(--foreground)] font-medium max-w-[200px] truncate" title={r.email ?? ""}>
-                          {r.email ?? "—"}
-                        </td>
-                        <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
-                          {fmtBrl.format(r.valor)}
-                        </td>
-                        <td className="px-2 py-1.5 text-[var(--muted)] text-[10px] max-w-[140px] truncate" title={r.mp_payment_id}>
-                          {r.mp_payment_id}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              <p className="text-[11px] text-[var(--muted)] mt-2">
-                Últimos 100 registros. Pagamentos antigos (antes desta versão) não aparecem. Linhas gravadas antes da mudança para líquido podem mostrar o valor bruto da cobrança.
-              </p>
             </div>
           )}
         </section>
@@ -692,4 +553,3 @@ export default function AdminCalculadoraConvitesPage() {
     </div>
   );
 }
-

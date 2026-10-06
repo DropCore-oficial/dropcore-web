@@ -598,6 +598,7 @@ export default function DashboardPage() {
     { title: "Depósitos PIX", desc: "Aprovar depósitos dos sellers", rota: "/admin/depositos-pix", icon: "pix", badge: stats?.depositos_pix_pendentes ? `${stats.depositos_pix_pendentes} aguardando` : null, badgeTone: "sky" },
     { title: "Mensalidades", desc: "Gerar e marcar mensalidades", rota: "/admin/mensalidades", icon: "mensalidades", badge: null, badgeTone: null },
     { title: "Convites calculadora", desc: "Gerar links da DropCore Calculadora", rota: "/admin/calculadora-convites", icon: "mensalidades", badge: null, badgeTone: null },
+    { title: "Convites Gestores de IA", desc: "Gerar links do pacote Gestores de IA + Calculadora", rota: "/admin/gestores-ia-convites", icon: "mensalidades", badge: null, badgeTone: null },
     { title: "Relatório entrada/saída", desc: "Entradas, repasses e receita", rota: "/admin/relatorio-entrada-saida", icon: "relatorio", badge: null, badgeTone: null },
     { title: "Membros", desc: "Permissões e acesso financeiro", rota: "/org/membros", icon: "membros", badge: null, badgeTone: null },
   ];

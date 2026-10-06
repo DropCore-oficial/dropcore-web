@@ -118,9 +118,10 @@ export async function middleware(req: NextRequest) {
     !path.startsWith("/seller/login") &&
     !path.startsWith("/seller/register") &&
     !path.startsWith("/seller/reset-password") &&
-    // Rota da calculadora do seller é controlada por /api/calculadora/me,
-    // então não depende da sessão por cookie no middleware.
-    !path.startsWith("/seller/calculadora");
+    // Calculadora e Gestores de IA avulso são controladas por /api/calculadora/me,
+    // então não dependem da sessão por cookie no middleware.
+    !path.startsWith("/seller/calculadora") &&
+    !path.startsWith("/seller/gestores-ia-avulso");
 
   /** DropCore Calculadora: rotas internas exigem sessão; públicas: login e cadastro por convite */
   const isCalculadoraProtegido =
@@ -143,8 +144,11 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL("/calculadora/login", req.url));
     }
     if (isSellerProtegido) {
-      // Se o usuário tentar acessar diretamente a calculadora do seller sem sessão,
-      // prefere o login da calculadora (produto independente) em vez do login seller.
+      // Se o usuário tentar acessar diretamente a calculadora/gestores avulso do seller
+      // sem sessão, prefere o login do produto independente em vez do login seller.
+      if (path.startsWith("/seller/gestores-ia-avulso")) {
+        return NextResponse.redirect(new URL("/gestores-ia/login", req.url));
+      }
       if (path.startsWith("/seller/calculadora")) {
         return NextResponse.redirect(new URL("/calculadora/login", req.url));
       }

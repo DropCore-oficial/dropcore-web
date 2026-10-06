@@ -22,6 +22,21 @@ function areaPrefixFromPathname(pathname: string): "" | "/seller" | "/fornecedor
   return "";
 }
 
+const SOBRE_TEXTO_GESTORES_IA =
+  "Gestor de IA + Calculadora pra quem vende no Mercado Livre — análise de anúncio, " +
+  "reputação e margem de lucro, sem precisar virar seller do hub DropCore.";
+const SOBRE_TEXTO_CALCULADORA =
+  "Calculadora de custo e margem pra quem vende em marketplace — simule taxa, frete e " +
+  "lucro antes de criar o anúncio.";
+
+/** Produto avulso (fora do hub) usa um texto "Sobre" próprio — o do hub fala de
+ * fornecedor/catálogo/repasse, que não existe pra quem só assina Calculadora/Gestor de IA. */
+function sobreTextoFromPathname(pathname: string): string | undefined {
+  if (pathname.startsWith("/seller/gestores-ia-avulso")) return SOBRE_TEXTO_GESTORES_IA;
+  if (pathname.startsWith("/seller/calculadora")) return SOBRE_TEXTO_CALCULADORA;
+  return undefined;
+}
+
 export function ConditionalFooter() {
   const pathname = usePathname();
   if (PATHS_SEM_RODAPE.includes(pathname)) return null;
@@ -32,6 +47,7 @@ export function ConditionalFooter() {
     <SiteFooter
       compactMobilePadding={PATHS_SEM_NAV_FIXO.includes(pathname)}
       areaPrefix={areaPrefixFromPathname(pathname)}
+      sobreTexto={sobreTextoFromPathname(pathname)}
     />
   );
 }

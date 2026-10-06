@@ -82,17 +82,24 @@ export default function CriarUnicoPage() {
           <DropCoreLogo variant="horizontal" href="/fornecedor/dashboard" />
           <ThemeToggle />
         </div>
-        <div className="flex items-center gap-3 mb-6">
-          <Link
-            href="/fornecedor/produtos"
-            className="flex items-center gap-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            <span className="text-sm font-medium">Voltar</span>
-          </Link>
-          <h1 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">Adicionar produto</h1>
+        <div className="mb-6 space-y-1">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/fornecedor/produtos"
+              className="flex items-center gap-2 text-[var(--muted)] hover:text-[var(--foreground)]"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+              <span className="text-sm font-medium">Voltar</span>
+            </Link>
+            <h1 className="min-w-0 truncate text-base font-semibold text-[var(--foreground)]">Adicionar produto</h1>
+            <span
+              className="h-1 w-14 shrink-0 self-center rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 sm:w-20"
+              aria-hidden
+            />
+          </div>
+          <p className="text-sm leading-snug text-[var(--muted)]">Cadastre uma variação única (sem cor/tamanho múltiplos) do zero.</p>
         </div>
 
         <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-sm p-6">

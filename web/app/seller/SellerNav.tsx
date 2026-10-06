@@ -236,12 +236,15 @@ function SellerNavHelpMenu({ supportHref }: { supportHref: string }) {
 export function SellerNav({
   active,
   calcOnly = false,
+  temGestoresIa = false,
   wide = false,
 }: {
   /** Sem valor = nenhuma aba destacada (ex.: páginas institucionais fora do menu principal). */
   active?: NavKey;
   /** Só assinatura calculadora: esconde Dashboard e ERP */
   calcOnly?: boolean;
+  /** No modo calcOnly, assinante também tem o pacote "Gestores de IA" avulso — mostra a aba extra. */
+  temGestoresIa?: boolean;
   /** Página já migrada pro padrão largo (dropcore-shell-6xl) — usado pra escalar a largura da barra inferior no mobile junto com o conteúdo. Não afeta mais o desktop (virou rail lateral de largura fixa). */
   wide?: boolean;
 }) {
@@ -309,7 +312,7 @@ export function SellerNav({
           end={<AppBarEndMobileAuth context="seller" onLogout={sairCalculadoraNav} logoutLabel="Sair" />}
         />
         <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
-          <div className="max-w-4xl mx-auto flex w-full min-w-0 items-center justify-between gap-4 px-4 sm:px-6">
+          <div className="max-w-6xl mx-auto flex w-full min-w-0 items-center justify-between gap-4 px-4 sm:px-6">
             <div className="flex min-w-0 items-center gap-6 sm:gap-8">
               <DropCoreLogo variant="horizontal" href="/seller/calculadora" className="shrink-0" />
               <div className="flex shrink-0 items-center gap-0.5">
@@ -317,6 +320,12 @@ export function SellerNav({
                   <IconCalculator active={active === "calculadora"} />
                   Calculadora
                 </Link>
+                {temGestoresIa && (
+                  <Link href="/seller/gestores-ia-avulso" className={linkClass("gestores_ia")}>
+                    <IconSparkles active={active === "gestores_ia"} />
+                    Gestor de IA
+                  </Link>
+                )}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -335,7 +344,7 @@ export function SellerNav({
           </div>
         </nav>
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
-          <div className="max-w-lg mx-auto grid grid-cols-3 items-stretch min-h-[52px]">
+          <div className={`max-w-lg mx-auto grid items-stretch min-h-[52px] ${temGestoresIa ? "grid-cols-4" : "grid-cols-3"}`}>
             <Link
               href="/seller/calculadora"
               className={`${mobileLinkClass("calculadora")} border-t-0 border-b-0 py-2 touch-manipulation min-h-[52px]`}
@@ -343,6 +352,15 @@ export function SellerNav({
               <IconCalculator active={active === "calculadora"} />
               <span className="text-[10px] font-medium leading-tight text-center">Calculadora</span>
             </Link>
+            {temGestoresIa && (
+              <Link
+                href="/seller/gestores-ia-avulso"
+                className={`${mobileLinkClass("gestores_ia")} border-t-0 border-b-0 py-2 touch-manipulation min-h-[52px]`}
+              >
+                <IconSparkles active={active === "gestores_ia"} />
+                <span className="text-[10px] font-medium leading-tight text-center">Gestor de IA</span>
+              </Link>
+            )}
             <a
               href={supportHref}
               target="_blank"

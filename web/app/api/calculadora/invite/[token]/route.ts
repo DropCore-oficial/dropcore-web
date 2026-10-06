@@ -14,12 +14,13 @@ type InviteRow = {
   validade_dias: number;
   expira_em: string;
   usado: boolean;
+  inclui_gestores_ia: boolean;
 };
 
 async function resolveInvite(token: string): Promise<{ invite: InviteRow | null; error: string | null }> {
   const { data, error } = await supabaseAdmin
     .from("calculadora_invites")
-    .select("id, token, email_alvo, validade_dias, expira_em, usado")
+    .select("id, token, email_alvo, validade_dias, expira_em, usado, inclui_gestores_ia")
     .eq("token", token)
     .maybeSingle<InviteRow>();
 
@@ -45,6 +46,7 @@ export async function GET(_req: Request, { params }: Params) {
       email_alvo: invite.email_alvo,
       validade_dias: invite.validade_dias,
       expira_em: invite.expira_em,
+      inclui_gestores_ia: invite.inclui_gestores_ia,
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Erro inesperado.";
@@ -169,9 +171,9 @@ export async function POST(req: Request, { params }: Params) {
 
     const { data: currentAssin, error: assinReadErr } = await supabaseAdmin
       .from("calculadora_assinantes")
-      .select("id, valido_ate, ativo")
+      .select("id, valido_ate, ativo, inclui_gestores_ia")
       .eq("user_id", userId)
-      .maybeSingle<{ id: string; valido_ate: string; ativo: boolean }>();
+      .maybeSingle<{ id: string; valido_ate: string; ativo: boolean; inclui_gestores_ia: boolean }>();
 
     if (assinReadErr) {
       return NextResponse.json(
@@ -190,6 +192,8 @@ export async function POST(req: Request, { params }: Params) {
         user_id: userId,
         valido_ate: novoValidoAte,
         ativo: true,
+        // Nunca remove o pacote se a conta já tinha — só liga quando o convite usado inclui.
+        inclui_gestores_ia: currentAssin?.inclui_gestores_ia === true || invite.inclui_gestores_ia === true,
       },
       { onConflict: "user_id" },
     );
@@ -216,6 +220,7 @@ export async function POST(req: Request, { params }: Params) {
         ? "Acesso da calculadora atualizado na sua conta. Entre com a senha que você já usa."
         : "Conta criada e assinatura ativada com sucesso.",
       linkedExistingAccount,
+      inclui_gestores_ia: invite.inclui_gestores_ia,
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Erro inesperado.";

@@ -33,6 +33,7 @@ import {
   DANGER_PREMIUM_TEXT_SOFT,
 } from "@/lib/semanticPremium";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
+import { FormRowsSkeleton } from "@/components/ui/Skeleton";
 import { calcularMargem } from "@/lib/margemCalculo";
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const MARGEM_MINIMA = 5;
@@ -138,6 +139,7 @@ export default function SellerCalculadoraPage() {
   const [calcAccess, setCalcAccess] = useState<CalcAccess>("loading");
   const [calcValidoAte, setCalcValidoAte] = useState<string | null>(null);
   const [bloqueioMotivo, setBloqueioMotivo] = useState<CalculadoraBloqueioMotivo | null>(null);
+  const [temGestoresIa, setTemGestoresIa] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
   /** Renovação PIX na página (plano calculadora avulso bloqueado) */
   const [renoMeta, setRenoMeta] = useState<{ valor: number | null; configurado: boolean } | null>(null);
@@ -287,6 +289,7 @@ export default function SellerCalculadoraPage() {
       setCalcAccess("calc_only");
       setCalcValidoAte(typeof j.valido_ate === "string" ? j.valido_ate : null);
       setBloqueioMotivo(null);
+      setTemGestoresIa(j.inclui_gestores_ia === true);
     } else if (j.access === "calc_only_locked") {
       applyLocked(j, "assinatura_expirada");
     } else {
@@ -1123,8 +1126,11 @@ export default function SellerCalculadoraPage() {
 
   if (calcAccess === "loading") {
     return (
-      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center pt-14">
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">Carregando calculadora...</p>
+      <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
+        <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
+          <FormRowsSkeleton rows={4} />
+          <FormRowsSkeleton rows={6} />
+        </div>
       </div>
     );
   }
@@ -1133,7 +1139,7 @@ export default function SellerCalculadoraPage() {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-6 pt-14">
         <div className="max-w-md text-center space-y-3">
-          <p className="text-red-600 dark:text-red-400 text-sm font-medium">
+          <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "text-sm font-medium")}>
             {accessError ?? "Seu acesso à calculadora expirou."}
           </p>
           <p className="text-xs text-neutral-600 dark:text-neutral-400">
@@ -2468,7 +2474,7 @@ export default function SellerCalculadoraPage() {
           </div>
         </div>
       </div>
-      <SellerNav active="calculadora" calcOnly={calcOnlyLite} wide={!calcOnlyLite} />
+      <SellerNav active="calculadora" calcOnly={calcOnlyLite} temGestoresIa={temGestoresIa} wide={!calcOnlyLite} />
     </div>
   );
 }

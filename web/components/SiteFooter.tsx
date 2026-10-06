@@ -67,12 +67,21 @@ const LINKS_UTEIS = [
  * `/seller/termos-de-uso`, que mantém o `SellerNav`) em vez da rota pública `/termos-de-uso`
  * — sem isso, clicar no link tirava o usuário logado do menu da própria área.
  */
+const SOBRE_TEXTO_PADRAO =
+  "DropCore é o hub B2B que conecta sellers e fornecedores num só lugar — catálogo, " +
+  "pedidos, estoque e financeiro integrados, com crédito, mensalidade e repasse " +
+  "automatizados. Menos planilha solta, mais operação sob controle.";
+
 export function SiteFooter({
   compactMobilePadding = false,
   areaPrefix = "",
+  sobreTexto = SOBRE_TEXTO_PADRAO,
 }: {
   compactMobilePadding?: boolean;
   areaPrefix?: "" | "/seller" | "/fornecedor" | "/admin";
+  /** Texto do bloco "Sobre o DropCore" — produto avulso (Calculadora/Gestor de IA) usa um
+   * texto próprio em vez do blurb do hub, que não faz sentido pra quem não é seller/fornecedor. */
+  sobreTexto?: string;
 }) {
   const ano = new Date().getFullYear();
   return (
@@ -86,9 +95,7 @@ export function SiteFooter({
           <div className="min-w-0 sm:max-w-xs">
             <p className="text-sm font-semibold text-neutral-900 dark:text-white">Sobre o DropCore</p>
             <p className="mt-2 text-[13px] leading-relaxed text-neutral-600 dark:text-white/85">
-              DropCore é o hub B2B que conecta sellers e fornecedores num só lugar — catálogo,
-              pedidos, estoque e financeiro integrados, com crédito, mensalidade e repasse
-              automatizados. Menos planilha solta, mais operação sob controle.
+              {sobreTexto}
             </p>
           </div>
           <div className="min-w-0 sm:shrink-0">

@@ -54,7 +54,7 @@ export async function GET(req: Request) {
 
     const { data: assin, error: assinErr } = await supabaseAdmin
       .from("calculadora_assinantes")
-      .select("id, valido_ate, ativo")
+      .select("id, valido_ate, ativo, inclui_gestores_ia")
       .eq("user_id", user_id)
       .maybeSingle();
 
@@ -112,7 +112,12 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json(
-      { access: "calc_only", valido_ate: assin.valido_ate, email },
+      {
+        access: "calc_only",
+        valido_ate: assin.valido_ate,
+        inclui_gestores_ia: assin.inclui_gestores_ia === true,
+        email,
+      },
       { headers: { "Cache-Control": "no-store, max-age=0" } },
     );
   } catch (e: unknown) {

@@ -26,6 +26,7 @@ export async function POST(req: Request) {
     const email_alvo = email_raw.trim().toLowerCase() || null;
     const validade_raw = Number(body?.validade_dias ?? 30);
     const validade_dias = Number.isFinite(validade_raw) && validade_raw > 0 && validade_raw <= 365 ? validade_raw : 30;
+    const inclui_gestores_ia = body?.inclui_gestores_ia === true;
 
     if (email_alvo && !email_alvo.includes("@")) {
       return NextResponse.json({ error: "E-mail inválido." }, { status: 400 });
@@ -34,8 +35,8 @@ export async function POST(req: Request) {
     const supabase = supabaseService();
     const { data, error } = await supabase
       .from("calculadora_invites")
-      .insert({ email_alvo, validade_dias })
-      .select("id, token, email_alvo, validade_dias, expira_em, usado, usado_em, criado_em")
+      .insert({ email_alvo, validade_dias, inclui_gestores_ia })
+      .select("id, token, email_alvo, validade_dias, expira_em, usado, usado_em, criado_em, inclui_gestores_ia")
       .maybeSingle();
 
     if (error || !data) {

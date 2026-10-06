@@ -21,10 +21,16 @@ export async function GET(req: Request) {
     await requireAdmin(req);
     const supabase = supabaseService();
 
-    const { data, error } = await supabase
+    const { searchParams } = new URL(req.url);
+    const soGestoresIa = searchParams.get("inclui_gestores_ia") === "true";
+
+    let query = supabase
       .from("calculadora_assinantes")
-      .select("id, user_id, valido_ate, ativo")
+      .select("id, user_id, valido_ate, ativo, inclui_gestores_ia")
       .order("valido_ate", { ascending: false });
+    if (soGestoresIa) query = query.eq("inclui_gestores_ia", true);
+
+    const { data, error } = await query;
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -67,6 +73,7 @@ export async function GET(req: Request) {
         email,
         valido_ate: a.valido_ate,
         ativo: a.ativo,
+        inclui_gestores_ia: a.inclui_gestores_ia === true,
         dias_restantes: diasRestantes,
         expirado,
       };

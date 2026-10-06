@@ -6,6 +6,7 @@ const LOGIN_PATHS = new Set([
   "/seller/login",
   "/fornecedor/login",
   "/calculadora/login",
+  "/gestores-ia/login",
 ]);
 
 export function isDropcoreLoginPath(pathname: string): boolean {
@@ -15,7 +16,7 @@ export function isDropcoreLoginPath(pathname: string): boolean {
 
 /** Cadastro/recuperação por portal (seller/fornecedor). */
 const PUBLIC_BY_SURFACE: Partial<Record<AppSurface, readonly string[]>> = {
-  seller: ["/seller/register", "/seller/reset-password", "/seller/calculadora"],
+  seller: ["/seller/register", "/seller/reset-password", "/seller/calculadora", "/seller/gestores-ia-avulso"],
   fornecedor: ["/fornecedor/register"],
 };
 

@@ -683,6 +683,124 @@ debitaria estoque real do catálogo da Djulios e dispararia webhook/notificaçã
 fornecedor, o que não pode acontecer aqui. Também não grava `financial_ledger` — o pedido
 fica visível pro fornecedor sem mexer no saldo fictício da Segatto.
 
+## Gestores de IA avulso (standalone, fora do hub) — reaberto 2026-10-04
+
+Produto novo: pacote "Calculadora + Gestores de IA" (R$797,90/mês, só por convite, mesmo
+fluxo de `calculadora_invites`) pra qualquer seller do Mercado Livre, **sem precisar virar
+seller/fornecedor do hub**. Calculadora sozinha continua existindo à parte (R$14,99/mês,
+`calculadora_assinantes.inclui_gestores_ia = false`).
+
+**Decisão de arquitetura (2026-10-04): isolamento total de `sellers`/`skus`/`pedidos`** —
+descartada a alternativa de dar um `sellers` row "fake" pro assinante avulso (seria mais
+rápido, reaproveitaria os gestores do hub quase sem mexer, mas o Sr Stark rejeitou
+explicitamente por risco de contaminar relatório/MRR do hub). Lógica de julgamento de cada
+gestor (prompt, scoring) é compartilhada com o hub; só a camada de busca/gravação de dado é
+100% separada, batendo direto na API do Mercado Livre (nunca em dado sincronizado do hub).
+
+**Gestores inclusos:** Andrey (Anúncios & SEO), Amanda (Reputação & Atendimento), Ulisses
+(Ads — assinante digita o próprio custo/taxa, sem `skus.custo_base`) e Tiago Silva (Gestor
+Mestre/chat). **Diogo fica de fora por enquanto** — depende de estoque/venda interna
+(Olist/Bling/fornecedor) que o assinante avulso não tem; entraria só com uma fonte
+alternativa via `available_quantity` do ML + agregação de `/orders/search`, mais trabalho e
+menos preciso — adiado de propósito, não esquecido.
+
+**Schema aplicado em 2026-10-04**
+(`web/scripts/create-calculadora-assinante-gestores-ia-avulso.sql`):
+- `calculadora_assinantes` ganhou `inclui_gestores_ia`, `gestores_custo_mes`,
+  `gestores_limite_mes` (começa em 120), `gestores_mes_ref`, `anthropic_api_key_encriptada`,
+  `anthropic_api_key_configurada_em`.
+- `calculadora_assinante_mercadolivre_integrations` (nova, deny-all) — conexão OAuth do ML
+  presa em `assinante_id`, nunca em `seller_id`.
+- `calculadora_assinante_ai_runs` (nova, deny-all) — resultado de cada rodada, `gestor in
+  ('anuncios_seo', 'reputacao_atendimento', 'ads', 'gestor_mestre')`.
+- `calculadora_recebimentos` ganhou `tipo` (`'renovacao'` | `'credito_extra_gestores'`) —
+  reaproveitada pro histórico de crédito extra em vez de criar tabela nova.
+
+**Orçamento de IA — mesmo padrão já provado no chat do Tiago Silva do hub:** R$120/mês
+(R$4/dia) bancado pela DropCore por padrão, reserva-e-concilia contra
+`gestores_custo_mes`/`gestores_limite_mes`. **BYOK opcional**: se o assinante configurar a
+própria chave Anthropic (`anthropic_api_key_encriptada`, criptografia AES-256-GCM própria —
+replicar `lib/sellerErpSecretBox.ts`, mas com chave de ambiente separada da do ERP, não
+reaproveitar a mesma por isolamento), o teto para de valer e o gasto sai 100% da chave dele,
+sem limite. Estourou o incluso sem BYOK → compra crédito extra via PIX (soma em
+`gestores_limite_mes`, grava em `calculadora_recebimentos` com
+`tipo='credito_extra_gestores'`), mesma UX de "comprar pacote extra" do hub.
+
+**Ainda não construído:** nenhum gestor-avulso em si (Andrey/Amanda/Ulisses/Tiago), tela de
+configurar BYOK, lógica de reserva-e-concilia, fluxo de compra de crédito extra. Ver memória
+de projeto "Gestores de IA avulso (standalone)" pro estado mais atualizado da
+decisão/construção.
+
+### Conexão Mercado Livre do assinante avulso — construído 2026-10-05, app próprio
+
+**App do Mercado Livre PRÓPRIO do avulso, não reaproveita o app do hub** (decisão explícita
+de segurança 2026-10-05: vazamento/abuso de um não afeta o outro, rate limit separado,
+escopo mínimo — esse app só pede leitura, o do hub tem leitura e escrita). Credenciais em
+`GESTORES_IA_AVULSO_MERCADOLIVRE_CLIENT_ID`/`GESTORES_IA_AVULSO_MERCADOLIVRE_CLIENT_SECRET`
+(ainda não configuradas no ambiente — aguardando o Sr Stark cadastrar o app no DevCenter).
+`redirect_uri` fixo: `/seller/gestores-ia-avulso/conectar-ml`.
+
+- `lib/mercadoLivreOAuthAvulso.ts` — cópia isolada de `mercadoLivreOAuth.ts` (não reaproveita
+  o arquivo do hub, mesmo princípio de isolamento), só muda as env vars e o redirect_uri.
+- `lib/calculadoraAssinanteSecretBox.ts` — criptografia AES-256-GCM do token ML (e, no
+  futuro, da chave BYOK Anthropic) do assinante avulso, com chave de ambiente PRÓPRIA
+  (`CALCULADORA_ASSINANTE_CREDENTIALS_KEY`, ainda não configurada) — nunca reaproveita
+  `SELLER_ERP_CREDENTIALS_KEY` do hub, nem a chave de criptografia é compartilhada.
+- `lib/calculadoraAssinanteSessionAuth.ts` (`getAssinanteFromToken`) — mesmo padrão de
+  `sellerSessionAuth.ts`, mas pra `calculadora_assinantes`.
+- `lib/mercadoLivreAvulsoToken.ts` (`getValidMercadoLivreAvulsoAccessToken`) — getter com
+  renovação automática, espelho de `getValidMercadoLivreAccessToken` do hub, lendo/gravando
+  só em `calculadora_assinante_mercadolivre_integrations`.
+- Rotas: `GET/POST /api/gestores-ia-avulso/mercadolivre/connect|oauth`,
+  `GET/DELETE /api/gestores-ia-avulso/mercadolivre` — espelho das rotas do hub
+  (`/api/seller/mercadolivre/*`), sempre na tabela do avulso.
+- `app/seller/gestores-ia-avulso/conectar-ml/page.tsx` — página de callback do OAuth (o
+  `redirect_uri` em si), troca o `code` e volta pro portal.
+- Portal (`/seller/gestores-ia-avulso`) já mostra o card real de "Conectar Mercado Livre" /
+  "Conectado, conta #id" + desconectar, no lugar do placeholder estático.
+
+**Bloqueado até o Sr Stark cadastrar o app no DevCenter e configurar as 2 env vars
+novas** (`GESTORES_IA_AVULSO_MERCADOLIVRE_CLIENT_ID/SECRET`) **+ uma 3ª
+(`CALCULADORA_ASSINANTE_CREDENTIALS_KEY`, qualquer string aleatória longa, igual o padrão da
+`SELLER_ERP_CREDENTIALS_KEY` do hub)** — sem isso o botão "Conectar" quebra com erro 503.
+Próximo passo real depois disso: o Andrey em si (lógica de análise, reaproveitando o prompt
+`PROMPT_ANUNCIOS_SEO`/`SCHEMA_ANUNCIOS_SEO` de `gestorAnunciosSeoDados.ts` — mesmo
+"julgamento", só a busca de dado muda pra ir direto na API do ML sem nenhuma tabela do hub).
+
+### Login/portal/convite — construído 2026-10-04
+
+**Login próprio, separado do da Calculadora** (decisão explícita: "não vamos usar o
+calculadora vamos criar GESTORES IA", mas mantendo a marca "DropCore" no cabeçalho, igual
+ao resto do sistema — confirmado visualmente):
+- `app/gestores-ia/login/page.tsx` — mesma lógica de auth de `app/calculadora/login/page.tsx`
+  (mesmo Supabase Auth, mesma checagem via `/api/calculadora/me`), só muda o título
+  ("Gestores de IA") e o destino pós-login (`/seller/gestores-ia-avulso`, não
+  `/seller/calculadora`). A `/calculadora/login` original continua 100% intocada.
+- `app/seller/gestores-ia-avulso/page.tsx` — portal do assinante do pacote. Hoje só
+  placeholder ("em construção") — nenhum gestor real ainda. Se `inclui_gestores_ia=false`
+  (assinante só da calculadora tentando entrar aqui), mostra aviso em vez do conteúdo.
+- `SellerNav.tsx` (`calcOnly` + novo prop `temGestoresIa`) ganhou a aba "Gestor de IA" ao
+  lado de "Calculadora" — reaproveita o mesmo nav mínimo que a calculadora avulsa já usava,
+  só acrescenta o link quando o assinante tem o pacote.
+- `middleware.ts`/`lib/portalPublicPaths.ts`: `/seller/gestores-ia-avulso` e
+  `/gestores-ia/login` seguem o mesmo padrão de exceção que `/seller/calculadora` e
+  `/calculadora/login` já tinham (controlado por `/api/calculadora/me`, não por cookie de
+  sessão no middleware).
+- `GET /api/calculadora/me` agora devolve `inclui_gestores_ia` também no `access: "calc_only"`.
+
+**Convite com o pacote completo, pelo admin — página PRÓPRIA, não dentro da calculadora:**
+`calculadora_invites` ganhou `inclui_gestores_ia boolean` (migration
+`calculadora_invites_inclui_gestores_ia`, 2026-10-04). Primeira versão colocou um checkbox
+dentro de `/admin/calculadora-convites` — Sr Stark pediu pra tirar de lá ("não quero que
+fique dentro de calculadora-convites, tem que ter uma própria"). Corrigido:
+`/admin/gestores-ia-convites` é uma página nova e separada (sempre manda
+`inclui_gestores_ia: true`, sem checkbox) — `/admin/calculadora-convites` voltou a ser só
+calculadora, sem nenhuma referência ao pacote. `GET /api/org/calculadora/assinantes` ganhou
+`?inclui_gestores_ia=true` pra cada página listar só os assinantes dela. O cadastro via
+convite grava em `calculadora_assinantes.inclui_gestores_ia` (nunca desliga se a conta já
+tinha — só liga) e redireciona pro portal certo (`/seller/gestores-ia-avulso` vs
+`/seller/calculadora`) conforme o pacote.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
