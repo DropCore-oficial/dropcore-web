@@ -15,11 +15,16 @@ export default function SellerLayout({ children }: { children: ReactNode }) {
   // Calculadora e Gestores de IA avulso (contas calc_only, sem seller/org no hub) não
   // passam pelos gates de portal/mensalidade/depósito — esses exigem uma linha em `sellers`
   // que esse tipo de conta nunca tem.
-  if (pathname.startsWith("/seller/calculadora") || pathname.startsWith("/seller/gestores-ia-avulso")) {
+  if (
+    pathname.startsWith("/seller/calculadora") ||
+    pathname.startsWith("/seller/gestores-ia-avulso") ||
+    pathname.startsWith("/seller/meus-dados")
+  ) {
     return (
       <>
         <AppVersionUpdateBanner surface="seller" requireAuth />
         {children}
+        <SellerLayoutWhatsAppSupportFab />
       </>
     );
   }

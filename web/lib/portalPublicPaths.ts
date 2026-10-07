@@ -16,7 +16,13 @@ export function isDropcoreLoginPath(pathname: string): boolean {
 
 /** Cadastro/recuperação por portal (seller/fornecedor). */
 const PUBLIC_BY_SURFACE: Partial<Record<AppSurface, readonly string[]>> = {
-  seller: ["/seller/register", "/seller/reset-password", "/seller/calculadora", "/seller/gestores-ia-avulso"],
+  seller: [
+    "/seller/register",
+    "/seller/reset-password",
+    "/seller/calculadora",
+    "/seller/gestores-ia-avulso",
+    "/seller/meus-dados",
+  ],
   fornecedor: ["/fornecedor/register"],
 };
 

@@ -50,12 +50,13 @@ function tempoRelativo(iso: string): string {
 
 /** "Seller" é chave técnica fixa pro personagem que representa o dono(a) da conta — o nome
  * exibido de verdade (sellers.nome_responsavel) é resolvido em runtime, ver `nomeExibicao`
- * dentro do componente. Laura e Tiago Silva (Gestor Mestre) saíram do escritório — nenhum
- * dos dois tem pipeline construído ainda; quando o Gestor Mestre for construído de verdade,
- * ele senta na mesa comum junto dos outros gestores de IA, não ganha sala isolada. */
-type NomeGestor = "Diogo" | "Andrey" | "Amanda" | "Ulisses" | "Seller";
+ * dentro do componente. Laura segue fora do escritório (Design & Criativo, pipeline ainda não
+ * construído). Tiago Silva (Gestor Mestre) ENTROU em 2026-10-07 — chat dele já está construído
+ * e no ar desde 2026-10-03 — senta na mesa comum junto dos outros gestores de IA, não ganha
+ * sala isolada (ocupa o lugar que estava reservado/vazio ao lado do Ulisses). */
+type NomeGestor = "Diogo" | "Andrey" | "Amanda" | "Ulisses" | "TiagoSilva" | "Seller";
 
-const NOMES_GESTOR: NomeGestor[] = ["Diogo", "Andrey", "Amanda", "Ulisses", "Seller"];
+const NOMES_GESTOR: NomeGestor[] = ["Diogo", "Andrey", "Amanda", "Ulisses", "TiagoSilva", "Seller"];
 
 const SUIT_NEUTRAL = "#374151";
 const SUIT_LIDER = "#022c22";
@@ -85,7 +86,7 @@ const GESTORES: Record<NomeGestor, GestorConfig> = {
     deskPos: [1.8, 0, 4.25],
     deskRot: 0,
     meetingPos: [-8.8, 0, -5.1],
-    meetingRot: 0,
+    meetingRot: Math.PI,
     shirtColor: 0xe6e6e6,
     hairColor: 0x3d2314,
     genero: "m",
@@ -97,7 +98,7 @@ const GESTORES: Record<NomeGestor, GestorConfig> = {
     deskPos: [4, 0, 4.25],
     deskRot: 0,
     meetingPos: [-6.2, 0, -5.1],
-    meetingRot: 0,
+    meetingRot: Math.PI,
     shirtColor: 0x2d5a88,
     hairColor: 0x1f140e,
     genero: "m",
@@ -109,7 +110,7 @@ const GESTORES: Record<NomeGestor, GestorConfig> = {
     deskPos: [6.2, 0, 4.25],
     deskRot: 0,
     meetingPos: [-8.8, 0, -7.9],
-    meetingRot: Math.PI,
+    meetingRot: 0,
     shirtColor: 0xe2e8f0,
     hairColor: 0x8d5524,
     genero: "f",
@@ -121,9 +122,25 @@ const GESTORES: Record<NomeGestor, GestorConfig> = {
     deskPos: [1.8, 0, 7.75],
     deskRot: Math.PI,
     meetingPos: [-6.2, 0, -7.9],
-    meetingRot: Math.PI,
+    meetingRot: 0,
     shirtColor: 0xffffff,
     hairColor: 0x4a2c11,
+    genero: "m",
+  },
+  TiagoSilva: {
+    funcao: "Gestor Mestre",
+    icone: "🧠",
+    corDot: SUIT_NEUTRAL,
+    // Ocupa o lugar que era só a cadeira vazia `cadeiraVaga` (x=6.2 na mesa comum, ao lado
+    // do Ulisses) — removida do cenário estático agora que tem gestor de verdade sentando.
+    deskPos: [6.2, 0, 7.75],
+    deskRot: Math.PI,
+    // Centro da fileira norte da mesa de reunião, entre Amanda (-8.8) e Ulisses (-6.2) —
+    // mesmo espaçamento de 1.3 já validado, espelhando o Seller no centro da fileira sul.
+    meetingPos: [-7.5, 0, -7.9],
+    meetingRot: 0,
+    shirtColor: 0x1f2937,
+    hairColor: 0x2b1d0f,
     genero: "m",
   },
   Seller: {
@@ -132,8 +149,13 @@ const GESTORES: Record<NomeGestor, GestorConfig> = {
     corDot: SUIT_LIDER,
     deskPos: [-7, 0, 8.75],
     deskRot: Math.PI,
-    meetingPos: [-10.2, 0, -6.5],
-    meetingRot: -Math.PI / 2,
+    // Era [-10.2,0,-6.5] (ponta oeste da mesa) — corrigido 2026-10-07: essa ponta só tem
+    // 0,19 unidade de sobra até a parede de vidro (mesa de 6.5 larga quase encosta nas duas
+    // paredes de 0,5 cada, dentro de um vão de só 6,88), sem espaço de verdade pra sentar —
+    // por isso "dentro da parede". Lugar novo: centro da fileira sul, entre Diogo e Andrey
+    // (mesmo espaçamento de 1.3 que já funciona pros dois).
+    meetingPos: [-7.5, 0, -5.1],
+    meetingRot: Math.PI,
     shirtColor: 0xf5f5f2,
     hairColor: 0x221810,
     jacketColor: 0x141b2e,
@@ -779,6 +801,7 @@ export function SellerGestoresIaEscritorio3D({
     Andrey: "Andrey",
     Amanda: "Amanda",
     Ulisses: "Ulisses",
+    TiagoSilva: "Tiago Silva",
     Seller: nomeResponsavel?.trim() || "Você",
   };
 
@@ -952,11 +975,6 @@ export function SellerGestoresIaEscritorio3D({
       teamTable.add(criarMonitorGrande(mats, sx, "B"));
     });
 
-    const cadeiraVaga = criarCadeira(mats);
-    cadeiraVaga.position.set(4 + TEAM_SEAT_X[2], 0, 7.75);
-    cadeiraVaga.rotation.y = Math.PI;
-    office.add(cadeiraVaga);
-
     // Lugar vago onde a Laura sentava (Design & Criativo saiu do escritório, não construída)
     const cadeiraVagaLaura = criarCadeira(mats);
     cadeiraVagaLaura.position.set(4, 0, 7.75);
@@ -1118,20 +1136,71 @@ export function SellerGestoresIaEscritorio3D({
       new TWEEN.Tween(controls.target).to(alvoOlhar, 1200).easing(TWEEN.Easing.Cubic.InOut).start();
     }
 
+    // Reunião automática todo dia 09:00–09:30 (horário real de Brasília, mesma fonte que o
+    // relógio de parede já usa) — pedido do Sr Stark 2026-10-07: tirar o botão manual
+    // "Reunião ao Vivo" e colocar todo mundo (os 4 gestores + o Seller/dono da conta, que já
+    // tinha meetingPos definido) reunidos sozinho nesse horário, sem precisar clicar nada.
+    function horaBrasilia(): { h: number; m: number } {
+      const partes = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Sao_Paulo",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).formatToParts(new Date());
+      const h = Number(partes.find((p) => p.type === "hour")?.value ?? "0") % 24;
+      const min = Number(partes.find((p) => p.type === "minute")?.value ?? "0");
+      return { h, m: min };
+    }
+    function estaNoHorarioDaReuniao(): boolean {
+      const { h, m } = horaBrasilia();
+      const minutosDoDia = h * 60 + m;
+      return minutosDoDia >= 9 * 60 && minutosDoDia < 9 * 60 + 30; // 09:00–09:29
+    }
+    function checarReuniaoAutomatica() {
+      const modoDesejado: "individual" | "reuniao" = estaNoHorarioDaReuniao() ? "reuniao" : "individual";
+      if (modoAtual !== modoDesejado) aplicarModo(modoDesejado);
+    }
+    checarReuniaoAutomatica();
+    const reuniaoIntervalId = window.setInterval(checarReuniaoAutomatica, 15000);
+
     // Passeio espontâneo: de vez em quando um gestor levanta, anda até o bebedouro (bebe
-    // água) ou até o sofá da sala de estar (senta um pouco) e volta pra mesa sozinho. Anima
-    // só `personagem` (corpo), não `grupo` (mesa/cadeira ficam paradas no lugar) — por isso
-    // converte o ponto de destino (coordenada do mundo) pro espaço local de `grupo` antes de
-    // animar, e por isso também não briga com o TWEEN de "modo mesa/reunião" acima, que só
-    // mexe em `grupo`.
-    const PONTOS_PASSEIO: { mundo: THREE.Vector3; rotMundo: number; pausaMs: number }[] = [
-      { mundo: new THREE.Vector3(10.15, 0, -8), rotMundo: Math.PI / 2, pausaMs: 3200 }, // bebedouro
-      { mundo: new THREE.Vector3(4, 0, -4.7), rotMundo: Math.PI, pausaMs: 7000 }, // sofá da sala de estar
+    // água) ou até um lugar vago no sofá da sala de estar (senta um pouco) e volta pra mesa
+    // sozinho. Anima só `personagem` (corpo), não `grupo` (mesa/cadeira ficam paradas no
+    // lugar) — por isso converte o ponto de destino (coordenada do mundo) pro espaço local de
+    // `grupo` antes de animar, e por isso também não briga com o TWEEN de "modo mesa/reunião"
+    // acima, que só mexe em `grupo`.
+    //
+    // Bug corrigido 2026-10-07 (achado ao vivo pelo Sr Stark: "eles entram dentro deles mesmo
+    // quando vai no sofá"): existia só 1 ponto de mundo pro sofá inteiro — todo gestor que
+    // sorteava "sofá" andava pro mesmo pixel exato, então 2+ gestores no sofá ao mesmo tempo
+    // ficavam sobrepostos. O sofá de `criarSalaEstar(mats, 4.2)` tem 4 lugares de verdade
+    // (`numAssentos = round(4.2/1.05) = 4`, centros em cz ±0.525/±1.575 no espaço local do
+    // assento — ver `criarAssentoEstofado`), rotacionado +90° e deslocado (0,0,1.3) dentro do
+    // grupo `criarSalaEstar`, que por sua vez fica em (4,0,-6.5) escala 1.4 no mundo. Rotação
+    // Y de 90° mapeia (x=0, z=cz) local do assento pra (cz, 0) relativo ao grupo da sala —
+    // dá os 4 pontos abaixo (`SOFA_SEATS_X`), calculados da geometria real, não chutados.
+    const SOFA_SEATS_X = [-1.575, -0.525, 0.525, 1.575].map((cz) => 4 + 1.4 * cz);
+    const SOFA_Z = -6.5 + 1.4 * 1.3;
+    type PontoPasseio = { id: string; mundo: THREE.Vector3; rotMundo: number; pausaMs: number };
+    const PONTOS_PASSEIO: PontoPasseio[] = [
+      { id: "bebedouro", mundo: new THREE.Vector3(10.15, 0, -8), rotMundo: Math.PI / 2, pausaMs: 3200 },
+      ...SOFA_SEATS_X.map((x, i) => ({
+        id: `sofa-${i}`,
+        mundo: new THREE.Vector3(x, 0, SOFA_Z),
+        rotMundo: Math.PI,
+        pausaMs: 7000,
+      })),
     ];
+    // Reserva de lugar — nunca dois gestores miram o mesmo ponto ao mesmo tempo (sofá tem 4
+    // lugares, mas o bebedouro só tem 1; sem essa reserva o bebedouro teria o mesmo bug).
+    const destinosOcupados = new Set<string>();
     const timeoutsPasseio: number[] = [];
 
     function agendarProximaViagem(nome: NomeGestor) {
-      const esperaMs = 18000 + Math.random() * 25000; // 18–43s — espontâneo, sem padrão fixo
+      // 4–10min — antes era 18–43s (pedido do Sr Stark 2026-10-07: "n precisa ir toda hora
+      // beber água e sentar no sofá"); com 4 gestores sorteando independente, 18–43s
+      // resultava em alguém passeando quase sem parar.
+      const esperaMs = 240000 + Math.random() * 360000;
       timeoutsPasseio.push(
         window.setTimeout(() => {
           const anim = agentAnim[nome];
@@ -1146,34 +1215,64 @@ export function SellerGestoresIaEscritorio3D({
     }
 
     function iniciarViagem(nome: NomeGestor, grupo: THREE.Group, anim: AgentAnim) {
-      const destino = PONTOS_PASSEIO[Math.floor(Math.random() * PONTOS_PASSEIO.length)];
+      const livres = PONTOS_PASSEIO.filter((p) => !destinosOcupados.has(p.id));
+      if (livres.length === 0) {
+        // Todo lugar ocupado agora — tenta de novo na próxima janela em vez de forçar
+        // sobreposição.
+        agendarProximaViagem(nome);
+        return;
+      }
+      const destino = livres[Math.floor(Math.random() * livres.length)];
+      destinosOcupados.add(destino.id);
       anim.emViagem = true;
       grupo.updateMatrixWorld();
       const alvoLocal = grupo.worldToLocal(destino.mundo.clone());
       const rotLocalAlvo = destino.rotMundo - grupo.rotation.y;
       const distancia = Math.hypot(alvoLocal.x, alvoLocal.z);
       const duracaoTrecho = Math.max(1400, distancia * 550);
+      // "Frente" do personagem é +Z local (ver `criarAssentoEstofado`/nariz em criarAgente) —
+      // atan2(dx, dz) dá o ângulo que aponta pra essa direção. Achado 2026-10-07 (Sr Stark:
+      // "eles estão andando de costas"): a rotação durante a caminhada ia direto pro ângulo
+      // de SENTAR (`rotLocalAlvo`), não pro ângulo de ANDAR — por isso o corpo ficava de
+      // costas (ou de lado) pro destino durante o trajeto inteiro, só virando certo no fim.
+      const anguloIda = Math.atan2(alvoLocal.x, alvoLocal.z);
+      const duracaoGiro = Math.min(600, duracaoTrecho);
 
       new TWEEN.Tween(anim.personagem.position)
         .to({ x: alvoLocal.x, y: 0, z: alvoLocal.z }, duracaoTrecho)
         .easing(TWEEN.Easing.Quadratic.InOut)
         .start();
+      // Vira pra direção de quem tá andando primeiro...
       new TWEEN.Tween(anim.personagem.rotation)
-        .to({ y: rotLocalAlvo }, Math.min(700, duracaoTrecho))
+        .to({ y: anguloIda }, duracaoGiro)
         .easing(TWEEN.Easing.Quadratic.Out)
+        .start();
+      // ...e só perto da chegada vira pra posição final de sentar (encostado no sofá/poltrona).
+      new TWEEN.Tween(anim.personagem.rotation)
+        .to({ y: rotLocalAlvo }, duracaoGiro)
+        .delay(Math.max(0, duracaoTrecho - duracaoGiro))
+        .easing(TWEEN.Easing.Quadratic.In)
         .start();
 
       timeoutsPasseio.push(
         window.setTimeout(() => {
           timeoutsPasseio.push(
             window.setTimeout(() => {
+              destinosOcupados.delete(destino.id); // libera o lugar assim que levanta pra voltar
+              const anguloVolta = Math.atan2(-alvoLocal.x, -alvoLocal.z);
               new TWEEN.Tween(anim.personagem.position)
                 .to({ x: 0, y: 0, z: 0 }, duracaoTrecho)
                 .easing(TWEEN.Easing.Quadratic.InOut)
                 .start();
+              // Levanta e vira pra direção da mesa primeiro...
               new TWEEN.Tween(anim.personagem.rotation)
-                .to({ y: 0 }, Math.min(700, duracaoTrecho))
-                .delay(Math.max(0, duracaoTrecho - 700))
+                .to({ y: anguloVolta }, duracaoGiro)
+                .easing(TWEEN.Easing.Quadratic.Out)
+                .start();
+              // ...e só perto de chegar volta pra postura padrão (de frente pro computador).
+              new TWEEN.Tween(anim.personagem.rotation)
+                .to({ y: 0 }, duracaoGiro)
+                .delay(Math.max(0, duracaoTrecho - duracaoGiro))
                 .easing(TWEEN.Easing.Quadratic.In)
                 .start();
 
@@ -1279,10 +1378,12 @@ export function SellerGestoresIaEscritorio3D({
         const anim = agentAnim[nome];
         if (anim) {
           if (anim.emViagem) {
-            // Andando até o bebedouro/sofá: o TWEEN de iniciarViagem já controla
-            // position/rotation do personagem — só soma um leve "solavanco de passo" em cima,
-            // sem sobrescrever o destino que o TWEEN calculou.
-            anim.personagem.position.y += Math.abs(Math.sin(tIdle * 9 + anim.fase)) * 0.06;
+            // Andando até o bebedouro/sofá: o TWEEN de iniciarViagem já controla x/z (e crava
+            // y em 0 como destino) — aqui só aplica o "solavanco de passo" em cima disso.
+            // BUG CORRIGIDO 2026-10-06: era `+=` em vez de `=` — como Math.abs(seno) nunca é
+            // negativo, a cada frame (60x/s) somava um valor >= 0 sem nunca descer, fazendo o
+            // personagem subir pra sempre enquanto durasse a viagem ("flutuando" na tela).
+            anim.personagem.position.y = Math.abs(Math.sin(tIdle * 9 + anim.fase)) * 0.06;
           } else {
             // "Digitando": mãos alternam batida rápida (uma sobe enquanto a outra desce, como
             // teclando de verdade) — fase própria por gestor pra não ficarem sincronizados.
@@ -1327,6 +1428,7 @@ export function SellerGestoresIaEscritorio3D({
     return () => {
       cancelAnimationFrame(animId);
       window.clearInterval(clockIntervalId);
+      window.clearInterval(reuniaoIntervalId);
       timeoutsPasseio.forEach((id) => window.clearTimeout(id));
       resizeObserver.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
@@ -1342,12 +1444,6 @@ export function SellerGestoresIaEscritorio3D({
 
   function focarPeloHud(nome: NomeGestor) {
     apiRef.current?.focar(nome);
-  }
-  function modoIndividualPeloHud() {
-    apiRef.current?.setModo("individual");
-  }
-  function modoReuniaoPeloHud() {
-    apiRef.current?.setModo("reuniao");
   }
   function visaoGeralPeloHud() {
     apiRef.current?.resetarVisaoGeral();
@@ -1405,28 +1501,13 @@ export function SellerGestoresIaEscritorio3D({
             ))}
           </div>
 
-          <div className="pointer-events-auto absolute left-1/2 top-2 flex -translate-x-1/2 gap-1 rounded-full bg-neutral-900/85 p-1 shadow-lg backdrop-blur">
-            <button
-              type="button"
-              onClick={modoIndividualPeloHud}
-              className={cn(
-                "rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors sm:px-3 sm:text-[11px]",
-                modo === "individual" ? "bg-emerald-500 text-white" : "text-neutral-300 hover:text-white"
-              )}
-            >
-              Modo Individual
-            </button>
-            <button
-              type="button"
-              onClick={modoReuniaoPeloHud}
-              className={cn(
-                "rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors sm:px-3 sm:text-[11px]",
-                modo === "reuniao" ? "bg-emerald-500 text-white" : "text-neutral-300 hover:text-white"
-              )}
-            >
-              Reunião ao Vivo
-            </button>
-          </div>
+          {/* Reunião é automática (09:00–09:30, horário de Brasília) — sem botão manual,
+          só um indicador de status (não clicável) quando está acontecendo agora. */}
+          {modo === "reuniao" ? (
+            <div className="pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-semibold text-white shadow-lg sm:text-[11px]">
+              Reunião ao vivo — 09:00
+            </div>
+          ) : null}
 
           <div className="pointer-events-auto absolute bottom-2 left-1/2 flex max-w-[92%] -translate-x-1/2 gap-1 overflow-x-auto rounded-full bg-neutral-900/85 p-1 shadow-lg backdrop-blur">
             {NOMES_FOCO.map((nome) => (

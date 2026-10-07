@@ -94,6 +94,16 @@ export function calcularCustoReaisSonnetSemDesconto(inputTokens: number, outputT
   return custoReaisPorPreco({ input_tokens: inputTokens, output_tokens: outputTokens }, PRECO_SONNET_5);
 }
 
+/** Preço oficial da ferramenta `web_search` da Anthropic: US$10 por 1.000 buscas, cobrado
+ * separado dos tokens (o conteúdo do resultado da busca entra como input_tokens normal,
+ * já coberto por `calcularCustoReaisSonnetSemDesconto` — isso aqui é só a taxa da busca em
+ * si). Usado pela primeira vez em "Ideias pra anúncio novo" (Andrey avulso, 2026-10-07). */
+const USD_POR_MIL_BUSCAS_WEB = 10;
+
+export function calcularCustoReaisWebSearch(numeroDeBuscas: number): number {
+  return usdParaReais((numeroDeBuscas / 1000) * USD_POR_MIL_BUSCAS_WEB);
+}
+
 /**
  * Estimativa ANTES de chamar a Anthropic, só pra reservar orçamento com folga (nunca é o
  * valor cobrado de verdade — isso vem de `calcularCustoReais` depois, na conciliação).

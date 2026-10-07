@@ -408,15 +408,36 @@ export async function mlBuscarPedidoItemPrincipal(
 export type MercadoLivreAtributoCategoria = {
   id: string;
   name: string;
-  /** 1 = característica principal, 2 = secundária (confirmado testando a API — não é doc oficial). */
+  /** 1 = característica principal, 2 = secundária (confirmado testando a API — não é doc
+   * oficial). Achado ao vivo 2026-10-06: `relevance` SOZINHA não distingue característica de
+   * busca de metadado técnico (campo tipo SIZE_GRID_ID/PACKAGE_WEIGHT/VERTICAL_TAGS também
+   * vem com relevance 1 ou 2) — quem distingue de verdade é `hidden` abaixo. */
   relevance: number;
   required: boolean;
+  /** `tags.hidden` da API — true pra atributo técnico/interno do ML (peso de embalagem, ID
+   * de guia de tamanhos, tags de sistema, "com provador virtual" etc.), nunca pensado como
+   * palavra-chave de busca pro comprador. Confirmado ao vivo 2026-10-06 comparando atributo
+   * por atributo (ver docs/SCHEMA.md) — BRAND/GENDER (reais) não têm essa tag; os técnicos
+   * sempre têm. Usar isso, nunca `relevance`, pra filtrar o que conta como "ficha técnica
+   * visível"/palavra-chave de verdade. */
+  hidden: boolean;
   /** "list" = só aceita valor de `valoresPermitidos` (testado ao vivo: texto livre resolve certo quando
    * bate com uma opção, mas não testamos o que acontece quando não bate — mais seguro forçar escolha
-   * dentre as opções reais). Outros tipos (ex. "string") aceitam texto livre. */
+   * dentre as opções reais). Outros tipos (ex. "string") aceitam texto livre. "grid_id"/"grid_row_id" são
+   * referência a guia de tamanhos (ID técnico, não característica) — mesmo sem `hidden: true` em todo caso
+   * (SIZE_GRID_ID não leva a tag), também tem que ser tratado como não-palavra-chave. */
   valueType: string;
   /** Nomes das opções válidas — só populado quando valueType === "list". */
   valoresPermitidos: string[];
+  /** `tags.multivalued` da API — true pra atributo que aceita MAIS DE UM valor ao mesmo
+   * tempo (ex.: Ocasiões, Estilos, no vestuário — o próprio ML mostra como checkbox de
+   * múltipla escolha, não um select único). Sem esse flag, qualquer código que só aceite
+   * um valor por atributo (ex.: sugestão de característica) trata esses campos errado. */
+  multivalued: boolean;
+  /** `value_max_length` da API — limite real de caracteres pro valor desse atributo (ex.: 255
+   * pra MODEL na maioria das categorias). null quando o ML não informa um limite pra esse
+   * atributo. Usar esse número real em vez de chutar um teto arbitrário no schema de IA. */
+  valorMaxLength: number | null;
 };
 
 /** Endpoint público (não precisa token), mas reaproveita o mesmo client por consistência.
@@ -431,8 +452,9 @@ export async function mlBuscarAtributosCategoria(
       id: string;
       name: string;
       relevance?: number;
-      tags?: { required?: boolean };
+      tags?: { required?: boolean; hidden?: boolean; multivalued?: boolean };
       value_type?: string;
+      value_max_length?: number;
       values?: { name: string }[];
     }>
   >(`/categories/${categoryId}/attributes`, ctx.accessToken);
@@ -440,9 +462,12 @@ export async function mlBuscarAtributosCategoria(
     id: a.id,
     name: a.name,
     relevance: a.relevance ?? 2,
+    valorMaxLength: a.value_max_length ?? null,
     required: Boolean(a.tags?.required),
+    hidden: Boolean(a.tags?.hidden),
     valueType: a.value_type ?? "string",
     valoresPermitidos: a.value_type === "list" ? (a.values ?? []).map((v) => v.name) : [],
+    multivalued: Boolean(a.tags?.multivalued),
   }));
 }
 
@@ -461,6 +486,17 @@ export async function mlSugerirCategoria(
     ctx.accessToken
   );
   return (json ?? []).map((s) => ({ categoryId: s.category_id, categoryName: s.category_name }));
+}
+
+/** Caminho completo da categoria (ex.: "Calçados, Roupas e Bolsas > Roupas Masculinas > " +
+ * "Camisas") — achado ao vivo 2026-10-07: `domain_discovery/search` pode devolver duas ou
+ * mais categorias com o MESMO nome curto (ex.: "Camisas" dentro de Masculino e dentro de
+ * Feminino), impossível de diferenciar só pelo `category_name` isolado. Usar isso pra
+ * mostrar o caminho inteiro em qualquer lista de categorias sugeridas pro usuário escolher. */
+export async function mlBuscarCaminhoCategoria(categoryId: string, ctx: MercadoLivreAuthContext): Promise<string> {
+  const json = await mlGet<{ path_from_root?: { name: string }[] }>(`/categories/${categoryId}`, ctx.accessToken);
+  const caminho = json?.path_from_root?.map((p) => p.name) ?? [];
+  return caminho.length > 0 ? caminho.join(" > ") : categoryId;
 }
 
 /** Menor lado (largura ou altura) da maior resolução disponível da foto (`max_size`,

@@ -716,20 +716,57 @@ menos preciso — adiado de propósito, não esquecido.
 - `calculadora_recebimentos` ganhou `tipo` (`'renovacao'` | `'credito_extra_gestores'`) —
   reaproveitada pro histórico de crédito extra em vez de criar tabela nova.
 
-**Orçamento de IA — mesmo padrão já provado no chat do Tiago Silva do hub:** R$120/mês
-(R$4/dia) bancado pela DropCore por padrão, reserva-e-concilia contra
-`gestores_custo_mes`/`gestores_limite_mes`. **BYOK opcional**: se o assinante configurar a
-própria chave Anthropic (`anthropic_api_key_encriptada`, criptografia AES-256-GCM própria —
-replicar `lib/sellerErpSecretBox.ts`, mas com chave de ambiente separada da do ERP, não
-reaproveitar a mesma por isolamento), o teto para de valer e o gasto sai 100% da chave dele,
-sem limite. Estourou o incluso sem BYOK → compra crédito extra via PIX (soma em
-`gestores_limite_mes`, grava em `calculadora_recebimentos` com
-`tipo='credito_extra_gestores'`), mesma UX de "comprar pacote extra" do hub.
+**Orçamento de IA — corrigido 2026-10-06 pra bater 1:1 com o padrão do chat do Tiago Silva
+do hub:** teto é **diário** (R$4 = R$120/30, `TETO_AVULSO_REAIS_DIA` em
+`lib/ai/gestorAvulsoOrcamento.ts`, reaproveita `TETO_CHAT_TIAGO_REAIS_DIA` do hub como fonte
+única do número), não mensal acumulado — bloqueia quando o gasto real de hoje atinge o teto,
+libera de novo à meia-noite (BRT). Calculado por **agregação read-only** a partir de
+`calculadora_assinante_ai_runs.tokens_input`/`tokens_output` (colunas adicionadas em
+`web/scripts/add-tokens-calculadora-assinante-ai-runs.sql`) desde a meia-noite BRT — sem
+acumulador separado, sem risco de drift. Compartilhado entre **todos** os gestores avulso
+(hoje só o Andrey; Amanda/Ulisses/Tiago entram no mesmo pote quando forem construídos),
+igual o hub compartilha entre chat + os 4 gestores diários. Primeira versão (mensal, via
+`gestores_custo_mes`/`gestores_limite_mes`) ficou sem uso — colunas continuam na tabela
+(sem necessidade de dropar), mas o código não escreve mais nelas.
 
-**Ainda não construído:** nenhum gestor-avulso em si (Andrey/Amanda/Ulisses/Tiago), tela de
-configurar BYOK, lógica de reserva-e-concilia, fluxo de compra de crédito extra. Ver memória
-de projeto "Gestores de IA avulso (standalone)" pro estado mais atualizado da
-decisão/construção.
+**BYOK opcional**: se o assinante configurar a própria chave Anthropic
+(`anthropic_api_key_encriptada`, criptografia AES-256-GCM própria — replicar
+`lib/sellerErpSecretBox.ts`, mas com chave de ambiente separada da do ERP, não reaproveitar a
+mesma por isolamento), o teto diário não vale e a rodada não grava tokens (não é custo do
+DropCore) — gasto sai 100% da chave dele, sem limite.
+
+**`web_search_requests` (2026-10-07, `web/scripts/add-web-search-requests-calculadora-assinante-ai-runs.sql`)**:
+coluna nova em `calculadora_assinante_ai_runs` — "Ideias pra anúncio novo" (Andrey avulso)
+ganhou a ferramenta `web_search` nativa da Anthropic (pesquisa real antes de sugerir
+título/modelo/ocasiões/estilos, em vez de só vocabulário técnico do ML/conhecimento de
+treino). Busca web é cobrada **separado** dos tokens (US$10/1.000 buscas,
+`calcularCustoReaisWebSearch` em `lib/ai/gestorTiagoChatCusto.ts`) — `gastoAvulsoHojeReais`
+soma esse custo junto com tokens pra bater o orçamento diário real. Contagem real vem de
+`message.usage.server_tool_use.web_search_requests` (nunca estimada). BYOK grava `null`
+igual tokens (gasto não é do DropCore).
+
+**Ainda não construído:** Amanda/Ulisses/Tiago avulso, tela de configurar BYOK, fluxo de
+compra de crédito extra (o diário que estourou só libera de novo à meia-noite, sem opção de
+pagar pra liberar mais cedo ainda). Ver memória de projeto "Gestores de IA avulso
+(standalone)" pro estado mais atualizado da decisão/construção.
+
+**Cron diário do Andrey avulso (2026-10-07, `web/scripts/add-cron-gestores-ia-avulso-andrey.sql`)**:
+antes dessa data o diagnóstico principal do Andrey avulso só rodava via clique manual
+("Rodar de novo agora") — nenhum cron cobria `calculadora_assinantes` (os crons
+`gestores-ia-submeter`/`gestores-ia-resultado` existentes são só do hub, filtrados "por
+seller"). Job `gestores-ia-avulso-andrey` (`cron.schedule`, `0 8 * * *` = 05:00 BRT) chama
+`/api/cron/gestores-ia-avulso-andrey`, que itera todo assinante com `inclui_gestores_ia=true`
++ ML conectado e roda `rodarAndreyAvulsoParaAssinante` (síncrono, sem Batch API — extraída
+de `app/api/gestores-ia-avulso/andrey/rodar/route.ts` pra `lib/ai/gestorAvulsoAndreyRodar.ts`,
+reaproveitada pelo botão manual E pelo cron, mesmo cooldown de 6h e mesmo orçamento diário
+pros dois caminhos). Erro de um assinante não trava os demais (try/catch por item).
+
+**Andrey construído 2026-10-06** — `lib/ai/gestorAnunciosSeoDadosAvulso.ts` (dado via API do
+ML, mesma lógica de julgamento do hub, `tabelaMedidasFaltando` sempre `false` por não ter
+`produto_tabela_medidas`), rota síncrona `app/api/gestores-ia-avulso/andrey/rodar` (cooldown
+6h, sem Batch API), tela `/seller/gestores-ia-avulso/andrey`. V1 é só diagnóstico — sem botão
+de aplicar título/descrição/característica direto no Mercado Livre (assinante copia e cola
+manual), fora de escopo por enquanto.
 
 ### Conexão Mercado Livre do assinante avulso — construído 2026-10-05, app próprio
 

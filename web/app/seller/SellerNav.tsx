@@ -11,8 +11,6 @@ import { buildSellerSupportWhatsAppHref, getSellerSupportWhatsAppPrefill } from 
 import { useGestoresIaPermitido } from "@/lib/ai/useGestoresIaPermitido";
 
 const activeClass = "text-emerald-600 dark:text-emerald-400 border-emerald-500";
-const inactiveDesktop =
-  "text-[var(--muted)] hover:text-[var(--foreground)] border-transparent hover:bg-[var(--surface-hover)]";
 const inactiveMobile =
   "text-[var(--muted)] active:text-[var(--foreground)] border-transparent active:bg-[var(--surface-hover)]";
 
@@ -268,14 +266,13 @@ export function SellerNav({
   }, [mobileMaisOpen]);
 
   // Desktop virou rail lateral fixo — reserva o espaço à esquerda do conteúdo via CSS global
-  // (html[data-seller-sidebar], ver globals.css). Não se aplica ao modo calcOnly (topo+baixo).
+  // (html[data-seller-sidebar], ver globals.css). Vale pros dois modos (hub e calcOnly).
   useEffect(() => {
-    if (calcOnly) return;
     document.documentElement.setAttribute("data-seller-sidebar", "1");
     return () => {
       document.documentElement.removeAttribute("data-seller-sidebar");
     };
-  }, [calcOnly]);
+  }, []);
 
   async function sair() {
     await supabaseBrowser.auth.signOut();
@@ -286,11 +283,6 @@ export function SellerNav({
     await supabaseBrowser.auth.signOut();
     router.replace("/calculadora/login");
   }
-
-  const linkClass = (key: NavKey) =>
-    `flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-b-2 -mb-px relative ${
-      active === key ? activeClass + " hover:bg-emerald-100 dark:hover:bg-emerald-900" : inactiveDesktop
-    }`;
 
   const mobileLinkClass = (key: NavKey) =>
     `flex min-w-0 flex-1 flex-row items-center justify-center gap-1 overflow-hidden px-0.5 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ${
@@ -305,53 +297,108 @@ export function SellerNav({
       : inactiveMobile + (mobileMaisOpen ? " bg-[var(--surface-hover)]" : ""));
 
   if (calcOnly) {
+    const homeHref = temGestoresIa ? "/seller/gestores-ia-avulso" : "/seller/calculadora";
+    const calcMaisActive = active === "integracoes" || active === "cadastro";
+    const calcMaisBtnClass =
+      `flex min-w-0 flex-1 flex-row items-center justify-center gap-1 overflow-hidden px-0.5 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ` +
+      (calcMaisActive
+        ? activeClass + " bg-emerald-100 dark:bg-emerald-900"
+        : inactiveMobile + (mobileMaisOpen ? " bg-[var(--surface-hover)]" : ""));
+
     return (
       <>
         <MobileAppBar
-          logoHref="/seller/calculadora"
+          logoHref={homeHref}
           end={<AppBarEndMobileAuth context="seller" onLogout={sairCalculadoraNav} logoutLabel="Sair" />}
         />
-        <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
-          <div className="max-w-6xl mx-auto flex w-full min-w-0 items-center justify-between gap-4 px-4 sm:px-6">
-            <div className="flex min-w-0 items-center gap-6 sm:gap-8">
-              <DropCoreLogo variant="horizontal" href="/seller/calculadora" className="shrink-0" />
-              <div className="flex shrink-0 items-center gap-0.5">
-                <Link href="/seller/calculadora" className={linkClass("calculadora")}>
-                  <IconCalculator active={active === "calculadora"} />
-                  Calculadora
-                </Link>
-                {temGestoresIa && (
-                  <Link href="/seller/gestores-ia-avulso" className={linkClass("gestores_ia")}>
-                    <IconSparkles active={active === "gestores_ia"} />
-                    Gestor de IA
-                  </Link>
-                )}
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <a
-                href={supportHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Suporte no WhatsApp"
-                title="Suporte no WhatsApp"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+        <header className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
+          <div className="flex w-full min-w-0 items-center justify-between gap-3 px-4 sm:px-6">
+            <DropCoreLogo variant="horizontal" href={homeHref} className="shrink-0" />
+            <AppBarEndDesktopAuth context="seller" onLogout={sairCalculadoraNav} iconVariant="plain" />
+          </div>
+        </header>
+
+        <nav
+          aria-label="Navegação do assinante"
+          className="hidden md:flex fixed left-0 top-14 bottom-0 z-40 w-16 flex-col items-center gap-1 border-r border-[var(--card-border)] bg-[var(--background)] py-3 text-[var(--foreground)]"
+        >
+          {temGestoresIa && (
+            <SellerNavRailItem href="/seller/gestores-ia-avulso" label="Gestor de IA" isActive={active === "gestores_ia"}>
+              <IconSparkles active={active === "gestores_ia"} />
+            </SellerNavRailItem>
+          )}
+          <SellerNavRailItem href="/seller/calculadora" label="Calculadora" isActive={active === "calculadora"}>
+            <IconCalculator active={active === "calculadora"} />
+          </SellerNavRailItem>
+          {temGestoresIa && (
+            <>
+              <div className="my-1 h-px w-6 shrink-0 bg-[var(--card-border)]" aria-hidden />
+              <SellerNavRailItem
+                href="/seller/gestores-ia-avulso/integracoes"
+                label="Integrações"
+                isActive={active === "integracoes"}
               >
-                <IconSuporte />
-              </a>
-              <AppBarEndDesktopAuth context="seller" onLogout={sairCalculadoraNav} />
-            </div>
+                <IconPlug active={active === "integracoes"} />
+              </SellerNavRailItem>
+            </>
+          )}
+
+          <div className="mt-auto flex flex-col items-center gap-1 pb-1">
+            <div className="my-1 h-px w-6 shrink-0 bg-[var(--card-border)]" aria-hidden />
+            <SellerNavHelpMenu supportHref={supportHref} />
+            <SellerNavRailItem href="/seller/meus-dados" label="Meus dados" isActive={active === "cadastro"}>
+              <IconGear active={active === "cadastro"} />
+            </SellerNavRailItem>
           </div>
         </nav>
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
-          <div className={`max-w-lg mx-auto grid items-stretch min-h-[52px] ${temGestoresIa ? "grid-cols-4" : "grid-cols-3"}`}>
-            <Link
-              href="/seller/calculadora"
-              className={`${mobileLinkClass("calculadora")} border-t-0 border-b-0 py-2 touch-manipulation min-h-[52px]`}
+
+        {mobileMaisOpen ? (
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-[85] md:hidden bg-[var(--foreground)]/20"
+              aria-label="Fechar menu"
+              onClick={() => setMobileMaisOpen(false)}
+            />
+            <div
+              className="fixed left-3 right-3 bottom-[calc(3.75rem+env(safe-area-inset-bottom,0px))] z-[95] rounded-2xl border border-[var(--card-border)] bg-[var(--card)] py-2 shadow-xl ring-1 ring-[var(--foreground)]/[0.06] md:hidden"
+              role="menu"
+              aria-label="Mais opções"
             >
-              <IconCalculator active={active === "calculadora"} />
-              <span className="text-[10px] font-medium leading-tight text-center">Calculadora</span>
-            </Link>
+              {temGestoresIa && (
+                <Link
+                  href="/seller/gestores-ia-avulso/integracoes"
+                  role="menuitem"
+                  className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+                    active === "integracoes"
+                      ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                      : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
+                  }`}
+                  onClick={() => setMobileMaisOpen(false)}
+                >
+                  <IconPlug active={active === "integracoes"} />
+                  Integrações
+                </Link>
+              )}
+              <Link
+                href="/seller/meus-dados"
+                role="menuitem"
+                className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+                  active === "cadastro"
+                    ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                    : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
+                }`}
+                onClick={() => setMobileMaisOpen(false)}
+              >
+                <IconGear active={active === "cadastro"} />
+                Meus dados
+              </Link>
+            </div>
+          </>
+        ) : null}
+
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
+          <div className={`max-w-lg mx-auto grid items-stretch min-h-[52px] ${temGestoresIa ? "grid-cols-3" : "grid-cols-2"}`}>
             {temGestoresIa && (
               <Link
                 href="/seller/gestores-ia-avulso"
@@ -361,29 +408,44 @@ export function SellerNav({
                 <span className="text-[10px] font-medium leading-tight text-center">Gestor de IA</span>
               </Link>
             )}
-            <a
-              href={supportHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex flex-col items-center justify-center gap-0.5 border-l border-[var(--card-border)] py-2 px-1 min-h-[52px] touch-manipulation text-[var(--muted)] hover:text-[var(--foreground)] active:bg-[var(--surface-hover)] transition-colors"
-              aria-label="Suporte no WhatsApp"
+            <Link
+              href="/seller/calculadora"
+              className={`${mobileLinkClass("calculadora")} border-t-0 border-b-0 py-2 touch-manipulation min-h-[52px]`}
             >
-              <IconSuporte />
-              <span className="text-[10px] font-medium leading-tight">Ajuda</span>
-            </a>
-            <button
-              type="button"
-              onClick={() => void sairCalculadoraNav()}
-              className="flex flex-col items-center justify-center gap-0.5 border-l border-[var(--card-border)] py-2 px-1 min-h-[52px] touch-manipulation text-[var(--muted)] hover:text-[var(--foreground)] active:bg-[var(--surface-hover)] transition-colors"
-              aria-label="Sair da calculadora"
-            >
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" x2="9" y1="12" y2="12" />
-              </svg>
-              <span className="text-[10px] font-medium leading-tight">Sair</span>
-            </button>
+              <IconCalculator active={active === "calculadora"} />
+              <span className="text-[10px] font-medium leading-tight text-center">Calculadora</span>
+            </Link>
+            {temGestoresIa ? (
+              <button
+                type="button"
+                className={calcMaisBtnClass}
+                aria-expanded={mobileMaisOpen}
+                aria-haspopup="menu"
+                onClick={() => setMobileMaisOpen((o) => !o)}
+              >
+                <svg
+                  className={`h-5 w-5 shrink-0 transition-transform duration-200 ${mobileMaisOpen ? "rotate-180 text-emerald-500" : "text-current"}`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+                <span className="text-[10px] font-medium leading-tight text-center">Mais</span>
+              </button>
+            ) : (
+              <Link
+                href="/seller/meus-dados"
+                className={`${mobileLinkClass("cadastro")} border-t-0 border-b-0 py-2 touch-manipulation min-h-[52px]`}
+              >
+                <IconGear active={active === "cadastro"} />
+                <span className="text-[10px] font-medium leading-tight text-center">Meus dados</span>
+              </Link>
+            )}
           </div>
         </nav>
       </>

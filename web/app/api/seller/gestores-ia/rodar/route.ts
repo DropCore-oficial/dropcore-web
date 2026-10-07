@@ -152,7 +152,13 @@ export async function POST(req: Request) {
 
   const params = await montarRequestAnunciosSeo(seller.id);
   if (!params) {
-    return NextResponse.json({ error: "Sem dado suficiente pra rodar esse gestor agora." }, { status: 422 });
+    return NextResponse.json(
+      {
+        error:
+          "Nenhum anúncio elegível agora — ou é tudo muito novo (menos de 30 dias no ar), ou nada mudou em vendas desde a última checagem.",
+      },
+      { status: 422 }
+    );
   }
 
   const client = new Anthropic({ apiKey: apiKey as string });

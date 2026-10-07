@@ -119,9 +119,11 @@ export async function middleware(req: NextRequest) {
     !path.startsWith("/seller/register") &&
     !path.startsWith("/seller/reset-password") &&
     // Calculadora e Gestores de IA avulso são controladas por /api/calculadora/me,
-    // então não dependem da sessão por cookie no middleware.
+    // então não dependem da sessão por cookie no middleware. "Meus dados" é usado pelos
+    // dois (calc-only e calc+gestores), mesma lógica.
     !path.startsWith("/seller/calculadora") &&
-    !path.startsWith("/seller/gestores-ia-avulso");
+    !path.startsWith("/seller/gestores-ia-avulso") &&
+    !path.startsWith("/seller/meus-dados");
 
   /** DropCore Calculadora: rotas internas exigem sessão; públicas: login e cadastro por convite */
   const isCalculadoraProtegido =

@@ -60,6 +60,14 @@ export type AtributoFaltando = {
   valoresPermitidos: string[];
 };
 
+/** Característica já preenchida (não vazia) — usada pra checar cobertura de palavra-chave,
+ * ver `atributosSemReforcoNoTexto`. */
+export type AtributoPreenchido = {
+  id: string;
+  name: string;
+  valor: string;
+};
+
 export type AnuncioSeoContexto = {
   /** family_id (string) quando o anúncio pertence a uma família, ou o próprio item_id quando é isolado — identifica o grupo pro prompt e pro enriquecimento pós-IA. */
   chave: string;
@@ -82,6 +90,12 @@ export type AnuncioSeoContexto = {
    * não pedido pra IA) — indício de anúncio duplicado. Só o lado mais fraco (menos venda)
    * recebe isso; o forte não é penalizado. Ver `detectarDuplicados`. */
   duplicidade: DuplicidadeAnuncio | null;
+  /** Sinal determinístico (não pedido pra IA): característica já preenchida cujo valor não
+   * aparece no título nem na descrição — a ficha técnica "sabe" uma informação que o texto
+   * buscável por palavra-chave livre não reforça. Ficha técnica alimenta FILTRO de busca do
+   * marketplace, mas é o texto (título/descrição) que o buscador indexa por palavra-chave —
+   * os dois precisam reforçar o mesmo dado. Ver `atributosSemReforcoNoTexto`. */
+  atributosSemReforcoTexto: AtributoPreenchido[];
   membros: MembroAnuncioSeo[];
 };
 
@@ -97,21 +111,66 @@ export type DuplicidadeAnuncio = {
   motivo_bloqueio: string | null;
 };
 
-const DIAS_MINIMOS_NO_AR = 30;
-const MAX_CANDIDATOS = 20;
+export const DIAS_MINIMOS_NO_AR = 30;
+export const MAX_CANDIDATOS = 20;
 /** Heurística simples pra "poucas fotos" — checagem por código, não pedida pra IA (não precisa de raciocínio, é contagem). */
-const MIN_FOTOS_RECOMENDADO = 3;
+export const MIN_FOTOS_RECOMENDADO = 3;
 /** ML recomenda foto quadrada com pelo menos 500px de lado pra boa visualização/zoom — usa
  * o menor lado de `max_size` (resolução original enviada) da foto de capa. */
-const MIN_LADO_FOTO_RECOMENDADO = 500;
+export const MIN_LADO_FOTO_RECOMENDADO = 500;
+
+/** Abaixo desse número de dias desde a última checagem "ok", um grupo cujas vendas não
+ * mudaram nem um pouco é pulado nessa rodada — não gasta token de IA pra confirmar de novo
+ * o que já sabemos. Decisão 2026-10-06: grupo nunca checado antes NUNCA é pulado (sempre
+ * entra na primeira vez); sinal de "mudou" é só venda (sold_quantity, já vem de graça no
+ * detalhe do item, sem chamada extra) — visita muda o tempo todo mesmo sem venda nova, usar
+ * ela como critério de "não mudou" soltaria falso positivo demais (pularia grupo que só
+ * perdeu visita, que é justamente um dos sinais que a IA deveria olhar). */
+export const DIAS_RECHECAGEM_MINIMO = 7;
+
+export type UltimaChecagemGrupo = { vendasTotais: number; quando: string };
+
+/** true quando o grupo pode ser PULADO nessa rodada — já foi checado há menos de
+ * `DIAS_RECHECAGEM_MINIMO` dias E a venda total não mudou nem um pouco desde então. */
+export function grupoFoiCheckadoRecentementeSemMudanca(
+  vendasTotalGrupoAtual: number,
+  ultimaChecagem: UltimaChecagemGrupo | undefined
+): boolean {
+  if (!ultimaChecagem) return false;
+  const diasDesde = (Date.now() - new Date(ultimaChecagem.quando).getTime()) / (1000 * 60 * 60 * 24);
+  if (diasDesde >= DIAS_RECHECAGEM_MINIMO) return false;
+  return vendasTotalGrupoAtual === ultimaChecagem.vendasTotais;
+}
+
+/** Resultado salvo mínimo que basta pra extrair "vendas totais do grupo na rodada
+ * anterior" — tanto `seller_ai_runs.resultado` (hub) quanto `calculadora_assinante_ai_runs.
+ * resultado` (avulso) têm esse formato, só a tabela de origem muda entre os dois. */
+export type AnuncioResultadoAnteriorMinimo = {
+  chave: string;
+  membros?: { vendas_totais: number }[];
+};
+
+export function mapaVendasPorChave(
+  anuncios: AnuncioResultadoAnteriorMinimo[],
+  quando: string
+): Map<string, UltimaChecagemGrupo> {
+  const mapa = new Map<string, UltimaChecagemGrupo>();
+  for (const a of anuncios) {
+    const vendasTotais = (a.membros ?? []).reduce((s, m) => s + (m.vendas_totais ?? 0), 0);
+    mapa.set(a.chave, { vendasTotais, quando });
+  }
+  return mapa;
+}
 
 /** Cache por categoria — vários anúncios da amostra costumam repetir a mesma categoria, não
- * vale a pena buscar o schema de atributos de novo pra cada um. */
-async function buscarAtributosFaltando(
+ * vale a pena buscar o schema de atributos de novo pra cada um. Exportado: reaproveitado
+ * pelo gestor avulso (gestorAnunciosSeoDadosAvulso.ts), mesma lógica de julgamento, dado
+ * isolado do hub. */
+export async function buscarAtributosFaltando(
   item: MercadoLivreItemDetail,
   ctx: MercadoLivreAuthContext,
   cache: Map<string, MercadoLivreAtributoCategoria[]>
-): Promise<{ principais: AtributoFaltando[]; secundarios: AtributoFaltando[] }> {
+): Promise<{ principais: AtributoFaltando[]; secundarios: AtributoFaltando[]; preenchidos: AtributoPreenchido[] }> {
   let schema = cache.get(item.category_id);
   if (!schema) {
     schema = await mlBuscarAtributosCategoria(item.category_id, ctx);
@@ -132,10 +191,62 @@ async function buscarAtributosFaltando(
     .filter((a) => a.required && !preenchidosNoItem.has(a.id) && !preenchidoEmTodasVariacoes(a.id))
     .map((a) => ({ id: a.id, name: a.name, valueType: a.valueType, valoresPermitidos: a.valoresPermitidos, relevance: a.relevance }));
 
+  const schemaPorId = new Map(schema.map((a) => [a.id, a]));
+  // Atributo técnico (referência de guia de tamanhos) — "grid_id"/"grid_row_id" não é
+  // característica de produto, mesmo quando não leva `tags.hidden`.
+  const VALUE_TYPES_TECNICOS = new Set(["grid_id", "grid_row_id"]);
+  // Só entra como "preenchido" pra fins de cobertura de palavra-chave quando NÃO é metadado
+  // técnico/interno do ML (`tags.hidden`) nem referência de guia de tamanhos. Achado ao vivo
+  // 2026-10-06, comparando atributo por atributo via API: `relevance` sozinha NÃO distingue
+  // isso (peso de embalagem, ID de guia de tamanhos, "com provador virtual" etc. também vêm
+  // com relevance 1/2) — sem esse filtro por `hidden`, o aviso de "palavra-chave sem reforço"
+  // virava ruído disparando em todo anúncio. Ver docs/SCHEMA.md.
+  const preenchidos: AtributoPreenchido[] = (item.attributes ?? [])
+    .filter((a) => {
+      if (!a.value_name) return false;
+      const atributo = schemaPorId.get(a.id);
+      if (!atributo || atributo.hidden) return false;
+      return !VALUE_TYPES_TECNICOS.has(atributo.valueType);
+    })
+    .map((a) => ({ id: a.id, name: schemaPorId.get(a.id)!.name, valor: a.value_name as string }));
+
   return {
     principais: obrigatoriosFaltando.filter((a) => a.relevance === 1),
     secundarios: obrigatoriosFaltando.filter((a) => a.relevance !== 1),
+    preenchidos,
   };
+}
+
+const STOPWORDS_COBERTURA = new Set(["de", "da", "do", "das", "dos", "com", "para", "e", "a", "o", "em", "no", "na", "um", "uma"]);
+
+function normalizarTextoCobertura(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ");
+}
+
+/**
+ * Característica já preenchida cujo valor não aparece (nem em parte) no título+descrição —
+ * sinal determinístico, não pedido pra IA. Ficha técnica alimenta FILTRO de busca do
+ * marketplace (comprador filtra por "Material: Linho"), mas título/descrição são o texto
+ * indexado por palavra-chave livre — os dois precisam se reforçar. Considera "reforçado" se
+ * QUALQUER palavra significativa do valor aparece no texto (valor composto tipo "Manga
+ * Longa" não precisa bater 100% pra já ajudar o match).
+ */
+export function atributosSemReforcoNoTexto(
+  preenchidos: AtributoPreenchido[],
+  tituloEDescricao: string
+): AtributoPreenchido[] {
+  const textoNormalizado = normalizarTextoCobertura(tituloEDescricao);
+  return preenchidos.filter((a) => {
+    const palavras = normalizarTextoCobertura(a.valor)
+      .split(/\s+/)
+      .filter((p) => p.length > 2 && !STOPWORDS_COBERTURA.has(p));
+    if (palavras.length === 0) return false;
+    return !palavras.some((p) => textoNormalizado.includes(p));
+  });
 }
 
 /** DropCore já tem tabela de medida (produto_tabela_medidas) por grupo de SKU, mas isso não
@@ -168,10 +279,10 @@ async function verificarTabelaMedidasFaltando(
   return !temGuiaNoAnuncio;
 }
 
-type ItemComDias = MercadoLivreItemDetail & { diasNoAr: number };
+export type ItemComDias = MercadoLivreItemDetail & { diasNoAr: number };
 
 /** Agrupa itens elegíveis por família (family_id) — item sem família vira grupo de 1, usando o próprio item_id como chave. */
-function agruparPorFamilia(itens: ItemComDias[]): { chave: string; membros: ItemComDias[] }[] {
+export function agruparPorFamilia(itens: ItemComDias[]): { chave: string; membros: ItemComDias[] }[] {
   const mapa = new Map<string, ItemComDias[]>();
   for (const item of itens) {
     const chave = item.family_id != null ? String(item.family_id) : item.id;
@@ -233,7 +344,8 @@ function motivoBloqueioPausa(membros: ItemComDias[]): string | null {
   return null;
 }
 
-function detectarDuplicados(
+/** Exportado: reaproveitado pelo gestor avulso, mesma lógica de detecção de duplicado. */
+export function detectarDuplicados(
   grupos: { chave: string; membros: ItemComDias[]; vendasTotalGrupo: number }[]
 ): Map<string, DuplicidadeAnuncio> {
   const resultado = new Map<string, DuplicidadeAnuncio>();
@@ -302,6 +414,11 @@ async function montarContextoGrupo(
   const categoriaProvavelmenteErrada =
     categoriasSugeridas.length > 0 && !categoriasSugeridas.some((c) => c.categoryId === representante.category_id);
 
+  const atributosSemReforcoTexto = atributosSemReforcoNoTexto(
+    atributosFaltando.preenchidos,
+    `${representante.title} ${descricao}`
+  );
+
   return {
     chave,
     itemIdRepresentante: representante.id,
@@ -315,6 +432,7 @@ async function montarContextoGrupo(
     categoriaProvavelmenteErrada,
     categoriaSugeridaNome: categoriaProvavelmenteErrada ? (categoriasSugeridas[0]?.categoryName ?? null) : null,
     duplicidade: null,
+    atributosSemReforcoTexto,
     membros: membrosContexto,
   };
 }
@@ -341,7 +459,31 @@ export async function buscarDadosAnunciosSeo(sellerId: string): Promise<AnuncioS
   // abaixo — o par forte de um duplicado costuma vender bem e ficaria fora dessa amostra.
   const duplicidadePorChave = detectarDuplicados(todosGrupos);
 
-  const grupos = [...todosGrupos].sort((a, b) => a.vendasTotalGrupo - b.vendasTotalGrupo).slice(0, MAX_CANDIDATOS);
+  const { data: ultimaRow } = await supabaseAdmin
+    .from("seller_ai_runs")
+    .select("resultado, executado_em")
+    .eq("seller_id", sellerId)
+    .eq("gestor", "anuncios_seo")
+    .eq("status", "ok")
+    .order("executado_em", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const ultimaChecagemPorChave =
+    ultimaRow?.resultado && ultimaRow.executado_em
+      ? mapaVendasPorChave(
+          (ultimaRow.resultado as { anuncios?: AnuncioResultadoAnteriorMinimo[] }).anuncios ?? [],
+          ultimaRow.executado_em
+        )
+      : new Map<string, UltimaChecagemGrupo>();
+
+  // Não gasta IA de novo com grupo que já foi checado há pouco e nem vendeu nada desde
+  // então — se TUDO estiver nessa situação, a lista fica vazia de propósito (é o ponto da
+  // economia: nada mudou, não vale rodar a IA de novo). O chamador decide a mensagem.
+  const candidatosComMudanca = todosGrupos.filter(
+    (g) => !grupoFoiCheckadoRecentementeSemMudanca(g.vendasTotalGrupo, ultimaChecagemPorChave.get(g.chave))
+  );
+
+  const grupos = [...candidatosComMudanca].sort((a, b) => a.vendasTotalGrupo - b.vendasTotalGrupo).slice(0, MAX_CANDIDATOS);
 
   const cacheAtributos = new Map<string, MercadoLivreAtributoCategoria[]>();
   const contexto: AnuncioSeoContexto[] = [];
@@ -453,6 +595,10 @@ function formatarAnunciosSeo(grupos: AnuncioSeoContexto[]): string {
       const categoriaAlerta = g.categoriaProvavelmenteErrada
         ? ` | ALERTA: a busca de categoria do próprio marketplace pelo título sugere "${g.categoriaSugeridaNome}", diferente da categoria atual do anúncio`
         : "";
+      const semReforco =
+        g.atributosSemReforcoTexto.length > 0
+          ? ` | características preenchidas mas cujo valor não aparece no título nem na descrição: ${g.atributosSemReforcoTexto.map((a) => `${a.name}="${a.valor}"`).join("; ")}`
+          : "";
       const membrosTxt = g.membros
         .map((m) => {
           const zeroVisitas = m.visitas30d === 0 ? " [ZERO VISITAS — possível problema de indexação/categoria, não necessariamente de texto]" : "";
@@ -461,7 +607,7 @@ function formatarAnunciosSeo(grupos: AnuncioSeoContexto[]): string {
         .join("\n");
       return (
         `- ${g.chave} [${familia}]\n` +
-        `  título de referência: "${g.tituloExemplo}" | preço R$ ${g.preco.toFixed(2)}${principais}${secundarios}${guiaMedidas}${categoriaAlerta}\n` +
+        `  título de referência: "${g.tituloExemplo}" | preço R$ ${g.preco.toFixed(2)}${principais}${secundarios}${guiaMedidas}${categoriaAlerta}${semReforco}\n` +
         `  descrição atual (resumo): "${g.descricaoResumo || "(sem descrição)"}"\n` +
         `  variações:\n${membrosTxt}`
       );
@@ -497,6 +643,12 @@ export const PROMPT_ANUNCIOS_SEO: PromptTemplate<AnuncioSeoContexto[]> = {
       "categoria diferente da atual), isso é o sinal mais forte de todos — priorize mencionar isso na " +
       "observação antes de sugerir ajuste de título/descrição, porque categoria errada anula o efeito " +
       "de qualquer melhoria de texto.",
+    "Se o contexto listar características preenchidas cujo valor não aparece no título nem na descrição, " +
+      "isso é evidência concreta de problema de descrição (ou de título, se o valor for algo que deveria " +
+      "estar no título, como gênero ou tipo de produto) — a ficha técnica alimenta o filtro de busca do " +
+      "marketplace, mas é o título/descrição que o buscador indexa por palavra-chave livre; os dois " +
+      "precisam reforçar o mesmo dado. Use isso como base real pra sugerir texto que incorpore esses " +
+      "valores, em vez de só opinar sobre o estilo do texto.",
     "Classifique cada grupo em: problema de título, problema de descrição, características incompletas, " +
       "sem problema aparente.",
     "Para grupo com problema de título: se ele tiver mais de 1 variação (família), sugira um TÍTULO BASE " +
@@ -657,6 +809,9 @@ export type AnuncioResultadoEnriquecido = Omit<AnuncioResultadoIA, "caracteristi
   /** Sinal determinístico (comparação de título entre famílias ativas do seller, não pedido
    * pra IA): esse grupo parece duplicado de outro anúncio ativo com mais venda. */
   duplicidade: DuplicidadeAnuncio | null;
+  /** Sinal determinístico (não pedido pra IA): característica já preenchida cujo valor não
+   * aparece no título nem na descrição — ver `atributosSemReforcoNoTexto`. */
+  atributos_sem_reforco_texto: AtributoPreenchido[];
   /** Preenchido só quando uma ação (aplicar título/descrição/características) foi executada
    * de verdade nesse grupo desde a rodada anterior — compara visita/venda antes vs. depois
    * pra fechar o loop (a sugestão funcionou?). null quando nenhuma ação foi aplicada ainda. */
@@ -776,6 +931,7 @@ export async function enriquecerResultadoAnunciosSeo(
       categoria_provavelmente_errada: grupo?.categoriaProvavelmenteErrada ?? false,
       categoria_sugerida_nome: grupo?.categoriaSugeridaNome ?? null,
       duplicidade: grupo?.duplicidade ?? null,
+      atributos_sem_reforco_texto: grupo?.atributosSemReforcoTexto ?? [],
       resultado_acao_anterior: resultadoAcaoAnterior,
       membros: (grupo?.membros ?? []).map((m) => ({
         item_id: m.itemId,
