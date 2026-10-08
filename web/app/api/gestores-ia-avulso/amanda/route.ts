@@ -1,5 +1,5 @@
 /**
- * GET /api/gestores-ia-avulso/andrey — última rodada do Andrey (Anúncios & SEO) pro
+ * GET /api/gestores-ia-avulso/amanda — última rodada da Amanda (Reputação & Atendimento) pro
  * assinante avulso + conexão ML e uso diário de IA, pra tela saber o que mostrar. Leitura via
  * RPC (fn_calculadora_assinante_ai_runs_recentes/ml_status_get/byok_configurado, 2026-10-07)
  * — ver docs/SCHEMA.md "Ulisses avulso ... 1º uso real de RPC".
@@ -28,20 +28,13 @@ export async function GET(req: Request) {
     supabaseAdmin.rpc("fn_calculadora_assinante_ml_status_get", { p_assinante_id: assinante.id }),
     supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
       p_assinante_id: assinante.id,
-      p_gestor: "anuncios_seo",
-      p_limit: 5,
+      p_gestor: "reputacao_atendimento",
+      p_limit: 1,
     }),
     supabaseAdmin.rpc("fn_calculadora_assinante_byok_configurado", { p_assinante_id: assinante.id }),
   ]);
 
-  // "Ideias pra produto novo" grava uma linha nesse mesmo gestor só pra contar no
-  // orçamento diário (ver ideias-produto-novo/route.ts) — marcada com
-  // resultado.tipo === "ideias_produto_novo", não é um diagnóstico de verdade. Pula essas
-  // linhas pra achar a última rodada real (inclusive se ela deu erro).
-  const run = ((runsRecentes ?? []) as RunRow[]).find(
-    (r) => (r.resultado as { tipo?: string } | null)?.tipo !== "ideias_produto_novo"
-  );
-
+  const run = ((runsRecentes ?? []) as RunRow[])[0] ?? null;
   const byokConfigurado = Boolean(byok);
   const gastoHoje = byokConfigurado ? 0 : await gastoAvulsoHojeReais(assinante.id);
   const bloqueadoHoje = !byokConfigurado && gastoHoje >= TETO_AVULSO_REAIS_DIA;

@@ -33,11 +33,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Recurso não disponível." }, { status: 403 });
   }
 
-  const { data: ml } = await supabaseAdmin
-    .from("calculadora_assinante_mercadolivre_integrations")
-    .select("ml_user_id")
-    .eq("assinante_id", assinante.id)
-    .maybeSingle();
+  const { data: ml } = await supabaseAdmin.rpc("fn_calculadora_assinante_ml_status_get", {
+    p_assinante_id: assinante.id,
+  });
   if (!ml?.ml_user_id) {
     return NextResponse.json({ error: "Conecte sua conta do Mercado Livre antes de rodar o Andrey." }, { status: 422 });
   }

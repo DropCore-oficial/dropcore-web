@@ -16,7 +16,10 @@
  *   aplicar-*), só não tem tabela de auditoria ainda pra comparar visita/venda antes vs.
  *   depois da ação (esse "fechamento de loop" é só no hub por enquanto).
  */
+import type Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { montarPrompt } from "./gestorPrompts";
+import { MODELO_GESTORES_IA } from "./gestorRequestBuilders";
 import {
   PROMPT_ANUNCIOS_SEO,
   SCHEMA_ANUNCIOS_SEO,
@@ -162,6 +165,25 @@ export async function buscarDadosAnunciosSeoAvulso(assinanteId: string): Promise
     contexto.push({ ...c, duplicidade: duplicidadePorChave.get(grupo.chave) ?? null });
   }
   return contexto;
+}
+
+/** Monta os params de request da Anthropic pro assinante avulso — mesma config do hub
+ * (`montarRequestAnunciosSeo` em gestorRequestBuilders.ts), usada pelo batch submit do cron
+ * (gestorAvulsoBatchSubmit.ts, desconto de 50%). O clique manual/BYOK continua chamando
+ * `client.messages.create` direto em gestorAvulsoAndreyRodar.ts (precisa de resposta síncrona,
+ * Batch API não serve pra isso). */
+export async function montarRequestAnunciosSeoAvulso(
+  assinanteId: string
+): Promise<Anthropic.Messages.MessageCreateParamsNonStreaming | null> {
+  const dados = await buscarDadosAnunciosSeoAvulso(assinanteId);
+  if (dados.length === 0) return null;
+  return {
+    model: MODELO_GESTORES_IA,
+    max_tokens: 16384,
+    thinking: { type: "disabled" },
+    output_config: { format: { type: "json_schema", schema: SCHEMA_ANUNCIOS_SEO } },
+    messages: [{ role: "user", content: montarPrompt(PROMPT_ANUNCIOS_SEO, dados) }],
+  };
 }
 
 // --- Enriquecimento pós-IA (código puro, não pedido pro modelo) -----------------------

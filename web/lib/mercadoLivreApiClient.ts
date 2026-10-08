@@ -838,6 +838,35 @@ export async function mlBuscarFreteReal(
   return json?.coverage?.all_country?.list_cost ?? null;
 }
 
+/** CEP de referência (São Paulo capital) só pra estimar o frete real que o vendedor banca —
+ * o custo de verdade varia por CEP de destino (quanto mais longe, mais caro), não existe "o
+ * frete" único. Usado como ponto de referência padrão até decidirmos algo mais preciso (ex.
+ * CEP do próprio vendedor). */
+const CEP_REFERENCIA_FRETE_PADRAO = "01310100";
+
+/** Custo real de envio que o VENDEDOR banca pra um CEP de destino específico — diferente de
+ * `mlBuscarFreteReal` (que só serve pra simular "quanto custaria SE eu oferecesse frete
+ * grátis"), esse endpoint funciona pra qualquer anúncio, frete grátis ou não. Fórmula:
+ * `base_cost` (custo real do envio) − `cost` (o que o COMPRADOR paga) = quanto sobra pro
+ * vendedor cobrir. Usa a opção marcada como "recommended" (a que o ML destaca pro comprador);
+ * cai pra primeira opção se nenhuma vier marcada. `null` quando a API não devolve opção
+ * nenhuma pra esse CEP (ex. 2026-10-08: achado que precisa do escopo "Venda e envios de um
+ * produto" liberado no app — sem isso dá 403, não null; conferir se o app tem esse escopo
+ * antes de assumir "sem opção de envio" de verdade).
+ */
+export async function mlBuscarCustoRealEnvioParaDestino(
+  itemId: string,
+  ctx: MercadoLivreAuthContext,
+  zipCode: string = CEP_REFERENCIA_FRETE_PADRAO
+): Promise<number | null> {
+  const json = await mlGet<{
+    options?: Array<{ base_cost: number; cost: number; display: string }>;
+  }>(`/items/${itemId}/shipping_options?zip_code=${encodeURIComponent(zipCode)}`, ctx.accessToken);
+  if (!json?.options || json.options.length === 0) return null;
+  const opcao = json.options.find((o) => o.display === "recommended") ?? json.options[0];
+  return Math.max(0, Math.round((opcao.base_cost - opcao.cost) * 100) / 100);
+}
+
 type MercadoLivreBillingDetalhe = {
   charge_info?: { transaction_detail?: string; detail_amount?: number };
 };

@@ -111,7 +111,7 @@ function truncarArrays(resultado: Record<string, unknown>, maxItens: number): Re
   return saida;
 }
 
-function resumirResultado(resultado: unknown, maxChars: number): unknown {
+export function resumirResultado(resultado: unknown, maxChars: number): unknown {
   if (resultado === null || typeof resultado !== "object" || Array.isArray(resultado)) return resultado;
   const enxuto = enxugarValor(resultado) as Record<string, unknown>;
   let maxItens = 15;

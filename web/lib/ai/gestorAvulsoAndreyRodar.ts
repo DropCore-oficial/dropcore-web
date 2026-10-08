@@ -24,23 +24,34 @@ export type ResultadoRodarAndreyAvulso =
   | { ok: true; runId: string }
   | { ok: false; motivo: string };
 
-/** Roda o diagnóstico pra UM assinante — usado tanto pelo clique manual quanto pelo cron.
- * Cooldown e orçamento são checados aqui dentro (não no cron), pra nunca gastar token de
- * assinante que rodou manualmente há pouco ou já estourou o teto do dia. */
-export async function rodarAndreyAvulsoParaAssinante(assinanteId: string): Promise<ResultadoRodarAndreyAvulso> {
-  const { data: ultima } = await supabaseAdmin
+/** true quando já passou o cooldown desde a última rodada REAL (pula linhas de "Ideias pra
+ * produto novo", que gravam no mesmo gestor só pra contar orçamento — ver
+ * ideias-produto-novo/route.ts). Reaproveitado pelo síncrono (clique manual) e pelo batch
+ * submit do cron (gestorAvulsoBatchSubmit.ts), pra nunca dessincronizar a regra. */
+export async function foraDoCooldownAndreyAvulso(assinanteId: string): Promise<boolean> {
+  const { data: runsRecentes } = await supabaseAdmin
     .from("calculadora_assinante_ai_runs")
-    .select("criado_em")
+    .select("criado_em, resultado")
     .eq("assinante_id", assinanteId)
     .eq("gestor", "anuncios_seo")
     .order("criado_em", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (ultima) {
-    const horasDesde = (Date.now() - new Date(ultima.criado_em).getTime()) / (1000 * 60 * 60);
-    if (horasDesde < COOLDOWN_HORAS_ANDREY_AVULSO) {
-      return { ok: false, motivo: "cooldown" };
-    }
+    .limit(10);
+
+  const ultima = (runsRecentes ?? []).find(
+    (r) => (r.resultado as { tipo?: string } | null)?.tipo !== "ideias_produto_novo"
+  );
+  if (!ultima) return true;
+
+  const horasDesde = (Date.now() - new Date(ultima.criado_em).getTime()) / (1000 * 60 * 60);
+  return horasDesde >= COOLDOWN_HORAS_ANDREY_AVULSO;
+}
+
+/** Roda o diagnóstico pra UM assinante — usado tanto pelo clique manual quanto pelo caminho
+ * síncrono do BYOK no cron. Cooldown e orçamento são checados aqui dentro, pra nunca gastar
+ * token de assinante que rodou manualmente há pouco ou já estourou o teto do dia. */
+export async function rodarAndreyAvulsoParaAssinante(assinanteId: string): Promise<ResultadoRodarAndreyAvulso> {
+  if (!(await foraDoCooldownAndreyAvulso(assinanteId))) {
+    return { ok: false, motivo: "cooldown" };
   }
 
   const { data: assinanteByok } = await supabaseAdmin

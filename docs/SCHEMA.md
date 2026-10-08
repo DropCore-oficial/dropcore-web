@@ -745,21 +745,163 @@ soma esse custo junto com tokens pra bater o orçamento diário real. Contagem r
 `message.usage.server_tool_use.web_search_requests` (nunca estimada). BYOK grava `null`
 igual tokens (gasto não é do DropCore).
 
-**Ainda não construído:** Amanda/Ulisses/Tiago avulso, tela de configurar BYOK, fluxo de
-compra de crédito extra (o diário que estourou só libera de novo à meia-noite, sem opção de
-pagar pra liberar mais cedo ainda). Ver memória de projeto "Gestores de IA avulso
-(standalone)" pro estado mais atualizado da decisão/construção.
+**Ainda não construído:** Tiago avulso, fluxo de compra de crédito extra (o diário que
+estourou só libera de novo à meia-noite, sem opção de pagar pra liberar mais cedo ainda). Ver
+memória de projeto "Gestores de IA avulso (standalone)" pro estado mais atualizado da
+decisão/construção.
+
+### Ulisses avulso (Ads & Preço) construído — 2026-10-07, v1 enxuto (RPC, 1º uso real no projeto)
+
+Escopo v1 combinado com o Sr Stark — bem menor que o hub (`gestorAdsDados.ts`, 950+ linhas
+com gasto real de Ads, afiliado, cupom, classificação de campanha): **só margem** (preço −
+custo digitado − frete real − comissão − imposto − perda). Sem Ads/afiliado/cupom/campanha —
+fica pra v2, depois de validar o core. 100% código, zero chamada à Anthropic (mesma decisão
+do hub 2026-09-07: margem atual vs. mínima/máxima é comparação de número).
+
+**Diferença estrutural vs. hub:** avulso não tem `skus.custo_base` (sem catálogo de
+fornecedor) — o assinante digita o custo manualmente por anúncio/família, tela própria
+(`/seller/gestores-ia-avulso/ulisses/custos`).
+
+**Primeiro uso real de RPC (`security definer`) no produto avulso** — decisão explícita do Sr
+Stark depois de uma conversa longa sobre RLS/RPC/organização (não é consistência técnica
+forçada: confirmado que nenhum lugar do sistema, nem o hub, chama RPC direto do navegador —
+`fn_seller_ulisses_preferencias_get/upsert` do hub existe mas nunca é usada, o wizard do hub
+usa `.from()` via rota igual o resto. RPC aqui é só a ROTA chamando `supabaseAdmin.rpc(...)`
+em vez de `.from()`, pelo motivo "fica organizado" do Sr Stark, não por ganho de
+segurança/performance — os dois são igualmente seguros, RLS sempre ligada nos dois). Não
+confere `auth.uid()` por dentro da função (confia em quem chamou, que já validou via
+`getAssinanteFromToken`) — por isso as funções são `revoke all from public` + `grant execute
+to service_role` só, mesmo padrão de `rpc_debitar_estoque_sku` (nunca `grant ... to
+authenticated`, isso abriria a função pra qualquer usuário logado chamar com `assinante_id`
+de outra pessoa).
+
+- `calculadora_assinante_ulisses_preferencias` (margem mínima/máxima, imposto, perda) e
+  `calculadora_assinante_ulisses_custos` (chave = item_id/family_id do ML → custo) — ambas
+  deny-all, acesso só via RPC:
+  `fn_calculadora_assinante_ulisses_preferencias_get/upsert`,
+  `fn_calculadora_assinante_ulisses_custos_list`, `_custo_upsert`, `_custo_delete`.
+- `lib/ai/gestorAdsDadosAvulso.ts` — reaproveita `calcularMargemRealizada`
+  (`lib/margemCalculo.ts`) e `calcularPrecoMinimoSeguro` (exportada de `gestorAdsDados.ts`
+  pro hub) — mesmas fórmulas, zero duplicação. Catálogo agrupado por família (mesma
+  convenção do Andrey), diagnóstico `sem_custo | margem_abaixo_minima | margem_saudavel |
+  margem_acima_maxima`.
+- `lib/ai/gestorAvulsoUlissesRodar.ts` — cooldown 6h, sem orçamento/BYOK (zero custo de IA).
+- Rotas: `GET /api/gestores-ia-avulso/ulisses` (status), `POST .../rodar`, `GET/POST
+  .../preferencias` (wizard), `GET/POST/DELETE .../custos` (catálogo + custo por item).
+- Cron `gestores-ia-avulso-ulisses` (`30 8 * * *`, síncrono, mesmo padrão do cron do
+  Andrey/Amanda antes do batch).
+- Telas: `/seller/gestores-ia-avulso/ulisses` (wizard + resultado, reaproveita
+  `SellerGestorRunShell`) e `/seller/gestores-ia-avulso/ulisses/custos` (digitar custo por
+  anúncio, separa "sem custo" de "já cadastrados"). Portal (`/seller/gestores-ia-avulso`)
+  ganhou o card de link + status real no escritório 3D.
+
+**Retrofit da leitura do resto do avulso pra RPC (mesmo dia, pedido explícito do Sr Stark de
+"organizar" o avulso em partes):** 3 funções novas —
+`fn_calculadora_assinante_ai_runs_recentes(p_assinante_id, p_gestor, p_limit)` (genérica,
+substitui o `.from("calculadora_assinante_ai_runs").select()...` que cada rota de status
+fazia), `fn_calculadora_assinante_ml_status_get(p_assinante_id)` (devolve a linha inteira de
+`...mercadolivre_integrations`, inclusive token — só roda no servidor, nunca serializado pro
+front) e `fn_calculadora_assinante_byok_configurado(p_assinante_id)` (boolean puro, sem
+decriptar nada). Aplicadas em `andrey/route.ts`, `amanda/route.ts`, `ulisses/route.ts`,
+`mercadolivre/route.ts` (GET), `byok/route.ts` (GET) **e também a checagem "ML conectado?"
+nos 3 `rodar/route.ts`** (Andrey/Amanda/Ulisses — mesma leitura simples de `ml_user_id` antes
+de rodar, achada numa auditoria pedida pelo Sr Stark depois do retrofit inicial, confirmada
+com grep que não sobrou nenhuma ocorrência igual no resto do código). **Escopo deliberadamente só leitura
+de status pra UI** — gravação de rodada nova (`rodarAndreyAvulsoParaAssinante` etc.), conectar/
+desconectar ML, salvar/testar chave BYOK, cooldown check interno e `gastoAvulsoHojeReais`
+continuam em `.from()`, não entraram nesse retrofit (mexem com token real/criptografia ou são
+cálculo de agregação, risco maior pra reescrever sem necessidade concreta).
+
+### Amanda avulsa (Reputação & Atendimento) construída — 2026-10-07
+
+Mesmo princípio dos outros: lógica de julgamento compartilhada com o hub
+(`lib/ai/gestorReputacaoAtendimentoDados.ts`, que ganhou `export` em `buscarPerguntasContexto`,
+`classificarReputacao`, `responderPerguntasComIA` e no tipo `PerguntaRespostaIA` pra virar
+reaproveitável), busca de dado 100% isolada via API do ML.
+
+- `lib/ai/gestorReputacaoAtendimentoDadosAvulso.ts` — `buscarDadosReputacaoAtendimentoAvulso`
+  (reputação + perguntas pendentes via `getValidMercadoLivreAvulsoAccessToken`) e
+  `montarResultadoReputacaoAtendimentoAvulso`. **Sem cruzamento com atraso de postagem do
+  fornecedor** (`fornecedoresAtraso` sempre `[]`) — essa sinergia depende de
+  `pedido_eventos`/`fornecedores`, exclusivos do hub; o avulso não tem fornecedor vinculado.
+- **Sem Batch API**, igual a decisão do hub de 2026-09-07 pra esse gestor: diagnóstico de
+  reputação é código puro (zero custo), só chama a Anthropic quando há pergunta pendente de
+  verdade — não compensa a complexidade de batch assíncrono (até 24h) pra uma chamada rara.
+  `lib/ai/gestorAvulsoAmandaRodar.ts` (cooldown 6h, reaproveitado pelo botão manual e pelo
+  cron) busca os dados primeiro (grátis) e só decide gastar com IA (chave da casa, respeitando
+  orçamento diário, ou BYOK) se `perguntas.length > 0` — erro na resposta a pergunta nunca
+  derruba o diagnóstico (try/catch isolado).
+- Rotas: `GET /api/gestores-ia-avulso/amanda` (status + uso diário), `POST
+  .../amanda/rodar` (clique manual), `POST .../amanda/aplicar-resposta-pergunta` (responde de
+  verdade no ML via `mlResponderPergunta` — mesmo padrão do hub
+  `app/api/seller/gestores-ia/aplicar-resposta-pergunta`, sem a auditoria em
+  `seller_ai_acoes`, que é tabela só do hub).
+- Cron `app/api/cron/gestores-ia-avulso-amanda/route.ts` (síncrono, itera assinantes, mesmo
+  padrão do cron do Andrey antes do batch) — schedule em
+  `web/scripts/add-cron-gestores-ia-avulso-amanda.sql` (`15 8 * * *`, não competir com os
+  outros crons de gestores), **ainda não aplicado** (aguardando aprovação, é infra).
+- Tela `app/seller/gestores-ia-avulso/amanda/page.tsx` — reaproveita `SellerGestorRunShell`
+  (mesmo componente do Andrey/hub) e os mesmos badges/cards do painel do hub
+  (`SellerGestorReputacaoAtendimentoPanel.tsx`), sem o bloco de fornecedor-atraso e sem
+  `DisputasParaFoto` (feature de disputa com foto depende de `seller_ai_disputas_fornecedor`,
+  tabela do hub). Portal (`/seller/gestores-ia-avulso`) ganhou o card de link + status real no
+  escritório 3D (`statusAmanda`), substituindo o placeholder "Em breve".
+- **Gate de maturidade/aplicar automático não existe** — mesma régua do Andrey, só sugestão;
+  o assinante revisa (pode editar o texto) e confirma antes de enviar pro comprador de
+  verdade.
 
 **Cron diário do Andrey avulso (2026-10-07, `web/scripts/add-cron-gestores-ia-avulso-andrey.sql`)**:
 antes dessa data o diagnóstico principal do Andrey avulso só rodava via clique manual
 ("Rodar de novo agora") — nenhum cron cobria `calculadora_assinantes` (os crons
 `gestores-ia-submeter`/`gestores-ia-resultado` existentes são só do hub, filtrados "por
 seller"). Job `gestores-ia-avulso-andrey` (`cron.schedule`, `0 8 * * *` = 05:00 BRT) chama
-`/api/cron/gestores-ia-avulso-andrey`, que itera todo assinante com `inclui_gestores_ia=true`
-+ ML conectado e roda `rodarAndreyAvulsoParaAssinante` (síncrono, sem Batch API — extraída
-de `app/api/gestores-ia-avulso/andrey/rodar/route.ts` pra `lib/ai/gestorAvulsoAndreyRodar.ts`,
-reaproveitada pelo botão manual E pelo cron, mesmo cooldown de 6h e mesmo orçamento diário
-pros dois caminhos). Erro de um assinante não trava os demais (try/catch por item).
+`/api/cron/gestores-ia-avulso-andrey`. **Substituído no mesmo dia pelo caminho em batch** —
+ver seção seguinte; o botão manual continua usando `rodarAndreyAvulsoParaAssinante` direto.
+
+### Batch API (desconto 50%) no cron do Andrey avulso, inclusive BYOK — 2026-10-07
+
+Bug achado pelo Sr Stark testando o botão "Rodar de novo agora": `foraDoCooldownAndreyAvulso`
+(cooldown de 6h) não pulava as linhas de "Ideias pra anúncio novo" (`resultado.tipo ===
+"ideias_produto_novo"`, grava no mesmo `gestor: "anuncios_seo"` só pra contar orçamento) —
+testar essa feature bloqueava o botão do diagnóstico de verdade mesmo sem nenhuma rodada real
+ter rodado ("ainda não processamos sua loja" + "aguarde pra rodar de novo" ao mesmo tempo).
+Corrigido em `lib/ai/gestorAvulsoAndreyRodar.ts` (`foraDoCooldownAndreyAvulso`, extraída da
+função de rodar, reaproveitada pelo batch submit também).
+
+Investigando o custo (~R$0,59/rodada no caminho síncrono vs. ~R$0,27/rodada do hub via
+Batch API), achado que **o cron do Andrey avulso nunca usou Batch API** — só o botão manual
+precisa de resposta síncrona, mas o cron (que ninguém está esperando na tela) também rodava
+síncrono, pagando preço cheio à toa. Corrigido:
+
+- `calculadora_assinante_ai_runs` ganhou `batch_id text`
+  (`web/scripts/add-batch-id-calculadora-assinante-ai-runs.sql`, aplicada).
+- `lib/ai/gestorAnunciosSeoDadosAvulso.ts` ganhou `montarRequestAnunciosSeoAvulso` (monta os
+  params da Anthropic, mesmo formato do `montarRequestAnunciosSeo` do hub).
+- `lib/ai/gestorAvulsoBatchSubmit.ts` (cron A) — assinante **com a chave da casa**: entra
+  num batch único (`client.messages.batches.create`), grava `status: "pendente"` +
+  `batch_id`. Assinante **BYOK**: ganha os 50% também, só que num **batch próprio** (1
+  request, criado com a `Anthropic` client da chave dele) — Batch API é por client/chave, não
+  dá pra misturar a chave da casa com a de um assinante na mesma submissão.
+- `lib/ai/gestorAvulsoBatchResultado.ts` (cron B) — confere os `batch_id` pendentes; resolve
+  por `assinante_id` se o batch é da casa ou de uma chave BYOK (consulta
+  `calculadora_assinantes.anthropic_api_key_encriptada`) e usa o client certo pra
+  `retrieve`/`results` (a Anthropic só deixa ler um batch com a mesma chave que criou).
+  BYOK não grava `tokens_input`/`tokens_output` (mesmo princípio do caminho síncrono).
+- `app/api/cron/gestores-ia-avulso-andrey/route.ts` agora só chama `submeterAndreyAvulsoDiario`
+  (não lê resultado). Rota nova `app/api/cron/gestores-ia-avulso-andrey-resultado/route.ts`
+  chama `processarAndreyAvulsoBatchesPendentes` — cron novo
+  (`gestores-ia-avulso-andrey-resultado`, `*/15 * * * *`,
+  `web/scripts/add-cron-gestores-ia-avulso-andrey-resultado.sql`, aplicada), mesmo padrão do
+  cron B do hub (`dropcore-gestores-ia-resultado`).
+
+**Conexão BYOK agora funciona de ponta a ponta (2026-10-07)**: antes só existia a coluna
+(`anthropic_api_key_encriptada`) e a leitura — nenhuma tela deixava o assinante cadastrar a
+própria chave. `app/api/gestores-ia-avulso/byok/route.ts` (GET status / POST salva / DELETE
+remove) — no POST, a chave é **testada de verdade** (1 chamada mínima, `max_tokens: 1`) antes
+de criptografar (`encryptCalculadoraAssinanteSecret`) e gravar, pra nunca salvar chave
+inválida/revogada em silêncio. Card novo em
+`app/seller/gestores-ia-avulso/integracoes/page.tsx` (input + salvar/remover). Nunca devolve
+a chave em texto puro pro front, nem na GET.
 
 **Andrey construído 2026-10-06** — `lib/ai/gestorAnunciosSeoDadosAvulso.ts` (dado via API do
 ML, mesma lógica de julgamento do hub, `tabelaMedidasFaltando` sempre `false` por não ter
@@ -837,6 +979,69 @@ calculadora, sem nenhuma referência ao pacote. `GET /api/org/calculadora/assina
 convite grava em `calculadora_assinantes.inclui_gestores_ia` (nunca desliga se a conta já
 tinha — só liga) e redireciona pro portal certo (`/seller/gestores-ia-avulso` vs
 `/seller/calculadora`) conforme o pacote.
+
+### Tiago Silva avulso (Gestor Mestre/chat) construído — 2026-10-07, 4º e último gestor avulso
+
+Mesmo princípio dos outros: lógica compartilhada com o hub, dado isolado. Chat com streaming
+NDJSON (mesmo padrão de `app/api/seller/gestores-ia/tiago/chat/route.ts`), tool-calling que só
+lê `calculadora_assinante_ai_runs` (nunca dispara rodada nova). **Sem Diogo** na equipe
+consultável — avulso não tem esse gestor.
+
+- `calculadora_assinante_ai_chat_sessions`/`calculadora_assinante_ai_chat_mensagens` — deny-
+  all, nascem já em RPC (`fn_calculadora_assinante_ai_chat_historico/criar_sessao/
+  gravar_mensagem`, `revoke all` + `grant` só pra `service_role`, mesmo padrão do hub e das
+  RPC do Ulisses).
+- `lib/ai/gestorTiagoChatToolsAvulso.ts` — reaproveita `resumirResultado`/
+  `criarOrcamentoResultadoChat` do hub (`gestorTiagoChatTools.ts`, que ganhou `export` em
+  `resumirResultado`), só troca a busca de dado (`calculadora_assinante_ai_runs`) e a lista de
+  3 gestores (sem Diogo).
+- `lib/ai/gestorTiagoChatPromptAvulso.ts` — system prompt adaptado (equipe de 3, sem menção a
+  hub/org/fornecedor).
+- **Achado importante de orçamento, corrigido antes de implementar**: o pote diário
+  compartilhado do avulso (`gastoAvulsoHojeReais`) sempre assumia preço **Sonnet 5** — mas o
+  chat do Tiago usa **Haiku 4.5** (igual o hub, 2026-09-30, ~2-3x mais barato). Gravar tokens
+  do chat na mesma tabela que Andrey/Amanda teria cobrado errado do orçamento. Corrigido
+  separando as duas fontes dentro de `gestorAvulsoOrcamento.ts` (mesma arquitetura do hub:
+  `gastoHojeReais` = `gastoChatHojeReais` + `gastoGestoresHojeReais`):
+  - `gastoGestoresAvulsoHojeReais` (nova, renomeada da função antiga) — Sonnet, lê
+    `calculadora_assinante_ai_runs`.
+  - `gastoChatAvulsoHojeReais` (nova) — Haiku, lê `calculadora_assinante_ai_chat_mensagens`.
+  - `gastoAvulsoHojeReais` (assinatura pública mantida) — soma os dois. Andrey/Amanda/Ulisses
+    não precisaram de nenhuma mudança de código, continuam chamando a mesma função.
+- **Sem reserva-e-concilia atômica** (diferente do hub, que usa lock de linha em `sellers` pra
+  evitar corrida de 2 mensagens simultâneas) — avulso faz checagem simples antes de chamar
+  (`temOrcamentoDisponivelHoje`), mesmo padrão síncrono do Andrey/Amanda/Ulisses avulso. Risco
+  de corrida aceito conscientemente (produto de baixo tráfego, 1 assinante por vez numa janela
+  de chat, mesmo risco que já existe nos outros 3 gestores).
+- BYOK funciona igual aos outros — chave própria não grava tokens (não é custo do DropCore).
+- Rotas: `GET /api/gestores-ia-avulso/tiago/historico`, `POST .../nova-sessao`, `POST .../chat`
+  (streaming). Tela `/seller/gestores-ia-avulso/tiago` — mesmo layout do painel do hub
+  (`SellerGestorTiagoChatPanel.tsx`), sem o modal de compra de crédito extra via PIX (ainda não
+  existe pro avulso). Portal ganhou o card de link; sem slot na maquete 3D (Tiago não é um
+  "bonequinho" de mesa, o componente só visualiza Diogo/Andrey/Amanda/Ulisses).
+
+### Desconectar ML avulso agora revoga de verdade no Mercado Livre — 2026-10-08
+
+**Achado real construindo o frete do Ulisses**: mudar permissão de um app no DevCenter
+**não expande** o consentimento que um usuário já deu antes — reconectar sem revogar
+primeiro reaproveita o grant antigo, com o escopo velho (confirmado ao vivo: trocamos
+"Venda e envios" pra Leitura no DevCenter, reconectamos, e `GET /users/{id}/applications`
+continuava sem `urn:ml:mktp:orders-shipments` até revogar de propósito). Doc oficial
+confirma `DELETE https://api.mercadolibre.com/users/{user_id}/applications/{app_id}`
+(usando o access token do próprio usuário) pra revogar programaticamente.
+
+`app/api/gestores-ia-avulso/mercadolivre/route.ts` (`DELETE`) agora chama esse endpoint
+**antes** de apagar a linha local — best-effort (se falhar, desconecta local mesmo assim).
+Resultado: o assinante nunca mais precisa ir manualmente nas configurações da própria conta
+do Mercado Livre pra "resetar" a autorização — Desconectar + Conectar aqui dentro já basta,
+mesmo depois de expandir permissão no DevCenter. Vale considerar o mesmo fix pro ML do hub
+(`app/api/seller/mercadolivre`) se o mesmo problema aparecer lá — não aplicado ainda, fora
+de escopo dessa sessão (só mexemos no avulso).
+
+**Com isso, os 4 gestores avulso planejados estão completos** (Andrey, Amanda, Ulisses, Tiago
+Silva) — Diogo segue de fora por decisão de escopo (depende de estoque interno que o avulso
+não tem). Próximas pendências reais: descartar rascunho de teste na conta Djulios, replicar
+"Ideias pra anúncio novo" pro hub, fluxo de crédito extra via PIX pro avulso.
 
 ## Pendências conhecidas
 

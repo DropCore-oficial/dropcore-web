@@ -109,7 +109,7 @@ async function buscarFornecedoresAtraso(sellerId: string, dias: number): Promise
     .sort((a, b) => b.atrasoMedioDias - a.atrasoMedioDias);
 }
 
-async function buscarPerguntasContexto(ctx: MercadoLivreAuthContext): Promise<PerguntaContexto[]> {
+export async function buscarPerguntasContexto(ctx: MercadoLivreAuthContext): Promise<PerguntaContexto[]> {
   const perguntas = await mlBuscarPerguntasPendentes(ctx, MAX_PERGUNTAS);
   if (perguntas.length === 0) return [];
 
@@ -184,7 +184,7 @@ const CANCELAMENTO_CRITICO_PCT = 0.03;
  * que já estava explícita no prompt antigo, só que agora com número em vez de julgamento). */
 const FORNECEDOR_ATRASO_DESTAQUE_FRACAO = 1.5;
 
-function classificarReputacao(d: ReputacaoAtendimentoContexto): {
+export function classificarReputacao(d: ReputacaoAtendimentoContexto): {
   diagnostico: "saudavel" | "atencao" | "critica";
   observacao: string;
 } {
@@ -244,11 +244,11 @@ const SCHEMA_PERGUNTAS_RESPOSTA = {
   additionalProperties: false,
 } as const;
 
-type PerguntaRespostaIA = { pergunta_id: number; urgencia: "alta" | "media" | "baixa"; resposta_sugerida: string };
+export type PerguntaRespostaIA = { pergunta_id: number; urgencia: "alta" | "media" | "baixa"; resposta_sugerida: string };
 
 export type UsoAnthropicGestor = { input_tokens: number; output_tokens: number };
 
-async function responderPerguntasComIA(
+export async function responderPerguntasComIA(
   perguntas: PerguntaContexto[],
   apiKey: string
 ): Promise<{ respostas: Map<number, PerguntaRespostaIA>; usage: UsoAnthropicGestor }> {

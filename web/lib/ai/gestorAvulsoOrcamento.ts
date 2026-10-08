@@ -13,6 +13,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { decryptCalculadoraAssinanteSecret } from "@/lib/calculadoraAssinanteSecretBox";
 import {
+  calcularCustoReais,
   calcularCustoReaisSonnetSemDesconto,
   calcularCustoReaisWebSearch,
   TETO_CHAT_TIAGO_REAIS_DIA,
@@ -42,9 +43,9 @@ export function chaveByokDoAssinante(assinante: AssinanteByok): string | null {
   }
 }
 
-/** Soma o custo real (R$) de todas as rodadas (qualquer gestor avulso) desde a meia-noite
- * (BRT) de hoje — mesmo princípio de `gastoGestoresHojeReais` do hub. */
-export async function gastoAvulsoHojeReais(assinanteId: string): Promise<number> {
+/** Soma o custo real (R$) de todas as rodadas dos gestores (Andrey/Amanda/Ulisses, Sonnet 5)
+ * desde a meia-noite (BRT) de hoje — mesmo princípio de `gastoGestoresHojeReais` do hub. */
+async function gastoGestoresAvulsoHojeReais(assinanteId: string): Promise<number> {
   const { data: runs } = await supabaseAdmin
     .from("calculadora_assinante_ai_runs")
     .select("tokens_input, tokens_output, web_search_requests")
@@ -58,6 +59,42 @@ export async function gastoAvulsoHojeReais(assinanteId: string): Promise<number>
       calcularCustoReaisWebSearch(Number(r.web_search_requests ?? 0)),
     0
   );
+}
+
+/** Soma o custo real (R$) do chat do Tiago Silva (Haiku 4.5, preço bem diferente de Sonnet —
+ * nunca misturar na mesma conta) desde a meia-noite (BRT) de hoje. Mesmo princípio de
+ * `gastoChatHojeReais` do hub, lendo as tabelas avulso em vez das do hub. */
+async function gastoChatAvulsoHojeReais(assinanteId: string): Promise<number> {
+  const { data: sessoes } = await supabaseAdmin
+    .from("calculadora_assinante_ai_chat_sessions")
+    .select("id")
+    .eq("assinante_id", assinanteId);
+  const idsSessoes = (sessoes ?? []).map((s) => s.id as string);
+  if (idsSessoes.length === 0) return 0;
+
+  const { data: mensagens } = await supabaseAdmin
+    .from("calculadora_assinante_ai_chat_mensagens")
+    .select("tokens_input, tokens_output")
+    .in("session_id", idsSessoes)
+    .eq("role", "assistant")
+    .gte("criado_em", inicioDoDiaBrtEmUtcIso());
+
+  return (mensagens ?? []).reduce(
+    (acc, m) => acc + calcularCustoReais({ input_tokens: m.tokens_input ?? 0, output_tokens: m.tokens_output ?? 0 }),
+    0
+  );
+}
+
+/** Gasto total de hoje (gestores + chat do Tiago) — pote diário ÚNICO compartilhado entre
+ * todos os gestores avulso, mesmo princípio do hub (`gastoHojeReais` em
+ * gestorTiagoChatOrcamentoDia.ts). Preço de cada fonte já é o certo por dentro (Sonnet pros
+ * gestores, Haiku pro chat) — nunca misturar tokens das duas tabelas numa conta só. */
+export async function gastoAvulsoHojeReais(assinanteId: string): Promise<number> {
+  const [gestores, chat] = await Promise.all([
+    gastoGestoresAvulsoHojeReais(assinanteId),
+    gastoChatAvulsoHojeReais(assinanteId),
+  ]);
+  return gestores + chat;
 }
 
 /** true quando ainda há orçamento pra rodar sem BYOK hoje (ou quando BYOK está configurado,

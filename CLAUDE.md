@@ -78,6 +78,24 @@ mensalidades, repasses) e integrações com ERPs externos (Olist, Bling).
 8. **PIX/Mercado Pago.** Nunca tratar o ambiente como "produção de verdade" sem confirmar
    `MERCADOPAGO_ACCESS_TOKEN` de produção e `MERCADOPAGO_TEST_MODE` desligado — enquanto
    isso não estiver confirmado, o PIX é sandbox, mesmo com o app deployado.
+9. **Tabela/rota NOVA sempre em RPC de verdade, não `.from()` direto.** Decisão de
+   2026-10-07: toda tabela ou endpoint novo (avulso OU hub) que fizer leitura/escrita
+   simples (1 linha, 1 dono) tem que expor isso via função `SECURITY DEFINER` (RPC),
+   chamada pela rota Next.js com `supabaseAdmin.rpc(...)` — nunca
+   `.from("tabela").select()/.insert()/.update()/.delete()` direto em código novo. **Não
+   retroage** no que já existe (PIX, repasse, ledger, resto do hub seguem como estão — só
+   vale pra construção nova a partir de agora). Única exceção real: o passo que depende de
+   `crypto` do Node ou `fetch` pra API externa (Mercado Livre, Anthropic) continua em
+   TypeScript — mas a leitura/escrita final no banco, quando dá pra separar, ainda vai por
+   RPC. **A regra só vale cumprida se o código final chama `supabaseAdmin.rpc(...)` de
+   verdade — não basta ter planejado/discutido RPC e no fim entregar `.from()` mesmo
+   assim** (foi exatamente isso que aconteceu antes dessa regra existir, não repetir).
+   RPC nova = `revoke all ... from public` + `grant execute ... to service_role` (nunca
+   `authenticated`, a função confia em quem já validou o dono antes de chamar — ver
+   checklist abaixo). Referência de implementação:
+   `fn_calculadora_assinante_ulisses_preferencias_get/upsert` e as RPC de leitura
+   (`fn_calculadora_assinante_ai_runs_recentes`, `_ml_status_get`, `_byok_configurado`,
+   `_por_user_id`) em `docs/SCHEMA.md`.
 
 ## Checklist obrigatório — banco de dados
 Sempre que criar tabela, alterar RLS, criar função ou query, seguir:
@@ -98,7 +116,13 @@ Sempre que criar tabela, alterar RLS, criar função ou query, seguir:
    - `SECURITY DEFINER` sempre com `SET search_path = public` (schema-qualificado dentro
      da função) e `REVOKE ALL ON FUNCTION ... FROM PUBLIC` (liberar só pro role que precisa).
    - Sempre checar `auth.uid()` e o vínculo (org/seller/fornecedor) dentro da função antes
-     de retornar dado.
+     de retornar dado — **exceto** quando a função é chamada só por `supabaseAdmin` a partir
+     de uma rota que já validou o dono (padrão do avulso, ver regra inegociável 9): nesse
+     caso não confere `auth.uid()` por dentro, mas **nunca** pode ter `grant ... to
+     authenticated` — só `grant execute ... to service_role`.
+   - **Tabela/rota nova: isso não é opcional, ver regra inegociável 9.** Se o plano
+     apresentado mencionar RPC, o código entregue tem que realmente chamar
+     `supabaseAdmin.rpc(...)` — conferir isso antes de considerar a tarefa concluída.
 
 4. **Queries**
    - NUNCA `SELECT *` — só as colunas necessárias.

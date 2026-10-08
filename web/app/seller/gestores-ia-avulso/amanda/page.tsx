@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { mlItemPermalink, mlReclamacaoPermalink } from "@/lib/mercadoLivreApiClient";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
-import { SellerGestorRunShell, type SellerAiRun, type DispararRodada } from "./SellerGestorRunShell";
-import { CopiarSugestaoBotao } from "./SellerGestorCopiarBotao";
-import { ReputacaoTermometro } from "./ReputacaoTermometro";
+import { SellerNav } from "../../SellerNav";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
+import { SellerGestorRunShell, type SellerAiRun, type DispararRodada } from "@/components/seller/SellerGestorRunShell";
+import { CopiarSugestaoBotao } from "@/components/seller/SellerGestorCopiarBotao";
+import { ReputacaoTermometro } from "@/components/seller/ReputacaoTermometro";
+import { mlItemPermalink } from "@/lib/mercadoLivreApiClient";
 
 type Diagnostico = "saudavel" | "atencao" | "critica";
 type Urgencia = "alta" | "media" | "baixa";
-
-type FornecedorAtraso = { fornecedorNome: string; pedidosPostados: number; atrasoMedioDias: number };
 
 type Pergunta = {
   pergunta_id: number;
@@ -23,7 +26,7 @@ type Pergunta = {
   resposta_sugerida: string;
 };
 
-export type ReputacaoAtendimentoResultado = {
+type AmandaResultado = {
   diagnostico: Diagnostico;
   observacao: string;
   nivel: string | null;
@@ -34,16 +37,18 @@ export type ReputacaoAtendimentoResultado = {
   qtd_atraso_manuseio: number;
   taxa_cancelamento: number;
   periodo_metrica: string;
-  fornecedores_atraso: FornecedorAtraso[];
   perguntas: Pergunta[];
 };
+
+type Acesso = "loading" | "liberado" | "negado";
+type UsoTokensHoje = { tokens: number; cota: number };
+const TOKENS_FMT = new Intl.NumberFormat("pt-BR");
 
 const DIAGNOSTICO_BADGE: Record<Diagnostico, string> = {
   saudavel: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
   atencao: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
   critica: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
 };
-
 const DIAGNOSTICO_LABEL: Record<Diagnostico, string> = {
   saudavel: "Reputação saudável",
   atencao: "Atenção",
@@ -69,7 +74,6 @@ const URGENCIA_BADGE: Record<Urgencia, string> = {
   media: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
   baixa: "bg-[var(--muted)]/15 text-[var(--muted)]",
 };
-
 const URGENCIA_LABEL: Record<Urgencia, string> = { alta: "Urgente", media: "Moderada", baixa: "Baixa" };
 
 function UrgenciaBadge({ urgencia }: { urgencia: Urgencia }) {
@@ -90,7 +94,7 @@ function formatarPct(taxa: number): string {
   return `${(taxa * 100).toFixed(1)}%`;
 }
 
-function ReputacaoResumo({ r }: { r: ReputacaoAtendimentoResultado }) {
+function ReputacaoResumo({ r }: { r: AmandaResultado }) {
   return (
     <article className="rounded-xl border border-[var(--card-border)] p-3.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -125,21 +129,6 @@ function ReputacaoResumo({ r }: { r: ReputacaoAtendimentoResultado }) {
         </div>
       </dl>
       <p className="mt-2 text-sm text-[var(--foreground)]">{r.observacao}</p>
-      {r.fornecedores_atraso.length > 0 ? (
-        <div className="mt-2.5 divide-y divide-[var(--card-border)] rounded-lg border border-[var(--card-border)]">
-          {r.fornecedores_atraso.map((f) => (
-            <div
-              key={f.fornecedorNome}
-              className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2.5 py-2 text-xs"
-            >
-              <span className="text-[var(--foreground)]">{f.fornecedorNome}</span>
-              <span className="text-[var(--muted)]">
-                {f.atrasoMedioDias}d em média até postar · {f.pedidosPostados} pedidos no período
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
     </article>
   );
 }
@@ -162,7 +151,7 @@ function AplicarRespostaPerguntaBotao({ perguntaId, respostaSugerida }: { pergun
       setEstado("erro");
       return;
     }
-    const res = await fetch("/api/seller/gestores-ia/aplicar-resposta-pergunta", {
+    const res = await fetch("/api/gestores-ia-avulso/amanda/aplicar-resposta-pergunta", {
       method: "POST",
       headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ pergunta_id: perguntaId, resposta: texto }),
@@ -203,7 +192,7 @@ function AplicarRespostaPerguntaBotao({ perguntaId, respostaSugerida }: { pergun
       )}
 
       {(estado === "bloqueado" || estado === "erro") && mensagem ? (
-        <p className="mt-1 text-xs text-[var(--danger)]">{mensagem}</p>
+        <p className={cn("mt-1 text-xs", DANGER_PREMIUM_TEXT_PRIMARY)}>{mensagem}</p>
       ) : null}
 
       {estado === "confirmando" ? (
@@ -282,193 +271,177 @@ function PerguntaCard({ p }: { p: Pergunta }) {
   );
 }
 
-type DisputaCaso = {
-  id: string;
-  ml_order_id: string | null;
-  ml_item_id: string | null;
-  ml_claim_id: string | null;
-  foto_enviada: boolean;
-  criado_em: string;
-};
+export default function AmandaAvulsoPage() {
+  const router = useRouter();
+  const [acesso, setAcesso] = useState<Acesso>("loading");
+  const [mlConectado, setMlConectado] = useState(true);
+  const [run, setRun] = useState<SellerAiRun<AmandaResultado> | null>(null);
+  const [usoTokensHoje, setUsoTokensHoje] = useState<UsoTokensHoje | null>(null);
+  const [bloqueadoHoje, setBloqueadoHoje] = useState(false);
 
-function EnviarFotoBotao({ casoId, onEnviado }: { casoId: string; onEnviado: () => void }) {
-  const [enviando, setEnviando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-
-  async function enviar(file: File) {
-    setEnviando(true);
-    setErro(null);
-    const {
-      data: { session },
-    } = await supabaseBrowser.auth.getSession();
-    if (!session?.access_token) {
-      setErro("Sessão expirada, faça login de novo.");
-      setEnviando(false);
+  const carregar = useCallback(async () => {
+    const { data } = await supabaseBrowser.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      router.replace("/gestores-ia/login");
       return;
     }
-    const formData = new FormData();
-    formData.append("file", file);
-    const res = await fetch(`/api/seller/gestores-ia/disputas/${casoId}/enviar-foto`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${session.access_token}` },
-      body: formData,
-    });
-    const json = (await res.json().catch(() => ({}))) as { error?: string };
-    if (!res.ok) {
-      setErro(json.error ?? "Erro ao enviar a foto.");
-      setEnviando(false);
-      return;
-    }
-    onEnviado();
-  }
-
-  return (
-    <div className="mt-2">
-      <label className="inline-flex cursor-pointer items-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10">
-        {enviando ? "Enviando…" : "Anexar foto"}
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          className="hidden"
-          disabled={enviando}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void enviar(file);
-          }}
-        />
-      </label>
-      {erro ? <p className="mt-1 text-xs text-[var(--danger)]">{erro}</p> : null}
-    </div>
-  );
-}
-
-function DisputaCasoCard({ caso, onAtualizado }: { caso: DisputaCaso; onAtualizado: () => void }) {
-  return (
-    <article className="rounded-xl border border-[var(--card-border)] p-3.5">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <p className="text-sm font-medium text-[var(--foreground)]">Pedido do Mercado Livre {caso.ml_order_id ?? "—"}</p>
-        <div className="flex flex-wrap items-center gap-3">
-          {caso.ml_order_id && caso.ml_claim_id ? (
-            <a
-              href={mlReclamacaoPermalink(caso.ml_order_id, caso.ml_claim_id)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
-            >
-              Ver reclamação ↗
-            </a>
-          ) : null}
-          {caso.ml_item_id ? (
-            <a
-              href={mlItemPermalink(caso.ml_item_id)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
-            >
-              Ver anúncio ↗
-            </a>
-          ) : null}
-        </div>
-      </div>
-      <p className="mt-1 text-sm text-[var(--foreground)]">
-        O comprador anexou uma foto na reclamação desse pedido. Clique em &ldquo;Ver reclamação&rdquo; pra
-        abrir e conferir — se conseguir ver a foto lá, envie uma cópia aqui pra gente analisar.
-      </p>
-      {caso.foto_enviada ? (
-        <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">Foto enviada ✓</p>
-      ) : (
-        <EnviarFotoBotao casoId={caso.id} onEnviado={onAtualizado} />
-      )}
-    </article>
-  );
-}
-
-function DisputasParaFoto() {
-  const [casos, setCasos] = useState<DisputaCaso[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  async function carregar() {
-    const {
-      data: { session },
-    } = await supabaseBrowser.auth.getSession();
-    if (!session?.access_token) {
-      setLoading(false);
-      return;
-    }
-    const res = await fetch("/api/seller/gestores-ia/disputas", {
-      headers: { Authorization: `Bearer ${session.access_token}` },
+    const res = await fetch("/api/gestores-ia-avulso/amanda", {
+      headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
-    const json = (await res.json().catch(() => ({}))) as { casos?: DisputaCaso[] };
-    setCasos((json.casos ?? []).filter((c) => !c.foto_enviada));
-    setLoading(false);
-  }
+    if (res.status === 403) {
+      setAcesso("negado");
+      return;
+    }
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setAcesso("negado");
+      return;
+    }
+    setMlConectado(Boolean(json.ml_conectado));
+    setRun(json.run ?? null);
+    setUsoTokensHoje(json.uso_tokens_hoje ?? null);
+    setBloqueadoHoje(json.bloqueado_hoje === true);
+    setAcesso("liberado");
+  }, [router]);
 
   useEffect(() => {
     void carregar();
-  }, []);
+  }, [carregar]);
 
-  if (loading || casos.length === 0) return null;
+  const dispararRodada: DispararRodada = async () => {
+    const { data } = await supabaseBrowser.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return "Sessão expirada, faça login de novo.";
+    const res = await fetch("/api/gestores-ia-avulso/amanda/rodar", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) return json.error ?? "Erro ao rodar a Amanda.";
+    await carregar();
+    return null;
+  };
 
   return (
-    <div>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-        Reclamações sinalizadas ({casos.length})
-      </p>
-      <div className="space-y-2.5">
-        {casos.map((c) => (
-          <DisputaCasoCard key={c.id} caso={c} onAtualizado={carregar} />
-        ))}
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
+      <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
+        <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
+          <Link href="/seller/gestores-ia-avulso" className="text-xs font-medium text-[var(--muted)] hover:underline">
+            ← Gestor de IA
+          </Link>
+          <div className="mt-1 min-w-0 space-y-1">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
+                Amanda — Reputação &amp; Atendimento
+              </h1>
+              <span
+                className="h-1 w-14 shrink-0 self-center rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 sm:w-20"
+                aria-hidden
+              />
+            </div>
+            <p className="text-sm leading-snug text-[var(--muted)]">
+              Analisa suas métricas de reputação no Mercado Livre (reclamação, atraso no envio, cancelamento) e lista
+              perguntas de comprador sem resposta com uma sugestão de texto pronta pra você revisar e enviar.
+            </p>
+          </div>
+        </header>
+
+        {acesso === "loading" ? (
+          <section className="space-y-4 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm sm:p-6">
+            <Skeleton className="h-6 w-56" />
+            <Skeleton className="h-24 w-full" />
+          </section>
+        ) : acesso === "negado" ? (
+          <div className={cn("rounded-2xl p-4 text-sm", DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY)}>
+            Não foi possível validar seu acesso.
+          </div>
+        ) : !mlConectado ? (
+          <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 text-center shadow-sm sm:p-8">
+            <p className="font-medium text-[var(--foreground)]">Conecte sua conta do Mercado Livre primeiro</p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">
+              A Amanda precisa ler sua reputação e suas perguntas pendentes pra analisar — conecte sua conta pra
+              liberar essa rodada.
+            </p>
+            <Link
+              href="/seller/gestores-ia-avulso/integracoes"
+              className="mt-4 inline-flex rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
+            >
+              Conectar Mercado Livre
+            </Link>
+          </section>
+        ) : (
+          <>
+            {usoTokensHoje
+              ? (() => {
+                  const pct = Math.min(100, Math.round((usoTokensHoje.tokens / usoTokensHoje.cota) * 100));
+                  return (
+                    <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm">
+                      <div className="flex items-center justify-between gap-2 text-[11px]">
+                        <span className="font-semibold text-[var(--foreground)]">Uso dos Gestores de IA hoje</span>
+                        <span className={cn("font-semibold", bloqueadoHoje ? "text-[var(--danger)]" : "text-[var(--muted)]")}>
+                          {pct}% usado · {TOKENS_FMT.format(usoTokensHoje.tokens)} de {TOKENS_FMT.format(usoTokensHoje.cota)}{" "}
+                          tokens
+                        </span>
+                      </div>
+                      <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-neutral-200/80 ring-1 ring-inset ring-neutral-300/30 dark:bg-neutral-800 dark:ring-neutral-700/50">
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-all duration-700 ease-out",
+                            bloqueadoHoje
+                              ? "bg-gradient-to-r from-red-500 to-red-600"
+                              : pct >= 80
+                                ? "bg-gradient-to-r from-amber-500 to-amber-600"
+                                : "bg-gradient-to-r from-emerald-500 to-emerald-600"
+                          )}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <p className="mt-1.5 text-[11px] text-[var(--muted)]">Redefine às 00:00</p>
+                    </div>
+                  );
+                })()
+              : null}
+
+            <SellerGestorRunShell<AmandaResultado>
+              pro
+              run={run}
+              titulo="Reputação & Atendimento"
+              ajuda={
+                <p>
+                  Analisa suas métricas de reputação (reclamação, atraso no envio, cancelamento) e lista perguntas de
+                  comprador sem resposta com uma sugestão de texto pronta pra você revisar e enviar.
+                </p>
+              }
+              onRodarAgora={dispararRodada}
+            >
+              {(resultado) => (
+                <div className="space-y-4">
+                  <ReputacaoResumo r={resultado} />
+                  {resultado.perguntas.length > 0 ? (
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+                        Perguntas sem resposta ({resultado.perguntas.length})
+                      </p>
+                      <div className="space-y-2.5">
+                        {resultado.perguntas.map((p) => (
+                          <PerguntaCard key={p.pergunta_id} p={p} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-4 text-center text-sm text-[var(--muted)]">
+                      Nenhuma pergunta pendente agora.
+                    </div>
+                  )}
+                </div>
+              )}
+            </SellerGestorRunShell>
+          </>
+        )}
       </div>
+      <SellerNav active="gestores_ia" calcOnly temGestoresIa />
     </div>
-  );
-}
-
-export function SellerGestorReputacaoAtendimentoPanel({
-  pro,
-  run,
-  onRodarAgora,
-}: {
-  pro: boolean;
-  run: SellerAiRun<ReputacaoAtendimentoResultado> | null;
-  onRodarAgora?: DispararRodada;
-}) {
-  return (
-    <SellerGestorRunShell
-      pro={pro}
-      run={run}
-      onRodarAgora={onRodarAgora}
-      titulo="Reputação & Atendimento"
-      ajuda={
-        <p>
-          Analisa suas métricas de reputação (reclamação, atraso no envio, cancelamento) e cruza com o
-          atraso real de postagem por fornecedor — só o DropCore vê os dois lados. Também lista perguntas
-          de comprador sem resposta com uma sugestão de texto pronta pra você revisar e colar.
-        </p>
-      }
-    >
-      {(resultado) => (
-        <div className="space-y-4">
-          <DisputasParaFoto />
-          <ReputacaoResumo r={resultado} />
-          {resultado.perguntas.length > 0 ? (
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-                Perguntas sem resposta ({resultado.perguntas.length})
-              </p>
-              <div className="space-y-2.5">
-                {resultado.perguntas.map((p) => (
-                  <PerguntaCard key={p.pergunta_id} p={p} />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-4 text-center text-sm text-[var(--muted)]">
-              Nenhuma pergunta pendente agora.
-            </div>
-          )}
-        </div>
-      )}
-    </SellerGestorRunShell>
   );
 }

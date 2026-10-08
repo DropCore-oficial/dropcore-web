@@ -12,6 +12,8 @@ type Access = "loading" | "liberado" | "sem_pacote" | "denied";
 
 type MlStatus = { connected: boolean; ml_user_id: string | null };
 
+type ByokStatus = { configurado: boolean };
+
 /**
  * Integrações do pacote avulso "Gestores de IA" — hoje só o Mercado Livre. Separado da
  * lista de gestores (/seller/gestores-ia-avulso) de propósito, mesmo padrão do hub (ERP
@@ -23,6 +25,11 @@ export default function GestoresIaAvulsoIntegracoesPage() {
   const [mlStatus, setMlStatus] = useState<MlStatus | null>(null);
   const [mlStatusLoading, setMlStatusLoading] = useState(false);
   const [mlErro, setMlErro] = useState<string | null>(null);
+
+  const [byokStatus, setByokStatus] = useState<ByokStatus | null>(null);
+  const [byokLoading, setByokLoading] = useState(false);
+  const [byokErro, setByokErro] = useState<string | null>(null);
+  const [byokInput, setByokInput] = useState("");
 
   const refreshMlStatus = useCallback(async () => {
     setMlStatusLoading(true);
@@ -67,6 +74,73 @@ export default function GestoresIaAvulsoIntegracoesPage() {
     }
   }
 
+  const refreshByokStatus = useCallback(async () => {
+    setByokLoading(true);
+    setByokErro(null);
+    try {
+      const { data } = await supabaseBrowser.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return;
+      const res = await fetch("/api/gestores-ia-avulso/byok", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j?.error ?? "Erro ao conferir chave BYOK.");
+      setByokStatus({ configurado: Boolean(j.configurado) });
+    } catch (e: unknown) {
+      setByokErro(e instanceof Error ? e.message : "Erro inesperado.");
+    } finally {
+      setByokLoading(false);
+    }
+  }, []);
+
+  async function salvarByok() {
+    if (!byokInput.trim()) return;
+    setByokLoading(true);
+    setByokErro(null);
+    try {
+      const { data } = await supabaseBrowser.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return;
+      const res = await fetch("/api/gestores-ia-avulso/byok", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key: byokInput.trim() }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j?.error ?? "Erro ao salvar a chave.");
+      setByokInput("");
+      setByokStatus({ configurado: true });
+    } catch (e: unknown) {
+      setByokErro(e instanceof Error ? e.message : "Erro inesperado.");
+    } finally {
+      setByokLoading(false);
+    }
+  }
+
+  async function removerByok() {
+    if (!confirm("Remover sua chave da Anthropic? Os gestores voltam a usar a chave da casa (com teto diário de R$4).")) return;
+    setByokLoading(true);
+    setByokErro(null);
+    try {
+      const { data } = await supabaseBrowser.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return;
+      const res = await fetch("/api/gestores-ia-avulso/byok", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j?.error ?? "Erro ao remover a chave.");
+      setByokStatus({ configurado: false });
+    } catch (e: unknown) {
+      setByokErro(e instanceof Error ? e.message : "Erro inesperado.");
+    } finally {
+      setByokLoading(false);
+    }
+  }
+
   const refresh = useCallback(async () => {
     const { data } = await supabaseBrowser.auth.getSession();
     const token = data.session?.access_token;
@@ -97,8 +171,11 @@ export default function GestoresIaAvulsoIntegracoesPage() {
   }, [refresh]);
 
   useEffect(() => {
-    if (access === "liberado") void refreshMlStatus();
-  }, [access, refreshMlStatus]);
+    if (access === "liberado") {
+      void refreshMlStatus();
+      void refreshByokStatus();
+    }
+  }, [access, refreshMlStatus, refreshByokStatus]);
 
   if (access === "denied") {
     return (
@@ -172,6 +249,53 @@ export default function GestoresIaAvulsoIntegracoesPage() {
               </div>
             )}
             {mlErro && <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "mt-3 text-center text-xs")}>{mlErro}</p>}
+          </div>
+        )}
+
+        {access !== "loading" && (
+          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 shadow-sm">
+            <div className="mb-4 space-y-1">
+              <p className="text-sm font-medium text-[var(--foreground)]">Chave própria da Anthropic (BYOK)</p>
+              <p className="text-xs text-[var(--muted)]">
+                Opcional. Sem chave própria, os gestores usam a chave da casa com teto diário de R$4 (renova à
+                meia-noite). Com chave própria, o teto deixa de valer — o gasto sai direto da sua conta Anthropic.
+              </p>
+            </div>
+
+            {byokLoading && !byokStatus ? (
+              <Skeleton className="h-4 w-3/4 max-w-sm" />
+            ) : byokStatus?.configurado ? (
+              <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
+                <p className="text-sm font-medium text-[var(--foreground)]">Chave configurada</p>
+                <button
+                  type="button"
+                  onClick={removerByok}
+                  disabled={byokLoading}
+                  className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
+                >
+                  Remover
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="password"
+                  value={byokInput}
+                  onChange={(e) => setByokInput(e.target.value)}
+                  placeholder="sk-ant-..."
+                  className="h-8 w-full flex-1 rounded-md border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
+                />
+                <button
+                  type="button"
+                  onClick={salvarByok}
+                  disabled={byokLoading || !byokInput.trim()}
+                  className="shrink-0 rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {byokLoading ? "Validando…" : "Salvar"}
+                </button>
+              </div>
+            )}
+            {byokErro && <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "mt-3 text-center text-xs sm:text-left")}>{byokErro}</p>}
           </div>
         )}
       </div>

@@ -1,18 +1,15 @@
 /**
- * GET/POST /api/cron/gestores-ia-avulso-andrey — cron A: submete o diagnóstico diário do
- * Andrey via Anthropic Batch API (desconto de 50% — mesmo padrão do hub). Até 2026-10-07
- * rodava síncrono (preço cheio) pra todo mundo, inclusive a rodada automática que ninguém
- * está esperando na tela; corrigido pra usar Batch API igual o hub (gestorBatchSubmit.ts),
- * já que o cron pode esperar até 24h pelo resultado sem problema nenhum. Assinante BYOK
- * continua síncrono (chave própria, ver gestorAvulsoBatchSubmit.ts). NÃO grava resultado
- * aqui — cron B (`gestores-ia-avulso-andrey-resultado`) confere quando o batch termina.
+ * GET/POST /api/cron/gestores-ia-avulso-andrey-resultado — cron B: confere os batches
+ * "pendente" do Andrey avulso e grava o resultado quando a Anthropic terminar de processar
+ * (até 24h, por isso roda a cada 15min — mesmo padrão do hub, ver
+ * gestorBatchResultado.ts / /api/cron/gestores-ia-resultado).
  */
 import { NextResponse } from "next/server";
-import { submeterAndreyAvulsoDiario } from "@/lib/ai/gestorAvulsoBatchSubmit";
+import { processarAndreyAvulsoBatchesPendentes } from "@/lib/ai/gestorAvulsoBatchResultado";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 120;
 
 function isAuthorized(req: Request): boolean {
   const secret = process.env.CRON_SECRET?.trim();
@@ -37,7 +34,7 @@ async function run(req: Request) {
   }
 
   try {
-    const resultado = await submeterAndreyAvulsoDiario();
+    const resultado = await processarAndreyAvulsoBatchesPendentes();
     return NextResponse.json({ ok: true, ...resultado });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "erro_desconhecido" }, { status: 500 });

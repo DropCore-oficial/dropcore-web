@@ -247,7 +247,7 @@ type MetricaAdsReal = {
 /** Soma métricas de Ads reais por chave de agrupamento (family_id quando existe, senão
  * item_id — mesma convenção já usada pelo Andrey). `null` quando o seller não tem Ads
  * habilitado nessa conta (não é erro, ver `mlBuscarAdvertiserId`). */
-async function buscarMetricasAdsPorChave(
+export async function buscarMetricasAdsPorChave(
   ctx: MercadoLivreAuthContext,
   siteId: string,
   dateFrom: string,
@@ -398,7 +398,7 @@ function diasDesde(dataIso: string): number {
   return Math.floor((Date.now() - new Date(dataIso).getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function classificarCampanhas(campanhas: MercadoLivreCampanhaAds[]): CampanhaAdsResultado[] {
+export function classificarCampanhas(campanhas: MercadoLivreCampanhaAds[]): CampanhaAdsResultado[] {
   return campanhas
     .map((c) => {
       const custoMes = c.metrics?.cost ?? 0;
@@ -862,7 +862,7 @@ export type CampanhaAdsResultadoJson = {
   recomendacao: string;
 };
 
-function campanhaParaJson(c: CampanhaAdsResultado): CampanhaAdsResultadoJson {
+export function campanhaParaJson(c: CampanhaAdsResultado): CampanhaAdsResultadoJson {
   return {
     id: c.id,
     nome: c.nome,

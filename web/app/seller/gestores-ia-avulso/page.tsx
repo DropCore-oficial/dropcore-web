@@ -30,6 +30,18 @@ type AndreyRun = {
   executado_em: string;
 } | null;
 
+type AmandaResultado = {
+  diagnostico: "saudavel" | "atencao" | "critica";
+  observacao: string;
+  perguntas: { pergunta_id: number; dias_pendente: number }[];
+};
+type AmandaRun = { status: "pendente" | "ok" | "erro"; resultado: AmandaResultado | null; executado_em: string } | null;
+
+type UlissesDiagnostico = "sem_custo" | "margem_abaixo_minima" | "margem_saudavel" | "margem_acima_maxima";
+type UlissesSku = { chave: string; nome_produto: string; diagnostico: UlissesDiagnostico };
+type UlissesResultado = { skus: UlissesSku[]; destaque_atencao: string[] };
+type UlissesRun = { status: "pendente" | "ok" | "erro"; resultado: UlissesResultado | null; executado_em: string } | null;
+
 function resumoStatusAndrey(run: AndreyRun): string {
   if (!run || run.status !== "ok" || !run.resultado) return "Ainda não rodou";
   const comProblema = run.resultado.anuncios.filter((a) => a.diagnostico !== "sem_problema_aparente").length;
@@ -37,19 +49,59 @@ function resumoStatusAndrey(run: AndreyRun): string {
   return `${comProblema} grupo${comProblema > 1 ? "s" : ""} sinalizado${comProblema > 1 ? "s" : ""}`;
 }
 
-function montarAtividades(run: AndreyRun): AtividadeAoVivo[] {
-  if (!run || run.status !== "ok" || !run.resultado) return [];
-  const destaqueChave = run.resultado.destaque_prioridade?.[0];
-  const grupo = run.resultado.anuncios.find((a) => a.chave === destaqueChave);
-  if (!grupo) return [];
-  return [
-    {
-      texto: `${grupo.item_id_representante}: ${grupo.observacao}`,
-      gestor: "anuncios_seo",
-      tom: "atencao",
-      quando: run.executado_em,
-    },
-  ];
+function resumoStatusAmanda(run: AmandaRun): string {
+  if (!run || run.status !== "ok" || !run.resultado) return "Ainda não rodou";
+  const qtdPerguntas = run.resultado.perguntas.length;
+  if (run.resultado.diagnostico !== "saudavel") {
+    return run.resultado.diagnostico === "critica" ? "Reputação crítica" : "Reputação em atenção";
+  }
+  if (qtdPerguntas > 0) return `${qtdPerguntas} pergunta${qtdPerguntas > 1 ? "s" : ""} pendente${qtdPerguntas > 1 ? "s" : ""}`;
+  return "Tudo em dia";
+}
+
+function resumoStatusUlisses(run: UlissesRun): string {
+  if (!run || run.status !== "ok" || !run.resultado) return "Ainda não rodou";
+  const abaixoMin = run.resultado.skus.filter((s) => s.diagnostico === "margem_abaixo_minima").length;
+  const semCusto = run.resultado.skus.filter((s) => s.diagnostico === "sem_custo").length;
+  if (abaixoMin > 0) return `${abaixoMin} com margem baixa`;
+  if (semCusto > 0) return `${semCusto} sem custo cadastrado`;
+  return "Margens saudáveis";
+}
+
+function montarAtividades(andreyRun: AndreyRun, amandaRun: AmandaRun, ulissesRun: UlissesRun): AtividadeAoVivo[] {
+  const atividades: AtividadeAoVivo[] = [];
+  if (andreyRun && andreyRun.status === "ok" && andreyRun.resultado) {
+    const destaqueChave = andreyRun.resultado.destaque_prioridade?.[0];
+    const grupo = andreyRun.resultado.anuncios.find((a) => a.chave === destaqueChave);
+    if (grupo) {
+      atividades.push({
+        texto: `${grupo.item_id_representante}: ${grupo.observacao}`,
+        gestor: "anuncios_seo",
+        tom: "atencao",
+        quando: andreyRun.executado_em,
+      });
+    }
+  }
+  if (amandaRun && amandaRun.status === "ok" && amandaRun.resultado && amandaRun.resultado.diagnostico !== "saudavel") {
+    atividades.push({
+      texto: amandaRun.resultado.observacao,
+      gestor: "reputacao",
+      tom: amandaRun.resultado.diagnostico === "critica" ? "erro" : "atencao",
+      quando: amandaRun.executado_em,
+    });
+  }
+  if (ulissesRun && ulissesRun.status === "ok" && ulissesRun.resultado) {
+    const pior = ulissesRun.resultado.skus.find((s) => s.diagnostico === "margem_abaixo_minima");
+    if (pior) {
+      atividades.push({
+        texto: `${pior.nome_produto}: margem abaixo do mínimo configurado`,
+        gestor: "ads",
+        tom: "atencao",
+        quando: ulissesRun.executado_em,
+      });
+    }
+  }
+  return atividades;
 }
 
 /**
@@ -63,6 +115,8 @@ export default function GestoresIaAvulsoPage() {
   const router = useRouter();
   const [access, setAccess] = useState<Access>("loading");
   const [andreyRun, setAndreyRun] = useState<AndreyRun>(null);
+  const [amandaRun, setAmandaRun] = useState<AmandaRun>(null);
+  const [ulissesRun, setUlissesRun] = useState<UlissesRun>(null);
 
   const refresh = useCallback(async () => {
     const { data } = await supabaseBrowser.auth.getSession();
@@ -82,12 +136,17 @@ export default function GestoresIaAvulsoPage() {
     }
     if (j.access === "calc_only" && j.inclui_gestores_ia === true) {
       setAccess("liberado");
-      const andreyRes = await fetch("/api/gestores-ia-avulso/andrey", {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
+      const [andreyRes, amandaRes, ulissesRes] = await Promise.all([
+        fetch("/api/gestores-ia-avulso/andrey", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
+        fetch("/api/gestores-ia-avulso/amanda", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
+        fetch("/api/gestores-ia-avulso/ulisses", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
+      ]);
       const andreyJson = await andreyRes.json().catch(() => ({}));
       if (andreyRes.ok) setAndreyRun(andreyJson.run ?? null);
+      const amandaJson = await amandaRes.json().catch(() => ({}));
+      if (amandaRes.ok) setAmandaRun(amandaJson.run ?? null);
+      const ulissesJson = await ulissesRes.json().catch(() => ({}));
+      if (ulissesRes.ok) setUlissesRun(ulissesJson.run ?? null);
     } else if (j.access === "calc_only") {
       setAccess("sem_pacote");
     } else {
@@ -172,9 +231,9 @@ export default function GestoresIaAvulsoPage() {
               />
             </div>
             <p className="text-sm leading-snug text-[var(--muted)]">
-              Andrey (Anúncios &amp; SEO) já está liberado. Amanda (Reputação &amp; Atendimento), Ulisses (Ads) e o
-              Tiago Silva analisando sua conta do Mercado Livre direto —{" "}
-              <span className="font-medium text-[var(--foreground)]">em construção, chegando em breve</span>.
+              Andrey (Anúncios &amp; SEO), Amanda (Reputação &amp; Atendimento), Ulisses (Ads &amp; Preço) e o Tiago
+              Silva (Gestor Mestre, chat) já estão liberados —{" "}
+              <span className="font-medium text-[var(--foreground)]">os 4 gestores da equipe completos.</span>
             </p>
           </div>
         </header>
@@ -182,9 +241,9 @@ export default function GestoresIaAvulsoPage() {
         <SellerGestoresIaEscritorio3D
           statusDiogo="Em breve"
           statusAndrey={resumoStatusAndrey(andreyRun)}
-          statusAmanda="Em breve"
-          statusUlisses="Em breve"
-          atividades={montarAtividades(andreyRun)}
+          statusAmanda={resumoStatusAmanda(amandaRun)}
+          statusUlisses={resumoStatusUlisses(ulissesRun)}
+          atividades={montarAtividades(andreyRun, amandaRun, ulissesRun)}
           nomeResponsavel={null}
         />
 
@@ -196,6 +255,46 @@ export default function GestoresIaAvulsoPage() {
             <p className="font-medium text-[var(--foreground)]">Andrey — Anúncios &amp; SEO</p>
             <p className="mt-0.5 text-xs text-[var(--muted)]">
               Diagnóstico de título, descrição e ficha técnica dos seus anúncios no Mercado Livre.
+            </p>
+          </div>
+          <span className="shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-400">Abrir →</span>
+        </Link>
+
+        <Link
+          href="/seller/gestores-ia-avulso/amanda"
+          className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md"
+        >
+          <div className="min-w-0">
+            <p className="font-medium text-[var(--foreground)]">Amanda — Reputação &amp; Atendimento</p>
+            <p className="mt-0.5 text-xs text-[var(--muted)]">
+              Reputação da sua conta no Mercado Livre e perguntas de comprador sem resposta, com sugestão pronta.
+            </p>
+          </div>
+          <span className="shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-400">Abrir →</span>
+        </Link>
+
+        <Link
+          href="/seller/gestores-ia-avulso/ulisses"
+          className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md"
+        >
+          <div className="min-w-0">
+            <p className="font-medium text-[var(--foreground)]">Ulisses — Ads &amp; Preço</p>
+            <p className="mt-0.5 text-xs text-[var(--muted)]">
+              Margem de cada anúncio a partir do custo que você digitou, preço real e comissão do Mercado Livre.
+            </p>
+          </div>
+          <span className="shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-400">Abrir →</span>
+        </Link>
+
+        <Link
+          href="/seller/gestores-ia-avulso/tiago"
+          className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md"
+        >
+          <div className="min-w-0">
+            <p className="font-medium text-[var(--foreground)]">Tiago Silva — Gestor Mestre</p>
+            <p className="mt-0.5 text-xs text-[var(--muted)]">
+              Converse com o Tiago — ele consulta a equipe inteira (Andrey, Amanda, Ulisses) pra responder sua
+              pergunta com dado real.
             </p>
           </div>
           <span className="shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-400">Abrir →</span>
