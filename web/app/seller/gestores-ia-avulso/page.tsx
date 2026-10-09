@@ -8,6 +8,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../SellerNav";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { AtividadeAoVivo } from "@/components/seller/SellerGestoresIaEscritorio3D";
+import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
 
 const SellerGestoresIaEscritorio3D = dynamic(
   () => import("@/components/seller/SellerGestoresIaEscritorio3D").then((m) => m.SellerGestoresIaEscritorio3D),
@@ -117,6 +118,8 @@ export default function GestoresIaAvulsoPage() {
   const [andreyRun, setAndreyRun] = useState<AndreyRun>(null);
   const [amandaRun, setAmandaRun] = useState<AmandaRun>(null);
   const [ulissesRun, setUlissesRun] = useState<UlissesRun>(null);
+  const [usoTokensHoje, setUsoTokensHoje] = useState<UsoTokensHoje | null>(null);
+  const [bloqueadoHoje, setBloqueadoHoje] = useState(false);
 
   const refresh = useCallback(async () => {
     const { data } = await supabaseBrowser.auth.getSession();
@@ -147,6 +150,10 @@ export default function GestoresIaAvulsoPage() {
       if (amandaRes.ok) setAmandaRun(amandaJson.run ?? null);
       const ulissesJson = await ulissesRes.json().catch(() => ({}));
       if (ulissesRes.ok) setUlissesRun(ulissesJson.run ?? null);
+      // Orçamento diário é da conta inteira (não por gestor) — qualquer uma das 3 respostas
+      // já traz o mesmo valor; usa a do Andrey (primeira chamada) como fonte.
+      setUsoTokensHoje(andreyJson.uso_tokens_hoje ?? null);
+      setBloqueadoHoje(andreyJson.bloqueado_hoje === true);
     } else if (j.access === "calc_only") {
       setAccess("sem_pacote");
     } else {
@@ -237,6 +244,8 @@ export default function GestoresIaAvulsoPage() {
             </p>
           </div>
         </header>
+
+        <GestorAvulsoOrcamentoBar usoTokensHoje={usoTokensHoje} bloqueadoHoje={bloqueadoHoje} />
 
         <SellerGestoresIaEscritorio3D
           statusDiogo="Em breve"

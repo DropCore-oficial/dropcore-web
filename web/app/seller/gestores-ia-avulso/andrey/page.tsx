@@ -11,6 +11,7 @@ import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY, DANGER_PR
 import { AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { SellerGestorRunShell, type SellerAiRun, type DispararRodada } from "@/components/seller/SellerGestorRunShell";
 import { CopiarSugestaoBotao } from "@/components/seller/SellerGestorCopiarBotao";
+import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
 import { mlItemPermalink } from "@/lib/mercadoLivreApiClient";
 
 type Diagnostico = "problema_titulo" | "problema_descricao" | "caracteristicas_incompletas" | "sem_problema_aparente";
@@ -56,9 +57,6 @@ type Anuncio = {
 type AndreyResultado = { anuncios: Anuncio[]; destaque_prioridade: string[] };
 
 type Acesso = "loading" | "liberado" | "negado";
-
-type UsoTokensHoje = { tokens: number; cota: number };
-const TOKENS_FMT = new Intl.NumberFormat("pt-BR");
 
 const DIAGNOSTICO_BADGE: Record<Diagnostico, string> = {
   problema_titulo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
@@ -616,41 +614,7 @@ export default function AndreyAvulsoPage() {
           </section>
         ) : (
           <>
-            {usoTokensHoje
-              ? (() => {
-                  const pct = Math.min(100, Math.round((usoTokensHoje.tokens / usoTokensHoje.cota) * 100));
-                  return (
-                    <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm">
-                      <div className="flex items-center justify-between gap-2 text-[11px]">
-                        <span className="font-semibold text-[var(--foreground)]">Uso dos Gestores de IA hoje</span>
-                        <span
-                          className={cn(
-                            "font-semibold",
-                            bloqueadoHoje ? "text-[var(--danger)]" : "text-[var(--muted)]"
-                          )}
-                        >
-                          {pct}% usado · {TOKENS_FMT.format(usoTokensHoje.tokens)} de {TOKENS_FMT.format(usoTokensHoje.cota)}{" "}
-                          tokens
-                        </span>
-                      </div>
-                      <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-neutral-200/80 ring-1 ring-inset ring-neutral-300/30 dark:bg-neutral-800 dark:ring-neutral-700/50">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-all duration-700 ease-out",
-                            bloqueadoHoje
-                              ? "bg-gradient-to-r from-red-500 to-red-600"
-                              : pct >= 80
-                                ? "bg-gradient-to-r from-amber-500 to-amber-600"
-                                : "bg-gradient-to-r from-emerald-500 to-emerald-600"
-                          )}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <p className="mt-1.5 text-[11px] text-[var(--muted)]">Redefine às 00:00</p>
-                    </div>
-                  );
-                })()
-              : null}
+            <GestorAvulsoOrcamentoBar usoTokensHoje={usoTokensHoje} bloqueadoHoje={bloqueadoHoje} />
 
             <Link
               href="/seller/gestores-ia-avulso/andrey/novo-anuncio"

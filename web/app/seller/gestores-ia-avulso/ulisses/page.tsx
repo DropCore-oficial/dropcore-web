@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { SellerGestorRunShell, type SellerAiRun, type DispararRodada } from "@/components/seller/SellerGestorRunShell";
 import { mlItemPermalink, mlCampanhaAdsPermalink, mlPublicidadeHubPermalink } from "@/lib/mercadoLivreApiClient";
+import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
 
 type Diagnostico = "sem_custo" | "margem_abaixo_minima" | "margem_saudavel" | "margem_acima_maxima";
 
@@ -766,7 +767,7 @@ function UlissesResultadoAbas({ resultado }: { resultado: UlissesResultado }) {
   );
 }
 
-export default function UlissesAvulsoPage() {
+function UlissesAvulsoPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [acesso, setAcesso] = useState<Acesso>("loading");
@@ -775,6 +776,8 @@ export default function UlissesAvulsoPage() {
   const [preferencias, setPreferencias] = useState<PreferenciasForm | null>(null);
   const [editandoPreferencias, setEditandoPreferencias] = useState(false);
   const [run, setRun] = useState<SellerAiRun<UlissesResultado> | null>(null);
+  const [usoTokensHoje, setUsoTokensHoje] = useState<UsoTokensHoje | null>(null);
+  const [bloqueadoHoje, setBloqueadoHoje] = useState(false);
 
   const carregar = useCallback(async () => {
     const token = await getAccessToken();
@@ -799,6 +802,8 @@ export default function UlissesAvulsoPage() {
     setPreferenciasConfiguradas(Boolean(json.preferencias_configuradas));
     setPreferencias(json.preferencias ?? null);
     setRun(json.run ?? null);
+    setUsoTokensHoje(json.uso_tokens_hoje ?? null);
+    setBloqueadoHoje(json.bloqueado_hoje === true);
     setAcesso("liberado");
   }, [router]);
 
@@ -856,6 +861,8 @@ export default function UlissesAvulsoPage() {
             </p>
           </div>
         </header>
+
+        <GestorAvulsoOrcamentoBar usoTokensHoje={usoTokensHoje} bloqueadoHoje={bloqueadoHoje} />
 
         {acesso === "loading" ? (
           <section className="space-y-4 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm sm:p-6">
@@ -929,5 +936,16 @@ export default function UlissesAvulsoPage() {
       </div>
       <SellerNav active="gestores_ia" calcOnly temGestoresIa />
     </div>
+  );
+}
+
+/** `useSearchParams` (lê `?editar=1`) precisa de um limite de Suspense pro Next conseguir
+ * gerar a página estaticamente — sem isso o build de produção quebra (achado ao vivo no
+ * deploy, `next build` local/dev não acusa isso). */
+export default function UlissesAvulsoPage() {
+  return (
+    <Suspense fallback={null}>
+      <UlissesAvulsoPageInner />
+    </Suspense>
   );
 }

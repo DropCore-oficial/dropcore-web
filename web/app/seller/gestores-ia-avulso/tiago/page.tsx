@@ -7,13 +7,12 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { cn } from "@/lib/utils";
 import { SellerNav } from "../../SellerNav";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
+import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY } from "@/lib/semanticPremium";
 import { IconArrowRight, IconPlus } from "@/components/seller/Icons";
+import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
 
 type Mensagem = { id: string; role: "user" | "assistant"; content: string; criado_em: string };
 type Sessao = { id: string; titulo: string | null; criado_em: string; atualizado_em: string };
-type UsoTokensHoje = { tokens: number; cota: number };
-const TOKENS_FMT = new Intl.NumberFormat("pt-BR");
 
 const PERGUNTAS_RAPIDAS = [
   { label: "Anúncio com pergunta parada?", pergunta: "Tem algum anúncio com pergunta de cliente sem resposta?" },
@@ -270,36 +269,7 @@ export default function TiagoAvulsoPage() {
               </div>
             </div>
 
-            {usoTokensHoje
-              ? (() => {
-                  const pct = Math.min(100, Math.round((usoTokensHoje.tokens / usoTokensHoje.cota) * 100));
-                  return (
-                    <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm">
-                      <div className="flex items-center justify-between gap-2 text-[11px]">
-                        <span className="font-semibold text-[var(--foreground)]">Uso dos Gestores de IA hoje</span>
-                        <span className={cn("font-semibold", bloqueadoHoje ? DANGER_PREMIUM_TEXT_PRIMARY : "text-[var(--muted)]")}>
-                          {pct}% usado · {TOKENS_FMT.format(usoTokensHoje.tokens)} de {TOKENS_FMT.format(usoTokensHoje.cota)}{" "}
-                          tokens
-                        </span>
-                      </div>
-                      <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-neutral-200/80 ring-1 ring-inset ring-neutral-300/30 dark:bg-neutral-800 dark:ring-neutral-700/50">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-all duration-700 ease-out",
-                            bloqueadoHoje
-                              ? "bg-gradient-to-r from-red-500 to-red-600"
-                              : pct >= 80
-                                ? "bg-gradient-to-r from-amber-500 to-amber-600"
-                                : "bg-gradient-to-r from-emerald-500 to-emerald-600"
-                          )}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <p className="mt-1.5 text-[11px] text-[var(--muted)]">Redefine às 00:00</p>
-                    </div>
-                  );
-                })()
-              : null}
+            <GestorAvulsoOrcamentoBar usoTokensHoje={usoTokensHoje} bloqueadoHoje={bloqueadoHoje} />
 
             <section className="flex min-h-[420px] flex-col rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
               <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">

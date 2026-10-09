@@ -1,13 +1,17 @@
 /**
  * GET /api/gestores-ia-avulso/ulisses — última rodada do Ulisses (Ads/Preço) pro assinante
- * avulso + status de ML/preferências. Sem uso de tokens de IA (gestor 100% código), então
- * não devolve `uso_tokens_hoje` como Andrey/Amanda. Leitura via RPC
+ * avulso + status de ML/preferências. O Ulisses em si não gasta token de IA (100% código),
+ * mas `uso_tokens_hoje` devolvido aqui é o orçamento diário COMPARTILHADO da conta (mesmo
+ * cálculo de Andrey/Amanda) — pedido explícito pra barra aparecer em toda página do avulso,
+ * não só nos gestores que de fato consomem. Leitura via RPC
  * (fn_calculadora_assinante_ai_runs_recentes/ml_status_get, 2026-10-07).
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAssinanteFromToken } from "@/lib/calculadoraAssinanteSessionAuth";
 import { buscarPreferenciasUlissesAvulso } from "@/lib/ai/gestorAdsDadosAvulso";
+import { TOKENS_POR_REAL_ESTIMADO } from "@/lib/ai/gestorTiagoChatCusto";
+import { gastoAvulsoHojeReais, TETO_AVULSO_REAIS_DIA, COTA_TOKENS_DIA_ESTIMADA_AVULSO } from "@/lib/ai/gestorAvulsoOrcamento";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +27,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Recurso não disponível." }, { status: 403 });
   }
 
-  const [{ data: ml }, { data: runsRecentes }, preferencias] = await Promise.all([
+  const [{ data: ml }, { data: runsRecentes }, preferencias, { data: byok }] = await Promise.all([
     supabaseAdmin.rpc("fn_calculadora_assinante_ml_status_get", { p_assinante_id: assinante.id }),
     supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
       p_assinante_id: assinante.id,
@@ -31,11 +35,20 @@ export async function GET(req: Request) {
       p_limit: 1,
     }),
     buscarPreferenciasUlissesAvulso(assinante.id),
+    supabaseAdmin.rpc("fn_calculadora_assinante_byok_configurado", { p_assinante_id: assinante.id }),
   ]);
   const run = ((runsRecentes ?? []) as RunRow[])[0] ?? null;
 
+  const byokConfigurado = Boolean(byok);
+  const gastoHoje = byokConfigurado ? 0 : await gastoAvulsoHojeReais(assinante.id);
+  const bloqueadoHoje = !byokConfigurado && gastoHoje >= TETO_AVULSO_REAIS_DIA;
+
   return NextResponse.json({
     ml_conectado: Boolean(ml?.ml_user_id),
+    uso_tokens_hoje: byokConfigurado
+      ? null
+      : { tokens: Math.round(gastoHoje * TOKENS_POR_REAL_ESTIMADO), cota: COTA_TOKENS_DIA_ESTIMADA_AVULSO },
+    bloqueado_hoje: bloqueadoHoje,
     preferencias_configuradas: preferencias !== null,
     preferencias: preferencias
       ? {
