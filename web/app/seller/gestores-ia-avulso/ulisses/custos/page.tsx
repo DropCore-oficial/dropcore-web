@@ -9,6 +9,33 @@ import { SellerNav } from "../../../SellerNav";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 
+function IconCustos() {
+  return (
+    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <line x1="12" x2="12" y1="2" y2="22" />
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    </svg>
+  );
+}
+function IconPreferencias() {
+  return (
+    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 13a7.9 7.9 0 0 0 0-2l2-1.5-2-3.4-2.3.9a7.7 7.7 0 0 0-1.7-1L15 3h-4l-.4 2.6a7.7 7.7 0 0 0-1.7 1l-2.3-.9-2 3.4L6.6 11a7.9 7.9 0 0 0 0 2l-2 1.5 2 3.4 2.3-.9a7.7 7.7 0 0 0 1.7 1L11 21h4l.4-2.6a7.7 7.7 0 0 0 1.7-1l2.3.9 2-3.4Z" />
+    </svg>
+  );
+}
+
+function abaSublinhadaClass(ativo: boolean) {
+  return cn(
+    "-mb-px inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-1 pb-2.5 text-sm font-medium transition-colors touch-manipulation",
+    "outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]",
+    ativo
+      ? "border-emerald-600 text-emerald-600 font-semibold dark:border-emerald-400 dark:text-emerald-400"
+      : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+  );
+}
+
 type CatalogoItem = {
   chave: string;
   item_id_representante: string;
@@ -162,6 +189,17 @@ export default function UlissesCustosPage() {
             </p>
           </div>
         </header>
+
+        <div className="flex flex-wrap gap-x-5 gap-y-2 border-b border-[var(--card-border)]">
+          <span className={abaSublinhadaClass(true)}>
+            <IconCustos />
+            Custos dos anúncios
+          </span>
+          <Link href="/seller/gestores-ia-avulso/ulisses?editar=1" className={abaSublinhadaClass(false)}>
+            <IconPreferencias />
+            Editar preferências
+          </Link>
+        </div>
 
         {acesso === "loading" ? (
           <section className="space-y-3">

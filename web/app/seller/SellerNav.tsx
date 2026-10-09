@@ -132,6 +132,27 @@ function IconSuporte() {
   );
 }
 
+function IconSair() {
+  return (
+    <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" x2="9" y1="12" y2="12" />
+    </svg>
+  );
+}
+
+/** Painel com seta — recolhe/expande a rail (só o avulso tem esse botão hoje). */
+function IconPanelToggle({ expanded }: { expanded: boolean }) {
+  return (
+    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M9 3v18" />
+      {expanded ? <path d="m14 9-3 3 3 3" /> : <path d="m12 9 3 3-3 3" />}
+    </svg>
+  );
+}
+
 type NavKey = "dashboard" | "pedidos" | "fornecedores" | "produtos" | "calculadora" | "gestores_ia" | "plano" | "cadastro" | "integracoes";
 
 /** Rotas agrupadas no menu “Mais” (só mobile agora — desktop mostra tudo direto na rail). */
@@ -142,35 +163,93 @@ const NAV_MAIS_MENU_KEYS = ["integracoes", "plano", "cadastro"] as const satisfi
 const NAV_MAIS_MENU_KEYS_MOBILE = [...NAV_MAIS_MENU_KEYS, "calculadora", "gestores_ia", "fornecedores"] as const satisfies readonly NavKey[];
 
 const railActive = "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400";
-const railInactive = "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]";
+const railInactive =
+  "text-[var(--muted)] transition-colors duration-200 hover:bg-gradient-to-r hover:from-emerald-500/10 hover:to-emerald-400/10 hover:text-[var(--foreground)]";
 
-/** Ícone da rail lateral (desktop): mostra o nome num tooltip ao passar o mouse. */
+const railActiveGlow = "bg-gradient-to-br from-emerald-500 to-emerald-400 text-white shadow-sm shadow-emerald-600/20";
+
+/** Ícone da rail lateral (desktop): mostra o nome num tooltip ao passar o mouse.
+ * `glow`: item ativo vira ladrilho com gradiente emerald + halo desfocado atrás, em vez do
+ * fundo chapado `railActive` padrão — usado hoje só no menu do pacote avulso.
+ * `animateIcon`: o próprio desenho do ícone (não o fundo) respira (escala + opacidade, mesmo
+ * keyframe `pulse-glow` já usado na landing) devagar —
+ * reservado pro ícone que representa IA de verdade (Gestor de IA), não genérico pra todo `glow`.
+ * `hoverEffect`: o ícone se mexe enquanto o mouse estiver em cima (independe de estar ativo,
+ * combina com `animateIcon` — são propriedades CSS diferentes, uma não corta a outra) —
+ * `"bounce"` pula (Calculadora), `"spin"` gira (Meus dados/engrenagem), `"wiggle"` balança
+ * como encaixando (Integrações/plugue), `"sparkle"` cresce+gira um pouco (Gestor de IA) —
+ * os dois últimos são `.animate-dc-*` custom em `globals.css`.
+ * `expanded`: rail aberta (ver toggle no topo do nav do avulso) — vira linha cheia com o
+ * rótulo ao lado do ícone, sem tooltip (o texto já fica visível o tempo todo). */
 function SellerNavRailItem({
   href,
   label,
   isActive,
+  glow = false,
+  animateIcon = false,
+  hoverEffect,
+  expanded = false,
   children,
 }: {
   href: string;
   label: string;
   isActive: boolean;
+  glow?: boolean;
+  animateIcon?: boolean;
+  hoverEffect?: "bounce" | "spin" | "wiggle" | "sparkle";
+  expanded?: boolean;
   children: ReactNode;
 }) {
-  const className = `group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${
-    isActive ? railActive : railInactive
-  }`;
+  const className = expanded
+    ? `group relative flex w-full shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${
+        isActive ? (glow ? railActiveGlow : railActive) : railInactive
+      }`
+    : `group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${
+        isActive ? (glow ? railActiveGlow : railActive) : railInactive
+      }`;
   return (
     <Link href={href} aria-label={label} className={className}>
-      {children}
-      <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2 py-1 text-xs font-medium text-[var(--foreground)] opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100">
-        {label}
-      </span>
+      {isActive && glow ? (
+        <>
+          <span aria-hidden className="pointer-events-none absolute inset-0 scale-125 rounded-xl bg-emerald-400/30 blur-md" />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -left-1.5 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-gradient-to-b from-emerald-500 to-emerald-400"
+          />
+        </>
+      ) : null}
+      {(() => {
+        const withHover =
+          hoverEffect === "bounce" ? (
+            <span className="group-hover:animate-bounce motion-reduce:group-hover:animate-none">{children}</span>
+          ) : hoverEffect === "spin" ? (
+            <span className="group-hover:animate-spin motion-reduce:group-hover:animate-none">{children}</span>
+          ) : hoverEffect === "wiggle" ? (
+            <span className="animate-dc-wiggle">{children}</span>
+          ) : hoverEffect === "sparkle" ? (
+            <span className="animate-dc-sparkle">{children}</span>
+          ) : (
+            children
+          );
+        return isActive && animateIcon ? (
+          <span className="motion-safe:animate-[pulse-glow_1.8s_ease-in-out_infinite]">{withHover}</span>
+        ) : (
+          withHover
+        );
+      })()}
+      {expanded ? (
+        <span className="truncate text-sm font-medium">{label}</span>
+      ) : (
+        <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2 py-1 text-xs font-medium text-[var(--foreground)] opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100">
+          {label}
+        </span>
+      )}
     </Link>
   );
 }
 
 /** Botão "Ajuda" da rail lateral (desktop): dropdown com os canais de suporte — pensado pra crescer com mais itens. */
-function SellerNavHelpMenu({ supportHref }: { supportHref: string }) {
+function SellerNavHelpMenu({ supportHref, expanded = false }: { supportHref: string; expanded?: boolean }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -192,21 +271,31 @@ function SellerNavHelpMenu({ supportHref }: { supportHref: string }) {
   }, [open]);
 
   return (
-    <div className="relative" ref={rootRef}>
+    <div className={`relative ${expanded ? "w-full" : ""}`} ref={rootRef}>
       <button
         type="button"
         aria-label="Ajuda"
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((o) => !o)}
-        className={`group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${
-          open ? railActive : railInactive
-        }`}
+        className={
+          expanded
+            ? `group relative flex w-full shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${
+                open ? railActive : railInactive
+              }`
+            : `group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                open ? railActive : railInactive
+              }`
+        }
       >
         <IconHelp active={open} />
-        <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2 py-1 text-xs font-medium text-[var(--foreground)] opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100">
-          Ajuda
-        </span>
+        {expanded ? (
+          <span className="truncate text-sm font-medium">Ajuda</span>
+        ) : (
+          <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2 py-1 text-xs font-medium text-[var(--foreground)] opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100">
+            Ajuda
+          </span>
+        )}
       </button>
       {open ? (
         <div
@@ -250,6 +339,7 @@ export function SellerNav({
   const pathname = usePathname() ?? "";
   const supportHref = buildSellerSupportWhatsAppHref(getSellerSupportWhatsAppPrefill(pathname));
   const [mobileMaisOpen, setMobileMaisOpen] = useState(false);
+  const [railExpanded, setRailExpanded] = useState(false);
   const gestoresIaPermitido = useGestoresIaPermitido();
 
   useEffect(() => {
@@ -273,6 +363,20 @@ export function SellerNav({
       document.documentElement.removeAttribute("data-seller-sidebar");
     };
   }, []);
+
+  // Rail do avulso pode expandir (mostrar rótulo) — segunda reserva de espaço, só enquanto
+  // aberta (ver `html[data-seller-sidebar-expanded]` em globals.css).
+  useEffect(() => {
+    if (!calcOnly) return;
+    if (railExpanded) {
+      document.documentElement.setAttribute("data-seller-sidebar-expanded", "1");
+    } else {
+      document.documentElement.removeAttribute("data-seller-sidebar-expanded");
+    }
+    return () => {
+      document.documentElement.removeAttribute("data-seller-sidebar-expanded");
+    };
+  }, [calcOnly, railExpanded]);
 
   async function sair() {
     await supabaseBrowser.auth.signOut();
@@ -320,35 +424,93 @@ export function SellerNav({
 
         <nav
           aria-label="Navegação do assinante"
-          className="hidden md:flex fixed left-0 top-14 bottom-0 z-40 w-16 flex-col items-center gap-1 border-r border-[var(--card-border)] bg-[var(--background)] py-3 text-[var(--foreground)]"
+          className={`hidden md:flex fixed left-0 top-14 bottom-0 z-40 flex-col gap-3 overflow-x-hidden border-r border-[var(--card-border)] bg-[var(--background)] py-3 text-[var(--foreground)] transition-[width] duration-200 ${
+            railExpanded ? "w-60 items-stretch px-3" : "w-16 items-center"
+          }`}
         >
+          <div className={`mb-1 flex shrink-0 items-center ${railExpanded ? "justify-between px-1" : "justify-center"}`}>
+            {railExpanded ? (
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Menu</span>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setRailExpanded((v) => !v)}
+              aria-label={railExpanded ? "Recolher menu" : "Expandir menu"}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+            >
+              <IconPanelToggle expanded={railExpanded} />
+            </button>
+          </div>
+
           {temGestoresIa && (
-            <SellerNavRailItem href="/seller/gestores-ia-avulso" label="Gestor de IA" isActive={active === "gestores_ia"}>
-              <IconSparkles active={active === "gestores_ia"} />
+            <SellerNavRailItem
+              href="/seller/gestores-ia-avulso"
+              label="Gestor de IA"
+              isActive={active === "gestores_ia"}
+              glow
+              animateIcon
+              hoverEffect="sparkle"
+              expanded={railExpanded}
+            >
+              <IconSparkles active={false} />
             </SellerNavRailItem>
           )}
-          <SellerNavRailItem href="/seller/calculadora" label="Calculadora" isActive={active === "calculadora"}>
-            <IconCalculator active={active === "calculadora"} />
+          <SellerNavRailItem
+            href="/seller/calculadora"
+            label="Calculadora"
+            isActive={active === "calculadora"}
+            glow
+            hoverEffect="bounce"
+            expanded={railExpanded}
+          >
+            <IconCalculator active={false} />
           </SellerNavRailItem>
           {temGestoresIa && (
             <>
-              <div className="my-1 h-px w-6 shrink-0 bg-[var(--card-border)]" aria-hidden />
               <SellerNavRailItem
                 href="/seller/gestores-ia-avulso/integracoes"
                 label="Integrações"
                 isActive={active === "integracoes"}
+                glow
+                hoverEffect="wiggle"
+                expanded={railExpanded}
               >
-                <IconPlug active={active === "integracoes"} />
+                <IconPlug active={false} />
               </SellerNavRailItem>
             </>
           )}
+          <SellerNavRailItem
+            href="/seller/meus-dados"
+            label="Meus dados"
+            isActive={active === "cadastro"}
+            glow
+            hoverEffect="spin"
+            expanded={railExpanded}
+          >
+            <IconGear active={false} />
+          </SellerNavRailItem>
 
-          <div className="mt-auto flex flex-col items-center gap-1 pb-1">
-            <div className="my-1 h-px w-6 shrink-0 bg-[var(--card-border)]" aria-hidden />
-            <SellerNavHelpMenu supportHref={supportHref} />
-            <SellerNavRailItem href="/seller/meus-dados" label="Meus dados" isActive={active === "cadastro"}>
-              <IconGear active={active === "cadastro"} />
-            </SellerNavRailItem>
+          <div className={`mt-auto flex flex-col gap-3 pb-1 ${railExpanded ? "items-stretch" : "items-center"}`}>
+            <div className={`my-1 h-px shrink-0 bg-[var(--card-border)] ${railExpanded ? "w-full" : "w-6"}`} aria-hidden />
+            <button
+              type="button"
+              onClick={() => void sairCalculadoraNav()}
+              aria-label="Sair"
+              className={
+                railExpanded
+                  ? `flex w-full shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${railInactive}`
+                  : `group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${railInactive}`
+              }
+            >
+              <IconSair />
+              {railExpanded ? (
+                <span className="truncate text-sm font-medium">Sair</span>
+              ) : (
+                <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2 py-1 text-xs font-medium text-[var(--foreground)] opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100">
+                  Sair
+                </span>
+              )}
+            </button>
           </div>
         </nav>
 

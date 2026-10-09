@@ -30,6 +30,11 @@ html[data-version-banner] .min-h-screen.app-bg {
   html[data-seller-sidebar] .app-bg {
     padding-left: 4rem;
   }
+  /* Pacote avulso: rail pode expandir com rótulo (ver `expanded` em SellerNav.tsx) — essa regra
+     vem depois da de cima de propósito, mesma especificidade, "último no CSS" precisa ganhar. */
+  html[data-seller-sidebar-expanded] .app-bg {
+    padding-left: 15rem;
+  }
 }
 /* Tabelas / blocos largos: scroll horizontal com inércia no iOS */
 .dropcore-scroll-x {
@@ -326,6 +331,35 @@ html.dark .app-bg,
 }
 .animate-marquee {
   animation: marquee-scroll 28s linear infinite;
+}
+
+/* Ícone "Integrações" (plugue) da sidebar do avulso: balança ao passar o mouse, como se
+ * estivesse encaixando — `.group:hover` em vez de `group-hover:` do Tailwind porque a
+ * animação em si (`dc-wiggle`) é custom, não dá pra gerar a variante automaticamente. */
+@keyframes dc-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-12deg); }
+  75% { transform: rotate(12deg); }
+}
+.group:hover .animate-dc-wiggle {
+  animation: dc-wiggle 0.5s ease-in-out infinite;
+}
+
+/* Ícone "Gestor de IA" (sparkles) da sidebar do avulso: brilho — cresce e gira um pouco — ao
+ * passar o mouse, além (não em vez) da respiração (`animate-pulse`) que já tem quando ativo. */
+@keyframes dc-sparkle {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.18) rotate(8deg); }
+}
+.group:hover .animate-dc-sparkle {
+  animation: dc-sparkle 0.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .group:hover .animate-dc-wiggle,
+  .group:hover .animate-dc-sparkle {
+    animation: none;
+  }
 }
 
 /* Tema escuro - preto puro, zero azul */

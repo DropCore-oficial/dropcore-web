@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../../SellerNav";
@@ -170,29 +170,60 @@ function SkuCard({ sku }: { sku: SkuResultado }) {
           {sku.diagnostico === "margem_abaixo_minima" && sku.preco_minimo_seguro != null ? (
             <p className="mt-2 text-xs text-[var(--muted)]">Preço mínimo seguro: R$ {sku.preco_minimo_seguro.toFixed(2)}.</p>
           ) : null}
-          {sku.desconto_ativo_pct > 1 ? (
-            <p className="mt-2 text-xs text-[var(--muted)]">
-              Desconto ativo de {sku.desconto_ativo_pct.toFixed(1)}%{sku.desconto_ativo_nome ? ` (${sku.desconto_ativo_nome})` : ""}
-              {sku.desconto_ativo_fim ? ` até ${sku.desconto_ativo_fim}` : ""} — preço de tabela R${" "}
-              {sku.preco_original?.toFixed(2)}.
-            </p>
-          ) : null}
           {sku.ads_gasto_mes_real > 0 ? (
             <p className="mt-2 text-xs text-[var(--muted)]">
               Ads esse mês: R$ {sku.ads_gasto_mes_real.toFixed(2)} gastos · TACoS {sku.tacos_real_pct.toFixed(1)}% · ROAS{" "}
               {sku.roas_real.toFixed(1)}x.
             </p>
           ) : null}
-          {sku.afiliado_pct_configurado != null ? (
-            <p className="mt-2 text-xs text-[var(--muted)]">
-              Afiliado configurado em {sku.afiliado_pct_configurado.toFixed(1)}%
-              {sku.afiliado_pct_teto_seguro != null
-                ? ` — dá pra subir até ${sku.afiliado_pct_teto_seguro.toFixed(1)}% sem furar o mínimo.`
-                : "."}
-            </p>
-          ) : null}
         </>
       )}
+    </article>
+  );
+}
+
+function PromocaoRow({ item }: { item: SkuResultado }) {
+  return (
+    <article className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="min-w-0 truncate font-medium text-[var(--foreground)]">{item.nome_produto}</p>
+        <a
+          href={item.permalink ?? mlItemPermalink(item.item_id_representante)}
+          target="_blank"
+          rel="noreferrer"
+          className="shrink-0 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+        >
+          Ver anúncio ↗
+        </a>
+      </div>
+      <p className="mt-2 text-sm text-[var(--foreground)]">
+        Desconto ativo de {item.desconto_ativo_pct.toFixed(1)}%{item.desconto_ativo_nome ? ` (${item.desconto_ativo_nome})` : ""}
+        {item.desconto_ativo_fim ? ` até ${item.desconto_ativo_fim}` : ""} — preço de tabela R$ {item.preco_original?.toFixed(2)},
+        preço com desconto R$ {item.preco.toFixed(2)}.
+      </p>
+    </article>
+  );
+}
+
+function AfiliadoRow({ item }: { item: SkuResultado }) {
+  return (
+    <article className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="min-w-0 truncate font-medium text-[var(--foreground)]">{item.nome_produto}</p>
+        <a
+          href={item.permalink ?? mlItemPermalink(item.item_id_representante)}
+          target="_blank"
+          rel="noreferrer"
+          className="shrink-0 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+        >
+          Ver anúncio ↗
+        </a>
+      </div>
+      <p className="mt-2 text-sm text-[var(--foreground)]">
+        Afiliado em {item.afiliado_pct_configurado?.toFixed(1)}% — sua margem aguenta subir até{" "}
+        <span className="font-medium">{item.afiliado_pct_teto_seguro?.toFixed(1)}%</span> sem furar o mínimo de{" "}
+        {item.margem_minima_pct}%{item.margem_atual_pct != null ? ` (margem realizada hoje: ${item.margem_atual_pct.toFixed(1)}%)` : ""}.
+      </p>
     </article>
   );
 }
@@ -281,21 +312,95 @@ function CampanhaCard({ c }: { c: CampanhaResultado }) {
   );
 }
 
-type AbaUlisses = "margem" | "ads";
+type AbaUlisses = "margem" | "ads" | "promocoes" | "afiliados";
 
-function AbaBotao({ ativo, onClick, children }: { ativo: boolean; onClick: () => void; children: string }) {
+function IconCustos() {
+  return (
+    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <line x1="12" x2="12" y1="2" y2="22" />
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    </svg>
+  );
+}
+function IconPreferencias() {
+  return (
+    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 13a7.9 7.9 0 0 0 0-2l2-1.5-2-3.4-2.3.9a7.7 7.7 0 0 0-1.7-1L15 3h-4l-.4 2.6a7.7 7.7 0 0 0-1.7 1l-2.3-.9-2 3.4L6.6 11a7.9 7.9 0 0 0 0 2l-2 1.5 2 3.4 2.3-.9a7.7 7.7 0 0 0 1.7 1L11 21h4l.4-2.6a7.7 7.7 0 0 0 1.7-1l2.3.9 2-3.4Z" />
+    </svg>
+  );
+}
+
+function abaSublinhadaClass(ativo: boolean) {
+  return cn(
+    "-mb-px inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-1 pb-2.5 text-sm font-medium transition-colors touch-manipulation",
+    "outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]",
+    ativo
+      ? "border-emerald-600 text-emerald-600 font-semibold dark:border-emerald-400 dark:text-emerald-400"
+      : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+  );
+}
+
+function IconMargem() {
+  return (
+    <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="m19 5-14 14" />
+      <circle cx="6.5" cy="6.5" r="2.5" />
+      <circle cx="17.5" cy="17.5" r="2.5" />
+    </svg>
+  );
+}
+function IconAds() {
+  return (
+    <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="m3 11 18-5v12L3 13v-2z" />
+      <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+    </svg>
+  );
+}
+function IconPromocoes() {
+  return (
+    <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+      <circle cx="7.5" cy="7.5" r="1.5" />
+    </svg>
+  );
+}
+function IconAfiliados() {
+  return (
+    <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function AbaPilula({
+  ativo,
+  onClick,
+  icon,
+  children,
+}: {
+  ativo: boolean;
+  onClick: () => void;
+  icon: ReactNode;
+  children: string;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-full border px-3.5 py-1.5 text-[11px] font-medium transition-colors touch-manipulation whitespace-nowrap",
+        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors touch-manipulation",
         "outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]",
         ativo
-          ? "border-emerald-600 bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
-          : "border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)]"
+          ? "bg-emerald-600 text-white font-semibold shadow-sm hover:bg-emerald-700"
+          : "text-[var(--muted)] hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)]"
       )}
     >
+      {icon}
       {children}
     </button>
   );
@@ -576,15 +681,24 @@ function WizardPreferencias({
 function UlissesResultadoAbas({ resultado }: { resultado: UlissesResultado }) {
   const [aba, setAba] = useState<AbaUlisses>("margem");
 
+  const skusComAfiliado = resultado.skus.filter((s) => s.afiliado_pct_teto_seguro != null);
+  const skusComPromocao = resultado.skus.filter((s) => s.desconto_ativo_pct > 1);
+
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        <AbaBotao ativo={aba === "margem"} onClick={() => setAba("margem")}>
-          MARGEM
-        </AbaBotao>
-        <AbaBotao ativo={aba === "ads"} onClick={() => setAba("ads")}>
-          ADS &amp; CAMPANHAS
-        </AbaBotao>
+      <div className="inline-flex flex-wrap gap-1 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-1">
+        <AbaPilula ativo={aba === "margem"} onClick={() => setAba("margem")} icon={<IconMargem />}>
+          Margem
+        </AbaPilula>
+        <AbaPilula ativo={aba === "ads"} onClick={() => setAba("ads")} icon={<IconAds />}>
+          Ads
+        </AbaPilula>
+        <AbaPilula ativo={aba === "promocoes"} onClick={() => setAba("promocoes")} icon={<IconPromocoes />}>
+          Promoções
+        </AbaPilula>
+        <AbaPilula ativo={aba === "afiliados"} onClick={() => setAba("afiliados")} icon={<IconAfiliados />}>
+          Afiliados
+        </AbaPilula>
       </div>
 
       {aba === "margem" ? (
@@ -593,17 +707,14 @@ function UlissesResultadoAbas({ resultado }: { resultado: UlissesResultado }) {
             <SkuCard key={s.chave} sku={s} />
           ))}
         </div>
-      ) : (
+      ) : aba === "ads" ? (
         <div className="space-y-5">
-          {resultado.ads_gasto_total_mes != null || resultado.cupom_ativo_na_conta ? (
+          {resultado.ads_gasto_total_mes != null ? (
             <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm">
               <p className="font-medium text-[var(--foreground)]">Visão geral da conta</p>
-              <div className="mt-2 space-y-1 text-sm text-[var(--muted)]">
-                {resultado.ads_gasto_total_mes != null ? (
-                  <p>Gasto total em Ads esse mês: R$ {resultado.ads_gasto_total_mes.toFixed(2)}.</p>
-                ) : null}
-                {resultado.cupom_ativo_na_conta ? <p>Há cupom de desconto ativo na conta.</p> : null}
-              </div>
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                Gasto total em Ads esse mês: R$ {resultado.ads_gasto_total_mes.toFixed(2)}.
+              </p>
             </div>
           ) : null}
 
@@ -617,6 +728,39 @@ function UlissesResultadoAbas({ resultado }: { resultado: UlissesResultado }) {
             <p className="text-sm text-[var(--muted)]">Sem campanha de Ads ativa na conta agora.</p>
           )}
         </div>
+      ) : aba === "promocoes" ? (
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm">
+            <p className="font-medium text-[var(--foreground)]">Visão geral da conta</p>
+            <div className="mt-2 space-y-1 text-sm text-[var(--muted)]">
+              {resultado.cupom_ativo_na_conta ? <p>Há cupom de desconto ativo na conta.</p> : null}
+              <p>{resultado.promocoes_conta_resumo}</p>
+            </div>
+          </div>
+
+          {skusComPromocao.length > 0 ? (
+            <div className="space-y-2">
+              {skusComPromocao.map((item) => (
+                <PromocaoRow key={item.chave} item={item} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--muted)]">Nenhum anúncio com desconto ativo agora.</p>
+          )}
+        </div>
+      ) : skusComAfiliado.length === 0 ? (
+        <p className="text-sm text-[var(--muted)]">
+          Nenhum SKU com folga de margem suficiente pra sugerir subir o % de afiliado agora.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {skusComAfiliado
+            .slice()
+            .sort((a, b) => (b.afiliado_pct_teto_seguro! - b.afiliado_pct_configurado!) - (a.afiliado_pct_teto_seguro! - a.afiliado_pct_configurado!))
+            .map((item) => (
+              <AfiliadoRow key={item.chave} item={item} />
+            ))}
+        </div>
       )}
     </div>
   );
@@ -624,6 +768,7 @@ function UlissesResultadoAbas({ resultado }: { resultado: UlissesResultado }) {
 
 export default function UlissesAvulsoPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [acesso, setAcesso] = useState<Acesso>("loading");
   const [mlConectado, setMlConectado] = useState(true);
   const [preferenciasConfiguradas, setPreferenciasConfiguradas] = useState(true);
@@ -661,6 +806,10 @@ export default function UlissesAvulsoPage() {
     void carregar();
   }, [carregar]);
 
+  useEffect(() => {
+    if (searchParams.get("editar") === "1") setEditandoPreferencias(true);
+  }, [searchParams]);
+
   const dispararRodada: DispararRodada = async () => {
     const token = await getAccessToken();
     if (!token) return "Sessão expirada, faça login de novo.";
@@ -678,9 +827,19 @@ export default function UlissesAvulsoPage() {
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
       <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
-          <Link href="/seller/gestores-ia-avulso" className="text-xs font-medium text-[var(--muted)] hover:underline">
-            ← Gestor de IA
-          </Link>
+          {editandoPreferencias ? (
+            <button
+              type="button"
+              onClick={() => setEditandoPreferencias(false)}
+              className="text-xs font-medium text-[var(--muted)] hover:underline"
+            >
+              ← Ulisses
+            </button>
+          ) : (
+            <Link href="/seller/gestores-ia-avulso" className="text-xs font-medium text-[var(--muted)] hover:underline">
+              ← Gestor de IA
+            </Link>
+          )}
           <div className="mt-1 min-w-0 space-y-1">
             <div className="flex items-center gap-2 sm:gap-3">
               <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
@@ -722,61 +881,49 @@ export default function UlissesAvulsoPage() {
           </section>
         ) : !preferenciasConfiguradas ? (
           <WizardPreferencias onSalvo={() => void carregar()} />
-        ) : editandoPreferencias ? (
-          <WizardPreferencias
-            inicial={preferencias}
-            onSalvo={() => {
-              setEditandoPreferencias(false);
-              void carregar();
-            }}
-            onCancelar={() => setEditandoPreferencias(false)}
-          />
         ) : (
           <>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Link
-                href="/seller/gestores-ia-avulso/ulisses/custos"
-                className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-[var(--foreground)]">Custos dos anúncios</p>
-                  <p className="mt-0.5 text-xs text-[var(--muted)]">
-                    Digite o custo de cada produto pra habilitar o diagnóstico de margem.
-                  </p>
-                </div>
-                <span className="shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-400">Abrir →</span>
+            <div className="flex flex-wrap gap-x-5 gap-y-2 border-b border-[var(--card-border)]">
+              <Link href="/seller/gestores-ia-avulso/ulisses/custos" className={abaSublinhadaClass(false)}>
+                <IconCustos />
+                Custos dos anúncios
               </Link>
-
               <button
                 type="button"
                 onClick={() => setEditandoPreferencias(true)}
-                className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md"
+                className={abaSublinhadaClass(editandoPreferencias)}
               >
-                <div className="min-w-0">
-                  <p className="font-medium text-[var(--foreground)]">Editar preferências</p>
-                  <p className="mt-0.5 text-xs text-[var(--muted)]">
-                    Margem mínima/máxima, imposto e perda estimada usados no cálculo.
-                  </p>
-                </div>
-                <span className="shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-400">Editar →</span>
+                <IconPreferencias />
+                Editar preferências
               </button>
             </div>
 
-            <SellerGestorRunShell<UlissesResultado>
-              pro
-              run={run}
-              titulo="Diagnóstico de margem"
-              ajuda={
-                <p>
-                  Compara o preço de cada anúncio com o custo digitado, frete real e comissão do Mercado Livre —
-                  avisa quando a margem fica abaixo do mínimo ou acima do máximo que você configurou. Sem custo
-                  digitado, o produto aparece como &quot;sem custo cadastrado&quot;.
-                </p>
-              }
-              onRodarAgora={dispararRodada}
-            >
-              {(resultado) => <UlissesResultadoAbas resultado={resultado} />}
-            </SellerGestorRunShell>
+            {editandoPreferencias ? (
+              <WizardPreferencias
+                inicial={preferencias}
+                onSalvo={() => {
+                  setEditandoPreferencias(false);
+                  void carregar();
+                }}
+                onCancelar={() => setEditandoPreferencias(false)}
+              />
+            ) : (
+              <SellerGestorRunShell<UlissesResultado>
+                pro
+                run={run}
+                titulo="Diagnóstico de margem"
+                ajuda={
+                  <p>
+                    Compara o preço de cada anúncio com o custo digitado, frete real e comissão do Mercado Livre —
+                    avisa quando a margem fica abaixo do mínimo ou acima do máximo que você configurou. Sem custo
+                    digitado, o produto aparece como &quot;sem custo cadastrado&quot;.
+                  </p>
+                }
+                onRodarAgora={dispararRodada}
+              >
+                {(resultado) => <UlissesResultadoAbas resultado={resultado} />}
+              </SellerGestorRunShell>
+            )}
           </>
         )}
       </div>

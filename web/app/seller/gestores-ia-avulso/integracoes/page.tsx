@@ -217,86 +217,136 @@ export default function GestoresIaAvulsoIntegracoesPage() {
             <Skeleton className="mx-auto h-4 w-3/4 max-w-sm" />
           </div>
         ) : (
-          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 shadow-sm">
+        <div className="flex flex-col flex-wrap gap-5 sm:flex-row sm:items-stretch">
+          <div className="flex w-full flex-col rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm sm:w-80 sm:shrink-0">
             {mlStatusLoading && !mlStatus ? (
-              <Skeleton className="mx-auto h-4 w-3/4 max-w-sm" />
-            ) : mlStatus?.connected ? (
-              <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
-                <div>
-                  <p className="text-sm font-medium text-[var(--foreground)]">Mercado Livre conectado</p>
-                  <p className="text-xs text-[var(--muted)]">Conta #{mlStatus.ml_user_id}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={desconectarMl}
-                  disabled={mlStatusLoading}
-                  className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
-                >
-                  Desconectar
-                </button>
-              </div>
+              <Skeleton className="h-32 w-full" />
             ) : (
-              <div className="flex flex-col items-center gap-3 text-center">
-                <p className="text-sm text-[var(--muted)]">
-                  Conecte sua conta do Mercado Livre pra começar a usar os gestores.
-                </p>
-                <a
-                  href="/api/gestores-ia-avulso/mercadolivre/connect"
-                  className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
-                >
-                  Conectar Mercado Livre
-                </a>
-              </div>
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/brand/marketplaces/mercado-livre.png" alt="Mercado Livre" className="h-10 w-auto" />
+                  {mlStatus?.connected ? (
+                    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                      Conectado
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-4 font-medium text-[var(--foreground)]">Mercado Livre</p>
+                <ul className="mt-2 space-y-1.5 text-sm text-[var(--foreground)]">
+                  {["Diagnóstico de anúncios", "Reputação e atendimento", "Margem em tempo real"].map((item) => (
+                    <li key={item} className="flex items-center gap-2">
+                      <svg className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                        <path
+                          fillRule="evenodd"
+                          d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.78-9.72a.75.75 0 0 0-1.06-1.06L9 10.94 7.28 9.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.06 0l4.25-4.25Z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="mt-auto pt-4">
+                  {mlStatus?.connected ? (
+                    <>
+                      <p className="text-xs text-[var(--muted)]">Conta #{mlStatus.ml_user_id}</p>
+                      <button
+                        type="button"
+                        onClick={desconectarMl}
+                        disabled={mlStatusLoading}
+                        className="mt-3 w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
+                      >
+                        Desconectar
+                      </button>
+                    </>
+                  ) : (
+                    <a
+                      href="/api/gestores-ia-avulso/mercadolivre/connect"
+                      className="flex w-full items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
+                    >
+                      Conectar
+                    </a>
+                  )}
+                </div>
+              </>
             )}
             {mlErro && <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "mt-3 text-center text-xs")}>{mlErro}</p>}
           </div>
-        )}
 
-        {access !== "loading" && (
-          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 shadow-sm">
-            <div className="mb-4 space-y-1">
-              <p className="text-sm font-medium text-[var(--foreground)]">Chave própria da Anthropic (BYOK)</p>
-              <p className="text-xs text-[var(--muted)]">
-                Opcional. Sem chave própria, os gestores usam a chave da casa com teto diário de R$4 (renova à
-                meia-noite). Com chave própria, o teto deixa de valer — o gasto sai direto da sua conta Anthropic.
-              </p>
-            </div>
-
+          <div className="flex w-full flex-col rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm sm:w-80 sm:shrink-0">
             {byokLoading && !byokStatus ? (
-              <Skeleton className="h-4 w-3/4 max-w-sm" />
-            ) : byokStatus?.configurado ? (
-              <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
-                <p className="text-sm font-medium text-[var(--foreground)]">Chave configurada</p>
-                <button
-                  type="button"
-                  onClick={removerByok}
-                  disabled={byokLoading}
-                  className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
-                >
-                  Remover
-                </button>
-              </div>
+              <Skeleton className="h-32 w-full" />
             ) : (
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <input
-                  type="password"
-                  value={byokInput}
-                  onChange={(e) => setByokInput(e.target.value)}
-                  placeholder="sk-ant-..."
-                  className="h-8 w-full flex-1 rounded-md border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
-                />
-                <button
-                  type="button"
-                  onClick={salvarByok}
-                  disabled={byokLoading || !byokInput.trim()}
-                  className="shrink-0 rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  {byokLoading ? "Validando…" : "Salvar"}
-                </button>
-              </div>
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/brand/anthropic.png" alt="Anthropic" className="h-8 w-8 rounded-lg" />
+                    <p className="font-semibold text-[var(--foreground)]">Anthropic</p>
+                  </div>
+                  {byokStatus?.configurado ? (
+                    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                      Chave própria
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-xs text-[var(--muted)]">Chave própria (BYOK), opcional</p>
+                <ul className="mt-3 space-y-1.5 text-sm text-[var(--foreground)]">
+                  {["Sem teto diário de R$4", "Gasto direto na sua conta Anthropic", "Mesma IA, sem fila da chave da casa"].map(
+                    (item) => (
+                      <li key={item} className="flex items-center gap-2">
+                        <svg className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                          <path
+                            fillRule="evenodd"
+                            d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.78-9.72a.75.75 0 0 0-1.06-1.06L9 10.94 7.28 9.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.06 0l4.25-4.25Z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        {item}
+                      </li>
+                    )
+                  )}
+                </ul>
+
+                <div className="mt-auto pt-4">
+                  {byokStatus?.configurado ? (
+                    <button
+                      type="button"
+                      onClick={removerByok}
+                      disabled={byokLoading}
+                      className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
+                    >
+                      Remover
+                    </button>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <input
+                        type="password"
+                        value={byokInput}
+                        onChange={(e) => setByokInput(e.target.value)}
+                        placeholder="sk-ant-..."
+                        className="h-8 w-full rounded-md border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
+                      />
+                      <button
+                        type="button"
+                        onClick={salvarByok}
+                        disabled={byokLoading || !byokInput.trim()}
+                        className="w-full rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        {byokLoading ? "Validando…" : "Salvar"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
-            {byokErro && <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "mt-3 text-center text-xs sm:text-left")}>{byokErro}</p>}
+            {byokErro && <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "mt-3 text-center text-xs")}>{byokErro}</p>}
           </div>
+        </div>
         )}
       </div>
       <SellerNav active="integracoes" calcOnly temGestoresIa />
