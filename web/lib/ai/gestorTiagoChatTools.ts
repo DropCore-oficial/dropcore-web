@@ -10,10 +10,10 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { GestorId } from "./gestorPrompts";
 
 const GESTORES_CONSULTAVEIS: { id: GestorId; nome: string; funcao: string }[] = [
-  { id: "estoque_fulfillment", nome: "Diogo", funcao: "Risco de Ruptura & Fulfillment" },
-  { id: "anuncios_seo", nome: "Andrey", funcao: "Anúncios & SEO" },
-  { id: "reputacao", nome: "Amanda", funcao: "Reputação & Atendimento" },
-  { id: "ads", nome: "Ulisses", funcao: "Ads, Preço & Promoção" },
+  { id: "estoque_fulfillment", nome: "Estoque", funcao: "Risco de Ruptura & Fulfillment" },
+  { id: "anuncios_seo", nome: "Anúncio", funcao: "Anúncios & SEO" },
+  { id: "reputacao", nome: "SAC", funcao: "Reputação & Atendimento" },
+  { id: "ads", nome: "ADS", funcao: "Ads, Preço & Promoção" },
 ];
 
 /** Nome amigável do gestor por `gestorId` — usado pro status transitório durante o

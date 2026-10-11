@@ -9,6 +9,11 @@ import { CANONICAL_SITE_ORIGIN } from "@/lib/siteUrl";
 const ML_AUTH_URL = "https://auth.mercadolivre.com.br/authorization";
 const ML_TOKEN_URL = "https://api.mercadolibre.com/oauth/token";
 
+/** Cookie httpOnly que guarda o `state` gerado em /connect, pra validar no POST /oauth e
+ * fechar o CSRF do authorization_code (achado 2026-10-11 — state era gerado e nunca checado). */
+export const MERCADOLIVRE_AVULSO_OAUTH_STATE_COOKIE = "gia_ml_oauth_state";
+export const MERCADOLIVRE_AVULSO_OAUTH_STATE_MAX_AGE_SECONDS = 1200;
+
 export type MercadoLivreOAuthTokenResponse = {
   access_token: string;
   refresh_token?: string;
@@ -35,7 +40,8 @@ function getMercadoLivreAvulsoAppCredentials() {
   return { clientId, clientSecret };
 }
 
-/** state carrega o assinante_id pra casar o retorno do redirect; ver rota de callback. */
+/** state é só o anti-CSRF do round-trip (comparado ao cookie `MERCADOLIVRE_AVULSO_OAUTH_STATE_COOKIE`
+ * no POST /oauth) — quem é o assinante vem do Bearer token, não do state. */
 export function buildMercadoLivreAvulsoAuthorizationUrl(state: string): string {
   const { clientId } = getMercadoLivreAvulsoAppCredentials();
   const params = new URLSearchParams({

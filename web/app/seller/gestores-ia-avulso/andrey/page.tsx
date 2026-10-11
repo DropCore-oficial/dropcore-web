@@ -7,509 +7,66 @@ import { cn } from "@/lib/utils";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../../SellerNav";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
-import { AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY } from "@/lib/semanticPremium";
+import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { SellerGestorRunShell, type SellerAiRun, type DispararRodada } from "@/components/seller/SellerGestorRunShell";
-import { CopiarSugestaoBotao } from "@/components/seller/SellerGestorCopiarBotao";
 import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
-import { mlItemPermalink } from "@/lib/mercadoLivreApiClient";
-
-type Diagnostico = "problema_titulo" | "problema_descricao" | "caracteristicas_incompletas" | "sem_problema_aparente";
-
-type Membro = {
-  item_id: string;
-  titulo_completo: string;
-  vendas_totais: number;
-  visitas_30d: number;
-  dias_no_ar: number;
-  fotos_insuficientes: boolean;
-  foto_baixa_resolucao: boolean;
-};
-
-type CaracteristicaSugerida = { atributo_id: string; atributo_nome: string; valor: string; valorValido: boolean };
-
-type Duplicidade = {
-  titulo_anuncio_forte: string;
-  vendas_anuncio_forte: number;
-  vendas_anuncio_atual: number;
-  pode_pausar: boolean;
-  motivo_bloqueio: string | null;
-};
-
-type Anuncio = {
-  chave: string;
-  item_id_representante: string;
-  familia_nome: string | null;
-  diagnostico: Diagnostico;
-  titulo_sugerido: string;
-  descricao_sugerida: string;
-  observacao: string;
-  atributos_principais_faltando: string[];
-  atributos_secundarios_faltando: string[];
-  caracteristicas_sugeridas: CaracteristicaSugerida[];
-  membros: Membro[];
-  categoria_provavelmente_errada: boolean;
-  categoria_sugerida_nome: string | null;
-  duplicidade: Duplicidade | null;
-  atributos_sem_reforco_texto: { id: string; name: string; valor: string }[];
-};
-
-type AndreyResultado = { anuncios: Anuncio[]; destaque_prioridade: string[] };
+import {
+  type Anuncio,
+  type AndreyResultado,
+  DiagnosticoBadge,
+  AnuncioDiagnosticoDetalhe,
+} from "@/components/seller/SellerAndreyAvulsoShared";
 
 type Acesso = "loading" | "liberado" | "negado";
 
-const DIAGNOSTICO_BADGE: Record<Diagnostico, string> = {
-  problema_titulo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
-  problema_descricao: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
-  caracteristicas_incompletas: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
-  sem_problema_aparente: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
-};
-
-const DIAGNOSTICO_LABEL: Record<Diagnostico, string> = {
-  problema_titulo: "Título fraco",
-  problema_descricao: "Descrição fraca",
-  caracteristicas_incompletas: "Ficha técnica incompleta",
-  sem_problema_aparente: "Sem problema aparente",
-};
-
-function DiagnosticoBadge({ diagnostico }: { diagnostico: Diagnostico }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex w-[11.5rem] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
-        DIAGNOSTICO_BADGE[diagnostico]
-      )}
-    >
-      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-      {DIAGNOSTICO_LABEL[diagnostico]}
-    </span>
-  );
-}
-
-type AplicarEstado = "idle" | "confirmando" | "aplicando" | "aplicado" | "bloqueado" | "erro";
-
-async function getAccessTokenAvulso(): Promise<string | null> {
-  const {
-    data: { session },
-  } = await supabaseBrowser.auth.getSession();
-  return session?.access_token ?? null;
-}
-
-function AplicarTituloBotao({ itemId, tituloSugerido }: { itemId: string; tituloSugerido: string }) {
-  const [estado, setEstado] = useState<AplicarEstado>("idle");
-  const [mensagem, setMensagem] = useState<string | null>(null);
-
-  async function aplicar() {
-    setEstado("aplicando");
-    const token = await getAccessTokenAvulso();
-    if (!token) {
-      setMensagem("Sessão expirada, faça login de novo.");
-      setEstado("erro");
-      return;
-    }
-    const res = await fetch("/api/gestores-ia-avulso/andrey/aplicar-titulo", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ item_id: itemId, titulo_novo: tituloSugerido }),
-    });
-    const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; bloqueado?: boolean };
-    if (res.status === 409 || json.bloqueado) {
-      setMensagem(json.error ?? "O Mercado Livre não permite editar o título desse anúncio.");
-      setEstado("bloqueado");
-      return;
-    }
-    if (!res.ok || !json.ok) {
-      setMensagem(json.error ?? "Erro ao aplicar o título.");
-      setEstado("erro");
-      return;
-    }
-    setMensagem(null);
-    setEstado("aplicado");
-  }
-
-  if (estado === "aplicado") {
-    return <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">Título aplicado no Mercado Livre ✓</p>;
-  }
-  if (estado === "bloqueado" || estado === "erro") {
-    return (
-      <div className="mt-2 space-y-1.5">
-        <p className={cn("text-xs", DANGER_PREMIUM_TEXT_PRIMARY)}>{mensagem}</p>
-        <CopiarSugestaoBotao texto={tituloSugerido} />
-      </div>
-    );
-  }
-  if (estado === "confirmando") {
-    return (
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <p className="text-xs text-[var(--muted)]">Aplicar esse título no anúncio agora?</p>
-        <button
-          type="button"
-          onClick={() => void aplicar()}
-          className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
-        >
-          Sim, aplicar
-        </button>
-        <button
-          type="button"
-          onClick={() => setEstado("idle")}
-          className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
-        >
-          Cancelar
-        </button>
-      </div>
-    );
-  }
-  return (
-    <div className="mt-2 flex flex-wrap gap-2">
-      <button
-        type="button"
-        onClick={() => setEstado("confirmando")}
-        disabled={estado === "aplicando"}
-        className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
-      >
-        {estado === "aplicando" ? "Aplicando…" : "Aplicar título sugerido"}
-      </button>
-      <CopiarSugestaoBotao texto={tituloSugerido} />
-    </div>
-  );
-}
-
-function AplicarDescricaoBotao({ itemIds, descricaoSugerida }: { itemIds: string[]; descricaoSugerida: string }) {
-  const [estado, setEstado] = useState<AplicarEstado>("idle");
-  const [mensagem, setMensagem] = useState<string | null>(null);
-  const plural = itemIds.length > 1;
-
-  async function aplicar() {
-    setEstado("aplicando");
-    const token = await getAccessTokenAvulso();
-    if (!token) {
-      setMensagem("Sessão expirada, faça login de novo.");
-      setEstado("erro");
-      return;
-    }
-    const res = await fetch("/api/gestores-ia-avulso/andrey/aplicar-descricao", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ item_ids: itemIds, descricao_nova: descricaoSugerida }),
-    });
-    const json = (await res.json().catch(() => ({}))) as {
-      sucesso?: number;
-      total?: number;
-      error?: string;
-      resultados?: { item_id: string; ok: boolean; erro?: string }[];
-    };
-    const sucesso = json.sucesso ?? 0;
-    const total = json.total ?? itemIds.length;
-    if (!res.ok && sucesso === 0) {
-      setMensagem(json.error ?? json.resultados?.[0]?.erro ?? "Erro ao aplicar a descrição.");
-      setEstado("erro");
-      return;
-    }
-    if (sucesso === total) {
-      setMensagem(null);
-      setEstado("aplicado");
-      return;
-    }
-    setMensagem(`Aplicada em ${sucesso} de ${total} anúncios — revise o resto manualmente.`);
-    setEstado("erro");
-  }
-
-  if (estado === "aplicado") {
-    return (
-      <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-        Descrição aplicada {plural ? `nas ${itemIds.length} variações` : "nesse anúncio"} ✓
-      </p>
-    );
-  }
-  if (estado === "erro") {
-    return (
-      <div className="mt-2 space-y-1.5">
-        <p className={cn("text-xs", DANGER_PREMIUM_TEXT_PRIMARY)}>{mensagem}</p>
-        <CopiarSugestaoBotao texto={descricaoSugerida} rotulo="Copiar descrição" />
-      </div>
-    );
-  }
-  if (estado === "confirmando") {
-    return (
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <p className="text-xs text-[var(--muted)]">
-          Aplicar essa descrição {plural ? `nas ${itemIds.length} variações` : "nesse anúncio"} agora?
-        </p>
-        <button
-          type="button"
-          onClick={() => void aplicar()}
-          className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
-        >
-          Sim, aplicar
-        </button>
-        <button
-          type="button"
-          onClick={() => setEstado("idle")}
-          className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
-        >
-          Cancelar
-        </button>
-      </div>
-    );
-  }
-  return (
-    <div className="mt-2 flex flex-wrap gap-2">
-      <button
-        type="button"
-        onClick={() => setEstado("confirmando")}
-        disabled={estado === "aplicando"}
-        className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
-      >
-        {estado === "aplicando" ? "Aplicando…" : plural ? `Aplicar em todas as ${itemIds.length} variações` : "Aplicar descrição sugerida"}
-      </button>
-      <CopiarSugestaoBotao texto={descricaoSugerida} rotulo="Copiar descrição" />
-    </div>
-  );
-}
-
-function AplicarCaracteristicasBotao({
-  itemIds,
-  caracteristicas,
+/** Linha resumo (não mais accordion — achado 2026-10-10: com 11+ grupos sinalizados, a
+ * lista com cada card já aberto/expansível ficava enorme e "rasa" pra revisar um produto de
+ * verdade). Clica e abre um modal com o diagnóstico completo (ver `AnuncioDiagnosticoDetalhe`
+ * em SellerAndreyAvulsoShared.tsx) — página própria por produto foi testada antes e trocada
+ * por modal a pedido do Sr Stark (mesmo padrão `MODAL_OVERLAY_CLASS`/`MODAL_PANEL_CLASS` do
+ * resto do sistema, sempre centralizado). */
+function AnuncioLinha({
+  anuncio,
+  destaque,
+  onAbrir,
 }: {
-  itemIds: string[];
-  caracteristicas: CaracteristicaSugerida[];
+  anuncio: Anuncio;
+  destaque: boolean;
+  onAbrir: (anuncio: Anuncio, destaque: boolean) => void;
 }) {
-  const [estado, setEstado] = useState<AplicarEstado>("idle");
-  const [mensagem, setMensagem] = useState<string | null>(null);
-  const validas = caracteristicas.filter((c) => c.valorValido);
-  const plural = itemIds.length > 1;
-
-  if (validas.length === 0) return null;
-
-  async function aplicar() {
-    setEstado("aplicando");
-    const token = await getAccessTokenAvulso();
-    if (!token) {
-      setMensagem("Sessão expirada, faça login de novo.");
-      setEstado("erro");
-      return;
-    }
-    const res = await fetch("/api/gestores-ia-avulso/andrey/aplicar-caracteristicas", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        item_ids: itemIds,
-        caracteristicas: validas.map((c) => ({ atributo_id: c.atributo_id, valor: c.valor })),
-      }),
-    });
-    const json = (await res.json().catch(() => ({}))) as {
-      sucesso?: number;
-      total?: number;
-      error?: string;
-      resultados?: { item_id: string; ok: boolean; erro?: string }[];
-    };
-    const sucesso = json.sucesso ?? 0;
-    const total = json.total ?? itemIds.length;
-    if (!res.ok && sucesso === 0) {
-      setMensagem(json.error ?? json.resultados?.[0]?.erro ?? "Erro ao aplicar as características.");
-      setEstado("erro");
-      return;
-    }
-    if (sucesso === total) {
-      setMensagem(null);
-      setEstado("aplicado");
-      return;
-    }
-    setMensagem(`Aplicada em ${sucesso} de ${total} anúncios — revise o resto manualmente.`);
-    setEstado("erro");
-  }
-
-  const textoCopia = validas.map((c) => `${c.atributo_nome}: ${c.valor}`).join("\n");
-
-  if (estado === "aplicado") {
-    return (
-      <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-        Características aplicadas {plural ? `nas ${itemIds.length} variações` : "nesse anúncio"} ✓
-      </p>
-    );
-  }
-  if (estado === "erro") {
-    return (
-      <div className="mt-2 space-y-1.5">
-        <p className={cn("text-xs", DANGER_PREMIUM_TEXT_PRIMARY)}>{mensagem}</p>
-        <CopiarSugestaoBotao texto={textoCopia} rotulo="Copiar características" />
-      </div>
-    );
-  }
-  if (estado === "confirmando") {
-    return (
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <p className="text-xs text-[var(--muted)]">
-          Preencher {validas.length} característica(s) {plural ? `nas ${itemIds.length} variações` : "nesse anúncio"} agora?
-        </p>
-        <button
-          type="button"
-          onClick={() => void aplicar()}
-          className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
-        >
-          Sim, aplicar
-        </button>
-        <button
-          type="button"
-          onClick={() => setEstado("idle")}
-          className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
-        >
-          Cancelar
-        </button>
-      </div>
-    );
-  }
-  return (
-    <div className="mt-2 flex flex-wrap gap-2">
-      <button
-        type="button"
-        onClick={() => setEstado("confirmando")}
-        disabled={estado === "aplicando"}
-        className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
-      >
-        {estado === "aplicando" ? "Aplicando…" : plural ? `Preencher em todas as ${itemIds.length} variações` : "Preencher ficha técnica"}
-      </button>
-      <CopiarSugestaoBotao texto={textoCopia} rotulo="Copiar características" />
-    </div>
-  );
-}
-
-function AnuncioCard({ anuncio, destaque }: { anuncio: Anuncio; destaque: boolean }) {
   const titulo = anuncio.familia_nome ?? anuncio.membros[0]?.titulo_completo ?? anuncio.chave;
   return (
-    <article className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate font-medium text-[var(--foreground)]">{titulo}</p>
-          {destaque ? (
-            <p className="mt-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-              Prioridade pra revisar primeiro
-            </p>
-          ) : null}
-        </div>
-        <DiagnosticoBadge diagnostico={anuncio.diagnostico} />
-      </div>
-
-      {anuncio.categoria_provavelmente_errada ? (
-        <p className={cn("mt-3 rounded-md p-2 text-xs", DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY)}>
-          A busca do próprio Mercado Livre pelo título sugere a categoria &quot;{anuncio.categoria_sugerida_nome}&quot;,
-          diferente da categoria atual — vale revisar isso antes do texto.
-        </p>
-      ) : null}
-
-      {anuncio.duplicidade ? (
-        <>
-          <p className="mt-3 flex items-start gap-1.5 text-xs text-[var(--danger)]">
-            <span aria-hidden>⚠</span>
-            <span>
-              Parece duplicado de outro anúncio seu (&quot;{anuncio.duplicidade.titulo_anuncio_forte}&quot;,{" "}
-              {anuncio.duplicidade.vendas_anuncio_forte} vendas) — este aqui tem só{" "}
-              {anuncio.duplicidade.vendas_anuncio_atual} vendas.{" "}
-              {anuncio.duplicidade.pode_pausar
-                ? "Considere mesclar ou pausar este manualmente no app do Mercado Livre."
-                : "Considere mesclar."}
-            </span>
+    <button
+      type="button"
+      onClick={() => onAbrir(anuncio, destaque)}
+      className="flex w-full items-center gap-2 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 hover:shadow-md dark:hover:border-emerald-700"
+    >
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium text-[var(--foreground)]">{titulo}</p>
+        {destaque ? (
+          <p className="mt-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+            Prioridade pra revisar primeiro
           </p>
-          {anuncio.duplicidade.motivo_bloqueio ? (
-            <p className="mt-1 flex items-start gap-1.5 text-xs text-[var(--muted)]">
-              <span aria-hidden>ℹ</span>
-              <span>{anuncio.duplicidade.motivo_bloqueio}</span>
-            </p>
-          ) : null}
-        </>
-      ) : null}
-
-      {(anuncio.atributos_sem_reforco_texto ?? []).length > 0 ? (
-        <p className={cn("mt-3 flex items-start gap-1.5 text-xs", AMBER_PREMIUM_TEXT_PRIMARY)}>
-          <span aria-hidden>🔑</span>
-          <span>
-            Ficha técnica tem{" "}
-            {anuncio.atributos_sem_reforco_texto.map((a, i) => (
-              <span key={a.id}>
-                {i > 0 ? ", " : ""}
-                <strong>
-                  {a.name}: {a.valor}
-                </strong>
-              </span>
-            ))}{" "}
-            — mas essa palavra não aparece no título nem na descrição, perdendo força de busca.
-          </span>
-        </p>
-      ) : null}
-
-      {anuncio.observacao ? <p className="mt-3 text-sm text-[var(--foreground)]">{anuncio.observacao}</p> : null}
-
-      {anuncio.diagnostico === "problema_titulo" && anuncio.titulo_sugerido ? (
-        <div className="mt-3 rounded-md border border-[var(--card-border)] p-3">
-          <p className="text-xs font-semibold text-[var(--muted)]">Título sugerido</p>
-          <p className="mt-1 text-sm text-[var(--foreground)]">{anuncio.titulo_sugerido}</p>
-          <AplicarTituloBotao itemId={anuncio.item_id_representante} tituloSugerido={anuncio.titulo_sugerido} />
-        </div>
-      ) : null}
-
-      {anuncio.diagnostico === "problema_descricao" && anuncio.descricao_sugerida ? (
-        <div className="mt-3 rounded-md border border-[var(--card-border)] p-3">
-          <p className="text-xs font-semibold text-[var(--muted)]">Descrição sugerida</p>
-          <p className="mt-1 whitespace-pre-wrap text-sm text-[var(--foreground)]">{anuncio.descricao_sugerida}</p>
-          <AplicarDescricaoBotao
-            itemIds={anuncio.membros.map((m) => m.item_id)}
-            descricaoSugerida={anuncio.descricao_sugerida}
-          />
-        </div>
-      ) : null}
-
-      {anuncio.diagnostico === "caracteristicas_incompletas" ? (
-        <div className="mt-3 space-y-1.5">
-          {anuncio.caracteristicas_sugeridas.length > 0 ? (
-            <>
-              <ul className="space-y-1 text-sm text-[var(--foreground)]">
-                {anuncio.caracteristicas_sugeridas.map((c) => (
-                  <li key={c.atributo_id} className="flex flex-wrap items-baseline gap-1">
-                    <span className="font-medium">{c.atributo_nome}:</span>
-                    <span>{c.valor}</span>
-                    {!c.valorValido ? (
-                      <span className="text-[10px] font-semibold text-[var(--danger)]">(confira — fora da lista permitida)</span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-              <AplicarCaracteristicasBotao
-                itemIds={anuncio.membros.map((m) => m.item_id)}
-                caracteristicas={anuncio.caracteristicas_sugeridas}
-              />
-            </>
-          ) : null}
-          {[...anuncio.atributos_principais_faltando, ...anuncio.atributos_secundarios_faltando]
-            .filter((nome) => !anuncio.caracteristicas_sugeridas.some((c) => c.atributo_nome === nome))
-            .map((nome) => (
-              <p key={nome} className="text-xs text-[var(--muted)]">
-                {nome}: sem sugestão segura — preencher manualmente.
-              </p>
-            ))}
-        </div>
-      ) : null}
-
-      <ul className="mt-3 space-y-1 border-t border-[var(--card-border)] pt-3 text-xs text-[var(--muted)]">
-        {anuncio.membros.map((m) => (
-          <li key={m.item_id} className="flex flex-wrap items-center gap-x-2">
-            <a
-              href={mlItemPermalink(m.item_id)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="truncate underline decoration-dotted"
-            >
-              {m.titulo_completo}
-            </a>
-            <span>· {m.vendas_totais} vendas</span>
-            <span>· {m.visitas_30d} visitas 30d</span>
-            <span>· {m.dias_no_ar}d no ar</span>
-            {m.visitas_30d === 0 ? <span className="font-semibold text-[var(--danger)]">zero visitas</span> : null}
-            {m.fotos_insuficientes ? <span>· poucas fotos</span> : null}
-            {m.foto_baixa_resolucao ? <span>· foto de baixa qualidade</span> : null}
-          </li>
-        ))}
-      </ul>
-    </article>
+        ) : null}
+        {anuncio.observacao ? (
+          <p className="mt-0.5 truncate text-xs text-[var(--muted)]">{anuncio.observacao}</p>
+        ) : null}
+      </div>
+      <DiagnosticoBadge diagnostico={anuncio.diagnostico} />
+      <svg
+        className="h-4 w-4 shrink-0 text-[var(--muted)]"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="m9 18 6-6-6-6" />
+      </svg>
+    </button>
   );
 }
 
@@ -520,6 +77,7 @@ export default function AndreyAvulsoPage() {
   const [run, setRun] = useState<SellerAiRun<AndreyResultado> | null>(null);
   const [usoTokensHoje, setUsoTokensHoje] = useState<UsoTokensHoje | null>(null);
   const [bloqueadoHoje, setBloqueadoHoje] = useState(false);
+  const [anuncioAberto, setAnuncioAberto] = useState<{ anuncio: Anuncio; destaque: boolean } | null>(null);
 
   const carregar = useCallback(async () => {
     const { data } = await supabaseBrowser.auth.getSession();
@@ -561,7 +119,7 @@ export default function AndreyAvulsoPage() {
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json().catch(() => ({}));
-    if (!res.ok) return json.error ?? "Erro ao rodar o Andrey.";
+    if (!res.ok) return json.error ?? "Erro ao rodar o Anúncio.";
     await carregar();
     return null;
   };
@@ -576,7 +134,7 @@ export default function AndreyAvulsoPage() {
           <div className="mt-1 min-w-0 space-y-1">
             <div className="flex items-center gap-2 sm:gap-3">
               <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
-                Andrey — Anúncios &amp; SEO
+                Anúncio — Anúncios &amp; SEO
               </h1>
               <span
                 className="h-1 w-14 shrink-0 self-center rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 sm:w-20"
@@ -603,7 +161,7 @@ export default function AndreyAvulsoPage() {
           <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 text-center shadow-sm sm:p-8">
             <p className="font-medium text-[var(--foreground)]">Conecte sua conta do Mercado Livre primeiro</p>
             <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">
-              O Andrey precisa ler seus anúncios ativos pra analisar — conecte sua conta pra liberar essa rodada.
+              O Anúncio precisa ler seus anúncios ativos pra analisar — conecte sua conta pra liberar essa rodada.
             </p>
             <Link
               href="/seller/gestores-ia-avulso/integracoes"
@@ -652,7 +210,12 @@ export default function AndreyAvulsoPage() {
                 return (
                   <div className="space-y-3">
                     {ordenados.map((a) => (
-                      <AnuncioCard key={a.chave} anuncio={a} destaque={destaques.has(a.chave)} />
+                      <AnuncioLinha
+                        key={a.chave}
+                        anuncio={a}
+                        destaque={destaques.has(a.chave)}
+                        onAbrir={(anuncio, destaque) => setAnuncioAberto({ anuncio, destaque })}
+                      />
                     ))}
                   </div>
                 );
@@ -661,6 +224,51 @@ export default function AndreyAvulsoPage() {
           </>
         )}
       </div>
+
+      {anuncioAberto ? (
+        <div
+          className={cn(MODAL_OVERLAY_CLASS, "animate-fade-in-up")}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-anuncio-titulo"
+          onClick={() => setAnuncioAberto(null)}
+        >
+          <div
+            className={cn(MODAL_PANEL_CLASS, "max-w-2xl animate-fade-in-up animate-fade-in-up-delay-1")}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--card-border)] px-5 pb-4 pt-5">
+              <div className="min-w-0 flex-1">
+                <h2 id="modal-anuncio-titulo" className="min-w-0 truncate text-base font-semibold text-[var(--foreground)]">
+                  {anuncioAberto.anuncio.familia_nome ??
+                    anuncioAberto.anuncio.membros[0]?.titulo_completo ??
+                    anuncioAberto.anuncio.chave}
+                </h2>
+                {anuncioAberto.destaque ? (
+                  <p className="mt-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                    Prioridade pra revisar primeiro
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <DiagnosticoBadge diagnostico={anuncioAberto.anuncio.diagnostico} />
+                <button
+                  type="button"
+                  onClick={() => setAnuncioAberto(null)}
+                  aria-label="Fechar"
+                  className="-m-1 rounded p-1 text-xl leading-none text-neutral-400 transition-colors hover:text-neutral-900 dark:hover:text-neutral-200"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <div className={cn(MODAL_PANEL_BODY_CLASS, "px-5 pb-5 pt-4")}>
+              <AnuncioDiagnosticoDetalhe anuncio={anuncioAberto.anuncio} />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <SellerNav active="gestores_ia" calcOnly temGestoresIa />
     </div>
   );

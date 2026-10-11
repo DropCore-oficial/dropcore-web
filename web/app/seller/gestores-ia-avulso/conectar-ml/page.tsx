@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
@@ -17,6 +18,7 @@ export default function ConectarMlAvulsoPage() {
   useEffect(() => {
     const url = new URL(window.location.href);
     const code = url.searchParams.get("code");
+    const state = url.searchParams.get("state");
     if (!code || exchangedCode.current === code) {
       if (!code) router.replace("/seller/gestores-ia-avulso");
       return;
@@ -36,7 +38,7 @@ export default function ConectarMlAvulsoPage() {
         const res = await fetch("/api/gestores-ia-avulso/mercadolivre/oauth", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ code }),
+          body: JSON.stringify({ code, state }),
         });
         const j = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(j?.error ?? "Erro ao conectar o Mercado Livre.");
@@ -54,6 +56,12 @@ export default function ConectarMlAvulsoPage() {
           <>
             <p className="text-[var(--foreground)] font-medium">Não foi possível conectar.</p>
             <p className="mt-1">{erro}</p>
+            <Link
+              href="/seller/gestores-ia-avulso/integracoes"
+              className="mt-4 inline-flex items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+            >
+              Voltar e tentar de novo
+            </Link>
           </>
         ) : (
           "Conectando sua conta do Mercado Livre…"

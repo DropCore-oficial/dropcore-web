@@ -832,7 +832,7 @@ function LightningCandidatosSection() {
         </button>
         <div className="flex items-center gap-3">
           <HelpBubble
-            ariaLabel="Como funciona a Oferta Relâmpago com o Ulisses"
+            ariaLabel="Como funciona a Oferta Relâmpago com o ADS"
             open={helpOpen}
             onOpen={() => setHelpOpen(true)}
             onClose={() => setHelpOpen(false)}
@@ -840,7 +840,7 @@ function LightningCandidatosSection() {
             <p>
               É semiautomático: você (ou sua equipe) reserva o horário direto na Central de Vendedores do
               Mercado Livre — isso o DropCore não faz. Depois que o horário está reservado, o ML propõe os
-              candidatos e é aqui que o Ulisses entra: calcula o menor desconto dentro da faixa que o ML
+              candidatos e é aqui que o ADS entra: calcula o menor desconto dentro da faixa que o ML
               permite pra cada item, olhando sua margem real, e você decide aceitar, ajustar ou recusar.
             </p>
           </HelpBubble>
@@ -1121,7 +1121,7 @@ export function SellerGestorAdsPricingPanel({
       onRodarAgora={onRodarAgora}
       ajuda={
         <p>
-          O Ulisses cruza o custo real de cada produto com o preço já publicado no Mercado Livre pra
+          O ADS cruza o custo real de cada produto com o preço já publicado no Mercado Livre pra
           calcular a margem que você está de fato realizando, e compara com a faixa mínima/máxima que
           você definiu. Ele só recomenda ativar ads ou cupom se você já tiver deixado essa alavanca
           ligada na configuração. Pra afiliado, quando sua margem tem folga real, ele mostra até quanto

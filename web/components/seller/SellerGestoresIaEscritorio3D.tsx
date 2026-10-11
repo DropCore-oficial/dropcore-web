@@ -24,11 +24,11 @@ export type AtividadeAoVivo = {
   quando: string;
 };
 
-const NOME_POR_GESTOR: Record<AtividadeAoVivo["gestor"], NomeGestor> = {
-  estoque_fulfillment: "Diogo",
-  anuncios_seo: "Andrey",
-  reputacao: "Amanda",
-  ads: "Ulisses",
+const NOME_POR_GESTOR: Record<AtividadeAoVivo["gestor"], string> = {
+  estoque_fulfillment: "Estoque",
+  anuncios_seo: "Anúncio",
+  reputacao: "SAC",
+  ads: "ADS",
 };
 
 const DOT_TOM: Record<AtividadeAoVivo["tom"], string> = {
@@ -797,11 +797,11 @@ export function SellerGestoresIaEscritorio3D({
   const [focoNome, setFocoNome] = useState<NomeGestor | null>(null);
   const [modo, setModoState] = useState<"individual" | "reuniao">("individual");
   const nomeExibicao: Record<NomeGestor, string> = {
-    Diogo: "Diogo",
-    Andrey: "Andrey",
-    Amanda: "Amanda",
-    Ulisses: "Ulisses",
-    TiagoSilva: "Tiago Silva",
+    Diogo: "Estoque",
+    Andrey: "Anúncio",
+    Amanda: "SAC",
+    Ulisses: "ADS",
+    TiagoSilva: "Gestor",
     Seller: nomeResponsavel?.trim() || "Você",
   };
 
@@ -845,6 +845,14 @@ export function SellerGestoresIaEscritorio3D({
     controls.maxPolarAngle = Math.PI / 2.1;
     controls.minDistance = 10;
     controls.maxDistance = 60;
+    // Achado 2026-10-10: minDistance/maxDistance acima só valem pra PerspectiveCamera no
+    // OrbitControls — essa câmera é Orthographic, então o dolly de verdade (scroll/pinch)
+    // é limitado por minZoom/maxZoom, que sem isso ficam 0..Infinity (sem limite nenhum).
+    // Sem esses dois, dava pra "remover o zoom" (scroll out) o quanto quisesse e revelar o
+    // fundo vazio da cena em volta da sala — ficava bem mais óbvio no formato retangular do
+    // mobile (mais alto que largo) do que no 16:9 do desktop.
+    controls.minZoom = 0.85;
+    controls.maxZoom = 3;
     controls.target.set(0, 0, 0);
 
     scene.add(new THREE.AmbientLight(0xffffff, 1.4));
@@ -1098,10 +1106,13 @@ export function SellerGestoresIaEscritorio3D({
       };
 
       const tag = document.createElement("div");
+      // Sem classe de translate/scale do Tailwind aqui de propósito — o transform inteiro
+      // (posição + escala por distância da câmera, ver loop de renderização abaixo) é
+      // aplicado via style.transform em JS a cada frame, não dava pra combinar os dois.
       tag.className =
-        "pointer-events-auto absolute flex -translate-x-1/2 -translate-y-full cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full bg-neutral-900/85 px-2.5 py-1 text-[11px] font-semibold text-white shadow-lg backdrop-blur transition-colors hover:bg-neutral-800/90";
+        "pointer-events-auto absolute flex items-center gap-1 whitespace-nowrap rounded-full bg-neutral-900/85 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-lg backdrop-blur transition-colors hover:bg-neutral-800/90";
       const dot = document.createElement("span");
-      dot.className = "h-1.5 w-1.5 shrink-0 rounded-full";
+      dot.className = "h-1 w-1 shrink-0 rounded-full";
       dot.style.background = cfg.corDot;
       dot.style.boxShadow = `0 0 6px ${cfg.corDot}`;
       tag.appendChild(dot);
@@ -1401,9 +1412,20 @@ export function SellerGestoresIaEscritorio3D({
         if (!mesh || !label) return;
         mesh.getWorldPosition(tempV);
         tempV.y += 2.8;
+        // BUG CORRIGIDO 2026-10-10: a 1ª versão escalava pela distância até a câmera
+        // (`camera.position.distanceTo`), mas essa câmera é Orthographic — nela a distância
+        // não muda o tamanho aparente na tela (isso é só em perspectiva) e o `focar()` só
+        // move `controls.target`/`camera.position` preservando o offset, então a distância
+        // mal mudava. Quem realmente controla o tamanho na tela de uma câmera ortográfica é
+        // `camera.zoom` (o que o scroll/pinch do OrbitControls de fato altera) — por isso
+        // "tirar o zoom" deixava a etiqueta enorme (ela não acompanhava a cena encolhendo) e
+        // focar de perto deixava ela minúscula (não acompanhava a cena crescendo). Agora
+        // escala em cima do `camera.zoom` de verdade.
+        const escala = THREE.MathUtils.clamp(camera.zoom * 0.7, 0.55, 2.2);
         tempV.project(camera);
         const x = (tempV.x * 0.5 + 0.5) * container.clientWidth;
         const y = (-(tempV.y * 0.5) + 0.5) * container.clientHeight;
+        label.style.transform = `translate(-50%, -100%) scale(${escala.toFixed(3)})`;
         label.style.left = `${x}px`;
         label.style.top = `${y}px`;
       });
@@ -1462,7 +1484,13 @@ export function SellerGestoresIaEscritorio3D({
         </span>
       </div>
 
-      <div className="relative mt-3 w-full overflow-hidden" style={{ aspectRatio: "16 / 9", background: "#0e1117" }}>
+      {/* Mobile mais retangular/vertical (9:16, tipo tela de celular) — câmera é ortográfica e
+      o ResizeObserver abaixo já recalcula o frustum sozinho quando o container muda de
+      proporção, então só trocar a proporção aqui já é suficiente, sem mexer no Three.js. */}
+      <div
+        className="relative mt-3 aspect-[4/5] w-full overflow-hidden sm:aspect-[16/9]"
+        style={{ background: "#0e1117" }}
+      >
         <div ref={mountRef} className="absolute inset-0" />
         <div ref={labelsRef} className="pointer-events-none absolute inset-0 z-[5]" />
 
@@ -1495,7 +1523,7 @@ export function SellerGestoresIaEscritorio3D({
                 onClick={() => focarPeloHud(nome)}
                 className="max-w-[110px] rounded-lg bg-neutral-900/85 px-2 py-1 text-right shadow-lg backdrop-blur transition-colors hover:bg-neutral-800/90"
               >
-                <p className="text-[8px] uppercase tracking-wide text-neutral-400">{nome}</p>
+                <p className="text-[8px] uppercase tracking-wide text-neutral-400">{nomeExibicao[nome]}</p>
                 <p className="truncate text-[9px] font-semibold text-emerald-400">{texto}</p>
               </button>
             ))}
@@ -1552,7 +1580,7 @@ export function SellerGestoresIaEscritorio3D({
           ) : null}
 
           {focoNome ? (
-            <div className="pointer-events-auto absolute bottom-11 right-2 hidden w-48 rounded-xl bg-neutral-900/85 p-3 shadow-lg backdrop-blur md:block">
+            <div className="pointer-events-auto absolute bottom-11 right-2 w-40 rounded-xl bg-neutral-900/85 p-3 shadow-lg backdrop-blur sm:w-48">
               <div className="flex items-center gap-2 border-b border-white/10 pb-2">
                 <span
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm"
@@ -1578,20 +1606,6 @@ export function SellerGestoresIaEscritorio3D({
         <p className="mt-2 text-[11px] text-[var(--muted)]">
           Arraste pra girar, ou use os botões pra focar num gestor.
         </p>
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[var(--muted)]">
-          <span>
-            <span className="font-semibold text-[var(--foreground)]">Diogo:</span> {statusDiogo}
-          </span>
-          <span>
-            <span className="font-semibold text-[var(--foreground)]">Andrey:</span> {statusAndrey}
-          </span>
-          <span>
-            <span className="font-semibold text-[var(--foreground)]">Amanda:</span> {statusAmanda}
-          </span>
-          <span>
-            <span className="font-semibold text-[var(--foreground)]">Ulisses:</span> {statusUlisses}
-          </span>
-        </div>
         {atividades.length > 0 ? (
           <div className="mt-2 space-y-1.5 border-t border-[var(--card-border)] pt-3">
             {atividades.map((a, i) => (

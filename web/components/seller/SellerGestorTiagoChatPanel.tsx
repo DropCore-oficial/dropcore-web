@@ -258,12 +258,12 @@ export function SellerGestorTiagoChatPanel() {
       // normal, sem corpo em stream — mesmo contrato de antes.
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        setErroEnvio(json?.error ?? "Erro ao falar com o Tiago Silva.");
+        setErroEnvio(json?.error ?? "Erro ao falar com o Gestor.");
         if (json?.bloqueado_hoje === true) setBloqueadoHoje(true);
         return;
       }
       if (!res.body) {
-        setErroEnvio("Erro ao falar com o Tiago Silva.");
+        setErroEnvio("Erro ao falar com o Gestor.");
         return;
       }
 
@@ -307,6 +307,8 @@ export function SellerGestorTiagoChatPanel() {
         ]);
       }
       await carregar(sessionId);
+    } catch {
+      setErroEnvio("Erro de conexão. Tenta de novo.");
     } finally {
       setStreamingTexto(null);
       setStatusFerramenta(null);
@@ -332,7 +334,7 @@ export function SellerGestorTiagoChatPanel() {
   if (!liberado) {
     return (
       <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 text-center shadow-sm sm:p-8">
-        <p className="font-medium text-[var(--foreground)]">🔒 Tiago Silva exige o add-on Gestores de IA</p>
+        <p className="font-medium text-[var(--foreground)]">🔒 Gestor exige o add-on Gestores de IA</p>
         <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">
           O chat com o Gestor Mestre já está pronto, mas exige o add-on Gestores de IA.{" "}
           <Link href="/seller/plano" className="font-semibold underline">
@@ -420,7 +422,7 @@ export function SellerGestorTiagoChatPanel() {
                 {nomeResponsavel ? `, ${nomeResponsavel.split(" ")[0]}` : ""}
               </p>
               <p className="text-sm text-[var(--muted)]">
-                Pergunta pro Tiago Silva o que a equipe (Diogo, Andrey, Amanda, Ulisses) já encontrou, ou escolhe uma
+                Pergunta pro Gestor o que a equipe (Estoque, Anúncio, SAC, ADS) já encontrou, ou escolhe uma
                 pergunta pronta:
               </p>
               <div className="flex flex-wrap gap-2">
@@ -464,7 +466,7 @@ export function SellerGestorTiagoChatPanel() {
           {enviando && streamingTexto === null && (
             <div className="flex justify-start">
               <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3.5 py-2.5 text-sm text-[var(--muted)]">
-                {statusFerramenta ?? "Tiago Silva está digitando…"}
+                {statusFerramenta ?? "Gestor está digitando…"}
               </div>
             </div>
           )}
@@ -508,7 +510,7 @@ export function SellerGestorTiagoChatPanel() {
               disabled={enviando || chatBloqueado}
               rows={1}
               maxLength={4000}
-              placeholder="Escreva pro Tiago Silva…"
+              placeholder="Escreva pro Gestor…"
               className="max-h-32 flex-1 resize-none rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] focus:border-emerald-500 disabled:opacity-60"
             />
             <button
@@ -543,7 +545,7 @@ export function SellerGestorTiagoChatPanel() {
               {!creditoQr ? (
                 <>
                   <p className="text-sm text-[var(--muted)]">
-                    Vale só por hoje — libera mais uso do chat com o Tiago Silva até a meia-noite. Não acumula pro dia seguinte.
+                    Vale só por hoje — libera mais uso do chat com o Gestor até a meia-noite. Não acumula pro dia seguinte.
                   </p>
                   {creditoErro && (
                     <p className={cn("rounded-xl px-3 py-2 text-xs", DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY)}>

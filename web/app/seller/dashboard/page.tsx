@@ -769,7 +769,7 @@ export default function SellerDashboardPage() {
         : "bg-emerald-600 text-white shadow-sm shadow-emerald-600/20 hover:bg-emerald-700 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-700"
     );
     const badgeTitle = isPro
-      ? `Plano ${SELLER_PLANO_NOME_PRO} — inclui o gestor de IA Ulisses (Ads, Preço & Promoção)`
+      ? `Plano ${SELLER_PLANO_NOME_PRO} — inclui o gestor de IA ADS (Ads, Preço & Promoção)`
       : `Plano ${SELLER_PLANO_NOME_START} — resumo, desempenho e operação essencial`;
     const badge = (
       <span translate="no" lang="en" className={badgeClass} title={badgeTitle}>

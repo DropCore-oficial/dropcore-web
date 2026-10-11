@@ -47,7 +47,7 @@ const FEATURES_START = [
 
 const FEATURES_PRO_EXTRA = [
   "Tudo do plano Start",
-  "1 Gestor de IA liberado: Ulisses (Ads, Preço & Promoção)",
+  "1 Gestor de IA liberado: ADS (Ads, Preço & Promoção)",
 ] as const;
 
 function FeatureLine({ children }: { children: ReactNode }) {
@@ -441,7 +441,7 @@ export default function SellerPlanoPage() {
                 Recomendado
               </span>
             </div>
-            <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">Tudo do Start + o gestor de IA Ulisses incluso.</p>
+            <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">Tudo do Start + o gestor de IA ADS incluso.</p>
             <div className="mt-5">
               <p className="text-3xl font-bold tabular-nums tracking-tight text-[var(--foreground)]">
                 {BRL.format(precoPro)}
@@ -508,8 +508,8 @@ export default function SellerPlanoPage() {
             <div>
               <h2 className="text-sm font-semibold text-[var(--foreground)]">Gestores de IA</h2>
               <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
-                Libera Diogo (Risco de Ruptura), Andrey (Anúncios & SEO) e Amanda (Reputação & Atendimento)
-                {isPro ? "" : " + Ulisses (Ads, Preço & Promoção)"} — inclusive gestores futuros, sem custo extra.
+                Libera Estoque (Risco de Ruptura), Anúncio (Anúncios & SEO) e SAC (Reputação & Atendimento)
+                {isPro ? "" : " + ADS (Ads, Preço & Promoção)"} — inclusive gestores futuros, sem custo extra.
               </p>
             </div>
             {addonAtivo && (

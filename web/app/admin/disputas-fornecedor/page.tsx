@@ -265,7 +265,7 @@ export default function AdminDisputasFornecedorPage() {
       <AdminPageHeader
         eyebrow="Financeiro"
         title="Disputas com fornecedor"
-        subtitle="Casos que a Amanda detectou (reclamação real do Mercado Livre com evidência anexada pelo comprador) — revise e decida quem arca com o custo."
+        subtitle="Casos que o SAC detectou (reclamação real do Mercado Livre com evidência anexada pelo comprador) — revise e decida quem arca com o custo."
       />
 
       {loading ? (

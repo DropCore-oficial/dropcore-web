@@ -202,24 +202,17 @@ async function getAccessToken(): Promise<string | null> {
   return session?.access_token ?? null;
 }
 
-function resumoParaCard(
-  slug: string,
-  runs: Record<string, SellerAiRun<unknown>>
-): string {
-  if (slug === "diogo") {
-    return resumoStatusDiogo(runs["estoque_fulfillment"] as SellerAiRun<RupturaFulfillmentResultado> | undefined);
-  }
-  if (slug === "andrey") {
-    return resumoStatusAndrey(runs["anuncios_seo"] as SellerAiRun<AnunciosSeoResultado> | undefined);
-  }
-  if (slug === "amanda") {
-    return resumoStatusAmanda(runs["reputacao"] as SellerAiRun<ReputacaoAtendimentoResultado> | undefined);
-  }
-  if (slug === "ulisses") {
-    return resumoStatusUlisses(runs["ads"] as SellerAiRun<AdsPricingResultado> | undefined);
-  }
-  return "Em breve";
-}
+/** Descrição estática do que o gestor faz — não é status/resultado de rodada (isso saiu
+ * do card, achado 2026-10-10: ficava repetindo o que o HUD da sala 3D já mostra), só
+ * explica a função pra quem nunca entrou no gestor ainda. Mesmo texto do portal avulso
+ * (web/app/seller/gestores-ia-avulso/page.tsx), replicado aqui na mesma passada. */
+const DESCRICAO_GESTOR: Record<string, string> = {
+  diogo: "Olha o estoque e avisa antes de faltar produto que já tá vendendo.",
+  andrey: "Analisa seus anúncios e aponta o que pode estar travando visitas e vendas.",
+  amanda: "Acompanha perguntas e reclamações, sugere resposta pronta pra você enviar.",
+  ulisses: "Confere margem e preço de cada SKU, sinaliza o que tá fora do saudável.",
+  "tiago-silva": "Converse sobre o que a equipe já analisou.",
+};
 
 function GestorCard({
   slug,
@@ -227,14 +220,12 @@ function GestorCard({
   funcao,
   ativo,
   liberado,
-  resumo,
 }: {
   slug: string;
   nome: string;
   funcao: string;
   ativo: boolean;
   liberado: boolean;
-  resumo: string;
 }) {
   // Já tem painel construído (ativo), mas exige o add-on Gestores de IA — mostra trancado,
   // cinza claro, sem link (não é bug/"em breve", é feature paga ainda não contratada).
@@ -259,8 +250,8 @@ function GestorCard({
           </span>
         ) : null}
       </div>
-      <p className={cn("mt-3 text-sm", bloqueadoPorPlano ? "text-[var(--muted)]" : "text-[var(--foreground)]")}>
-        {bloqueadoPorPlano ? "Contrate o add-on Gestores de IA →" : resumo}
+      <p className="mt-3 text-sm text-[var(--muted)]">
+        {bloqueadoPorPlano ? "Contrate o add-on Gestores de IA →" : DESCRICAO_GESTOR[slug] ?? ""}
       </p>
     </>
   );
@@ -401,7 +392,6 @@ export default function SellerGestoresIaPage() {
                   funcao={g.funcao}
                   ativo={g.ativo}
                   liberado={g.slug === "tiago-silva" ? chatLiberado : g.gestorId ? gestoresLiberados[g.gestorId] === true : false}
-                  resumo={g.slug === "tiago-silva" ? "Converse sobre o que a equipe já analisou." : resumoParaCard(g.slug, runsLiberados)}
                 />
               ))}
             </div>

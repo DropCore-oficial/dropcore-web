@@ -142,6 +142,23 @@ function IconSair() {
   );
 }
 
+function IconChevronDown({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${className}`}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 /** Painel com seta — recolhe/expande a rail (só o avulso tem esse botão hoje). */
 function IconPanelToggle({ expanded }: { expanded: boolean }) {
   return (
@@ -320,6 +337,142 @@ function SellerNavHelpMenu({ supportHref, expanded = false }: { supportHref: str
   );
 }
 
+/** Subcontas do pacote avulso — aparecem dentro do item "Gestor de IA" da rail, não como
+ * ícones próprios. "Visão geral" é o Portal (/seller/gestores-ia-avulso exato). */
+const GESTORES_IA_SUBITENS = [
+  { href: "/seller/gestores-ia-avulso", label: "Visão geral" },
+  { href: "/seller/gestores-ia-avulso/andrey", label: "Anúncio" },
+  { href: "/seller/gestores-ia-avulso/amanda", label: "SAC" },
+  { href: "/seller/gestores-ia-avulso/ulisses", label: "ADS" },
+  { href: "/seller/gestores-ia-avulso/tiago", label: "Gestor" },
+] as const;
+
+function gestorSubitemAtivo(pathname: string, href: string): boolean {
+  if (href === "/seller/gestores-ia-avulso") return pathname === href;
+  return pathname.startsWith(href);
+}
+
+/** Item "Gestor de IA" da rail do avulso: não navega mais sozinho — é um disclosure com as
+ * subcontas (Andrey/Amanda/Ulisses/Tiago Silva + Visão geral) dentro dele.
+ * Expandido (`expanded`): clique abre/fecha a lista indentada embaixo do próprio item.
+ * Recolhido (só ícone): passar o mouse abre um menu flutuante com a lista — clique no ícone
+ * nesse estado expande a rail inteira (`onExpandRail`) pra dar um caminho igual por teclado/toque. */
+function SellerNavGestorIaItem({
+  expanded,
+  pathname,
+  isActive,
+  open,
+  onToggle,
+  onExpandRail,
+}: {
+  expanded: boolean;
+  pathname: string;
+  isActive: boolean;
+  open: boolean;
+  onToggle: () => void;
+  onExpandRail: () => void;
+}) {
+  if (expanded) {
+    return (
+      <div className="w-full shrink-0">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${
+            isActive ? railActiveGlow : railInactive
+          }`}
+        >
+          {isActive ? (
+            <>
+              <span aria-hidden className="pointer-events-none absolute inset-0 scale-125 rounded-xl bg-emerald-400/30 blur-md" />
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -left-1.5 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-gradient-to-b from-emerald-500 to-emerald-400"
+              />
+            </>
+          ) : null}
+          <span className={isActive ? "motion-safe:animate-[pulse-glow_1.8s_ease-in-out_infinite]" : ""}>
+            <span className="animate-dc-sparkle">
+              <IconSparkles active={false} />
+            </span>
+          </span>
+          <span className="flex-1 truncate text-left text-sm font-medium">Gestor de IA</span>
+          <IconChevronDown className={open ? "rotate-180" : ""} />
+        </button>
+        {open ? (
+          <div className="mt-1 flex flex-col gap-0.5 border-l border-[var(--card-border)] pl-4">
+            {GESTORES_IA_SUBITENS.map((item) => {
+              const ativo = gestorSubitemAtivo(pathname, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`truncate rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors ${
+                    ativo
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="group relative">
+      <button
+        type="button"
+        onClick={onExpandRail}
+        aria-haspopup="menu"
+        aria-label="Gestor de IA"
+        className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${
+          isActive ? railActiveGlow : railInactive
+        }`}
+      >
+        {isActive ? (
+          <>
+            <span aria-hidden className="pointer-events-none absolute inset-0 scale-125 rounded-xl bg-emerald-400/30 blur-md" />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -left-1.5 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-gradient-to-b from-emerald-500 to-emerald-400"
+            />
+          </>
+        ) : null}
+        <span className={isActive ? "motion-safe:animate-[pulse-glow_1.8s_ease-in-out_infinite]" : ""}>
+          <span className="animate-dc-sparkle">
+            <IconSparkles active={false} />
+          </span>
+        </span>
+      </button>
+      <div className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 opacity-0 shadow-lg transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+        <div className="w-44 rounded-xl border border-[var(--card-border)] bg-[var(--card)] py-1 shadow-lg ring-1 ring-[var(--foreground)]/[0.06]">
+          <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Gestor de IA</div>
+          {GESTORES_IA_SUBITENS.map((item) => {
+            const ativo = gestorSubitemAtivo(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`mx-1 flex items-center rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
+                  ativo ? railActive : "text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SellerNav({
   active,
   calcOnly = false,
@@ -340,6 +493,7 @@ export function SellerNav({
   const supportHref = buildSellerSupportWhatsAppHref(getSellerSupportWhatsAppPrefill(pathname));
   const [mobileMaisOpen, setMobileMaisOpen] = useState(false);
   const [railExpanded, setRailExpanded] = useState(false);
+  const [gestoresAbertos, setGestoresAbertos] = useState(active === "gestores_ia");
   const gestoresIaPermitido = useGestoresIaPermitido();
 
   useEffect(() => {
@@ -443,17 +597,17 @@ export function SellerNav({
           </div>
 
           {temGestoresIa && (
-            <SellerNavRailItem
-              href="/seller/gestores-ia-avulso"
-              label="Gestor de IA"
-              isActive={active === "gestores_ia"}
-              glow
-              animateIcon
-              hoverEffect="sparkle"
+            <SellerNavGestorIaItem
               expanded={railExpanded}
-            >
-              <IconSparkles active={false} />
-            </SellerNavRailItem>
+              pathname={pathname}
+              isActive={active === "gestores_ia"}
+              open={gestoresAbertos}
+              onToggle={() => setGestoresAbertos((v) => !v)}
+              onExpandRail={() => {
+                setRailExpanded(true);
+                setGestoresAbertos(true);
+              }}
+            />
           )}
           <SellerNavRailItem
             href="/seller/calculadora"

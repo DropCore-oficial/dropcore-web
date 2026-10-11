@@ -3,9 +3,10 @@
  * Livre (app do avulso) por tokens e persiste em `calculadora_assinante_mercadolivre_integrations`.
  * Espelho de /api/seller/mercadolivre/oauth, nunca toca na tabela do hub.
  */
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
+  MERCADOLIVRE_AVULSO_OAUTH_STATE_COOKIE,
   computeMercadoLivreAvulsoAccessTokenExpiresAt,
   exchangeMercadoLivreAvulsoAuthorizationCode,
 } from "@/lib/mercadoLivreOAuthAvulso";
@@ -19,7 +20,7 @@ function normalizeAuthorizationCode(raw: string): string {
   return raw.trim().slice(0, 512);
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const assinante = await getAssinanteFromToken(req);
     if (!assinante) {
@@ -33,6 +34,15 @@ export async function POST(req: Request) {
     const code = normalizeAuthorizationCode(String(body?.code ?? ""));
     if (!code) {
       return NextResponse.json({ error: "Informe o código de autorização do Mercado Livre." }, { status: 400 });
+    }
+
+    const state = String(body?.state ?? "").trim();
+    const expectedState = req.cookies.get(MERCADOLIVRE_AVULSO_OAUTH_STATE_COOKIE)?.value ?? "";
+    if (!state || !expectedState || state !== expectedState) {
+      return NextResponse.json(
+        { error: "Sessão de autorização expirada ou inválida. Volte e conecte de novo." },
+        { status: 400 },
+      );
     }
 
     const tokens = await exchangeMercadoLivreAvulsoAuthorizationCode(code);
@@ -55,12 +65,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Erro ao salvar tokens do Mercado Livre." }, { status: 500 });
     }
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       ok: true,
       oauth_connected: true,
       ml_user_id: tokens.user_id ?? null,
       access_token_expires_at: expiresAt,
     });
+    res.cookies.delete(MERCADOLIVRE_AVULSO_OAUTH_STATE_COOKIE);
+    return res;
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Erro inesperado";
     const status = message.includes("GESTORES_IA_AVULSO_MERCADOLIVRE") ? 503 : 500;

@@ -2,9 +2,10 @@
  * POST /api/seller/mercadolivre/oauth — Troca authorization_code do Mercado Livre por
  * tokens e persiste por seller. Espelho de /api/seller/bling/oauth.
  */
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
+  MERCADOLIVRE_OAUTH_STATE_COOKIE,
   computeMercadoLivreAccessTokenExpiresAt,
   exchangeMercadoLivreAuthorizationCode,
 } from "@/lib/mercadoLivreOAuth";
@@ -19,7 +20,7 @@ function normalizeAuthorizationCode(raw: string): string {
   return raw.trim().slice(0, 512);
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const seller = await getSellerFromToken(req);
     if (!seller) {
@@ -30,6 +31,15 @@ export async function POST(req: Request) {
     const code = normalizeAuthorizationCode(String(body?.code ?? ""));
     if (!code) {
       return NextResponse.json({ error: "Informe o código de autorização do Mercado Livre." }, { status: 400 });
+    }
+
+    const state = String(body?.state ?? "").trim();
+    const expectedState = req.cookies.get(MERCADOLIVRE_OAUTH_STATE_COOKIE)?.value ?? "";
+    if (!state || !expectedState || state !== expectedState) {
+      return NextResponse.json(
+        { error: "Sessão de autorização expirada ou inválida. Volte e conecte de novo." },
+        { status: 400 },
+      );
     }
 
     // Exclusivo com Olist: mesmo motivo do guard espelhado em /api/seller/olist (PUT) —
@@ -79,12 +89,14 @@ export async function POST(req: Request) {
       targetId: seller.id,
     });
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       ok: true,
       oauth_connected: true,
       ml_user_id: tokens.user_id ?? null,
       access_token_expires_at: expiresAt,
     });
+    res.cookies.delete(MERCADOLIVRE_OAUTH_STATE_COOKIE);
+    return res;
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Erro inesperado";
     const status = message.includes("MERCADOLIVRE_CLIENT_ID") ? 503 : 500;

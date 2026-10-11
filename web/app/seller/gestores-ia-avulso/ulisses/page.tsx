@@ -1,16 +1,17 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../../SellerNav";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
+import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY } from "@/lib/semanticPremium";
 import { SellerGestorRunShell, type SellerAiRun, type DispararRodada } from "@/components/seller/SellerGestorRunShell";
 import { mlItemPermalink, mlCampanhaAdsPermalink, mlPublicidadeHubPermalink } from "@/lib/mercadoLivreApiClient";
 import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
+import { SellerGestorUlissesWizard, type UlissesPreferenciasForm } from "@/components/seller/SellerGestorUlissesWizard";
 
 type Diagnostico = "sem_custo" | "margem_abaixo_minima" | "margem_saudavel" | "margem_acima_maxima";
 
@@ -138,7 +139,7 @@ function SkuCard({ sku }: { sku: SkuResultado }) {
             <div>
               <dt className="text-xs text-[var(--muted)]">Frete</dt>
               <dd className="font-medium text-[var(--foreground)]">
-                {sku.frete_real != null ? `− R$ ${sku.frete_real.toFixed(2)}` : "sem opção de envio pro CEP de referência"}
+                {sku.frete_real != null ? `− R$ ${sku.frete_real.toFixed(2)}` : "frete não disponível pra esse item agora"}
               </dd>
             </div>
             <div>
@@ -303,9 +304,9 @@ function CampanhaCard({ c }: { c: CampanhaResultado }) {
             href={mlPublicidadeHubPermalink()}
             target="_blank"
             rel="noreferrer"
-            className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
+            className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
           >
-            Criar campanha nova ↗
+            Criar no Mercado Livre ↗
           </a>
         ) : null}
       </div>
@@ -414,276 +415,12 @@ async function getAccessToken(): Promise<string | null> {
   return session?.access_token ?? null;
 }
 
-type PreferenciasForm = {
-  margem_minima_pct: number;
-  margem_maxima_pct: number | null;
-  imposto_pct: number;
-  perda_pct: number;
-  ads_ativo: boolean;
-  ads_tacos_pct: number | null;
-  ads_teto_valor: number | null;
-  ads_teto_periodo: "dia" | "mes" | null;
-  afiliado_ativo: boolean;
-  afiliado_pct: number | null;
-  cupom_ativo: boolean;
-  cupom_pct: number | null;
-};
-
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <label className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 rounded border-[var(--card-border)] accent-emerald-600"
-      />
-      {label}
-    </label>
-  );
-}
-
-function WizardPreferencias({
-  inicial,
-  onSalvo,
-  onCancelar,
-}: {
-  inicial?: PreferenciasForm | null;
-  onSalvo: () => void;
-  onCancelar?: () => void;
-}) {
-  const [margemMinima, setMargemMinima] = useState(inicial ? String(inicial.margem_minima_pct) : "");
-  const [margemMaxima, setMargemMaxima] = useState(inicial?.margem_maxima_pct != null ? String(inicial.margem_maxima_pct) : "");
-  const [imposto, setImposto] = useState(inicial ? String(inicial.imposto_pct) : "");
-  const [perda, setPerda] = useState(inicial ? String(inicial.perda_pct) : "");
-
-  const [adsAtivo, setAdsAtivo] = useState(inicial?.ads_ativo ?? false);
-  const [adsTacos, setAdsTacos] = useState(inicial?.ads_tacos_pct != null ? String(inicial.ads_tacos_pct) : "");
-  const [adsTeto, setAdsTeto] = useState(inicial?.ads_teto_valor != null ? String(inicial.ads_teto_valor) : "");
-  const [adsPeriodo, setAdsPeriodo] = useState<"dia" | "mes">(inicial?.ads_teto_periodo ?? "mes");
-
-  const [afiliadoAtivo, setAfiliadoAtivo] = useState(inicial?.afiliado_ativo ?? false);
-  const [afiliadoPct, setAfiliadoPct] = useState(inicial?.afiliado_pct != null ? String(inicial.afiliado_pct) : "");
-
-  const [cupomAtivo, setCupomAtivo] = useState(inicial?.cupom_ativo ?? false);
-  const [cupomPct, setCupomPct] = useState(inicial?.cupom_pct != null ? String(inicial.cupom_pct) : "");
-
-  const [salvando, setSalvando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-
-  const inputClass =
-    "w-full h-9 rounded-md bg-[var(--surface-subtle)] border border-[var(--card-border)] px-2.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 placeholder:text-[var(--muted)]";
-  const selectClass = `${inputClass} appearance-none`;
-
-  async function salvar(e: FormEvent) {
-    e.preventDefault();
-    setErro(null);
-    const margemMinimaNum = Number(margemMinima);
-    if (!Number.isFinite(margemMinimaNum) || margemMinimaNum <= 0) {
-      setErro("Margem mínima precisa ser maior que zero.");
-      return;
-    }
-    setSalvando(true);
-    const token = await getAccessToken();
-    if (!token) {
-      setErro("Sessão expirada, recarregue a página.");
-      setSalvando(false);
-      return;
-    }
-    const res = await fetch("/api/gestores-ia-avulso/ulisses/preferencias", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        margem_minima_pct: margemMinimaNum,
-        margem_maxima_pct: margemMaxima === "" ? null : Number(margemMaxima),
-        imposto_pct: imposto === "" ? 0 : Number(imposto),
-        perda_pct: perda === "" ? 0 : Number(perda),
-        ads_ativo: adsAtivo,
-        ads_tacos_pct: adsTacos === "" ? null : Number(adsTacos),
-        ads_teto_valor: adsTeto === "" ? null : Number(adsTeto),
-        ads_teto_periodo: adsPeriodo,
-        afiliado_ativo: afiliadoAtivo,
-        afiliado_pct: afiliadoPct === "" ? null : Number(afiliadoPct),
-        cupom_ativo: cupomAtivo,
-        cupom_pct: cupomPct === "" ? null : Number(cupomPct),
-      }),
-    });
-    const json = await res.json().catch(() => ({}));
-    setSalvando(false);
-    if (!res.ok) {
-      setErro(json.error ?? "Erro ao salvar preferências.");
-      return;
-    }
-    onSalvo();
-  }
-
-  return (
-    <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm sm:p-6">
-      <p className="font-medium text-[var(--foreground)]">
-        {inicial ? "Editar preferências" : "Antes de começar, configure suas preferências"}
-      </p>
-      <p className="mt-1 text-xs text-[var(--muted)]">
-        O Ulisses só recomenda dentro da margem que você definir aqui. Pode mudar depois, quando quiser.
-      </p>
-      <form onSubmit={(e) => void salvar(e)} className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className="text-sm font-medium text-[var(--foreground)]">Margem mínima (%)</label>
-          <input
-            type="number"
-            min="0.01"
-            step="0.1"
-            required
-            value={margemMinima}
-            onChange={(e) => setMargemMinima(e.target.value)}
-            className={cn(inputClass, "mt-1")}
-            placeholder="ex.: 15"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium text-[var(--foreground)]">Margem máxima (%) — opcional</label>
-          <input
-            type="number"
-            min="0"
-            step="0.1"
-            value={margemMaxima}
-            onChange={(e) => setMargemMaxima(e.target.value)}
-            className={cn(inputClass, "mt-1")}
-            placeholder="ex.: 40"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium text-[var(--foreground)]">Imposto (%)</label>
-          <input
-            type="number"
-            min="0"
-            step="0.1"
-            value={imposto}
-            onChange={(e) => setImposto(e.target.value)}
-            className={cn(inputClass, "mt-1")}
-            placeholder="ex.: 6"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium text-[var(--foreground)]">Perda estimada (%) — opcional</label>
-          <input
-            type="number"
-            min="0"
-            step="0.1"
-            value={perda}
-            onChange={(e) => setPerda(e.target.value)}
-            className={cn(inputClass, "mt-1")}
-            placeholder="ex.: 1"
-          />
-        </div>
-        <div className="sm:col-span-2 rounded-xl border border-[var(--card-border)] p-3.5">
-          <Toggle checked={adsAtivo} onChange={setAdsAtivo} label="Usar verba de ads (tráfego pago)" />
-          {adsAtivo ? (
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div>
-                <label className="text-sm font-medium text-[var(--foreground)]">TACoS alvo (%)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={adsTacos}
-                  onChange={(e) => setAdsTacos(e.target.value)}
-                  className={cn(inputClass, "mt-1")}
-                  placeholder="ex.: 8"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-[var(--foreground)]">Teto de gasto (R$)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={adsTeto}
-                  onChange={(e) => setAdsTeto(e.target.value)}
-                  className={cn(inputClass, "mt-1")}
-                  placeholder="ex.: 300"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-[var(--foreground)]">Período do teto</label>
-                <select
-                  value={adsPeriodo}
-                  onChange={(e) => setAdsPeriodo(e.target.value as "dia" | "mes")}
-                  className={cn(selectClass, "mt-1")}
-                >
-                  <option value="dia">Por dia</option>
-                  <option value="mes">Por mês</option>
-                </select>
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="sm:col-span-2 rounded-xl border border-[var(--card-border)] p-3.5">
-          <Toggle checked={afiliadoAtivo} onChange={setAfiliadoAtivo} label="Trabalhar com programa de afiliados" />
-          {afiliadoAtivo ? (
-            <div className="mt-3 max-w-[10rem]">
-              <label className="text-sm font-medium text-[var(--foreground)]">Comissão de afiliado (%)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.1"
-                value={afiliadoPct}
-                onChange={(e) => setAfiliadoPct(e.target.value)}
-                className={cn(inputClass, "mt-1")}
-                placeholder="ex.: 10"
-              />
-            </div>
-          ) : null}
-        </div>
-
-        <div className="sm:col-span-2 rounded-xl border border-[var(--card-border)] p-3.5">
-          <Toggle checked={cupomAtivo} onChange={setCupomAtivo} label="Trabalhar com cupom de desconto" />
-          {cupomAtivo ? (
-            <div className="mt-3 max-w-[10rem]">
-              <label className="text-sm font-medium text-[var(--foreground)]">Cupom (%)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.1"
-                value={cupomPct}
-                onChange={(e) => setCupomPct(e.target.value)}
-                className={cn(inputClass, "mt-1")}
-                placeholder="ex.: 5"
-              />
-            </div>
-          ) : null}
-        </div>
-
-        {erro ? <p className={cn("sm:col-span-2 text-sm", DANGER_PREMIUM_TEXT_PRIMARY)}>{erro}</p> : null}
-        <div className="flex gap-2 sm:col-span-2">
-          <button
-            type="submit"
-            disabled={salvando}
-            className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {salvando ? "Salvando…" : "Salvar preferências"}
-          </button>
-          {onCancelar ? (
-            <button
-              type="button"
-              onClick={onCancelar}
-              disabled={salvando}
-              className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
-            >
-              Cancelar
-            </button>
-          ) : null}
-        </div>
-      </form>
-    </section>
-  );
-}
-
 function UlissesResultadoAbas({ resultado }: { resultado: UlissesResultado }) {
   const [aba, setAba] = useState<AbaUlisses>("margem");
 
   const skusComAfiliado = resultado.skus.filter((s) => s.afiliado_pct_teto_seguro != null);
   const skusComPromocao = resultado.skus.filter((s) => s.desconto_ativo_pct > 1);
+  const destaqueCount = resultado.destaque_atencao.length;
 
   return (
     <div className="space-y-4">
@@ -704,12 +441,22 @@ function UlissesResultadoAbas({ resultado }: { resultado: UlissesResultado }) {
 
       {aba === "margem" ? (
         <div className="space-y-3">
+          {destaqueCount > 0 ? (
+            <p className="text-sm text-[var(--foreground)]">
+              {destaqueCount} produto{destaqueCount > 1 ? "s" : ""} com margem abaixo do mínimo — são os marcados em
+              vermelho abaixo.
+            </p>
+          ) : null}
           {resultado.skus.map((s) => (
             <SkuCard key={s.chave} sku={s} />
           ))}
         </div>
       ) : aba === "ads" ? (
         <div className="space-y-5">
+          <p className="text-xs text-[var(--muted)]">
+            O ADS não cria nem edita nada sozinho no Mercado Livre — ele só calcula e te leva pra lá quando você
+            decide agir.
+          </p>
           {resultado.ads_gasto_total_mes != null ? (
             <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm">
               <p className="font-medium text-[var(--foreground)]">Visão geral da conta</p>
@@ -773,7 +520,7 @@ function UlissesAvulsoPageInner() {
   const [acesso, setAcesso] = useState<Acesso>("loading");
   const [mlConectado, setMlConectado] = useState(true);
   const [preferenciasConfiguradas, setPreferenciasConfiguradas] = useState(true);
-  const [preferencias, setPreferencias] = useState<PreferenciasForm | null>(null);
+  const [preferencias, setPreferencias] = useState<UlissesPreferenciasForm | null>(null);
   const [editandoPreferencias, setEditandoPreferencias] = useState(false);
   const [run, setRun] = useState<SellerAiRun<UlissesResultado> | null>(null);
   const [usoTokensHoje, setUsoTokensHoje] = useState<UsoTokensHoje | null>(null);
@@ -823,7 +570,7 @@ function UlissesAvulsoPageInner() {
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json().catch(() => ({}));
-    if (!res.ok) return json.error ?? "Erro ao rodar o Ulisses.";
+    if (!res.ok) return json.error ?? "Erro ao rodar o ADS.";
     await carregar();
     return null;
   };
@@ -838,7 +585,7 @@ function UlissesAvulsoPageInner() {
               onClick={() => setEditandoPreferencias(false)}
               className="text-xs font-medium text-[var(--muted)] hover:underline"
             >
-              ← Ulisses
+              ← ADS
             </button>
           ) : (
             <Link href="/seller/gestores-ia-avulso" className="text-xs font-medium text-[var(--muted)] hover:underline">
@@ -848,7 +595,7 @@ function UlissesAvulsoPageInner() {
           <div className="mt-1 min-w-0 space-y-1">
             <div className="flex items-center gap-2 sm:gap-3">
               <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
-                Ulisses — Ads &amp; Preço
+                ADS — Ads &amp; Preço
               </h1>
               <span
                 className="h-1 w-14 shrink-0 self-center rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 sm:w-20"
@@ -877,7 +624,7 @@ function UlissesAvulsoPageInner() {
           <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 text-center shadow-sm sm:p-8">
             <p className="font-medium text-[var(--foreground)]">Conecte sua conta do Mercado Livre primeiro</p>
             <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">
-              O Ulisses precisa ler seus anúncios ativos pra calcular a margem.
+              O ADS precisa ler seus anúncios ativos pra calcular a margem.
             </p>
             <Link
               href="/seller/gestores-ia-avulso/integracoes"
@@ -887,7 +634,11 @@ function UlissesAvulsoPageInner() {
             </Link>
           </section>
         ) : !preferenciasConfiguradas ? (
-          <WizardPreferencias onSalvo={() => void carregar()} />
+          <SellerGestorUlissesWizard
+            inicial={null}
+            endpoint="/api/gestores-ia-avulso/ulisses/preferencias"
+            onSalvo={() => void carregar()}
+          />
         ) : (
           <>
             <div className="flex flex-wrap gap-x-5 gap-y-2 border-b border-[var(--card-border)]">
@@ -906,8 +657,9 @@ function UlissesAvulsoPageInner() {
             </div>
 
             {editandoPreferencias ? (
-              <WizardPreferencias
+              <SellerGestorUlissesWizard
                 inicial={preferencias}
+                endpoint="/api/gestores-ia-avulso/ulisses/preferencias"
                 onSalvo={() => {
                   setEditandoPreferencias(false);
                   void carregar();

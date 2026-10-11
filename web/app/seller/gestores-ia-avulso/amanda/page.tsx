@@ -73,7 +73,7 @@ const URGENCIA_BADGE: Record<Urgencia, string> = {
   media: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
   baixa: "bg-[var(--muted)]/15 text-[var(--muted)]",
 };
-const URGENCIA_LABEL: Record<Urgencia, string> = { alta: "Urgente", media: "Moderada", baixa: "Baixa" };
+const URGENCIA_LABEL: Record<Urgencia, string> = { alta: "Alta", media: "Moderada", baixa: "Baixa" };
 
 function UrgenciaBadge({ urgencia }: { urgencia: Urgencia }) {
   return (
@@ -174,6 +174,19 @@ function AplicarRespostaPerguntaBotao({ perguntaId, respostaSugerida }: { pergun
     return <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">Resposta enviada ✓</p>;
   }
 
+  if (estado === "bloqueado") {
+    return (
+      <div className="mt-2">
+        <p className={cn("text-xs", DANGER_PREMIUM_TEXT_PRIMARY)}>
+          {mensagem ?? "Essa pergunta não está mais disponível pra responder por aqui."}
+        </p>
+        <div className="mt-2">
+          <CopiarSugestaoBotao texto={texto} rotulo="Copiar resposta" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-2">
       {editando ? (
@@ -190,13 +203,15 @@ function AplicarRespostaPerguntaBotao({ perguntaId, respostaSugerida }: { pergun
         </p>
       )}
 
-      {(estado === "bloqueado" || estado === "erro") && mensagem ? (
+      {estado === "erro" && mensagem ? (
         <p className={cn("mt-1 text-xs", DANGER_PREMIUM_TEXT_PRIMARY)}>{mensagem}</p>
       ) : null}
 
       {estado === "confirmando" ? (
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <p className="text-xs text-[var(--muted)]">Enviar essa resposta pro comprador agora?</p>
+          <p className="text-xs text-[var(--muted)]">
+            Essa resposta vai ficar pública no anúncio, visível pra todo mundo. Enviar agora?
+          </p>
           <button
             type="button"
             onClick={() => void aplicar()}
@@ -318,7 +333,7 @@ export default function AmandaAvulsoPage() {
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json().catch(() => ({}));
-    if (!res.ok) return json.error ?? "Erro ao rodar a Amanda.";
+    if (!res.ok) return json.error ?? "Erro ao rodar o SAC.";
     await carregar();
     return null;
   };
@@ -333,7 +348,7 @@ export default function AmandaAvulsoPage() {
           <div className="mt-1 min-w-0 space-y-1">
             <div className="flex items-center gap-2 sm:gap-3">
               <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
-                Amanda — Reputação &amp; Atendimento
+                SAC — Reputação &amp; Atendimento
               </h1>
               <span
                 className="h-1 w-14 shrink-0 self-center rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 sm:w-20"
@@ -353,14 +368,27 @@ export default function AmandaAvulsoPage() {
             <Skeleton className="h-24 w-full" />
           </section>
         ) : acesso === "negado" ? (
-          <div className={cn("rounded-2xl p-4 text-sm", DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY)}>
-            Não foi possível validar seu acesso.
+          <div
+            className={cn(
+              "flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4 text-sm",
+              DANGER_PREMIUM_SURFACE_TRANSPARENT,
+              DANGER_PREMIUM_TEXT_BODY
+            )}
+          >
+            <span>Não foi possível validar seu acesso.</span>
+            <button
+              type="button"
+              onClick={() => void carregar()}
+              className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+            >
+              Tentar de novo
+            </button>
           </div>
         ) : !mlConectado ? (
           <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 text-center shadow-sm sm:p-8">
             <p className="font-medium text-[var(--foreground)]">Conecte sua conta do Mercado Livre primeiro</p>
             <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">
-              A Amanda precisa ler sua reputação e suas perguntas pendentes pra analisar — conecte sua conta pra
+              O SAC precisa ler sua reputação e suas perguntas pendentes pra analisar — conecte sua conta pra
               liberar essa rodada.
             </p>
             <Link

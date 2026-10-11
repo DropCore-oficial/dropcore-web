@@ -55,6 +55,7 @@ export function SellerMercadoLivreIntegrationPanel() {
   useEffect(() => {
     const url = new URL(window.location.href);
     const code = url.searchParams.get("code");
+    const state = url.searchParams.get("state");
 
     async function bootstrap() {
       if (code && exchangedCode.current !== code) {
@@ -65,7 +66,7 @@ export function SellerMercadoLivreIntegrationPanel() {
             const res = await fetch("/api/seller/mercadolivre/oauth", {
               method: "POST",
               headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ code }),
+              body: JSON.stringify({ code, state }),
             });
             const json = await res.json().catch(() => ({}));
             if (!res.ok) {
@@ -177,7 +178,7 @@ export function SellerMercadoLivreIntegrationPanel() {
             </p>
           ) : null}
           <p className="mt-2 text-xs text-[var(--muted)]">
-            Desconectar interrompe o dado real do Mercado Livre nos gestores de IA (Ulisses, Andrey, Amanda) até
+            Desconectar interrompe o dado real do Mercado Livre nos gestores de IA (ADS, Anúncio, SAC) até
             reconectar — útil se precisar trocar pra outra conta ML.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">

@@ -7,10 +7,13 @@ import { SellerNav } from "../../SellerNav";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
+import { ModalOverlay } from "@/components/ui/ModalOverlay";
+import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
+import { HelpBubble } from "@/components/HelpBubble";
 
 type Access = "loading" | "liberado" | "sem_pacote" | "denied";
 
-type MlStatus = { connected: boolean; ml_user_id: string | null };
+type MlStatus = { connected: boolean; ml_user_id: string | null; access_token_expires_at: string | null };
 
 type ByokStatus = { configurado: boolean };
 
@@ -25,11 +28,15 @@ export default function GestoresIaAvulsoIntegracoesPage() {
   const [mlStatus, setMlStatus] = useState<MlStatus | null>(null);
   const [mlStatusLoading, setMlStatusLoading] = useState(false);
   const [mlErro, setMlErro] = useState<string | null>(null);
+  const [mlHelpOpen, setMlHelpOpen] = useState(false);
 
   const [byokStatus, setByokStatus] = useState<ByokStatus | null>(null);
   const [byokLoading, setByokLoading] = useState(false);
   const [byokErro, setByokErro] = useState<string | null>(null);
   const [byokInput, setByokInput] = useState("");
+  const [confirmacao, setConfirmacao] = useState<{ titulo: string; mensagem: string; onConfirmar: () => void } | null>(
+    null
+  );
 
   const refreshMlStatus = useCallback(async () => {
     setMlStatusLoading(true);
@@ -44,7 +51,11 @@ export default function GestoresIaAvulsoIntegracoesPage() {
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j?.error ?? "Erro ao conferir conexão com o Mercado Livre.");
-      setMlStatus({ connected: Boolean(j.connected), ml_user_id: j.ml_user_id ?? null });
+      setMlStatus({
+        connected: Boolean(j.connected),
+        ml_user_id: j.ml_user_id ?? null,
+        access_token_expires_at: j.access_token_expires_at ?? null,
+      });
     } catch (e: unknown) {
       setMlErro(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
@@ -52,8 +63,16 @@ export default function GestoresIaAvulsoIntegracoesPage() {
     }
   }, []);
 
+  function confirmarDesconectarMl() {
+    setConfirmacao({
+      titulo: "Desconectar Mercado Livre?",
+      mensagem: "Os gestores param de funcionar com dado real até você reconectar.",
+      onConfirmar: () => void desconectarMl(),
+    });
+  }
+
   async function desconectarMl() {
-    if (!confirm("Desconectar sua conta do Mercado Livre? Os gestores param de funcionar até reconectar.")) return;
+    setConfirmacao(null);
     setMlStatusLoading(true);
     setMlErro(null);
     try {
@@ -66,7 +85,7 @@ export default function GestoresIaAvulsoIntegracoesPage() {
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j?.error ?? "Erro ao desconectar.");
-      setMlStatus({ connected: false, ml_user_id: null });
+      setMlStatus({ connected: false, ml_user_id: null, access_token_expires_at: null });
     } catch (e: unknown) {
       setMlErro(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
@@ -119,8 +138,16 @@ export default function GestoresIaAvulsoIntegracoesPage() {
     }
   }
 
+  function confirmarRemoverByok() {
+    setConfirmacao({
+      titulo: "Remover chave da Anthropic?",
+      mensagem: "Os gestores voltam a usar a chave da casa, com teto diário de R$4.",
+      onConfirmar: () => void removerByok(),
+    });
+  }
+
   async function removerByok() {
-    if (!confirm("Remover sua chave da Anthropic? Os gestores voltam a usar a chave da casa (com teto diário de R$4).")) return;
+    setConfirmacao(null);
     setByokLoading(true);
     setByokErro(null);
     try {
@@ -180,8 +207,15 @@ export default function GestoresIaAvulsoIntegracoesPage() {
   if (access === "denied") {
     return (
       <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
-        <div className="dropcore-shell-6xl py-10 text-center text-sm text-[var(--muted)]">
-          Não foi possível validar seu acesso.
+        <div className="dropcore-shell-6xl space-y-3 py-10 text-center text-sm text-[var(--muted)]">
+          <p>Não foi possível validar seu acesso.</p>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+          >
+            Tentar de novo
+          </button>
         </div>
       </div>
     );
@@ -233,7 +267,23 @@ export default function GestoresIaAvulsoIntegracoesPage() {
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-4 font-medium text-[var(--foreground)]">Mercado Livre</p>
+                <p className="mt-4 flex items-center gap-1 font-medium text-[var(--foreground)]">
+                  Mercado Livre
+                  <HelpBubble
+                    ariaLabel="Como funciona a conexão com o Mercado Livre"
+                    open={mlHelpOpen}
+                    onOpen={() => setMlHelpOpen(true)}
+                    onClose={() => setMlHelpOpen(false)}
+                  >
+                    <p>
+                      Conecta a conta do Mercado Livre pra alimentar os gestores com dado real do seu anúncio.
+                      É só leitura — o DropCore nunca publica nem altera nada sozinho na sua conta.
+                    </p>
+                  </HelpBubble>
+                </p>
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  Pré-requisito: sem essa conexão, os outros Gestores de IA não têm dado real pra trabalhar.
+                </p>
                 <ul className="mt-2 space-y-1.5 text-sm text-[var(--foreground)]">
                   {["Diagnóstico de anúncios", "Reputação e atendimento", "Margem em tempo real"].map((item) => (
                     <li key={item} className="flex items-center gap-2">
@@ -253,9 +303,15 @@ export default function GestoresIaAvulsoIntegracoesPage() {
                   {mlStatus?.connected ? (
                     <>
                       <p className="text-xs text-[var(--muted)]">Conta #{mlStatus.ml_user_id}</p>
+                      {mlStatus.access_token_expires_at ? (
+                        <p className="mt-0.5 text-xs text-[var(--muted)]">
+                          Acesso válido até {new Date(mlStatus.access_token_expires_at).toLocaleString("pt-BR")} —
+                          renova sozinho.
+                        </p>
+                      ) : null}
                       <button
                         type="button"
-                        onClick={desconectarMl}
+                        onClick={confirmarDesconectarMl}
                         disabled={mlStatusLoading}
                         className="mt-3 w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
                       >
@@ -316,7 +372,7 @@ export default function GestoresIaAvulsoIntegracoesPage() {
                   {byokStatus?.configurado ? (
                     <button
                       type="button"
-                      onClick={removerByok}
+                      onClick={confirmarRemoverByok}
                       disabled={byokLoading}
                       className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-50"
                     >
@@ -350,6 +406,30 @@ export default function GestoresIaAvulsoIntegracoesPage() {
         )}
       </div>
       <SellerNav active="integracoes" calcOnly temGestoresIa />
+      {confirmacao ? (
+        <ModalOverlay onBackdropClick={() => setConfirmacao(null)}>
+          <div className={cn(MODAL_PANEL_BODY_CLASS, "p-5")}>
+            <p className="font-semibold text-[var(--foreground)]">{confirmacao.titulo}</p>
+            <p className="mt-1.5 text-sm text-[var(--muted)]">{confirmacao.mensagem}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmacao(null)}
+                className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmacao.onConfirmar}
+                className="rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      ) : null}
     </div>
   );
 }

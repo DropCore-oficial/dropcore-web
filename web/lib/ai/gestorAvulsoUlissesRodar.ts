@@ -1,10 +1,13 @@
 /**
  * Lógica compartilhada pra rodar o diagnóstico do Ulisses avulso (Ads/Preço) — reaproveitada
- * pelo botão manual e pelo cron diário. 100% código, zero chamada à Anthropic (nem orçamento
- * nem BYOK entram aqui — diferente do Andrey/Amanda, o Ulisses não tem custo de IA nenhum).
+ * pelo botão manual e pelo cron diário. 100% código, zero chamada à Anthropic — mas ainda
+ * assim respeita o orçamento diário compartilhado (decisão de produto 2026-10-11: o Ulisses
+ * não gasta token, mas é gestor da mesma equipe; quando o pote do dia esgota, a equipe para
+ * junto, não só quem gastou).
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { montarResultadoAdsAvulso } from "@/lib/ai/gestorAdsDadosAvulso";
+import { temOrcamentoDisponivelHoje, type AssinanteByok } from "@/lib/ai/gestorAvulsoOrcamento";
 
 export const COOLDOWN_HORAS_ULISSES_AVULSO = 6;
 
@@ -27,6 +30,18 @@ export async function foraDoCooldownUlissesAvulso(assinanteId: string): Promise<
 export async function rodarUlissesAvulsoParaAssinante(assinanteId: string): Promise<ResultadoRodarUlissesAvulso> {
   if (!(await foraDoCooldownUlissesAvulso(assinanteId))) {
     return { ok: false, motivo: "cooldown" };
+  }
+
+  const { data: assinanteByok } = await supabaseAdmin
+    .from("calculadora_assinantes")
+    .select("anthropic_api_key_encriptada")
+    .eq("id", assinanteId)
+    .maybeSingle<AssinanteByok>();
+  if (!assinanteByok) {
+    return { ok: false, motivo: "assinante_nao_encontrado" };
+  }
+  if (!(await temOrcamentoDisponivelHoje(assinanteByok, assinanteId))) {
+    return { ok: false, motivo: "orcamento_estourado" };
   }
 
   const resultado = await montarResultadoAdsAvulso(assinanteId);

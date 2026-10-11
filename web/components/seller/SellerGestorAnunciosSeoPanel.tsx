@@ -95,7 +95,7 @@ function DiagnosticoBadge({ diagnostico }: { diagnostico: Diagnostico }) {
   return (
     <span
       className={cn(
-        "inline-flex w-[11.5rem] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
+        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
         DIAGNOSTICO_BADGE[diagnostico]
       )}
     >
@@ -644,7 +644,7 @@ function GrupoCard({ g }: { g: AnuncioDiagnostico }) {
   const todosItemIds = g.membros.map((m) => m.item_id);
 
   return (
-    <article className="rounded-xl border border-amber-200 p-3.5 dark:border-amber-900/50">
+    <article className="rounded-xl border border-[var(--card-border)] p-3.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {ehFamilia ? (
@@ -852,7 +852,7 @@ export function SellerGestorAnunciosSeoPanel({
                         <p className="text-xs text-[var(--muted)]">SKU {s.sku} · custo R$ {s.custo.toFixed(2)}</p>
                         <p className="mt-2 text-sm text-[var(--foreground)]">
                           Preço sugerido pra publicar: <span className="font-medium">R$ {s.precoAncoraSugerido.toFixed(2)}</span> —
-                          deixa espaço pro Ulisses trabalhar com ads/cupom/afiliado depois sem precisar reeditar o preço.
+                          deixa espaço pro ADS trabalhar com ads/cupom/afiliado depois sem precisar reeditar o preço.
                         </p>
                         <div className="mt-3">
                           <CopiarSugestaoBotao

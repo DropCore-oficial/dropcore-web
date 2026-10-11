@@ -23,12 +23,12 @@ export type GestorPerfil = {
 };
 
 export const GESTORES_PERFIS: GestorPerfil[] = [
-  { slug: "diogo", nome: "Diogo", funcao: "Risco de Ruptura & Fulfillment", gestorId: "estoque_fulfillment", ativo: true, gratisNoPro: false },
-  { slug: "andrey", nome: "Andrey", funcao: "Anúncios & SEO", gestorId: "anuncios_seo", ativo: true, gratisNoPro: false },
-  { slug: "amanda", nome: "Amanda", funcao: "Reputação & Atendimento", gestorId: "reputacao", ativo: true, gratisNoPro: false },
-  { slug: "ulisses", nome: "Ulisses", funcao: "Ads, Preço & Promoção", gestorId: "ads", ativo: true, gratisNoPro: true },
-  { slug: "laura", nome: "Laura", funcao: "Design & Criativo", gestorId: null, ativo: false, gratisNoPro: false },
-  { slug: "tiago-silva", nome: "Tiago Silva", funcao: "Gestor Mestre", gestorId: null, ativo: true, gratisNoPro: false },
+  { slug: "diogo", nome: "Estoque", funcao: "Risco de Ruptura & Fulfillment", gestorId: "estoque_fulfillment", ativo: true, gratisNoPro: false },
+  { slug: "andrey", nome: "Anúncio", funcao: "Anúncios & SEO", gestorId: "anuncios_seo", ativo: true, gratisNoPro: false },
+  { slug: "amanda", nome: "SAC", funcao: "Reputação & Atendimento", gestorId: "reputacao", ativo: true, gratisNoPro: false },
+  { slug: "ulisses", nome: "ADS", funcao: "Ads, Preço & Promoção", gestorId: "ads", ativo: true, gratisNoPro: true },
+  { slug: "laura", nome: "Design", funcao: "Design & Criativo", gestorId: null, ativo: false, gratisNoPro: false },
+  { slug: "tiago-silva", nome: "Gestor", funcao: "Gestor Mestre", gestorId: null, ativo: true, gratisNoPro: false },
 ];
 
 /** Fonte única de verdade do gate por plano/add-on — usada pelas rotas de API, pelo cron

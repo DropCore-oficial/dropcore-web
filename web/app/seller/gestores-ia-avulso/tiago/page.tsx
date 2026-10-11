@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY } from "@/lib/semanticPremium";
 import { IconArrowRight, IconPlus } from "@/components/seller/Icons";
 import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
+import { buildSellerSupportWhatsAppHref } from "@/lib/sellerSupportWhatsAppPrefill";
 
 type Mensagem = { id: string; role: "user" | "assistant"; content: string; criado_em: string };
 type Sessao = { id: string; titulo: string | null; criado_em: string; atualizado_em: string };
@@ -50,6 +51,7 @@ export default function TiagoAvulsoPage() {
   const [streamingTexto, setStreamingTexto] = useState<string | null>(null);
   const [statusFerramenta, setStatusFerramenta] = useState<string | null>(null);
   const fimRef = useRef<HTMLDivElement | null>(null);
+  const ultimaMensagemRef = useRef<string | null>(null);
 
   const carregar = useCallback(
     async (sessionId?: string | null) => {
@@ -106,6 +108,7 @@ export default function TiagoAvulsoPage() {
   async function enviar(mensagemOverride?: string) {
     const mensagem = (mensagemOverride ?? texto).trim();
     if (!mensagem || enviando) return;
+    ultimaMensagemRef.current = mensagem;
 
     let sessionId = sessaoAtivaId;
     if (!sessionId) {
@@ -148,12 +151,12 @@ export default function TiagoAvulsoPage() {
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        setErroEnvio(json?.error ?? "Erro ao falar com o Tiago Silva.");
+        setErroEnvio(json?.error ?? "Erro ao falar com o Gestor.");
         if (json?.bloqueado_hoje === true) setBloqueadoHoje(true);
         return;
       }
       if (!res.body) {
-        setErroEnvio("Erro ao falar com o Tiago Silva.");
+        setErroEnvio("Erro ao falar com o Gestor.");
         return;
       }
 
@@ -197,6 +200,8 @@ export default function TiagoAvulsoPage() {
         ]);
       }
       await carregar(sessionId);
+    } catch {
+      setErroEnvio("Erro de conexão. Tenta de novo.");
     } finally {
       setStreamingTexto(null);
       setStatusFerramenta(null);
@@ -216,7 +221,7 @@ export default function TiagoAvulsoPage() {
           <div className="mt-1 min-w-0 space-y-1">
             <div className="flex items-center gap-2 sm:gap-3">
               <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
-                Tiago Silva — Gestor Mestre
+                Gestor — Gestor Mestre
               </h1>
               <span
                 className="h-1 w-14 shrink-0 self-center rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 sm:w-20"
@@ -224,7 +229,7 @@ export default function TiagoAvulsoPage() {
               />
             </div>
             <p className="text-sm leading-snug text-[var(--muted)]">
-              Converse com o Tiago Silva — ele consulta o Andrey, a Amanda e o Ulisses pra responder com dado real,
+              Converse com o Gestor — ele consulta o Anúncio, o SAC e o ADS pra responder com dado real,
               nunca inventa número e nunca executa ação sozinho.
             </p>
           </div>
@@ -239,7 +244,19 @@ export default function TiagoAvulsoPage() {
           <div className={cn("rounded-2xl p-4 text-sm", DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY)}>{error}</div>
         ) : !liberado ? (
           <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 text-center shadow-sm sm:p-8">
-            <p className="text-sm text-[var(--muted)]">Recurso não disponível pro seu pacote.</p>
+            <p className="text-sm text-[var(--muted)]">
+              Essa conversa faz parte do pacote de Gestores de IA, que sua assinatura atual não inclui.
+            </p>
+            <a
+              href={buildSellerSupportWhatsAppHref(
+                "Olá! Quero adicionar o pacote de Gestores de IA na minha assinatura da Calculadora."
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
+            >
+              Falar com o suporte
+            </a>
           </section>
         ) : (
           <div className="space-y-3">
@@ -277,7 +294,7 @@ export default function TiagoAvulsoPage() {
                   <div className="space-y-3">
                     <p className="text-lg font-semibold text-[var(--foreground)]">{saudacaoPorHorario()}</p>
                     <p className="text-sm text-[var(--muted)]">
-                      Pergunta pro Tiago Silva o que a equipe (Andrey, Amanda, Ulisses) já encontrou, ou escolhe uma
+                      Pergunta pro Gestor o que a equipe (Anúncio, SAC, ADS) já encontrou, ou escolhe uma
                       pergunta pronta:
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -321,7 +338,7 @@ export default function TiagoAvulsoPage() {
                 {enviando && streamingTexto === null && (
                   <div className="flex justify-start">
                     <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3.5 py-2.5 text-sm text-[var(--muted)]">
-                      {statusFerramenta ?? "Tiago Silva está digitando…"}
+                      {statusFerramenta ?? "Gestor está digitando…"}
                     </div>
                   </div>
                 )}
@@ -330,9 +347,24 @@ export default function TiagoAvulsoPage() {
 
               <div className="border-t border-[var(--card-border)] p-3 sm:p-4">
                 {erroEnvio && (
-                  <p className={cn("mb-2 rounded-xl px-3 py-2 text-xs", DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY)}>
-                    {erroEnvio}
-                  </p>
+                  <div
+                    className={cn(
+                      "mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs",
+                      DANGER_PREMIUM_SURFACE_TRANSPARENT,
+                      DANGER_PREMIUM_TEXT_BODY
+                    )}
+                  >
+                    <span>{erroEnvio}</span>
+                    {ultimaMensagemRef.current ? (
+                      <button
+                        type="button"
+                        onClick={() => void enviar(ultimaMensagemRef.current ?? undefined)}
+                        className="shrink-0 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                      >
+                        Tentar de novo
+                      </button>
+                    ) : null}
+                  </div>
                 )}
                 {chatBloqueado && (
                   <div className={cn("mb-2 rounded-xl px-3 py-2 text-xs", DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY)}>
@@ -352,7 +384,7 @@ export default function TiagoAvulsoPage() {
                     disabled={enviando || chatBloqueado}
                     rows={1}
                     maxLength={4000}
-                    placeholder="Escreva pro Tiago Silva…"
+                    placeholder="Escreva pro Gestor…"
                     className="max-h-32 flex-1 resize-none rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] focus:border-emerald-500 disabled:opacity-60"
                   />
                   <button

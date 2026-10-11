@@ -121,6 +121,12 @@ function LinhaCusto({ item, onSalvo }: { item: CatalogoItem; onSalvo: (chave: st
         </div>
       </div>
       {erro ? <p className={cn("mt-2 text-xs", DANGER_PREMIUM_TEXT_PRIMARY)}>{erro}</p> : null}
+      {!erro && Number(valor) > item.preco ? (
+        <p className="mt-2 text-xs text-[var(--muted)]">
+          Esse custo é maior que o preço de venda (R$ {item.preco.toFixed(2)}) — confere se não foi engano de
+          digitação antes de salvar.
+        </p>
+      ) : null}
     </article>
   );
 }
@@ -171,7 +177,7 @@ export default function UlissesCustosPage() {
       <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
           <Link href="/seller/gestores-ia-avulso/ulisses" className="text-xs font-medium text-[var(--muted)] hover:underline">
-            ← Ulisses
+            ← ADS
           </Link>
           <div className="mt-1 min-w-0 space-y-1">
             <div className="flex items-center gap-2 sm:gap-3">
@@ -184,7 +190,7 @@ export default function UlissesCustosPage() {
               />
             </div>
             <p className="text-sm leading-snug text-[var(--muted)]">
-              Digite o custo de cada produto (o que você paga pra ter ele, sem taxa/frete) — o Ulisses usa isso pra
+              Digite o custo de cada produto (o que você paga pra ter ele, sem taxa/frete) — o ADS usa isso pra
               calcular a margem real de cada anúncio.
             </p>
           </div>

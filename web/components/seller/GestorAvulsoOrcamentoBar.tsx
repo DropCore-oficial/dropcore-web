@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
+import { HelpBubble } from "@/components/HelpBubble";
 
 export type UsoTokensHoje = { tokens: number; cota: number };
 
@@ -21,13 +23,28 @@ export function GestorAvulsoOrcamentoBar({
   usoTokensHoje: UsoTokensHoje | null;
   bloqueadoHoje: boolean;
 }) {
+  const [helpOpen, setHelpOpen] = useState(false);
   if (!usoTokensHoje) return null;
   const pct = Math.min(100, Math.round((usoTokensHoje.tokens / usoTokensHoje.cota) * 100));
 
   return (
     <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top,0px))] z-30 md:top-14 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm">
       <div className="flex items-center justify-between gap-2 text-[11px]">
-        <span className="font-semibold text-[var(--foreground)]">Uso dos Gestores de IA hoje</span>
+        <span className="flex items-center gap-1 font-semibold text-[var(--foreground)]">
+          Uso dos Gestores de IA hoje
+          <HelpBubble
+            ariaLabel="O que acontece quando a cota diária esgota"
+            open={helpOpen}
+            onOpen={() => setHelpOpen(true)}
+            onClose={() => setHelpOpen(false)}
+          >
+            <p>
+              Cota diária de IA compartilhada pela equipe inteira. Quando chega a 100%, todos os
+              gestores pausam até renovar à meia-noite (horário de Brasília) — inclusive o ADS, que
+              não gasta token, mas pausa junto pra manter a equipe sincronizada.
+            </p>
+          </HelpBubble>
+        </span>
         <span className={cn("font-semibold", bloqueadoHoje ? DANGER_PREMIUM_TEXT_PRIMARY : "text-[var(--muted)]")}>
           {pct}% usado · {TOKENS_FMT.format(usoTokensHoje.tokens)} de {TOKENS_FMT.format(usoTokensHoje.cota)} tokens
         </span>

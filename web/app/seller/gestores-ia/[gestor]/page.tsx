@@ -201,10 +201,12 @@ export default function SellerGestorDetalhePage() {
               ) : ulissesPreferencias === null || editandoPreferenciasUlisses ? (
                 <SellerGestorUlissesWizard
                   inicial={ulissesPreferencias}
+                  endpoint="/api/seller/gestores-ia/ulisses-preferencias"
                   onSalvo={(prefs) => {
                     setUlissesPreferencias(prefs);
                     setEditandoPreferenciasUlisses(false);
                   }}
+                  onCancelar={editandoPreferenciasUlisses ? () => setEditandoPreferenciasUlisses(false) : undefined}
                 />
               ) : (
                 <div className="space-y-3">

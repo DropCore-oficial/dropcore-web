@@ -12,6 +12,14 @@ import { CopiarSugestaoBotao } from "@/components/seller/SellerGestorCopiarBotao
 
 type Etapa = "nome" | "categoria" | "descricao" | "ideias";
 
+const ETAPA_PASSO: Record<Etapa, { numero: number; label: string }> = {
+  nome: { numero: 1, label: "Produto" },
+  categoria: { numero: 2, label: "Categoria" },
+  descricao: { numero: 3, label: "Descrição" },
+  ideias: { numero: 4, label: "Ideias" },
+};
+const TOTAL_PASSOS = 4;
+
 type CategoriaSugerida = { categoryId: string; categoryName: string };
 
 type AnuncioSugerido = {
@@ -46,7 +54,7 @@ const CHECKLIST_GERAL = [
   "Pelo menos 3 fotos boas, com a foto de capa em fundo neutro e resolução alta.",
   "Preço competitivo — compare com anúncios parecidos antes de publicar.",
   "Configure o frete (Mercado Envios) direto no app do Mercado Livre.",
-  "Depois de publicar, volte aqui em 30+ dias — o Andrey passa a monitorar esse anúncio automaticamente.",
+  "Depois de publicar, volte aqui em 30+ dias — o Anúncio passa a monitorar esse anúncio automaticamente.",
 ];
 
 export default function NovoAnuncioAvulsoPage() {
@@ -166,7 +174,7 @@ export default function NovoAnuncioAvulsoPage() {
       <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
           <Link href="/seller/gestores-ia-avulso/andrey" className="text-xs font-medium text-[var(--muted)] hover:underline">
-            ← Andrey
+            ← Anúncio
           </Link>
           <div className="mt-1 flex items-center gap-2 sm:gap-3">
             <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
@@ -178,7 +186,7 @@ export default function NovoAnuncioAvulsoPage() {
             />
           </div>
           <p className="mt-1 text-sm leading-snug text-[var(--muted)]">
-            Conte sobre um produto que você ainda não anunciou — o Andrey sugere título, descrição e ficha técnica
+            Conte sobre um produto que você ainda não anunciou — o Anúncio sugere título, descrição e ficha técnica
             pra você usar ao publicar pelo app do Mercado Livre. Não publica nada por você.
           </p>
         </header>
@@ -190,6 +198,9 @@ export default function NovoAnuncioAvulsoPage() {
         ) : null}
 
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm sm:p-6">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+            Passo {ETAPA_PASSO[etapa].numero} de {TOTAL_PASSOS} — {ETAPA_PASSO[etapa].label}
+          </p>
           {etapa === "nome" ? (
             <div className="space-y-4">
               <div>
@@ -301,7 +312,7 @@ export default function NovoAnuncioAvulsoPage() {
                       .join(", ")}
                   </p>
                   <p className={cn("mt-1", AMBER_PREMIUM_TEXT_BODY)}>
-                    Por isso esse campo não aparece nos anúncios abaixo — não é erro do Andrey, é a ficha técnica
+                    Por isso esse campo não aparece nos anúncios abaixo — não é erro do Anúncio, é a ficha técnica
                     real dessa categoria no Mercado Livre (confirmado na API).
                   </p>
                 </div>

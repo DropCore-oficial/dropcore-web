@@ -41,17 +41,24 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
 }
 
 /**
- * Wizard mostrado só na primeira vez que o seller abre `/seller/gestores-ia/ulisses` sem
- * ter linha em `seller_ulisses_preferencias` — mesmo espírito do wizard guiado de
- * Olist/Bling. Editável depois a qualquer momento pelo mesmo formulário (não é "configurou
- * uma vez e travou"), por isso `onSalvo` também serve pra reabrir e atualizar.
+ * Wizard mostrado só na primeira vez que o seller abre `/seller/gestores-ia/ulisses` (ou
+ * `/seller/gestores-ia-avulso/ulisses`) sem ter preferência salva — mesmo espírito do wizard
+ * guiado de Olist/Bling. Editável depois a qualquer momento pelo mesmo formulário (não é
+ * "configurou uma vez e travou"), por isso `onSalvo` também serve pra reabrir e atualizar.
+ * `endpoint` muda entre hub e avulso (preferência guardada em tabela diferente); unificado
+ * 2026-10-11 — hub e avulso reimplementavam esse guard-rail de margem mínima cada um no seu
+ * arquivo, com risco real de um ficar protegendo o seller diferente do outro.
  */
 export function SellerGestorUlissesWizard({
   inicial,
+  endpoint,
   onSalvo,
+  onCancelar,
 }: {
   inicial: Partial<UlissesPreferenciasForm> | null;
+  endpoint: string;
   onSalvo: (preferencias: UlissesPreferenciasForm) => void;
+  onCancelar?: () => void;
 }) {
   const [margemMinima, setMargemMinima] = useState(String(inicial?.margem_minima_pct ?? ""));
   const [margemMaxima, setMargemMaxima] = useState(inicial?.margem_maxima_pct != null ? String(inicial.margem_maxima_pct) : "");
@@ -92,7 +99,7 @@ export function SellerGestorUlissesWizard({
       return;
     }
 
-    const res = await fetch("/api/seller/gestores-ia/ulisses-preferencias", {
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -121,9 +128,11 @@ export function SellerGestorUlissesWizard({
 
   return (
     <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm sm:p-6">
-      <p className="font-medium text-[var(--foreground)]">Antes de começar, configure suas preferências</p>
+      <p className="font-medium text-[var(--foreground)]">
+        {inicial ? "Editar preferências" : "Antes de começar, configure suas preferências"}
+      </p>
       <p className={cn("mt-1", helpTextClass)}>
-        O Ulisses só recomenda dentro do que você definir aqui — margem, ads, afiliado e cupom.
+        O ADS só recomenda dentro do que você definir aqui — margem, ads, afiliado e cupom.
         Pode mudar qualquer coisa depois, quando quiser.
       </p>
 
@@ -154,7 +163,7 @@ export function SellerGestorUlissesWizard({
               className={cn(inputClass, "mt-1")}
               placeholder="ex.: 40"
             />
-            <p className={cn("mt-1", helpTextClass)}>Acima disso, o Ulisses avisa que dá pra ser mais agressivo.</p>
+            <p className={cn("mt-1", helpTextClass)}>Acima disso, o ADS avisa que dá pra ser mais agressivo.</p>
           </div>
           <div>
             <label className={labelClass}>Imposto (%)</label>
@@ -267,13 +276,25 @@ export function SellerGestorUlissesWizard({
           <div className={cn("rounded-xl p-3 text-sm", DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY)}>{erro}</div>
         ) : null}
 
-        <button
-          type="submit"
-          disabled={salvando}
-          className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
-        >
-          {salvando ? "Salvando…" : "Salvar preferências"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={salvando}
+            className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
+          >
+            {salvando ? "Salvando…" : "Salvar preferências"}
+          </button>
+          {onCancelar ? (
+            <button
+              type="button"
+              onClick={onCancelar}
+              disabled={salvando}
+              className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
+            >
+              Cancelar
+            </button>
+          ) : null}
+        </div>
       </form>
     </section>
   );

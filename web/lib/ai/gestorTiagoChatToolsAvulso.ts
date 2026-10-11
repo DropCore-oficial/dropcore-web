@@ -15,9 +15,9 @@ export { criarOrcamentoResultadoChat, type OrcamentoResultadoChat };
 type GestorIdAvulso = "anuncios_seo" | "reputacao_atendimento" | "ads";
 
 const GESTORES_CONSULTAVEIS_AVULSO: { id: GestorIdAvulso; nome: string; funcao: string }[] = [
-  { id: "anuncios_seo", nome: "Andrey", funcao: "Anúncios & SEO" },
-  { id: "reputacao_atendimento", nome: "Amanda", funcao: "Reputação & Atendimento" },
-  { id: "ads", nome: "Ulisses", funcao: "Ads & Preço" },
+  { id: "anuncios_seo", nome: "Anúncio", funcao: "Anúncios & SEO" },
+  { id: "reputacao_atendimento", nome: "SAC", funcao: "Reputação & Atendimento" },
+  { id: "ads", nome: "ADS", funcao: "Ads & Preço" },
 ];
 
 export function nomeGestorConsultavelAvulso(gestorId: string): string | null {

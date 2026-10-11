@@ -1,7 +1,10 @@
 /**
  * POST /api/gestores-ia-avulso/ulisses/rodar — botão "Rodar de novo agora" do Ulisses pro
- * assinante avulso. Sempre síncrono, zero custo de IA (gestor 100% código). Lógica
- * reaproveitada pelo cron diário (app/api/cron/gestores-ia-avulso-ulisses/route.ts).
+ * assinante avulso. Sempre síncrono, zero custo de IA (gestor 100% código) — mas ainda
+ * respeita o orçamento diário compartilhado (ver `gestorAvulsoUlissesRodar.ts`): quando o
+ * pote do dia esgota, o Ulisses para junto com o resto da equipe, por decisão de produto,
+ * não porque ele mesmo gaste token. Lógica reaproveitada pelo cron diário
+ * (app/api/cron/gestores-ia-avulso-ulisses/route.ts).
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -14,7 +17,9 @@ export const maxDuration = 60;
 
 const MENSAGEM_POR_MOTIVO: Record<string, string> = {
   cooldown: `Aguarde pra rodar o Ulisses de novo (até ${COOLDOWN_HORAS_ULISSES_AVULSO}h entre rodadas).`,
+  orcamento_estourado: "Limite diário de IA incluso no plano foi atingido. Ele renova à meia-noite.",
   sem_dado_suficiente: "Conecte sua conta do Mercado Livre e configure as preferências antes de rodar o Ulisses.",
+  assinante_nao_encontrado: "Erro ao carregar orçamento.",
 };
 
 export async function POST(req: Request) {
@@ -35,7 +40,7 @@ export async function POST(req: Request) {
 
   const resultado = await rodarUlissesAvulsoParaAssinante(assinante.id);
   if (!resultado.ok) {
-    const status = resultado.motivo === "cooldown" ? 429 : 422;
+    const status = resultado.motivo === "cooldown" ? 429 : resultado.motivo === "orcamento_estourado" ? 402 : 422;
     return NextResponse.json({ error: MENSAGEM_POR_MOTIVO[resultado.motivo] ?? resultado.motivo }, { status });
   }
 

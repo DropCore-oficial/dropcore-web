@@ -21,3 +21,4 @@ web/coverage/
 .cursor/rules/jarvis-sr-stark.mdc
 web/scripts/delete-fornecedor-skus-reset.sql
 .mcp.json
+.impeccable/

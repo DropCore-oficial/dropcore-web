@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -9,6 +9,7 @@ import { SellerNav } from "../SellerNav";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { AtividadeAoVivo } from "@/components/seller/SellerGestoresIaEscritorio3D";
 import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
+import { buildSellerSupportWhatsAppHref } from "@/lib/sellerSupportWhatsAppPrefill";
 
 const SellerGestoresIaEscritorio3D = dynamic(
   () => import("@/components/seller/SellerGestoresIaEscritorio3D").then((m) => m.SellerGestoresIaEscritorio3D),
@@ -21,6 +22,83 @@ const SellerGestoresIaEscritorio3D = dynamic(
     ),
   }
 );
+
+// Substituído em 2026-10-10 pelo grid de cards abaixo (`GestorCardAvulso`) — a barra de
+// pílulas flutuava solta, sem card/cabeçalho, entre a barra de uso de IA e a sala 3D, e
+// duplicava a função da própria barra de navegação que já existe embaixo da sala 3D
+// (Diogo/Andrey/Amanda/Ulisses/Tiago Silva/Você). Mesmo padrão do hub `/seller/gestores-ia`
+// (`GestorCard` em `web/app/seller/gestores-ia/page.tsx`), reaproveitando os `resumoStatusX`
+// que esta página já calculava.
+function GestorCardAvulso({
+  href,
+  icon,
+  nome,
+  funcao,
+  descricao,
+  bloqueado,
+}: {
+  href: string;
+  icon: ReactNode;
+  nome: string;
+  funcao: string;
+  descricao: string;
+  bloqueado?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group block rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 hover:shadow-md dark:hover:border-emerald-700"
+    >
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <p className="font-semibold text-[var(--foreground)]">{nome}</p>
+          <p className="text-xs text-[var(--muted)]">{funcao}</p>
+        </div>
+      </div>
+      <p className="mt-3 text-sm text-[var(--muted)]">{descricao}</p>
+      {bloqueado ? (
+        <p className="mt-1.5 text-xs text-[var(--muted)]">Orçamento de hoje esgotado — volta à meia-noite.</p>
+      ) : null}
+    </Link>
+  );
+}
+
+function IconAndrey() {
+  return (
+    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="m3 11 18-5v12L3 14v-3z" />
+      <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+    </svg>
+  );
+}
+function IconAmanda() {
+  return (
+    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+    </svg>
+  );
+}
+function IconUlisses() {
+  return (
+    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <line x1="12" x2="12" y1="2" y2="22" />
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    </svg>
+  );
+}
+function IconTiago() {
+  return (
+    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
 
 type Access = "loading" | "liberado" | "sem_pacote" | "denied";
 
@@ -58,6 +136,12 @@ function resumoStatusAmanda(run: AmandaRun): string {
   }
   if (qtdPerguntas > 0) return `${qtdPerguntas} pergunta${qtdPerguntas > 1 ? "s" : ""} pendente${qtdPerguntas > 1 ? "s" : ""}`;
   return "Tudo em dia";
+}
+
+/** Prioriza o status real (urgência já calculada) sobre a descrição estática do card —
+ * só cai na descrição fixa quando o gestor realmente ainda não rodou nenhuma vez. */
+function descricaoOuStatus(status: string, descricaoEstatica: string): string {
+  return status === "Ainda não rodou" ? descricaoEstatica : status;
 }
 
 function resumoStatusUlisses(run: UlissesRun): string {
@@ -171,8 +255,15 @@ export default function GestoresIaAvulsoPage() {
   if (access === "denied") {
     return (
       <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
-        <div className="dropcore-shell-6xl py-10 text-center text-sm text-[var(--muted)]">
-          Não foi possível validar seu acesso.
+        <div className="dropcore-shell-6xl space-y-3 py-10 text-center text-sm text-[var(--muted)]">
+          <p>Não foi possível validar seu acesso.</p>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+          >
+            Tentar de novo
+          </button>
         </div>
       </div>
     );
@@ -215,6 +306,16 @@ export default function GestoresIaAvulsoPage() {
               <p className="text-sm leading-snug text-[var(--muted)]">
                 Sua assinatura atual é só da Calculadora. Fale com o suporte pra adicionar o pacote de Gestores de IA.
               </p>
+              <a
+                href={buildSellerSupportWhatsAppHref(
+                  "Olá! Quero adicionar o pacote de Gestores de IA na minha assinatura da Calculadora."
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
+              >
+                Falar com o suporte
+              </a>
             </div>
           </header>
         </div>
@@ -238,9 +339,7 @@ export default function GestoresIaAvulsoPage() {
               />
             </div>
             <p className="text-sm leading-snug text-[var(--muted)]">
-              Andrey (Anúncios &amp; SEO), Amanda (Reputação &amp; Atendimento), Ulisses (Ads &amp; Preço) e o Tiago
-              Silva (Gestor Mestre, chat) já estão liberados —{" "}
-              <span className="font-medium text-[var(--foreground)]">os 4 gestores da equipe completos.</span>
+              <span className="font-medium text-[var(--foreground)]">A equipe com os 4 gestores está completa.</span>
             </p>
           </div>
         </header>
@@ -256,58 +355,49 @@ export default function GestoresIaAvulsoPage() {
           nomeResponsavel={null}
         />
 
-        <Link
-          href="/seller/gestores-ia-avulso/andrey"
-          className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md"
-        >
-          <div className="min-w-0">
-            <p className="font-medium text-[var(--foreground)]">Andrey — Anúncios &amp; SEO</p>
-            <p className="mt-0.5 text-xs text-[var(--muted)]">
-              Diagnóstico de título, descrição e ficha técnica dos seus anúncios no Mercado Livre.
-            </p>
-          </div>
-          <span className="shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-400">Abrir →</span>
-        </Link>
-
-        <Link
-          href="/seller/gestores-ia-avulso/amanda"
-          className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md"
-        >
-          <div className="min-w-0">
-            <p className="font-medium text-[var(--foreground)]">Amanda — Reputação &amp; Atendimento</p>
-            <p className="mt-0.5 text-xs text-[var(--muted)]">
-              Reputação da sua conta no Mercado Livre e perguntas de comprador sem resposta, com sugestão pronta.
-            </p>
-          </div>
-          <span className="shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-400">Abrir →</span>
-        </Link>
-
-        <Link
-          href="/seller/gestores-ia-avulso/ulisses"
-          className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md"
-        >
-          <div className="min-w-0">
-            <p className="font-medium text-[var(--foreground)]">Ulisses — Ads &amp; Preço</p>
-            <p className="mt-0.5 text-xs text-[var(--muted)]">
-              Margem de cada anúncio a partir do custo que você digitou, preço real e comissão do Mercado Livre.
-            </p>
-          </div>
-          <span className="shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-400">Abrir →</span>
-        </Link>
-
-        <Link
-          href="/seller/gestores-ia-avulso/tiago"
-          className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md"
-        >
-          <div className="min-w-0">
-            <p className="font-medium text-[var(--foreground)]">Tiago Silva — Gestor Mestre</p>
-            <p className="mt-0.5 text-xs text-[var(--muted)]">
-              Converse com o Tiago — ele consulta a equipe inteira (Andrey, Amanda, Ulisses) pra responder sua
-              pergunta com dado real.
-            </p>
-          </div>
-          <span className="shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-400">Abrir →</span>
-        </Link>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <GestorCardAvulso
+            href="/seller/gestores-ia-avulso/andrey"
+            icon={<IconAndrey />}
+            nome="Anúncio"
+            funcao="Anúncios & SEO"
+            descricao={descricaoOuStatus(
+              resumoStatusAndrey(andreyRun),
+              "Analisa seus anúncios e aponta o que pode estar travando visitas e vendas."
+            )}
+            bloqueado={bloqueadoHoje}
+          />
+          <GestorCardAvulso
+            href="/seller/gestores-ia-avulso/amanda"
+            icon={<IconAmanda />}
+            nome="SAC"
+            funcao="Reputação & Atendimento"
+            descricao={descricaoOuStatus(
+              resumoStatusAmanda(amandaRun),
+              "Acompanha perguntas e reclamações, sugere resposta pronta pra você enviar."
+            )}
+            bloqueado={bloqueadoHoje}
+          />
+          <GestorCardAvulso
+            href="/seller/gestores-ia-avulso/ulisses"
+            icon={<IconUlisses />}
+            nome="ADS"
+            funcao="Ads & Preço"
+            descricao={descricaoOuStatus(
+              resumoStatusUlisses(ulissesRun),
+              "Confere margem e preço de cada SKU, sinaliza o que tá fora do saudável."
+            )}
+            bloqueado={bloqueadoHoje}
+          />
+          <GestorCardAvulso
+            href="/seller/gestores-ia-avulso/tiago"
+            icon={<IconTiago />}
+            nome="Gestor"
+            funcao="Gestor Mestre, chat"
+            descricao="Converse sobre o que a equipe já analisou."
+            bloqueado={bloqueadoHoje}
+          />
+        </div>
       </div>
       <SellerNav active="gestores_ia" calcOnly temGestoresIa />
     </div>
