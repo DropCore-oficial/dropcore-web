@@ -106,6 +106,11 @@ export async function gerarMensalidadesParaOrgCiclo(orgId: string, cicloYYYY_MM:
     const dia = diaRaw == null ? 10 : clampMensalidadeDiaVencimento(Number(diaRaw));
     const vencimento_em = vencimentoEmNoCiclo(primeiroDia, dia);
     if (!jaTemCicloForn.has(f.id) && vencimento_em < hoje) continue;
+    // Decisão 2026-10-11: fornecedor não paga mais mensalidade (financial_planos.valor_fornecedor
+    // zerado pra todos via plano "default"). Mesmo racional do valor_travado=0 do seller acima —
+    // sem esse guard nasceria linha de R$0 que o cron de inadimplência (lib/inadimplencia.ts)
+    // bloquearia ao vencer mesmo assim, já que ele não olha o valor.
+    if (valor === 0) continue;
     rows.push({
       org_id: orgId,
       tipo: "fornecedor",
