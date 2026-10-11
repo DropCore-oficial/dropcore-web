@@ -1,5 +1,6 @@
+import { reconciliarCancelamentoPedidoMl } from "@/lib/cancelamentoMlReconciliacao";
 import { mapWithConcurrency } from "@/lib/mapWithConcurrency";
-import { getValidMercadoLivreAccessToken, mlBuscarEtiquetaPdf } from "@/lib/mercadoLivreApiClient";
+import { getValidMercadoLivreAccessToken, mlBuscarEtiquetaPdf, mlBuscarStatusPedido } from "@/lib/mercadoLivreApiClient";
 import { notifyAdminsEtiquetaMlFalha } from "@/lib/notifyAdminsEtiquetaMlFalha";
 import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
 import { calcularPrazoDespachoPedido } from "@/lib/pedidoSlaDespacho";
@@ -26,6 +27,7 @@ export type EtiquetaMlRetrySummary = {
   pendentes: number;
   alertas_enviados: number;
   falhas: number;
+  cancelados_ml: number;
 };
 
 type PedidoPendenteEtiquetaMl = {
@@ -64,7 +66,7 @@ export async function runEtiquetaMlRetry(): Promise<EtiquetaMlRetrySummary> {
 
   if (error) {
     console.error("[etiquetaMlRetry] listar:", error.message);
-    return { avaliados: 0, obtidas: 0, pendentes: 0, alertas_enviados: 0, falhas: 0 };
+    return { avaliados: 0, obtidas: 0, pendentes: 0, alertas_enviados: 0, falhas: 0, cancelados_ml: 0 };
   }
 
   const pedidos = (rows ?? []).filter((p): p is PedidoPendenteEtiquetaMl & { marketplace_numero: string } =>
@@ -74,6 +76,7 @@ export async function runEtiquetaMlRetry(): Promise<EtiquetaMlRetrySummary> {
   let pendentes = 0;
   let alertasEnviados = 0;
   let falhas = 0;
+  let canceladosMl = 0;
 
   /** Token é por seller — cacheia dentro da rodada pra não pedir de novo a cada pedido do
    * mesmo seller. */
@@ -124,6 +127,19 @@ export async function runEtiquetaMlRetry(): Promise<EtiquetaMlRetrySummary> {
       return;
     }
 
+    // Rede de segurança (achado 2026-10-09): antes de só contar mais uma tentativa sem
+    // etiqueta, confere se o ML já cancelou a venda de verdade (ex.: nota fiscal nunca
+    // emitida) — sem isso o pedido ficaria travado em "enviado" pra sempre, sem estornar o
+    // saldo bloqueado do seller. Ver cancelamentoMlReconciliacao.ts.
+    const statusReal = await mlBuscarStatusPedido(pedido.marketplace_numero, ctx);
+    if (statusReal?.status === "cancelled") {
+      const { cancelado } = await reconciliarCancelamentoPedidoMl(pedido.seller_id, pedido.marketplace_numero);
+      if (cancelado) {
+        canceladosMl += 1;
+        return;
+      }
+    }
+
     pendentes += 1;
     const novasTentativas = (pedido.etiqueta_tentativas ?? 0) + 1;
     const criadoHaMuito = Date.now() - new Date(pedido.criado_em).getTime() > HORAS_ANTES_ALERTA * 3_600_000;
@@ -160,5 +176,12 @@ export async function runEtiquetaMlRetry(): Promise<EtiquetaMlRetrySummary> {
     }
   });
 
-  return { avaliados: pedidos.length, obtidas, pendentes, alertas_enviados: alertasEnviados, falhas };
+  return {
+    avaliados: pedidos.length,
+    obtidas,
+    pendentes,
+    alertas_enviados: alertasEnviados,
+    falhas,
+    cancelados_ml: canceladosMl,
+  };
 }

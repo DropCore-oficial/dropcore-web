@@ -1043,6 +1043,79 @@ Silva) — Diogo segue de fora por decisão de escopo (depende de estoque intern
 não tem). Próximas pendências reais: descartar rascunho de teste na conta Djulios, replicar
 "Ideias pra anúncio novo" pro hub, fluxo de crédito extra via PIX pro avulso.
 
+## `fn_pedido_cancelar_estorno_ml` — cancelamento no ML sem sync (achado 2026-10-09)
+
+**Achado real** (seller Vinz Collection, pedido `91b6f93b-3992-4e51-a666-16dd16c17ac2`): o
+ML cancela a venda quando a nota fiscal não é emitida a tempo (etiqueta nunca liberada), mas
+o DropCore nunca ficava sabendo — o pedido travava em `status = "enviado"` pra sempre e o
+`financial_ledger` continuava `BLOQUEADO`, sem estornar o saldo do seller nem avisar ele.
+
+**Causa raiz:** o webhook do ML só assinava `questions`/`claims`; o tópico de pedido era
+ignorado de propósito, e não existia nenhum reconciliador que casasse "pedido cancelado no
+ML" com "pedido já importado como venda real" — o único mecanismo de estorno existente
+(`PATCH /api/org/financial/ledger/[id]`, EM_DEVOLUCAO→DEVOLVIDO) é pra devolução física de
+produto, não pra "nunca chegou a ser postado".
+
+**Correção (abordagem híbrida):**
+1. Webhook `app/api/webhooks/mercadolivre/route.ts` passou a assinar também o tópico
+   `orders_v2` (registrar no DevCenter: aba Tópicos → marcar também "Pedidos"). Ao notificar,
+   rebusca o status real do pedido na API do ML (nunca confia no payload) e, se
+   `status: "cancelled"`, aciona a reconciliação.
+2. `web/lib/etiquetaMlRetry.ts` (cron de retry de etiqueta) ganhou uma rede de segurança: a
+   cada tentativa sem etiqueta, confere o status real do pedido no ML antes de só contar mais
+   uma tentativa — se já cancelado, reconcilia em vez de alertar "etiqueta pendente".
+3. `web/lib/cancelamentoMlReconciliacao.ts` orquestra os dois gatilhos: acha o pedido pelo
+   `marketplace_numero` + `seller_id`, confirma o cancelamento na API do ML, chama a RPC.
+
+**RPC nova** (`web/scripts/fn-pedido-cancelar-estorno-ml.sql`), regra 9 do CLAUDE.md:
+```sql
+fn_pedido_cancelar_estorno_ml(p_pedido_id uuid, p_org_id uuid)
+  RETURNS TABLE(ok boolean, already_cancelled boolean, seller_id uuid, valor_estornado numeric)
+```
+- `SECURITY DEFINER`, `SET search_path = public`; `revoke all from public` + `grant execute
+  to service_role` (nunca `authenticated` — só chamada por `supabaseAdmin.rpc(...)` depois do
+  TS já ter confirmado o cancelamento de verdade na API do ML).
+- Idempotente: trava o pedido (`FOR UPDATE`) e só age se `status = 'enviado'` e
+  `canal_venda = 'mercado_livre'`; senão retorna `already_cancelled = true` sem tocar em nada
+  (webhook e cron podem concorrer na mesma rodada).
+- `pedidos.status = 'cancelado'`; `financial_ledger.status = 'CANCELADO'` nas linhas
+  `tipo IN ('BLOQUEIO','VENDA')` com `status = 'BLOQUEADO'` desse pedido.
+- **Não insere linha nova tipo `DEVOLUCAO`** — `CANCELADO` já existe no enum
+  `financial_ledger_status` desde `financial-module-v2.sql` e `fn_seller_saldo_from_ledger`
+  já exclui esse status tanto do saldo bloqueado quanto do pago, então só mudar o status já
+  libera o saldo. O trigger `tr_financial_ledger_sync_seller` (mesmo arquivo) já resincroniza
+  `sellers.saldo_atual`/`saldo_bloqueado` sozinho em qualquer `UPDATE` no ledger — nenhuma
+  função de saldo precisou mudar.
+
+**Escopo deliberadamente restrito:** só aciona o estorno automático quando o pedido ainda
+está intacto do lado DropCore (`status = 'enviado'`, ledger ainda `BLOQUEADO`, nunca chegou a
+`ENTREGUE`/`AGUARDANDO_REPASSE`). Cancelamento do ML depois de já `ENTREGUE` é mais raro e
+mais delicado (fornecedor pode já ter trabalhado) — fica de fora do automático, cai pro fluxo
+manual de devolução que já existe.
+
+**Correção aplicada em produção** (`web/scripts/fix-fn-pedido-cancelar-estorno-ml-ambiguidade-e-motivo.sql`
+— não reescreveu o script original, regra de migrations do CLAUDE.md): a 1ª versão dava
+`column reference "seller_id" is ambiguous` (`SELECT id, seller_id, status, canal_venda` sem
+alias colidia com a coluna de saída `seller_id` do `RETURNS TABLE`) — corrigido qualificando
+com `p.` antes das colunas da tabela.
+
+**`pedidos.cancelado_motivo`** (mesma correção, achado 2026-10-09): a tela de Pedidos mostrava
+"Cancelado" genérico igual a qualquer outro cancelamento (admin manual, erro de saldo) — Sr
+Stark pediu mais ênfase visual e que admin/fornecedor também vissem, não só o seller. Coluna
+`text` com `CHECK (... IN ('ml_sem_sync'))`, só preenchida por `fn_pedido_cancelar_estorno_ml`
+(`null` em todo outro cancelamento). Nas 3 telas de pedidos (`fornecedor`, `seller`, `admin`):
+badge "Cancelado" passou de cinza neutro pra vermelho (`bg-red-100 text-red-800
+dark:bg-red-950/40 dark:text-red-300`, mesma família de `bloqueado`/`erro_saldo`); fornecedor
+e seller ganharam um banner vermelho no card explicando o cancelamento (mesmo padrão visual
+do banner "Sem etiqueta" já existente); admin (tela em tabela, sem espaço pra banner) mostra
+label "Cancelado (ML)" + tooltip (`title`) com o texto completo.
+
+Três avisos disparados (todos em `web/lib/cancelamentoMlReconciliacao.ts`, best-effort em
+paralelo): `notifySellerPedidoAtencao` (tipo `pedido_cancelado_ml`, com o valor estornado),
+`notifyAdminsPedidoCanceladoMl` (novo arquivo, owners/admins da org, mesmo padrão de
+`notifyAdminsEtiquetaMlFalha`) e `notifyFornecedorPedidoCanceladoMl` (novo arquivo, mesmo
+padrão de `notifyFornecedorPedidoParaPostar`, nunca menciona valor — é só aviso de status).
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

@@ -37,6 +37,7 @@ type Pedido = {
   nome_produto?: string | null;
   valor_total: number;
   status: string;
+  cancelado_motivo?: string | null;
   criado_em: string;
   seller_nome?: string;
   fornecedor_nome?: string;
@@ -63,7 +64,7 @@ const STATUS_PILL: Record<string, string> = {
   entregue: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
   devolvido: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
   erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
-  cancelado: "bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800",
+  cancelado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   produto_nao_vinculado: cn(INFO_PREMIUM_TEXT_PRIMARY, "bg-neutral-100 dark:bg-neutral-800/40"),
   anuncio_sem_sku: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
 };
@@ -78,6 +79,21 @@ const STATUS_LABEL: Record<string, string> = {
   anuncio_sem_sku: "Anúncio sem SKU",
 };
 const STATUS_RESOLVIVEIS = ["produto_nao_vinculado", "anuncio_sem_sku"];
+
+/** "Cancelado" sozinho não diferencia de admin cancelando manualmente — achado 2026-10-09:
+ * cancelamento automático por sync com o Mercado Livre (ver fn_pedido_cancelar_estorno_ml)
+ * precisa ficar óbvio na tabela, não só mais um "Cancelado" cinza igual aos outros. */
+function statusLabelPedido(p: Pedido): string {
+  if (p.status === "cancelado" && p.cancelado_motivo === "ml_sem_sync") return "Cancelado (ML)";
+  return STATUS_LABEL[p.status] ?? p.status;
+}
+
+function statusTitlePedido(p: Pedido): string | undefined {
+  if (p.status === "cancelado" && p.cancelado_motivo === "ml_sem_sync") {
+    return "O Mercado Livre cancelou este pedido antes da postagem (etiqueta nunca liberada). Saldo bloqueado já foi estornado automaticamente pro seller.";
+  }
+  return undefined;
+}
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
@@ -629,13 +645,14 @@ export default function PedidosPage() {
                     <td className="px-4 py-3 text-right font-medium">{formatMoney(p.valor_total)}</td>
                     <td className="px-4 py-3">
                       <span
+                        title={statusTitlePedido(p)}
                         className={cn(
                           "inline-flex w-36 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
                           STATUS_PILL[p.status] ?? "bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800"
                         )}
                       >
                         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                        {STATUS_LABEL[p.status] ?? p.status}
+                        {statusLabelPedido(p)}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -684,13 +701,14 @@ export default function PedidosPage() {
                 <div className="mt-2 flex items-center justify-between gap-2">
                   <span className="text-xs text-[var(--muted)]">{formatDate(p.criado_em)}</span>
                   <span
+                    title={statusTitlePedido(p)}
                     className={cn(
                       "inline-flex w-36 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
                       STATUS_PILL[p.status] ?? "bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800"
                     )}
                   >
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                    {STATUS_LABEL[p.status] ?? p.status}
+                    {statusLabelPedido(p)}
                   </span>
                 </div>
                 {p.status === "enviado" && (

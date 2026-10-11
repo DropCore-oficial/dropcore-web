@@ -25,6 +25,7 @@ type PedidoRow = {
   etiqueta_tentativas: number | null;
   motivo_bloqueio?: string | null;
   motivo_bloqueio_responsavel?: "seller" | "fornecedor" | null;
+  cancelado_motivo?: string | null;
   marketplace_numero?: string | null;
   marketplace_pack_id?: string | null;
   comprador_nome?: string | null;
@@ -79,7 +80,7 @@ export async function GET(req: Request) {
       let query = supabaseAdmin
         .from("pedidos")
         .select(
-          "id, nome_produto, valor_total, preco_venda, status, motivo_bloqueio, motivo_bloqueio_responsavel, criado_em, referencia_externa, tracking_codigo, metodo_envio, marketplace_numero, marketplace_pack_id, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, canal_venda, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_tentativas",
+          "id, nome_produto, valor_total, preco_venda, status, motivo_bloqueio, motivo_bloqueio_responsavel, cancelado_motivo, criado_em, referencia_externa, tracking_codigo, metodo_envio, marketplace_numero, marketplace_pack_id, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, canal_venda, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_tentativas",
           { count: "exact" }
         )
         .eq("org_id", seller.org_id)

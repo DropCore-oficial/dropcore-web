@@ -63,6 +63,7 @@ type Pedido = {
   preco_venda: number | null;
   status: string;
   motivo_bloqueio: string | null;
+  cancelado_motivo?: string | null;
   criado_em: string;
   referencia_externa: string | null;
   tracking_codigo: string | null;
@@ -139,6 +140,7 @@ const STATUS_PILL: Record<string, string> = {
   devolvido: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
   erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   aguardando_pagamento: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
+  cancelado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
 };
 
 // Cor própria (roxo) pra distinguir "etiqueta em buffer do ML" de um "aguardando postagem"
@@ -669,6 +671,33 @@ export default function SellerPedidosPage() {
                         Resolver
                       </span>
                     </button>
+                  ) : null}
+
+                  {p.status === "cancelado" && p.cancelado_motivo === "ml_sem_sync" ? (
+                    <div className={cn(DANGER_PREMIUM_SURFACE_TRANSPARENT, "mt-3 flex items-start gap-3 rounded-xl px-3 py-2.5")}>
+                      <span
+                        className={cn(
+                          DANGER_PREMIUM_SHELL,
+                          DANGER_PREMIUM_TEXT_PRIMARY,
+                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                        )}
+                      >
+                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="15" y1="9" x2="9" y2="15" />
+                          <line x1="9" y1="9" x2="15" y2="15" />
+                        </svg>
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "block text-sm font-semibold")}>
+                          Cancelado pelo Mercado Livre
+                        </span>
+                        <span className="mt-0.5 block text-xs text-neutral-600 dark:text-neutral-300">
+                          O ML cancelou antes da postagem (etiqueta nunca liberada — confira se a nota fiscal foi
+                          emitida a tempo). O saldo bloqueado já foi devolvido ao seu saldo disponível.
+                        </span>
+                      </span>
+                    </div>
                   ) : null}
 
                   {p.status === "erro_saldo" ? (

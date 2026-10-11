@@ -1,9 +1,11 @@
 /**
  * POST /api/webhooks/mercadolivre — recebe notificações em tempo real do Mercado Livre
- * (tópicos "questions" e "claims") pra não depender só do cron diário (07:00 UTC) ou do
- * "Rodar de novo agora" manual. Registrar no DevCenter do app "DropCore Marketplace":
- * aba Tópicos → marcar Perguntas + Reclamações → colar a URL desse endpoint no campo
- * "Callback URL de notificações" (ação que só quem tem login no DevCenter consegue fazer).
+ * (tópicos "questions", "claims" e "orders_v2") pra não depender só do cron diário (07:00 UTC)
+ * ou do "Rodar de novo agora" manual. Registrar no DevCenter do app "DropCore Marketplace":
+ * aba Tópicos → marcar Perguntas + Reclamações + Pedidos → colar a URL desse endpoint no
+ * campo "Callback URL de notificações" (ação que só quem tem login no DevCenter consegue
+ * fazer). "orders_v2" serve só pra pegar cancelamento de pedido sem sync (achado 2026-10-09,
+ * ver cancelamentoMlReconciliacao.ts) — continua sem assinar "shipments" de propósito.
  *
  * Regra do ML: responder 200 em até 500ms, senão o tópico é desativado sozinho depois de
  * falhas repetidas — por isso o reprocessamento de verdade roda em `after()` (Next 15,
@@ -28,12 +30,18 @@ import { gestorLiberadoPorPlano } from "@/lib/ai/gestorPerfis";
 import { montarResultadoReputacao } from "@/lib/ai/gestorReputacaoAtendimentoDados";
 import { MODELO_GESTORES_IA } from "@/lib/ai/gestorRequestBuilders";
 import { gastoHojeReais, tetoHojeReais } from "@/lib/ai/gestorTiagoChatOrcamentoDia";
+import { reconciliarCancelamentoPedidoMl } from "@/lib/cancelamentoMlReconciliacao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const TOPICS_RELEVANTES = new Set(["questions", "claims"]);
+
+/** Tópico de pedido/venda — ligado só pra pegar cancelamento sem sync (achado 2026-10-09, ver
+ * cancelamentoMlReconciliacao.ts). Continua sem assinar o tópico "shipments": a etiqueta real
+ * segue sendo buscada só pelo cron etiquetaMlRetry.ts, de propósito. */
+const TOPICS_PEDIDO = new Set(["orders_v2"]);
 
 /** Debounce — se chegar mais de 1 notificação (pergunta ou reclamação) em rajada, não
  * reprocessa uma vez por notificação: `montarResultadoReputacao` já busca o backlog inteiro
@@ -105,6 +113,30 @@ async function reprocessarAmandaPorMlUserId(mlUserId: string): Promise<void> {
   }
 }
 
+/** `resource` do tópico orders_v2 vem como "/orders/{id}" — extrai só o id numérico. */
+function extrairOrderIdDoResource(resource: string): string | null {
+  const match = resource.match(/\/orders\/(\d+)/);
+  return match?.[1] ?? null;
+}
+
+async function reconciliarCancelamentoPorMlUserId(mlUserId: string, resource: string): Promise<void> {
+  try {
+    const orderId = extrairOrderIdDoResource(resource);
+    if (!orderId) return;
+
+    const { data: integ } = await supabaseAdmin
+      .from("seller_mercadolivre_integrations")
+      .select("seller_id")
+      .eq("ml_user_id", mlUserId)
+      .maybeSingle();
+    if (!integ?.seller_id) return;
+
+    await reconciliarCancelamentoPedidoMl(integ.seller_id, orderId);
+  } catch (e) {
+    console.error("[webhook mercadolivre] erro ao reconciliar cancelamento:", e);
+  }
+}
+
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     topic?: string;
@@ -115,6 +147,7 @@ export async function POST(req: Request) {
 
   const topic = String(body.topic ?? "");
   const mlUserId = String(body.user_id ?? "").trim();
+  const resource = String(body.resource ?? "").trim();
   const applicationId = String(body.application_id ?? "").trim();
   const nossoClientId = process.env.MERCADOLIVRE_CLIENT_ID?.trim() ?? "";
 
@@ -125,6 +158,10 @@ export async function POST(req: Request) {
 
   if (appConfere && TOPICS_RELEVANTES.has(topic) && mlUserId) {
     after(() => reprocessarAmandaPorMlUserId(mlUserId));
+  }
+
+  if (appConfere && TOPICS_PEDIDO.has(topic) && mlUserId && resource) {
+    after(() => reconciliarCancelamentoPorMlUserId(mlUserId, resource));
   }
 
   return NextResponse.json({ received: true });

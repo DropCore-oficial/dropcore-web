@@ -1366,3 +1366,18 @@ export async function mlBuscarEtiquetaPdf(
     clearTimeout(timer);
   }
 }
+
+/**
+ * Status real do pedido na API do ML — nunca confiar no payload de webhook pra decidir
+ * cancelamento, sempre rebuscar aqui com nosso token (mesmo racional dos outros reprocessamentos
+ * deste client). `status: "cancelled"` é o que o ML usa quando a venda foi cancelada (ex.: etiqueta
+ * nunca liberada por falta de nota fiscal, item some do catálogo, etc.).
+ */
+export async function mlBuscarStatusPedido(
+  orderId: string,
+  ctx: MercadoLivreAuthContext
+): Promise<{ status: string } | null> {
+  const order = await mlGet<{ status?: string }>(`/orders/${orderId}`, ctx.accessToken);
+  if (!order?.status) return null;
+  return { status: order.status };
+}

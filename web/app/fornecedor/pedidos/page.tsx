@@ -31,6 +31,7 @@ const STATUS_PILL: Record<string, string> = {
   entregue: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
   devolvido: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
   erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+  cancelado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
 };
 
 // Mesma cor (roxo) e mesmo racional de web/app/seller/pedidos/page.tsx: etiqueta em buffer
@@ -68,6 +69,7 @@ type Pedido = {
   valor_fornecedor: number;
   status: string;
   motivo_bloqueio?: string | null;
+  cancelado_motivo?: string | null;
   criado_em: string;
   tem_etiqueta_oficial?: boolean;
   etiqueta_impressa_em?: string | null;
@@ -777,6 +779,47 @@ export default function FornecedorPedidosPage() {
                   {p.status === "bloqueado" && p.motivo_bloqueio ? (
                     <p className={cn("mt-3 text-sm", DANGER_PREMIUM_TEXT_PRIMARY)}>{p.motivo_bloqueio}</p>
                   ) : null}
+
+                  {p.status === "cancelado" && p.cancelado_motivo === "ml_sem_sync" && (
+                    <div
+                      role="status"
+                      className="relative mt-3 overflow-hidden rounded-xl border border-[var(--danger)]/55 bg-transparent shadow-sm shadow-red-500/10 dark:border-red-400/55 dark:bg-transparent dark:shadow-none"
+                    >
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-[var(--danger)] to-red-600 opacity-95 dark:from-red-400 dark:to-red-500 dark:opacity-100"
+                      />
+                      <div className="pl-4 pr-3 py-3 sm:pl-5 sm:pr-4 sm:py-3.5">
+                        <div className="flex min-w-0 items-start gap-2.5">
+                          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--danger)]/35 bg-[var(--danger)]/10 dark:border-red-400/55 dark:bg-transparent">
+                            <svg
+                              className="h-5 w-5 text-[var(--danger)] dark:text-red-300"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden
+                            >
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="15" y1="9" x2="9" y2="15" />
+                              <line x1="9" y1="9" x2="15" y2="15" />
+                            </svg>
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-base font-bold leading-snug tracking-tight text-[var(--danger)] dark:text-red-300">
+                              Cancelado pelo Mercado Livre
+                            </p>
+                            <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">
+                              Cancelado automaticamente antes da postagem (etiqueta nunca liberada — geralmente nota
+                              fiscal não emitida a tempo pelo seller). Não é necessário separar nem despachar.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {emBufferMl(p) && (
                     <div
