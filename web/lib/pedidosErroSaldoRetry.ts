@@ -33,6 +33,7 @@ export async function runPedidosErroSaldoRetry(params?: { seller_id?: string }):
     .from("pedidos")
     .select("id, org_id, seller_id, fornecedor_id, criado_em")
     .eq("status", "erro_saldo")
+    .eq("e_teste", false)
     .order("criado_em", { ascending: true })
     .limit(MAX_PEDIDOS_PER_RUN);
 

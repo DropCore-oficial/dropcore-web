@@ -29,7 +29,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const { data: caso, error: fetchErr } = await supabaseAdmin
       .from("seller_ai_disputas_fornecedor")
-      .select("id, status")
+      .select("id, status, decisao_admin, decisao_detalhes")
       .eq("id", id)
       .eq("org_id", org_id)
       .maybeSingle();
@@ -52,6 +52,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
     }
 
+    // Achado real 2026-10-12: decidir 2x o mesmo caso sobrescrevia a decisão anterior sem
+    // guardar rastro nenhum dela — não trava a redecisão (corrigir engano tem que continuar
+    // possível), só garante que o valor anterior não se perde do log de auditoria.
     await logAdminAction({
       req,
       orgId: org_id,
@@ -59,7 +62,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       action: "disputa_fornecedor.decidir",
       targetTable: "seller_ai_disputas_fornecedor",
       targetId: id,
-      detalhes: { decisao_admin: decisaoAdmin, decisao_detalhes: decisaoDetalhes, status_anterior: caso.status },
+      detalhes: {
+        decisao_admin: decisaoAdmin,
+        decisao_detalhes: decisaoDetalhes,
+        status_anterior: caso.status,
+        decisao_admin_anterior: caso.decisao_admin ?? null,
+        decisao_detalhes_anterior: caso.decisao_detalhes ?? null,
+      },
     });
 
     return NextResponse.json({ ok: true });

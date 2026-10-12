@@ -23,6 +23,7 @@ export async function runPedidosBloqueadosRetry(): Promise<PedidosBloqueadosRetr
     .from("pedidos")
     .select("id, org_id")
     .eq("status", "bloqueado")
+    .eq("e_teste", false)
     .order("criado_em", { ascending: true })
     .limit(MAX_PEDIDOS_PER_RUN);
 

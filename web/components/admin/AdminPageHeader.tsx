@@ -46,6 +46,10 @@ export function AdminPageHeader({
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">{title}</h1>
+            <span
+              className="h-1 w-14 shrink-0 self-center rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 sm:w-20"
+              aria-hidden
+            />
             {titleExtra}
           </div>
           {subtitle && <p className="max-w-xl text-sm leading-snug text-[var(--muted)]">{subtitle}</p>}

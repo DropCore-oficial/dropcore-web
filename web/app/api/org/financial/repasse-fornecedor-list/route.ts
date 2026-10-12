@@ -18,11 +18,13 @@ export async function GET(req: Request) {
     const statusParam = searchParams.get("status")?.trim() || "pendente";
     const statuses = statusParam.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 
-    const { data: rows, error } = await supabaseAdmin
+    const statusesFiltro = statuses.length ? statuses : ["pendente", "liberado"];
+
+    const { data: rows, error, count } = await supabaseAdmin
       .from("financial_repasse_fornecedor")
-      .select("id, fornecedor_id, ciclo_repasse, valor_total, status, atualizado_em")
+      .select("id, fornecedor_id, ciclo_repasse, valor_total, status, atualizado_em", { count: "exact" })
       .eq("org_id", org_id)
-      .in("status", statuses.length ? statuses : ["pendente", "liberado"])
+      .in("status", statusesFiltro)
       .order("ciclo_repasse", { ascending: false })
       .order("fornecedor_id")
       .limit(200);
@@ -32,6 +34,21 @@ export async function GET(req: Request) {
     }
 
     const list = Array.isArray(rows) ? rows : [];
+    // Achado real 2026-10-12: limite de 200 linhas pra exibição escondia valor pendente real
+    // do "total a pagar" quando passava disso — soma sempre vem de uma consulta à parte, sem
+    // limite, nunca da lista capada que o admin vê na tela.
+    const truncado = (count ?? list.length) > list.length;
+    let totalPendenteReal = list
+      .filter((i) => i.status === "pendente" || i.status === "liberado")
+      .reduce((s, i) => s + Number(i.valor_total), 0);
+    if (truncado) {
+      const { data: todosValores } = await supabaseAdmin
+        .from("financial_repasse_fornecedor")
+        .select("valor_total")
+        .eq("org_id", org_id)
+        .in("status", ["pendente", "liberado"].filter((s) => statusesFiltro.includes(s)));
+      totalPendenteReal = (todosValores ?? []).reduce((s, r) => s + Number(r.valor_total), 0);
+    }
     const fornecedorIds = [...new Set(list.map((r) => r.fornecedor_id).filter(Boolean))] as string[];
 
     const fornMap: Record<string, string> = {};
@@ -55,8 +72,6 @@ export async function GET(req: Request) {
       atualizado_em: r.atualizado_em,
     }));
 
-    const totalPendente = items.filter((i) => i.status === "pendente" || i.status === "liberado").reduce((s, i) => s + i.valor_total, 0);
-
     // Receita DropCore por ciclo (informativo — não é um valor a pagar ao fornecedor).
     const ciclosPresentes = [...new Set(items.map((i) => i.ciclo_repasse))];
     let ciclos: { ciclo_repasse: string; total_dropcore: number; total_fornecedores: number }[] = [];
@@ -74,7 +89,14 @@ export async function GET(req: Request) {
     }
     const totalDropcore = ciclos.reduce((s, c) => s + c.total_dropcore, 0);
 
-    return NextResponse.json({ items, total_a_pagar: totalPendente, ciclos, total_dropcore: totalDropcore });
+    return NextResponse.json({
+      items,
+      total_a_pagar: totalPendenteReal,
+      ciclos,
+      total_dropcore: totalDropcore,
+      truncado,
+      total_registros: count ?? list.length,
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     const status =

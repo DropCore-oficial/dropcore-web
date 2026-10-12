@@ -70,6 +70,7 @@ export async function runEtiquetaOlistRetry(): Promise<EtiquetaOlistRetrySummary
     .from("pedidos")
     .select("id, org_id, seller_id, referencia_externa, criado_em, etiqueta_tentativas, etiqueta_alerta_enviado_em")
     .in("status", ["enviado", "aguardando_repasse"])
+    .eq("e_teste", false)
     .is("etiqueta_pdf_url", null)
     .is("etiqueta_pdf_base64", null)
     .like("referencia_externa", "olist:%")

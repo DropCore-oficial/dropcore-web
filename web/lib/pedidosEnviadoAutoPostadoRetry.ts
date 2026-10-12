@@ -55,6 +55,7 @@ export async function runPedidosEnviadoAutoPostadoRetry(): Promise<PedidosEnviad
     .from("pedidos")
     .select("id, org_id, seller_id, ledger_id, referencia_externa, tracking_codigo, criado_em")
     .eq("status", "enviado")
+    .eq("e_teste", false)
     .like("referencia_externa", "olist:%")
     .lt("criado_em", corteIdade)
     .order("criado_em", { ascending: true })

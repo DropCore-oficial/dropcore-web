@@ -357,7 +357,12 @@ export default function PedidosPage() {
         eyebrow="Operação"
         title="Pedidos"
         titleExtra={<PlanLimitsBadge />}
-        subtitle="Lista de pedidos enviados. Ao criar um novo pedido, o saldo do seller é bloqueado automaticamente."
+        subtitle={
+          <>
+            Lista de pedidos enviados. Ao criar um novo pedido,{" "}
+            <span className="font-medium text-[var(--foreground)]">o saldo do seller é bloqueado automaticamente</span>.
+          </>
+        }
         right={
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-max sm:flex-nowrap sm:justify-end">
             <select

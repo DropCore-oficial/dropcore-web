@@ -3,6 +3,8 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { ModalOverlay } from "@/components/ui/ModalOverlay";
+import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 
 type Item = {
   id: string;
@@ -38,33 +40,54 @@ export default function APagarFornecedoresPage() {
   const [totalAPagar, setTotalAPagar] = useState(0);
   const [ciclos, setCiclos] = useState<CicloResumo[]>([]);
   const [totalDropcore, setTotalDropcore] = useState(0);
+  const [truncado, setTruncado] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [confirmacao, setConfirmacao] = useState<{ titulo: string; mensagem: string; onConfirmar: () => void } | null>(
+    null
+  );
 
-  async function marcarComoPago(id: string) {
+  async function chamarAcaoRepasse(id: string, acao: "marcar-pago" | "desfazer-pago", mensagemSucesso: string) {
+    setConfirmacao(null);
     setUpdatingId(id);
     setMessage(null);
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) return;
-      const res = await fetch(`/api/org/financial/repasse-fornecedor/${id}/marcar-pago`, {
+      const res = await fetch(`/api/org/financial/repasse-fornecedor/${id}/${acao}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       const json = await res.json();
       if (res.ok) {
-        setMessage({ type: "ok", text: json.mensagem || "Repasse marcado como pago." });
+        setMessage({ type: "ok", text: json.mensagem || mensagemSucesso });
         load();
       } else {
-        setMessage({ type: "err", text: json?.error || "Erro ao marcar." });
+        setMessage({ type: "err", text: json?.error || "Erro ao atualizar." });
       }
     } catch (e) {
       setMessage({ type: "err", text: e instanceof Error ? e.message : "Erro" });
     } finally {
       setUpdatingId(null);
     }
+  }
+
+  function confirmarMarcarComoPago(r: Item) {
+    setConfirmacao({
+      titulo: "Marcar repasse como pago?",
+      mensagem: `${r.fornecedor_nome} — ${formatMoney(r.valor_total)}, ciclo ${formatDate(r.ciclo_repasse)}. O fornecedor recebe notificação de que foi pago.`,
+      onConfirmar: () => void chamarAcaoRepasse(r.id, "marcar-pago", "Repasse marcado como pago."),
+    });
+  }
+
+  function confirmarDesfazerPago(r: Item) {
+    setConfirmacao({
+      titulo: "Desfazer pagamento?",
+      mensagem: `${r.fornecedor_nome} — ${formatMoney(r.valor_total)} volta pra pendente. Use só se marcou como pago por engano.`,
+      onConfirmar: () => void chamarAcaoRepasse(r.id, "desfazer-pago", "Pagamento desfeito."),
+    });
   }
 
   async function load() {
@@ -92,6 +115,7 @@ export default function APagarFornecedoresPage() {
       setTotalAPagar(data.total_a_pagar ?? 0);
       setCiclos(data.ciclos ?? []);
       setTotalDropcore(data.total_dropcore ?? 0);
+      setTruncado(Boolean(data.truncado));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro");
       setItems([]);
@@ -160,6 +184,13 @@ export default function APagarFornecedoresPage() {
             </p>
           </div>
 
+          {truncado && (
+            <p style={{ marginBottom: 16, fontSize: 13, color: "#92400e" }}>
+              Mostrando só os 200 repasses mais recentes — tem mais fora da tela, mas o &quot;Total a
+              pagar&quot; acima já soma todos, não só o que aparece na lista.
+            </p>
+          )}
+
           {ciclos.length > 0 && (
             <div style={{ marginBottom: 20, border: "1px solid var(--card-border)", borderRadius: 8, overflow: "hidden" }}>
               <div style={{ padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "var(--muted)", borderBottom: "1px solid var(--card-border)" }}>
@@ -206,14 +237,26 @@ export default function APagarFornecedoresPage() {
                       {(r.status === "pendente" || r.status === "liberado") && (
                         <button
                           type="button"
-                          onClick={() => marcarComoPago(r.id)}
+                          onClick={() => confirmarMarcarComoPago(r)}
                           disabled={updatingId !== null}
                           style={{ ...btnPrimary, opacity: updatingId !== null ? 0.7 : 1, fontSize: 13 }}
                         >
                           {updatingId === r.id ? "..." : "Marcar como pago"}
                         </button>
                       )}
-                      {r.status === "pago" && <span style={{ color: "#6b7280" }}>Pago</span>}
+                      {r.status === "pago" && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ color: "#6b7280" }}>Pago</span>
+                          <button
+                            type="button"
+                            onClick={() => confirmarDesfazerPago(r)}
+                            disabled={updatingId !== null}
+                            style={{ ...btnSecondary, opacity: updatingId !== null ? 0.7 : 1, fontSize: 12, padding: "4px 10px" }}
+                          >
+                            Desfazer
+                          </button>
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -240,11 +283,21 @@ export default function APagarFornecedoresPage() {
                 {(r.status === "pendente" || r.status === "liberado") && (
                   <button
                     type="button"
-                    onClick={() => marcarComoPago(r.id)}
+                    onClick={() => confirmarMarcarComoPago(r)}
                     disabled={updatingId !== null}
                     style={{ ...btnPrimary, opacity: updatingId !== null ? 0.7 : 1, fontSize: 13, width: "100%", marginTop: 10 }}
                   >
                     {updatingId === r.id ? "..." : "Marcar como pago"}
+                  </button>
+                )}
+                {r.status === "pago" && (
+                  <button
+                    type="button"
+                    onClick={() => confirmarDesfazerPago(r)}
+                    disabled={updatingId !== null}
+                    style={{ ...btnSecondary, opacity: updatingId !== null ? 0.7 : 1, fontSize: 13, width: "100%", marginTop: 10 }}
+                  >
+                    Desfazer
                   </button>
                 )}
               </div>
@@ -252,6 +305,22 @@ export default function APagarFornecedoresPage() {
           </div>
         </>
       )}
+      {confirmacao ? (
+        <ModalOverlay onBackdropClick={() => setConfirmacao(null)}>
+          <div className={MODAL_PANEL_BODY_CLASS + " p-5"}>
+            <p className="font-semibold text-[var(--foreground)]">{confirmacao.titulo}</p>
+            <p className="mt-1.5 text-sm text-[var(--muted)]">{confirmacao.mensagem}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setConfirmacao(null)} style={btnSecondary}>
+                Cancelar
+              </button>
+              <button type="button" onClick={confirmacao.onConfirmar} style={btnPrimary}>
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      ) : null}
     </div>
   );
 }

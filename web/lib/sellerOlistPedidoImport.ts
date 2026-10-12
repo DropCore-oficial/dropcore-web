@@ -20,6 +20,7 @@ import {
   shouldImportSituacaoText,
 } from "@/lib/olistPedidoImportPolicy";
 import { liberarReservaPorReferencia, processOlistPedidoReserva } from "@/lib/order/pedidoReservaOlist";
+import { cancelarPedidoEEstornar } from "@/lib/pedidoCancelarEstorno";
 import { decryptSellerErpSecret, describeSellerErpSecretDecryptFailure } from "@/lib/sellerErpSecretBox";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -178,6 +179,7 @@ export type ProcessOlistPedidoImportResult =
   | { ok: true; outcome: "promoted_pendente_estoque"; pedido_id_dropcore: string; warnings: string[] }
   | { ok: true; outcome: "promoted_bloqueado"; pedido_id_dropcore: string; warnings: string[] }
   | { ok: true; outcome: "skipped_duplicate"; pedido_id_dropcore?: string; warnings?: string[] }
+  | { ok: true; outcome: "cancelado"; pedido_id_dropcore: string }
   | { ok: true; outcome: "skipped_situacao" }
   | { ok: true; outcome: "skipped_sem_itens"; warnings: string[] }
   | { ok: true; outcome: "reservado_estoque"; warnings: string[] }
@@ -275,6 +277,29 @@ export async function processOlistPedidoImport(
     if (!liberar.ok) {
       console.error("[processOlistPedidoImport] liberar reserva (cancelado):", liberar.warnings);
     }
+
+    const { data: pedidoEnviado } = await supabaseAdmin
+      .from("pedidos")
+      .select("id")
+      .eq("org_id", input.org_id)
+      .eq("referencia_externa", referencia)
+      .eq("status", "enviado")
+      .maybeSingle();
+
+    if (pedidoEnviado) {
+      const resultado = await cancelarPedidoEEstornar({
+        pedido_id: pedidoEnviado.id,
+        org_id: input.org_id,
+        canal_label: "Olist",
+        motivo_tecnico: "olist_sem_sync",
+        motivo_seller:
+          "A Olist cancelou este pedido depois de já postado (confira o status na Olist/Tiny).",
+      });
+      if (resultado.cancelado) {
+        return { ok: true, outcome: "cancelado", pedido_id_dropcore: pedidoEnviado.id };
+      }
+    }
+
     return { ok: true, outcome: "skipped_situacao" };
   }
 

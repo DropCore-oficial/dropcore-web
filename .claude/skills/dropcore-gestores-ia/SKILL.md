@@ -1,6 +1,6 @@
 ---
 name: dropcore-gestores-ia
-description: Padrão de UX/estrutura dos Gestores de IA do DropCore (Diogo, Andrey, Amanda, Ulisses, Laura, Tiago Silva) — hierarquia de cor por card, estrutura hub/página-por-gestor, fonte única de perfil. Use SEMPRE que for tocar em qualquer painel de gestor de IA, criar um gestor novo, ou adicionar sinal/badge/aviso a um resultado de gestor — antes de escrever código.
+description: Padrão de UX/estrutura dos Gestores de IA do DropCore (Estoque, Anúncio, SAC, ADS, Design, Gestor) — hierarquia de cor por card, estrutura hub/página-por-gestor, fonte única de perfil. Use SEMPRE que for tocar em qualquer painel de gestor de IA, criar um gestor novo, ou adicionar sinal/badge/aviso a um resultado de gestor — antes de escrever código.
 ---
 
 # Gestores de IA — padrão de produto e UI
@@ -23,7 +23,7 @@ específico da área `/seller/gestores-ia`. Ler os dois antes de mexer num paine
   outro arquivo. Gestor sem painel construído ainda (`ativo: false`) cai automaticamente na
   tela "em construção" da página de detalhe, sem precisar de código extra por gestor.
 
-**Ao construir um gestor novo (Amanda/Ulisses/Laura/Tiago Silva ou outro futuro):**
+**Ao construir um gestor novo (SAC/ADS/Design/Gestor ou outro futuro):**
 1. Criar `SellerGestor<Nome>Panel.tsx` seguindo o padrão de `SellerGestorRunShell` (mesmos
    estados: upsell Pro, sem rodada ainda, processando, erro — só o "resultado ok" muda).
 2. Adicionar o branch de render em `[gestor]/page.tsx` (`perfil.slug === "..."`).
@@ -59,12 +59,26 @@ vira linha de texto, não caixa. E aplicar a mesma decisão visual nos outros ge
 na mesma passada (não deixar um gestor com o padrão novo e o outro com o antigo — foi
 exatamente o que aconteceu entre Andrey e Diogo antes dessa correção).
 
-## 3. Nomes — pessoa, não o ID técnico
+## 3. Nomes — título genérico, não o ID técnico
 
-Nomes de produto (Diogo, Andrey, Amanda, Ulisses, Laura, Tiago Silva) só existem no
-front/UI e em `gestorPerfis.ts`. `seller_ai_runs.gestor`/`seller_ai_acoes.gestor` continuam
-com o ID técnico (`estoque_fulfillment`, `anuncios_seo`, ...) — nunca renomear a coluna/
-constraint do banco pro nome de pessoa, é só rótulo de UI.
+**Decisão 2026-10-11: os gestores trocaram de nome de pessoa pra título genérico de
+função** — Diogo→Estoque, Andrey→Anúncio, Amanda→SAC, Ulisses→ADS, Laura→Design, Tiago
+Silva→Gestor. Motivo: evitar o custo/risco de renomear rota, cron job e arquivo interno
+(que usam o nome antigo) só pra mudar o que o seller vê na tela — então o nome exibido
+mudou, mas o resto ficou como estava. ("Gestor" sozinho colide em soletração com o nome do
+produto "Gestores de IA" — decisão explícita do Sr Stark mesmo depois de eu avisar, manter.)
+
+Esses títulos só existem no front/UI, no system prompt da IA (`gestorTiagoChatPrompt.ts`/
+`...Avulso.ts`, incluindo o roteiro "Sua equipe" com o nome de cada colega), em
+`gestorPerfis.ts` (campo `nome`), no `gestorTiagoChatTools.ts`/`gestorTiagoChatToolsAvulso.ts`
+(campo `nome` que o Gestor usa pra se referir aos outros no chat) e no mapa `nomeExibicao` do
+`SellerGestoresIaEscritorio3D.tsx` (placa do personagem 3D — a figura humana em si **não**
+mudou, só o texto da placa). Por dentro, tudo continua com o nome antigo: `slug` em
+`gestorPerfis.ts` (`diogo`, `andrey`, `amanda`, `ulisses`, `tiago-silva`), rota (`/seller/
+gestores-ia-avulso/andrey` etc.), nome de arquivo/função (`gestorAvulsoAndreyRodar.ts`,
+`NomeGestor` no 3D) e cron job — nunca renomear nenhum desses pro título novo, é só rótulo
+de UI. `seller_ai_runs.gestor`/`seller_ai_acoes.gestor` continuam com o ID técnico
+(`estoque_fulfillment`, `anuncios_seo`, ...), como já era antes dessa mudança.
 
 **How to apply:** antes de tocar em painel de gestor, ler as seções 1 e 2 inteiras — não só
 "o que o Sr Stark pediu agora", porque toda mudança de sinal/cor tende a se replicar pros

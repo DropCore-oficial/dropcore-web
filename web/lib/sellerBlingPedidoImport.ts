@@ -1,5 +1,6 @@
 import { submitSellerErpPedido, tryPromoteBloqueadoPedido } from "@/lib/erp/submitSellerErpPedido";
 import { obterPedidoVendaBling, type BlingPedidoVendaDetalhe } from "@/lib/blingOrdersApi";
+import { cancelarPedidoEEstornar } from "@/lib/pedidoCancelarEstorno";
 import { getSellerBlingAccessToken } from "@/lib/sellerBlingIntegration";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -71,10 +72,27 @@ export async function processBlingPedidoImport(
     if (findErr || !existente) {
       return { ok: true, outcome: "skipped_nao_encontrado_para_cancelar" };
     }
-    if (["enviado", "aguardando_repasse", "entregue", "devolvido"].includes(existente.status)) {
-      // já saiu pra postagem — não cancela automaticamente, precisa de ação manual
+    if (["aguardando_repasse", "entregue", "devolvido"].includes(existente.status)) {
+      // já saiu pra repasse/entrega — não cancela automaticamente, precisa de ação manual
       return { ok: true, outcome: "skipped_nao_encontrado_para_cancelar" };
     }
+    if (existente.status === "enviado") {
+      // já saiu pra postagem — saldo do seller já está BLOQUEADO no ledger, precisa estornar
+      const resultado = await cancelarPedidoEEstornar({
+        pedido_id: existente.id,
+        org_id: input.org_id,
+        canal_label: "Bling",
+        motivo_tecnico: "bling_sem_sync",
+        motivo_seller: "O Bling cancelou este pedido depois de já postado (confira o status no Bling).",
+      });
+      if (!resultado.cancelado) {
+        return { ok: true, outcome: "skipped_nao_encontrado_para_cancelar" };
+      }
+      return { ok: true, outcome: "cancelado", pedido_id_dropcore: existente.id };
+    }
+    // status anterior a "enviado" (bloqueado, pendente_estoque etc.) — ainda sem saldo
+    // bloqueado no ledger (block-sale só roda na promoção pra "enviado"), cancelamento
+    // simples sem estorno.
     await supabaseAdmin
       .from("pedidos")
       .update({ status: "cancelado", atualizado_em: new Date().toISOString() })

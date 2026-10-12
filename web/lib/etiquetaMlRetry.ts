@@ -56,6 +56,7 @@ export async function runEtiquetaMlRetry(): Promise<EtiquetaMlRetrySummary> {
     )
     .eq("status", "enviado")
     .eq("canal_venda", "mercado_livre")
+    .eq("e_teste", false)
     .is("etiqueta_pdf_url", null)
     .is("etiqueta_pdf_base64", null)
     .like("referencia_externa", "ml:%")

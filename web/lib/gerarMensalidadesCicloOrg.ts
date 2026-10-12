@@ -41,7 +41,7 @@ export async function gerarMensalidadesParaOrgCiclo(orgId: string, cicloYYYY_MM:
       .ilike("status", "ativo"),
     supabaseAdmin.from("fornecedores").select("id, nome, mensalidade_dia_vencimento, trial_valido_ate").eq("org_id", orgId).ilike("status", "ativo"),
     supabaseAdmin.from("financial_mensalidades").select("tipo, entidade_id").eq("org_id", orgId).eq("status", "inadimplente"),
-    supabaseAdmin.from("financial_mensalidades").select("tipo, entidade_id").eq("org_id", orgId).eq("ciclo", primeiroDia),
+    supabaseAdmin.from("financial_mensalidades").select("tipo, entidade_id, status").eq("org_id", orgId).eq("ciclo", primeiroDia),
   ]);
   const planosMap = new Map((planos ?? []).map((p) => [p.plano, p]));
 
@@ -60,11 +60,24 @@ export async function gerarMensalidadesParaOrgCiclo(orgId: string, cicloYYYY_MM:
   const jaTemCicloForn = new Set(
     (cicloAtualRes.data ?? []).filter((r) => r.tipo === "fornecedor").map((r) => r.entidade_id)
   );
+  // Status da mensalidade já existente neste ciclo, por entidade — achado real 2026-10-12:
+  // reexecutar "Gerar mensalidades" fazia upsert incondicional e sobrescrevia o `valor` de
+  // mensalidade já PAGA (ex.: seller mudou de plano no meio do mês), mentindo um valor que
+  // nunca foi cobrado. Só pendente/inadimplente pode ter o valor recalculado; pago/cancelado
+  // é estado final, nunca mais mexe.
+  const MUTAVEL = new Set(["pendente", "inadimplente"]);
+  const statusCicloSeller = new Map(
+    (cicloAtualRes.data ?? []).filter((r) => r.tipo === "seller").map((r) => [r.entidade_id, r.status])
+  );
+  const statusCicloForn = new Map(
+    (cicloAtualRes.data ?? []).filter((r) => r.tipo === "fornecedor").map((r) => [r.entidade_id, r.status])
+  );
 
   const rows: { org_id: string; tipo: string; entidade_id: string; ciclo: string; valor: number; vencimento_em: string }[] = [];
 
   for (const s of sellers) {
     if (inadSellerIds.has(s.id)) continue;
+    if (jaTemCicloSeller.has(s.id) && !MUTAVEL.has(statusCicloSeller.get(s.id) ?? "")) continue;
     if (isPortalTrialAtivo((s as { trial_valido_ate?: string | null }).trial_valido_ate)) continue;
     const p = (s.plano?.trim() || "").toLowerCase();
     const planoKey = p === "pro" ? "Pro" : p === "starter" ? "Starter" : "default";
@@ -99,6 +112,7 @@ export async function gerarMensalidadesParaOrgCiclo(orgId: string, cicloYYYY_MM:
   }
   for (const f of fornecedores) {
     if (inadFornIds.has(f.id)) continue;
+    if (jaTemCicloForn.has(f.id) && !MUTAVEL.has(statusCicloForn.get(f.id) ?? "")) continue;
     if (isPortalTrialAtivo((f as { trial_valido_ate?: string | null }).trial_valido_ate)) continue;
     const pc = planosMap.get("default");
     const valor = pc ? Number(pc.valor_fornecedor) : VALOR_DEFAULT_FORNECEDOR;

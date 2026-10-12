@@ -29,6 +29,7 @@ export async function verificarPedidosSlaAtrasados(): Promise<SlaAtrasoCheckSumm
     .from("pedidos")
     .select("id, org_id, fornecedor_id, canal_venda")
     .eq("status", "enviado")
+    .eq("e_teste", false)
     .not("sla_prazo_despacho", "is", null)
     .lt("sla_prazo_despacho", agora)
     .is("sla_atraso_notificado_em", null)

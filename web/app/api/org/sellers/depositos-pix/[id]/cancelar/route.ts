@@ -18,28 +18,24 @@ export async function POST(
     const { user_id, org_id } = await requireAdmin(req);
     const { id } = await params;
 
-    const { data: deposito, error: fetchErr } = await supabaseAdmin
-      .from("seller_depositos_pix")
-      .select("id, org_id, seller_id, valor, status")
-      .eq("id", id)
-      .eq("org_id", org_id)
-      .single();
-
-    if (fetchErr || !deposito) {
-      return NextResponse.json({ error: "Depósito não encontrado." }, { status: 404 });
-    }
-    if (deposito.status !== "pendente") {
-      return NextResponse.json({ error: "Este depósito já foi aprovado ou cancelado." }, { status: 400 });
-    }
-
-    const { error: updateErr } = await supabaseAdmin
+    // Claim atômico — mesmo padrão de depositoPixProcessor.ts. Sem o `.eq("status", "pendente")`
+    // direto no UPDATE, uma aprovação concorrente (webhook/sync do Mercado Pago) entre o
+    // SELECT e o UPDATE podia creditar o seller e, logo depois, esse cancelamento sobrescrever
+    // o status pra "cancelado" mesmo já tendo sido aprovado de verdade — achado real 2026-10-12.
+    const { data: deposito, error: updateErr } = await supabaseAdmin
       .from("seller_depositos_pix")
       .update({ status: "cancelado" })
       .eq("id", id)
-      .eq("org_id", org_id);
+      .eq("org_id", org_id)
+      .eq("status", "pendente")
+      .select("id, org_id, seller_id, valor")
+      .maybeSingle();
 
     if (updateErr) {
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    }
+    if (!deposito) {
+      return NextResponse.json({ error: "Este depósito já foi aprovado ou cancelado." }, { status: 400 });
     }
 
     await logAdminAction({

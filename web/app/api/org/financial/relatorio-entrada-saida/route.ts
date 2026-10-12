@@ -27,8 +27,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Parâmetros de e ate (YYYY-MM-DD) são obrigatórios." }, { status: 400 });
     }
 
-    const de = new Date(deStr + "T00:00:00");
-    const ate = new Date(ateStr + "T23:59:59.999");
+    // Fronteira do dia em horário de Brasília (BRT, UTC-3), não no fuso do processo (Vercel
+    // roda em UTC) — achado real 2026-10-12: sem o offset explícito, um depósito aprovado às
+    // 22h-23h59 BRT (= madrugada do dia seguinte em UTC) aparecia no relatório do dia errado.
+    const de = new Date(`${deStr}T00:00:00-03:00`);
+    const ate = new Date(`${ateStr}T23:59:59.999-03:00`);
     if (Number.isNaN(de.getTime()) || Number.isNaN(ate.getTime())) {
       return NextResponse.json({ error: "Datas inválidas. Use YYYY-MM-DD." }, { status: 400 });
     }
@@ -42,7 +45,7 @@ export async function GET(req: Request) {
     const [pixRes, ciclosRes] = await Promise.all([
       supabaseAdmin
         .from("seller_depositos_pix")
-        .select("valor, aprovado_em, seller_id")
+        .select("valor, valor_liquido_mp, aprovado_em, seller_id")
         .eq("org_id", org_id)
         .eq("status", "aprovado")
         .not("aprovado_em", "is", null)
@@ -61,13 +64,19 @@ export async function GET(req: Request) {
     const pixRows = pixRes.data ?? [];
     const ciclosRows = ciclosRes.data ?? [];
 
-    const entrada = pixRows.reduce((s, r) => s + Number(r.valor || 0), 0);
+    // Valor líquido (pós-taxa do Mercado Pago) quando disponível — achado real 2026-10-12:
+    // somar `valor` (face do PIX) mostrava entrada maior do que o dinheiro que de fato caiu
+    // na conta. `valor_liquido_mp` só fica null se a consulta ao MP falhou na hora do
+    // processamento (ver depositoPixProcessor.ts); nesse caso cai pro valor de face mesmo.
+    const valorRecebido = (r: { valor: number; valor_liquido_mp: number | null }) =>
+      Number(r.valor_liquido_mp ?? r.valor ?? 0);
+    const entrada = pixRows.reduce((s, r) => s + valorRecebido(r), 0);
     const saida = ciclosRows.reduce((s, r) => s + Number(r.total_fornecedores || 0), 0);
     const receita_dropcore = ciclosRows.reduce((s, r) => s + Number(r.total_dropcore || 0), 0);
 
     const linhas_entrada = pixRows.map((r) => ({
       tipo: "deposito_pix",
-      valor: Number(r.valor || 0),
+      valor: valorRecebido(r),
       data: r.aprovado_em,
       descricao: "Depósito PIX aprovado",
     }));

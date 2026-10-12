@@ -107,8 +107,17 @@ export async function PATCH(
         .single();
 
       if (devErr) {
+        // Desfaz o status já gravado acima — achado real 2026-10-12 (mesmo padrão corrigido
+        // ontem em devolucao-pos-repasse/route.ts): sem isso, o ledger ficava DEVOLVIDO mesmo
+        // o crédito ao seller nunca tendo sido criado, exigindo correção manual no banco.
+        await supabaseAdmin
+          .from("financial_ledger")
+          .update({ status: current })
+          .eq("id", id)
+          .eq("org_id", org_id)
+          .eq("status", status);
         return NextResponse.json(
-          { error: "Ledger atualizado, mas erro ao criar lançamento de devolução: " + devErr.message },
+          { error: "Erro ao criar o lançamento de devolução — nada foi alterado. Tente de novo." },
           { status: 500 }
         );
       }

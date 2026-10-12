@@ -11,9 +11,7 @@
  * reprocessamento da Amanda no mesmo webhook).
  */
 import { getValidMercadoLivreAccessToken, mlBuscarStatusPedido } from "@/lib/mercadoLivreApiClient";
-import { notifyAdminsPedidoCanceladoMl } from "@/lib/notifyAdminsPedidoCanceladoMl";
-import { notifyFornecedorPedidoCanceladoMl } from "@/lib/notifyFornecedorPedidoCanceladoMl";
-import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
+import { cancelarPedidoEEstornar } from "@/lib/pedidoCancelarEstorno";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 type PedidoParaConferir = {
@@ -34,6 +32,7 @@ async function buscarPedidoMlPendente(
     .eq("marketplace_numero", marketplaceNumero)
     .eq("canal_venda", "mercado_livre")
     .eq("status", "enviado")
+    .eq("e_teste", false)
     .maybeSingle();
   return data ?? null;
 }
@@ -57,50 +56,17 @@ export async function reconciliarCancelamentoPedidoMl(
     const statusReal = await mlBuscarStatusPedido(marketplaceNumero, ctx);
     if (statusReal?.status !== "cancelled") return { cancelado: false };
 
-    const { data, error } = await supabaseAdmin
-      .rpc("fn_pedido_cancelar_estorno_ml", { p_pedido_id: pedido.id, p_org_id: pedido.org_id })
-      .single();
+    const resultado = await cancelarPedidoEEstornar({
+      pedido_id: pedido.id,
+      org_id: pedido.org_id,
+      canal_label: "Mercado Livre",
+      motivo_tecnico: "ml_sem_sync",
+      motivo_seller:
+        "O Mercado Livre cancelou este pedido (etiqueta de envio nunca liberada — confira se a nota fiscal foi emitida a tempo).",
+      tipo_notificacao_seller: "pedido_cancelado_ml",
+    });
 
-    if (error) {
-      console.error("[cancelamentoMlReconciliacao] rpc:", error.message);
-      return { cancelado: false };
-    }
-
-    const resultado = data as { ok: boolean; already_cancelled: boolean; valor_estornado: number } | null;
-    if (!resultado?.ok || resultado.already_cancelled) return { cancelado: false };
-
-    const valorEstornado = Number(resultado.valor_estornado ?? 0);
-
-    const { data: sellerRow } = await supabaseAdmin
-      .from("sellers")
-      .select("nome")
-      .eq("id", pedido.seller_id)
-      .maybeSingle();
-
-    await Promise.all([
-      notifySellerPedidoAtencao({
-        org_id: pedido.org_id,
-        seller_id: pedido.seller_id,
-        pedido_id: pedido.id,
-        tipo: "pedido_cancelado_ml",
-        motivo: `O Mercado Livre cancelou este pedido (etiqueta de envio nunca liberada — confira se a nota fiscal foi emitida a tempo). O saldo bloqueado de R$ ${valorEstornado.toFixed(2)} já foi devolvido ao seu saldo disponível.`,
-      }),
-      notifyAdminsPedidoCanceladoMl({
-        org_id: pedido.org_id,
-        pedido_id: pedido.id,
-        seller_nome: sellerRow?.nome ?? null,
-        valor_estornado: valorEstornado,
-      }),
-      pedido.fornecedor_id
-        ? notifyFornecedorPedidoCanceladoMl({
-            org_id: pedido.org_id,
-            fornecedor_id: pedido.fornecedor_id,
-            pedido_id: pedido.id,
-          })
-        : Promise.resolve(),
-    ]);
-
-    return { cancelado: true };
+    return { cancelado: resultado.cancelado };
   } catch (e) {
     console.error("[cancelamentoMlReconciliacao] erro:", e);
     return { cancelado: false };

@@ -14,6 +14,7 @@ const TITULOS = {
   erro_saldo_expirado: "Pedido cancelado por saldo",
   etiqueta_pendente_manual: "Etiqueta não chegou automaticamente",
   pedido_cancelado_ml: "Pedido cancelado pelo Mercado Livre",
+  pedido_cancelado_erp: "Pedido cancelado",
   produto_nao_vinculado: "Produto fora do catálogo do fornecedor",
   anuncio_sem_sku: "Anúncio sem SKU vinculado",
   anuncio_sem_sku_urgente: "Urgente: anúncio sem SKU perto do prazo",
@@ -31,6 +32,7 @@ export async function notifySellerPedidoAtencao(params: {
     | "erro_saldo_expirado"
     | "etiqueta_pendente_manual"
     | "pedido_cancelado_ml"
+    | "pedido_cancelado_erp"
     | "produto_nao_vinculado"
     | "anuncio_sem_sku"
     | "anuncio_sem_sku_urgente";

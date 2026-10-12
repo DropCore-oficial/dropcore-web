@@ -1116,6 +1116,59 @@ paralelo): `notifySellerPedidoAtencao` (tipo `pedido_cancelado_ml`, com o valor 
 `notifyAdminsEtiquetaMlFalha`) e `notifyFornecedorPedidoCanceladoMl` (novo arquivo, mesmo
 padrão de `notifyFornecedorPedidoParaPostar`, nunca menciona valor — é só aviso de status).
 
+## `fn_pedido_cancelar_estorno` — generalização ML → Olist/Bling (2026-10-12)
+
+**Achado:** o mesmo buraco do achado 2026-10-09 (acima) existia igual no Olist e no Bling —
+cada canal pode cancelar um pedido depois de já importado/postado no DropCore, e o hub nunca
+ficava sabendo (pedido travado em `enviado`, ledger travado `BLOQUEADO` pra sempre). A RPC e
+os `notify*` helpers eram hardcoded pro ML (`canal_venda = 'mercado_livre'`, nome de arquivo
+`...Ml.ts`); generalizados em vez de duplicados por canal.
+
+**RPC** `fn_pedido_cancelar_estorno_ml(uuid,uuid)` → `fn_pedido_cancelar_estorno(p_pedido_id
+uuid, p_org_id uuid, p_motivo text)` (`web/scripts/generalize-fn-pedido-cancelar-estorno.sql`,
+drop+create por mudança de assinatura): removida a restrição `canal_venda = 'mercado_livre'`
+(só confere `status = 'enviado'`, válido pra qualquer canal); `p_motivo` passou a ser
+parâmetro em vez de fixo `'ml_sem_sync'`. Mesmas garantias de antes (`SECURITY DEFINER`,
+`revoke all from public` + `grant execute to service_role`, idempotente via `FOR UPDATE`).
+
+**Core de execução compartilhado:** `web/lib/pedidoCancelarEstorno.ts` (`cancelarPedidoEEstornar`)
+— chama a RPC e dispara os 3 avisos (seller/admin/fornecedor). Cada canal só implementa a
+parte de **detectar** o cancelamento e chama essa função compartilhada:
+- ML: `web/lib/cancelamentoMlReconciliacao.ts` (rebusca status real na API do ML).
+- Olist: `web/lib/sellerOlistPedidoImport.ts`, branch `isSituacaoTextoCancelada` — além de
+  liberar a reserva de estoque já existente, agora busca `pedidos` com `referencia_externa`
+  igual + `status = 'enviado'` e estorna se achar.
+- Bling: `web/lib/sellerBlingPedidoImport.ts`, `is_delete_event` — `aguardando_repasse`/
+  `entregue`/`devolvido` continuam manual-only (sem ledger a liberar ou já liquidado);
+  `enviado` agora estorna via RPC; status anteriores a `enviado` (`bloqueado`,
+  `pendente_estoque` etc.) seguem com cancelamento simples **sem** estorno — confirmado em
+  `submitSellerErpPedido.ts` que `executeBlockSale` (quem cria a linha `BLOQUEADO` no ledger)
+  só roda na promoção pra `enviado`, nunca antes, então não há saldo bloqueado a liberar
+  nesses status iniciais.
+
+`notifyAdminsPedidoCanceladoMl`/`notifyFornecedorPedidoCanceladoMl` → `notifyAdminsPedidoCancelado`/
+`notifyFornecedorPedidoCancelado` (arquivos renomeados, ganharam `canal_label: string` em vez
+de texto fixo "Mercado Livre"). `notifySellerPedidoAtencao` ganhou o tipo genérico
+`pedido_cancelado_erp` (mantém `pedido_cancelado_ml` pra granularidade de quem já filtra por
+esse tipo).
+
+**Constraint corrigida no mesmo achado** (`web/scripts/allow-olist-bling-cancelado-motivo.sql`):
+`pedidos_cancelado_motivo_check` só permitia `'ml_sem_sync'` — sem ajustar, qualquer
+cancelamento via Olist/Bling batia na constraint, a RPC dava erro, e `cancelarPedidoEEstornar`
+engolia o erro no catch e retornava `cancelado: false` sem avisar ninguém (falha silenciosa
+descoberta antes do deploy). Ampliada pra `IN ('ml_sem_sync', 'olist_sem_sync', 'bling_sem_sync')`.
+
+## `fn_org_repasse_fornecedor_desfazer_pago` — desfazer "marcar como pago" (2026-10-12)
+
+**Achado:** `/admin/a-pagar-fornecedores` tinha "Marcar como pago" sem nenhuma confirmação e
+sem forma de reverter se o admin clicasse na linha errada. RPC nova
+(`web/scripts/add-fn-org-repasse-fornecedor-desfazer-pago.sql`): só sai de `status = 'pago'`
+pra `'pendente'` (limpa `pago_em`), nunca mexe em outro status — `SECURITY DEFINER`,
+`revoke all from public` + `grant execute to service_role`. Chamada por
+`web/app/api/org/financial/repasse-fornecedor/[id]/desfazer-pago/route.ts`. UI: modal de
+confirmação (`ModalOverlay`) antes de marcar pago + botão "Desfazer" novo em
+`web/app/admin/a-pagar-fornecedores/page.tsx`.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
