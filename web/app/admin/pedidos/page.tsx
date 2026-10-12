@@ -80,6 +80,18 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const STATUS_RESOLVIVEIS = ["produto_nao_vinculado", "anuncio_sem_sku"];
 
+/** Números de página com reticências pra não estourar a barra quando há muitas páginas.
+ * Mesmo padrão de web/app/seller/pedidos/page.tsx. */
+function getPageNumbers(current: number, total: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | "...")[] = [1];
+  if (current > 3) pages.push("...");
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) pages.push(p);
+  if (current < total - 2) pages.push("...");
+  pages.push(total);
+  return pages;
+}
+
 /** "Cancelado" sozinho não diferencia de admin cancelando manualmente — achado 2026-10-09:
  * cancelamento automático por sync com o Mercado Livre (ver fn_pedido_cancelar_estorno_ml)
  * precisa ficar óbvio na tabela, não só mais um "Cancelado" cinza igual aos outros. */
@@ -122,6 +134,9 @@ export default function PedidosPage() {
   const [valorDropcore, setValorDropcore] = useState("");
   const [precoVenda, setPrecoVenda] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalPedidos, setTotalPedidos] = useState(0);
   const [entregandoId, setEntregandoId] = useState<string | null>(null);
   const [resolverPedido, setResolverPedido] = useState<Pedido | null>(null);
   const [resolverSkus, setResolverSkus] = useState<Sku[]>([]);
@@ -141,7 +156,12 @@ export default function PedidosPage() {
         return;
       }
       const token = session.access_token;
-      const pedRes = await fetch(`/api/org/pedidos?status=${encodeURIComponent(statusFilter)}`, {
+      const params = new URLSearchParams({
+        status: statusFilter,
+        page: String(page),
+        limit: String(pageSize),
+      });
+      const pedRes = await fetch(`/api/org/pedidos?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const pedJson = await pedRes.json();
@@ -151,6 +171,7 @@ export default function PedidosPage() {
       }
       setOrgId(pedJson.org_id ?? "");
       setPedidos(Array.isArray(pedJson.pedidos) ? pedJson.pedidos : []);
+      setTotalPedidos(typeof pedJson.total === "number" ? pedJson.total : 0);
       setSellers(Array.isArray(pedJson.sellers) ? pedJson.sellers : []);
       setFornecedores(
         Array.isArray(pedJson.fornecedores) ? pedJson.fornecedores.filter((f: Fornecedor) => f.id && f.nome) : []
@@ -164,7 +185,8 @@ export default function PedidosPage() {
 
   useEffect(() => {
     load();
-  }, [statusFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, page, pageSize]);
 
   async function loadSkus(fornId: string) {
     if (!fornId || !orgId) { setSkus([]); setSkuId(""); return; }
@@ -367,7 +389,10 @@ export default function PedidosPage() {
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-max sm:flex-nowrap sm:justify-end">
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => {
+                setPage(1);
+                setStatusFilter(e.target.value);
+              }}
               className="min-h-[1.875rem] flex-1 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] sm:w-36 sm:flex-none"
             >
               <option value="">Todos</option>
@@ -738,6 +763,85 @@ export default function PedidosPage() {
         </>
       )}
       </section>
+
+      {!loading && pedidos.length > 0 ? (
+        <div className="flex flex-col items-center gap-3 pt-1 sm:flex-row sm:justify-between">
+          <p className="text-xs text-[var(--muted)]">
+            Total <span className="font-semibold text-[var(--foreground)]">{totalPedidos}</span> pedido{totalPedidos !== 1 ? "s" : ""}
+          </p>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={page <= 1}
+              aria-label="Página anterior"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+            </button>
+            {getPageNumbers(page, Math.max(1, Math.ceil(totalPedidos / pageSize))).map((p, idx) =>
+              p === "..." ? (
+                <span key={`ellipsis-${idx}`} className="px-1 text-xs text-[var(--muted)]">
+                  …
+                </span>
+              ) : (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPage(p)}
+                  aria-current={p === page ? "page" : undefined}
+                  className={cn(
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold transition-colors",
+                    p === page
+                      ? "bg-emerald-600 text-white"
+                      : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                  )}
+                >
+                  {p}
+                </button>
+              )
+            )}
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.min(Math.max(1, Math.ceil(totalPedidos / pageSize)), prev + 1))}
+              disabled={page >= Math.max(1, Math.ceil(totalPedidos / pageSize))}
+              aria-label="Próxima página"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m9 18 6-6 6-6" />
+              </svg>
+            </button>
+            <div className="relative ml-1.5 shrink-0">
+              <div
+                aria-hidden
+                className="pointer-events-none flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)]"
+              >
+                {pageSize}/página
+                <svg className="h-3.5 w-3.5 shrink-0 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </div>
+              <select
+                aria-label="Itens por página"
+                value={pageSize}
+                onChange={(e) => {
+                  setPage(1);
+                  setPageSize(Number(e.target.value));
+                }}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              >
+                <option value={20}>20/página</option>
+                <option value={50}>50/página</option>
+                <option value={100}>100/página</option>
+                <option value={300}>300/página</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

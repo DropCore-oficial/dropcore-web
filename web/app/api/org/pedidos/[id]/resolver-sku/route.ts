@@ -69,8 +69,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (sellerErr) return NextResponse.json({ error: sellerErr.message }, { status: 500 });
     if (!sellerRow) return NextResponse.json({ error: "Seller não encontrado." }, { status: 404 });
 
-    const { error: deleteErr } = await supabaseAdmin.from("pedidos").delete().eq("id", pedido.id);
-    if (deleteErr) return NextResponse.json({ error: deleteErr.message }, { status: 500 });
+    // Não apaga o placeholder antes de confirmar que a reingestão deu certo — venda real
+    // (dados de comprador, tracking) não pode desaparecer se submitSellerErpPedido falhar
+    // (ex.: FORNECEDOR_NOT_LINKED, erro de banco). Só zera `referencia_externa` pra não
+    // colidir com o guard de duplicidade do próprio submitSellerErpPedido; restaura se falhar.
+    const { error: unlinkErr } = await supabaseAdmin
+      .from("pedidos")
+      .update({ referencia_externa: null })
+      .eq("id", pedido.id);
+    if (unlinkErr) return NextResponse.json({ error: unlinkErr.message }, { status: 500 });
 
     const resultado = await submitSellerErpPedido({
       org_id,
@@ -98,7 +105,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     });
 
     if (!resultado.ok) {
+      await supabaseAdmin
+        .from("pedidos")
+        .update({ referencia_externa: pedido.referencia_externa })
+        .eq("id", pedido.id);
       return NextResponse.json({ error: resultado.error_message }, { status: resultado.http_status });
+    }
+
+    const { error: deleteErr } = await supabaseAdmin.from("pedidos").delete().eq("id", pedido.id);
+    if (deleteErr) {
+      console.error("[resolver-sku] falha ao apagar placeholder antigo:", deleteErr.message);
     }
 
     await logAdminAction({

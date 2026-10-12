@@ -49,25 +49,29 @@ export async function GET(req: Request) {
     const { org_id } = await requireAdmin(req);
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status")?.trim();
-    const limit = Math.min(100, parseInt(searchParams.get("limit") || "50", 10) || 50);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+    const pageSize = Math.min(300, Math.max(1, parseInt(searchParams.get("limit") || "20", 10) || 20));
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
 
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, valor_dropcore, valor_total, status, cancelado_motivo, ledger_id, criado_em, e_teste"
+        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, valor_dropcore, valor_total, status, cancelado_motivo, ledger_id, criado_em, e_teste",
+        { count: "exact" }
       )
       .eq("org_id", org_id)
       .order("criado_em", { ascending: false })
-      .limit(limit);
+      .range(from, to);
 
     if (status && ["enviado", "aguardando_repasse", "entregue", "devolvido", "cancelado", "erro_saldo"].includes(status)) {
       query = query.eq("status", status);
     }
 
-    const { data, error } = await query;
+    const { data, error, count } = await query;
     if (error) {
       if (error.message?.includes("does not exist") || error.code === "42P01") {
-        return NextResponse.json({ org_id, pedidos: [], sellers: [], fornecedores: [] });
+        return NextResponse.json({ org_id, pedidos: [], total: 0, page, limit: pageSize, sellers: [], fornecedores: [] });
       }
       console.error("[pedidos GET]", error.message);
       return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
@@ -101,6 +105,9 @@ export async function GET(req: Request) {
     return NextResponse.json({
       org_id,
       pedidos: enriched,
+      total: count ?? enriched.length,
+      page,
+      limit: pageSize,
       sellers: sellersOrgRes.data ?? [],
       fornecedores: (fornecedoresOrgRes.data ?? []).filter((f) => f.id && f.nome),
     });
@@ -246,38 +253,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const debitoEstoque = await debitarEstoquePedido([
-      {
-        sku_id,
-        quantidade: 1,
-      },
-    ]);
-    if (!debitoEstoque.ok) {
-      const status =
-        debitoEstoque.error_code === "ESTOQUE_INSUFICIENTE"
-          ? 409
-          : debitoEstoque.error_code === "ESTOQUE_INPUT_INVALIDO" || debitoEstoque.error_code === "SKU_NOT_FOUND"
-            ? 400
-            : 500;
-      return NextResponse.json(
-        {
-          ok: false,
-          error: debitoEstoque.error_message ?? "Falha ao debitar estoque.",
-          error_code: debitoEstoque.error_code ?? "ESTOQUE_DEBITO_FAILED",
-          detalhes: debitoEstoque.detalhes,
-        },
-        { status }
-      );
-    }
-    const estoqueDebitos = debitoEstoque.debitos ?? [];
-    const tryReverterEstoque = async (): Promise<void> => {
-      if (estoqueDebitos.length === 0) return;
-      const rev = await reverterEstoquePedido(estoqueDebitos);
-      if (!rev.ok) {
-        console.error("[pedidos POST] falha ao reverter estoque:", rev.error_code, rev.error_message, rev.detalhes);
-      }
-    };
-
+    // Todas as validações de negócio (plano, inadimplência, SKU habilitado) rodam ANTES do
+    // débito de estoque — débito é a última etapa reversível-mas-cara, não a primeira; um
+    // early-return de regra de negócio nunca pode deixar estoque debitado sem pedido (achado
+    // 2026-10-12: todos esses `return` abaixo ficavam depois do débito e nenhum revertia).
     const orgPlano = String(plano ?? "starter").toLowerCase();
 
     // Regra: fornecedor premium só para plano Pro
@@ -391,6 +370,38 @@ export async function POST(req: Request) {
         );
       }
     }
+
+    const debitoEstoque = await debitarEstoquePedido([
+      {
+        sku_id,
+        quantidade: 1,
+      },
+    ]);
+    if (!debitoEstoque.ok) {
+      const status =
+        debitoEstoque.error_code === "ESTOQUE_INSUFICIENTE"
+          ? 409
+          : debitoEstoque.error_code === "ESTOQUE_INPUT_INVALIDO" || debitoEstoque.error_code === "SKU_NOT_FOUND"
+            ? 400
+            : 500;
+      return NextResponse.json(
+        {
+          ok: false,
+          error: debitoEstoque.error_message ?? "Falha ao debitar estoque.",
+          error_code: debitoEstoque.error_code ?? "ESTOQUE_DEBITO_FAILED",
+          detalhes: debitoEstoque.detalhes,
+        },
+        { status }
+      );
+    }
+    const estoqueDebitos = debitoEstoque.debitos ?? [];
+    const tryReverterEstoque = async (): Promise<void> => {
+      if (estoqueDebitos.length === 0) return;
+      const rev = await reverterEstoquePedido(estoqueDebitos);
+      if (!rev.ok) {
+        console.error("[pedidos POST] falha ao reverter estoque:", rev.error_code, rev.error_message, rev.detalhes);
+      }
+    };
 
     // 1) Criar pedido (status enviado; ledger_id preenchido após block-sale)
     const { data: pedido, error: insertErr } = await supabaseAdmin
