@@ -18,6 +18,18 @@ type LedgerItem = {
   debito_ja_registrado?: boolean;
 };
 
+type DebitoPendenteItem = {
+  id: string;
+  fornecedor_id: string;
+  fornecedor_nome: string | null;
+  valor_fornecedor: number;
+  ciclo_a_descontar: string;
+  criado_em: string;
+  seller_id: string | null;
+  seller_nome: string | null;
+  pedido_id: string | null;
+};
+
 const btnPrimary: React.CSSProperties = { padding: "8px 16px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14 };
 const btnSecondary: React.CSSProperties = { padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 14 };
 const btnDanger: React.CSSProperties = { padding: "6px 12px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13 };
@@ -36,6 +48,7 @@ export default function DevolucoesPage() {
   const router = useRouter();
   const [list, setList] = useState<LedgerItem[]>([]);
   const [listPago, setListPago] = useState<LedgerItem[]>([]);
+  const [debitosPendentes, setDebitosPendentes] = useState<DebitoPendenteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -64,6 +77,12 @@ export default function DevolucoesPage() {
         setList(Array.isArray(data.items) ? data.items : []);
         setListPago(Array.isArray(data.items_pago) ? data.items_pago : []);
       }
+
+      const resDebitos = await fetch("/api/org/financial/debitos-pendentes", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const dataDebitos = await resDebitos.json();
+      setDebitosPendentes(resDebitos.ok && Array.isArray(dataDebitos.items) ? dataDebitos.items : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro");
       setList([]);
@@ -301,6 +320,43 @@ export default function DevolucoesPage() {
                         {updatingDebitoId === r.id ? "..." : "Registrar débito (próximo repasse)"}
                       </button>
                     )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h2 style={{ fontSize: 18, fontWeight: 600, marginTop: 32, marginBottom: 8 }}>Débito de fornecedor pendente</h2>
+      <p style={{ color: "#6b7280", marginBottom: 16, fontSize: 14 }}>
+        Débito registrado acima que ainda não foi descontado de um repasse. Se o <strong>ciclo agendado</strong>{" "}
+        já passou e o débito continua aqui, é porque não coube na capacidade do fornecedor naquele ciclo (vendas
+        menores que o débito) — foi adiado automaticamente pro ciclo seguinte.
+      </p>
+      {debitosPendentes.length === 0 ? (
+        <p style={{ color: "#6b7280" }}>Nenhum débito de fornecedor pendente no momento.</p>
+      ) : (
+        <div className="dropcore-scroll-x">
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <thead>
+              <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
+                <th style={{ padding: "10px 8px" }}>Fornecedor</th>
+                <th style={{ padding: "10px 8px" }}>Deve por causa do seller</th>
+                <th style={{ padding: "10px 8px" }}>Valor</th>
+                <th style={{ padding: "10px 8px" }}>Registrado em</th>
+                <th style={{ padding: "10px 8px" }}>Ciclo agendado pra descontar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {debitosPendentes.map((d) => (
+                <tr key={d.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                  <td style={{ padding: "10px 8px" }}>{d.fornecedor_nome ?? "—"}</td>
+                  <td style={{ padding: "10px 8px" }}>{d.seller_nome ?? "—"}</td>
+                  <td style={{ padding: "10px 8px" }}>{formatMoney(d.valor_fornecedor)}</td>
+                  <td style={{ padding: "10px 8px" }}>{formatDate(d.criado_em)}</td>
+                  <td style={{ padding: "10px 8px" }}>
+                    {new Date(`${d.ciclo_a_descontar}T00:00:00`).toLocaleDateString("pt-BR")}
                   </td>
                 </tr>
               ))}

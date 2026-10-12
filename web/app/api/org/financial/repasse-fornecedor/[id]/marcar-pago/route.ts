@@ -18,6 +18,9 @@ export async function POST(
     const { org_id } = await requireAdmin(req);
     const { id } = await params;
 
+    // `valor_total` nesta tabela já É o líquido do fornecedor (vf, pós-débito — ver
+    // repasse-semanal/route.ts), não o bruto com taxa DropCore; não confundir com
+    // `financial_ledger.valor_total`, que é outra coisa. Seguro mostrar ao fornecedor.
     const { data: row, error: fetchErr } = await supabaseAdmin
       .from("financial_repasse_fornecedor")
       .select("id, org_id, status, fornecedor_id, valor_total, ciclo_repasse")

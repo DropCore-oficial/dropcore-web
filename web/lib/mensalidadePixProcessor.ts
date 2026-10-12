@@ -14,45 +14,36 @@ export async function processarMensalidadePaga(
 ): Promise<boolean> {
   if (!mensalidadeId?.trim()) return false;
 
-  const { data: row, error: fetchErr } = await supabaseAdmin
+  const now = new Date().toISOString();
+
+  /**
+   * Reserva atômica: só um processo (webhook MP, sync) marca como pago — mesmo padrão de
+   * depositoPixProcessor.ts. Antes, SELECT e UPDATE eram passos separados: webhook + sync a
+   * poucos segundos de distância viam ambos pendente e disparavam a notificação de
+   * "mensalidade paga" 2x (achado real 2026-10-11).
+   */
+  const { data: row, error: claimErr } = await supabaseAdmin
     .from("financial_mensalidades")
-    .select("id, tipo, entidade_id, org_id, valor, mp_payment_id")
+    .update({ status: "pago", pago_em: now })
     .eq("id", mensalidadeId)
     .in("status", ["pendente", "inadimplente"])
+    .select("id, tipo, entidade_id, org_id, valor, mp_payment_id")
     .maybeSingle();
 
-  if (fetchErr || !row) return false;
+  if (claimErr || !row) return false;
 
   const mpId = (mpPaymentId?.trim() || (row as { mp_payment_id?: string | null }).mp_payment_id?.trim()) || null;
-  let valorLiquidoMp: number | null = null;
-  let pagoEm = new Date().toISOString();
-
   if (mpId) {
     const payment = await buscarPagamentoMpAprovado(mpId);
     if (payment) {
-      valorLiquidoMp = valorLiquidoRecebidoMp(payment);
-      pagoEm = pagoEmFromMpPayment(payment) ?? pagoEm;
+      const valorLiquidoMp = valorLiquidoRecebidoMp(payment);
+      const patch: Record<string, unknown> = {
+        mp_payment_id: mpId,
+        pago_em: pagoEmFromMpPayment(payment) ?? now,
+      };
+      if (Number.isFinite(valorLiquidoMp)) patch.valor_liquido_mp = valorLiquidoMp;
+      await supabaseAdmin.from("financial_mensalidades").update(patch).eq("id", mensalidadeId);
     }
-  }
-
-  const patch: Record<string, unknown> = {
-    status: "pago",
-    pago_em: pagoEm,
-  };
-  if (mpId) patch.mp_payment_id = mpId;
-  if (valorLiquidoMp != null && Number.isFinite(valorLiquidoMp)) {
-    patch.valor_liquido_mp = valorLiquidoMp;
-  }
-
-  const { error: updateErr } = await supabaseAdmin
-    .from("financial_mensalidades")
-    .update(patch)
-    .eq("id", mensalidadeId)
-    .in("status", ["pendente", "inadimplente"]);
-
-  if (updateErr) {
-    console.error("[mensalidadePixProcessor] Erro ao marcar mensalidade:", updateErr.message);
-    return false;
   }
 
   const valorBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(

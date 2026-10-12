@@ -43,17 +43,23 @@ export async function processarUpgradeProAprovado(extRef: string): Promise<boole
   const rowId = extRef.slice(prefix.length).trim();
   if (!rowId) return false;
 
-  const { data: dep, error: fetchErr } = await supabaseAdmin
+  const now = new Date().toISOString();
+
+  /**
+   * Reserva atômica: só um processo (webhook MP, polling sync, retry) pode passar — mesmo
+   * padrão de depositoPixProcessor.ts. Sem isto, webhook duplicado/concorrente podia rodar
+   * o upgrade de plano + recálculo de mensalidade 2x (achado real 2026-10-11).
+   */
+  const { data: dep, error: claimErr } = await supabaseAdmin
     .from("seller_depositos_pix")
-    .select("id, org_id, seller_id, valor, status, referencia")
+    .update({ status: "aprovado", aprovado_em: now })
     .eq("id", rowId)
+    .eq("referencia", SELLER_DEPOSITO_REF_UPGRADE_PRO)
+    .eq("status", "pendente")
+    .select("id, org_id, seller_id, valor")
     .maybeSingle();
 
-  if (fetchErr || !dep || dep.referencia !== SELLER_DEPOSITO_REF_UPGRADE_PRO || dep.status !== "pendente") {
-    return false;
-  }
-
-  const now = new Date().toISOString();
+  if (claimErr || !dep) return false;
 
   const { data: sellerRow, error: sellerErr } = await supabaseAdmin
     .from("sellers")
@@ -61,36 +67,39 @@ export async function processarUpgradeProAprovado(extRef: string): Promise<boole
     .eq("id", dep.seller_id)
     .maybeSingle();
 
-  if (sellerErr || !sellerRow) return false;
+  if (sellerErr || !sellerRow) {
+    await supabaseAdmin
+      .from("seller_depositos_pix")
+      .update({ status: "pendente", aprovado_em: null })
+      .eq("id", rowId)
+      .eq("status", "aprovado");
+    return false;
+  }
 
   const planoLc = String(sellerRow.plano ?? "").trim().toLowerCase();
 
   if (planoLc === "pro") {
-    await supabaseAdmin
-      .from("seller_depositos_pix")
-      .update({ status: "aprovado", aprovado_em: now })
-      .eq("id", rowId)
-      .eq("referencia", SELLER_DEPOSITO_REF_UPGRADE_PRO);
+    // Já estava Pro (ex.: admin mudou manualmente entre o claim e aqui) — reserva já marcou
+    // aprovado acima, só falta recalcular a mensalidade, sem reaplicar o upgrade.
     await recalcularMensalidadeCicloAtualParaPro(sellerRow.id);
     return true;
   }
 
   if (planoLc !== "starter") {
+    await supabaseAdmin
+      .from("seller_depositos_pix")
+      .update({ status: "pendente", aprovado_em: null })
+      .eq("id", rowId)
+      .eq("status", "aprovado");
     return false;
   }
 
   const { error: upSellerErr } = await supabaseAdmin.from("sellers").update({ plano: "Pro" }).eq("id", sellerRow.id);
 
   if (upSellerErr) {
-    console.error("[upgradeProPixProcessor] atualizar plano:", upSellerErr.message);
+    console.error("[upgradeProPixProcessor] atualizar plano (reserva já marcada aprovado, exige correção manual):", upSellerErr.message);
     return false;
   }
-
-  await supabaseAdmin
-    .from("seller_depositos_pix")
-    .update({ status: "aprovado", aprovado_em: now })
-    .eq("id", rowId)
-    .eq("seller_id", dep.seller_id);
 
   await recalcularMensalidadeCicloAtualParaPro(sellerRow.id);
 

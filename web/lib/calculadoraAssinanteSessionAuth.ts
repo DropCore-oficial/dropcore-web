@@ -22,6 +22,13 @@ export async function getAssinanteFromToken(req: Request) {
   const { data: assinante } = await supabaseAdmin.rpc("fn_calculadora_assinante_por_user_id", {
     p_user_id: userData.user.id,
   });
+  const row = (assinante as AssinanteRow | null) ?? null;
 
-  return (assinante as AssinanteRow | null) ?? null;
+  // Achado real 2026-10-12: `inclui_gestores_ia` não é zerado quando um admin desativa um
+  // assinante (ver desativar/route.ts) — sem checar `ativo` aqui, as 27 rotas de
+  // gestores-ia-avulso continuavam liberadas pra sessão já aberta de alguém desativado, até
+  // o token expirar sozinho. Checando uma vez aqui protege todo caller de uma vez.
+  if (row && !row.ativo) return null;
+
+  return row;
 }

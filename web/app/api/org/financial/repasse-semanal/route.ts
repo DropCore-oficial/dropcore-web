@@ -11,6 +11,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { cadastroMinimoCompleto } from "@/lib/fornecedorCadastro";
 import { semPedidosDeTeste } from "@/lib/pedidoTesteFilter";
+import { proximoCicloRepasse } from "@/lib/cicloRepasse";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -225,7 +226,7 @@ export async function POST(req: Request) {
     // 2) Débitos a descontar neste ciclo
     const { data: debitos, error: debErr } = await supabaseAdmin
       .from("financial_debito_descontar")
-      .select("id, fornecedor_id, pedido_id, valor_fornecedor, valor_dropcore, valor_total")
+      .select("id, fornecedor_id, pedido_id, valor_fornecedor, valor_dropcore, valor_total, criado_em")
       .eq("org_id", org_id)
       .eq("ciclo_a_descontar", ciclo_repasse)
       .eq("descontado", false);
@@ -235,35 +236,34 @@ export async function POST(req: Request) {
     }
 
     const debitosList = await semPedidosDeTeste(debitos ?? []);
-    const porFornecedor: Record<
-      string,
-      { valor_fornecedor: number; valor_dropcore: number; debito_ids: string[] }
-    > = {};
 
+    // Capacidade de desconto por fornecedor = vendas novas (valor_fornecedor) deste ciclo.
+    // Débito que não cabe inteiro na capacidade do fornecedor fica adiado pro próximo ciclo
+    // (ciclo_a_descontar avança, descontado continua false) em vez de ser marcado descontado
+    // mesmo sem ter sido aplicado de verdade — achado real 2026-10-11: o crédito que o seller
+    // recebe na devolução pós-repasse "evaporava" quando o débito era maior que o repasse da
+    // semana, e o fornecedor nunca era cobrado. Processa em ordem de criação (mais antigo
+    // primeiro) pra ser justo entre vários débitos do mesmo fornecedor no mesmo ciclo.
+    const capacidadePorFornecedor: Record<string, number> = {};
     for (const e of entries) {
-      const fid = e.fornecedor_id ?? "sem_fornecedor";
-      if (!porFornecedor[fid]) {
-        porFornecedor[fid] = { valor_fornecedor: 0, valor_dropcore: 0, debito_ids: [] };
-      }
-      porFornecedor[fid].valor_fornecedor += Number(e.valor_fornecedor);
-      porFornecedor[fid].valor_dropcore += Number(e.valor_dropcore);
-    }
-    for (const d of debitosList) {
-      const fid = d.fornecedor_id;
-      if (!porFornecedor[fid]) {
-        porFornecedor[fid] = { valor_fornecedor: 0, valor_dropcore: 0, debito_ids: [] };
-      }
-      porFornecedor[fid].valor_fornecedor -= Number(d.valor_fornecedor);
-      porFornecedor[fid].valor_dropcore -= Number(d.valor_dropcore);
-      porFornecedor[fid].debito_ids.push(d.id);
+      if (!e.fornecedor_id) continue;
+      capacidadePorFornecedor[e.fornecedor_id] = (capacidadePorFornecedor[e.fornecedor_id] ?? 0) + Number(e.valor_fornecedor);
     }
 
-    let total_fornecedores = 0;
-    let total_dropcore = 0;
-    for (const fid of Object.keys(porFornecedor)) {
-      const v = porFornecedor[fid];
-      total_fornecedores += Math.max(0, v.valor_fornecedor);
-      total_dropcore += Math.max(0, v.valor_dropcore);
+    const debitosOrdenados = [...debitosList].sort(
+      (a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
+    );
+    const debitosAplicadosIds: string[] = [];
+    const debitosAdiadosIds: string[] = [];
+    for (const d of debitosOrdenados) {
+      const capacidade = capacidadePorFornecedor[d.fornecedor_id] ?? 0;
+      const valor = Number(d.valor_fornecedor);
+      if (valor <= capacidade) {
+        capacidadePorFornecedor[d.fornecedor_id] = capacidade - valor;
+        debitosAplicadosIds.push(d.id);
+      } else {
+        debitosAdiadosIds.push(d.id);
+      }
     }
 
     // 3) Bloqueio leve: só permite fechar se os fornecedores do ciclo tiverem cadastro mínimo completo
@@ -326,12 +326,20 @@ export async function POST(req: Request) {
       }
     }
 
-    // 5) Marcar débitos como descontados
-    for (const d of debitosList) {
+    // 5) Marcar débitos aplicados como descontados; adiar os que não couberam na capacidade
+    // do fornecedor pro próximo ciclo (continuam descontado=false, só muda a data).
+    if (debitosAplicadosIds.length > 0) {
       await supabaseAdmin
         .from("financial_debito_descontar")
         .update({ descontado: true, descontado_em: new Date().toISOString() })
-        .eq("id", d.id);
+        .in("id", debitosAplicadosIds);
+    }
+    if (debitosAdiadosIds.length > 0) {
+      const proximoCiclo = proximoCicloRepasse(new Date(`${ciclo_repasse}T00:00:00`));
+      await supabaseAdmin
+        .from("financial_debito_descontar")
+        .update({ ciclo_a_descontar: proximoCiclo })
+        .in("id", debitosAdiadosIds);
     }
 
     // 6) Recalcular totais
@@ -409,7 +417,8 @@ export async function POST(req: Request) {
       ok: true,
       ciclo_repasse,
       ledger_atualizados: ledgerIds.length,
-      debitos_descontados: debitosList.length,
+      debitos_descontados: debitosAplicadosIds.length,
+      debitos_adiados: debitosAdiadosIds.length,
       total_fornecedores: ciclo_total_fornecedores,
       total_dropcore: ciclo_total_dropcore,
     });

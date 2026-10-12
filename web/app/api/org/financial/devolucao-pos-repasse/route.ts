@@ -97,7 +97,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
 
-    // Criar lançamento DEVOLUCAO para o seller ver no extrato e receber o crédito
+    // Criar lançamento DEVOLUCAO para o seller ver no extrato e receber o crédito. Se isso
+    // falhar, desfaz o débito do fornecedor já inserido acima — senão o fornecedor fica
+    // debitado no próximo repasse sem o seller nunca ter recebido o crédito de volta, e a
+    // resposta mentiria "sucesso" (achado real 2026-10-11, nunca confirmar ok:true nesse caso).
     if (row.seller_id) {
       const { error: devErr } = await supabaseAdmin
         .from("financial_ledger")
@@ -115,7 +118,12 @@ export async function POST(req: Request) {
           referencia: `devolução pós-repasse (ledger ${ledger_id})`,
         });
       if (devErr) {
-        console.error("[devolucao-pos-repasse] Erro ao criar DEVOLUCAO:", devErr.message);
+        console.error("[devolucao-pos-repasse] Erro ao criar DEVOLUCAO, desfazendo débito:", devErr.message);
+        await supabaseAdmin.from("financial_debito_descontar").delete().eq("id", inserted?.id);
+        return NextResponse.json(
+          { error: "Erro ao creditar o seller — nada foi registrado. Tente de novo." },
+          { status: 500 }
+        );
       }
     }
 
