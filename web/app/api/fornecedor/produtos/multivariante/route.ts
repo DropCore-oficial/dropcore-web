@@ -488,7 +488,12 @@ export async function POST(req: Request) {
       .insert(toInsert)
       .select(SKU_FIELDS);
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      if (error.code === "23505") {
+        return NextResponse.json({ error: "Esse código de SKU já existe — tente salvar de novo." }, { status: 409 });
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
     if (tabelaMedidasPayload) {
       await upsertProdutoTabelaMedidas(supabaseAdmin, skuPai, tabelaMedidasPayload, {

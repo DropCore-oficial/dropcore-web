@@ -329,7 +329,12 @@ export async function POST(req: Request) {
       .select(SKU_FIELDS)
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      if (error.code === "23505") {
+        return NextResponse.json({ error: "Esse código de SKU já existe — tente salvar de novo." }, { status: 409 });
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
     return NextResponse.json(inserted);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";

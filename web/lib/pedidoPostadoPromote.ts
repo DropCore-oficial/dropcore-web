@@ -30,13 +30,24 @@ export async function promoverPedidoParaPostado(params: {
   const { org_id, pedido_id } = params;
   const now = new Date().toISOString();
 
-  const { error: upPedido } = await supabaseAdmin
+  /**
+   * Claim atômico: quem chama já checou `status === "enviado"` antes, mas entre essa
+   * checagem e este update outra chamada concorrente (clique manual + checker automático
+   * disparando junto) pode ter promovido o mesmo pedido primeiro. O `.eq("status", "enviado")`
+   * garante que só a chamada que realmente vê a transição aplica o resto (ledger + evento).
+   */
+  const { data: claimedRows, error: upPedido } = await supabaseAdmin
     .from("pedidos")
     .update({ status: "aguardando_repasse", atualizado_em: now })
     .eq("id", pedido_id)
-    .eq("org_id", org_id);
+    .eq("org_id", org_id)
+    .eq("status", "enviado")
+    .select("id");
 
   if (upPedido) return { ok: false, error: upPedido.message };
+  if (!claimedRows?.length) {
+    return { ok: false, error: "Pedido já foi processado (postado) por outra operação." };
+  }
 
   const ledgerId = await resolveLedgerIdForPedido(org_id, pedido_id, params.ledger_id);
 

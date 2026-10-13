@@ -161,7 +161,9 @@ export async function POST(req: Request) {
         comprimento_cm: pai.comprimento_cm,
         largura_cm: pai.largura_cm,
         altura_cm: pai.altura_cm,
-        estoque_atual: pai.estoque_atual,
+        // pai.estoque_atual é a soma de todos os filhos do grupo (ver multivariante/route.ts),
+        // não um valor pra copiar — a variante nova ainda não tem estoque próprio registrado.
+        estoque_atual: 0,
         estoque_minimo: pai.estoque_minimo,
         custo_base: pai.custo_base,
         custo_dropcore: pai.custo_dropcore,
@@ -170,7 +172,12 @@ export async function POST(req: Request) {
     }
 
     const { data: inserted, error: insErr } = await supabaseAdmin.from("skus").insert(rows).select(SKU_FIELDS);
-    if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
+    if (insErr) {
+      if (insErr.code === "23505") {
+        return NextResponse.json({ error: "Essas variantes já existem — tente de novo." }, { status: 409 });
+      }
+      return NextResponse.json({ error: insErr.message }, { status: 500 });
+    }
 
     return NextResponse.json({
       ok: true,

@@ -1169,6 +1169,36 @@ pra `'pendente'` (limpa `pago_em`), nunca mexe em outro status — `SECURITY DEF
 confirmação (`ModalOverlay`) antes de marcar pago + botão "Desfazer" novo em
 `web/app/admin/a-pagar-fornecedores/page.tsx`.
 
+## `ux_skus_org_sku` + `financial_mensalidades.cobranca_pix_iniciada_em` — race conditions do fornecedor (2026-10-13)
+
+**Achado** (auditoria de lógica de backend das rotas `/api/fornecedor/*`): três rotas de
+criação de SKU (`produtos/route.ts`, `produtos/multivariante/route.ts`,
+`produtos/grupo-adicionar-variantes/route.ts`) geravam o próximo código de SKU lendo o
+máximo existente e só depois inserindo, sem lock — duplo clique (ou duas abas) podia criar
+dois SKUs com o mesmo código no mesmo `org_id`. Corrigido com
+`CREATE UNIQUE INDEX ux_skus_org_sku ON skus (org_id, sku)` (`web/scripts/fix-race-sku-duplicado-e-pix-mensalidade-duplicado.sql`,
+sem conflito — confirmado 0 duplicatas nas 272 linhas existentes antes de aplicar); as 3
+rotas agora capturam `error.code === "23505"` e devolvem 409 com mensagem amigável em vez
+do erro cru do Postgres.
+
+Mesma auditoria achou `POST /api/fornecedor/mensalidades/[id]/cobranca-pix` sem claim
+atômico — duplo clique gerava duas cobranças PIX reais (Mercado Pago) pra mesma
+mensalidade. Corrigido com coluna nova `financial_mensalidades.cobranca_pix_iniciada_em`
+(timestamptz, nullable) + update condicional (`is null OR < now() - 2 min`) antes de
+chamar o Mercado Pago — janela de 2 min cobre tentativa abandonada sem travar reemissão
+legítima depois que o PIX expira. Mesmo padrão dos processors de depósito PIX corrigidos
+na Fase 2 da varredura (`depositoPixProcessor.ts`), adaptado pra claim de criação (não de
+confirmação de pagamento).
+
+Também achado e corrigido na mesma auditoria (sem precisar de banco):
+`grupo-adicionar-variantes/route.ts` copiava `estoque_atual` do SKU pai (que guarda a soma
+de todos os filhos, não um valor por variante) pra cada variante nova — risco de oversell.
+Agora a variante nova nasce com `estoque_atual: 0` (ainda não tem estoque próprio
+registrado). E `promoverPedidoParaPostado` (`web/lib/pedidoPostadoPromote.ts`, compartilhado
+por fornecedor/admin/checker automático) ganhou o mesmo tipo de claim — `.eq("status", "enviado")`
++ checar se a linha foi realmente afetada antes de seguir pro ledger/evento — pra corrida
+entre clique manual e checker automático não duplicar evento de auditoria.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

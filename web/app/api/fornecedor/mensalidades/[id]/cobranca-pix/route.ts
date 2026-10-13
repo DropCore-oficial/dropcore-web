@@ -61,6 +61,31 @@ export async function POST(
       return NextResponse.json({ error: "Esta mensalidade já foi paga." }, { status: 400 });
     }
 
+    /**
+     * Claim atômico: duplo clique (ou duas abas) não pode gerar duas cobranças PIX reais pra
+     * mesma mensalidade. Reivindica só se ninguém começou a gerar nos últimos 2 min — a janela
+     * cobre o caso de uma tentativa anterior ter sido abandonada (aba fechada, erro de rede)
+     * sem travar reemissão legítima depois que o PIX expira.
+     */
+    const now = new Date().toISOString();
+    const doisMinAtras = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    const { data: claimedRows, error: claimErr } = await supabaseAdmin
+      .from("financial_mensalidades")
+      .update({ cobranca_pix_iniciada_em: now })
+      .eq("id", id)
+      .or(`cobranca_pix_iniciada_em.is.null,cobranca_pix_iniciada_em.lt.${doisMinAtras}`)
+      .select("id");
+
+    if (claimErr) {
+      return NextResponse.json({ error: claimErr.message }, { status: 500 });
+    }
+    if (!claimedRows?.length) {
+      return NextResponse.json(
+        { error: "Já tem uma cobrança PIX sendo gerada pra esta mensalidade. Aguarde um instante." },
+        { status: 409 }
+      );
+    }
+
     let email = userData.user.email?.trim();
     if (!email && process.env.MERCADOPAGO_TEST_MODE === "true") {
       email = "test@testuser.com"; // Modo teste aceita sem email
