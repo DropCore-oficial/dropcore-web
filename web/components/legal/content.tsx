@@ -328,14 +328,18 @@ export const CENTRAL_DE_AJUDA_META = {
   subtitle: "Respostas rápidas sobre saldo, PIX, SLA, fornecedor e conta.",
 };
 
-const FAQ_AJUDA = [
+type FaqAudience = "seller" | "fornecedor";
+
+const FAQ_AJUDA: { q: string; a: string; audience?: FaqAudience[] }[] = [
   {
     q: "Como recarrego meu saldo?",
     a: "No painel do seller, acesse a tela de saldo e gere uma cobrança PIX. O crédito é liberado automaticamente após a confirmação do pagamento pelo Mercado Pago.",
+    audience: ["seller"],
   },
   {
     q: "Paguei o PIX mas meu saldo não caiu. O que faço?",
     a: "A confirmação costuma ser rápida, mas pode levar alguns minutos. Se o saldo não atualizar, entre em contato pelo WhatsApp ou e-mail com o comprovante em mãos.",
+    audience: ["seller"],
   },
   {
     q: "O que significa um pedido \"atrasado\" ou \"travado\"?",
@@ -344,14 +348,17 @@ const FAQ_AJUDA = [
   {
     q: "Posso trocar de fornecedor?",
     a: "Sim, respeitando um período mínimo de vínculo (normalmente 3 meses) antes da troca livre. Isso protege a estabilidade do seu catálogo contra trocas por impulso.",
+    audience: ["seller"],
   },
   {
     q: "Como funciona a mensalidade do plano?",
     a: "A mensalidade é cobrada conforme o plano do seller e não credita saldo — ela libera os recursos do plano após a confirmação do pagamento no Mercado Pago.",
+    audience: ["seller"],
   },
   {
     q: "Sou fornecedor. Como recebo o repasse?",
     a: "O repasse é calculado por ciclo, com base nos pedidos entregues, e liberado automaticamente. Você vê o valor a receber no seu painel — o percentual cobrado ao seller não é exibido, só o valor que é seu.",
+    audience: ["fornecedor"],
   },
   {
     q: "Esqueci minha senha ou não consigo entrar",
@@ -361,14 +368,15 @@ const FAQ_AJUDA = [
     q: "Como funciona a integração com Olist ou Bling?",
     a: "Nas configurações da sua conta é possível conectar sua integração de Olist/Tiny ou Bling para manter estoque e pedidos sincronizados automaticamente.",
   },
-] as const;
+];
 
-export function CentralDeAjudaBody() {
+export function CentralDeAjudaBody({ audience }: { audience?: FaqAudience } = {}) {
+  const faq = FAQ_AJUDA.filter((item) => !item.audience || !audience || item.audience.includes(audience));
   return (
     <>
       <LegalSection title="Perguntas frequentes">
         <div className="space-y-3">
-          {FAQ_AJUDA.map((item) => (
+          {faq.map((item) => (
             <details
               key={item.q}
               className="group rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm"

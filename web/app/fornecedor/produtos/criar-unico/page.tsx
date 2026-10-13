@@ -116,7 +116,7 @@ export default function CriarUnicoPage() {
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Cor</label>
                 <div className="flex flex-wrap gap-1.5 mb-2">

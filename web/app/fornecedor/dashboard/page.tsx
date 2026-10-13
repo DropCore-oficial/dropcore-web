@@ -597,7 +597,7 @@ export default function FornecedorDashboardPage() {
                 {chartMode === "hoje" ? "Por hora — hoje" : "Por dia — escolha o período"}
               </p>
             </div>
-            <div className="dropcore-scroll-x -mx-1 flex max-w-full flex-nowrap items-center gap-2 overflow-x-auto px-1 pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setChartMode("hoje")}

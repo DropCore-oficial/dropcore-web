@@ -840,22 +840,28 @@ export default function EditarVariantesPage() {
               {statusAlteracaoEditar === "pendente" && (
                 <span
                   className={cn(
-                    AMBER_PREMIUM_SURFACE_TRANSPARENT,
                     AMBER_PREMIUM_TEXT_PRIMARY,
-                    "shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium"
+                    "bg-[#fffbeb] dark:bg-amber-950/50",
+                    "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium"
                   )}
                   title="Alteração aguardando aprovação do admin"
                 >
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                   Em análise
                 </span>
               )}
               {statusAlteracaoEditar === "aprovado" && (
-                <span className="shrink-0 rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
+                <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                   Aprovado
                 </span>
               )}
               {statusAlteracaoEditar === "rejeitado" && (
-                <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border bg-red-100 text-red-600 border-red-200" title={motivoRejeicaoEditar ? `Motivo: ${motivoRejeicaoEditar}` : undefined}>
+                <span
+                  className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-red-100 px-2 py-1 text-[11px] font-medium text-red-800 dark:bg-red-950/40 dark:text-red-300"
+                  title={motivoRejeicaoEditar ? `Motivo: ${motivoRejeicaoEditar}` : undefined}
+                >
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                   Reprovado
                 </span>
               )}

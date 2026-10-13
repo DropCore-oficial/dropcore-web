@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY } from "@/lib/semanticPremium";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { mlItemPermalink } from "@/lib/mercadoLivreApiClient";
+import { IconDevolucao } from "@/components/seller/Icons";
 
 type Caso = {
   id: string;
@@ -168,8 +169,12 @@ export default function FornecedorDisputasPage() {
             {error}
           </div>
         ) : casos.length === 0 ? (
-          <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-4 text-center text-sm text-[var(--muted)]">
-            Nenhuma disputa no momento.
+          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] py-16 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500">
+              <IconDevolucao className="h-7 w-7" />
+            </div>
+            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Nenhuma disputa no momento</p>
+            <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-500">Reclamações de comprador aparecem aqui quando precisarem da sua resposta.</p>
           </div>
         ) : (
           <div className="space-y-2.5">

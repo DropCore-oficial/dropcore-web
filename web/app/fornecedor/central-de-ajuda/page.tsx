@@ -4,7 +4,7 @@ import { CENTRAL_DE_AJUDA_META, CentralDeAjudaBody } from "@/components/legal/co
 export default function FornecedorCentralDeAjudaPage() {
   return (
     <FornecedorInstitutionalShell title={CENTRAL_DE_AJUDA_META.title} subtitle={CENTRAL_DE_AJUDA_META.subtitle}>
-      <CentralDeAjudaBody />
+      <CentralDeAjudaBody audience="fornecedor" />
     </FornecedorInstitutionalShell>
   );
 }
