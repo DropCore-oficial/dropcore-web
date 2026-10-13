@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 type Deposito = {
   id: string;
@@ -20,7 +21,6 @@ type Deposito = {
 const modalOverlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 };
 const modalBox: React.CSSProperties = { background: "#fff", padding: 20, borderRadius: 8, maxWidth: 380, width: "calc(100% - 32px)", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" };
 const btnPrimary: React.CSSProperties = { padding: "8px 16px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14 };
-const btnSecondary: React.CSSProperties = { padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 14 };
 const btnDanger: React.CSSProperties = { padding: "8px 16px", border: "1px solid #fecaca", color: "#991b1b", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 14 };
 
 function formatMoney(n: number) {
@@ -33,7 +33,6 @@ function formatDate(s: string | null) {
 }
 
 export default function AdminDepositosPixPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const destaqueId = searchParams.get("destaque");
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -135,27 +134,25 @@ export default function AdminDepositosPixPage() {
   }
 
   return (
-    <div className="dropcore-shell-6xl pb-10 md:pb-12" style={{ paddingTop: 24 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>Depósitos PIX</h1>
-      <p style={{ color: "#6b7280", marginBottom: 20, fontSize: 14 }}>
-        Veja os depósitos PIX registrados e aprove quando o valor tiver entrado na conta. (Futuro: automação via banco.)
-      </p>
-
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value as "pendente" | "aprovado" | "cancelado" | "todos")}
-          style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
-        >
-          <option value="pendente">Pendentes</option>
-          <option value="aprovado">Aprovados</option>
-          <option value="cancelado">Cancelados</option>
-          <option value="todos">Todos</option>
-        </select>
-        <button type="button" onClick={() => router.push("/admin/sellers")} style={btnSecondary}>
-          ← Sellers
-        </button>
-      </div>
+    <div className="dropcore-shell-6xl space-y-5 pt-6 pb-5 md:pb-7">
+      <AdminPageHeader
+        eyebrow="Financeiro"
+        title="Depósitos PIX"
+        backHref="/admin/sellers"
+        subtitle="Veja os depósitos PIX registrados e aprove quando o valor tiver entrado na conta. (Futuro: automação via banco.)"
+        right={
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as "pendente" | "aprovado" | "cancelado" | "todos")}
+            style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid var(--card-border)", background: "var(--card)", color: "var(--foreground)" }}
+          >
+            <option value="pendente">Pendentes</option>
+            <option value="aprovado">Aprovados</option>
+            <option value="cancelado">Cancelados</option>
+            <option value="todos">Todos</option>
+          </select>
+        }
+      />
 
       {error && <div style={{ marginBottom: 16, padding: 12, background: "#fef2f2", color: "#991b1b", borderRadius: 8 }}>{error}</div>}
 

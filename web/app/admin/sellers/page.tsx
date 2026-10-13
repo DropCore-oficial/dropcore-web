@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { Button, PageLayout } from "@/components/ui";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { toTitleCase } from "@/lib/formatText";
 import { sellerCadastroPendente } from "@/lib/sellerDocumento";
 import { AMBER_PREMIUM_LINK } from "@/lib/amberPremium";
@@ -142,10 +143,11 @@ export default function AdminSellersPage() {
 
   return (
     <PageLayout maxWidth="lg">
-      <h1 className="text-2xl font-semibold mb-2 text-[var(--foreground)]">Sellers</h1>
-      <p className="text-[var(--muted)] mb-5 text-sm">
-        Cadastre sellers só com nome interno; CNPJ, contato, endereço e plano (Start ou Pro) o seller escolhe no painel (Cadastro), após o convite. Toque num seller para ver detalhes, convite e extrato.
-      </p>
+      <AdminPageHeader
+        eyebrow="Operação"
+        title="Sellers"
+        subtitle="Cadastre sellers só com nome interno; CNPJ, contato, endereço e plano (Start ou Pro) o seller escolhe no painel (Cadastro), após o convite. Toque num seller para ver detalhes, convite e extrato."
+      />
 
       {error && <div className="mb-4 p-3 bg-[var(--danger)]/8 text-[var(--danger)] rounded-[var(--radius)]">{error}</div>}
 

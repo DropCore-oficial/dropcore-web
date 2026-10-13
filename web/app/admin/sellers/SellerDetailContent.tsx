@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
-import { DashboardHeader } from "@/components/DashboardHeader";
 import { Button, PageLayout } from "@/components/ui";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { toTitleCase } from "@/lib/formatText";
 import { MESES_MINIMOS_COM_FORNECEDOR, dataMinimaTrocaFornecedor, podeTrocarFornecedorAgora } from "@/lib/sellerFornecedorVinculo";
 import { sellerCadastroPendente } from "@/lib/sellerDocumento";
@@ -348,7 +348,6 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
   if (orgLoading) {
     return (
       <PageLayout maxWidth="md">
-        <DashboardHeader href="/dashboard" onLogout={() => router.push("/login")} />
         <div className="text-[var(--muted)]">Carregando...</div>
       </PageLayout>
     );
@@ -357,10 +356,11 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
 
   return (
     <PageLayout maxWidth="md">
-      <DashboardHeader href="/dashboard" onLogout={() => router.push("/login")} />
-      <Button variant="secondary" onClick={() => router.push("/admin/sellers")} className="mb-4">
-        ← Voltar à lista
-      </Button>
+      <AdminPageHeader
+        eyebrow="Operação"
+        title={detail?.nome ?? "Seller"}
+        backHref="/admin/sellers"
+      />
         {detailLoading && <div>Carregando...</div>}
         {detail && !detailLoading && (
           <>

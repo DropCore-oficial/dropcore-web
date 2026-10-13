@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { isPortalTrialAtivo } from "@/lib/portalTrial";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 type Mensalidade = {
   id: string;
@@ -637,38 +638,39 @@ export default function MensalidadesPage() {
     !!selectedTrialEntidade && isPortalTrialAtivo(selectedTrialEntidade.trial_valido_ate);
 
   return (
-    <div className="dropcore-shell-6xl py-4 sm:py-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] md:pb-12">
-      <header className="mb-6">
-        <h1 className="text-xl sm:text-2xl font-semibold mb-1">Mensalidades</h1>
-        <p className="text-sm text-neutral-500 max-w-prose leading-relaxed">
-          Mensalidades de sellers e fornecedores. Gere para o mês e marque como pago quando receber.
-        </p>
-      </header>
+    <div className="dropcore-shell-6xl space-y-5 pt-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] md:pb-12">
+      <AdminPageHeader
+        eyebrow="Financeiro"
+        title="Mensalidades"
+        subtitle="Mensalidades de sellers e fornecedores. Gere para o mês e marque como pago quando receber."
+        right={
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <button
+              type="button"
+              onClick={gerar}
+              disabled={gerando}
+              className="w-full min-h-[44px] touch-manipulation sm:min-h-0 sm:w-auto sm:min-w-0"
+              style={{ ...btnPrimary, opacity: gerando ? 0.7 : 1, cursor: gerando ? "not-allowed" : "pointer" }}
+            >
+              {gerando ? "Gerando..." : `Gerar mensalidades de ${ciclo || cicloAtual()}`}
+            </button>
+            <button
+              type="button"
+              onClick={abrirModalTrial}
+              disabled={trialLoadingOpts}
+              className="w-full min-h-[44px] touch-manipulation sm:min-h-0 sm:w-auto sm:min-w-0 hover:brightness-110 active:brightness-95 transition-[filter] disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{
+                ...btnTrialBlue,
+                cursor: trialLoadingOpts ? "not-allowed" : "pointer",
+              }}
+            >
+              {trialLoadingOpts ? "Carregando..." : "Teste grátis do portal"}
+            </button>
+          </div>
+        }
+      />
 
       <div className="flex min-w-0 flex-col gap-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <button
-          type="button"
-          onClick={gerar}
-          disabled={gerando}
-          className="w-full min-h-[44px] touch-manipulation sm:min-h-0 sm:w-auto sm:min-w-0"
-          style={{ ...btnPrimary, opacity: gerando ? 0.7 : 1, cursor: gerando ? "not-allowed" : "pointer" }}
-        >
-          {gerando ? "Gerando..." : `Gerar mensalidades de ${ciclo || cicloAtual()}`}
-        </button>
-        <button
-          type="button"
-          onClick={abrirModalTrial}
-          disabled={trialLoadingOpts}
-          className="w-full min-h-[44px] touch-manipulation sm:min-h-0 sm:w-auto sm:min-w-0 hover:brightness-110 active:brightness-95 transition-[filter] disabled:opacity-60 disabled:cursor-not-allowed"
-          style={{
-            ...btnTrialBlue,
-            cursor: trialLoadingOpts ? "not-allowed" : "pointer",
-          }}
-        >
-          {trialLoadingOpts ? "Carregando..." : "Teste grátis do portal"}
-        </button>
-      </div>
 
       {trialModal && (
         <div

@@ -6,6 +6,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 type Invite = {
   id: string;
@@ -185,10 +186,10 @@ export default function AdminCalculadoraConvitesPage() {
 
   return (
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg">
-      <main className="dropcore-shell-6xl pt-8 pb-10 md:pb-12 space-y-6">
-        <p className="text-xs text-[var(--muted)]">Admin · Convites da calculadora</p>
+      <main className="dropcore-shell-6xl space-y-5 pt-6 pb-5 md:pb-7">
+        <AdminPageHeader eyebrow="Operação" title="Convites da calculadora" />
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 shadow-sm">
-          <h1 className="text-lg font-semibold mb-1">Teste grátis da DropCore Calculadora</h1>
+          <h2 className="text-lg font-semibold mb-1">Teste grátis da DropCore Calculadora</h2>
           <p className="text-sm text-[var(--muted)] mb-5">
             Gere um link de teste grátis para a calculadora e envie para o cliente ativar o acesso. Informação oficial para cliente
             (plano pago): dia de renovação fixo no calendário, sem juros; inadimplência bloqueia o uso até quitar — o dia da

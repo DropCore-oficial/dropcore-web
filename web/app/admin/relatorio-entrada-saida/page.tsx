@@ -3,6 +3,16 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import {
+  SUCCESS_PREMIUM_SURFACE,
+  SUCCESS_PREMIUM_TEXT_PRIMARY,
+  DANGER_PREMIUM_SURFACE,
+  DANGER_PREMIUM_TEXT_PRIMARY,
+  INFO_PREMIUM_SURFACE,
+  INFO_PREMIUM_TEXT_PRIMARY,
+} from "@/lib/semanticPremium";
+import { cn } from "@/lib/utils";
 
 type ReportData = {
   periodo: { de: string; ate: string };
@@ -84,64 +94,63 @@ export default function RelatorioEntradaSaidaPage() {
   }, [de, ate]);
 
   return (
-    <div className="dropcore-shell-6xl pb-10 md:pb-12" style={{ paddingTop: 24 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>Relatório entrada/saída</h1>
-      <p style={{ color: "#6b7280", marginBottom: 24, fontSize: 14 }}>
-        Entrada (depósitos PIX), saída (repasses pagos aos fornecedores) e receita DropCore no período.
-      </p>
+    <div className="dropcore-shell-6xl space-y-5 pt-6 pb-5 md:pb-7">
+      <AdminPageHeader
+        eyebrow="Financeiro"
+        title="Relatório entrada/saída"
+        subtitle="Entrada (depósitos PIX), saída (repasses pagos aos fornecedores) e receita DropCore no período."
+        right={
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-sm" style={{ color: "var(--muted)" }}>
+              De:
+              <input
+                type="date"
+                value={de}
+                onChange={(e) => setDe(e.target.value.slice(0, 10))}
+                style={{ marginLeft: 8, padding: 8, borderRadius: 6, border: "1px solid var(--card-border)", background: "var(--card)", color: "var(--foreground)" }}
+              />
+            </label>
+            <label className="text-sm" style={{ color: "var(--muted)" }}>
+              Até:
+              <input
+                type="date"
+                value={ate}
+                onChange={(e) => setAte(e.target.value.slice(0, 10))}
+                style={{ marginLeft: 8, padding: 8, borderRadius: 6, border: "1px solid var(--card-border)", background: "var(--card)", color: "var(--foreground)" }}
+              />
+            </label>
+            <button type="button" onClick={() => load()} disabled={loading} style={btnSecondary}>
+              {loading ? "Carregando..." : "Atualizar"}
+            </button>
+          </div>
+        }
+      />
 
       {error && (
-        <div style={{ marginBottom: 16, padding: 12, background: "#fef2f2", color: "#991b1b", borderRadius: 8 }}>
+        <div className={cn(DANGER_PREMIUM_SURFACE, DANGER_PREMIUM_TEXT_PRIMARY, "rounded-xl px-4 py-3 text-sm")}>
           {error}
         </div>
       )}
 
-      <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <label style={{ fontSize: 14, fontWeight: 500 }}>
-          De:
-          <input
-            type="date"
-            value={de}
-            onChange={(e) => setDe(e.target.value.slice(0, 10))}
-            style={{ marginLeft: 8, padding: 8, borderRadius: 6, border: "1px solid #d1d5db" }}
-          />
-        </label>
-        <label style={{ fontSize: 14, fontWeight: 500 }}>
-          Até:
-          <input
-            type="date"
-            value={ate}
-            onChange={(e) => setAte(e.target.value.slice(0, 10))}
-            style={{ marginLeft: 8, padding: 8, borderRadius: 6, border: "1px solid #d1d5db" }}
-          />
-        </label>
-        <button type="button" onClick={() => load()} disabled={loading} style={btnSecondary}>
-          {loading ? "Carregando..." : "Atualizar"}
-        </button>
-        <button type="button" onClick={() => router.push("/dashboard")} style={btnSecondary}>
-          Voltar
-        </button>
-      </div>
-
       {loading && !data ? (
-        <p style={{ color: "#6b7280" }}>Carregando...</p>
+        <p style={{ color: "var(--muted)" }}>Carregando...</p>
       ) : data ? (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 24 }}>
-            <div style={{ padding: 16, background: "#f0fdf4", borderRadius: 12, border: "1px solid #bbf7d0" }}>
-              <div style={{ fontSize: 12, color: "#166534", marginBottom: 4 }}>Entrada</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: "#166534" }}>{formatMoney(data.resumo.entrada)}</div>
-              <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>{data.resumo.total_depositos} depósito(s) PIX</div>
+            <div className={cn(SUCCESS_PREMIUM_SURFACE, "rounded-xl p-4")}>
+              <div className={cn(SUCCESS_PREMIUM_TEXT_PRIMARY, "text-xs mb-1")}>Entrada</div>
+              <div className={cn(SUCCESS_PREMIUM_TEXT_PRIMARY, "text-xl font-bold")}>{formatMoney(data.resumo.entrada)}</div>
+              <div className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>{data.resumo.total_depositos} depósito(s) PIX</div>
             </div>
-            <div style={{ padding: 16, background: "#fef2f2", borderRadius: 12, border: "1px solid #fecaca" }}>
-              <div style={{ fontSize: 12, color: "#991b1b", marginBottom: 4 }}>Saída</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: "#991b1b" }}>{formatMoney(data.resumo.saida)}</div>
-              <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>{data.resumo.total_ciclos_fechados ?? data.resumo.total_repasses ?? 0} ciclo(s) fechado(s)</div>
+            <div className={cn(DANGER_PREMIUM_SURFACE, "rounded-xl p-4")}>
+              <div className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "text-xs mb-1")}>Saída</div>
+              <div className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "text-xl font-bold")}>{formatMoney(data.resumo.saida)}</div>
+              <div className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>{data.resumo.total_ciclos_fechados ?? data.resumo.total_repasses ?? 0} ciclo(s) fechado(s)</div>
             </div>
-            <div style={{ padding: 16, background: "#eff6ff", borderRadius: 12, border: "1px solid #bfdbfe" }}>
-              <div style={{ fontSize: 12, color: "#1d4ed8", marginBottom: 4 }}>Receita DropCore</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: "#1d4ed8" }}>{formatMoney(data.resumo.receita_dropcore)}</div>
-              <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>Taxa dos repasses</div>
+            <div className={cn(INFO_PREMIUM_SURFACE, "rounded-xl p-4")}>
+              <div className={cn(INFO_PREMIUM_TEXT_PRIMARY, "text-xs mb-1")}>Receita DropCore</div>
+              <div className={cn(INFO_PREMIUM_TEXT_PRIMARY, "text-xl font-bold")}>{formatMoney(data.resumo.receita_dropcore)}</div>
+              <div className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>Taxa dos repasses</div>
             </div>
           </div>
 
@@ -150,21 +159,21 @@ export default function RelatorioEntradaSaidaPage() {
               <div>
                 <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Entradas ({data.linhas_entrada.length})</h3>
                 {data.linhas_entrada.length === 0 ? (
-                  <p style={{ color: "#6b7280", fontSize: 14 }}>Nenhuma entrada no período.</p>
+                  <p style={{ color: "var(--muted)", fontSize: 14 }}>Nenhuma entrada no período.</p>
                 ) : (
                   <div className="dropcore-scroll-x">
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                       <thead>
-                        <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
+                        <tr style={{ borderBottom: "2px solid var(--card-border)", textAlign: "left" }}>
                           <th style={{ padding: "8px 6px" }}>Data</th>
                           <th style={{ padding: "8px 6px", textAlign: "right" }}>Valor</th>
                         </tr>
                       </thead>
                       <tbody>
                         {data.linhas_entrada.map((r, i) => (
-                          <tr key={i} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                          <tr key={i} style={{ borderBottom: "1px solid var(--card-border)" }}>
                             <td style={{ padding: "8px 6px" }}>{formatDate(r.data)}</td>
-                            <td style={{ padding: "8px 6px", textAlign: "right", color: "#166534" }}>+{formatMoney(r.valor)}</td>
+                            <td className={cn(SUCCESS_PREMIUM_TEXT_PRIMARY)} style={{ padding: "8px 6px", textAlign: "right" }}>+{formatMoney(r.valor)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -175,21 +184,21 @@ export default function RelatorioEntradaSaidaPage() {
               <div>
                 <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Saídas ({data.linhas_saida.length})</h3>
                 {data.linhas_saida.length === 0 ? (
-                  <p style={{ color: "#6b7280", fontSize: 14 }}>Nenhuma saída no período.</p>
+                  <p style={{ color: "var(--muted)", fontSize: 14 }}>Nenhuma saída no período.</p>
                 ) : (
                   <div className="dropcore-scroll-x">
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                       <thead>
-                        <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
+                        <tr style={{ borderBottom: "2px solid var(--card-border)", textAlign: "left" }}>
                           <th style={{ padding: "8px 6px" }}>Data</th>
                           <th style={{ padding: "8px 6px", textAlign: "right" }}>Valor</th>
                         </tr>
                       </thead>
                       <tbody>
                         {data.linhas_saida.map((r, i) => (
-                          <tr key={i} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                          <tr key={i} style={{ borderBottom: "1px solid var(--card-border)" }}>
                             <td style={{ padding: "8px 6px" }}>{formatDate(r.data)}</td>
-                            <td style={{ padding: "8px 6px", textAlign: "right", color: "#991b1b" }}>-{formatMoney(r.valor)}</td>
+                            <td className={cn(DANGER_PREMIUM_TEXT_PRIMARY)} style={{ padding: "8px 6px", textAlign: "right" }}>-{formatMoney(r.valor)}</td>
                           </tr>
                         ))}
                       </tbody>

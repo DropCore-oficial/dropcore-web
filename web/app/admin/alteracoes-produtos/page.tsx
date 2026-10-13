@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { toTitleCase } from "@/lib/formatText";
 import { cn } from "@/lib/utils";
 import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 type Alteracao = {
   id: string;
@@ -324,17 +325,13 @@ export default function AdminAlteracoesProdutosPage() {
 
   return (
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg">
-      <div className="dropcore-shell-6xl pt-4 sm:pt-6 lg:pt-8 pb-10 md:pb-12">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-semibold tracking-tight text-[var(--foreground)] lg:text-2xl">
-              Alterações de produtos em análise
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-[var(--muted)] lg:text-[15px] lg:leading-relaxed">
-              Os fornecedores enviam alterações que ficam em análise. Aprove ou rejeite para aplicar ou descartar as mudanças.
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
+      <div className="dropcore-shell-6xl space-y-5 pt-6 pb-5 md:pb-7">
+        <AdminPageHeader
+          eyebrow="Operação"
+          title="Alterações de produtos em análise"
+          backHref="/admin/empresas"
+          subtitle="Os fornecedores enviam alterações que ficam em análise. Aprove ou rejeite para aplicar ou descartar as mudanças."
+          right={
             <button
               type="button"
               onClick={load}
@@ -342,15 +339,8 @@ export default function AdminAlteracoesProdutosPage() {
             >
               Atualizar
             </button>
-            <button
-              type="button"
-              onClick={() => router.push("/admin/empresas")}
-              className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
-            >
-              ← Voltar às Empresas
-            </button>
-          </div>
-        </div>
+          }
+        />
 
         {error && (
           <div className={cn("mb-6 p-4 rounded-xl text-sm", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default function IntegracoesErpPage() {
   const router = useRouter();
@@ -76,30 +77,12 @@ export default function IntegracoesErpPage() {
   }, []);
 
   return (
-    <div className="dropcore-shell-6xl pb-10 md:pb-12" style={{ paddingTop: 24 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <button
-          type="button"
-          onClick={() => router.push("/dashboard")}
-          style={{
-            background: "none",
-            border: "1px solid #404040",
-            borderRadius: 8,
-            padding: "6px 12px",
-            color: "#a3a3a3",
-            fontSize: 13,
-            cursor: "pointer",
-          }}
-        >
-          ← Voltar
-        </button>
-        <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>Integração ERP</h1>
-      </div>
-
-      <p style={{ color: "#737373", marginBottom: 24, fontSize: 14, lineHeight: 1.5 }}>
-        Conecte seu ERP (Olist/Tiny, Bling ou outro) ao DropCore para receber pedidos automaticamente.
-        O ERP envia o pedido via API e o DropCore debita estoque e bloqueia o saldo do seller.
-      </p>
+    <div className="dropcore-shell-6xl space-y-5 pt-6 pb-5 md:pb-7">
+      <AdminPageHeader
+        eyebrow="Operação"
+        title="Integração ERP"
+        subtitle="Conecte seu ERP (Olist/Tiny, Bling ou outro) ao DropCore para receber pedidos automaticamente. O ERP envia o pedido via API e o DropCore debita estoque e bloqueia o saldo do seller."
+      />
 
       {loading ? (
         <div style={{ color: "#737373", fontSize: 14 }}>Carregando...</div>

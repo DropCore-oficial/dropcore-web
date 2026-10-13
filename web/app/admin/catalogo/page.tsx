@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { toTitleCase } from "@/lib/formatText";
 import { PlanLimitsBadge, PLAN_LIMITS_REFRESH_EVENT } from "@/components/PlanLimitsBadge";
 import { PageLayout, Card, Button, Badge } from "@/components/ui";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 type ItemSKU = {
   id: string;
@@ -986,39 +987,38 @@ export default function AdminCatalogoPage() {
 
   return (
     <PageLayout maxWidth="lg">
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0 }}>
-            {fornecedorNome ? `Catálogo — ${fornecedorNome}` : "Catálogo (Admin)"}
-          </h1>
-          <PlanLimitsBadge />
-          <button
-            type="button"
-            onClick={() => buscar("")}
-            style={{ padding: "6px 12px", fontSize: 13, borderRadius: 6, border: "1px solid var(--card-border)", background: "var(--card)", cursor: "pointer", color: "var(--foreground)" }}
-          >
-            Atualizar
-          </button>
-        </div>
-        <div style={{ marginTop: 8, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <button
-            type="button"
-            onClick={() => router.push("/admin/empresas")}
-            style={{ padding: "6px 12px", fontSize: 13, borderRadius: 6, border: "1px solid var(--card-border)", background: "var(--card)", cursor: "pointer", color: "var(--foreground)" }}
-          >
-            {fornecedorId ? "Trocar empresa" : "Ver empresas"}
-          </button>
-          {fornecedorId && (
+      <AdminPageHeader
+        eyebrow="Operação"
+        title={fornecedorNome ? `Catálogo — ${fornecedorNome}` : "Catálogo (Admin)"}
+        titleExtra={<PlanLimitsBadge />}
+        right={
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <button
               type="button"
-              onClick={() => router.push("/admin/catalogo")}
-              style={{ padding: "6px 12px", fontSize: 13, borderRadius: 6, border: "1px solid var(--card-border)", background: "var(--card)", color: "var(--foreground)", cursor: "pointer" }}
+              onClick={() => buscar("")}
+              style={{ padding: "6px 12px", fontSize: 13, borderRadius: 6, border: "1px solid var(--card-border)", background: "var(--card)", cursor: "pointer", color: "var(--foreground)" }}
             >
-              Catálogo (todas as empresas)
+              Atualizar
             </button>
-          )}
-        </div>
-      </div>
+            <button
+              type="button"
+              onClick={() => router.push("/admin/empresas")}
+              style={{ padding: "6px 12px", fontSize: 13, borderRadius: 6, border: "1px solid var(--card-border)", background: "var(--card)", cursor: "pointer", color: "var(--foreground)" }}
+            >
+              {fornecedorId ? "Trocar empresa" : "Ver empresas"}
+            </button>
+            {fornecedorId && (
+              <button
+                type="button"
+                onClick={() => router.push("/admin/catalogo")}
+                style={{ padding: "6px 12px", fontSize: 13, borderRadius: 6, border: "1px solid var(--card-border)", background: "var(--card)", color: "var(--foreground)", cursor: "pointer" }}
+              >
+                Catálogo (todas as empresas)
+              </button>
+            )}
+          </div>
+        }
+      />
 
       {estoqueBaixoCount > 0 && (
         <div

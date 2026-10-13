@@ -6,6 +6,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 /**
  * Convites do pacote "Gestores de IA" (R$797,90/mês, inclui a Calculadora junto) — página
@@ -152,10 +153,10 @@ export default function AdminGestoresIaConvitesPage() {
 
   return (
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg">
-      <main className="dropcore-shell-6xl pt-8 pb-10 md:pb-12 space-y-6">
-        <p className="text-xs text-[var(--muted)]">Admin · Convites — Gestores de IA</p>
+      <main className="dropcore-shell-6xl space-y-5 pt-6 pb-5 md:pb-7">
+        <AdminPageHeader eyebrow="Operação" title="Convites — Gestores de IA" />
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 shadow-sm">
-          <h1 className="text-lg font-semibold mb-1">Pacote Gestores de IA (R$797,90/mês)</h1>
+          <h2 className="text-lg font-semibold mb-1">Pacote Gestores de IA (R$797,90/mês)</h2>
           <p className="text-sm text-[var(--muted)] mb-5">
             Gere um link de convite pro pacote completo — Gestores de IA + Calculadora juntos, fora do hub (sem org, sem
             fornecedor). Login próprio em <span className="font-mono">/gestores-ia/login</span>, mesma conta por baixo

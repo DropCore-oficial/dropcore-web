@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { PlanLimitsBadge } from "@/components/PlanLimitsBadge";
 import { PageLayout, Card, Button, Alert, Input } from "@/components/ui";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { toTitleCase } from "@/lib/formatText";
 import { formatCnpjBr } from "@/lib/fornecedorCadastro";
 import { AMBER_PREMIUM_LINK } from "@/lib/amberPremium";
@@ -220,16 +221,17 @@ export default function AdminEmpresasPage() {
   return (
     <PageLayout maxWidth="lg">
       <div className="space-y-8">
-        <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Empresas / Fornecedores</h1>
-          <PlanLimitsBadge />
-        </div>
-        <p className="text-sm text-[var(--muted)]">
-          Clique em uma empresa para ver o catálogo de SKUs dela.
-        </p>
-        <Button variant="success" onClick={() => setModalNova(true)}>
-          + Adicionar empresa
-        </Button>
+        <AdminPageHeader
+          eyebrow="Operação"
+          title="Empresas / Fornecedores"
+          titleExtra={<PlanLimitsBadge />}
+          subtitle="Clique em uma empresa para ver o catálogo de SKUs dela."
+          right={
+            <Button variant="success" onClick={() => setModalNova(true)}>
+              + Adicionar empresa
+            </Button>
+          }
+        />
 
         {error && <Alert variant="danger">{error}</Alert>}
 

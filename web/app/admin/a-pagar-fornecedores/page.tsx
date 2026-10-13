@@ -3,8 +3,17 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ModalOverlay } from "@/components/ui/ModalOverlay";
 import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
+import {
+  SUCCESS_PREMIUM_SURFACE,
+  SUCCESS_PREMIUM_TEXT_PRIMARY,
+  DANGER_PREMIUM_SURFACE,
+  DANGER_PREMIUM_TEXT_PRIMARY,
+} from "@/lib/semanticPremium";
+import { AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
+import { cn } from "@/lib/utils";
 
 type Item = {
   id: string;
@@ -132,42 +141,44 @@ export default function APagarFornecedoresPage() {
   }, [router]);
 
   return (
-    <div className="dropcore-shell-6xl pb-10 md:pb-12" style={{ paddingTop: 24 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>A pagar aos fornecedores</h1>
-      <p style={{ color: "var(--muted)", marginBottom: 24, fontSize: 14 }}>
-        Valores que você deve repassar a cada fornecedor (gerados ao fechar o repasse em &quot;Repasse ao fornecedor&quot;). Pague fora do sistema e depois marque como pago, se quiser.
-      </p>
+    <div className="dropcore-shell-6xl space-y-5 pt-6 pb-5 md:pb-7">
+      <AdminPageHeader
+        eyebrow="Financeiro"
+        title="A pagar aos fornecedores"
+        subtitle={
+          <>
+            Valores que você deve repassar a cada fornecedor (gerados ao fechar o repasse em &quot;Repasse ao
+            fornecedor&quot;). Pague fora do sistema e depois marque como pago, se quiser.
+          </>
+        }
+        right={
+          <div className="flex gap-2">
+            <button type="button" onClick={() => load()} disabled={loading} style={btnSecondary}>
+              {loading ? "Carregando..." : "Atualizar"}
+            </button>
+            <button type="button" onClick={() => router.push("/admin/repasse-fornecedor")} style={btnSecondary}>
+              Repasse ao fornecedor
+            </button>
+          </div>
+        }
+      />
 
       {message && (
         <div
-          style={{
-            marginBottom: 16,
-            padding: 12,
-            background: message.type === "ok" ? "#f0fdf4" : "#fef2f2",
-            color: message.type === "ok" ? "#166534" : "#991b1b",
-            borderRadius: 8,
-          }}
+          className={cn(
+            message.type === "ok" ? SUCCESS_PREMIUM_SURFACE : DANGER_PREMIUM_SURFACE,
+            message.type === "ok" ? SUCCESS_PREMIUM_TEXT_PRIMARY : DANGER_PREMIUM_TEXT_PRIMARY,
+            "rounded-xl px-4 py-3 text-sm mb-4"
+          )}
         >
           {message.text}
         </div>
       )}
       {error && (
-        <div style={{ marginBottom: 16, padding: 12, background: "#fef2f2", color: "#991b1b", borderRadius: 8 }}>
+        <div className={cn(DANGER_PREMIUM_SURFACE, DANGER_PREMIUM_TEXT_PRIMARY, "rounded-xl px-4 py-3 text-sm mb-4")}>
           {error}
         </div>
       )}
-
-      <div style={{ marginBottom: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button type="button" onClick={() => load()} disabled={loading} style={btnSecondary}>
-          {loading ? "Carregando..." : "Atualizar"}
-        </button>
-        <button type="button" onClick={() => router.push("/admin/repasse-fornecedor")} style={btnSecondary}>
-          Repasse ao fornecedor
-        </button>
-        <button type="button" onClick={() => router.push("/dashboard")} style={btnSecondary}>
-          Voltar
-        </button>
-      </div>
 
       {loading && items.length === 0 ? (
         <p style={{ color: "var(--muted)" }}>Carregando...</p>
@@ -185,7 +196,7 @@ export default function APagarFornecedoresPage() {
           </div>
 
           {truncado && (
-            <p style={{ marginBottom: 16, fontSize: 13, color: "#92400e" }}>
+            <p className={cn(AMBER_PREMIUM_TEXT_SOFT, "mb-4 text-[13px]")}>
               Mostrando só os 200 repasses mais recentes — tem mais fora da tela, mas o &quot;Total a
               pagar&quot; acima já soma todos, não só o que aparece na lista.
             </p>
@@ -246,7 +257,7 @@ export default function APagarFornecedoresPage() {
                       )}
                       {r.status === "pago" && (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ color: "#6b7280" }}>Pago</span>
+                          <span style={{ color: "var(--muted)" }}>Pago</span>
                           <button
                             type="button"
                             onClick={() => confirmarDesfazerPago(r)}

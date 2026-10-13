@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 type Member = {
   id: string;
@@ -269,40 +270,26 @@ export default function OrgMembrosPage() {
     }
   }
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    router.replace("/login");
-  }
-
   return (
     <div className="bg-[var(--background)] text-[var(--foreground)] dropcore-p-auth">
-      <div className="mx-auto max-w-6xl">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight">Membros</h1>
-            </div>
-            <p className="text-sm text-[var(--muted)] mt-1">
-              Organização:{" "}
-              <span className="font-mono text-[var(--muted)]">{orgId}</span>
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
+      <div className="mx-auto max-w-6xl space-y-5">
+        <AdminPageHeader
+          eyebrow="Operação"
+          title="Membros"
+          subtitle={
+            <>
+              Organização: <span className="font-mono text-[var(--muted)]">{orgId}</span>
+            </>
+          }
+          right={
             <button
               onClick={load}
               className="px-4 py-2 rounded-lg bg-[var(--card)] border border-[var(--card-border)] hover:opacity-90 text-[var(--foreground)] text-sm transition-colors"
             >
               Recarregar
             </button>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-600 border border-red-300 text-sm transition-colors font-medium"
-            >
-              Sair
-            </button>
-          </div>
-        </div>
+          }
+        />
 
         <div className="mt-4 rounded-xl border border-[var(--card-border)] bg-[var(--card)]/60 px-4 py-3 text-sm text-[var(--muted)] leading-relaxed">
           Aqui você gerencia apenas a{" "}
