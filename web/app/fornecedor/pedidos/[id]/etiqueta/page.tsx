@@ -13,7 +13,6 @@ type EtiquetaItem = {
   tamanho: string | null;
   categoria: string | null;
   quantidade: number;
-  valor_total: number;
 };
 
 type EtiquetaResponse = {

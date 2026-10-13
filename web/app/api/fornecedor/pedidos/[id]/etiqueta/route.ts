@@ -73,7 +73,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // Não usar pedido_itens.nome_produto: em alguns bancos a tabela foi criada só com sku_id/qtd/valores (create-pedidos.sql).
     const { data: itensRaw, error: itensErr } = await supabaseAdmin
       .from("pedido_itens")
-      .select("sku_id, quantidade, valor_total")
+      .select("sku_id, quantidade")
       .eq("pedido_id", pedido_id);
 
     if (itensErr) return NextResponse.json({ error: itensErr.message }, { status: 500 });
@@ -81,7 +81,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const itens = (itensRaw ?? []).map((i) => ({
       sku_id: i.sku_id as string | null,
       quantidade: Number(i.quantidade ?? 1),
-      valor_total: Number(i.valor_total ?? 0),
     }));
 
     const skuIds = [...new Set(itens.map((i) => i.sku_id).filter(Boolean))] as string[];
@@ -105,7 +104,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
               tamanho: s?.tamanho ?? null,
               categoria: s?.categoria ?? null,
               quantidade: i.quantidade,
-              valor_total: i.valor_total,
             };
           })
         : [
@@ -117,7 +115,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
               tamanho: null,
               categoria: null,
               quantidade: 1,
-              valor_total: Number(pedido.valor_fornecedor ?? 0),
             },
           ];
 

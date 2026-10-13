@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 const SKU_FIELDS = `
   id, sku, nome_produto, cor, tamanho, status, fornecedor_id, fornecedor_org_id, org_id,
-  estoque_atual, estoque_minimo, custo_base, custo_dropcore, peso_kg, categoria,
+  estoque_atual, estoque_minimo, custo_base, peso_kg, categoria,
   dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, descricao, criado_em
 `;
 

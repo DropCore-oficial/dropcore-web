@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 const SKU_FIELDS = `
   id, sku, nome_produto, cor, tamanho, status, fornecedor_id, fornecedor_org_id, org_id,
-  estoque_atual, estoque_minimo, custo_base, custo_dropcore, peso_kg, categoria,
+  estoque_atual, estoque_minimo, custo_base, peso_kg, categoria,
   dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao,
   ncm, origem, cest, peso_liquido_kg, peso_bruto_kg, criado_em,
   expedicao_override_linha, detalhes_produto_json
@@ -106,7 +106,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       "peso_kg",
       "estoque_atual",
       "custo_base",
-      "custo_dropcore",
       "categoria",
       "dimensoes_pacote",
       "comprimento_cm",
@@ -137,7 +136,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       "cest",
       "expedicao_override_linha",
     ] as const;
-    const numFields = ["comprimento_cm", "largura_cm", "altura_cm", "peso_kg", "peso_liquido_kg", "peso_bruto_kg", "estoque_atual", "custo_base", "custo_dropcore"] as const;
+    const numFields = ["comprimento_cm", "largura_cm", "altura_cm", "peso_kg", "peso_liquido_kg", "peso_bruto_kg", "estoque_atual", "custo_base"] as const;
 
     for (const k of allowed) {
       if (!(k in body)) continue;
@@ -163,7 +162,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { data: sku, error: skuErr } = await supabaseAdmin
       .from("skus")
       .select(
-        "id, sku, nome_produto, cor, tamanho, descricao, imagem_url, peso_kg, estoque_atual, custo_base, custo_dropcore, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, ncm, origem, cest, peso_liquido_kg, peso_bruto_kg, expedicao_override_linha, detalhes_produto_json"
+        "id, sku, nome_produto, cor, tamanho, descricao, imagem_url, peso_kg, estoque_atual, custo_base, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, ncm, origem, cest, peso_liquido_kg, peso_bruto_kg, expedicao_override_linha, detalhes_produto_json"
       )
       .eq("id", skuId)
       .eq("org_id", ctx.org_id)

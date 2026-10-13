@@ -30,7 +30,7 @@ function iniciaisFromNome(nome: string | null | undefined): string {
 
 const SKU_FIELDS = `
   id, sku, nome_produto, cor, tamanho, status, fornecedor_id, fornecedor_org_id, org_id,
-  estoque_atual, estoque_minimo, custo_base, custo_dropcore, peso_kg, categoria,
+  estoque_atual, estoque_minimo, custo_base, peso_kg, categoria,
   dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao,
   marca, data_lancamento,
   ncm, origem, cest, peso_liquido_kg, peso_bruto_kg, criado_em,
@@ -48,7 +48,6 @@ const CAMPOS_PROPOSTOS_SKU = new Set([
   "estoque_atual",
   "estoque_minimo",
   "custo_base",
-  "custo_dropcore",
   "categoria",
   "dimensoes_pacote",
   "comprimento_cm",
