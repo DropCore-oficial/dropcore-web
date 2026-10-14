@@ -5,8 +5,15 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { cn } from "@/lib/utils";
 import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY } from "@/lib/semanticPremium";
+import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS } from "@/lib/modalOverlay";
 import { SellerBlingConnectGuidePanel } from "@/components/seller/SellerBlingConnectGuidePanel";
 import { Skeleton } from "@/components/ui/Skeleton";
+
+type PendingBlingConnection = {
+  confirm_token: string;
+  bling_company_id: string | null;
+  bling_company_name: string | null;
+};
 
 type BlingStatus = {
   bling_unavailable: boolean;
@@ -31,6 +38,8 @@ export function SellerBlingIntegrationPanel({ switcher }: { switcher?: ReactNode
   const [status, setStatus] = useState<BlingStatus | null>(null);
   const [companyIdInput, setCompanyIdInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [pendingConnection, setPendingConnection] = useState<PendingBlingConnection | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const exchangedCode = useRef<string | null>(null);
 
   const load = useCallback(async () => {
@@ -70,6 +79,12 @@ export function SellerBlingIntegrationPanel({ switcher }: { switcher?: ReactNode
             const json = await res.json().catch(() => ({}));
             if (!res.ok) {
               setError(json.error ?? "Não foi possível concluir a conexão com o Bling.");
+            } else if (json?.confirm_token) {
+              setPendingConnection({
+                confirm_token: json.confirm_token,
+                bling_company_id: json.bling_company_id ?? null,
+                bling_company_name: json.bling_company_name ?? null,
+              });
             }
           } catch {
             setError("Não foi possível concluir a conexão com o Bling.");
@@ -83,6 +98,34 @@ export function SellerBlingIntegrationPanel({ switcher }: { switcher?: ReactNode
 
     void bootstrap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const confirmarConexao = useCallback(async () => {
+    if (!pendingConnection) return;
+    const token = await getAccessToken();
+    if (!token) return;
+    setConfirming(true);
+    try {
+      const res = await fetch("/api/seller/bling/oauth/confirmar", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm_token: pendingConnection.confirm_token }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(json.error ?? "Não foi possível concluir a conexão com o Bling.");
+      } else {
+        setError(null);
+        await load();
+      }
+    } finally {
+      setPendingConnection(null);
+      setConfirming(false);
+    }
+  }, [pendingConnection, load]);
+
+  const cancelarConexaoPendente = useCallback(() => {
+    setPendingConnection(null);
   }, []);
 
   const salvarCompanyId = useCallback(async () => {
@@ -242,6 +285,49 @@ export function SellerBlingIntegrationPanel({ switcher }: { switcher?: ReactNode
           </div>
         </div>
       )}
+
+      {pendingConnection ? (
+        <div className={MODAL_OVERLAY_CLASS}>
+          <div className={MODAL_PANEL_CLASS}>
+            <div className="space-y-4 p-5">
+              <div>
+                <p className="text-sm font-semibold text-[var(--foreground)]">Confirmar conexão com o Bling</p>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+                  Antes de vincular, confira se esta é a empresa certa — a conexão passa a compartilhar pedidos e
+                  estoque com ela.
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted)]">Empresa detectada</p>
+                <p className="mt-1 font-semibold text-[var(--foreground)]">
+                  {pendingConnection.bling_company_name ?? "Nome não disponível"}
+                </p>
+                {pendingConnection.bling_company_id ? (
+                  <p className="mt-0.5 text-xs text-[var(--muted)]">ID: {pendingConnection.bling_company_id}</p>
+                ) : null}
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={cancelarConexaoPendente}
+                  disabled={confirming}
+                  className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60 sm:w-auto"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void confirmarConexao()}
+                  disabled={confirming}
+                  className="w-full rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 sm:w-auto"
+                >
+                  {confirming ? "Confirmando..." : "Confirmar e conectar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

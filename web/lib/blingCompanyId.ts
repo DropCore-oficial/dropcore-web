@@ -81,6 +81,46 @@ export async function resolveBlingCompanyId(accessToken: string): Promise<string
   return fetchCompanyIdFromBlingApi(accessToken);
 }
 
+function findCompanyNameInObject(value: unknown, depth = 0): string | null {
+  if (depth > 6) return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findCompanyNameInObject(item, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (!value || typeof value !== "object") return null;
+
+  const record = value as Record<string, unknown>;
+  for (const key of ["nomeFantasia", "fantasia", "razaoSocial", "nome"]) {
+    const raw = record[key];
+    if (typeof raw === "string" && raw.trim()) return raw.trim().slice(0, 200);
+  }
+
+  for (const nested of Object.values(record)) {
+    const found = findCompanyNameInObject(nested, depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Nome legível da empresa Bling, pra mostrar numa tela de confirmação antes de linkar a conta. */
+export async function resolveBlingCompanyName(accessToken: string): Promise<string | null> {
+  const res = await fetch(`${BLING_API_ORIGIN}/Api/v3/empresas/dados-basicos`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken.trim()}`,
+      Accept: "application/json",
+      "enable-jwt": "1",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const json = (await res.json().catch(() => null)) as unknown;
+  return findCompanyNameInObject(json);
+}
+
 export function isBlingClientIdMisusedAsCompanyId(companyId: string | null | undefined): boolean {
   const clientId = process.env.BLING_CLIENT_ID?.trim().toLowerCase() ?? "";
   const normalized = companyId?.trim().toLowerCase() ?? "";

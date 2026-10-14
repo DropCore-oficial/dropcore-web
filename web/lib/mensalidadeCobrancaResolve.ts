@@ -27,6 +27,26 @@ function emailParaMp(email: string | null | undefined, userEmail: string | null 
   return null;
 }
 
+/**
+ * Claim atômico: duplo clique (ou duas abas, ou tentar PIX e cartão quase juntos) não pode
+ * gerar duas cobranças reais pra mesma mensalidade. Reivindica só se ninguém começou a gerar
+ * nos últimos 2 min — reaproveita a mesma coluna usada pelo fluxo de PIX direto
+ * (`/mensalidades/[id]/cobranca-pix`), já que o propósito é o mesmo (travar qualquer início
+ * de cobrança concorrente), não é exclusivo de PIX apesar do nome.
+ */
+async function claimMensalidadeParaCobranca(mensalidadeId: string): Promise<boolean> {
+  const now = new Date().toISOString();
+  const doisMinAtras = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const { data: claimedRows, error } = await supabaseAdmin
+    .from("financial_mensalidades")
+    .update({ cobranca_pix_iniciada_em: now })
+    .eq("id", mensalidadeId)
+    .or(`cobranca_pix_iniciada_em.is.null,cobranca_pix_iniciada_em.lt.${doisMinAtras}`)
+    .select("id");
+  if (error) return false;
+  return Boolean(claimedRows?.length);
+}
+
 export async function resolveMensalidadeCobranca(
   token: string | null,
   tipoPortal: "seller" | "fornecedor",
@@ -85,6 +105,13 @@ export async function resolveMensalidadeCobranca(
     if (m.status !== "pendente" && m.status !== "inadimplente") {
       return { ok: false, status: 400, error: "Esta mensalidade já foi paga." };
     }
+    if (!(await claimMensalidadeParaCobranca(m.id))) {
+      return {
+        ok: false,
+        status: 409,
+        error: "Já tem uma cobrança sendo gerada pra esta mensalidade. Aguarde um instante.",
+      };
+    }
 
     return {
       ok: true,
@@ -136,6 +163,13 @@ export async function resolveMensalidadeCobranca(
   }
   if (m.status !== "pendente" && m.status !== "inadimplente") {
     return { ok: false, status: 400, error: "Esta mensalidade já foi paga." };
+  }
+  if (!(await claimMensalidadeParaCobranca(m.id))) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Já tem uma cobrança sendo gerada pra esta mensalidade. Aguarde um instante.",
+    };
   }
 
   return {

@@ -17,6 +17,7 @@ import {
   mlBuscarItemTituloEstado,
   mlAtualizarPrecoSeguro,
 } from "@/lib/mercadoLivreApiClient";
+import { montarResultadoAds } from "@/lib/ai/gestorAdsDados";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,9 +58,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Recurso não disponível." }, { status: 403 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { item_id?: string; preco_novo?: number };
+  const body = (await req.json().catch(() => ({}))) as {
+    item_id?: string;
+    preco_novo?: number;
+    confirmar_abaixo_minimo?: boolean;
+  };
   const itemId = body.item_id?.trim();
   const precoNovo = body.preco_novo;
+  const confirmarAbaixoMinimo = body.confirmar_abaixo_minimo === true;
   if (!itemId || typeof precoNovo !== "number" || !Number.isFinite(precoNovo) || precoNovo <= 0) {
     return NextResponse.json({ error: "item_id e preco_novo (número > 0) são obrigatórios." }, { status: 400 });
   }
@@ -89,6 +95,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Esse anúncio não pertence à sua conta do Mercado Livre." }, { status: 403 });
   }
 
+  // Preço mínimo seguro é lógica de negócio — nunca confiar no que o front manda de volta,
+  // recalcula aqui antes de decidir se fura a margem mínima ou não (mesmo guard-rail já
+  // aplicado em ulisses-aplicar-preco-seguro-lote; faltava neste de item único).
+  const resultadoAds = await montarResultadoAds(seller.id);
+  const precoMinimoSeguro = resultadoAds?.skus.find((s) => s.item_id === itemId)?.preco_minimo_seguro ?? null;
+  const furouMinimo = precoMinimoSeguro != null && precoNovo < precoMinimoSeguro;
+  if (furouMinimo && !confirmarAbaixoMinimo) {
+    return NextResponse.json(
+      {
+        error: "Esse preço fura a margem mínima segura deste anúncio.",
+        requer_confirmacao: true,
+        preco_minimo_seguro: precoMinimoSeguro,
+      },
+      { status: 409 }
+    );
+  }
+
   const resultado = await mlAtualizarPrecoSeguro(itemId, precoNovo, ctx);
   if (!resultado.ok) {
     await registrarAcao({
@@ -110,7 +133,12 @@ export async function POST(req: Request) {
     actorUserId: seller.user_id ?? null,
     itemId,
     status: "executado",
-    detalhes: { preco_novo: precoNovo, age_group_corrigido: resultado.ageGroupCorrigido },
+    detalhes: {
+      preco_novo: precoNovo,
+      age_group_corrigido: resultado.ageGroupCorrigido,
+      preco_minimo_seguro: precoMinimoSeguro,
+      furou_minimo: furouMinimo,
+    },
   });
 
   return NextResponse.json({ ok: true, preco: precoNovo });

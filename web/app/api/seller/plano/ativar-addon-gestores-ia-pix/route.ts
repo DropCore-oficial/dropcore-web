@@ -80,6 +80,12 @@ export async function POST(req: Request) {
       .single();
 
     if (insertErr || !row) {
+      if (insertErr?.code === "23505") {
+        return NextResponse.json(
+          { error: "Já existe um PIX de ativação pendente. Conclua o pagamento ou aguarde alguns minutos após expirar para gerar outro." },
+          { status: 409 }
+        );
+      }
       return NextResponse.json({ error: insertErr?.message ?? "Erro ao registrar cobrança." }, { status: 500 });
     }
 

@@ -78,6 +78,12 @@ export async function POST(req: Request) {
       .select("id, valor, criado_em")
       .single();
     if (insertErr || !row) {
+      if (insertErr?.code === "23505") {
+        return NextResponse.json(
+          { error: "Já existe um PIX de crédito extra pendente. Conclua o pagamento ou aguarde expirar pra gerar outro." },
+          { status: 409 }
+        );
+      }
       return NextResponse.json({ error: insertErr?.message ?? "Erro ao registrar cobrança." }, { status: 500 });
     }
 

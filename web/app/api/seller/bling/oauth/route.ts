@@ -1,19 +1,25 @@
 /**
- * POST /api/seller/bling/oauth — Troca authorization_code do Bling por tokens e persiste por seller.
+ * POST /api/seller/bling/oauth — Troca authorization_code do Bling por tokens e resolve a
+ * empresa, mas NÃO salva ainda — devolve um `confirm_token` pra POST /api/seller/bling/oauth/confirmar.
+ *
+ * Por quê: diferente do Mercado Livre, o DropCore não controla o início do fluxo OAuth do
+ * Bling (o seller autoriza inteiramente dentro do painel do Bling, sem passar por uma URL
+ * que o DropCore gera) — não dá pra usar o mesmo par state+cookie anti-CSRF. Sem isso, um
+ * atacante podia pegar um `code` da própria conta Bling dele e induzir a vítima (autenticada
+ * no DropCore) a completar o link, linkando a empresa Bling do atacante ao seller da vítima.
+ * Mitigação real aqui: nunca salvar em silêncio — resolver a empresa primeiro e exigir
+ * confirmação explícita do seller vendo o nome dela antes de persistir (achado 2026-10-13).
  */
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import {
-  computeBlingAccessTokenExpiresAt,
-  exchangeBlingAuthorizationCode,
-} from "@/lib/blingOAuth";
-import { resolveBlingCompanyId, pickBlingCompanyIdForStorage } from "@/lib/blingCompanyId";
+import { exchangeBlingAuthorizationCode } from "@/lib/blingOAuth";
+import { resolveBlingCompanyId, resolveBlingCompanyName } from "@/lib/blingCompanyId";
 import { getSellerFromToken } from "@/lib/sellerBlingAuth";
 import { encryptSellerErpSecret } from "@/lib/sellerErpSecretBox";
-import { logAdminAction } from "@/lib/adminAuditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const CONFIRM_TOKEN_VALIDADE_MS = 10 * 60 * 1000;
 
 function normalizeAuthorizationCode(raw: string): string {
   return raw.trim().slice(0, 512);
@@ -33,74 +39,28 @@ export async function POST(req: Request) {
     }
 
     const tokens = await exchangeBlingAuthorizationCode(code);
-    const expiresAt = computeBlingAccessTokenExpiresAt(tokens.expires_in);
-    const resolvedCompanyId = await resolveBlingCompanyId(tokens.access_token);
+    const [resolvedCompanyId, resolvedCompanyName] = await Promise.all([
+      resolveBlingCompanyId(tokens.access_token),
+      resolveBlingCompanyName(tokens.access_token).catch(() => null),
+    ]);
 
-    const { data: existing, error: existingErr } = await supabaseAdmin
-      .from("seller_bling_integrations")
-      .select("bling_company_id")
-      .eq("seller_id", seller.id)
-      .maybeSingle();
-
-    if (existingErr) {
-      const msg = String(existingErr.message ?? "").toLowerCase();
-      const codeErr = String((existingErr as { code?: string }).code ?? "");
-      const tabelaInexistente =
-        msg.includes("does not exist") ||
-        msg.includes("schema cache") ||
-        codeErr === "42P01" ||
-        codeErr === "PGRST205";
-      if (tabelaInexistente) {
-        return NextResponse.json(
-          { error: "Execute os scripts add-seller-bling.sql e add-seller-bling-oauth.sql no Supabase." },
-          { status: 503 },
-        );
-      }
-      console.error("[seller/bling/oauth POST lookup]", existingErr.message);
-      return NextResponse.json({ error: "Erro ao ler integração Bling." }, { status: 500 });
-    }
-
-    const companyIdToSave = pickBlingCompanyIdForStorage(existing?.bling_company_id, resolvedCompanyId);
-
-    const { error: upErr } = await supabaseAdmin.from("seller_bling_integrations").upsert(
-      {
-        seller_id: seller.id,
-        org_id: seller.org_id,
-        bling_company_id: companyIdToSave,
-        bling_access_token: encryptSellerErpSecret(tokens.access_token),
-        bling_refresh_token: tokens.refresh_token ? encryptSellerErpSecret(tokens.refresh_token) : null,
-        bling_access_token_expires_at: expiresAt,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "seller_id" },
-    );
-
-    if (upErr) {
-      const msg = String(upErr.message ?? "").toLowerCase();
-      if (msg.includes("does not exist") || msg.includes("bling_access_token")) {
-        return NextResponse.json(
-          { error: "Execute o script add-seller-bling-oauth.sql no Supabase." },
-          { status: 503 },
-        );
-      }
-      console.error("[seller/bling/oauth POST]", upErr.message);
-      return NextResponse.json({ error: "Erro ao salvar tokens do Bling." }, { status: 500 });
-    }
-
-    await logAdminAction({
-      req,
-      orgId: seller.org_id,
-      actorUserId: seller.user_id,
-      action: "erp.bling.conectar_oauth",
-      targetTable: "seller_bling_integrations",
-      targetId: seller.id,
-    });
+    const pending = {
+      seller_id: seller.id,
+      org_id: seller.org_id,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token ?? null,
+      expires_in: tokens.expires_in ?? null,
+      company_id: resolvedCompanyId,
+      exp: Date.now() + CONFIRM_TOKEN_VALIDADE_MS,
+    };
+    const confirmToken = encryptSellerErpSecret(JSON.stringify(pending));
 
     return NextResponse.json({
       ok: true,
-      oauth_connected: true,
-      bling_company_id: companyIdToSave,
-      access_token_expires_at: expiresAt,
+      pending: true,
+      bling_company_id: resolvedCompanyId,
+      bling_company_name: resolvedCompanyName,
+      confirm_token: confirmToken,
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Erro inesperado";

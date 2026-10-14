@@ -63,6 +63,23 @@ export async function resolveDepositoCobranca(
     return { ok: false, status: 400, error: "Esta recarga não está configurada para cartão." };
   }
 
+  // Claim atômico: duplo clique não pode cobrar o cartão duas vezes pro mesmo depósito.
+  const now = new Date().toISOString();
+  const doisMinAtras = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const { data: claimedRows, error: claimErr } = await supabaseAdmin
+    .from("seller_depositos_pix")
+    .update({ cobranca_cartao_iniciada_em: now })
+    .eq("id", depositoId)
+    .or(`cobranca_cartao_iniciada_em.is.null,cobranca_cartao_iniciada_em.lt.${doisMinAtras}`)
+    .select("id");
+  if (claimErr || !claimedRows?.length) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Já tem uma cobrança sendo gerada pra essa recarga. Aguarde um instante.",
+    };
+  }
+
   return {
     ok: true,
     org_id: seller.org_id,

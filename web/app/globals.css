@@ -36,6 +36,19 @@ html[data-version-banner] .min-h-screen.app-bg {
     padding-left: 15rem;
   }
 }
+
+/* Mesmo offset do rail, mas sem o gradiente de fundo do `.app-bg` — pra página que precisa de
+   fundo próprio (ex.: `.app/seller/dashboard`, achado 2026-10-14: a página tinha `bg-[#fafafa]
+   dark:bg-[#0a0a0b]` inline sem nenhuma classe reservando espaço pro rail, cortando o conteúdo
+   em telas de ~1024-1280px, onde a margem de centralização do shell ainda não escapa do rail). */
+@media (min-width: 768px) {
+  html[data-seller-sidebar] .seller-rail-offset {
+    padding-left: 4rem;
+  }
+  html[data-seller-sidebar-expanded] .seller-rail-offset {
+    padding-left: 15rem;
+  }
+}
 /* Tabelas / blocos largos: scroll horizontal com inércia no iOS */
 .dropcore-scroll-x {
   width: 100%;

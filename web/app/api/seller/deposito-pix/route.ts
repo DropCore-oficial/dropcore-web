@@ -79,6 +79,31 @@ export async function POST(req: Request) {
     const aceiteEm = new Date().toISOString();
     const metodo = body?.metodo === "cartao" ? "cartao" : "pix";
 
+    /**
+     * Duplo clique não pode gerar duas cobranças reais pro mesmo valor/método em sequência —
+     * essa rota (diferente das de PIX "singleton" como upgrade de plano) permite
+     * legitimamente vários pendentes ao mesmo tempo (seller pode querer duas recargas de
+     * valores diferentes), então não dá pra travar com índice único — só bloqueia repetição
+     * exata nos últimos 15s, que é o padrão real de duplo clique.
+     */
+    const quinzeSegAtras = new Date(Date.now() - 15 * 1000).toISOString();
+    const { data: duplicataRecente } = await supabaseAdmin
+      .from("seller_depositos_pix")
+      .select("id")
+      .eq("seller_id", seller.id)
+      .eq("status", "pendente")
+      .eq("metodo", metodo)
+      .eq("valor", valor)
+      .gte("criado_em", quinzeSegAtras)
+      .limit(1)
+      .maybeSingle();
+    if (duplicataRecente?.id) {
+      return NextResponse.json(
+        { error: "Essa recarga já foi solicitada há poucos segundos. Confira antes de pedir de novo." },
+        { status: 409 }
+      );
+    }
+
     // Cartão: só cria o depósito pendente aqui — a cobrança de verdade acontece em
     // /api/seller/deposito-pix/[id]/cobranca-cartao, depois que o Card Brick devolve o
     // token (a taxa por parcela só é conhecida quando o seller escolhe o parcelamento lá).

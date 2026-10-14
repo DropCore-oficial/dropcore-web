@@ -1199,6 +1199,45 @@ por fornecedor/admin/checker automático) ganhou o mesmo tipo de claim — `.eq(
 + checar se a linha foi realmente afetada antes de seguir pro ledger/evento — pra corrida
 entre clique manual e checker automático não duplicar evento de auditoria.
 
+## `ux_seller_depositos_pix_singleton_pendente` + `cobranca_cartao_iniciada_em` — race conditions do seller (2026-10-14)
+
+**Achado** (auditoria de lógica de backend das rotas `/api/seller/*`, mesma varredura que já
+tinha corrigido Fornecedor e Admin): `plano/upgrade-pro-pix`, `plano/ativar-addon-gestores-ia-pix`
+e `gestores-ia/tiago/credito-extra-pix` conferiam "já existe um PIX pendente desse tipo?" e só
+depois inseriam — duplo clique podia passar pelos dois e gerar duas cobranças PIX reais do
+mesmo tipo (`referencia` fixa) pro mesmo seller. Corrigido com
+`CREATE UNIQUE INDEX ux_seller_depositos_pix_singleton_pendente ON seller_depositos_pix
+(seller_id, referencia) WHERE status = 'pendente' AND referencia IN ('UPGRADE_PRO',
+'ADDON_GESTORES_IA', 'CREDITO_CHAT_IA')` (`web/scripts/fix-race-seller-depositos-pix-singleton-pendente.sql`,
+sem conflito — confirmado 0 duplicatas antes de aplicar, testado ao vivo que a 2ª tentativa
+quebra com `23505`); as 3 rotas capturam o código e devolvem 409 amigável. **Não se aplica**
+à recarga comum (`deposito-pix/route.ts`) — ali um seller pode legitimamente ter vários PIX
+pendentes de valores diferentes ao mesmo tempo, então o índice não cobre esse caso; a
+correção lá foi só em código (bloqueia repetição exata de seller+valor+método nos últimos 15s).
+
+Mesma auditoria achou `depositoPixCobrancaResolve.ts` (cobrança por cartão de um depósito já
+existente) sem claim atômico — duplo clique podia cobrar o cartão duas vezes pro mesmo
+depósito. Corrigido com coluna nova `seller_depositos_pix.cobranca_cartao_iniciada_em`
+(timestamptz, nullable) + update condicional (janela de 2 min), mesmo padrão já usado em
+`financial_mensalidades.cobranca_pix_iniciada_em`. `mensalidadeCobrancaResolve.ts` (resolver
+compartilhado seller+fornecedor de cobrança cartão/checkout) e
+`/api/seller/mensalidades/[id]/cobranca-pix` ganharam o mesmo claim reaproveitando essa
+coluna já existente (propósito igual, apesar do nome ser "pix").
+
+Também corrigido na mesma passada, sem precisar de banco:
+- **CSRF real no OAuth do Bling** (P0) — diferente do Mercado Livre, o DropCore não controla
+  o início do fluxo (o seller autoriza inteiramente dentro do painel do Bling), então o
+  padrão state+cookie do ML não serve aqui. Mitigação: `/api/seller/bling/oauth` não salva
+  mais em silêncio — resolve a empresa (nome + ID) e devolve um `confirm_token` criptografado
+  (`encryptSellerErpSecret`, mesma chave já usada pros tokens ERP); só
+  `/api/seller/bling/oauth/confirmar` persiste, depois do seller confirmar vendo o nome da
+  empresa. Token embute `seller_id` (confere contra quem está autenticado) + expiração de 10
+  min; adulteração quebra o auth tag do AES-GCM (testado).
+- **Guard-rail de margem ausente em `ulisses-aplicar-preco-seguro`** (item único) — as rotas
+  irmãs (lote, promoção, lightning) recalculam o preço mínimo seguro no servidor antes de
+  aplicar; essa não recalculava nada, confiava 100% no `preco_novo` do front. Alinhada ao
+  mesmo padrão (sem caller no front hoje, mas a rota continua exposta/chamável).
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

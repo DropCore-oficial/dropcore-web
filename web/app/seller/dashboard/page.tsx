@@ -1049,8 +1049,11 @@ export default function SellerDashboardPage() {
   }
 
   return (
-    <div className="bg-[#fafafa] dark:bg-[#0a0a0b] text-[var(--foreground)] pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
-      {/* Teste visual "estilo Atendro" — fundo liso local nesta página, .app-bg global não foi tocado. */}
+    <div className="seller-rail-offset bg-[#fafafa] dark:bg-[#0a0a0b] text-[var(--foreground)] pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
+      {/* Teste visual "estilo Atendro" — fundo liso local nesta página, .app-bg global não foi
+          tocado. `.seller-rail-offset` (globals.css) reaproveita só o padding-left do rail fixo,
+          sem o gradiente de fundo do `.app-bg` — achado 2026-10-14: sem isso o conteúdo ficava
+          cortado sob o rail em telas de ~1024-1280px. */}
       <div className="dropcore-shell-6xl py-5 md:py-7 space-y-5 md:space-y-6">
         {/* 1. Header — mesmo cartão do painel fornecedor (mobile/desktop) */}
         <header className="rounded-2xl border border-[var(--card-border)]/60 bg-[var(--card)] p-4 sm:p-5 overflow-visible">

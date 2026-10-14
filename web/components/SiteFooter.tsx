@@ -85,7 +85,7 @@ export function SiteFooter({
 }) {
   const ano = new Date().getFullYear();
   return (
-    <footer className="w-full bg-[#FFFFFF] dark:bg-black">
+    <footer className="seller-rail-offset w-full bg-[#FFFFFF] dark:bg-black">
       <div
         className="hidden h-0.5 w-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 dark:block"
         aria-hidden
