@@ -74,15 +74,25 @@ export async function PATCH(
       }
     }
 
-    // Atualiza o status do ledger original
-    const { error: updateErr } = await supabaseAdmin
+    // Atualiza o status do ledger original — claim atômico (.eq("status", current)) pra duas
+    // chamadas concorrentes (duplo clique) não passarem as duas e, no caso de DEVOLVIDO,
+    // criarem dois lançamentos de devolução duplicando o crédito ao seller.
+    const { data: claimedRows, error: updateErr } = await supabaseAdmin
       .from("financial_ledger")
       .update({ status })
       .eq("id", id)
-      .eq("org_id", org_id);
+      .eq("org_id", org_id)
+      .eq("status", current)
+      .select("id");
 
     if (updateErr) {
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    }
+    if (!claimedRows?.length) {
+      return NextResponse.json(
+        { error: "O status já foi alterado por outra operação. Recarregue e confira o estado atual." },
+        { status: 409 }
+      );
     }
 
     // Ao confirmar DEVOLVIDO: cria lançamento DEVOLUCAO para devolver o valor ao saldo do seller

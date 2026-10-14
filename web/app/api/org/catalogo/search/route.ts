@@ -62,7 +62,7 @@ export async function GET(req: Request) {
     const rawItems = data ?? [];
     const items = isOperacional
       ? rawItems.map((row: Record<string, unknown>) => {
-          const { custo_base: _, ...rest } = row;
+          const { custo_base: _cb, custo_dropcore: _cd, ...rest } = row;
           return rest;
         })
       : rawItems;

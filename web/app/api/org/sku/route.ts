@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: Request) {
   try {
-    const { org_id } = await getMe(req);
+    const { org_id, role_base } = await getMe(req);
 
     const { data, error } = await supabaseAdmin
       .from("skus")
@@ -44,7 +44,13 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(data || []);
+    // Staff operacional não vê custo (base nem margem DropCore) — só owner/admin.
+    const items =
+      role_base === "operacional"
+        ? (data ?? []).map(({ custo_base: _cb, custo_dropcore: _cd, ...rest }) => rest)
+        : data ?? [];
+
+    return NextResponse.json(items);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro no GET /api/org/sku";
     const status = msg === "Unauthorized" || msg === "Usuário sem organização." ? 401 : msg === "Sem permissão." ? 403 : 500;

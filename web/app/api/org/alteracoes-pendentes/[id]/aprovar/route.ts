@@ -120,6 +120,31 @@ export async function POST(
         });
       }
 
+      const { data: ownerMember } = await supabaseAdmin
+        .from("org_members")
+        .select("user_id")
+        .eq("org_id", org_id)
+        .eq("role_base", "owner")
+        .limit(1)
+        .maybeSingle();
+
+      // Achado na auditoria de backend do admin (2026-10-13): esse branch excluía o grupo mas
+      // nunca fechava a solicitação — ficava "pendente" pra sempre, reaparecendo na lista mesmo
+      // já resolvida.
+      const { error: statusErrExclusao } = await supabaseAdmin
+        .from("sku_alteracoes_pendentes")
+        .update({
+          status: "aprovado",
+          analisado_em: new Date().toISOString(),
+          analisado_por: ownerMember?.user_id ?? null,
+        })
+        .eq("id", id)
+        .eq("org_id", org_id);
+
+      if (statusErrExclusao) {
+        return NextResponse.json({ error: statusErrExclusao.message }, { status: 500 });
+      }
+
       return NextResponse.json({ ok: true, mensagem: "Grupo excluído do catálogo." });
     }
 
