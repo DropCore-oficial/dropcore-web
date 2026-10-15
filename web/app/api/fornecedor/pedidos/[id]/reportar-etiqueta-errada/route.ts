@@ -80,6 +80,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         etiqueta_pdf_base64: null,
         etiqueta_alerta_enviado_em: null,
         etiqueta_impressa_em: null,
+        etiqueta_liberada_em: null,
       })
       .eq("id", pedido_id);
 

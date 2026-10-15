@@ -135,7 +135,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const { error: updateErr } = await supabaseAdmin
       .from("pedidos")
-      .update({ etiqueta_pdf_base64: base64 })
+      .update({ etiqueta_pdf_base64: base64, etiqueta_liberada_em: new Date().toISOString() })
       .eq("id", pedido_id);
 
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });

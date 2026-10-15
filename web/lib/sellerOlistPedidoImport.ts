@@ -142,6 +142,7 @@ export async function tryAttachOlistEtiquetaPdf(params: {
       .from("pedidos")
       .update({
         etiqueta_pdf_base64: b64,
+        etiqueta_liberada_em: new Date().toISOString(),
         atualizado_em: new Date().toISOString(),
       })
       .eq("id", params.pedido_id)

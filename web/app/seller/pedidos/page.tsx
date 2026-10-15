@@ -76,6 +76,8 @@ type Pedido = {
   itens: PedidoItem[];
   tem_etiqueta: boolean;
   etiqueta_tentativas: number;
+  etiqueta_impressa_em?: string | null;
+  etiqueta_liberada_em?: string | null;
   is_reserva?: boolean;
   canal_venda?: string | null;
   etiqueta_ml_previsao?: string | null;
@@ -148,6 +150,14 @@ const STATUS_PILL: Record<string, string> = {
 // transportadora, então nem faz sentido usar âmbar (que aqui sempre significa "precisa agir").
 const ML_BUFFER_BADGE_CLASS = "bg-violet-100 text-violet-900 dark:bg-violet-950/40 dark:text-violet-300";
 const ML_BUFFER_SURFACE_TRANSPARENT = "border border-violet-500/40 bg-transparent dark:border-violet-400/45 dark:bg-transparent";
+
+// Selo de "etiqueta recém-liberada, ainda não impressa" — mesmo pedido que acabou de sair
+// do buffer (ou chegou agora por qualquer caminho) priorizado no topo da lista
+// (fn_seller_pedidos_lista); emerald porque é notícia boa, já pode avisar o fornecedor.
+const ETIQUETA_LIBERADA_BADGE_CLASS = "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300";
+function etiquetaRecemLiberada(p: Pedido): boolean {
+  return p.status === "enviado" && p.tem_etiqueta && !p.etiqueta_impressa_em && Boolean(p.etiqueta_liberada_em);
+}
 const ML_BUFFER_SHELL =
   "border border-violet-500/30 bg-violet-500/15 ring-1 ring-violet-500/10 dark:border-violet-400/40 dark:bg-violet-500/12 dark:ring-violet-400/15";
 const ML_BUFFER_TEXT_PRIMARY = "text-violet-900 dark:text-violet-300";
@@ -472,17 +482,31 @@ export default function SellerPedidosPage() {
                       <p className="font-medium text-[var(--foreground)]">{tituloPedido(p)}</p>
                       <p className="mt-1 text-sm text-neutral-500">{formatDate(p.criado_em)}</p>
                     </div>
-                    <span
-                      className={cn(
-                        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
-                        etiquetaEmBufferMl
-                          ? ML_BUFFER_BADGE_CLASS
-                          : STATUS_PILL[p.status] ?? "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
-                      )}
-                    >
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                      {etiquetaEmBufferMl ? "Etiqueta em buffer (ML)" : statusLabel[p.status] ?? p.status}
-                    </span>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <span
+                        className={cn(
+                          "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
+                          etiquetaEmBufferMl
+                            ? ML_BUFFER_BADGE_CLASS
+                            : STATUS_PILL[p.status] ?? "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                        )}
+                      >
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                        {etiquetaEmBufferMl ? "Etiqueta em buffer (ML)" : statusLabel[p.status] ?? p.status}
+                      </span>
+                      {etiquetaRecemLiberada(p) ? (
+                        <span
+                          className={cn(
+                            "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
+                            ETIQUETA_LIBERADA_BADGE_CLASS
+                          )}
+                          title="Etiqueta ficou pronta — fornecedor já pode imprimir e despachar."
+                        >
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                          Etiqueta liberada
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
                   <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">

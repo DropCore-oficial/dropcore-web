@@ -69,17 +69,20 @@ export async function GET(req: Request) {
           .from("pedidos")
           .select("id", { count: "exact", head: true })
           .eq("org_id", org_id)
+          .eq("e_teste", false)
           .gte("criado_em", hojeInicio)
           .lte("criado_em", hojeFim),
         supabase
           .from("pedidos")
           .select("id", { count: "exact", head: true })
           .eq("org_id", org_id)
+          .eq("e_teste", false)
           .eq("status", "enviado"),
         supabase
           .from("pedidos")
           .select("id", { count: "exact", head: true })
           .eq("org_id", org_id)
+          .eq("e_teste", false)
           .gte("criado_em", primeiroDiaMes)
           .or("status.eq.enviado,status.eq.aguardando_repasse,status.eq.entregue,status.eq.devolvido"),
         supabase.from("sku_alteracoes_pendentes").select("id", { count: "exact", head: true }).eq("org_id", org_id).eq("status", "pendente"),

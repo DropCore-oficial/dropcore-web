@@ -39,6 +39,11 @@ const STATUS_PILL: Record<string, string> = {
 const ML_BUFFER_BADGE_CLASS = "bg-violet-100 text-violet-900 dark:bg-violet-950/40 dark:text-violet-300";
 const ML_BUFFER_TEXT_PRIMARY = "text-violet-900 dark:text-violet-300";
 
+// Selo de "etiqueta recém-liberada, ainda não impressa" — mesmo pedido que acabou de sair
+// do buffer (ou chegou agora por qualquer caminho) priorizado no topo da lista
+// (fn_fornecedor_pedidos_lista); emerald porque é notícia boa, já pode imprimir.
+const ETIQUETA_LIBERADA_BADGE_CLASS = "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300";
+
 type PedidoItem = {
   sku: string;
   quantidade: number;
@@ -73,13 +78,12 @@ type Pedido = {
   criado_em: string;
   tem_etiqueta_oficial?: boolean;
   etiqueta_impressa_em?: string | null;
+  etiqueta_liberada_em?: string | null;
   canal_venda?: string | null;
   etiqueta_ml_previsao?: string | null;
   /** Vários order_id do ML podem ser o mesmo pacote/etiqueta — este card representa todos
    * esses ids (ver pedidos.marketplace_pack_id em docs/SCHEMA.md). Sem pack, é só `[id]`. */
   pack_pedido_ids: string[];
-  /** Pedido fictício (conta de teste) — nunca conta em soma real, só sinalizado aqui. */
-  e_teste?: boolean;
 };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -121,6 +125,13 @@ function tituloPedido(p: Pedido): string {
  * seleção em lote (checkbox individual e "selecionar todos"). */
 function emBufferMl(p: Pedido): boolean {
   return p.status === "enviado" && !p.tem_etiqueta_oficial && p.canal_venda === "mercado_livre";
+}
+
+/** Etiqueta já saiu do buffer (ou chegou de qualquer outro jeito) mas ainda não foi
+ * impressa — fica priorizado no topo da lista (ver fn_fornecedor_pedidos_lista) e ganha
+ * este selo pra ficar óbvio por que ele subiu. */
+function etiquetaRecemLiberada(p: Pedido): boolean {
+  return p.status === "enviado" && Boolean(p.tem_etiqueta_oficial) && !p.etiqueta_impressa_em && Boolean(p.etiqueta_liberada_em);
 }
 
 const statusLabel: Record<string, string> = {
@@ -699,13 +710,16 @@ export default function FornecedorPedidosPage() {
                         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
                         {emBufferMl(p) ? "Etiqueta em buffer (ML)" : statusLabel[p.status] ?? p.status}
                       </span>
-                      {p.e_teste ? (
+                      {etiquetaRecemLiberada(p) ? (
                         <span
-                          className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-neutral-100 px-2 py-1 text-[11px] font-medium text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400"
-                          title="Pedido de conta de teste — nunca conta em repasse ou saldo real."
+                          className={cn(
+                            "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
+                            ETIQUETA_LIBERADA_BADGE_CLASS
+                          )}
+                          title="Etiqueta ficou pronta — já dá pra imprimir e despachar."
                         >
                           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                          Pedido de teste
+                          Etiqueta liberada
                         </span>
                       ) : null}
                     </div>

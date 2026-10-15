@@ -1375,6 +1375,52 @@ sempre R$797,90):**
   explícita de manter manual), penalidade por quebra de contrato, proração ao trocar de ciclo
   no meio do período — nada disso foi pedido.
 
+## Pedido fake fora das métricas reais + etiqueta recém-liberada priorizada no topo (2026-10-15)
+
+Dois ajustes pedidos pelo Sr Stark na mesma sessão da investigação do pedido preso do Vinz
+Collection (ver `web/lib/etiquetaMlRetry.ts`, teto de retry 50→500):
+
+**1. Pedido de conta de teste (Segatto/Djulios, `e_teste=true`) parou de subir métrica/lista
+real** — só o fornecedor Djulios tinha pedido fake (817, confirmado por query), nenhum
+fornecedor real era afetado, mas mesmo assim:
+- `app/api/org/dashboard-stats/route.ts` — os 3 contadores que não filtravam
+  (`pedidos_aguardando_envio`, `pedidos_hoje`, `vendas_mes`) ganharam `.eq("e_teste", false)`.
+  `vendas_mes` era o mais sério — alimenta o limite real do plano Starter (200/mês).
+- `app/api/fornecedor/pedidos/route.ts` — lista do fornecedor (query principal + fallback)
+  também ganhou `.eq("e_teste", false)`; o badge "Pedido de teste" que existia em
+  `app/fornecedor/pedidos/page.tsx` foi removido por ficar morto (API nunca mais devolve
+  pedido de teste pra lá).
+- `/seller/pedidos` **não foi filtrado** de propósito — o seller Segatto (conta de
+  demonstração) ainda precisa ver os próprios pedidos fake pra servir de demo.
+
+**2. Etiqueta recém-liberada (saiu do buffer) sobe pro topo da lista** —
+`web/scripts/add-etiqueta-liberada-prioridade.sql`:
+- Coluna nova `pedidos.etiqueta_liberada_em timestamptz` — gravada uma única vez, no momento
+  em que `etiqueta_pdf_url`/`etiqueta_pdf_base64` deixam de ser null (sucesso do cron ML,
+  sucesso do cron Olist, ou colagem manual do seller via `/etiqueta-link`). Limpa de novo
+  (`null`) quando o fornecedor reporta "etiqueta errada"
+  (`reportar-etiqueta-errada/route.ts`), senão ficaria um timestamp velho pendurado numa
+  etiqueta que nem existe mais.
+- 2 RPCs novas (regra 9, `SECURITY DEFINER`, só `service_role`):
+  `fn_fornecedor_pedidos_lista(p_org_id, p_fornecedor_id, p_status, p_limit, p_offset)` e
+  `fn_seller_pedidos_lista(p_org_id, p_seller_id, p_status, p_limit, p_offset)` — mesmos
+  filtros que as rotas já tinham (incluindo o filtro sintético `etiqueta_buffer_ml` do
+  seller), só que a ordenação virou RPC porque o `CASE WHEN` de prioridade não dá pra fazer
+  só com `.order()` do PostgREST (não aceita expressão computada). Regra de prioridade (2
+  grupos, sem janela de tempo arbitrária — se autocorrige sozinho): quem tem `status=enviado`
+  + etiqueta pronta + `etiqueta_impressa_em` ainda null sobe pro topo, ordenado por
+  `etiqueta_liberada_em desc`; o resto (sem etiqueta ainda, já impressa, ou outro status)
+  continua por `criado_em desc`, como sempre foi.
+- `app/api/fornecedor/pedidos/route.ts` e `app/api/seller/pedidos/route.ts` trocaram o
+  `.from("pedidos")...order()...range()` (+ fallback de coluna ausente, que não existe mais
+  nas RPCs novas) pela chamada `supabaseAdmin.rpc(...)` — todo o pós-processamento que já
+  existia depois (agrupamento por `marketplace_pack_id`, join de `pedido_itens`, previsão de
+  etiqueta ML) ficou intocado, só a busca inicial mudou de fonte.
+- Selo visual "Etiqueta liberada" (emerald, `ETIQUETA_LIBERADA_BADGE_CLASS`) adicionado em
+  `app/fornecedor/pedidos/page.tsx` e `app/seller/pedidos/page.tsx`, ao lado do status pill,
+  nos pedidos que caem no grupo prioritário — a ordenação sozinha podia não deixar óbvio por
+  que o pedido subiu.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

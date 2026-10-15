@@ -120,7 +120,11 @@ export async function runEtiquetaMlRetry(): Promise<EtiquetaMlRetrySummary> {
     if (pdfBase64) {
       const { error: updateErr } = await supabaseAdmin
         .from("pedidos")
-        .update({ etiqueta_pdf_base64: pdfBase64, atualizado_em: new Date().toISOString() })
+        .update({
+          etiqueta_pdf_base64: pdfBase64,
+          etiqueta_liberada_em: new Date().toISOString(),
+          atualizado_em: new Date().toISOString(),
+        })
         .eq("id", pedido.id)
         .eq("org_id", pedido.org_id);
       if (updateErr) {

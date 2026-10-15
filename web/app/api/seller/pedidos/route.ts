@@ -23,6 +23,8 @@ type PedidoRow = {
   etiqueta_pdf_url: string | null;
   etiqueta_pdf_base64?: string | null;
   etiqueta_tentativas: number | null;
+  etiqueta_impressa_em?: string | null;
+  etiqueta_liberada_em?: string | null;
   motivo_bloqueio?: string | null;
   motivo_bloqueio_responsavel?: "seller" | "fornecedor" | null;
   cancelado_motivo?: string | null;
@@ -71,76 +73,35 @@ export async function GET(req: Request) {
     const somenteReservas = status === STATUS_AGUARDANDO_PAGAMENTO;
 
     let data: PedidoRow[] | null = [];
-    let error: { message: string; code?: string } | null = null;
     let pedidosCount = 0;
 
     if (!somenteReservas) {
       const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-      let query = supabaseAdmin
-        .from("pedidos")
-        .select(
-          "id, nome_produto, valor_total, preco_venda, status, motivo_bloqueio, motivo_bloqueio_responsavel, cancelado_motivo, criado_em, referencia_externa, tracking_codigo, metodo_envio, marketplace_numero, marketplace_pack_id, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, canal_venda, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_tentativas",
-          { count: "exact" }
-        )
-        .eq("org_id", seller.org_id)
-        .eq("seller_id", seller.id)
-        .order("criado_em", { ascending: false })
-        .range(from, to);
+      const pStatus = status === STATUS_ETIQUETA_BUFFER_ML
+        ? STATUS_ETIQUETA_BUFFER_ML
+        : status && (STATUS_FILTER as readonly string[]).includes(status)
+          ? status
+          : null;
 
-      if (status === STATUS_ETIQUETA_BUFFER_ML) {
-        query = query
-          .eq("status", "enviado")
-          .eq("canal_venda", "mercado_livre")
-          .is("etiqueta_pdf_url", null)
-          .is("etiqueta_pdf_base64", null);
-      } else if (status && (STATUS_FILTER as readonly string[]).includes(status)) {
-        query = query.eq("status", status);
+      // RPC (regra 9): além de ler, ordena priorizando pedido com etiqueta recém-liberada e
+      // ainda não impressa — expressão de ordenação (CASE) que o PostgREST não faz direto.
+      // Ver fn_seller_pedidos_lista em web/scripts/add-etiqueta-liberada-prioridade.sql.
+      const { data: rpcRows, error: rpcErr } = await supabaseAdmin.rpc("fn_seller_pedidos_lista", {
+        p_org_id: seller.org_id,
+        p_seller_id: seller.id,
+        p_status: pStatus,
+        p_limit: pageSize,
+        p_offset: from,
+      });
+
+      if (rpcErr) {
+        console.error("[seller/pedidos GET]", rpcErr.message);
+        return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
       }
 
-      const res = await query;
-      data = res.data;
-      error = res.error;
-      pedidosCount = res.count ?? 0;
-      if (error) {
-        const msg = String(error.message ?? "").toLowerCase();
-        const colunaAusente =
-          msg.includes("marketplace_numero") ||
-          msg.includes("comprador_") ||
-          msg.includes("motivo_bloqueio") ||
-          error.code === "42703";
-        if (!colunaAusente) {
-          console.error("[seller/pedidos GET]", error.message);
-          return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
-        }
-        let fallbackQuery = supabaseAdmin
-          .from("pedidos")
-          .select(
-            "id, nome_produto, valor_total, status, criado_em, referencia_externa, tracking_codigo, metodo_envio, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_tentativas",
-            { count: "exact" }
-          )
-          .eq("org_id", seller.org_id)
-          .eq("seller_id", seller.id)
-          .order("criado_em", { ascending: false })
-          .range(from, to);
-        if (status === STATUS_ETIQUETA_BUFFER_ML) {
-          fallbackQuery = fallbackQuery
-            .eq("status", "enviado")
-            .eq("canal_venda", "mercado_livre")
-            .is("etiqueta_pdf_url", null)
-            .is("etiqueta_pdf_base64", null);
-        } else if (status && (STATUS_FILTER as readonly string[]).includes(status)) {
-          fallbackQuery = fallbackQuery.eq("status", status);
-        }
-        const fallback = await fallbackQuery;
-        if (fallback.error) {
-          console.error("[seller/pedidos GET]", fallback.error.message);
-          return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
-        }
-        data = fallback.data;
-        error = fallback.error;
-        pedidosCount = fallback.count ?? 0;
-      }
+      const rows = (rpcRows ?? []) as (PedidoRow & { total_count: number })[];
+      data = rows.map(({ total_count: _tc, ...p }) => p);
+      pedidosCount = rows[0]?.total_count ?? 0;
     }
 
     const pedidoIds = (data ?? []).map((p) => p.id);

@@ -24,6 +24,7 @@ type PedidoRow = {
   etiqueta_pdf_url: string | null;
   etiqueta_pdf_base64: string | null;
   etiqueta_impressa_em?: string | null;
+  etiqueta_liberada_em?: string | null;
   referencia_externa: string | null;
   motivo_bloqueio?: string | null;
   motivo_bloqueio_responsavel?: "seller" | "fornecedor" | null;
@@ -87,63 +88,31 @@ export async function GET(req: Request) {
     const limit = Math.min(300, Math.max(1, parseInt(searchParams.get("limit") || "10", 10) || 10));
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
     const from = (page - 1) * limit;
-    const to = from + limit - 1;
 
-    let query = supabaseAdmin
-      .from("pedidos")
-      .select(
-        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, motivo_bloqueio, motivo_bloqueio_responsavel, cancelado_motivo, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, etiqueta_impressa_em, marketplace_numero, marketplace_pack_id, comprador_nome, comprador_cidade, comprador_uf, comprador_fone, referencia_externa, metodo_envio, tracking_codigo, canal_venda, e_teste",
-        { count: "exact" }
-      )
-      .eq("org_id", ctx.org_id)
-      .eq("fornecedor_id", ctx.fornecedor_id)
-      // Pedido com produto fora do catálogo do fornecedor vinculado nunca é dele de
-      // verdade (sem saldo, sem etiqueta) — não aparece na tela do fornecedor, só na do
-      // seller (ver web/lib/erp/submitSellerErpPedido.ts).
-      .neq("status", "produto_nao_vinculado")
-      .neq("status", "anuncio_sem_sku")
-      .order("criado_em", { ascending: false })
-      .range(from, to);
+    const statusValido =
+      status && ["enviado", "aguardando_repasse", "entregue", "devolvido", "cancelado", "erro_saldo", "pendente_estoque", "bloqueado"].includes(status)
+        ? status
+        : null;
 
-    if (status && ["enviado", "aguardando_repasse", "entregue", "devolvido", "cancelado", "erro_saldo", "pendente_estoque", "bloqueado"].includes(status)) {
-      query = query.eq("status", status);
+    // RPC (regra 9): além de ler, ordena priorizando pedido com etiqueta recém-liberada e
+    // ainda não impressa — expressão de ordenação (CASE) que o PostgREST não faz direto.
+    // Ver fn_fornecedor_pedidos_lista em web/scripts/add-etiqueta-liberada-prioridade.sql.
+    const { data: rpcRows, error: rpcErr } = await supabaseAdmin.rpc("fn_fornecedor_pedidos_lista", {
+      p_org_id: ctx.org_id,
+      p_fornecedor_id: ctx.fornecedor_id,
+      p_status: statusValido,
+      p_limit: limit,
+      p_offset: from,
+    });
+
+    if (rpcErr) {
+      console.error("[fornecedor/pedidos GET]", rpcErr.message);
+      return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
     }
 
-    let data: PedidoRow[] | null;
-    let error: { message: string; code?: string } | null;
-    let total: number | null;
-    ({ data, error, count: total } = await query);
-    if (error) {
-      const msg = String(error.message ?? "").toLowerCase();
-      const colunaAusente =
-        msg.includes("marketplace_numero") ||
-        msg.includes("comprador_") ||
-        msg.includes("motivo_bloqueio") ||
-        msg.includes("etiqueta_impressa_em") ||
-        error.code === "42703";
-      if (colunaAusente) {
-        let fallbackQuery = supabaseAdmin
-          .from("pedidos")
-          .select(
-            "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, status, criado_em, etiqueta_pdf_url, etiqueta_pdf_base64, referencia_externa, e_teste",
-            { count: "exact" }
-          )
-          .eq("org_id", ctx.org_id)
-          .eq("fornecedor_id", ctx.fornecedor_id)
-          .neq("status", "produto_nao_vinculado")
-          .neq("status", "anuncio_sem_sku")
-          .order("criado_em", { ascending: false })
-          .range(from, to);
-        if (status && ["enviado", "aguardando_repasse", "entregue", "devolvido", "cancelado", "erro_saldo", "pendente_estoque", "bloqueado"].includes(status)) {
-          fallbackQuery = fallbackQuery.eq("status", status);
-        }
-        ({ data, error, count: total } = await fallbackQuery);
-      }
-      if (error) {
-        console.error("[fornecedor/pedidos GET]", error.message);
-        return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
-      }
-    }
+    const rows = (rpcRows ?? []) as (PedidoRow & { total_count: number })[];
+    const data: PedidoRow[] = rows.map(({ total_count: _tc, ...p }) => p);
+    const total = rows[0]?.total_count ?? 0;
 
     const sellerIds = [...new Set((data ?? []).map((p) => p.seller_id))];
     const sellersMap = new Map<string, string>();
