@@ -37,6 +37,7 @@ import {
   type AnuncioSeoContexto,
   type AtributoFaltando,
   type AtributoPreenchido,
+  type AtributoConflitante,
   type AnuncioResultadoAnteriorMinimo,
   type DuplicidadeAnuncio,
   type UltimaChecagemGrupo,
@@ -84,7 +85,7 @@ async function montarContextoGrupoAvulso(
   const categoriaProvavelmenteErrada =
     categoriasSugeridas.length > 0 && !categoriasSugeridas.some((c) => c.categoryId === representante.category_id);
 
-  const atributosSemReforcoTexto = atributosSemReforcoNoTexto(
+  const { semReforco: atributosSemReforcoTexto, conflitantes: atributosConflitantes } = atributosSemReforcoNoTexto(
     atributosFaltando.preenchidos,
     `${representante.title} ${descricao}`
   );
@@ -104,6 +105,7 @@ async function montarContextoGrupoAvulso(
     categoriaSugeridaNome: categoriaProvavelmenteErrada ? (categoriasSugeridas[0]?.categoryName ?? null) : null,
     duplicidade: null,
     atributosSemReforcoTexto,
+    atributosConflitantes,
     membros: membrosContexto,
   };
 }
@@ -229,6 +231,7 @@ export type AnuncioResultadoEnriquecidoAvulso = Omit<AnuncioResultadoIA, "caract
   categoria_sugerida_nome: string | null;
   duplicidade: DuplicidadeAnuncio | null;
   atributos_sem_reforco_texto: AtributoPreenchido[];
+  atributos_conflitantes: AtributoConflitante[];
 };
 
 export type ResultadoAnunciosSeoEnriquecidoAvulso = {
@@ -271,6 +274,7 @@ export async function enriquecerResultadoAnunciosSeoAvulso(
       categoria_sugerida_nome: grupo?.categoriaSugeridaNome ?? null,
       duplicidade: grupo?.duplicidade ?? null,
       atributos_sem_reforco_texto: grupo?.atributosSemReforcoTexto ?? [],
+      atributos_conflitantes: grupo?.atributosConflitantes ?? [],
       membros: (grupo?.membros ?? []).map((m) => ({
         item_id: m.itemId,
         titulo_completo: m.tituloCompleto,

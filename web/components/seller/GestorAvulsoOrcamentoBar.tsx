@@ -29,7 +29,7 @@ export function GestorAvulsoOrcamentoBar({
 
   return (
     <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top,0px))] z-30 md:top-14 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-2 text-[11px]">
+      <div className="flex flex-col gap-1 text-[11px] sm:flex-row sm:items-center sm:justify-between">
         <span className="flex items-center gap-1 font-semibold text-[var(--foreground)]">
           Uso dos Gestores de IA hoje
           <HelpBubble

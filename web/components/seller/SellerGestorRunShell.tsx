@@ -38,9 +38,25 @@ function BotaoRodarAgora({ onRodarAgora }: { onRodarAgora: DispararRodada }) {
         type="button"
         onClick={() => void clicar()}
         disabled={carregando}
-        className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
+        aria-label={carregando ? "Rodando…" : "Rodar de novo agora"}
+        className="inline-flex items-center gap-1.5 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
       >
-        {carregando ? "Rodando…" : "Rodar de novo agora"}
+        <svg
+          className={cn("h-3.5 w-3.5 shrink-0", carregando && "animate-spin")}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M3 12a9 9 0 0 1 15.3-6.4L21 8" />
+          <path d="M21 3v5h-5" />
+          <path d="M21 12a9 9 0 0 1-15.3 6.4L3 16" />
+          <path d="M3 21v-5h5" />
+        </svg>
+        <span className="hidden sm:inline">{carregando ? "Rodando…" : "Rodar de novo agora"}</span>
       </button>
       {erro ? <span className="text-xs text-[var(--danger)]">{erro}</span> : null}
     </div>
@@ -56,6 +72,7 @@ export function SellerGestorRunShell<TResultado>({
   pro,
   run,
   titulo,
+  tituloMobile,
   ajuda,
   onRodarAgora,
   children,
@@ -63,6 +80,8 @@ export function SellerGestorRunShell<TResultado>({
   pro: boolean;
   run: SellerAiRun<TResultado> | null;
   titulo: string;
+  /** Versão curta de `titulo` só pro mobile (telas &lt;640px) — omitir reaproveita `titulo` nos dois tamanhos. */
+  tituloMobile?: string;
   ajuda: ReactNode;
   /** Dispara uma rodada manual (botão "Rodar de novo agora") — omitir esconde o botão. */
   onRodarAgora?: DispararRodada;
@@ -129,19 +148,35 @@ export function SellerGestorRunShell<TResultado>({
 
   return (
     <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm sm:p-6">
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <p className="font-medium text-[var(--foreground)]">{titulo}</p>
-        <HelpBubble
-          ariaLabel={`Como funciona ${titulo}`}
-          open={helpOpen}
-          onOpen={() => setHelpOpen(true)}
-          onClose={() => setHelpOpen(false)}
-        >
-          {ajuda}
-        </HelpBubble>
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="flex items-center gap-2">
+          <p className="font-medium text-[var(--foreground)]">
+            {tituloMobile ? (
+              <>
+                <span className="sm:hidden">{tituloMobile}</span>
+                <span className="hidden sm:inline">{titulo}</span>
+              </>
+            ) : (
+              titulo
+            )}
+          </p>
+          <HelpBubble
+            ariaLabel={`Como funciona ${titulo}`}
+            open={helpOpen}
+            onOpen={() => setHelpOpen(true)}
+            onClose={() => setHelpOpen(false)}
+          >
+            {ajuda}
+          </HelpBubble>
+          {onRodarAgora ? (
+            <span className="ml-auto sm:hidden">
+              <BotaoRodarAgora onRodarAgora={onRodarAgora} />
+            </span>
+          ) : null}
+        </div>
         <span className="text-xs text-[var(--muted)]">Atualizado em {executadoEm}</span>
         {onRodarAgora ? (
-          <span className="ml-auto">
+          <span className="hidden sm:ml-auto sm:inline-flex">
             <BotaoRodarAgora onRodarAgora={onRodarAgora} />
           </span>
         ) : null}

@@ -443,8 +443,12 @@ export default function PedidosPage() {
           aria-labelledby="modal-novo-pedido-title"
           onClick={() => setShowForm(false)}
         >
+          {/* `style` em vez de classe: MODAL_PANEL_CLASS já embute `max-w-sm`, e `cn()` não
+          desduplica — um 2º `max-w-*` perdia sempre pra `.max-w-sm` na ordem do CSS
+          compilado (achado real 2026-10-14, esse modal nunca passou de 384px). */}
           <div
-            className={cn(MODAL_PANEL_CLASS, "max-w-lg animate-fade-in-up animate-fade-in-up-delay-1")}
+            className={cn(MODAL_PANEL_CLASS, "animate-fade-in-up animate-fade-in-up-delay-1")}
+            style={{ maxWidth: "32rem" }}
             onClick={(e) => e.stopPropagation()}
           >
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--card-border)] px-5 pb-4 pt-5">
@@ -559,7 +563,8 @@ export default function PedidosPage() {
           onClick={() => setResolverPedido(null)}
         >
           <div
-            className={cn(MODAL_PANEL_CLASS, "max-w-lg animate-fade-in-up animate-fade-in-up-delay-1")}
+            className={cn(MODAL_PANEL_CLASS, "animate-fade-in-up animate-fade-in-up-delay-1")}
+            style={{ maxWidth: "32rem" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex shrink-0 items-center justify-between border-b border-[var(--card-border)] px-5 pb-4 pt-5">

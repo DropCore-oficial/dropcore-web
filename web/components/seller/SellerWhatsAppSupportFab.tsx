@@ -7,6 +7,9 @@ type SellerWhatsAppSupportFabProps = {
   className?: string;
   /** Texto inicial da conversa no WhatsApp */
   prefillMessage?: string;
+  /** Substitui por completo o offset vertical padrão (nunca combinar as duas — `cn` não
+   * desduplica utilitário conflitante, a classe perdedora dependeria da ordem do build). */
+  bottomClassName?: string;
 };
 
 /**
@@ -17,6 +20,7 @@ type SellerWhatsAppSupportFabProps = {
 export function SellerWhatsAppSupportFab({
   className,
   prefillMessage = SELLER_SUPPORT_WHATSAPP_DEFAULT_PREFILL,
+  bottomClassName = "bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:bottom-5",
 }: SellerWhatsAppSupportFabProps) {
   return (
     <a
@@ -29,7 +33,7 @@ export function SellerWhatsAppSupportFab({
         "transition hover:bg-emerald-700 hover:shadow-lg active:scale-[0.97] active:bg-emerald-900",
         "dark:ring-emerald-400/20",
         "right-3 sm:right-5",
-        "bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:bottom-5",
+        bottomClassName,
         "animate-in fade-in-0 zoom-in-95 duration-200",
         className,
       )}

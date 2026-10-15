@@ -29,6 +29,7 @@ export async function montarRequestAnunciosSeo(
     max_tokens: 16384,
     thinking: { type: "disabled" },
     output_config: { format: { type: "json_schema", schema: SCHEMA_ANUNCIOS_SEO } },
+    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
     messages: [{ role: "user", content: montarPrompt(PROMPT_ANUNCIOS_SEO, dados) }],
   };
 }
@@ -49,6 +50,7 @@ export async function montarRequestAnuncioUnico(
     max_tokens: 2048,
     thinking: { type: "disabled" },
     output_config: { format: { type: "json_schema", schema: SCHEMA_ANUNCIOS_SEO } },
+    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
     messages: [{ role: "user", content: montarPrompt(PROMPT_ANUNCIOS_SEO, [dado]) }],
   };
 }

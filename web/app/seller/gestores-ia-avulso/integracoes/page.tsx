@@ -267,7 +267,7 @@ export default function GestoresIaAvulsoIntegracoesPage() {
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-4 flex items-center gap-1 font-medium text-[var(--foreground)]">
+                <div className="mt-4 flex items-center gap-1 font-medium text-[var(--foreground)]">
                   Mercado Livre
                   <HelpBubble
                     ariaLabel="Como funciona a conexão com o Mercado Livre"
@@ -280,7 +280,7 @@ export default function GestoresIaAvulsoIntegracoesPage() {
                       É só leitura — o DropCore nunca publica nem altera nada sozinho na sua conta.
                     </p>
                   </HelpBubble>
-                </p>
+                </div>
                 <p className="mt-1 text-xs text-[var(--muted)]">
                   Pré-requisito: sem essa conexão, os outros Gestores de IA não têm dado real pra trabalhar.
                 </p>

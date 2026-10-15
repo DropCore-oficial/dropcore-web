@@ -6,7 +6,6 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerGestorRunShell, type SellerAiRun, type DispararRodada } from "./SellerGestorRunShell";
 import { mlItemPermalink } from "@/lib/mercadoLivreApiClient";
 import { CopiarSugestaoBotao } from "./SellerGestorCopiarBotao";
-import { AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 
 type Diagnostico = "problema_titulo" | "problema_descricao" | "caracteristicas_incompletas" | "sem_problema_aparente";
 
@@ -68,6 +67,11 @@ type AnuncioDiagnostico = {
   categoria_sugerida_nome: string | null;
   duplicidade: DuplicidadeAnuncio | null;
   atributos_sem_reforco_texto: { id: string; name: string; valor: string }[];
+  /** Ficha técnica tem um valor pra esse atributo que não aparece no texto, mas outro valor
+   * válido do MESMO atributo já aparece — ficha e texto discordam (ex.: ficha diz "Gola:
+   * Mao", título já diz "Gola Padre"). Diferente de ausência: aqui já existe resposta, só
+   * que diferente — não é pra sugerir trocar, é pra avisar a divergência. */
+  atributos_conflitantes: { id: string; name: string; valor: string; valorNoTexto: string }[];
   resultado_acao_anterior: ResultadoAcaoAnterior | null;
 };
 
@@ -206,26 +210,28 @@ function DuplicidadeAviso({ duplicidade }: { duplicidade: DuplicidadeAnuncio }) 
   );
 }
 
-/** Característica preenchida cujo valor não aparece no título/descrição — ficha técnica
- * alimenta o filtro de busca do marketplace, mas é o texto que é indexado por palavra-chave
- * livre; os dois precisam reforçar o mesmo dado. */
-function SemReforcoTextoAviso({ atributos }: { atributos: { id: string; name: string; valor: string }[] }) {
+/** Ficha técnica tem um valor pra esse atributo que não aparece no texto, mas outro valor
+ * válido do MESMO atributo já aparece — ficha e texto discordam (ex.: ficha diz "Gola: Mao",
+ * título já diz "Gola Padre"). Diferente de `SemReforcoTextoAviso` (ausência): aqui já existe
+ * resposta, só que diferente — não é pra sugerir trocar, é pra avisar a divergência. */
+function AtributosConflitantesAviso({
+  atributos,
+}: {
+  atributos: { id: string; name: string; valor: string; valorNoTexto: string }[];
+}) {
   return (
-    <p className={cn("mt-2 flex items-start gap-1.5 text-xs", AMBER_PREMIUM_TEXT_PRIMARY)}>
-      <span aria-hidden>🔑</span>
-      <span>
-        Ficha técnica tem{" "}
-        {atributos.map((a, i) => (
-          <span key={a.id}>
-            {i > 0 ? ", " : ""}
-            <strong>
-              {a.name}: {a.valor}
-            </strong>
+    <div className="mt-2 space-y-1">
+      {atributos.map((a) => (
+        <p key={a.id} className="flex items-start gap-1.5 text-xs text-[var(--danger)]">
+          <span aria-hidden>⚠</span>
+          <span>
+            Ficha técnica diz <strong>{a.name}: {a.valor}</strong>, mas o título/descrição já diz{" "}
+            <strong>{a.valorNoTexto}</strong> — confira qual dos dois está certo antes de aplicar qualquer
+            sugestão (não é &quot;falta reforçar&quot;, é uma divergência real).
           </span>
-        ))}{" "}
-        — mas essa palavra não aparece no título nem na descrição, perdendo força de busca.
-      </span>
-    </p>
+        </p>
+      ))}
+    </div>
   );
 }
 
@@ -681,8 +687,8 @@ function GrupoCard({ g }: { g: AnuncioDiagnostico }) {
           {g.duplicidade.pode_pausar ? <PausarAnuncioDuplicadoBotao itemIds={todosItemIds} /> : null}
         </>
       ) : null}
-      {(g.atributos_sem_reforco_texto ?? []).length > 0 ? (
-        <SemReforcoTextoAviso atributos={g.atributos_sem_reforco_texto} />
+      {(g.atributos_conflitantes ?? []).length > 0 ? (
+        <AtributosConflitantesAviso atributos={g.atributos_conflitantes} />
       ) : null}
       {g.resultado_acao_anterior ? <ResultadoAcaoAnteriorBloco resultado={g.resultado_acao_anterior} /> : null}
 

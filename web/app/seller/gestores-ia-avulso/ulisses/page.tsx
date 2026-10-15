@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,9 @@ import { SellerGestorRunShell, type SellerAiRun, type DispararRodada } from "@/c
 import { mlItemPermalink, mlCampanhaAdsPermalink, mlPublicidadeHubPermalink } from "@/lib/mercadoLivreApiClient";
 import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
 import { SellerGestorUlissesWizard, type UlissesPreferenciasForm } from "@/components/seller/SellerGestorUlissesWizard";
+import { GestorAvulsoConectarMlEmptyState } from "@/components/seller/GestorAvulsoConectarMlEmptyState";
+import { IconUlisses } from "@/components/seller/GestorAvulsoIcons";
+import { AbaPilula } from "@/components/seller/GestorAvulsoAbaPilula";
 
 type Diagnostico = "sem_custo" | "margem_abaixo_minima" | "margem_saudavel" | "margem_acima_maxima";
 
@@ -379,35 +382,6 @@ function IconAfiliados() {
   );
 }
 
-function AbaPilula({
-  ativo,
-  onClick,
-  icon,
-  children,
-}: {
-  ativo: boolean;
-  onClick: () => void;
-  icon: ReactNode;
-  children: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors touch-manipulation",
-        "outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]",
-        ativo
-          ? "bg-emerald-600 text-white font-semibold shadow-sm hover:bg-emerald-700"
-          : "text-[var(--muted)] hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)]"
-      )}
-    >
-      {icon}
-      {children}
-    </button>
-  );
-}
-
 async function getAccessToken(): Promise<string | null> {
   const {
     data: { session },
@@ -621,18 +595,11 @@ function UlissesAvulsoPageInner() {
             Não foi possível validar seu acesso.
           </div>
         ) : !mlConectado ? (
-          <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 text-center shadow-sm sm:p-8">
-            <p className="font-medium text-[var(--foreground)]">Conecte sua conta do Mercado Livre primeiro</p>
-            <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">
-              O ADS precisa ler seus anúncios ativos pra calcular a margem.
-            </p>
-            <Link
-              href="/seller/gestores-ia-avulso/integracoes"
-              className="mt-4 inline-flex rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
-            >
-              Conectar Mercado Livre
-            </Link>
-          </section>
+          <GestorAvulsoConectarMlEmptyState
+            icon={<IconUlisses className="h-6 w-6 shrink-0" />}
+            titulo="Conecte sua conta do Mercado Livre primeiro"
+            descricao="O ADS precisa ler seus anúncios ativos pra calcular a margem."
+          />
         ) : !preferenciasConfiguradas ? (
           <SellerGestorUlissesWizard
             inicial={null}

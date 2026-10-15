@@ -66,6 +66,24 @@ export type AtributoPreenchido = {
   id: string;
   name: string;
   valor: string;
+  /** Só quando o atributo é de lista fechada (`valueType === "list"`) — outros valores
+   * válidos do catálogo do Mercado Livre pra esse mesmo atributo, usado só pra distinguir
+   * "valor ausente do texto" de "valor conflitante com outro já presente" (ver
+   * `atributosSemReforcoNoTexto`). */
+  valoresPermitidos?: string[];
+};
+
+/** Achado real 2026-10-14: ficha técnica dizia "Gola: Mao" num anúncio cujo título já dizia
+ * "Gola Padre" — a IA tentou enfiar "Mao" no título sugerido, criando uma troca sem sentido
+ * (o vendedor nem reconhecia "gola mão" como termo real). Causa raiz: `atributosSemReforcoNoTexto`
+ * só sabia dizer "essa palavra não está no texto", sem checar se o texto já tinha uma
+ * resposta DIFERENTE (e válida) pra esse mesmo atributo — tratava ausência e conflito como a
+ * mesma coisa. Esse tipo isola o caso de conflito pra UI e prompt avisarem em vez de sugerir
+ * troca cega. */
+export type AtributoConflitante = AtributoPreenchido & {
+  /** Outro valor válido do catálogo pra esse mesmo atributo que já aparece no título ou na
+   * descrição — ficha técnica e texto discordam sobre o mesmo campo. */
+  valorNoTexto: string;
 };
 
 export type AnuncioSeoContexto = {
@@ -96,6 +114,13 @@ export type AnuncioSeoContexto = {
    * marketplace, mas é o texto (título/descrição) que o buscador indexa por palavra-chave —
    * os dois precisam reforçar o mesmo dado. Ver `atributosSemReforcoNoTexto`. */
   atributosSemReforcoTexto: AtributoPreenchido[];
+  /** Sinal determinístico (não pedido pra IA): característica preenchida cujo valor não
+   * aparece no texto, MAS outro valor válido do catálogo pra esse mesmo atributo já aparece
+   * — ficha técnica e texto discordam (ex.: ficha diz "Gola: Mao", título já diz "Gola
+   * Padre"). Diferente de "ausente" (atributosSemReforcoTexto): aqui já existe uma resposta
+   * no texto, só que diferente — não é pra sugerir trocar cego, é pra avisar da divergência.
+   * Ver `atributosSemReforcoNoTexto`. */
+  atributosConflitantes: AtributoConflitante[];
   membros: MembroAnuncioSeo[];
 };
 
@@ -195,6 +220,16 @@ export async function buscarAtributosFaltando(
   // Atributo técnico (referência de guia de tamanhos) — "grid_id"/"grid_row_id" não é
   // característica de produto, mesmo quando não leva `tags.hidden`.
   const VALUE_TYPES_TECNICOS = new Set(["grid_id", "grid_row_id"]);
+  // IDs conhecidos do catálogo do Mercado Livre pra atributo de ano — achado real 2026-10-14:
+  // "Ano de lançamento: 2025" virou literalmente o fim de um título sugerido em 2026, fazendo
+  // o produto parecer estoque velho. Diferente de Marca/Gênero/Material (fato permanente do
+  // produto), ano de lançamento envelhece — nunca deveria virar sugestão de texto pro título
+  // ou descrição, então nem entra na lista de "preenchidos" (não vira "sem reforço" nem
+  // "conflitante", simplesmente não é candidato a reforço de busca).
+  const ATRIBUTOS_ANO_IDS = new Set(["RELEASE_YEAR", "MODEL_YEAR", "MANUFACTURING_YEAR"]);
+  const NOME_ANO_REGEX = /\bano\b/i;
+  const ehAtributoDeAno = (atributo: { id: string; name: string }): boolean =>
+    ATRIBUTOS_ANO_IDS.has(atributo.id) || NOME_ANO_REGEX.test(atributo.name);
   // Só entra como "preenchido" pra fins de cobertura de palavra-chave quando NÃO é metadado
   // técnico/interno do ML (`tags.hidden`) nem referência de guia de tamanhos. Achado ao vivo
   // 2026-10-06, comparando atributo por atributo via API: `relevance` sozinha NÃO distingue
@@ -206,9 +241,18 @@ export async function buscarAtributosFaltando(
       if (!a.value_name) return false;
       const atributo = schemaPorId.get(a.id);
       if (!atributo || atributo.hidden) return false;
+      if (ehAtributoDeAno(atributo)) return false;
       return !VALUE_TYPES_TECNICOS.has(atributo.valueType);
     })
-    .map((a) => ({ id: a.id, name: schemaPorId.get(a.id)!.name, valor: a.value_name as string }));
+    .map((a) => {
+      const atributo = schemaPorId.get(a.id)!;
+      return {
+        id: a.id,
+        name: atributo.name,
+        valor: a.value_name as string,
+        valoresPermitidos: atributo.valueType === "list" ? atributo.valoresPermitidos : undefined,
+      };
+    });
 
   return {
     principais: obrigatoriosFaltando.filter((a) => a.relevance === 1),
@@ -227,6 +271,12 @@ function normalizarTextoCobertura(texto: string): string {
     .replace(/[^a-z0-9\s]/g, " ");
 }
 
+function palavrasSignificativas(valor: string): string[] {
+  return normalizarTextoCobertura(valor)
+    .split(/\s+/)
+    .filter((p) => p.length > 2 && !STOPWORDS_COBERTURA.has(p));
+}
+
 /**
  * Característica já preenchida cujo valor não aparece (nem em parte) no título+descrição —
  * sinal determinístico, não pedido pra IA. Ficha técnica alimenta FILTRO de busca do
@@ -234,19 +284,60 @@ function normalizarTextoCobertura(texto: string): string {
  * indexado por palavra-chave livre — os dois precisam se reforçar. Considera "reforçado" se
  * QUALQUER palavra significativa do valor aparece no texto (valor composto tipo "Manga
  * Longa" não precisa bater 100% pra já ajudar o match).
+ *
+ * Separa em dois grupos (achado real 2026-10-14, ficha dizia "Gola: Mao" num anúncio cujo
+ * título já dizia "Gola Padre" — a IA tentou trocar pelo valor da ficha, sem sentido):
+ * - `semReforco`: o atributo realmente não tem resposta nenhuma no texto (ausência de verdade).
+ * - `conflitantes`: o texto já tem OUTRO valor válido do catálogo pra esse mesmo atributo —
+ *   ficha técnica e texto discordam, não é ausência, é divergência. Quem decide qual valor
+ *   está certo é o vendedor, não a IA — por isso isolado, pra UI/prompt avisarem em vez de
+ *   sugerir troca cega.
  */
+// Achado real 2026-10-14: "Gênero: Masculino" (ficha) virou "CONFLITO" contra "Sem gênero
+// infantil" (texto) em boa parte do catálogo de teste — mas "sem X" é negação, não
+// afirmação de X; na verdade REFORÇA que não é infantil (compatível com Masculino), não
+// contradiz. `includes()` batia na palavra sem olhar o que vinha antes dela. Por isso a
+// checagem agora é por token (não substring) e ignora ocorrência com negação (sem/não/
+// nunca) a até 2 palavras antes.
+const NEGACOES = new Set(["sem", "nao", "nunca", "jamais"]);
+const JANELA_NEGACAO = 2;
+
+function apareceAfirmativamente(palavraAlvo: string, tokensTexto: string[]): boolean {
+  for (let i = 0; i < tokensTexto.length; i++) {
+    if (tokensTexto[i] !== palavraAlvo) continue;
+    const precedentes = tokensTexto.slice(Math.max(0, i - JANELA_NEGACAO), i);
+    if (!precedentes.some((t) => NEGACOES.has(t))) return true;
+  }
+  return false;
+}
+
 export function atributosSemReforcoNoTexto(
   preenchidos: AtributoPreenchido[],
   tituloEDescricao: string
-): AtributoPreenchido[] {
-  const textoNormalizado = normalizarTextoCobertura(tituloEDescricao);
-  return preenchidos.filter((a) => {
-    const palavras = normalizarTextoCobertura(a.valor)
-      .split(/\s+/)
-      .filter((p) => p.length > 2 && !STOPWORDS_COBERTURA.has(p));
-    if (palavras.length === 0) return false;
-    return !palavras.some((p) => textoNormalizado.includes(p));
-  });
+): { semReforco: AtributoPreenchido[]; conflitantes: AtributoConflitante[] } {
+  const tokensTexto = normalizarTextoCobertura(tituloEDescricao).split(/\s+/);
+  const semReforco: AtributoPreenchido[] = [];
+  const conflitantes: AtributoConflitante[] = [];
+
+  for (const a of preenchidos) {
+    const palavras = palavrasSignificativas(a.valor);
+    if (palavras.length === 0) continue;
+    if (palavras.some((p) => apareceAfirmativamente(p, tokensTexto))) continue;
+
+    const valorNoTexto = (a.valoresPermitidos ?? []).find((permitido) => {
+      if (permitido === a.valor) return false;
+      const palavrasPermitido = palavrasSignificativas(permitido);
+      return palavrasPermitido.length > 0 && palavrasPermitido.some((p) => apareceAfirmativamente(p, tokensTexto));
+    });
+
+    if (valorNoTexto) {
+      conflitantes.push({ ...a, valorNoTexto });
+    } else {
+      semReforco.push(a);
+    }
+  }
+
+  return { semReforco, conflitantes };
 }
 
 /** DropCore já tem tabela de medida (produto_tabela_medidas) por grupo de SKU, mas isso não
@@ -414,7 +505,7 @@ async function montarContextoGrupo(
   const categoriaProvavelmenteErrada =
     categoriasSugeridas.length > 0 && !categoriasSugeridas.some((c) => c.categoryId === representante.category_id);
 
-  const atributosSemReforcoTexto = atributosSemReforcoNoTexto(
+  const { semReforco: atributosSemReforcoTexto, conflitantes: atributosConflitantes } = atributosSemReforcoNoTexto(
     atributosFaltando.preenchidos,
     `${representante.title} ${descricao}`
   );
@@ -433,6 +524,7 @@ async function montarContextoGrupo(
     categoriaSugeridaNome: categoriaProvavelmenteErrada ? (categoriasSugeridas[0]?.categoryName ?? null) : null,
     duplicidade: null,
     atributosSemReforcoTexto,
+    atributosConflitantes,
     membros: membrosContexto,
   };
 }
@@ -599,6 +691,10 @@ function formatarAnunciosSeo(grupos: AnuncioSeoContexto[]): string {
         g.atributosSemReforcoTexto.length > 0
           ? ` | características preenchidas mas cujo valor não aparece no título nem na descrição: ${g.atributosSemReforcoTexto.map((a) => `${a.name}="${a.valor}"`).join("; ")}`
           : "";
+      const conflitantes =
+        g.atributosConflitantes.length > 0
+          ? ` | CONFLITO ficha técnica vs texto (NÃO sugira trocar cego — mencione a divergência na observação pro vendedor conferir qual valor está certo): ${g.atributosConflitantes.map((a) => `${a.name}: ficha diz "${a.valor}", mas título/descrição já diz "${a.valorNoTexto}"`).join("; ")}`
+          : "";
       const membrosTxt = g.membros
         .map((m) => {
           const zeroVisitas = m.visitas30d === 0 ? " [ZERO VISITAS — possível problema de indexação/categoria, não necessariamente de texto]" : "";
@@ -607,7 +703,7 @@ function formatarAnunciosSeo(grupos: AnuncioSeoContexto[]): string {
         .join("\n");
       return (
         `- ${g.chave} [${familia}]\n` +
-        `  título de referência: "${g.tituloExemplo}" | preço R$ ${g.preco.toFixed(2)}${principais}${secundarios}${guiaMedidas}${categoriaAlerta}${semReforco}\n` +
+        `  título de referência: "${g.tituloExemplo}" | preço R$ ${g.preco.toFixed(2)}${principais}${secundarios}${guiaMedidas}${categoriaAlerta}${semReforco}${conflitantes}\n` +
         `  descrição atual (resumo): "${g.descricaoResumo || "(sem descrição)"}"\n` +
         `  variações:\n${membrosTxt}`
       );
@@ -622,7 +718,11 @@ export const PROMPT_ANUNCIOS_SEO: PromptTemplate<AnuncioSeoContexto[]> = {
   persona:
     "Você é um especialista em SEO e otimização de anúncio de marketplace, focado em título, " +
     "descrição e ficha técnica (características principais e secundárias) que aumentam visita e " +
-    "conversão orgânica.",
+    "conversão orgânica. Você tem acesso a busca real na internet (ferramenta web_search) — USE ela " +
+    "antes de sugerir um novo título pra um grupo com problema de título. Nunca monte o título só " +
+    "reformatando/concatenando os atributos da ficha técnica na ordem que vierem; pesquise como " +
+    "compradores reais buscam esse tipo de produto e quais termos têm mais volume de busca real, e use " +
+    "isso pra decidir o que entra no título e em que ordem.",
   tarefa: [
     "Cada linha do contexto é um GRUPO — uma família de variações (mesmo produto em cores/tamanhos " +
       "diferentes, cada variação é um anúncio próprio no marketplace) ou um anúncio único sem família. " +
@@ -649,12 +749,21 @@ export const PROMPT_ANUNCIOS_SEO: PromptTemplate<AnuncioSeoContexto[]> = {
       "marketplace, mas é o título/descrição que o buscador indexa por palavra-chave livre; os dois " +
       "precisam reforçar o mesmo dado. Use isso como base real pra sugerir texto que incorpore esses " +
       "valores, em vez de só opinar sobre o estilo do texto.",
+    "Se o contexto listar CONFLITO ficha técnica vs texto, isso é diferente de característica ausente — " +
+      "o título/descrição já tem uma resposta pra esse atributo, só que diferente da ficha técnica (ex.: " +
+      "ficha diz 'Gola: Mao', título já diz 'Gola Padre'). Você não sabe qual dos dois está certo — NUNCA " +
+      "troque o valor do título pelo da ficha técnica só porque ela está preenchida; isso pode trocar um " +
+      "dado correto por um errado. Em vez disso, mencione a divergência na observação (ex.: \"a ficha " +
+      "técnica diz Gola: Mao mas o título já diz Padre — confira qual está certo antes de mudar\") e NÃO " +
+      "inclua esse atributo no título ou descrição sugeridos.",
     "Classifique cada grupo em: problema de título, problema de descrição, características incompletas, " +
       "sem problema aparente.",
-    "Para grupo com problema de título: se ele tiver mais de 1 variação (família), sugira um TÍTULO BASE " +
-      "sem cor nem tamanho específico — cada variação vai completar cor/tamanho ao aplicar, o Mercado " +
-      "Livre não permite editar título de uma variação sem afetar a família toda. Se for anúncio único, " +
-      "sugira o título completo normalmente.",
+    "Para grupo com problema de título: antes de escrever, faça pelo menos 1 busca real na internet sobre " +
+      "esse tipo de produto específico (não genérico) pra ver que termos compradores reais usam e em que " +
+      "ordem — não existe atalho sem pesquisar. Se ele tiver mais de 1 variação (família), sugira um " +
+      "TÍTULO BASE sem cor nem tamanho específico — cada variação vai completar cor/tamanho ao aplicar, " +
+      "o Mercado Livre não permite editar título de uma variação sem afetar a família toda. Se for " +
+      "anúncio único, sugira o título completo normalmente.",
     "Para grupo com problema de descrição, escreva uma descrição melhorada completa (não só um resumo " +
       "do problema) — ela é aplicada literalmente em todas as variações do grupo, então não pode " +
       "mencionar cor/tamanho específico, tem que servir pra qualquer variação da família.",
@@ -812,6 +921,11 @@ export type AnuncioResultadoEnriquecido = Omit<AnuncioResultadoIA, "caracteristi
   /** Sinal determinístico (não pedido pra IA): característica já preenchida cujo valor não
    * aparece no título nem na descrição — ver `atributosSemReforcoNoTexto`. */
   atributos_sem_reforco_texto: AtributoPreenchido[];
+  /** Sinal determinístico (não pedido pra IA): ficha técnica tem um valor pra esse atributo
+   * que não aparece no texto, mas outro valor válido do mesmo atributo JÁ aparece — ficha e
+   * texto discordam (ex.: ficha diz "Gola: Mao", título já diz "Gola Padre"). Ver
+   * `atributosSemReforcoNoTexto`. */
+  atributos_conflitantes: AtributoConflitante[];
   /** Preenchido só quando uma ação (aplicar título/descrição/características) foi executada
    * de verdade nesse grupo desde a rodada anterior — compara visita/venda antes vs. depois
    * pra fechar o loop (a sugestão funcionou?). null quando nenhuma ação foi aplicada ainda. */
@@ -932,6 +1046,7 @@ export async function enriquecerResultadoAnunciosSeo(
       categoria_sugerida_nome: grupo?.categoriaSugeridaNome ?? null,
       duplicidade: grupo?.duplicidade ?? null,
       atributos_sem_reforco_texto: grupo?.atributosSemReforcoTexto ?? [],
+      atributos_conflitantes: grupo?.atributosConflitantes ?? [],
       resultado_acao_anterior: resultadoAcaoAnterior,
       membros: (grupo?.membros ?? []).map((m) => ({
         item_id: m.itemId,

@@ -82,16 +82,19 @@ export async function rodarAndreyAvulsoParaAssinante(assinanteId: string): Promi
   let erroMensagem: string | null;
   let tokensInput = 0;
   let tokensOutput = 0;
+  let webSearchRequests = 0;
   try {
     const message = await client.messages.create({
       model: MODELO_GESTORES_IA,
       max_tokens: 16384,
       thinking: { type: "disabled" },
       output_config: { format: { type: "json_schema", schema: SCHEMA_ANUNCIOS_SEO } },
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
       messages: [{ role: "user", content: montarPrompt(PROMPT_ANUNCIOS_SEO, dados) }],
     });
     tokensInput = message.usage?.input_tokens ?? 0;
     tokensOutput = message.usage?.output_tokens ?? 0;
+    webSearchRequests = message.usage?.server_tool_use?.web_search_requests ?? 0;
     ({ resultado, erroMensagem } = parseGestorResposta(message));
   } catch (e: unknown) {
     erroMensagem = e instanceof Error ? e.message : "Erro ao chamar a Anthropic.";
@@ -119,6 +122,7 @@ export async function rodarAndreyAvulsoParaAssinante(assinanteId: string): Promi
       erro: erroMensagem,
       tokens_input: chaveByok ? null : tokensInput,
       tokens_output: chaveByok ? null : tokensOutput,
+      web_search_requests: chaveByok ? null : webSearchRequests,
       atualizado_em: new Date().toISOString(),
     })
     .select("id")

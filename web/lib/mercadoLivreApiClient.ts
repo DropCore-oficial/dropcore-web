@@ -947,6 +947,67 @@ export async function mlBuscarFaturamentoRealPeriodo(
   return total;
 }
 
+type MercadoLivreOrderSearchResultComItens = {
+  results?: {
+    status: string;
+    total_amount?: number;
+    order_items?: { item?: { id?: string; title?: string }; quantity?: number; unit_price?: number }[];
+  }[];
+  paging?: { total?: number };
+};
+
+export type MercadoLivreResumoPedidosPeriodo = {
+  faturamento: number;
+  vendas: number;
+  /** Quantidade vendida por item_id, só de pedidos pagos — base pra "produto campeão". */
+  itens: { itemId: string; titulo: string; quantidade: number }[];
+};
+
+/** Mesma fonte de verdade de `mlBuscarFaturamentoRealPeriodo` (`/orders/search`, pedido
+ * PAGO de verdade), mas também devolve a quebra por item — usado pro resumo financeiro do
+ * hub avulso (faturamento, nº de vendas e produto campeão num período). Função nova, não
+ * reaproveita a outra pra não arriscar regressão no TACoS (que já usa aquela em produção). */
+export async function mlBuscarResumoPedidosPeriodo(
+  ctx: MercadoLivreAuthContext,
+  dateFromIso: string,
+  dateToIso: string,
+  maxPaginas = 40
+): Promise<MercadoLivreResumoPedidosPeriodo> {
+  let offset = 0;
+  let faturamento = 0;
+  let vendas = 0;
+  const porItem = new Map<string, { titulo: string; quantidade: number }>();
+
+  for (let pagina = 0; pagina < maxPaginas; pagina++) {
+    const json = await mlGet<MercadoLivreOrderSearchResultComItens>(
+      `/orders/search?seller=${ctx.mlUserId}&order.date_created.from=${encodeURIComponent(dateFromIso)}&order.date_created.to=${encodeURIComponent(dateToIso)}&limit=50&offset=${offset}`,
+      ctx.accessToken
+    );
+    const results = json?.results ?? [];
+    if (results.length === 0) break;
+    for (const o of results) {
+      if (o.status !== "paid") continue;
+      faturamento += o.total_amount ?? 0;
+      vendas += 1;
+      for (const oi of o.order_items ?? []) {
+        const itemId = oi.item?.id;
+        if (!itemId) continue;
+        const atual = porItem.get(itemId) ?? { titulo: oi.item?.title ?? itemId, quantidade: 0 };
+        atual.quantidade += oi.quantity ?? 0;
+        porItem.set(itemId, atual);
+      }
+    }
+    offset += results.length;
+    if (offset >= (json?.paging?.total ?? 0)) break;
+  }
+
+  return {
+    faturamento,
+    vendas,
+    itens: Array.from(porItem.entries()).map(([itemId, v]) => ({ itemId, titulo: v.titulo, quantidade: v.quantidade })),
+  };
+}
+
 export type MercadoLivrePromocaoItem = {
   /** Ausente pra `type: "PRICE_DISCOUNT"` (self-service, sem campanha com id) — presente pra
    * DEAL/SELLER_CAMPAIGN (campanha existente que o item integra/pode integrar). */

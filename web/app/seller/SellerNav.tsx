@@ -44,6 +44,15 @@ function IconCalculator({ active }: { active: boolean }) {
     </svg>
   );
 }
+function IconDashboard({ active }: { active: boolean }) {
+  return (
+    <svg className={`w-5 h-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="6" x2="6" y1="20" y2="10" />
+      <line x1="12" x2="12" y1="20" y2="4" />
+      <line x1="18" x2="18" y1="20" y2="14" />
+    </svg>
+  );
+}
 function IconPlug({ active }: { active: boolean }) {
   return (
     <svg className={`w-5 h-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -170,7 +179,7 @@ function IconPanelToggle({ expanded }: { expanded: boolean }) {
   );
 }
 
-type NavKey = "dashboard" | "pedidos" | "fornecedores" | "produtos" | "calculadora" | "gestores_ia" | "plano" | "cadastro" | "integracoes";
+type NavKey = "dashboard" | "pedidos" | "fornecedores" | "produtos" | "calculadora" | "gestores_ia" | "plano" | "cadastro" | "integracoes" | "dashboard_avulso";
 
 /** Rotas agrupadas no menu “Mais” (só mobile agora — desktop mostra tudo direto na rail). */
 const NAV_MAIS_MENU_KEYS = ["integracoes", "plano", "cadastro"] as const satisfies readonly NavKey[];
@@ -597,6 +606,18 @@ export function SellerNav({
           </div>
 
           {temGestoresIa && (
+            <SellerNavRailItem
+              href="/seller/gestores-ia-avulso/dashboard"
+              label="Dashboard"
+              isActive={active === "dashboard_avulso"}
+              glow
+              hoverEffect="bounce"
+              expanded={railExpanded}
+            >
+              <IconDashboard active={false} />
+            </SellerNavRailItem>
+          )}
+          {temGestoresIa && (
             <SellerNavGestorIaItem
               expanded={railExpanded}
               pathname={pathname}
@@ -714,7 +735,16 @@ export function SellerNav({
         ) : null}
 
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
-          <div className={`max-w-lg mx-auto grid items-stretch min-h-[52px] ${temGestoresIa ? "grid-cols-3" : "grid-cols-2"}`}>
+          <div className={`max-w-lg mx-auto grid items-stretch min-h-[52px] ${temGestoresIa ? "grid-cols-4" : "grid-cols-2"}`}>
+            {temGestoresIa && (
+              <Link
+                href="/seller/gestores-ia-avulso/dashboard"
+                className={`${mobileLinkClass("dashboard_avulso")} border-t-0 border-b-0 py-2 touch-manipulation min-h-[52px]`}
+              >
+                <IconDashboard active={active === "dashboard_avulso"} />
+                <span className="text-[10px] font-medium leading-tight text-center">Dashboard</span>
+              </Link>
+            )}
             {temGestoresIa && (
               <Link
                 href="/seller/gestores-ia-avulso"

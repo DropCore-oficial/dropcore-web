@@ -12,7 +12,6 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
-import { AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { CopiarSugestaoBotao } from "@/components/seller/SellerGestorCopiarBotao";
 import { mlItemPermalink } from "@/lib/mercadoLivreApiClient";
 
@@ -54,6 +53,11 @@ export type Anuncio = {
   categoria_sugerida_nome: string | null;
   duplicidade: Duplicidade | null;
   atributos_sem_reforco_texto: { id: string; name: string; valor: string }[];
+  /** Ficha técnica tem um valor pra esse atributo que não aparece no texto, mas outro valor
+   * válido do MESMO atributo já aparece — ficha e texto discordam (ex.: ficha diz "Gola:
+   * Mao", título já diz "Gola Padre"). Diferente de ausência: aqui já existe resposta, só
+   * que diferente — não é pra sugerir trocar, é pra avisar a divergência. */
+  atributos_conflitantes: { id: string; name: string; valor: string; valorNoTexto: string }[];
 };
 
 export type AndreyResultado = { anuncios: Anuncio[]; destaque_prioridade: string[] };
@@ -438,7 +442,7 @@ export function AnuncioDiagnosticoDetalhe({ anuncio }: { anuncio: Anuncio }) {
 
       {anuncio.categoria_provavelmente_errada ||
       anuncio.duplicidade ||
-      (anuncio.atributos_sem_reforco_texto ?? []).length > 0 ? (
+      (anuncio.atributos_conflitantes ?? []).length > 0 ? (
         <div className="space-y-2">
           <SecaoEyebrow>Outros pontos</SecaoEyebrow>
 
@@ -475,22 +479,19 @@ export function AnuncioDiagnosticoDetalhe({ anuncio }: { anuncio: Anuncio }) {
             </div>
           ) : null}
 
-          {(anuncio.atributos_sem_reforco_texto ?? []).length > 0 ? (
-            <p className={cn("flex items-start gap-1.5 text-xs", AMBER_PREMIUM_TEXT_PRIMARY)}>
-              <span aria-hidden>🔑</span>
-              <span>
-                Ficha técnica tem{" "}
-                {anuncio.atributos_sem_reforco_texto.map((a, i) => (
-                  <span key={a.id}>
-                    {i > 0 ? ", " : ""}
-                    <strong>
-                      {a.name}: {a.valor}
-                    </strong>
+          {(anuncio.atributos_conflitantes ?? []).length > 0 ? (
+            <div className="space-y-1">
+              {anuncio.atributos_conflitantes.map((a) => (
+                <p key={a.id} className="flex items-start gap-1.5 text-xs text-[var(--danger)]">
+                  <span aria-hidden>⚠</span>
+                  <span>
+                    Ficha técnica diz <strong>{a.name}: {a.valor}</strong>, mas o título/descrição já diz{" "}
+                    <strong>{a.valorNoTexto}</strong> — confira qual dos dois está certo antes de aplicar
+                    qualquer sugestão (não é &quot;falta reforçar&quot;, é uma divergência real).
                   </span>
-                ))}{" "}
-                — mas essa palavra não aparece no título nem na descrição, perdendo força de busca.
-              </span>
-            </p>
+                </p>
+              ))}
+            </div>
           ) : null}
         </div>
       ) : null}

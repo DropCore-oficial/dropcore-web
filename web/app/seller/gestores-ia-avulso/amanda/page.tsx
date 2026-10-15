@@ -12,6 +12,8 @@ import { SellerGestorRunShell, type SellerAiRun, type DispararRodada } from "@/c
 import { CopiarSugestaoBotao } from "@/components/seller/SellerGestorCopiarBotao";
 import { ReputacaoTermometro } from "@/components/seller/ReputacaoTermometro";
 import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
+import { GestorAvulsoConectarMlEmptyState } from "@/components/seller/GestorAvulsoConectarMlEmptyState";
+import { IconAmanda } from "@/components/seller/GestorAvulsoIcons";
 import { mlItemPermalink } from "@/lib/mercadoLivreApiClient";
 
 type Diagnostico = "saudavel" | "atencao" | "critica";
@@ -385,19 +387,11 @@ export default function AmandaAvulsoPage() {
             </button>
           </div>
         ) : !mlConectado ? (
-          <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 text-center shadow-sm sm:p-8">
-            <p className="font-medium text-[var(--foreground)]">Conecte sua conta do Mercado Livre primeiro</p>
-            <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">
-              O SAC precisa ler sua reputação e suas perguntas pendentes pra analisar — conecte sua conta pra
-              liberar essa rodada.
-            </p>
-            <Link
-              href="/seller/gestores-ia-avulso/integracoes"
-              className="mt-4 inline-flex rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
-            >
-              Conectar Mercado Livre
-            </Link>
-          </section>
+          <GestorAvulsoConectarMlEmptyState
+            icon={<IconAmanda className="h-6 w-6 shrink-0" />}
+            titulo="Conecte sua conta do Mercado Livre primeiro"
+            descricao="O SAC precisa ler sua reputação e suas perguntas pendentes pra analisar — conecte sua conta pra liberar essa rodada."
+          />
         ) : (
           <>
             <GestorAvulsoOrcamentoBar usoTokensHoje={usoTokensHoje} bloqueadoHoje={bloqueadoHoje} />

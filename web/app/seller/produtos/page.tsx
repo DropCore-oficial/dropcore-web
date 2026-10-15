@@ -930,7 +930,10 @@ export default function SellerProdutosPage() {
 
       {modalErpSkuAberto && (
         <div className={MODAL_OVERLAY_CLASS} onClick={() => setModalErpSkuAberto(false)}>
-          <div className={cn(MODAL_PANEL_CLASS, "max-w-lg")} onClick={(e) => e.stopPropagation()}>
+          {/* `style` em vez de classe: MODAL_PANEL_CLASS já embute `max-w-sm`, e `cn()` não
+          desduplica — um 2º `max-w-*` perdia sempre pra `.max-w-sm` na ordem do CSS
+          compilado (achado real 2026-10-14, esse modal nunca passou de 384px). */}
+          <div className={cn(MODAL_PANEL_CLASS)} style={{ maxWidth: "32rem" }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
               <h3 className="font-semibold text-[var(--foreground)]">ERP e SKU</h3>
               <button
@@ -969,7 +972,7 @@ export default function SellerProdutosPage() {
 
       {modalPendenciasAberto && (
         <div className={MODAL_OVERLAY_CLASS} onClick={() => setModalPendenciasAberto(false)}>
-          <div className={cn(MODAL_PANEL_CLASS, "max-w-lg")} onClick={(e) => e.stopPropagation()}>
+          <div className={cn(MODAL_PANEL_CLASS)} style={{ maxWidth: "32rem" }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
               <div className="min-w-0">
                 <h3 className="font-semibold text-[var(--foreground)]">Pendências</h3>

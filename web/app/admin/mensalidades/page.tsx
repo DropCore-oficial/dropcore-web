@@ -802,7 +802,10 @@ export default function MensalidadesPage() {
             if (ev.target === ev.currentTarget) setDetalhe(null);
           }}
         >
-          <div className={`${MODAL_PANEL_CLASS} max-w-md`}>
+          {/* style em vez de classe: MODAL_PANEL_CLASS já embute max-w-sm, que sempre vence
+          de um 2º max-w-* por ordem do CSS compilado, não por ordem no HTML (achado real
+          2026-10-14, esse modal nunca passou de 384px). */}
+          <div className={MODAL_PANEL_CLASS} style={{ maxWidth: "28rem" }}>
             <div className="flex items-start justify-between gap-3 border-b border-[var(--card-border)] p-4 sm:p-5">
               <div className="min-w-0">
                 <h2 id="detalhe-modal-title" className="truncate text-base font-semibold">

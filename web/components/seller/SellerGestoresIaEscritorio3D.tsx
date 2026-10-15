@@ -1621,6 +1621,7 @@ export function SellerGestoresIaEscritorio3D({
           </div>
         ) : null}
       </div>
+      <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70" aria-hidden />
     </section>
   );
 }

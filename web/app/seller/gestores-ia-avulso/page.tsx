@@ -10,6 +10,10 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import type { AtividadeAoVivo } from "@/components/seller/SellerGestoresIaEscritorio3D";
 import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
 import { buildSellerSupportWhatsAppHref } from "@/lib/sellerSupportWhatsAppPrefill";
+import { cn } from "@/lib/utils";
+import { SUCCESS_PREMIUM_TEXT_SOFT, DANGER_PREMIUM_TEXT_SOFT } from "@/lib/semanticPremium";
+import { AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
+import { IconAndrey, IconAmanda, IconUlisses, IconTiago } from "@/components/seller/GestorAvulsoIcons";
 
 const SellerGestoresIaEscritorio3D = dynamic(
   () => import("@/components/seller/SellerGestoresIaEscritorio3D").then((m) => m.SellerGestoresIaEscritorio3D),
@@ -29,12 +33,29 @@ const SellerGestoresIaEscritorio3D = dynamic(
 // (Diogo/Andrey/Amanda/Ulisses/Tiago Silva/Você). Mesmo padrão do hub `/seller/gestores-ia`
 // (`GestorCard` em `web/app/seller/gestores-ia/page.tsx`), reaproveitando os `resumoStatusX`
 // que esta página já calculava.
+type Severidade = "sucesso" | "atencao" | "critica" | "neutro";
+
+const SEVERIDADE_TEXT_CLASS: Record<Severidade, string> = {
+  sucesso: SUCCESS_PREMIUM_TEXT_SOFT,
+  atencao: AMBER_PREMIUM_TEXT_SOFT,
+  critica: DANGER_PREMIUM_TEXT_SOFT,
+  neutro: "text-[var(--muted)]",
+};
+
+/** Ícone do gestor fica neutro (mesmo tom pros 4) — nunca carrega identidade por cor nem
+ * estado. Referência pedida pelo Sr Stark: admin de verdade do Shopify, onde o ícone de
+ * categoria é monocromático e a diferenciação vive só no texto/badge, não num avatar
+ * colorido (decisão 2026-10-14, revertendo a tentativa anterior de 1 cor por gestor). */
+const GESTOR_ICON_CHIP_CLASS =
+  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] text-[var(--foreground)]";
+
 function GestorCardAvulso({
   href,
   icon,
   nome,
   funcao,
   descricao,
+  severidade = "neutro",
   bloqueado,
 }: {
   href: string;
@@ -42,6 +63,7 @@ function GestorCardAvulso({
   nome: string;
   funcao: string;
   descricao: string;
+  severidade?: Severidade;
   bloqueado?: boolean;
 }) {
   return (
@@ -50,53 +72,24 @@ function GestorCardAvulso({
       className="group block rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 hover:shadow-md dark:hover:border-emerald-700"
     >
       <div className="flex items-center gap-2.5">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
-          {icon}
-        </span>
+        <span className={GESTOR_ICON_CHIP_CLASS}>{icon}</span>
         <div className="min-w-0">
           <p className="font-semibold text-[var(--foreground)]">{nome}</p>
           <p className="text-xs text-[var(--muted)]">{funcao}</p>
         </div>
       </div>
-      <p className="mt-3 text-sm text-[var(--muted)]">{descricao}</p>
+      <p
+        className={cn(
+          "mt-3 text-sm",
+          severidade === "neutro" ? "text-[var(--muted)]" : cn("font-medium", SEVERIDADE_TEXT_CLASS[severidade])
+        )}
+      >
+        {descricao}
+      </p>
       {bloqueado ? (
         <p className="mt-1.5 text-xs text-[var(--muted)]">Orçamento de hoje esgotado — volta à meia-noite.</p>
       ) : null}
     </Link>
-  );
-}
-
-function IconAndrey() {
-  return (
-    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="m3 11 18-5v12L3 14v-3z" />
-      <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
-    </svg>
-  );
-}
-function IconAmanda() {
-  return (
-    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-    </svg>
-  );
-}
-function IconUlisses() {
-  return (
-    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <line x1="12" x2="12" y1="2" y2="22" />
-      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-    </svg>
-  );
-}
-function IconTiago() {
-  return (
-    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
   );
 }
 
@@ -151,6 +144,32 @@ function resumoStatusUlisses(run: UlissesRun): string {
   if (abaixoMin > 0) return `${abaixoMin} com margem baixa`;
   if (semCusto > 0) return `${semCusto} sem custo cadastrado`;
   return "Margens saudáveis";
+}
+
+/** Severidade da última rodada — o único acento de cor secundário liberado no card (ver
+ * skill dropcore-gestores-ia: 1 sinal forte por card continua sendo o badge de veredito
+ * nos painéis internos; aqui, antes de abrir o painel, é essa linha de resumo que faz esse
+ * papel, então ela também ganha o mesmo tratamento semântico — nunca vira caixa própria,
+ * continua sendo texto simples, só o tom muda). */
+function severidadeAndrey(run: AndreyRun): Severidade {
+  if (!run || run.status !== "ok" || !run.resultado) return "neutro";
+  const comProblema = run.resultado.anuncios.filter((a) => a.diagnostico !== "sem_problema_aparente").length;
+  return comProblema > 0 ? "atencao" : "sucesso";
+}
+
+function severidadeAmanda(run: AmandaRun): Severidade {
+  if (!run || run.status !== "ok" || !run.resultado) return "neutro";
+  if (run.resultado.diagnostico === "critica") return "critica";
+  if (run.resultado.diagnostico === "atencao") return "atencao";
+  return run.resultado.perguntas.length > 0 ? "atencao" : "sucesso";
+}
+
+function severidadeUlisses(run: UlissesRun): Severidade {
+  if (!run || run.status !== "ok" || !run.resultado) return "neutro";
+  const abaixoMin = run.resultado.skus.filter((s) => s.diagnostico === "margem_abaixo_minima").length;
+  if (abaixoMin > 0) return "critica";
+  const semCusto = run.resultado.skus.filter((s) => s.diagnostico === "sem_custo").length;
+  return semCusto > 0 ? "atencao" : "sucesso";
 }
 
 function montarAtividades(andreyRun: AndreyRun, amandaRun: AmandaRun, ulissesRun: UlissesRun): AtividadeAoVivo[] {
@@ -365,6 +384,7 @@ export default function GestoresIaAvulsoPage() {
               resumoStatusAndrey(andreyRun),
               "Analisa seus anúncios e aponta o que pode estar travando visitas e vendas."
             )}
+            severidade={severidadeAndrey(andreyRun)}
             bloqueado={bloqueadoHoje}
           />
           <GestorCardAvulso
@@ -376,6 +396,7 @@ export default function GestoresIaAvulsoPage() {
               resumoStatusAmanda(amandaRun),
               "Acompanha perguntas e reclamações, sugere resposta pronta pra você enviar."
             )}
+            severidade={severidadeAmanda(amandaRun)}
             bloqueado={bloqueadoHoje}
           />
           <GestorCardAvulso
@@ -387,6 +408,7 @@ export default function GestoresIaAvulsoPage() {
               resumoStatusUlisses(ulissesRun),
               "Confere margem e preço de cada SKU, sinaliza o que tá fora do saudável."
             )}
+            severidade={severidadeUlisses(ulissesRun)}
             bloqueado={bloqueadoHoje}
           />
           <GestorCardAvulso
