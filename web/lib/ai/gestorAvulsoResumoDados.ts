@@ -26,6 +26,9 @@ export type ResumoFinanceiroAvulso = {
   /** null quando não houve venda no período (sem como dividir). */
   ticketMedio30d: number | null;
   produtoCampeao: { itemId: string; nome: string; vendas: number } | null;
+  /** Top 5 produtos por faturamento real no período (não só quantidade) — base do ranking
+   * "Top produtos" do Dashboard. Vazio quando não houve venda no período. */
+  topProdutos: { itemId: string; nome: string; vendas: number; faturamento: number }[];
   /** Faturamento por dia civil (BRT) dos últimos 30 dias — base do sparkline do Dashboard. */
   porDia30d: { dia: string; faturamento: number; vendas: number }[];
 };
@@ -67,6 +70,11 @@ export async function buscarResumoFinanceiroAvulso(assinanteId: string): Promise
     }
   }
 
+  const topProdutos = [...periodoAtual.itens]
+    .sort((a, b) => b.faturamento - a.faturamento)
+    .slice(0, 5)
+    .map((item) => ({ itemId: item.itemId, nome: item.titulo, vendas: item.quantidade, faturamento: item.faturamento }));
+
   const ticketMedio30d = periodoAtual.vendas > 0 ? periodoAtual.faturamento / periodoAtual.vendas : null;
 
   return {
@@ -77,6 +85,7 @@ export async function buscarResumoFinanceiroAvulso(assinanteId: string): Promise
     margemMediaPct,
     ticketMedio30d,
     produtoCampeao,
+    topProdutos,
     porDia30d: periodoAtual.porDia,
   };
 }

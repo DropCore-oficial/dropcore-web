@@ -15,10 +15,50 @@ import { buildSellerSupportWhatsAppHref } from "@/lib/sellerSupportWhatsAppPrefi
 type Mensagem = { id: string; role: "user" | "assistant"; content: string; criado_em: string };
 type Sessao = { id: string; titulo: string | null; criado_em: string; atualizado_em: string };
 
+/** Mesma linguagem de ícone já usada nas abas do Anúncio/ADS (pergunta sem resposta ~
+ * balão de chat, margem ~ cifrão cortado, resumo ~ ficha) — reaproveitada aqui de propósito
+ * pra dar consistência visual entre os gestores. */
+function IconPerguntaParada() {
+  return (
+    <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+    </svg>
+  );
+}
+function IconMargemBaixa() {
+  return (
+    <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="m19 5-14 14" />
+      <circle cx="6.5" cy="6.5" r="2.5" />
+      <circle cx="17.5" cy="17.5" r="2.5" />
+    </svg>
+  );
+}
+function IconResumo() {
+  return (
+    <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <path d="M8 7h8M8 11h8M8 15h5" />
+    </svg>
+  );
+}
+
 const PERGUNTAS_RAPIDAS = [
-  { label: "Anúncio com pergunta parada?", pergunta: "Tem algum anúncio com pergunta de cliente sem resposta?" },
-  { label: "Margem furando o mínimo?", pergunta: "Algum anúncio está com margem abaixo do mínimo configurado?" },
-  { label: "Resumo geral de hoje", pergunta: "Me dá um resumo geral: anúncios, reputação e margem." },
+  {
+    label: "Anúncio com pergunta parada?",
+    pergunta: "Tem algum anúncio com pergunta de cliente sem resposta?",
+    icon: <IconPerguntaParada />,
+  },
+  {
+    label: "Margem furando o mínimo?",
+    pergunta: "Algum anúncio está com margem abaixo do mínimo configurado?",
+    icon: <IconMargemBaixa />,
+  },
+  {
+    label: "Resumo geral de hoje",
+    pergunta: "Me dá um resumo geral: anúncios, reputação e margem.",
+    icon: <IconResumo />,
+  },
 ];
 
 function saudacaoPorHorario(): string {
@@ -221,7 +261,7 @@ export default function TiagoAvulsoPage() {
           <div className="mt-1 min-w-0 space-y-1">
             <div className="flex items-center gap-2 sm:gap-3">
               <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
-                Gestor — Gestor Mestre
+                Gestor
               </h1>
               <span
                 className="h-1 w-14 shrink-0 self-center rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 sm:w-20"
@@ -260,33 +300,31 @@ export default function TiagoAvulsoPage() {
           </section>
         ) : (
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                {sessoes.length > 1 && (
-                  <select
-                    value={sessaoAtivaId ?? ""}
-                    onChange={(e) => void carregar(e.target.value)}
-                    className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2 py-1.5 text-xs text-[var(--foreground)]"
-                  >
-                    {sessoes.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.titulo ?? new Date(s.criado_em).toLocaleDateString("pt-BR")}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <button
-                  type="button"
-                  onClick={() => void novaConversa()}
-                  className="inline-flex items-center gap-1 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
-                >
-                  <IconPlus className="h-3.5 w-3.5" />
-                  Nova conversa
-                </button>
-              </div>
-            </div>
-
             <GestorAvulsoOrcamentoBar usoTokensHoje={usoTokensHoje} bloqueadoHoje={bloqueadoHoje} />
+
+            <div className="flex items-center gap-2">
+              {sessoes.length > 1 && (
+                <select
+                  value={sessaoAtivaId ?? ""}
+                  onChange={(e) => void carregar(e.target.value)}
+                  className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2 py-1.5 text-xs text-[var(--foreground)]"
+                >
+                  {sessoes.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.titulo ?? new Date(s.criado_em).toLocaleDateString("pt-BR")}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button
+                type="button"
+                onClick={() => void novaConversa()}
+                className="inline-flex items-center gap-1 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+              >
+                <IconPlus className="h-3.5 w-3.5" />
+                Nova conversa
+              </button>
+            </div>
 
             <section className="flex min-h-[420px] flex-col rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
               <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
@@ -304,8 +342,9 @@ export default function TiagoAvulsoPage() {
                           type="button"
                           disabled={enviando || chatBloqueado}
                           onClick={() => void enviar(p.pergunta)}
-                          className="rounded-full border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-emerald-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-emerald-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                         >
+                          {p.icon}
                           {p.label}
                         </button>
                       ))}

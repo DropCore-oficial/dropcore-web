@@ -103,7 +103,7 @@ export default function GestoresIaLoginPage() {
             : "Não foi possível validar o acesso. Tente novamente ou fale com o suporte.",
         );
       }
-      window.location.assign("/seller/gestores-ia-avulso");
+      window.location.assign("/seller/gestores-ia-avulso/dashboard");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro ao fazer login.");
     } finally {

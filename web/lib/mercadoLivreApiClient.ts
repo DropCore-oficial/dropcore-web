@@ -960,8 +960,9 @@ type MercadoLivreOrderSearchResultComItens = {
 export type MercadoLivreResumoPedidosPeriodo = {
   faturamento: number;
   vendas: number;
-  /** Quantidade vendida por item_id, só de pedidos pagos — base pra "produto campeão". */
-  itens: { itemId: string; titulo: string; quantidade: number }[];
+  /** Quantidade + faturamento vendido por item_id, só de pedidos pagos — base pro ranking
+   * "Top produtos" do Dashboard avulso. */
+  itens: { itemId: string; titulo: string; quantidade: number; faturamento: number }[];
   /** Faturamento por dia civil em BRT (não UTC — pedido das 23h BRT não pode cair no dia
    * seguinte no gráfico do seller), só com pedido pago. Base pro sparkline do Dashboard
    * avulso. */
@@ -988,7 +989,7 @@ export async function mlBuscarResumoPedidosPeriodo(
   let offset = 0;
   let faturamento = 0;
   let vendas = 0;
-  const porItem = new Map<string, { titulo: string; quantidade: number }>();
+  const porItem = new Map<string, { titulo: string; quantidade: number; faturamento: number }>();
   const porDia = new Map<string, { faturamento: number; vendas: number }>();
 
   for (let pagina = 0; pagina < maxPaginas; pagina++) {
@@ -1005,8 +1006,9 @@ export async function mlBuscarResumoPedidosPeriodo(
       for (const oi of o.order_items ?? []) {
         const itemId = oi.item?.id;
         if (!itemId) continue;
-        const atual = porItem.get(itemId) ?? { titulo: oi.item?.title ?? itemId, quantidade: 0 };
+        const atual = porItem.get(itemId) ?? { titulo: oi.item?.title ?? itemId, quantidade: 0, faturamento: 0 };
         atual.quantidade += oi.quantity ?? 0;
+        atual.faturamento += (oi.unit_price ?? 0) * (oi.quantity ?? 0);
         porItem.set(itemId, atual);
       }
       if (o.date_created) {
@@ -1024,7 +1026,12 @@ export async function mlBuscarResumoPedidosPeriodo(
   return {
     faturamento,
     vendas,
-    itens: Array.from(porItem.entries()).map(([itemId, v]) => ({ itemId, titulo: v.titulo, quantidade: v.quantidade })),
+    itens: Array.from(porItem.entries()).map(([itemId, v]) => ({
+      itemId,
+      titulo: v.titulo,
+      quantidade: v.quantidade,
+      faturamento: v.faturamento,
+    })),
     porDia: Array.from(porDia.entries())
       .map(([dia, v]) => ({ dia, faturamento: v.faturamento, vendas: v.vendas }))
       .sort((a, b) => a.dia.localeCompare(b.dia)),

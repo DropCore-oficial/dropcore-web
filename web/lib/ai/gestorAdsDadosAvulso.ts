@@ -235,12 +235,23 @@ export type SkuResultadoAdsAvulso = {
   desconto_ativo_fim: string | null;
 };
 
+/** 1 promoção/campanha ativa ou agendada na conta (não por produto — isso é o
+ * `desconto_ativo_*` do `SkuResultadoAdsAvulso`). Estruturado em vez de string concatenada
+ * (`type "nome" (status X, até Y); type "nome" (...); ...`) pra o front poder montar uma
+ * linha por campanha em vez de um parágrafo ilegível — achado 2026-10-15. */
+export type PromocaoContaResumo = {
+  tipo: string;
+  nome: string | null;
+  status: string;
+  fim: string | null;
+};
+
 export type ResultadoAdsAvulsoEnriquecido = {
   skus: SkuResultadoAdsAvulso[];
   destaque_atencao: string[];
   ads_gasto_total_mes: number | null;
   cupom_ativo_na_conta: boolean;
-  promocoes_conta_resumo: string;
+  promocoes_conta: PromocaoContaResumo[];
   campanhas: ReturnType<typeof campanhaParaJson>[];
 };
 
@@ -284,12 +295,12 @@ export async function montarResultadoAdsAvulso(assinanteId: string): Promise<Res
   if (grupos.length === 0) return null;
 
   const cupomAtivoNaConta = promocoesAtivas.some((p) => p.type === "SELLER_COUPON_CAMPAIGN");
-  const promocoesContaResumo =
-    promocoesAtivas.length === 0
-      ? "Nenhuma promoção/campanha ativa na conta no momento."
-      : promocoesAtivas
-          .map((p) => `${p.type}${p.name ? ` "${p.name}"` : ""} (status ${p.status}${p.finish_date ? `, até ${p.finish_date.slice(0, 10)}` : ""})`)
-          .join("; ");
+  const promocoesConta: PromocaoContaResumo[] = promocoesAtivas.map((p) => ({
+    tipo: p.type,
+    nome: p.name ?? null,
+    status: p.status,
+    fim: p.finish_date ? p.finish_date.slice(0, 10) : null,
+  }));
 
   // Precisa dos detalhes de novo pro listing_type/shipping/family_id/original_price do
   // representante — buscarCatalogoAgrupado já filtrou, mas não devolve esses campos pra
@@ -431,7 +442,7 @@ export async function montarResultadoAdsAvulso(assinanteId: string): Promise<Res
     destaque_atencao: destaqueAtencao,
     ads_gasto_total_mes: metricasAds?.gastoTotalMes ?? null,
     cupom_ativo_na_conta: cupomAtivoNaConta,
-    promocoes_conta_resumo: promocoesContaResumo,
+    promocoes_conta: promocoesConta,
     campanhas,
   };
 }

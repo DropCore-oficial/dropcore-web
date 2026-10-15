@@ -564,7 +564,7 @@ export function SellerNav({
       : inactiveMobile + (mobileMaisOpen ? " bg-[var(--surface-hover)]" : ""));
 
   if (calcOnly) {
-    const homeHref = temGestoresIa ? "/seller/gestores-ia-avulso" : "/seller/calculadora";
+    const homeHref = temGestoresIa ? "/seller/gestores-ia-avulso/dashboard" : "/seller/calculadora";
     const calcMaisActive = active === "integracoes" || active === "cadastro" || active === "plano";
     const calcMaisBtnClass =
       `flex min-w-0 flex-1 flex-row items-center justify-center gap-1 overflow-hidden px-0.5 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ` +
@@ -578,7 +578,7 @@ export function SellerNav({
           logoHref={homeHref}
           end={<AppBarEndMobileAuth context="seller" onLogout={sairCalculadoraNav} logoutLabel="Sair" />}
         />
-        <header className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
+        <header className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[#FFFFFF] dark:bg-black text-[var(--foreground)] shadow-sm">
           <div className="flex w-full min-w-0 items-center justify-between gap-3 px-4 sm:px-6">
             <DropCoreLogo variant="horizontal" href={homeHref} className="shrink-0" />
             <AppBarEndDesktopAuth context="seller" onLogout={sairCalculadoraNav} iconVariant="plain" />
@@ -587,7 +587,7 @@ export function SellerNav({
 
         <nav
           aria-label="Navegação do assinante"
-          className={`hidden md:flex fixed left-0 top-14 bottom-0 z-40 flex-col gap-3 overflow-x-hidden border-r border-[var(--card-border)] bg-[var(--background)] py-3 text-[var(--foreground)] transition-[width] duration-200 ${
+          className={`hidden md:flex fixed left-0 top-14 bottom-0 z-40 flex-col gap-3 overflow-x-hidden border-r border-[var(--card-border)] bg-[#FFFFFF] dark:bg-black py-3 text-[var(--foreground)] transition-[width] duration-200 ${
             railExpanded ? "w-60 items-stretch px-3" : "w-16 items-center"
           }`}
         >
@@ -757,7 +757,7 @@ export function SellerNav({
           </>
         ) : null}
 
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[#FFFFFF] dark:bg-black text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
           <div className={`max-w-lg mx-auto grid items-stretch min-h-[52px] ${temGestoresIa ? "grid-cols-4" : "grid-cols-2"}`}>
             {temGestoresIa && (
               <Link
@@ -817,7 +817,7 @@ export function SellerNav({
         logoHref="/seller/dashboard"
         end={<AppBarEndMobileAuth context="seller" onLogout={sair} />}
       />
-      <header className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-sm">
+      <header className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-[var(--card-border)] bg-[#FFFFFF] dark:bg-black text-[var(--foreground)] shadow-sm">
         <div className="flex w-full min-w-0 items-center justify-between gap-3 px-4 sm:px-6">
           <DropCoreLogo variant="horizontal" href="/seller/dashboard" className="shrink-0" />
           <AppBarEndDesktopAuth context="seller" onLogout={sair} iconVariant="plain" />
@@ -826,7 +826,7 @@ export function SellerNav({
 
       <nav
         aria-label="Navegação do seller"
-        className="hidden md:flex fixed left-0 top-14 bottom-0 z-40 w-16 flex-col items-center gap-1 border-r border-[var(--card-border)] bg-[var(--background)] py-3 text-[var(--foreground)]"
+        className="hidden md:flex fixed left-0 top-14 bottom-0 z-40 w-16 flex-col items-center gap-1 border-r border-[var(--card-border)] bg-[#FFFFFF] dark:bg-black py-3 text-[var(--foreground)]"
       >
         <SellerNavRailItem href="/seller/dashboard" label="Dashboard" isActive={active === "dashboard"}>
           <IconHome active={active === "dashboard"} />
@@ -962,7 +962,7 @@ export function SellerNav({
         </>
       ) : null}
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[#FFFFFF] dark:bg-black text-[var(--foreground)] shadow-[var(--shadow-chrome-up)] pb-[env(safe-area-inset-bottom)]">
         <div className={`mx-auto grid w-full ${wide ? "max-w-6xl" : "max-w-4xl"} grid-cols-4 items-stretch min-h-[52px]`}>
           <Link href="/seller/dashboard" className={mobileLinkClass("dashboard")}>
             <IconHome active={active === "dashboard"} />

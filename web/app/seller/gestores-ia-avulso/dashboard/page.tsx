@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
@@ -12,19 +11,6 @@ import { GestorAvulsoConectarMlEmptyState } from "@/components/seller/GestorAvul
 import { IconClock } from "@/components/seller/Icons";
 import type { ResumoFinanceiroAvulso } from "@/lib/ai/gestorAvulsoResumoDados";
 import { mlItemPermalink } from "@/lib/mercadoLivreApiClient";
-import { IconAndrey, IconAmanda, IconUlisses } from "@/components/seller/GestorAvulsoIcons";
-import { GestorAvulsoPendenciasLista, type GestorPendenciaItem } from "@/components/seller/GestorAvulsoPendenciasLista";
-import {
-  type AndreyRun,
-  type AmandaRun,
-  type UlissesRun,
-  resumoStatusAndrey,
-  resumoStatusAmanda,
-  resumoStatusUlisses,
-  severidadeAndrey,
-  severidadeAmanda,
-  severidadeUlisses,
-} from "@/lib/ai/gestorAvulsoStatusResumo";
 
 type Acesso = "loading" | "liberado" | "negado";
 
@@ -40,24 +26,74 @@ function IconDashboard({ className = "h-6 w-6 shrink-0" }: { className?: string 
   );
 }
 
-/** Sparkline — faturamento por dia dos últimos 30 dias. Mesma ideia do mini-gráfico da
- * seção "Desempenho" de `/seller/dashboard`, só que mais simples (sem tooltip custom, usa
- * `title` nativo) — primeira versão de gráfico no Dashboard avulso. */
+/** Sparkline — faturamento por dia dos últimos 30 dias. Mesmo padrão do gráfico
+ * "Desempenho" de `/seller/dashboard`: barra em px (não % de um container de 40px — barra
+ * baixa virava "pontinho" ilegível) + tooltip customizado no toque/hover (o `title` nativo
+ * não aparece em celular, achado 2026-10-15) + rótulo de data nas pontas. */
 function SparklineFaturamento({ porDia }: { porDia: ResumoFinanceiroAvulso["porDia30d"] }) {
+  const [ativoIdx, setAtivoIdx] = useState<number | null>(null);
   const max = Math.max(...porDia.map((d) => d.faturamento), 1);
+  const barMaxH = 96;
+
+  const hojeStr = new Date().toISOString().slice(0, 10);
+  const ultimoDiaHoje = porDia[porDia.length - 1]?.dia === hojeStr;
+
   return (
-    <div className="flex h-10 items-end gap-[2px]">
-      {porDia.map((d) => {
-        const diaFmt = `${d.dia.slice(8)}/${d.dia.slice(5, 7)}`;
-        return (
-          <div
-            key={d.dia}
-            className="min-w-0 flex-1 rounded-t bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400"
-            style={{ height: `${Math.max((d.faturamento / max) * 100, d.faturamento > 0 ? 4 : 2)}%` }}
-            title={`${diaFmt}: ${BRL.format(d.faturamento)}${d.vendas ? ` · ${d.vendas} venda${d.vendas > 1 ? "s" : ""}` : ""}`}
-          />
-        );
-      })}
+    <div>
+      <div className="flex h-28 items-end gap-[2px]">
+        {porDia.map((d, idx) => {
+          const diaFmt = d.dia.length >= 10 ? `${d.dia.slice(8)}/${d.dia.slice(5, 7)}` : d.dia;
+          const barH = d.faturamento > 0 ? Math.max(14, (d.faturamento / max) * barMaxH) : 3;
+          const pertoDaBordaDireita = idx >= porDia.length - 2;
+          return (
+            <div
+              key={d.dia}
+              className="relative flex min-w-0 flex-1 flex-col items-center justify-end"
+              onMouseEnter={() => setAtivoIdx(idx)}
+              onMouseLeave={() => setAtivoIdx((v) => (v === idx ? null : v))}
+              onClick={() => setAtivoIdx((v) => (v === idx ? null : idx))}
+            >
+              <div
+                className="w-full cursor-default rounded-t bg-emerald-600 transition hover:opacity-90 dark:bg-emerald-500"
+                style={{ height: `${barH}px` }}
+              />
+              {ativoIdx === idx ? (
+                <div
+                  className={cn(
+                    "pointer-events-none absolute bottom-full z-20 mb-2",
+                    pertoDaBordaDireita ? "right-0" : "left-1/2 -translate-x-1/2"
+                  )}
+                >
+                  <div className="min-w-[140px] whitespace-nowrap rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 shadow-xl">
+                    <p className="text-[11px] font-semibold text-[var(--foreground)]">{diaFmt}</p>
+                    <p className="mt-0.5 text-xs font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                      {BRL.format(d.faturamento)}
+                    </p>
+                    {d.vendas > 0 ? (
+                      <p className="text-[11px] text-[var(--muted)]">
+                        {d.vendas} venda{d.vendas > 1 ? "s" : ""}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-1 flex justify-between px-0.5">
+        <span className="text-[10px] text-[var(--muted)]">
+          {porDia[0]?.dia.length >= 10 ? `${porDia[0].dia.slice(8)}/${porDia[0].dia.slice(5, 7)}` : porDia[0]?.dia ?? ""}
+        </span>
+        <span className={cn("text-[10px]", ultimoDiaHoje ? "font-medium text-emerald-600 dark:text-emerald-400" : "text-[var(--muted)]")}>
+          {ultimoDiaHoje
+            ? "Hoje"
+            : (() => {
+                const last = porDia[porDia.length - 1]?.dia;
+                return last && last.length >= 10 ? `${last.slice(8)}/${last.slice(5, 7)}` : last ?? "";
+              })()}
+        </span>
+      </div>
     </div>
   );
 }
@@ -155,14 +191,57 @@ function ResumoFinanceiroCard({ resumo }: { resumo: ResumoFinanceiroAvulso }) {
   );
 }
 
+/** Card "Top produtos" — ranking por faturamento real no período (não só quantidade),
+ * substitui o antigo bloco "Pendências dos gestores" (2026-10-15, pedido do Sr Stark: isso
+ * já aparece no hub `/seller/gestores-ia-avulso`, duplicado aqui; dado de venda ajuda mais
+ * no Dashboard). Reaproveita os mesmos pedidos já buscados pro card de Resultado — só passou
+ * a rastrear faturamento por item além da quantidade (`mercadoLivreApiClient.ts`). */
+function TopProdutosCard({ resumo }: { resumo: ResumoFinanceiroAvulso }) {
+  if (resumo.topProdutos.length === 0) {
+    return (
+      <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Top produtos · 30 dias</p>
+        <p className="mt-2 text-sm text-[var(--muted)]">Nenhuma venda no período.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Top produtos · 30 dias</p>
+      <ul className="mt-2.5 divide-y divide-[var(--card-border)]">
+        {resumo.topProdutos.map((p, i) => (
+          <li key={p.itemId} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--muted)]/10 text-xs font-bold text-[var(--muted)]">
+              {i + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="line-clamp-1 text-sm font-medium text-[var(--foreground)]">{p.nome}</p>
+              <p className="mt-0.5 text-xs text-[var(--muted)]">{p.vendas} venda{p.vendas !== 1 ? "s" : ""}</p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-sm font-bold tabular-nums text-[var(--foreground)]">{BRL.format(p.faturamento)}</p>
+            </div>
+            <a
+              href={mlItemPermalink(p.itemId)}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+            >
+              Ver ↗
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function GestoresIaAvulsoDashboardPage() {
   const router = useRouter();
   const [acesso, setAcesso] = useState<Acesso>("loading");
   const [mlConectado, setMlConectado] = useState(true);
   const [resumo, setResumo] = useState<ResumoFinanceiroAvulso | null>(null);
-  const [andreyRun, setAndreyRun] = useState<AndreyRun>(null);
-  const [amandaRun, setAmandaRun] = useState<AmandaRun>(null);
-  const [ulissesRun, setUlissesRun] = useState<UlissesRun>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
 
@@ -173,21 +252,38 @@ export default function GestoresIaAvulsoDashboardPage() {
       router.replace("/gestores-ia/login");
       return;
     }
-    fetch(`/api/calculadora/me?t=${Date.now()}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })
-      .then((r) => r.json())
-      .then((j) => {
-        setLogoUrl(typeof j.logo_url === "string" && j.logo_url.length > 0 ? j.logo_url : null);
-        setEmail(typeof j.email === "string" ? j.email : null);
-      })
-      .catch(() => {});
+
+    // Dashboard é a página de entrada do avulso agora (2026-10-15) — precisa se auto-rotear
+    // por tipo de acesso igual as outras telas do avulso, não só confiar no 403 genérico do
+    // /resumo (senão assinante só-Calculadora ou seller do hub cai numa tela de erro aqui).
+    const meRes = await fetch(`/api/calculadora/me?t=${Date.now()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    const me = await meRes.json().catch(() => ({}));
+    if (!meRes.ok) {
+      setAcesso("negado");
+      return;
+    }
+    if (me.access === "seller") {
+      router.replace("/seller/cadastro");
+      return;
+    }
+    if (me.access === "calc_only_locked") {
+      router.replace("/seller/calculadora");
+      return;
+    }
+    if (me.access === "calc_only" && me.inclui_gestores_ia !== true) {
+      router.replace("/seller/gestores-ia-avulso");
+      return;
+    }
+    setLogoUrl(typeof me.logo_url === "string" && me.logo_url.length > 0 ? me.logo_url : null);
+    setEmail(typeof me.email === "string" ? me.email : null);
+
     const res = await fetch(`/api/gestores-ia-avulso/resumo?t=${Date.now()}`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
-    if (res.status === 403) {
-      setAcesso("negado");
-      return;
-    }
     if (res.status === 422) {
       setMlConectado(false);
       setAcesso("liberado");
@@ -201,18 +297,6 @@ export default function GestoresIaAvulsoDashboardPage() {
     setMlConectado(true);
     setResumo(json as ResumoFinanceiroAvulso);
     setAcesso("liberado");
-
-    const [andreyRes, amandaRes, ulissesRes] = await Promise.all([
-      fetch("/api/gestores-ia-avulso/andrey", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
-      fetch("/api/gestores-ia-avulso/amanda", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
-      fetch("/api/gestores-ia-avulso/ulisses", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
-    ]);
-    const andreyJson = await andreyRes.json().catch(() => ({}));
-    if (andreyRes.ok) setAndreyRun(andreyJson.run ?? null);
-    const amandaJson = await amandaRes.json().catch(() => ({}));
-    if (amandaRes.ok) setAmandaRun(amandaJson.run ?? null);
-    const ulissesJson = await ulissesRes.json().catch(() => ({}));
-    if (ulissesRes.ok) setUlissesRun(ulissesJson.run ?? null);
   }, [router]);
 
   // Mesmo formato do cabeçalho do /seller/dashboard real (saudação com data por extenso,
@@ -231,10 +315,7 @@ export default function GestoresIaAvulsoDashboardPage() {
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
       <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <header className="overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
-          <Link href="/seller/gestores-ia-avulso" className="text-xs font-medium text-[var(--muted)] hover:underline">
-            ← Gestor de IA
-          </Link>
-          <div className="mt-2 flex items-stretch gap-3">
+          <div className="flex items-stretch gap-3">
             {logoUrl ? (
               <div className="flex shrink-0 items-center">
                 <img
@@ -284,32 +365,7 @@ export default function GestoresIaAvulsoDashboardPage() {
         ) : resumo ? (
           <>
             <ResumoFinanceiroCard resumo={resumo} />
-            <GestorAvulsoPendenciasLista
-              titulo="Pendências dos gestores"
-              itens={[
-                {
-                  href: "/seller/gestores-ia-avulso/andrey",
-                  icon: <IconAndrey />,
-                  nome: "Anúncio",
-                  status: resumoStatusAndrey(andreyRun),
-                  severidade: severidadeAndrey(andreyRun),
-                },
-                {
-                  href: "/seller/gestores-ia-avulso/amanda",
-                  icon: <IconAmanda />,
-                  nome: "SAC",
-                  status: resumoStatusAmanda(amandaRun),
-                  severidade: severidadeAmanda(amandaRun),
-                },
-                {
-                  href: "/seller/gestores-ia-avulso/ulisses",
-                  icon: <IconUlisses />,
-                  nome: "ADS",
-                  status: resumoStatusUlisses(ulissesRun),
-                  severidade: severidadeUlisses(ulissesRun),
-                },
-              ] satisfies GestorPendenciaItem[]}
-            />
+            <TopProdutosCard resumo={resumo} />
           </>
         ) : null}
       </div>

@@ -8,6 +8,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { SellerNav } from "../../SellerNav";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY } from "@/lib/semanticPremium";
+import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { SellerGestorRunShell, type SellerAiRun, type DispararRodada } from "@/components/seller/SellerGestorRunShell";
 import { mlItemPermalink, mlCampanhaAdsPermalink, mlPublicidadeHubPermalink } from "@/lib/mercadoLivreApiClient";
 import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
@@ -61,12 +62,20 @@ type CampanhaResultado = {
   recomendacao: string;
 };
 
+type PromocaoContaResumo = {
+  tipo: string;
+  nome: string | null;
+  status: string;
+  fim: string | null;
+};
+
 type UlissesResultado = {
   skus: SkuResultado[];
   destaque_atencao: string[];
   ads_gasto_total_mes: number | null;
   cupom_ativo_na_conta: boolean;
-  promocoes_conta_resumo: string;
+  /** Opcional: rodada salva antes de 2026-10-15 não tem esse campo (formato antigo era string). */
+  promocoes_conta?: PromocaoContaResumo[];
   campanhas: CampanhaResultado[];
 };
 
@@ -99,26 +108,75 @@ function DiagnosticoBadge({ diagnostico }: { diagnostico: Diagnostico }) {
   );
 }
 
-function SkuCard({ sku }: { sku: SkuResultado }) {
+/** Linha resumo (mesmo padrão do Andrey — ver AnuncioLinha — achado 2026-10-10: com muitos
+ * SKUs sinalizados, cada card já expandido inline deixava a lista enorme e "rasa" pra
+ * revisar um produto de verdade). Clica e abre um modal com o detalhe completo. */
+function skuObservacao(sku: SkuResultado): string {
+  if (sku.diagnostico === "sem_custo") return "Sem custo cadastrado — cadastre pra calcular a margem.";
+  const margem = sku.margem_atual_pct != null ? `${sku.margem_atual_pct.toFixed(1)}%` : "—";
+  return `Margem atual ${margem} (mínimo ${sku.margem_minima_pct}%${sku.margem_maxima_pct != null ? `, máximo ${sku.margem_maxima_pct}%` : ""})`;
+}
+
+function SkuLinha({
+  sku,
+  destaque,
+  onAbrir,
+}: {
+  sku: SkuResultado;
+  destaque: boolean;
+  onAbrir: (sku: SkuResultado) => void;
+}) {
   return (
-    <article className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <a
-            href={mlItemPermalink(sku.item_id_representante)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="truncate font-medium text-[var(--foreground)] underline decoration-dotted"
-          >
-            {sku.nome_produto}
-          </a>
-          <p className="mt-0.5 text-xs text-[var(--muted)]">
-            Preço R$ {sku.preco.toFixed(2)} · Comissão {sku.comissao_pct}% ({sku.tipo_anuncio})
-            {sku.frete_real != null ? ` · Frete R$ ${sku.frete_real.toFixed(2)}` : ""}
+    <button
+      type="button"
+      onClick={() => onAbrir(sku)}
+      className="flex w-full flex-col gap-2 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 hover:shadow-md dark:hover:border-emerald-700 sm:flex-row sm:items-center"
+    >
+      <div className="min-w-0 flex-1">
+        <p className="line-clamp-2 font-medium text-[var(--foreground)] sm:truncate">{sku.nome_produto}</p>
+        {destaque ? (
+          <p className="mt-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+            Prioridade pra revisar primeiro
           </p>
-        </div>
-        <DiagnosticoBadge diagnostico={sku.diagnostico} />
+        ) : null}
+        <p className="mt-0.5 line-clamp-2 text-xs text-[var(--muted)] sm:truncate">{skuObservacao(sku)}</p>
       </div>
+      <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
+        <DiagnosticoBadge diagnostico={sku.diagnostico} />
+        <svg
+          className="h-4 w-4 shrink-0 text-[var(--muted)]"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="m9 18 6-6-6-6" />
+        </svg>
+      </div>
+    </button>
+  );
+}
+
+/** Conteúdo completo — mesmo papel de `AnuncioDiagnosticoDetalhe` do Andrey, usado dentro do
+ * modal (ver `SkuLinha` acima). */
+function SkuDetalhe({ sku }: { sku: SkuResultado }) {
+  return (
+    <div>
+      <a
+        href={mlItemPermalink(sku.item_id_representante)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-sm font-medium text-[var(--foreground)] underline decoration-dotted"
+      >
+        Ver anúncio ↗
+      </a>
+      <p className="mt-1 text-xs text-[var(--muted)]">
+        Preço R$ {sku.preco.toFixed(2)} · Comissão {sku.comissao_pct}% ({sku.tipo_anuncio})
+        {sku.frete_real != null ? ` · Frete R$ ${sku.frete_real.toFixed(2)}` : ""}
+      </p>
 
       {sku.diagnostico === "sem_custo" ? (
         <p className="mt-3 text-sm text-[var(--foreground)]">
@@ -183,7 +241,7 @@ function SkuCard({ sku }: { sku: SkuResultado }) {
           ) : null}
         </>
       )}
-    </article>
+    </div>
   );
 }
 
@@ -230,6 +288,57 @@ function AfiliadoRow({ item }: { item: SkuResultado }) {
         {item.margem_minima_pct}%{item.margem_atual_pct != null ? ` (margem realizada hoje: ${item.margem_atual_pct.toFixed(1)}%)` : ""}.
       </p>
     </article>
+  );
+}
+
+const PROMOCAO_TIPO_LABEL: Record<string, string> = {
+  LIGHTNING: "Oferta Relâmpago",
+  SMART: "Oferta Inteligente",
+  SMART_LIGHTNING: "Relâmpago Inteligente",
+  SELLER_COUPON_CAMPAIGN: "Cupom",
+  SELLER_CAMPAIGN: "Campanha própria",
+  DEAL: "Oferta",
+  PRICE_DISCOUNT: "Desconto de preço",
+};
+
+const PROMOCAO_STATUS_LABEL: Record<string, string> = {
+  started: "Ativa",
+  pending: "Agendada",
+  candidate: "Candidata",
+  finished: "Encerrada",
+};
+
+const PROMOCAO_STATUS_BADGE: Record<string, string> = {
+  started: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
+  pending: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+  candidate: "bg-[var(--muted)]/15 text-[var(--muted)]",
+  finished: "bg-[var(--muted)]/15 text-[var(--muted)]",
+};
+
+/** 1 linha por campanha/promoção da conta — antes virava um parágrafo só, com tudo
+ * concatenado por ";" (achado 2026-10-15, ilegível). */
+function PromocaoContaLinha({ promocao }: { promocao: PromocaoContaResumo }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-[var(--card-border)] py-2 first:border-t-0 first:pt-0">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-[var(--foreground)]">
+          {promocao.nome ?? PROMOCAO_TIPO_LABEL[promocao.tipo] ?? promocao.tipo}
+        </p>
+        <p className="text-xs text-[var(--muted)]">
+          {PROMOCAO_TIPO_LABEL[promocao.tipo] ?? promocao.tipo}
+          {promocao.fim ? ` · até ${new Date(promocao.fim).toLocaleDateString("pt-BR")}` : ""}
+        </p>
+      </div>
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
+          PROMOCAO_STATUS_BADGE[promocao.status] ?? "bg-[var(--muted)]/15 text-[var(--muted)]"
+        )}
+      >
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+        {PROMOCAO_STATUS_LABEL[promocao.status] ?? promocao.status}
+      </span>
+    </div>
   );
 }
 
@@ -391,14 +500,26 @@ async function getAccessToken(): Promise<string | null> {
 
 function UlissesResultadoAbas({ resultado }: { resultado: UlissesResultado }) {
   const [aba, setAba] = useState<AbaUlisses>("margem");
+  const [chaveAberta, setChaveAberta] = useState<string | null>(null);
 
   const skusComAfiliado = resultado.skus.filter((s) => s.afiliado_pct_teto_seguro != null);
   const skusComPromocao = resultado.skus.filter((s) => s.desconto_ativo_pct > 1);
+  const destaques = new Set(resultado.destaque_atencao);
   const destaqueCount = resultado.destaque_atencao.length;
+
+  const skusOrdenados = resultado.skus
+    .slice()
+    .sort((a, b) => {
+      const da = destaques.has(a.chave) ? 0 : 1;
+      const db = destaques.has(b.chave) ? 0 : 1;
+      return da - db;
+    });
+  const indiceAberto = chaveAberta ? skusOrdenados.findIndex((s) => s.chave === chaveAberta) : -1;
+  const skuAberto = indiceAberto >= 0 ? skusOrdenados[indiceAberto] : null;
 
   return (
     <div className="space-y-4">
-      <div className="inline-flex flex-wrap gap-1 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-1">
+      <div className="flex gap-1 overflow-x-auto rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-1 sm:flex-wrap">
         <AbaPilula ativo={aba === "margem"} onClick={() => setAba("margem")} icon={<IconMargem />}>
           Margem
         </AbaPilula>
@@ -417,13 +538,77 @@ function UlissesResultadoAbas({ resultado }: { resultado: UlissesResultado }) {
         <div className="space-y-3">
           {destaqueCount > 0 ? (
             <p className="text-sm text-[var(--foreground)]">
-              {destaqueCount} produto{destaqueCount > 1 ? "s" : ""} com margem abaixo do mínimo — são os marcados em
-              vermelho abaixo.
+              {destaqueCount} produto{destaqueCount > 1 ? "s" : ""} com margem abaixo do mínimo — são os marcados como
+              prioridade abaixo.
             </p>
           ) : null}
-          {resultado.skus.map((s) => (
-            <SkuCard key={s.chave} sku={s} />
+          {skusOrdenados.map((s) => (
+            <SkuLinha key={s.chave} sku={s} destaque={destaques.has(s.chave)} onAbrir={(sku) => setChaveAberta(sku.chave)} />
           ))}
+
+          {skuAberto ? (
+            <div
+              className={cn(MODAL_OVERLAY_CLASS, "animate-fade-in-up")}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="modal-sku-titulo"
+              onClick={() => setChaveAberta(null)}
+            >
+              <div
+                className={cn(MODAL_PANEL_CLASS, "animate-fade-in-up animate-fade-in-up-delay-1")}
+                style={{ maxWidth: "48rem" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--card-border)] px-5 pb-4 pt-5">
+                  <div className="min-w-0 flex-1">
+                    <h2 id="modal-sku-titulo" className="min-w-0 truncate text-base font-semibold text-[var(--foreground)]">
+                      {skuAberto.nome_produto}
+                    </h2>
+                    {destaques.has(skuAberto.chave) ? (
+                      <p className="mt-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                        Prioridade pra revisar primeiro
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <DiagnosticoBadge diagnostico={skuAberto.diagnostico} />
+                    <button
+                      type="button"
+                      onClick={() => setChaveAberta(null)}
+                      aria-label="Fechar"
+                      className="-m-1 rounded p-1 text-xl leading-none text-neutral-400 transition-colors hover:text-neutral-900 dark:hover:text-neutral-200"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+                <div className={cn(MODAL_PANEL_BODY_CLASS, "px-5 pb-5 pt-4")}>
+                  <SkuDetalhe sku={skuAberto} />
+                </div>
+                <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[var(--card-border)] px-5 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setChaveAberta(skusOrdenados[indiceAberto - 1].chave)}
+                    disabled={indiceAberto <= 0}
+                    className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    ← Anterior
+                  </button>
+                  <span className="text-xs text-[var(--muted)]">
+                    {indiceAberto + 1} de {skusOrdenados.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setChaveAberta(skusOrdenados[indiceAberto + 1].chave)}
+                    disabled={indiceAberto >= skusOrdenados.length - 1}
+                    className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Próximo →
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : aba === "ads" ? (
         <div className="space-y-5">
@@ -454,10 +639,18 @@ function UlissesResultadoAbas({ resultado }: { resultado: UlissesResultado }) {
         <div className="space-y-5">
           <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm">
             <p className="font-medium text-[var(--foreground)]">Visão geral da conta</p>
-            <div className="mt-2 space-y-1 text-sm text-[var(--muted)]">
-              {resultado.cupom_ativo_na_conta ? <p>Há cupom de desconto ativo na conta.</p> : null}
-              <p>{resultado.promocoes_conta_resumo}</p>
-            </div>
+            {/* `resultado` pode vir de uma rodada salva antes dessa tela mudar de formato
+             * (jsonb antigo sem `promocoes_conta`) — `?? []` evita crash até a próxima
+             * rodada regravar no formato novo. */}
+            {(resultado.promocoes_conta ?? []).length === 0 ? (
+              <p className="mt-2 text-sm text-[var(--muted)]">Nenhuma promoção ou campanha ativa na conta agora.</p>
+            ) : (
+              <div className="mt-1">
+                {(resultado.promocoes_conta ?? []).map((p, i) => (
+                  <PromocaoContaLinha key={`${p.tipo}-${p.nome ?? i}`} promocao={p} />
+                ))}
+              </div>
+            )}
           </div>
 
           {skusComPromocao.length > 0 ? (
@@ -569,7 +762,7 @@ function UlissesAvulsoPageInner() {
           <div className="mt-1 min-w-0 space-y-1">
             <div className="flex items-center gap-2 sm:gap-3">
               <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
-                ADS — Ads &amp; Preço
+                ADS
               </h1>
               <span
                 className="h-1 w-14 shrink-0 self-center rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300/70 sm:w-20"
