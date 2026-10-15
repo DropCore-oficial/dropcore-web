@@ -7,6 +7,7 @@
  * - external_reference = upgrade-pro-{id} → ativa Pro (não credita saldo)
  * - external_reference = addon-gestores-ia-{id} → ativa add-on Gestores de IA (não credita saldo)
  * - external_reference = chatia-{id} → credita crédito extra do chat do Tiago Silva (não credita saldo)
+ * - external_reference = giapix... → ativa/renova o pacote avulso Gestores de IA (mensal/anual)
  * - external_reference = deposito-{id} → aprova depósito e credita seller
  *
  * Assinatura: header `x-signature` + `MERCADOPAGO_WEBHOOK_SECRET` (painel MP → Webhooks).
@@ -20,6 +21,7 @@ import { processarUpgradeProAprovado } from "@/lib/upgradeProPixProcessor";
 import { processarAddonGestoresIaAprovado } from "@/lib/addonGestoresIaPixProcessor";
 import { processarCreditoChatIaAprovado } from "@/lib/creditoChatIaPixProcessor";
 import { processarCalculadoraRenovacaoPaga } from "@/lib/calculadoraRenovacaoPixProcessor";
+import { processarGestoresIaAvulsoPlanoPago } from "@/lib/gestoresIaAvulsoPixProcessor";
 import {
   resolveMercadoPagoWebhookDataId,
   verifyMercadoPagoWebhookSignature,
@@ -53,6 +55,11 @@ async function processarPorExtRef(extRef: string, mpPaymentId?: string | null): 
 
   if (extRef.startsWith("crcalc") || extRef.startsWith("calc-renew::")) {
     await processarCalculadoraRenovacaoPaga(extRef, mpPaymentId ?? null);
+    return;
+  }
+
+  if (extRef.startsWith("giapix")) {
+    await processarGestoresIaAvulsoPlanoPago(extRef, mpPaymentId ?? null);
     return;
   }
 

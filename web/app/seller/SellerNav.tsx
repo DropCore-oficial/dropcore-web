@@ -565,7 +565,7 @@ export function SellerNav({
 
   if (calcOnly) {
     const homeHref = temGestoresIa ? "/seller/gestores-ia-avulso" : "/seller/calculadora";
-    const calcMaisActive = active === "integracoes" || active === "cadastro";
+    const calcMaisActive = active === "integracoes" || active === "cadastro" || active === "plano";
     const calcMaisBtnClass =
       `flex min-w-0 flex-1 flex-row items-center justify-center gap-1 overflow-hidden px-0.5 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ` +
       (calcMaisActive
@@ -655,6 +655,16 @@ export function SellerNav({
             </>
           )}
           <SellerNavRailItem
+            href="/seller/gestores-ia-avulso/planos"
+            label="Planos"
+            isActive={active === "plano"}
+            glow
+            hoverEffect="bounce"
+            expanded={railExpanded}
+          >
+            <IconPlano active={false} />
+          </SellerNavRailItem>
+          <SellerNavRailItem
             href="/seller/meus-dados"
             label="Meus dados"
             isActive={active === "cadastro"}
@@ -718,6 +728,19 @@ export function SellerNav({
                 </Link>
               )}
               <Link
+                href="/seller/gestores-ia-avulso/planos"
+                role="menuitem"
+                className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+                  active === "plano"
+                    ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                    : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
+                }`}
+                onClick={() => setMobileMaisOpen(false)}
+              >
+                <IconPlano active={active === "plano"} />
+                Planos
+              </Link>
+              <Link
                 href="/seller/meus-dados"
                 role="menuitem"
                 className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
@@ -761,37 +784,27 @@ export function SellerNav({
               <IconCalculator active={active === "calculadora"} />
               <span className="text-[10px] font-medium leading-tight text-center">Calculadora</span>
             </Link>
-            {temGestoresIa ? (
-              <button
-                type="button"
-                className={calcMaisBtnClass}
-                aria-expanded={mobileMaisOpen}
-                aria-haspopup="menu"
-                onClick={() => setMobileMaisOpen((o) => !o)}
+            <button
+              type="button"
+              className={calcMaisBtnClass}
+              aria-expanded={mobileMaisOpen}
+              aria-haspopup="menu"
+              onClick={() => setMobileMaisOpen((o) => !o)}
+            >
+              <svg
+                className={`h-5 w-5 shrink-0 transition-transform duration-200 ${mobileMaisOpen ? "rotate-180 text-emerald-500" : "text-current"}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
               >
-                <svg
-                  className={`h-5 w-5 shrink-0 transition-transform duration-200 ${mobileMaisOpen ? "rotate-180 text-emerald-500" : "text-current"}`}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-                <span className="text-[10px] font-medium leading-tight text-center">Mais</span>
-              </button>
-            ) : (
-              <Link
-                href="/seller/meus-dados"
-                className={`${mobileLinkClass("cadastro")} border-t-0 border-b-0 py-2 touch-manipulation min-h-[52px]`}
-              >
-                <IconGear active={active === "cadastro"} />
-                <span className="text-[10px] font-medium leading-tight text-center">Meus dados</span>
-              </Link>
-            )}
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+              <span className="text-[10px] font-medium leading-tight text-center">Mais</span>
+            </button>
           </div>
         </nav>
       </>

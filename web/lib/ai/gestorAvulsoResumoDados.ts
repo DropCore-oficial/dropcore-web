@@ -23,7 +23,11 @@ export type ResumoFinanceiroAvulso = {
   /** null quando nenhum SKU tem custo cadastrado ainda (sem base pra estimar). */
   lucroEstimado30d: number | null;
   margemMediaPct: number | null;
-  produtoCampeao: { nome: string; vendas: number } | null;
+  /** null quando não houve venda no período (sem como dividir). */
+  ticketMedio30d: number | null;
+  produtoCampeao: { itemId: string; nome: string; vendas: number } | null;
+  /** Faturamento por dia civil (BRT) dos últimos 30 dias — base do sparkline do Dashboard. */
+  porDia30d: { dia: string; faturamento: number; vendas: number }[];
 };
 
 /** `null` quando a conta não tem Mercado Livre conectado — mesmo padrão dos outros gestores avulso. */
@@ -56,12 +60,14 @@ export async function buscarResumoFinanceiroAvulso(assinanteId: string): Promise
       ? ((periodoAtual.faturamento - periodoAnterior.faturamento) / periodoAnterior.faturamento) * 100
       : null;
 
-  let produtoCampeao: { nome: string; vendas: number } | null = null;
+  let produtoCampeao: { itemId: string; nome: string; vendas: number } | null = null;
   for (const item of periodoAtual.itens) {
     if (!produtoCampeao || item.quantidade > produtoCampeao.vendas) {
-      produtoCampeao = { nome: item.titulo, vendas: item.quantidade };
+      produtoCampeao = { itemId: item.itemId, nome: item.titulo, vendas: item.quantidade };
     }
   }
+
+  const ticketMedio30d = periodoAtual.vendas > 0 ? periodoAtual.faturamento / periodoAtual.vendas : null;
 
   return {
     faturamento30d: periodoAtual.faturamento,
@@ -69,6 +75,8 @@ export async function buscarResumoFinanceiroAvulso(assinanteId: string): Promise
     vendas30d: periodoAtual.vendas,
     lucroEstimado30d,
     margemMediaPct,
+    ticketMedio30d,
     produtoCampeao,
+    porDia30d: periodoAtual.porDia,
   };
 }

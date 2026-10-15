@@ -1238,6 +1238,143 @@ Também corrigido na mesma passada, sem precisar de banco:
   aplicar; essa não recalculava nada, confiava 100% no `preco_novo` do front. Alinhada ao
   mesmo padrão (sem caller no front hoje, mas a rota continua exposta/chamável).
 
+## `calculadora_assinantes.logo_url` — logo do assinante avulso (2026-10-15)
+
+Pedido do Sr Stark: Dashboard avulso (`/seller/gestores-ia-avulso/dashboard`) ganhou
+cabeçalho no mesmo estilo do `/seller/dashboard` real (chip de logo/inicial + rótulo
+"GESTOR DE IA" + título + data por extenso) e a conta avulsa (`calculadora_assinantes`, sem
+`sellers` nem org) ganhou upload de logo própria em "Meus dados"
+(`/seller/meus-dados`) — equivalente ao `sellers.logo_url` que o hub já tinha.
+
+- `web/scripts/add-calculadora-assinante-logo.sql` — `alter table calculadora_assinantes add
+  column logo_url text` + 2 funções novas, seguindo a regra 9 (endpoint novo = RPC, nunca
+  `.from()`): `fn_calculadora_assinante_logo_get(p_assinante_id)` e
+  `fn_calculadora_assinante_logo_set(p_assinante_id, p_logo_url)`, ambas `SECURITY DEFINER`,
+  `revoke all from public` + `grant execute to service_role` (a rota já valida o dono via
+  `getAssinanteFromToken` antes de chamar).
+- `POST/DELETE /api/gestores-ia-avulso/logo` — mesmo padrão de `/api/seller/logo` (bucket
+  público `produto-imagens`), path `calculadora-assinante/{assinante_id}/brand/logo.{ext}`
+  (namespace próprio, nunca colide com `{seller_id}/brand/logo.{ext}` do hub).
+- `GET /api/calculadora/me` (rota já existente, não é endpoint novo) passou a devolver
+  `logo_url` — busca via a RPC `_get` **à parte** do `.from("calculadora_assinantes").select(...)`
+  que já existia ali, e tolera a RPC ainda não existir (erro vira só `logo_url: null`, não
+  quebra o bootstrap de acesso de toda conta avulsa enquanto o script acima não é aplicado em
+  produção).
+
+## `calculadora_assinantes` — dados comerciais opcionais (2026-10-15)
+
+Mesmo pedido do Sr Stark, mesma sessão do logo acima: a tela "Meus dados" do avulso ganhou o
+formulário inteiro de "Dados comerciais" que o `/seller/cadastro` do hub já tinha (razão
+social/nome fantasia, CNPJ ou CPF com consulta na Receita, e-mail comercial, telefone, CEP
+com autofill via ViaCEP, endereço, responsável opcional) — só que **opcional**, não bloqueia
+nada (o hub trava o painel até o cadastro ficar completo; o avulso não).
+
+- `web/scripts/add-calculadora-assinante-cadastro-comercial.sql` — 9 colunas novas em
+  `calculadora_assinantes` (`nome`, `tipo_documento` default `'CNPJ'` com check
+  `in ('CNPJ','CPF')`, `documento`, `email_comercial`, `telefone`, `cep`, `endereco`,
+  `nome_responsavel`, `cpf_responsavel`, `data_nascimento`) + 2 funções RPC (regra 9):
+  `fn_calculadora_assinante_cadastro_get(p_assinante_id)` (devolve a linha inteira) e
+  `fn_calculadora_assinante_cadastro_upsert(p_assinante_id, p_nome, p_tipo_documento,
+  p_documento, p_email_comercial, p_telefone, p_cep, p_endereco, p_nome_responsavel,
+  p_cpf_responsavel, p_data_nascimento)` (sempre `update`, nunca `insert` — a linha já existe
+  desde o registro da assinatura). Ambas `SECURITY DEFINER`, `revoke all from public` +
+  `grant execute to service_role`.
+- `GET/PATCH /api/gestores-ia-avulso/cadastro` — mesma validação do `/api/seller/cadastro`
+  (reaproveita `normalizeSellerDocDigits`/`documentoSellerValido` de `lib/sellerDocumento.ts`,
+  genéricas, não acopladas a `sellers`), chama as RPCs acima em vez de `.from()`.
+- `GET /api/gestores-ia-avulso/cadastro/cnpj` — mesma consulta BrasilAPI/ReceitaWS do
+  `/api/seller/cadastro/cnpj` (`consultarCnpjNaReceitaFederal`, chamada HTTP externa, exceção
+  da regra 9), só troca a autenticação pra `getAssinanteFromToken`.
+- `components/seller/GestorAvulsoDadosComerciaisForm.tsx` — mesmo form/UX do
+  `/seller/cadastro` (máscara de CNPJ/CPF, "Validar na Receita" com checkbox de
+  sobrescrever, autofill de endereço por CEP), sem o fluxo de onboarding obrigatório (sem
+  `cadastro_pendente`, sem redirect de plano) — vive dentro de `/seller/meus-dados`, abaixo
+  da seção de logo.
+
+## Planos do pacote avulso "Gestores de IA" — autoatendimento via PIX (2026-10-15)
+
+Até aqui o pacote (R$797,90/mês, inclui a Calculadora) só era ativado manualmente, por
+convite do admin (`/admin/gestores-ia-convites`, grava `calculadora_invites.inclui_gestores_ia`
+→ `calculadora_assinantes.inclui_gestores_ia` no cadastro). Pedido do Sr Stark: adicionar um
+segundo caminho, **self-serve via PIX**, sem remover o convite (admin continua podendo
+conceder/comp).
+
+**Modelo final (corrigido no mesmo dia — a primeira versão cobrava R$7.979,00 à vista no
+anual; Sr Stark corrigiu: nada de cartão parcelado nem PIX de valor cheio, só PIX mês a mês,
+sempre R$797,90):**
+- **Mensal** — paga uma parcela de R$797,90 por vez, sem compromisso, renova quando quiser.
+- **Anual** — é um **compromisso de 12 parcelas mensais de R$797,90 via PIX** (mesmo valor do
+  mensal, não um valor cheio à vista), com os primeiros 60 dias sem cobrança. Cobrança
+  **manual** (o assinante entra e gera o PIX a cada mês, igual ao mensal — não existe
+  cron/cobrança automática pra nenhum produto do DropCore hoje). Exige aceite explícito
+  (checkbox) do compromisso antes de liberar.
+
+### Schema
+- `web/scripts/add-gestores-ia-avulso-planos.sql` (1ª migration) — 3 colunas em
+  `calculadora_assinantes`: `gestores_ia_ciclo` (check `in ('mensal','anual')`),
+  `mp_gestores_ia_pendente_id`, `mp_gestores_ia_ultimo_aprovado_id` (colunas próprias,
+  separadas das de renovação da Calculadora, pra não colidir os dois produtos).
+- `web/scripts/add-gestores-ia-avulso-contrato-anual.sql` (2ª migration, mesmo dia — corrige
+  o modelo) — coluna `gestores_ia_contrato_aceite_em timestamptz` (registro de quando o
+  compromisso de 12 parcelas foi aceito); `drop + recreate` de
+  `fn_calculadora_assinante_gestores_ia_pix_confirmar` **sem** o parâmetro `p_ciclo` (toda
+  parcela paga é o mesmo valor/extensão de 1 mês, não importa o ciclo da conta — `gestores_ia_ciclo`
+  só é setado por quem decide: `coalesce(gestores_ia_ciclo, 'mensal')` na própria confirmação,
+  ou a RPC de início de contrato abaixo); nova RPC
+  `fn_calculadora_assinante_gestores_ia_contrato_anual_iniciar(p_user_id)` — sem PIX, libera
+  o pacote na hora com `valido_ate = now() + 60 dias` (hardcoded na função, não confia em
+  parâmetro do client), `gestores_ia_ciclo = 'anual'`, grava `gestores_ia_contrato_aceite_em`.
+- Todas as RPCs (regra 9): `SECURITY DEFINER`, `revoke all from public` + `grant execute to
+  service_role`. Inventário completo:
+  - `fn_calculadora_assinante_gestores_ia_pix_pendente_set(p_user_id, p_mp_pendente_id)` —
+    upsert por `user_id` (já é `unique`), grava o pagamento pendente antes de mostrar o QR.
+  - `fn_calculadora_assinante_gestores_ia_pix_get(p_user_id)` — leitura mínima usada pelo
+    processor (idempotência + base pra estender `valido_ate`) e pela rota de sync.
+  - `fn_calculadora_assinante_gestores_ia_pix_confirmar(p_user_id, p_novo_valido_ate,
+    p_mp_payment_id, p_external_reference, p_valor_pago, p_pago_em)` — ativa/renova o pacote +
+    grava `calculadora_recebimentos` num único `plpgsql` atômico; idempotente comparando
+    `mp_gestores_ia_ultimo_aprovado_id` com o `mp_payment_id` recebido.
+  - `fn_calculadora_assinante_gestores_ia_contrato_anual_iniciar(p_user_id)` — início do
+    contrato anual, sem PIX (ver acima).
+
+### Código
+- `web/lib/gestoresIaAvulsoPlanos.ts` — `VALOR_GESTORES_IA_AVULSO_MENSAL` (797,90, único
+  preço real), `GESTORES_IA_AVULSO_CONTRATO_ANUAL_PARCELAS` (12),
+  `GESTORES_IA_AVULSO_CONTRATO_ANUAL_CARENCIA_DIAS` (60, só exibição — quem manda é o
+  hardcoded na RPC), sem dependência de servidor.
+- `web/lib/calculadoraRenovacaoValidoAte.ts` — `computeCalendarCycleValidoAte(curIso,
+  paymentMs, meses)` genérico (meses civis); `computeCalculadoraRenovacaoValidoAte`
+  (Calculadora) é um wrapper fino com `meses=1`, mesmo comportamento de antes.
+- `web/lib/gestoresIaAvulsoPixProcessor.ts` — `external_reference` próprio, prefixo `giapix` +
+  UUID compacto (32 hex) + nonce (8 hex) = 46 chars (sem ciclo embutido — toda parcela é o
+  mesmo valor). `processarGestoresIaAvulsoPlanoPago(extRef, mpPaymentId)` busca o pagamento na
+  API do MP (`fetch`, exceção da regra 9), confere `status=approved` + `external_reference`
+  batendo + valor = `VALOR_GESTORES_IA_AVULSO_MENSAL`, estende 1 mês civil.
+- `GET/POST /api/gestores-ia-avulso/planos` — GET devolve só `{mensal}`; POST (auth) gera a
+  parcela via PIX, vale tanto pro mensal avulso quanto pra pagar uma parcela do contrato anual.
+- `POST /api/gestores-ia-avulso/planos/contrato-anual` — inicia o contrato anual (RPC acima,
+  sem PIX); o front só chama depois do assinante marcar o checkbox de aceite.
+- `POST /api/gestores-ia-avulso/planos/sync` — mesmo padrão de
+  `/api/calculadora/renovacao-pix/sync` (poll direto no MP, fallback ao webhook em
+  localhost).
+- `app/api/webhooks/mercadopago/route.ts` — dispatch: `external_reference` começando com
+  `giapix` → `processarGestoresIaAvulsoPlanoPago`.
+- `app/api/calculadora/me/route.ts` — `GET` devolve `gestores_ia_ciclo` e
+  `gestores_ia_contrato_aceite_em` também.
+- `app/seller/gestores-ia-avulso/planos/page.tsx` — card "Mensal" (PIX direto, fluxo de
+  QR/contagem/polling **replicado 1:1** de `/seller/calculadora`) + card "Anual" que, ao
+  clicar "Assinar", abre um resumo do compromisso + checkbox de aceite antes de chamar
+  `/contrato-anual` (sem QR nessa etapa — só libera o acesso). Quem já está no contrato anual
+  vê status "Contrato ativo" no lugar do card e paga as parcelas seguintes pelo card
+  "Mensal" (mesmo valor, mesmo endpoint). Lista todos os benefícios do pacote nos dois cards.
+- `app/seller/gestores-ia-avulso/page.tsx` (tela "sem pacote"), `app/seller/meus-dados/page.tsx`
+  (linha "Pacote") e `app/seller/SellerNav.tsx` (aba "Planos", rail desktop + menu "Mais" no
+  mobile, reaproveitando `NavKey "plano"` e `IconPlano` já usados no hub) apontam pra
+  `/seller/gestores-ia-avulso/planos`.
+- **Não construído**: cobrança automática (cron que gera/cobra PIX sozinho todo mês — decisão
+  explícita de manter manual), penalidade por quebra de contrato, proração ao trocar de ciclo
+  no meio do período — nada disso foi pedido.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
@@ -10,10 +9,20 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import type { AtividadeAoVivo } from "@/components/seller/SellerGestoresIaEscritorio3D";
 import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
 import { buildSellerSupportWhatsAppHref } from "@/lib/sellerSupportWhatsAppPrefill";
-import { cn } from "@/lib/utils";
-import { SUCCESS_PREMIUM_TEXT_SOFT, DANGER_PREMIUM_TEXT_SOFT } from "@/lib/semanticPremium";
-import { AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
 import { IconAndrey, IconAmanda, IconUlisses, IconTiago } from "@/components/seller/GestorAvulsoIcons";
+import { GestorAvulsoPendenciasLista, type GestorPendenciaItem } from "@/components/seller/GestorAvulsoPendenciasLista";
+import {
+  type AndreyRun,
+  type AmandaRun,
+  type UlissesRun,
+  resumoStatusAndrey,
+  resumoStatusAmanda,
+  resumoStatusUlisses,
+  descricaoOuStatus,
+  severidadeAndrey,
+  severidadeAmanda,
+  severidadeUlisses,
+} from "@/lib/ai/gestorAvulsoStatusResumo";
 
 const SellerGestoresIaEscritorio3D = dynamic(
   () => import("@/components/seller/SellerGestoresIaEscritorio3D").then((m) => m.SellerGestoresIaEscritorio3D),
@@ -27,150 +36,13 @@ const SellerGestoresIaEscritorio3D = dynamic(
   }
 );
 
-// Substituído em 2026-10-10 pelo grid de cards abaixo (`GestorCardAvulso`) — a barra de
-// pílulas flutuava solta, sem card/cabeçalho, entre a barra de uso de IA e a sala 3D, e
-// duplicava a função da própria barra de navegação que já existe embaixo da sala 3D
-// (Diogo/Andrey/Amanda/Ulisses/Tiago Silva/Você). Mesmo padrão do hub `/seller/gestores-ia`
-// (`GestorCard` em `web/app/seller/gestores-ia/page.tsx`), reaproveitando os `resumoStatusX`
-// que esta página já calculava.
-type Severidade = "sucesso" | "atencao" | "critica" | "neutro";
-
-const SEVERIDADE_TEXT_CLASS: Record<Severidade, string> = {
-  sucesso: SUCCESS_PREMIUM_TEXT_SOFT,
-  atencao: AMBER_PREMIUM_TEXT_SOFT,
-  critica: DANGER_PREMIUM_TEXT_SOFT,
-  neutro: "text-[var(--muted)]",
-};
-
-/** Ícone do gestor fica neutro (mesmo tom pros 4) — nunca carrega identidade por cor nem
- * estado. Referência pedida pelo Sr Stark: admin de verdade do Shopify, onde o ícone de
- * categoria é monocromático e a diferenciação vive só no texto/badge, não num avatar
- * colorido (decisão 2026-10-14, revertendo a tentativa anterior de 1 cor por gestor). */
-const GESTOR_ICON_CHIP_CLASS =
-  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] text-[var(--foreground)]";
-
-function GestorCardAvulso({
-  href,
-  icon,
-  nome,
-  funcao,
-  descricao,
-  severidade = "neutro",
-  bloqueado,
-}: {
-  href: string;
-  icon: ReactNode;
-  nome: string;
-  funcao: string;
-  descricao: string;
-  severidade?: Severidade;
-  bloqueado?: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group block rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-left transition-all hover:border-emerald-300 hover:shadow-md dark:hover:border-emerald-700"
-    >
-      <div className="flex items-center gap-2.5">
-        <span className={GESTOR_ICON_CHIP_CLASS}>{icon}</span>
-        <div className="min-w-0">
-          <p className="font-semibold text-[var(--foreground)]">{nome}</p>
-          <p className="text-xs text-[var(--muted)]">{funcao}</p>
-        </div>
-      </div>
-      <p
-        className={cn(
-          "mt-3 text-sm",
-          severidade === "neutro" ? "text-[var(--muted)]" : cn("font-medium", SEVERIDADE_TEXT_CLASS[severidade])
-        )}
-      >
-        {descricao}
-      </p>
-      {bloqueado ? (
-        <p className="mt-1.5 text-xs text-[var(--muted)]">Orçamento de hoje esgotado — volta à meia-noite.</p>
-      ) : null}
-    </Link>
-  );
-}
+// Grid de cards grandes (`GestorCardAvulso`) substituído em 2026-10-15 pela lista compacta
+// `GestorAvulsoPendenciasLista` (mesmo componente usado no Dashboard avulso), ordenada por
+// urgência — crítico/atenção sobe pro topo em vez de ordem fixa. Tipos/funções de status
+// vivem em `lib/ai/gestorAvulsoStatusResumo.ts` (2026-10-15), compartilhados entre esta
+// página e o Dashboard.
 
 type Access = "loading" | "liberado" | "sem_pacote" | "denied";
-
-type AndreyAnuncio = { chave: string; diagnostico: string; observacao: string; item_id_representante: string };
-type AndreyRun = {
-  status: "pendente" | "ok" | "erro";
-  resultado: { anuncios: AndreyAnuncio[]; destaque_prioridade: string[] } | null;
-  executado_em: string;
-} | null;
-
-type AmandaResultado = {
-  diagnostico: "saudavel" | "atencao" | "critica";
-  observacao: string;
-  perguntas: { pergunta_id: number; dias_pendente: number }[];
-};
-type AmandaRun = { status: "pendente" | "ok" | "erro"; resultado: AmandaResultado | null; executado_em: string } | null;
-
-type UlissesDiagnostico = "sem_custo" | "margem_abaixo_minima" | "margem_saudavel" | "margem_acima_maxima";
-type UlissesSku = { chave: string; nome_produto: string; diagnostico: UlissesDiagnostico };
-type UlissesResultado = { skus: UlissesSku[]; destaque_atencao: string[] };
-type UlissesRun = { status: "pendente" | "ok" | "erro"; resultado: UlissesResultado | null; executado_em: string } | null;
-
-function resumoStatusAndrey(run: AndreyRun): string {
-  if (!run || run.status !== "ok" || !run.resultado) return "Ainda não rodou";
-  const comProblema = run.resultado.anuncios.filter((a) => a.diagnostico !== "sem_problema_aparente").length;
-  if (comProblema === 0) return "Nenhum problema encontrado";
-  return `${comProblema} grupo${comProblema > 1 ? "s" : ""} sinalizado${comProblema > 1 ? "s" : ""}`;
-}
-
-function resumoStatusAmanda(run: AmandaRun): string {
-  if (!run || run.status !== "ok" || !run.resultado) return "Ainda não rodou";
-  const qtdPerguntas = run.resultado.perguntas.length;
-  if (run.resultado.diagnostico !== "saudavel") {
-    return run.resultado.diagnostico === "critica" ? "Reputação crítica" : "Reputação em atenção";
-  }
-  if (qtdPerguntas > 0) return `${qtdPerguntas} pergunta${qtdPerguntas > 1 ? "s" : ""} pendente${qtdPerguntas > 1 ? "s" : ""}`;
-  return "Tudo em dia";
-}
-
-/** Prioriza o status real (urgência já calculada) sobre a descrição estática do card —
- * só cai na descrição fixa quando o gestor realmente ainda não rodou nenhuma vez. */
-function descricaoOuStatus(status: string, descricaoEstatica: string): string {
-  return status === "Ainda não rodou" ? descricaoEstatica : status;
-}
-
-function resumoStatusUlisses(run: UlissesRun): string {
-  if (!run || run.status !== "ok" || !run.resultado) return "Ainda não rodou";
-  const abaixoMin = run.resultado.skus.filter((s) => s.diagnostico === "margem_abaixo_minima").length;
-  const semCusto = run.resultado.skus.filter((s) => s.diagnostico === "sem_custo").length;
-  if (abaixoMin > 0) return `${abaixoMin} com margem baixa`;
-  if (semCusto > 0) return `${semCusto} sem custo cadastrado`;
-  return "Margens saudáveis";
-}
-
-/** Severidade da última rodada — o único acento de cor secundário liberado no card (ver
- * skill dropcore-gestores-ia: 1 sinal forte por card continua sendo o badge de veredito
- * nos painéis internos; aqui, antes de abrir o painel, é essa linha de resumo que faz esse
- * papel, então ela também ganha o mesmo tratamento semântico — nunca vira caixa própria,
- * continua sendo texto simples, só o tom muda). */
-function severidadeAndrey(run: AndreyRun): Severidade {
-  if (!run || run.status !== "ok" || !run.resultado) return "neutro";
-  const comProblema = run.resultado.anuncios.filter((a) => a.diagnostico !== "sem_problema_aparente").length;
-  return comProblema > 0 ? "atencao" : "sucesso";
-}
-
-function severidadeAmanda(run: AmandaRun): Severidade {
-  if (!run || run.status !== "ok" || !run.resultado) return "neutro";
-  if (run.resultado.diagnostico === "critica") return "critica";
-  if (run.resultado.diagnostico === "atencao") return "atencao";
-  return run.resultado.perguntas.length > 0 ? "atencao" : "sucesso";
-}
-
-function severidadeUlisses(run: UlissesRun): Severidade {
-  if (!run || run.status !== "ok" || !run.resultado) return "neutro";
-  const abaixoMin = run.resultado.skus.filter((s) => s.diagnostico === "margem_abaixo_minima").length;
-  if (abaixoMin > 0) return "critica";
-  const semCusto = run.resultado.skus.filter((s) => s.diagnostico === "sem_custo").length;
-  return semCusto > 0 ? "atencao" : "sucesso";
-}
 
 function montarAtividades(andreyRun: AndreyRun, amandaRun: AmandaRun, ulissesRun: UlissesRun): AtividadeAoVivo[] {
   const atividades: AtividadeAoVivo[] = [];
@@ -323,18 +195,28 @@ export default function GestoresIaAvulsoPage() {
                 />
               </div>
               <p className="text-sm leading-snug text-[var(--muted)]">
-                Sua assinatura atual é só da Calculadora. Fale com o suporte pra adicionar o pacote de Gestores de IA.
+                Sua assinatura atual é só da Calculadora. Assine o pacote de Gestores de IA (mensal ou anual) pra
+                liberar Anúncio, SAC, ADS e Gestor.
               </p>
-              <a
-                href={buildSellerSupportWhatsAppHref(
-                  "Olá! Quero adicionar o pacote de Gestores de IA na minha assinatura da Calculadora."
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-flex rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
-              >
-                Falar com o suporte
-              </a>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => router.push("/seller/gestores-ia-avulso/planos")}
+                  className="inline-flex rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
+                >
+                  Ver planos
+                </button>
+                <a
+                  href={buildSellerSupportWhatsAppHref(
+                    "Olá! Quero adicionar o pacote de Gestores de IA na minha assinatura da Calculadora."
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex rounded-md border border-[var(--card-border)] bg-[var(--card)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                >
+                  Falar com o suporte
+                </a>
+              </div>
             </div>
           </header>
         </div>
@@ -374,52 +256,55 @@ export default function GestoresIaAvulsoPage() {
           nomeResponsavel={null}
         />
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <GestorCardAvulso
-            href="/seller/gestores-ia-avulso/andrey"
-            icon={<IconAndrey />}
-            nome="Anúncio"
-            funcao="Anúncios & SEO"
-            descricao={descricaoOuStatus(
-              resumoStatusAndrey(andreyRun),
-              "Analisa seus anúncios e aponta o que pode estar travando visitas e vendas."
-            )}
-            severidade={severidadeAndrey(andreyRun)}
-            bloqueado={bloqueadoHoje}
-          />
-          <GestorCardAvulso
-            href="/seller/gestores-ia-avulso/amanda"
-            icon={<IconAmanda />}
-            nome="SAC"
-            funcao="Reputação & Atendimento"
-            descricao={descricaoOuStatus(
-              resumoStatusAmanda(amandaRun),
-              "Acompanha perguntas e reclamações, sugere resposta pronta pra você enviar."
-            )}
-            severidade={severidadeAmanda(amandaRun)}
-            bloqueado={bloqueadoHoje}
-          />
-          <GestorCardAvulso
-            href="/seller/gestores-ia-avulso/ulisses"
-            icon={<IconUlisses />}
-            nome="ADS"
-            funcao="Ads & Preço"
-            descricao={descricaoOuStatus(
-              resumoStatusUlisses(ulissesRun),
-              "Confere margem e preço de cada SKU, sinaliza o que tá fora do saudável."
-            )}
-            severidade={severidadeUlisses(ulissesRun)}
-            bloqueado={bloqueadoHoje}
-          />
-          <GestorCardAvulso
-            href="/seller/gestores-ia-avulso/tiago"
-            icon={<IconTiago />}
-            nome="Gestor"
-            funcao="Gestor Mestre, chat"
-            descricao="Converse sobre o que a equipe já analisou."
-            bloqueado={bloqueadoHoje}
-          />
-        </div>
+        <GestorAvulsoPendenciasLista
+          itens={[
+            {
+              href: "/seller/gestores-ia-avulso/andrey",
+              icon: <IconAndrey />,
+              nome: "Anúncio",
+              funcao: "Anúncios & SEO",
+              status: descricaoOuStatus(
+                resumoStatusAndrey(andreyRun),
+                "Analisa seus anúncios e aponta o que pode estar travando visitas e vendas."
+              ),
+              severidade: severidadeAndrey(andreyRun),
+              bloqueado: bloqueadoHoje,
+            },
+            {
+              href: "/seller/gestores-ia-avulso/amanda",
+              icon: <IconAmanda />,
+              nome: "SAC",
+              funcao: "Reputação & Atendimento",
+              status: descricaoOuStatus(
+                resumoStatusAmanda(amandaRun),
+                "Acompanha perguntas e reclamações, sugere resposta pronta pra você enviar."
+              ),
+              severidade: severidadeAmanda(amandaRun),
+              bloqueado: bloqueadoHoje,
+            },
+            {
+              href: "/seller/gestores-ia-avulso/ulisses",
+              icon: <IconUlisses />,
+              nome: "ADS",
+              funcao: "Ads & Preço",
+              status: descricaoOuStatus(
+                resumoStatusUlisses(ulissesRun),
+                "Confere margem e preço de cada SKU, sinaliza o que tá fora do saudável."
+              ),
+              severidade: severidadeUlisses(ulissesRun),
+              bloqueado: bloqueadoHoje,
+            },
+            {
+              href: "/seller/gestores-ia-avulso/tiago",
+              icon: <IconTiago />,
+              nome: "Gestor",
+              funcao: "Gestor Mestre, chat",
+              status: "Converse sobre o que a equipe já analisou.",
+              severidade: "neutro",
+              bloqueado: bloqueadoHoje,
+            },
+          ] satisfies GestorPendenciaItem[]}
+        />
       </div>
       <SellerNav active="gestores_ia" calcOnly temGestoresIa />
     </div>

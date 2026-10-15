@@ -7,6 +7,7 @@ import { SellerNav } from "../SellerNav";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import { DANGER_PREMIUM_TEXT_PRIMARY, SUCCESS_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
+import { GestorAvulsoDadosComerciaisForm } from "@/components/seller/GestorAvulsoDadosComerciaisForm";
 
 type Estado = "loading" | "denied" | "pronto";
 
@@ -14,15 +15,16 @@ type Dados = {
   email: string | null;
   validoAte: string | null;
   incluiGestoresIa: boolean;
+  gestoresIaCiclo: "mensal" | "anual" | null;
+  logoUrl: string | null;
 };
 
 const MIN_SENHA = 8;
 
 /**
- * "Meus dados" do assinante avulso (Calculadora / Gestores de IA) — equivalente pessoal do
- * /seller/cadastro do hub (que é dado de empresa, não se aplica aqui). Assinante avulso não
- * cadastra nome/telefone hoje (só e-mail+senha no registro), então o que existe de verdade
- * pra mostrar é e-mail, status da assinatura e troca de senha.
+ * "Meus dados" do assinante avulso (Calculadora / Gestores de IA) — e-mail/senha/assinatura
+ * desta página + logo e dados comerciais opcionais (`GestorAvulsoDadosComerciaisForm`,
+ * 2026-10-15), equivalente ao `/seller/cadastro` do hub, só que sem bloquear nada.
  */
 export default function MeusDadosPage() {
   const router = useRouter();
@@ -34,6 +36,9 @@ export default function MeusDadosPage() {
   const [salvandoSenha, setSalvandoSenha] = useState(false);
   const [erroSenha, setErroSenha] = useState<string | null>(null);
   const [senhaAlterada, setSenhaAlterada] = useState(false);
+
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [erroLogo, setErroLogo] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     const { data } = await supabaseBrowser.auth.getSession();
@@ -59,9 +64,64 @@ export default function MeusDadosPage() {
       email: j.email ?? null,
       validoAte: j.valido_ate ?? null,
       incluiGestoresIa: j.inclui_gestores_ia === true,
+      gestoresIaCiclo: j.gestores_ia_ciclo === "mensal" || j.gestores_ia_ciclo === "anual" ? j.gestores_ia_ciclo : null,
+      logoUrl: typeof j.logo_url === "string" && j.logo_url.length > 0 ? j.logo_url : null,
     });
     setEstado("pronto");
   }, [router]);
+
+  async function uploadLogo(file: File) {
+    setLogoUploading(true);
+    setErroLogo(null);
+    try {
+      const { data } = await supabaseBrowser.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) {
+        router.replace("/gestores-ia/login");
+        return;
+      }
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/gestores-ia-avulso/logo", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof json?.error === "string" ? json.error : "Erro ao enviar logo.");
+      if (typeof json.logo_url === "string" && json.logo_url.length > 0) {
+        setDados((d) => (d ? { ...d, logoUrl: json.logo_url } : d));
+      }
+    } catch (e: unknown) {
+      setErroLogo(e instanceof Error ? e.message : "Erro ao enviar logo.");
+    } finally {
+      setLogoUploading(false);
+    }
+  }
+
+  async function removeLogo() {
+    setLogoUploading(true);
+    setErroLogo(null);
+    try {
+      const { data } = await supabaseBrowser.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) {
+        router.replace("/gestores-ia/login");
+        return;
+      }
+      const res = await fetch("/api/gestores-ia-avulso/logo", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof json?.error === "string" ? json.error : "Erro ao remover logo.");
+      setDados((d) => (d ? { ...d, logoUrl: null } : d));
+    } catch (e: unknown) {
+      setErroLogo(e instanceof Error ? e.message : "Erro ao remover logo.");
+    } finally {
+      setLogoUploading(false);
+    }
+  }
 
   useEffect(() => {
     void carregar();
@@ -128,6 +188,66 @@ export default function MeusDadosPage() {
         ) : (
           <>
             <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm sm:p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                <div className="shrink-0">
+                  {dados?.logoUrl ? (
+                    <img
+                      src={dados.logoUrl}
+                      alt=""
+                      className="h-24 w-24 shrink-0 rounded-2xl border-0 object-contain bg-transparent p-0 outline-none ring-0"
+                    />
+                  ) : (
+                    <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-dashed border-[var(--card-border)] bg-[var(--muted)]/8 px-2 text-center text-[11px] text-[var(--muted)]">
+                      Sem logo
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div>
+                    <p className="text-xs font-medium text-[var(--muted)]">Logo da marca</p>
+                    <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+                      PNG, JPG, WebP ou GIF até 2 MB. Aparece no Dashboard do Gestor de IA.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label
+                      className={cn(
+                        "inline-flex cursor-pointer items-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition hover:bg-[var(--muted)]/10",
+                        logoUploading && "pointer-events-none opacity-60"
+                      )}
+                    >
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="sr-only"
+                        disabled={logoUploading}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          e.target.value = "";
+                          if (f) void uploadLogo(f);
+                        }}
+                      />
+                      {logoUploading ? "Enviando…" : "Enviar imagem"}
+                    </label>
+                    {dados?.logoUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => void removeLogo()}
+                        disabled={logoUploading}
+                        className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)] disabled:opacity-60"
+                      >
+                        Remover
+                      </button>
+                    ) : null}
+                  </div>
+                  {erroLogo ? <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "text-xs")}>{erroLogo}</p> : null}
+                </div>
+              </div>
+            </section>
+
+            <GestorAvulsoDadosComerciaisForm />
+
+            <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm sm:p-6">
               <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                 <div>
                   <dt className="text-[var(--muted)]">E-mail</dt>
@@ -137,7 +257,19 @@ export default function MeusDadosPage() {
                   <dt className="text-[var(--muted)]">Pacote</dt>
                   <dd className="mt-0.5 font-medium text-[var(--foreground)]">
                     {temGestoresIa ? "Calculadora + Gestores de IA" : "Calculadora"}
+                    {temGestoresIa ? (
+                      <span className="ml-1 font-normal text-[var(--muted)]">
+                        ({dados?.gestoresIaCiclo === "anual" ? "anual" : "mensal"})
+                      </span>
+                    ) : null}
                   </dd>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/seller/gestores-ia-avulso/planos")}
+                    className="mt-1 text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-300"
+                  >
+                    {temGestoresIa ? "Gerenciar plano" : "Ver planos de Gestores de IA"}
+                  </button>
                 </div>
                 <div>
                   <dt className="text-[var(--muted)]">Assinatura válida até</dt>

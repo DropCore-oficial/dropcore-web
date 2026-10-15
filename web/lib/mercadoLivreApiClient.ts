@@ -951,6 +951,7 @@ type MercadoLivreOrderSearchResultComItens = {
   results?: {
     status: string;
     total_amount?: number;
+    date_created?: string;
     order_items?: { item?: { id?: string; title?: string }; quantity?: number; unit_price?: number }[];
   }[];
   paging?: { total?: number };
@@ -961,7 +962,18 @@ export type MercadoLivreResumoPedidosPeriodo = {
   vendas: number;
   /** Quantidade vendida por item_id, só de pedidos pagos — base pra "produto campeão". */
   itens: { itemId: string; titulo: string; quantidade: number }[];
+  /** Faturamento por dia civil em BRT (não UTC — pedido das 23h BRT não pode cair no dia
+   * seguinte no gráfico do seller), só com pedido pago. Base pro sparkline do Dashboard
+   * avulso. */
+  porDia: { dia: string; faturamento: number; vendas: number }[];
 };
+
+/** `date_created` do pedido vem em UTC — desloca -3h antes de cortar a data civil, mesmo
+ * ajuste BRT já usado nos outros lugares do sistema que mostram data pro seller. */
+function dataCreatedParaDiaBrt(dateCreatedIso: string): string {
+  const d = new Date(new Date(dateCreatedIso).getTime() - 3 * 60 * 60 * 1000);
+  return d.toISOString().slice(0, 10);
+}
 
 /** Mesma fonte de verdade de `mlBuscarFaturamentoRealPeriodo` (`/orders/search`, pedido
  * PAGO de verdade), mas também devolve a quebra por item — usado pro resumo financeiro do
@@ -977,6 +989,7 @@ export async function mlBuscarResumoPedidosPeriodo(
   let faturamento = 0;
   let vendas = 0;
   const porItem = new Map<string, { titulo: string; quantidade: number }>();
+  const porDia = new Map<string, { faturamento: number; vendas: number }>();
 
   for (let pagina = 0; pagina < maxPaginas; pagina++) {
     const json = await mlGet<MercadoLivreOrderSearchResultComItens>(
@@ -996,6 +1009,13 @@ export async function mlBuscarResumoPedidosPeriodo(
         atual.quantidade += oi.quantity ?? 0;
         porItem.set(itemId, atual);
       }
+      if (o.date_created) {
+        const dia = dataCreatedParaDiaBrt(o.date_created);
+        const atual = porDia.get(dia) ?? { faturamento: 0, vendas: 0 };
+        atual.faturamento += o.total_amount ?? 0;
+        atual.vendas += 1;
+        porDia.set(dia, atual);
+      }
     }
     offset += results.length;
     if (offset >= (json?.paging?.total ?? 0)) break;
@@ -1005,6 +1025,9 @@ export async function mlBuscarResumoPedidosPeriodo(
     faturamento,
     vendas,
     itens: Array.from(porItem.entries()).map(([itemId, v]) => ({ itemId, titulo: v.titulo, quantidade: v.quantidade })),
+    porDia: Array.from(porDia.entries())
+      .map(([dia, v]) => ({ dia, faturamento: v.faturamento, vendas: v.vendas }))
+      .sort((a, b) => a.dia.localeCompare(b.dia)),
   };
 }
 

@@ -54,7 +54,7 @@ export async function GET(req: Request) {
 
     const { data: assin, error: assinErr } = await supabaseAdmin
       .from("calculadora_assinantes")
-      .select("id, valido_ate, ativo, inclui_gestores_ia")
+      .select("id, valido_ate, ativo, inclui_gestores_ia, gestores_ia_ciclo, gestores_ia_contrato_aceite_em")
       .eq("user_id", user_id)
       .maybeSingle();
 
@@ -111,11 +111,23 @@ export async function GET(req: Request) {
       );
     }
 
+    // Busca a logo à parte (RPC própria, erro vira só `data: null` — supabase-js não
+    // rejeita a promise por erro de Postgrest) — enquanto o script
+    // add-calculadora-assinante-logo.sql não for aplicado em produção, a função ainda não
+    // existe; isso não pode derrubar o bootstrap de acesso de toda conta avulsa, só a logo
+    // fica null até lá.
+    const { data: logoUrl } = await supabaseAdmin.rpc("fn_calculadora_assinante_logo_get", {
+      p_assinante_id: assin.id,
+    });
+
     return NextResponse.json(
       {
         access: "calc_only",
         valido_ate: assin.valido_ate,
         inclui_gestores_ia: assin.inclui_gestores_ia === true,
+        gestores_ia_ciclo: assin.gestores_ia_ciclo ?? null,
+        gestores_ia_contrato_aceite_em: assin.gestores_ia_contrato_aceite_em ?? null,
+        logo_url: typeof logoUrl === "string" && logoUrl.length > 0 ? logoUrl : null,
         email,
       },
       { headers: { "Cache-Control": "no-store, max-age=0" } },
