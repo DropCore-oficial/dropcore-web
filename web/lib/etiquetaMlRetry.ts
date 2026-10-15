@@ -14,9 +14,13 @@ const HORAS_ANTES_ALERTA = 24;
  * pedido que nasceu "antigo" (ex.: backlog). */
 const MIN_TENTATIVAS_PARA_ALERTA_POR_IDADE = 3;
 /** Acima disso, para de tentar automaticamente — o seller já foi alertado bem antes
- * (MAX_TENTATIVAS_ANTES_ALERTA=20) e a fila não pode ficar travada num pedido que o ML
- * nunca vai liberar etiqueta (ver mesmo problema já visto no retry da Olist). */
-const MAX_TENTATIVAS_AUTO_RETRY = 50;
+ * (MAX_TENTATIVAS_ANTES_ALERTA=20). Histórico real (pedido do seller Vinz Collection,
+ * 2026-10-15): com teto de 50 o cron esgotava o orçamento em ~12h30 (50 × 15 min) e parava
+ * de checar pra sempre — mas o ML só liberou a etiqueta 3 dias depois, e ninguém mais
+ * verificava. 500 ≈ 5 dias de cobertura no mesmo ritmo de 15 em 15 min antes de desistir de
+ * verdade (fila não pode ficar travada indefinidamente num pedido que o ML nunca libera —
+ * ver mesmo problema já visto no retry da Olist). */
+const MAX_TENTATIVAS_AUTO_RETRY = 500;
 /** A partir do primeiro alerta, continua lembrando nesse intervalo enquanto o pedido
  * seguir sem etiqueta — mesmo padrão do retry da Olist. */
 const HORAS_ENTRE_LEMBRETES = 6;
