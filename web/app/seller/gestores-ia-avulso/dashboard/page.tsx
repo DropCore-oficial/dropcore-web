@@ -244,6 +244,7 @@ export default function GestoresIaAvulsoDashboardPage() {
   const [resumo, setResumo] = useState<ResumoFinanceiroAvulso | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
+  const [razaoSocial, setRazaoSocial] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     const { data } = await supabaseBrowser.auth.getSession();
@@ -279,6 +280,7 @@ export default function GestoresIaAvulsoDashboardPage() {
     }
     setLogoUrl(typeof me.logo_url === "string" && me.logo_url.length > 0 ? me.logo_url : null);
     setEmail(typeof me.email === "string" ? me.email : null);
+    setRazaoSocial(typeof me.nome === "string" && me.nome.trim().length > 0 ? me.nome : null);
 
     const res = await fetch(`/api/gestores-ia-avulso/resumo?t=${Date.now()}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -337,7 +339,7 @@ export default function GestoresIaAvulsoDashboardPage() {
                 Gestor de IA
               </p>
               <h1 className="min-w-0 truncate text-2xl font-bold leading-tight tracking-tight text-[var(--foreground)] sm:text-3xl">
-                Dashboard
+                {razaoSocial ?? "Dashboard"}
               </h1>
               <p className="text-base leading-snug text-[var(--muted)] capitalize">{dataHojeFmt}</p>
             </div>

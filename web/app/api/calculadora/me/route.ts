@@ -54,7 +54,7 @@ export async function GET(req: Request) {
 
     const { data: assin, error: assinErr } = await supabaseAdmin
       .from("calculadora_assinantes")
-      .select("id, valido_ate, ativo, inclui_gestores_ia, gestores_ia_ciclo, gestores_ia_contrato_aceite_em")
+      .select("id, nome, valido_ate, ativo, inclui_gestores_ia, gestores_ia_ciclo, gestores_ia_contrato_aceite_em")
       .eq("user_id", user_id)
       .maybeSingle();
 
@@ -128,6 +128,7 @@ export async function GET(req: Request) {
         gestores_ia_ciclo: assin.gestores_ia_ciclo ?? null,
         gestores_ia_contrato_aceite_em: assin.gestores_ia_contrato_aceite_em ?? null,
         logo_url: typeof logoUrl === "string" && logoUrl.length > 0 ? logoUrl : null,
+        nome: typeof assin.nome === "string" && assin.nome.trim().length > 0 ? assin.nome : null,
         email,
       },
       { headers: { "Cache-Control": "no-store, max-age=0" } },
