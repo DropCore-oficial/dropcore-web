@@ -46,6 +46,11 @@ type UlissesSku = { chave: string; nome_produto: string; diagnostico: UlissesDia
 type UlissesResultado = { skus: UlissesSku[]; destaque_atencao: string[] };
 export type UlissesRun = { status: "pendente" | "ok" | "erro"; resultado: UlissesResultado | null; executado_em: string } | null;
 
+type EstoqueRisco = "alto" | "medio" | "sem_risco" | "dado_insuficiente";
+type EstoqueSku = { chave: string; nome_produto: string; risco: EstoqueRisco };
+type EstoqueResultado = { skus: EstoqueSku[]; destaque_risco_alto: string[] };
+export type EstoqueRun = { status: "pendente" | "ok" | "erro"; resultado: EstoqueResultado | null; executado_em: string } | null;
+
 export function resumoStatusAndrey(run: AndreyRun): string {
   if (!run || run.status !== "ok" || !run.resultado) return "Ainda não rodou";
   const comProblema = run.resultado.anuncios.filter((a) => a.diagnostico !== "sem_problema_aparente").length;
@@ -97,4 +102,19 @@ export function severidadeUlisses(run: UlissesRun): Severidade {
   if (abaixoMin > 0) return "critica";
   const semCusto = run.resultado.skus.filter((s) => s.diagnostico === "sem_custo").length;
   return semCusto > 0 ? "atencao" : "sucesso";
+}
+
+export function resumoStatusEstoque(run: EstoqueRun): string {
+  if (!run || run.status !== "ok" || !run.resultado) return "Ainda não rodou";
+  const risco = run.resultado.skus.filter((s) => s.risco === "alto" || s.risco === "medio").length;
+  if (risco === 0) return "Estoque saudável";
+  return `${risco} anúncio${risco > 1 ? "s" : ""} em risco de ruptura`;
+}
+
+export function severidadeEstoque(run: EstoqueRun): Severidade {
+  if (!run || run.status !== "ok" || !run.resultado) return "neutro";
+  const alto = run.resultado.skus.filter((s) => s.risco === "alto").length;
+  if (alto > 0) return "critica";
+  const medio = run.resultado.skus.filter((s) => s.risco === "medio").length;
+  return medio > 0 ? "atencao" : "sucesso";
 }

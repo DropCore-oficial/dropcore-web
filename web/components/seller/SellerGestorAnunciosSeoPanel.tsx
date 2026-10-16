@@ -73,6 +73,9 @@ type AnuncioDiagnostico = {
    * que diferente — não é pra sugerir trocar, é pra avisar a divergência. */
   atributos_conflitantes: { id: string; name: string; valor: string; valorNoTexto: string }[];
   resultado_acao_anterior: ResultadoAcaoAnterior | null;
+  /** Pergunta real de comprador pendente que reforça um gap já detectado — ausente/`null`
+   * quando o backend não calculou isso (hub ainda não cruza esse dado hoje, só o avulso). */
+  pergunta_reforca_gap?: { texto: string; gap: string } | null;
 };
 
 export type AnunciosSeoResultado = {
@@ -232,6 +235,17 @@ function AtributosConflitantesAviso({
         </p>
       ))}
     </div>
+  );
+}
+
+/** Pergunta real de comprador (não suposição da IA) que reforça um gap já detectado — sinal
+ * secundário, texto simples sem caixa (SKILL dropcore-gestores-ia seção 2). */
+function PerguntaReforcaGapAviso({ pergunta }: { pergunta: { texto: string; gap: string } }) {
+  return (
+    <p className="mt-2 text-xs text-[var(--muted)]">
+      💬 Um comprador perguntou &quot;{pergunta.texto}&quot; — reforça a falta de{" "}
+      <strong className="text-[var(--foreground)]">{pergunta.gap}</strong> na ficha técnica.
+    </p>
   );
 }
 
@@ -690,6 +704,7 @@ function GrupoCard({ g }: { g: AnuncioDiagnostico }) {
       {(g.atributos_conflitantes ?? []).length > 0 ? (
         <AtributosConflitantesAviso atributos={g.atributos_conflitantes} />
       ) : null}
+      {g.pergunta_reforca_gap ? <PerguntaReforcaGapAviso pergunta={g.pergunta_reforca_gap} /> : null}
       {g.resultado_acao_anterior ? <ResultadoAcaoAnteriorBloco resultado={g.resultado_acao_anterior} /> : null}
 
       {g.titulo_sugerido ? (

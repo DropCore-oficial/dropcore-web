@@ -299,6 +299,23 @@ export type PerguntaResultadoEnriquecido = {
   resposta_sugerida: string;
 };
 
+/** Extrapolação linear simples (mínimos quadrados) do histórico de rodadas — só preenchido
+ * no avulso (`calcularTendenciaReputacaoAvulso`, `gestorReputacaoAtendimentoDadosAvulso.ts`);
+ * o hub não tem rodada avulsa pra formar série temporal com o mesmo sentido, então nunca
+ * preenche esse campo. */
+export type TendenciaMetrica = {
+  atual: number;
+  projetado7d: number;
+  projetado30d: number;
+  direcao: "subindo" | "caindo" | "estavel";
+};
+
+export type TendenciaReputacao = {
+  reclamacoes: TendenciaMetrica | null;
+  atrasoManuseio: TendenciaMetrica | null;
+  cancelamento: TendenciaMetrica | null;
+};
+
 export type ResultadoReputacaoAtendimentoEnriquecido = {
   diagnostico: "saudavel" | "atencao" | "critica";
   observacao: string;
@@ -312,6 +329,8 @@ export type ResultadoReputacaoAtendimentoEnriquecido = {
   periodo_metrica: string;
   fornecedores_atraso: FornecedorAtrasoContexto[];
   perguntas: PerguntaResultadoEnriquecido[];
+  /** Só avulso preenche (ver nota do tipo acima). */
+  tendencia?: TendenciaReputacao | null;
 };
 
 export type ResultadoReputacaoComUso = {

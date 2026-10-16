@@ -122,6 +122,17 @@ export type AnuncioSeoContexto = {
    * Ver `atributosSemReforcoNoTexto`. */
   atributosConflitantes: AtributoConflitante[];
   membros: MembroAnuncioSeo[];
+  /** Pergunta pendente real de comprador (Mercado Livre) cujo texto reforça um gap estrutural
+   * já detectado (ex.: pergunta cita "tamanho" e o grupo tem característica de tamanho vazia)
+   * — evidência concreta de comprador pedindo essa informação agora. Só preenchido pelo
+   * avulso hoje (`gestorAnunciosSeoDadosAvulso.ts`); hub não cruza isso ainda, por isso é
+   * opcional e `formatarAnunciosSeo` só menciona quando presente. */
+  perguntaReforcaGap?: { pergunta: string; itemId: string; gap: string } | null;
+  /** Código bruto (`reason_id`) de reclamação pós-venda em aberto nesse grupo, sem tradução —
+   * o ML não documenta esses códigos num dicionário confiável, então não inventamos a
+   * categoria aqui, só passamos o código pra IA mencionar se fizer sentido. Só preenchido
+   * pelo avulso hoje, mesmo motivo do campo acima. */
+  reclamacaoAbertaCodigo?: string | null;
 };
 
 export type DuplicidadeAnuncio = {
@@ -695,6 +706,12 @@ function formatarAnunciosSeo(grupos: AnuncioSeoContexto[]): string {
         g.atributosConflitantes.length > 0
           ? ` | CONFLITO ficha técnica vs texto (NÃO sugira trocar cego — mencione a divergência na observação pro vendedor conferir qual valor está certo): ${g.atributosConflitantes.map((a) => `${a.name}: ficha diz "${a.valor}", mas título/descrição já diz "${a.valorNoTexto}"`).join("; ")}`
           : "";
+      const perguntaTxt = g.perguntaReforcaGap
+        ? ` | PERGUNTA PENDENTE DE COMPRADOR reforça esse gap: comprador perguntou "${g.perguntaReforcaGap.pergunta}" sobre o anúncio ${g.perguntaReforcaGap.itemId}, relacionado a "${g.perguntaReforcaGap.gap}"`
+        : "";
+      const reclamacaoTxt = g.reclamacaoAbertaCodigo
+        ? ` | este grupo tem reclamação pós-venda em aberto (código Mercado Livre: ${g.reclamacaoAbertaCodigo}) — mencione na observação se fizer sentido, sem inventar o motivo exato a partir do código`
+        : "";
       const membrosTxt = g.membros
         .map((m) => {
           const zeroVisitas = m.visitas30d === 0 ? " [ZERO VISITAS — possível problema de indexação/categoria, não necessariamente de texto]" : "";
@@ -703,7 +720,7 @@ function formatarAnunciosSeo(grupos: AnuncioSeoContexto[]): string {
         .join("\n");
       return (
         `- ${g.chave} [${familia}]\n` +
-        `  título de referência: "${g.tituloExemplo}" | preço R$ ${g.preco.toFixed(2)}${principais}${secundarios}${guiaMedidas}${categoriaAlerta}${semReforco}${conflitantes}\n` +
+        `  título de referência: "${g.tituloExemplo}" | preço R$ ${g.preco.toFixed(2)}${principais}${secundarios}${guiaMedidas}${categoriaAlerta}${semReforco}${conflitantes}${perguntaTxt}${reclamacaoTxt}\n` +
         `  descrição atual (resumo): "${g.descricaoResumo || "(sem descrição)"}"\n` +
         `  variações:\n${membrosTxt}`
       );
@@ -756,6 +773,12 @@ export const PROMPT_ANUNCIOS_SEO: PromptTemplate<AnuncioSeoContexto[]> = {
       "dado correto por um errado. Em vez disso, mencione a divergência na observação (ex.: \"a ficha " +
       "técnica diz Gola: Mao mas o título já diz Padre — confira qual está certo antes de mudar\") e NÃO " +
       "inclua esse atributo no título ou descrição sugeridos.",
+    "Se o contexto tiver uma PERGUNTA PENDENTE DE COMPRADOR reforçando um gap, é evidência real (não " +
+      "suposição sua) de que um comprador está pedindo essa informação agora — cite isso na observação " +
+      "como prova concreta do problema, com prioridade sobre outros sinais mais fracos.",
+    "Se o contexto mencionar reclamação pós-venda em aberto nesse grupo, considere isso como sinal " +
+      "adicional de risco, mas NÃO invente qual é o motivo exato a partir só do código do Mercado Livre — " +
+      "mencione que existe reclamação em aberto de forma genérica, sem afirmar a causa.",
     "Classifique cada grupo em: problema de título, problema de descrição, características incompletas, " +
       "sem problema aparente.",
     "Para grupo com problema de título: antes de escrever, faça pelo menos 1 busca real na internet sobre " +

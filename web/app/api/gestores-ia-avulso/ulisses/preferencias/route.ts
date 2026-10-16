@@ -6,10 +6,40 @@
  */
 import { NextResponse } from "next/server";
 import { getAssinanteFromToken } from "@/lib/calculadoraAssinanteSessionAuth";
-import { buscarPreferenciasUlissesAvulso, salvarPreferenciasUlissesAvulso } from "@/lib/ai/gestorAdsDadosAvulso";
+import {
+  buscarPreferenciasUlissesAvulso,
+  salvarPreferenciasUlissesAvulso,
+  type UlissesPreferenciasAvulso,
+} from "@/lib/ai/gestorAdsDadosAvulso";
+import type { UlissesPreferenciasForm } from "@/components/seller/SellerGestorUlissesWizard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** O wizard (`SellerGestorUlissesWizard`) é compartilhado com o hub e usa snake_case (mesmo
+ * formato das colunas) — a camada de dados do avulso (`gestorAdsDadosAvulso.ts`) usa camelCase
+ * internamente. Converte na borda da API, não no componente/lib. */
+function paraFormSnakeCase(p: UlissesPreferenciasAvulso): UlissesPreferenciasForm {
+  return {
+    margem_minima_pct: p.margemMinimaPct,
+    margem_maxima_pct: p.margemMaximaPct,
+    imposto_pct: p.impostoPct,
+    perda_pct: p.perdaPct,
+    ads_ativo: p.adsAtivo,
+    ads_tacos_pct: p.adsTacosPct,
+    ads_teto_valor: p.adsTetoValor,
+    ads_teto_periodo: p.adsTetoPeriodo,
+    afiliado_ativo: p.afiliadoAtivo,
+    afiliado_pct: p.afiliadoPct,
+    cupom_ativo: p.cupomAtivo,
+    cupom_pct: p.cupomPct,
+    embalagem_brl: p.embalagemBrl,
+    custo_full_brl: p.custoFullBrl,
+    devolucao_taxa_pct: p.devolucaoTaxaPct,
+    devolucao_custo_brl: p.devolucaoCustoBrl,
+    acos_alvo_pct: p.acosAlvoPct,
+  };
+}
 
 export async function GET(req: Request) {
   const assinante = await getAssinanteFromToken(req);
@@ -21,7 +51,7 @@ export async function GET(req: Request) {
   }
 
   const preferencias = await buscarPreferenciasUlissesAvulso(assinante.id);
-  return NextResponse.json({ preferencias });
+  return NextResponse.json({ preferencias: preferencias ? paraFormSnakeCase(preferencias) : null });
 }
 
 type Payload = {
@@ -37,6 +67,11 @@ type Payload = {
   afiliado_pct?: unknown;
   cupom_ativo?: unknown;
   cupom_pct?: unknown;
+  embalagem_brl?: unknown;
+  custo_full_brl?: unknown;
+  devolucao_taxa_pct?: unknown;
+  devolucao_custo_brl?: unknown;
+  acos_alvo_pct?: unknown;
 };
 
 function numOuNull(v: unknown): number | null {
@@ -85,8 +120,13 @@ export async function POST(req: Request) {
       afiliadoPct: numOuNull(body.afiliado_pct),
       cupomAtivo,
       cupomPct: numOuNull(body.cupom_pct),
+      embalagemBrl: numOuNull(body.embalagem_brl) ?? 0,
+      custoFullBrl: numOuNull(body.custo_full_brl) ?? 0,
+      devolucaoTaxaPct: numOuNull(body.devolucao_taxa_pct) ?? 0,
+      devolucaoCustoBrl: numOuNull(body.devolucao_custo_brl) ?? 0,
+      acosAlvoPct: numOuNull(body.acos_alvo_pct) ?? 0,
     });
-    return NextResponse.json({ preferencias });
+    return NextResponse.json({ preferencias: paraFormSnakeCase(preferencias) });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro ao salvar preferências." }, { status: 500 });
   }

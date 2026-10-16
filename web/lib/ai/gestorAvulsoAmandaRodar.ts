@@ -61,7 +61,7 @@ export async function rodarAmandaAvulsoParaAssinante(assinanteId: string): Promi
     }
   }
 
-  const { resultado, usage } = await montarResultadoReputacaoAtendimentoAvulso(dados, apiKeyParaResponder);
+  const { resultado, usage } = await montarResultadoReputacaoAtendimentoAvulso(assinanteId, dados, apiKeyParaResponder);
 
   const { data: novaLinha, error: insertErr } = await supabaseAdmin
     .from("calculadora_assinante_ai_runs")

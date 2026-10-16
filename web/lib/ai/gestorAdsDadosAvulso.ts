@@ -15,9 +15,8 @@
  * comparação de número, não julgamento ambíguo.
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { calcularMargemRealizada } from "@/lib/margemCalculo";
+import { calcularMargemRealizada, calcularPrecoPisoFormal } from "@/lib/margemCalculo";
 import {
-  calcularPrecoMinimoSeguro,
   buscarMetricasAdsPorChave,
   classificarCampanhas,
   campanhaParaJson,
@@ -32,6 +31,7 @@ import {
   type MercadoLivreAuthContext,
 } from "@/lib/mercadoLivreApiClient";
 import { getValidMercadoLivreAvulsoAccessToken } from "@/lib/mercadoLivreAvulsoToken";
+import type { Risco } from "./gestorEstoqueDadosAvulso";
 
 export type UlissesPreferenciasAvulso = {
   margemMinimaPct: number;
@@ -46,6 +46,15 @@ export type UlissesPreferenciasAvulso = {
   afiliadoPct: number | null;
   cupomAtivo: boolean;
   cupomPct: number | null;
+  /** Piso de preço formal (Margem) — embalagem/custoFull existem desde 2026-10-11 mas nunca
+   * tinham sido lidos por código nenhum até agora; devolução/ACOS são novos. Todos com
+   * default 0 no banco, então "não configurado" e "configurado como zero" são
+   * indistinguíveis de propósito (0 é um valor válido pra todos esses campos). */
+  embalagemBrl: number;
+  custoFullBrl: number;
+  devolucaoTaxaPct: number;
+  devolucaoCustoBrl: number;
+  acosAlvoPct: number;
 };
 
 type PreferenciasRow = {
@@ -61,6 +70,11 @@ type PreferenciasRow = {
   afiliado_pct: number | null;
   cupom_ativo: boolean;
   cupom_pct: number | null;
+  embalagem_brl: number;
+  custo_full_brl: number;
+  devolucao_taxa_pct: number;
+  devolucao_custo_brl: number;
+  acos_alvo_pct: number;
 };
 
 function linhaParaPreferencias(row: PreferenciasRow): UlissesPreferenciasAvulso {
@@ -77,6 +91,11 @@ function linhaParaPreferencias(row: PreferenciasRow): UlissesPreferenciasAvulso 
     afiliadoPct: row.afiliado_pct,
     cupomAtivo: row.cupom_ativo,
     cupomPct: row.cupom_pct,
+    embalagemBrl: row.embalagem_brl,
+    custoFullBrl: row.custo_full_brl,
+    devolucaoTaxaPct: row.devolucao_taxa_pct,
+    devolucaoCustoBrl: row.devolucao_custo_brl,
+    acosAlvoPct: row.acos_alvo_pct,
   };
 }
 
@@ -107,6 +126,11 @@ export async function salvarPreferenciasUlissesAvulso(
     p_afiliado_pct: prefs.afiliadoAtivo ? prefs.afiliadoPct : null,
     p_cupom_ativo: prefs.cupomAtivo,
     p_cupom_pct: prefs.cupomAtivo ? prefs.cupomPct : null,
+    p_embalagem_brl: prefs.embalagemBrl,
+    p_custo_full_brl: prefs.custoFullBrl,
+    p_devolucao_taxa_pct: prefs.devolucaoTaxaPct,
+    p_devolucao_custo_brl: prefs.devolucaoCustoBrl,
+    p_acos_alvo_pct: prefs.acosAlvoPct,
   });
   if (error) throw new Error(error.message);
   return linhaParaPreferencias(data as PreferenciasRow);
@@ -233,6 +257,13 @@ export type SkuResultadoAdsAvulso = {
   desconto_ativo_pct: number;
   desconto_ativo_nome: string | null;
   desconto_ativo_fim: string | null;
+  /** Todos os anúncios (item_id) que compõem essa família — aplicar promoção precisa atingir
+   * todo mundo, não só o representante (mesmo achado real do botão de pausar do Estoque). */
+  membros: { item_id: string; titulo: string }[];
+  /** Risco de ruptura (Estoque avulso) na mesma família, lido da última rodada salva —
+   * `null` quando o assinante nunca rodou o Estoque ainda. Não bloqueia a promoção, só avisa
+   * antes de aplicar. */
+  risco_ruptura_estoque: Risco | null;
 };
 
 /** 1 promoção/campanha ativa ou agendada na conta (não por produto — isso é o
@@ -286,13 +317,26 @@ export async function montarResultadoAdsAvulso(assinanteId: string): Promise<Res
   const periodoInicio = inicioMes.toISOString().slice(0, 10);
   const periodoFim = hoje.toISOString().slice(0, 10);
 
-  const [grupos, custosPorChave, metricasAds, promocoesAtivas] = await Promise.all([
+  const [grupos, custosPorChave, metricasAds, promocoesAtivas, estoqueRunRes] = await Promise.all([
     buscarCatalogoAgrupado(ctx),
     buscarCustosUlissesAvulso(assinanteId),
     buscarMetricasAdsPorChave(ctx, "MLB", periodoInicio, periodoFim),
     mlBuscarPromocoesAtivas(ctx),
+    supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
+      p_assinante_id: assinanteId,
+      p_gestor: "estoque",
+      p_limit: 1,
+    }),
   ]);
   if (grupos.length === 0) return null;
+
+  // Cruzamento com o Estoque avulso (quando já rodou alguma vez) — mesma chave de família
+  // (`family_id`/item_id) usada pelos dois gestores, não promove SKU em risco de ruptura sem
+  // avisar. `?.resultado` pode vir `null`/ausente em rodada antiga ou sem dado suficiente.
+  type EstoqueRunRow = { resultado: { skus?: { chave: string; risco: Risco }[] } | null };
+  const estoqueRow = ((estoqueRunRes.data ?? []) as EstoqueRunRow[])[0];
+  const riscoRupturaPorChave = new Map<string, Risco>();
+  for (const s of estoqueRow?.resultado?.skus ?? []) riscoRupturaPorChave.set(s.chave, s.risco);
 
   const cupomAtivoNaConta = promocoesAtivas.some((p) => p.type === "SELLER_COUPON_CAMPAIGN");
   const promocoesConta: PromocaoContaResumo[] = promocoesAtivas.map((p) => ({
@@ -339,6 +383,9 @@ export async function montarResultadoAdsAvulso(assinanteId: string): Promise<Res
         descontoAtivoFim = promo?.finish_date?.slice(0, 10) ?? null;
       }
 
+      const membros = grupo.membros.map((m) => ({ item_id: m.itemId, titulo: m.titulo }));
+      const riscoRupturaEstoque = riscoRupturaPorChave.get(grupo.chave) ?? null;
+
       if (custo === null) {
         return {
           chave: grupo.chave,
@@ -367,6 +414,8 @@ export async function montarResultadoAdsAvulso(assinanteId: string): Promise<Res
           desconto_ativo_pct: descontoAtivoPct,
           desconto_ativo_nome: descontoAtivoNome,
           desconto_ativo_fim: descontoAtivoFim,
+          membros,
+          risco_ruptura_estoque: riscoRupturaEstoque,
         };
       }
 
@@ -381,13 +430,26 @@ export async function montarResultadoAdsAvulso(assinanteId: string): Promise<Res
         adsPct: adsPctReal,
         afiliadoPct: prefs.afiliadoAtivo ? (prefs.afiliadoPct ?? 0) : 0,
       });
-      const precoMinimoSeguro = calcularPrecoMinimoSeguro(
-        custo + (freteReal ?? 0),
+      // custoOperacionalPorPreco: a API do ML não simula o frete/custo operacional pra um
+      // preço candidato hipotético (só devolve o custo real do preço publicado hoje) — usar
+      // o valor real fixo em vez de uma tabela de faixa inventada (ex. regra pública do ML
+      // de custo variável abaixo de R$79, que pode mudar sem aviso e não é dado da API).
+      // Converge na 1ª iteração; a função em margemCalculo.ts já suporta uma tabela real de
+      // faixas no futuro, se um dia virar dado confiável.
+      const freteRealFixo = freteReal ?? 0;
+      const pisoFormal = calcularPrecoPisoFormal({
+        custo,
+        embalagem: prefs.embalagemBrl,
+        custoFull: prefs.custoFullBrl,
+        devolucaoTaxaPct: prefs.devolucaoTaxaPct,
+        devolucaoCustoBrl: prefs.devolucaoCustoBrl,
         comissaoPct,
-        prefs.impostoPct,
-        prefs.perdaPct,
-        prefs.margemMinimaPct
-      );
+        impostoPct: prefs.impostoPct,
+        margemMinimaPct: prefs.margemMinimaPct,
+        acosAlvoPct: prefs.acosAlvoPct,
+        custoOperacionalPorPreco: () => freteRealFixo,
+      });
+      const precoMinimoSeguro = pisoFormal?.precoPiso ?? null;
 
       const afiliadoPctConfigurado = prefs.afiliadoAtivo ? (prefs.afiliadoPct ?? 0) : null;
       const headroomAfiliado = margemAtualPct - prefs.margemMinimaPct;
@@ -423,6 +485,8 @@ export async function montarResultadoAdsAvulso(assinanteId: string): Promise<Res
         desconto_ativo_pct: descontoAtivoPct,
         desconto_ativo_nome: descontoAtivoNome,
         desconto_ativo_fim: descontoAtivoFim,
+        membros,
+        risco_ruptura_estoque: riscoRupturaEstoque,
       };
     })
   );

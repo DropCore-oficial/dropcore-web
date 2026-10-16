@@ -46,6 +46,9 @@ type SkuResultado = {
   desconto_ativo_pct: number;
   desconto_ativo_nome: string | null;
   desconto_ativo_fim: string | null;
+  /** Opcional: rodada salva antes dessa feature existir não tem esses 2 campos. */
+  membros?: { item_id: string; titulo: string }[];
+  risco_ruptura_estoque?: "alto" | "medio" | "sem_risco" | "dado_insuficiente" | null;
 };
 
 type CampanhaResultado = {
@@ -231,7 +234,10 @@ function SkuDetalhe({ sku }: { sku: SkuResultado }) {
             </div>
           </dl>
           {sku.diagnostico === "margem_abaixo_minima" && sku.preco_minimo_seguro != null ? (
-            <p className="mt-2 text-xs text-[var(--muted)]">Preço mínimo seguro: R$ {sku.preco_minimo_seguro.toFixed(2)}.</p>
+            <p className="mt-2 text-xs text-[var(--muted)]">
+              Preço mínimo seguro: R$ {sku.preco_minimo_seguro.toFixed(2)} — já conta embalagem, custo Full, devolução
+              esperada e ACOS alvo quando você preencheu isso em preferências.
+            </p>
           ) : null}
           {sku.ads_gasto_mes_real > 0 ? (
             <p className="mt-2 text-xs text-[var(--muted)]">
@@ -264,6 +270,162 @@ function PromocaoRow({ item }: { item: SkuResultado }) {
         {item.desconto_ativo_fim ? ` até ${item.desconto_ativo_fim}` : ""} — preço de tabela R$ {item.preco_original?.toFixed(2)},
         preço com desconto R$ {item.preco.toFixed(2)}.
       </p>
+    </article>
+  );
+}
+
+type PrecoEstado = "idle" | "confirmando" | "aplicando" | "aplicado" | "erro";
+
+/** Porte do botão que já existe no hub (`AplicarPromocaoLoteBotao` em
+ * `SellerGestorAdsPricingPanel.tsx`) — cria uma promoção `PRICE_DISCOUNT` real no Mercado
+ * Livre (badge + prazo de 30 dias), não é só reescrever o preço. Aplica em TODOS os membros
+ * da família (`item.membros`), não só no representante — mesmo achado real do botão de
+ * pausar do Estoque avulso (um único item escolhido por sort não cobre a família inteira). */
+function AplicarPromocaoBotao({ item, onAplicado }: { item: SkuResultado; onAplicado: (chave: string) => void }) {
+  const precoSugerido = item.preco_minimo_seguro ?? 0;
+  const membros = item.membros ?? [{ item_id: item.item_id_representante, titulo: item.nome_produto }];
+  const [preco, setPreco] = useState(precoSugerido);
+  const [estado, setEstado] = useState<PrecoEstado>("idle");
+  const [resultados, setResultados] = useState<{ item_id: string; ok: boolean; erro?: string }[] | null>(null);
+  const [mensagem, setMensagem] = useState<string | null>(null);
+
+  const furaMinimo = Number.isFinite(preco) && item.preco_minimo_seguro != null && preco < item.preco_minimo_seguro;
+  const rotuloQtd = membros.length === 1 ? "no 1 anúncio" : `nos ${membros.length} anúncios`;
+
+  async function aplicar() {
+    setEstado("aplicando");
+    const token = await getAccessToken();
+    if (!token) {
+      setMensagem("Sessão expirada, faça login de novo.");
+      setEstado("erro");
+      return;
+    }
+    const res = await fetch("/api/gestores-ia-avulso/ulisses/aplicar-promocao-lote", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        item_ids: membros.map((m) => m.item_id),
+        preco_promocional: preco,
+        confirmar_abaixo_minimo: furaMinimo,
+      }),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      error?: string;
+      resultados?: { item_id: string; ok: boolean; erro?: string }[];
+    };
+    if (!res.ok || !json.ok) {
+      setMensagem(json.error ?? "Erro ao aplicar a promoção.");
+      setEstado("erro");
+      return;
+    }
+    setResultados(json.resultados ?? []);
+    setEstado("aplicado");
+    onAplicado(item.chave);
+  }
+
+  if (estado === "aplicado" && resultados) {
+    const sucesso = resultados.filter((r) => r.ok).length;
+    return (
+      <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+        {sucesso}/{resultados.length} em promoção a R$ {preco.toFixed(2)} ✓
+      </p>
+    );
+  }
+  if (estado === "erro") {
+    return <p className="mt-2 text-xs text-[var(--danger)]">{mensagem}</p>;
+  }
+
+  const campoPreco = (
+    <div className="flex items-center gap-1.5">
+      <span className="text-xs text-[var(--muted)]">R$</span>
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        value={Number.isFinite(preco) ? preco : ""}
+        onChange={(e) => setPreco(e.target.valueAsNumber)}
+        className="w-20 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)]"
+      />
+    </div>
+  );
+
+  if (estado === "confirmando") {
+    return (
+      <div className="mt-2 flex flex-col items-start gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {campoPreco}
+          <button
+            type="button"
+            onClick={() => void aplicar()}
+            className={cn(
+              "rounded-md px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm",
+              furaMinimo ? "bg-[var(--danger)] hover:opacity-90" : "bg-emerald-600 hover:bg-emerald-700"
+            )}
+          >
+            {furaMinimo ? "Aplicar mesmo assim" : "Sim, criar promoção"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setEstado("idle")}
+            className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+          >
+            Cancelar
+          </button>
+        </div>
+        <p className="text-xs text-[var(--muted)]">Cria promoção real (badge + prazo de 30 dias) {rotuloQtd}.</p>
+        {furaMinimo ? (
+          <p className="text-xs text-[var(--danger)]">
+            Esse preço fura a margem mínima (mínimo seguro R$ {precoSugerido.toFixed(2)}).
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      {campoPreco}
+      <button
+        type="button"
+        onClick={() => setEstado("confirmando")}
+        disabled={estado === "aplicando" || !Number.isFinite(preco) || preco <= 0}
+        className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
+      >
+        {estado === "aplicando" ? "Aplicando…" : "Aplicar promoção"}
+      </button>
+    </div>
+  );
+}
+
+const RISCO_RUPTURA_LABEL: Record<string, string> = {
+  alto: "Em risco de ruptura — considere repor estoque antes de promover.",
+  medio: "Estoque um pouco apertado pra esse produto.",
+};
+
+/** Item sem promoção ativa, mas com folga pra entrar sem furar o mínimo — equivalente ao
+ * `FamiliaSemPromocaoCard` do hub, só que já 1 linha por família (o backend avulso agrupa
+ * por família direto, não precisa agrupar de novo no front). */
+function SemPromocaoRow({ item, onAplicado }: { item: SkuResultado; onAplicado: (chave: string) => void }) {
+  const avisoRisco = item.risco_ruptura_estoque ? RISCO_RUPTURA_LABEL[item.risco_ruptura_estoque] : null;
+  return (
+    <article className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="min-w-0 truncate font-medium text-[var(--foreground)]">{item.nome_produto}</p>
+        <a
+          href={item.permalink ?? mlItemPermalink(item.item_id_representante)}
+          target="_blank"
+          rel="noreferrer"
+          className="shrink-0 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+        >
+          Ver anúncio ↗
+        </a>
+      </div>
+      <p className="mt-2 text-sm text-[var(--foreground)]">
+        Sem promoção ativa — dá pra vender a partir de R$ {item.preco_minimo_seguro?.toFixed(2)} sem furar o mínimo
+        de {item.margem_minima_pct}%.
+      </p>
+      {avisoRisco ? <p className="mt-1 text-xs text-[var(--danger)]">{avisoRisco}</p> : null}
+      <AplicarPromocaoBotao item={item} onAplicado={onAplicado} />
     </article>
   );
 }
@@ -501,9 +663,21 @@ async function getAccessToken(): Promise<string | null> {
 function UlissesResultadoAbas({ resultado }: { resultado: UlissesResultado }) {
   const [aba, setAba] = useState<AbaUlisses>("margem");
   const [chaveAberta, setChaveAberta] = useState<string | null>(null);
+  // Some da lista assim que aplicado — não espera rodar de novo (achado/padrão já usado no
+  // hub, ver `itemIdsAplicados` em SellerGestorAdsPricingPanel.tsx). Só filtro de exibição,
+  // não recalcula margem/diagnóstico (isso é lógica de negócio, fica no servidor).
+  const [chavesAplicadas, setChavesAplicadas] = useState<Set<string>>(new Set());
+  const marcarAplicado = (chave: string) => setChavesAplicadas((prev) => new Set([...prev, chave]));
 
   const skusComAfiliado = resultado.skus.filter((s) => s.afiliado_pct_teto_seguro != null);
-  const skusComPromocao = resultado.skus.filter((s) => s.desconto_ativo_pct > 1);
+  const skusComPromocao = resultado.skus.filter((s) => s.desconto_ativo_pct > 1 && !chavesAplicadas.has(s.chave));
+  const skusSemPromocaoElegivel = resultado.skus.filter(
+    (s) =>
+      s.desconto_ativo_pct <= 1 &&
+      s.preco_minimo_seguro != null &&
+      s.preco > s.preco_minimo_seguro &&
+      !chavesAplicadas.has(s.chave)
+  );
   const destaques = new Set(resultado.destaque_atencao);
   const destaqueCount = resultado.destaque_atencao.length;
 
@@ -662,6 +836,15 @@ function UlissesResultadoAbas({ resultado }: { resultado: UlissesResultado }) {
           ) : (
             <p className="text-sm text-[var(--muted)]">Nenhum anúncio com desconto ativo agora.</p>
           )}
+
+          {skusSemPromocaoElegivel.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-xs text-[var(--muted)]">Sem promoção ativa — pode entrar sem furar a margem</p>
+              {skusSemPromocaoElegivel.map((item) => (
+                <SemPromocaoRow key={item.chave} item={item} onAplicado={marcarAplicado} />
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : skusComAfiliado.length === 0 ? (
         <p className="text-sm text-[var(--muted)]">
@@ -798,6 +981,7 @@ function UlissesAvulsoPageInner() {
             inicial={null}
             endpoint="/api/gestores-ia-avulso/ulisses/preferencias"
             onSalvo={() => void carregar()}
+            avulso
           />
         ) : (
           <>
@@ -825,6 +1009,7 @@ function UlissesAvulsoPageInner() {
                   void carregar();
                 }}
                 onCancelar={() => setEditandoPreferencias(false)}
+                avulso
               />
             ) : (
               <SellerGestorRunShell<UlissesResultado>

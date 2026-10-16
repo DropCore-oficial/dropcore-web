@@ -18,6 +18,11 @@ export type UlissesPreferenciasForm = {
   afiliado_pct: number | null;
   cupom_ativo: boolean;
   cupom_pct: number | null;
+  embalagem_brl?: number;
+  custo_full_brl?: number;
+  devolucao_taxa_pct?: number;
+  devolucao_custo_brl?: number;
+  acos_alvo_pct?: number;
 };
 
 const inputClass =
@@ -54,11 +59,16 @@ export function SellerGestorUlissesWizard({
   endpoint,
   onSalvo,
   onCancelar,
+  avulso = false,
 }: {
   inicial: Partial<UlissesPreferenciasForm> | null;
   endpoint: string;
   onSalvo: (preferencias: UlissesPreferenciasForm) => void;
   onCancelar?: () => void;
+  /** Piso de preço formal (Margem) — embalagem/custo Full/devolução/ACOS alvo — só no
+   * avulso por agora. O hub tem as mesmas colunas de embalagem/custo Full desde 2026-10-11
+   * mas nunca ganhou a UI nem devolução/ACOS; escopo deste item era só o avulso. */
+  avulso?: boolean;
 }) {
   const [margemMinima, setMargemMinima] = useState(String(inicial?.margem_minima_pct ?? ""));
   const [margemMaxima, setMargemMaxima] = useState(inicial?.margem_maxima_pct != null ? String(inicial.margem_maxima_pct) : "");
@@ -75,6 +85,17 @@ export function SellerGestorUlissesWizard({
 
   const [cupomAtivo, setCupomAtivo] = useState(inicial?.cupom_ativo ?? false);
   const [cupomPct, setCupomPct] = useState(inicial?.cupom_pct != null ? String(inicial.cupom_pct) : "");
+
+  const [pisoAvancadoAberto, setPisoAvancadoAberto] = useState(false);
+  const [embalagemBrl, setEmbalagemBrl] = useState(inicial?.embalagem_brl != null ? String(inicial.embalagem_brl) : "");
+  const [custoFullBrl, setCustoFullBrl] = useState(inicial?.custo_full_brl != null ? String(inicial.custo_full_brl) : "");
+  const [devolucaoTaxaPct, setDevolucaoTaxaPct] = useState(
+    inicial?.devolucao_taxa_pct != null ? String(inicial.devolucao_taxa_pct) : ""
+  );
+  const [devolucaoCustoBrl, setDevolucaoCustoBrl] = useState(
+    inicial?.devolucao_custo_brl != null ? String(inicial.devolucao_custo_brl) : ""
+  );
+  const [acosAlvoPct, setAcosAlvoPct] = useState(inicial?.acos_alvo_pct != null ? String(inicial.acos_alvo_pct) : "");
 
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -115,6 +136,15 @@ export function SellerGestorUlissesWizard({
         afiliado_pct: afiliadoPct === "" ? null : Number(afiliadoPct),
         cupom_ativo: cupomAtivo,
         cupom_pct: cupomPct === "" ? null : Number(cupomPct),
+        ...(avulso
+          ? {
+              embalagem_brl: embalagemBrl === "" ? 0 : Number(embalagemBrl),
+              custo_full_brl: custoFullBrl === "" ? 0 : Number(custoFullBrl),
+              devolucao_taxa_pct: devolucaoTaxaPct === "" ? 0 : Number(devolucaoTaxaPct),
+              devolucao_custo_brl: devolucaoCustoBrl === "" ? 0 : Number(devolucaoCustoBrl),
+              acos_alvo_pct: acosAlvoPct === "" ? 0 : Number(acosAlvoPct),
+            }
+          : {}),
       }),
     });
     const json = (await res.json().catch(() => ({}))) as { preferencias?: UlissesPreferenciasForm; error?: string };
@@ -271,6 +301,86 @@ export function SellerGestorUlissesWizard({
             </div>
           ) : null}
         </div>
+
+        {avulso ? (
+          <div className="rounded-xl border border-[var(--card-border)] p-3.5">
+            <button
+              type="button"
+              onClick={() => setPisoAvancadoAberto((v) => !v)}
+              className="text-sm font-medium text-[var(--foreground)]"
+            >
+              {pisoAvancadoAberto ? "▾" : "▸"} Piso de preço avançado (embalagem, Full, devolução, ACOS) — opcional
+            </button>
+            <p className={cn("mt-1", helpTextClass)}>
+              Deixe em branco o que não se aplica — o piso recalcula sem esses custos.
+            </p>
+            {pisoAvancadoAberto ? (
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className={labelClass}>Embalagem (R$)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={embalagemBrl}
+                    onChange={(e) => setEmbalagemBrl(e.target.value)}
+                    className={cn(inputClass, "mt-1")}
+                    placeholder="ex.: 2,50"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Custo Full/armazenagem (R$)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={custoFullBrl}
+                    onChange={(e) => setCustoFullBrl(e.target.value)}
+                    className={cn(inputClass, "mt-1")}
+                    placeholder="ex.: 3,00"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Taxa de devolução esperada (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={devolucaoTaxaPct}
+                    onChange={(e) => setDevolucaoTaxaPct(e.target.value)}
+                    className={cn(inputClass, "mt-1")}
+                    placeholder="ex.: 5"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Custo de cada devolução (R$)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={devolucaoCustoBrl}
+                    onChange={(e) => setDevolucaoCustoBrl(e.target.value)}
+                    className={cn(inputClass, "mt-1")}
+                    placeholder="ex.: 20"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>ACOS alvo (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={acosAlvoPct}
+                    onChange={(e) => setAcosAlvoPct(e.target.value)}
+                    className={cn(inputClass, "mt-1")}
+                    placeholder="ex.: 8"
+                  />
+                  <p className={cn("mt-1", helpTextClass)}>Reserva de margem pro Ads — some ao piso igual a margem mínima.</p>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {erro ? (
           <div className={cn("rounded-xl p-3 text-sm", DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY)}>{erro}</div>

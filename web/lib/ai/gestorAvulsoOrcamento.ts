@@ -104,3 +104,16 @@ export async function temOrcamentoDisponivelHoje(assinante: AssinanteByok, assin
   const gastoHoje = await gastoAvulsoHojeReais(assinanteId);
   return gastoHoje < TETO_AVULSO_REAIS_DIA;
 }
+
+/** Mesmo princípio de `temOrcamentoDisponivelHoje`, mas pra quem já sabe só o BOOLEANO de
+ * BYOK (via RPC `fn_calculadora_assinante_byok_configurado`) em vez do objeto com a chave
+ * crua — usado pelo Estoque avulso (1º gestor escrito 100% em RPC: nunca busca
+ * `anthropic_api_key_encriptada` à toa quando só precisa saber se está configurada). */
+export async function temOrcamentoDisponivelHojeComByokBooleano(
+  byokConfigurado: boolean,
+  assinanteId: string
+): Promise<boolean> {
+  if (byokConfigurado) return true;
+  const gastoHoje = await gastoAvulsoHojeReais(assinanteId);
+  return gastoHoje < TETO_AVULSO_REAIS_DIA;
+}

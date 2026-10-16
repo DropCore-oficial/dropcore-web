@@ -3,21 +3,22 @@
  * Nunca dispara rodada nova no meio da conversa. Mesmo princípio de `gestorTiagoChatTools.ts`
  * (hub), reaproveitando `resumirResultado`/`criarOrcamentoResultadoChat` (lógica de corte de
  * tamanho é pura, não depende de seller x assinante) — só a busca de dado e a lista de
- * gestores mudam. Sem Diogo: avulso não tem esse gestor (depende de estoque interno que só o
- * hub tem).
+ * gestores mudam.
  */
 import type Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resumirResultado, criarOrcamentoResultadoChat, type OrcamentoResultadoChat } from "./gestorTiagoChatTools";
+import { montarResumoDiarioAvulso } from "./gestorTiagoResumoDiarioAvulso";
 
 export { criarOrcamentoResultadoChat, type OrcamentoResultadoChat };
 
-type GestorIdAvulso = "anuncios_seo" | "reputacao_atendimento" | "ads";
+type GestorIdAvulso = "anuncios_seo" | "reputacao_atendimento" | "ads" | "estoque";
 
 const GESTORES_CONSULTAVEIS_AVULSO: { id: GestorIdAvulso; nome: string; funcao: string }[] = [
   { id: "anuncios_seo", nome: "Anúncio", funcao: "Anúncios & SEO" },
   { id: "reputacao_atendimento", nome: "SAC", funcao: "Reputação & Atendimento" },
   { id: "ads", nome: "ADS", funcao: "Ads & Preço" },
+  { id: "estoque", nome: "Estoque", funcao: "Estoque & Ruptura" },
 ];
 
 export function nomeGestorConsultavelAvulso(gestorId: string): string | null {
@@ -28,18 +29,24 @@ export const TIAGO_CHAT_TOOLS_AVULSO: Anthropic.Messages.Tool[] = [
   {
     name: "consultar_gestor",
     description:
-      "Consulta o resultado mais recente já calculado por um dos gestores da equipe (Andrey, Amanda ou Ulisses) pra esse assinante. NUNCA dispara uma rodada nova — só lê o que já foi gravado. Se o gestor ainda não rodou, avisa e sugere o assinante clicar em 'Rodar de novo agora' na tela dele.",
+      "Consulta o resultado mais recente já calculado por um dos gestores da equipe (Andrey, Amanda, Ulisses ou Estoque) pra esse assinante. NUNCA dispara uma rodada nova — só lê o que já foi gravado. Se o gestor ainda não rodou, avisa e sugere o assinante clicar em 'Rodar de novo agora' na tela dele.",
     input_schema: {
       type: "object",
       properties: {
         gestor: {
           type: "string",
           enum: GESTORES_CONSULTAVEIS_AVULSO.map((g) => g.id),
-          description: "anuncios_seo=Andrey, reputacao_atendimento=Amanda, ads=Ulisses",
+          description: "anuncios_seo=Andrey, reputacao_atendimento=Amanda, ads=Ulisses, estoque=Estoque",
         },
       },
       required: ["gestor"],
     },
+  },
+  {
+    name: "resumo_diario_acoes",
+    description:
+      "Monta o resumo diário com as 3 ações mais importantes do dia, cruzando o que os 4 gestores (Andrey, Amanda, Ulisses, Estoque) já calcularam na última rodada de cada um. Pontuação por severidade×confiança÷esforço, sem inventar número — usa só dado real já gravado. Use quando o assinante perguntar algo como 'como está hoje' ou 'resumo do dia'.",
+    input_schema: { type: "object", properties: {}, required: [] },
   },
 ];
 
@@ -52,6 +59,11 @@ export async function executarToolTiagoAvulso(
   assinanteId: string,
   orcamento?: OrcamentoResultadoChat
 ): Promise<string> {
+  if (nomeTool === "resumo_diario_acoes") {
+    const resumo = await montarResumoDiarioAvulso(assinanteId);
+    return JSON.stringify(resumo);
+  }
+
   if (nomeTool !== "consultar_gestor") {
     return JSON.stringify({ erro: "Ferramenta desconhecida." });
   }

@@ -13,6 +13,14 @@ type Urgencia = "alta" | "media" | "baixa";
 
 type FornecedorAtraso = { fornecedorNome: string; pedidosPostados: number; atrasoMedioDias: number };
 
+type DirecaoTendencia = "subindo" | "caindo" | "estavel";
+type TendenciaMetrica = { atual: number; projetado7d: number; projetado30d: number; direcao: DirecaoTendencia };
+type TendenciaReputacao = {
+  reclamacoes: TendenciaMetrica | null;
+  atrasoManuseio: TendenciaMetrica | null;
+  cancelamento: TendenciaMetrica | null;
+};
+
 type Pergunta = {
   pergunta_id: number;
   item_id: string;
@@ -36,6 +44,7 @@ export type ReputacaoAtendimentoResultado = {
   periodo_metrica: string;
   fornecedores_atraso: FornecedorAtraso[];
   perguntas: Pergunta[];
+  tendencia?: TendenciaReputacao | null;
 };
 
 const DIAGNOSTICO_BADGE: Record<Diagnostico, string> = {
@@ -90,6 +99,19 @@ function formatarPct(taxa: number): string {
   return `${(taxa * 100).toFixed(1)}%`;
 }
 
+const SETA_DIRECAO: Record<DirecaoTendencia, string> = { subindo: "↑", caindo: "↓", estavel: "→" };
+
+/** Sinal secundário (não é o veredito principal do card) — linha de texto simples, sem caixa
+ * com borda+fundo, igual o resto do SKILL `dropcore-gestores-ia` pede. */
+function TendenciaLinha({ rotulo, t }: { rotulo: string; t: TendenciaMetrica }) {
+  return (
+    <p className="text-xs text-[var(--muted)]">
+      {rotulo}: {formatarPct(t.atual)} agora {SETA_DIRECAO[t.direcao]} tendência de {formatarPct(t.projetado30d)} em 30
+      dias{t.direcao === "estavel" ? " (estável)" : ""}
+    </p>
+  );
+}
+
 function ReputacaoResumo({ r }: { r: ReputacaoAtendimentoResultado }) {
   return (
     <article className="rounded-xl border border-[var(--card-border)] p-3.5">
@@ -124,6 +146,13 @@ function ReputacaoResumo({ r }: { r: ReputacaoAtendimentoResultado }) {
           <dd className="inline font-medium text-[var(--foreground)]">{r.periodo_metrica}</dd>
         </div>
       </dl>
+      {r.tendencia && (r.tendencia.reclamacoes || r.tendencia.atrasoManuseio || r.tendencia.cancelamento) ? (
+        <div className="mt-1.5 space-y-0.5">
+          {r.tendencia.reclamacoes ? <TendenciaLinha rotulo="Reclamações" t={r.tendencia.reclamacoes} /> : null}
+          {r.tendencia.atrasoManuseio ? <TendenciaLinha rotulo="Atraso no envio" t={r.tendencia.atrasoManuseio} /> : null}
+          {r.tendencia.cancelamento ? <TendenciaLinha rotulo="Cancelamentos" t={r.tendencia.cancelamento} /> : null}
+        </div>
+      ) : null}
       <p className="mt-2 text-sm text-[var(--foreground)]">{r.observacao}</p>
       {r.fornecedores_atraso.length > 0 ? (
         <div className="mt-2.5 divide-y divide-[var(--card-border)] rounded-lg border border-[var(--card-border)]">

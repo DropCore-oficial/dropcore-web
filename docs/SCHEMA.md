@@ -795,6 +795,27 @@ de outra pessoa).
   anúncio, separa "sem custo" de "já cadastrados"). Portal (`/seller/gestores-ia-avulso`)
   ganhou o card de link + status real no escritório 3D.
 
+**Aplicar promoção de verdade — porte do hub, 2026-10-16.** O hub já tinha essa feature
+inteira testada contra conta real (ago/set 2026); o avulso só tinha o diagnóstico (detectar
+desconto ativo), sem a ação de aplicar, decisão deliberada de v1 ("fica pra v2" no comentário
+original). Entrega:
+- `app/api/gestores-ia-avulso/ulisses/aplicar-promocao-lote/route.ts` — réplica do
+  `.../seller/gestores-ia/ulisses-aplicar-promocao-lote`, mesmas funções do ML
+  (`mlBuscarLimitesPromocaoPrecoDesconto`/`mlCriarPromocaoPrecoDesconto`), token avulso
+  (`getValidMercadoLivreAvulsoAccessToken`), sem auditoria em tabela (avulso não tem
+  `seller_ai_acoes`).
+- `SkuResultadoAdsAvulso` ganhou `membros: {item_id, titulo}[]` (todos os anúncios da
+  família, não só o representante — aplica a promoção em todos, mesmo cuidado do botão de
+  pausar do Estoque) e `risco_ruptura_estoque` (lido da última rodada do Estoque avulso via
+  `fn_calculadora_assinante_ai_runs_recentes` com `p_gestor: "estoque"`, mesma chave de
+  família — avisa sem bloquear quando o SKU está em risco alto de ruptura).
+- Tela: nova seção "Sem promoção ativa — pode entrar sem furar a margem" na aba Promoções,
+  com botão que cria a promoção (preço editável, trava de confirmação se furar o piso —
+  mesma UX do hub).
+- **Fora de escopo de propósito (v2 futuro)**: estimar lucro "mais unidades × menos margem"
+  (o hub nunca modelou isso, só margem vs. piso) e calendário de datas fortes com
+  antecedência (sem dado de calendário real).
+
 **Retrofit da leitura do resto do avulso pra RPC (mesmo dia, pedido explícito do Sr Stark de
 "organizar" o avulso em partes):** 3 funções novas —
 `fn_calculadora_assinante_ai_runs_recentes(p_assinante_id, p_gestor, p_limit)` (genérica,
@@ -811,6 +832,54 @@ de status pra UI** — gravação de rodada nova (`rodarAndreyAvulsoParaAssinant
 desconectar ML, salvar/testar chave BYOK, cooldown check interno e `gastoAvulsoHojeReais`
 continuam em `.from()`, não entraram nesse retrofit (mexem com token real/criptografia ou são
 cálculo de agregação, risco maior pra reescrever sem necessidade concreta).
+
+### Margem — piso de preço formal no Ulisses avulso, 2026-10-16 (último item do roadmap do doc de 13 gestores)
+
+Fórmula do doc externo: `piso = (custo + embalagem + custo Full + devolução esperada) ÷
+(1 − comissão% − imposto% − margem mínima% − ACOS alvo%)`, substituindo o
+`calcularPrecoMinimoSeguro` antigo (que só considerava custo+frete real, sem embalagem/Full/
+devolução/ACOS).
+
+**Achado importante antes de codar**: `embalagem_brl`/`custo_full_brl` já existiam em
+`calculadora_assinante_ulisses_preferencias` desde `add-embalagem-custo-full-ulisses-
+preferencias.sql` (2026-10-11) — mas **nenhum código lia ou escrevia esses 2 campos**, ficaram
+órfãos (banco pronto, UI/lógica nunca ligada). Esta entrega termina isso, em vez de criar
+campo novo duplicado.
+
+- `web/scripts/add-devolucao-acos-ulisses-preferencias-avulso.sql` — 3 colunas novas na mesma
+  tabela (`devolucao_taxa_pct`, `devolucao_custo_brl`, `acos_alvo_pct`, todas `numeric not
+  null default 0`) + `fn_calculadora_assinante_ulisses_preferencias_upsert` recriada com os 3
+  parâmetros novos (drop+create, mudança de assinatura). `_get` não precisou de alteração
+  (`RETURNS calculadora_assinante_ulisses_preferencias` + `select *` acompanha coluna nova da
+  tabela automaticamente). `revoke all from public/anon/authenticated` + `grant execute to
+  service_role`, conferido via `information_schema.routine_privileges` depois de aplicar.
+- `web/lib/margemCalculo.ts` — `calcularPrecoPisoFormal()` nova, convergindo por ponto fixo
+  (`custoOperacionalPorPreco(precoCandidato)` como função injetada, até 20 iterações ou
+  `null`) — existe pra suportar uma tabela real de faixa de custo operacional do ML no
+  futuro, mas hoje `gestorAdsDadosAvulso.ts` passa uma função constante (frete real já
+  buscado da API, igual sempre foi) porque a API do ML **não simula custo/frete pra um preço
+  candidato hipotético** — só devolve o custo real do preço publicado hoje. Documentado como
+  aproximação, não precisão inventada (mesma régua do resto do roadmap).
+- `web/lib/ai/gestorAdsDadosAvulso.ts` — `UlissesPreferenciasAvulso` ganhou os 5 campos
+  (embalagemBrl/custoFullBrl/devolucaoTaxaPct/devolucaoCustoBrl/acosAlvoPct); troca
+  `calcularPrecoMinimoSeguro` (import do hub) por `calcularPrecoPisoFormal`.
+- `components/seller/SellerGestorUlissesWizard.tsx` — **compartilhado com o hub**
+  (`endpoint` prop já diferenciava tabela); ganhou prop nova `avulso?: boolean` (default
+  `false`) pra só mostrar/enviar os 5 campos novos no avulso, sem mudar nada do hub (hub não
+  passa essa prop, zero campo novo no body, comportamento idêntico a antes). Seção "Piso de
+  preço avançado" fica atrás de um toggle fechado por padrão, pra não poluir o wizard simples.
+- **Bug pré-existente achado e corrigido no caminho** (não causado por esta entrega, mas no
+  mesmo arquivo): `app/api/gestores-ia-avulso/ulisses/preferencias/route.ts` devolvia o
+  objeto de preferências em camelCase (saída de `buscarPreferenciasUlissesAvulso`) enquanto
+  o wizard sempre esperou snake_case (`UlissesPreferenciasForm`) — ao editar preferência já
+  salva, os campos apareciam em branco. Corrigido com um mapper `paraFormSnakeCase()` na
+  borda da rota (GET e POST), sem mudar a representação interna (camelCase) do resto do lib.
+- `app/seller/gestores-ia-avulso/ulisses/page.tsx` — texto do "preço mínimo seguro" atualizado
+  pra deixar claro que já conta embalagem/Full/devolução/ACOS quando configurados.
+
+**Fecha o roadmap completo de absorção do doc "13 Gestores de IA pra Mercado Livre"** — ver
+também a memória `project_doc_13_gestores_absorcao_avulso` (Estoque, SAC, ADS, Anúncio, Gestor
+já fechados antes deste item).
 
 ### Amanda avulsa (Reputação & Atendimento) construída — 2026-10-07
 
@@ -840,6 +909,21 @@ reaproveitável), busca de dado 100% isolada via API do ML.
   padrão do cron do Andrey antes do batch) — schedule em
   `web/scripts/add-cron-gestores-ia-avulso-amanda.sql` (`15 8 * * *`, não competir com os
   outros crons de gestores), **ainda não aplicado** (aguardando aprovação, é infra).
+- **Termômetro previsto de reputação (2026-10-16)** — item do doc externo "13 Gestores de IA
+  pra ML" absorvido (ver [[project_doc_13_gestores_absorcao_avulso]]). A API do ML só devolve
+  reputação agregada por conta inteira (sem mediação separada, sem SKU, sem limite de cor) —
+  por isso o que entrou foi só o que tem dado real: `calcularTendenciaReputacaoAvulso`
+  (`gestorReputacaoAtendimentoDadosAvulso.ts`) extrapola linearmente (mínimos quadrados) as 3
+  taxas a partir do histórico de rodadas já salvo em `calculadora_assinante_ai_runs` (RPC
+  genérica `fn_calculadora_assinante_ai_runs_recentes` com `p_limit=30`, zero banco novo, zero
+  chamada nova à API do ML), projetando 7/30 dias. `null` com menos de 2 rodadas com resultado
+  válido — nunca inventa número. Campo novo e opcional `tendencia?` em
+  `ResultadoReputacaoAtendimentoEnriquecido` (`gestorReputacaoAtendimentoDados.ts`, tipo
+  compartilhado com o hub) — hub nunca preenche, não afetado. Exibido em
+  `SellerGestorReputacaoAtendimentoPanel.tsx` como linha de texto simples (sem caixa), igual o
+  SKILL `dropcore-gestores-ia` pede pra sinal secundário. **Ficou de fora de propósito**:
+  ranking de SKU que mais prejudica reputação e "quantos eventos faltam pra sair do verde" —
+  exigiriam API do ML não testada / hardcodar limite de cor que não vem da API.
 - Tela `app/seller/gestores-ia-avulso/amanda/page.tsx` — reaproveita `SellerGestorRunShell`
   (mesmo componente do Andrey/hub) e os mesmos badges/cards do painel do hub
   (`SellerGestorReputacaoAtendimentoPanel.tsx`), sem o bloco de fornecedor-atraso e sem
@@ -980,12 +1064,11 @@ convite grava em `calculadora_assinantes.inclui_gestores_ia` (nunca desliga se a
 tinha — só liga) e redireciona pro portal certo (`/seller/gestores-ia-avulso` vs
 `/seller/calculadora`) conforme o pacote.
 
-### Tiago Silva avulso (Gestor Mestre/chat) construído — 2026-10-07, 4º e último gestor avulso
+### Tiago Silva avulso (Gestor Mestre/chat) construído — 2026-10-07, 4º gestor avulso
 
 Mesmo princípio dos outros: lógica compartilhada com o hub, dado isolado. Chat com streaming
 NDJSON (mesmo padrão de `app/api/seller/gestores-ia/tiago/chat/route.ts`), tool-calling que só
-lê `calculadora_assinante_ai_runs` (nunca dispara rodada nova). **Sem Diogo** na equipe
-consultável — avulso não tem esse gestor.
+lê `calculadora_assinante_ai_runs` (nunca dispara rodada nova).
 
 - `calculadora_assinante_ai_chat_sessions`/`calculadora_assinante_ai_chat_mensagens` — deny-
   all, nascem já em RPC (`fn_calculadora_assinante_ai_chat_historico/criar_sessao/
@@ -994,9 +1077,39 @@ consultável — avulso não tem esse gestor.
 - `lib/ai/gestorTiagoChatToolsAvulso.ts` — reaproveita `resumirResultado`/
   `criarOrcamentoResultadoChat` do hub (`gestorTiagoChatTools.ts`, que ganhou `export` em
   `resumirResultado`), só troca a busca de dado (`calculadora_assinante_ai_runs`) e a lista de
-  3 gestores (sem Diogo).
-- `lib/ai/gestorTiagoChatPromptAvulso.ts` — system prompt adaptado (equipe de 3, sem menção a
+  gestores.
+- `lib/ai/gestorTiagoChatPromptAvulso.ts` — system prompt adaptado (sem menção a
   hub/org/fornecedor).
+
+**Resumo diário de 3 ações (2026-10-16) — último item do roadmap de absorção do doc dos 13
+gestores de ML.** Formato padrão de proposta do doc (Gestor/SKU/Ação/Motivo/Severidade/
+Confiança/Esforço), adaptado ao que os 4 gestores avulso realmente expõem — "impacto em R$"
+não é comparável entre eles (só o ADS tem margem real; Estoque e Anúncio só têm severidade de
+risco/gap), então a pontuação usa severidade (0-3, da escala de risco que cada gestor já
+calcula) em vez de inventar valor monetário universal.
+
+- **Bug achado e corrigido no caminho**: `GESTORES_CONSULTAVEIS_AVULSO`
+  (`gestorTiagoChatToolsAvulso.ts`) e o roster "Sua equipe" do prompt nunca tinham ganhado o
+  Estoque, apesar dele já estar em produção desde 2026-10-15/16 — o comentário antigo dizia
+  "avulso não tem esse gestor" (verdade só até o Estoque avulso existir). Corrigido: Tiago
+  agora consulta os 4 (Andrey/Amanda/Ulisses/Estoque).
+- `lib/ai/gestorTiagoResumoDiarioAvulso.ts` (novo) — lê a última rodada dos 4 gestores via
+  `fn_calculadora_assinante_ai_runs_recentes` (zero banco novo), extrai candidatos a proposta
+  de cada um (Estoque: SKU com risco alto/médio; ADS: margem abaixo do mínimo; Anúncio:
+  diagnóstico com problema, cruzado com pergunta/reclamação já existentes; SAC: pergunta
+  pendente + diagnóstico crítico da conta), pontua por `severidade × confiança ÷ esforço` e
+  devolve as 3 maiores. Esforço é escala fixa documentada no código (1 = já existe botão de 1
+  clique no painel pra resolver — pausar anúncio, aplicar promoção, responder pergunta,
+  aplicar título/descrição; 2 = exige decisão manual fora de botão existente; 3 = depende de
+  dado externo). Confiança reaproveita sinal que cada gestor já calcula (`piorou_desde_ontem`,
+  tendência do SAC, resposta já rascunhada pela IA) — nunca percentual inventado.
+- Tool nova `resumo_diario_acoes` em `gestorTiagoChatToolsAvulso.ts` — chat usa quando o
+  assinante pergunta "como está hoje"/"resumo do dia", avisando quando algum gestor ainda não
+  rodou (`gestores_sem_rodada`).
+- `GET /api/gestores-ia-avulso/tiago/resumo-diario` (novo) — mesma função, servindo um card no
+  painel do Tiago (`app/seller/gestores-ia-avulso/tiago/page.tsx`) sem precisar perguntar no
+  chat; cada ação linka direto pra tela do gestor responsável (nunca executa nada ali — regra
+  3 do prompt do Tiago, só o assinante clica).
 - **Achado importante de orçamento, corrigido antes de implementar**: o pote diário
   compartilhado do avulso (`gastoAvulsoHojeReais`) sempre assumia preço **Sonnet 5** — mas o
   chat do Tiago usa **Haiku 4.5** (igual o hub, 2026-09-30, ~2-3x mais barato). Gravar tokens
@@ -1420,6 +1533,114 @@ fornecedor real era afetado, mas mesmo assim:
   `app/fornecedor/pedidos/page.tsx` e `app/seller/pedidos/page.tsx`, ao lado do status pill,
   nos pedidos que caem no grupo prioritário — a ordenação sozinha podia não deixar óbvio por
   que o pedido subiu.
+
+## Estoque avulso (5º gestor avulso) construído — 2026-10-15, 1º 100% RPC
+
+Decisão: absorver o doc externo "13 Gestores de IA pra Mercado Livre" dentro dos gestores
+avulso existentes em vez de criar 13 novos — ordem combinada: Margem (plano feito, vira
+`web/lib/margemCalculo.ts`, ainda não codado) → **Estoque** (gestor novo, equivalente ao
+Diogo do hub, só a parte de ruptura/cobertura — sem ponto de pedido com prazo de fornecedor,
+sem curva ABC, sem custo de armazenagem Full acumulado, porque o avulso não tem fornecedor
+cadastrado) → depois incrementos em SAC/ADS/Anúncio/Gestor. Dado vem 100% da API do Mercado
+Livre (`available_quantity` + `/orders/search` 30d agrupado por `family_id`, mesmo padrão do
+Ulisses avulso), nunca input manual — diferente do Margem/Ulisses, que precisa de custo
+digitado porque isso não existe no ML.
+
+`web/scripts/add-rpc-ai-run-insert-e-gestor-estoque.sql` (aplicado em produção
+2026-10-15) prepara o banco:
+- `calculadora_assinante_ai_runs_gestor_check` — valor `'estoque'` liberado na constraint
+  (antes só `anuncios_seo | reputacao_atendimento | ads | gestor_mestre`).
+- `fn_calculadora_assinante_ai_run_insert(p_assinante_id, p_gestor, p_status, p_resultado,
+  p_erro)` — 1ª RPC de **escrita** pra essa tabela (o retrofit de 2026-10-07 só tinha migrado
+  leitura — `fn_calculadora_assinante_ai_runs_recentes`/`_ml_status_get`/
+  `_byok_configurado`/`_por_user_id` — pra RPC; gravar rodada nova continuava em `.from()`
+  nos 3 gestores existentes, que não foram migrados agora, só o código novo do Estoque usa
+  RPC desde já). `SECURITY DEFINER` + `search_path=public`, `revoke all from
+  public/anon/authenticated`, `grant execute` só pra `service_role` — conferido depois de
+  aplicar via `information_schema.routine_privileges` (só `postgres`/`service_role`
+  aparecem).
+- Código reaproveita as RPCs de leitura já existentes (`_ai_runs_recentes`,
+  `_ml_status_get`, `_byok_configurado` — essa última no lugar de buscar a chave BYOK crua
+  via `.from()`, diferente do padrão do Ulisses) — zero RPC de leitura nova precisou ser
+  criada. `getAssinanteFromToken` (resolução do assinante a partir do JWT) já é
+  infraestrutura compartilhada pelos 4 gestores existentes, não foi tocada.
+
+**Dado 100% via API do Mercado Livre, nunca input manual** (diferente do Margem/Ulisses, que
+depende de custo digitado porque isso não existe no ML):
+- `lib/ai/gestorEstoqueDadosAvulso.ts` — `available_quantity` (via `mlBuscarItensDetalhe`) +
+  soma de `quantity` nos últimos 30 dias (`mlBuscarResumoPedidosPeriodo`, já usado no resumo
+  financeiro do Dashboard avulso), agrupado por `family_id` (mesma convenção do Ulisses),
+  somando estoque/venda entre variações em vez de pegar só o representante. Réplica dos
+  limiares de risco do Diogo do hub (`DIAS_RUPTURA_RISCO_ALTO=7`, `_MEDIO=20`,
+  `gestorRupturaFulfillmentDados.ts`) — sem ponto de pedido com prazo de fornecedor, curva
+  ABC ou custo de armazenagem Full acumulado (dado que o avulso não tem). `no_full` só
+  marca visualmente (`shipping.logistic_type === "fulfillment"`), não entra no cálculo de
+  risco.
+- `lib/ai/gestorAvulsoEstoqueRodar.ts` — cooldown 6h + orçamento compartilhado (nova
+  `temOrcamentoDisponivelHojeComByokBooleano` em `gestorAvulsoOrcamento.ts`, aceita o
+  booleano da RPC em vez do objeto com a chave crua) + grava via
+  `fn_calculadora_assinante_ai_run_insert`.
+- `components/seller/SellerGestorEstoquePanelAvulso.tsx` — painel segue o SKILL
+  `dropcore-gestores-ia` (borda neutra, 1 badge só) e tem ação real, não só diagnóstico:
+  botão "Pausar anúncio" (confirmação inline no card, sem modal — réplica 1:1 do
+  `PausarAnuncioBotao` do hub). **Corrigido 2026-10-16:** o botão não decide mais pelo
+  agregado da família — cada `SkuEstoqueResultadoAvulso.membros[]` traz o
+  `item_id`/`estoque`/`titulo` de cada item individual do ML dentro do grupo
+  (`gestorEstoqueDadosAvulso.ts`, preenchido em `agruparParaEstoque`), e o card renderiza 1
+  botão por membro com `estoque <= 1` — nunca mais o `item_id_representante` (que é só o
+  membro de MAIOR estoque, escolhido pra nome/permalink de exibição, nunca foi pra decidir
+  o que pausar). Com 1 membro só (caso comum), o resultado visual é idêntico a antes; com
+  mais de 1 membro zerado, cada um aparece com seu próprio botão e o título como legenda.
+- Rota nova `POST /api/gestores-ia-avulso/estoque/alterar-status-anuncio` — espelha
+  `app/api/seller/gestores-ia/alterar-status-anuncio/route.ts` do hub (`mlAtualizarStatus`),
+  com token do assinante avulso (`getValidMercadoLivreAvulsoAccessToken`) e checagem de
+  dono via `mlBuscarItemDono` antes de mutar; sem auditoria em `seller_ai_acoes` (tabela só
+  do hub — mesma decisão já tomada pra `amanda/aplicar-resposta-pergunta`). Aceita
+  `status: "paused" | "active"` no mesmo endpoint (reativar já funciona, só não tem botão na
+  UI porque anúncio pausado sai do agrupamento — `agruparParaEstoque` só considera
+  `item.status === "active"`).
+- Rotas: `GET /api/gestores-ia-avulso/estoque` (status), `POST .../estoque/rodar`.
+- Cron `app/api/cron/gestores-ia-avulso-estoque/route.ts` — schedule em
+  `web/scripts/add-cron-gestores-ia-avulso-estoque.sql` (`45 8 * * *`), **aplicado em
+  produção em 2026-10-16**. Listagem de
+  assinantes elegíveis nesse cron continua em `.from()` (mesmo padrão dos 3 irmãos, é
+  agregação multi-linha sem RPC equivalente, não a leitura "1 linha, 1 dono" que a regra 9
+  cobre).
+- Tela `/seller/gestores-ia-avulso/estoque` (sem wizard de preferências — não precisa de
+  config do assinante, é só ML). `GestorAvulsoIcons.tsx` ganhou `IconEstoque`;
+  `gestorAvulsoStatusResumo.ts` ganhou `EstoqueRun`/`resumoStatusEstoque`/
+  `severidadeEstoque`. Portal (`/seller/gestores-ia-avulso`) ganhou o 5º card na lista de
+  pendências e o `statusDiogo` real do personagem 3D (antes fixo em "Em breve").
+
+### Anúncio avulso (andrey) — cruzamento com perguntas/reclamação (doc 13 Gestores) — 2026-10-16
+
+Entrega do item "Anúncio" do roadmap de absorver o doc externo dos 13 gestores (ver memória
+de projeto `doc-13-gestores-absorcao-avulso`). Achado da investigação: a API de reclamações
+do ML (`mlBuscarReclamacoesAbertas`) **não é risco** — já testada ao vivo em produção desde
+2026-08-25 (hoje só usada pra disputa de fornecedor no hub), e as perguntas pendentes que a
+Amanda já busca (`buscarPerguntasContexto`) já vêm com texto completo + `item_id`. Zero API
+nova, zero banco/RPC novo — só cruzamento de dado já buscado/testado.
+
+- `web/lib/ai/gestorAnunciosSeoDados.ts` — `AnuncioSeoContexto` ganhou 2 campos opcionais,
+  só preenchidos pelo avulso hoje (hub não cruza isso, por isso são opcionais e não afetam o
+  hub): `perguntaReforcaGap` (pergunta pendente real cujo texto reforça um gap estrutural já
+  detectado, por correspondência simples de palavra-chave — nome do atributo aparece no texto
+  da pergunta) e `reclamacaoAbertaCodigo` (código bruto `reason_id` do ML, nunca traduzido —
+  não existe dicionário confiável pra categoria humana desses códigos). `formatarAnunciosSeo`
+  e 2 bullets novos em `PROMPT_ANUNCIOS_SEO.tarefa` passam isso pra IA: perguntas pendentes
+  entram como evidência forte; reclamação em aberto é só sinal de risco, a IA é instruída a
+  **nunca inventar o motivo** a partir do código.
+- `web/lib/ai/gestorAnunciosSeoDadosAvulso.ts` — busca perguntas pendentes
+  (`buscarPerguntasContexto`, reaproveitado do arquivo da Amanda) e reclamações abertas
+  (`resolverReclamacoesAbertasPorItemAvulso`, mesma técnica de `gestorDisputasFornecedorDados.ts`
+  — `resourceId` da reclamação é o `order_id`) **1x por rodada**, não por grupo. Novo campo
+  `pergunta_reforca_gap` exposto no resultado enriquecido.
+- `web/components/seller/SellerGestorAnunciosSeoPanel.tsx` — `PerguntaReforcaGapAviso`, texto
+  simples sem caixa (SKILL `dropcore-gestores-ia` seção 2), exibido junto dos outros avisos do
+  card quando o backend detecta a pergunta.
+- **Fora de escopo, pro v2** (mesma régua de não inventar dado): dicionário `reason_id` →
+  categoria humana, e "perguntas repetidas" como série histórica (hoje só pega pendentes do
+  momento).
 
 ## Pendências conhecidas
 

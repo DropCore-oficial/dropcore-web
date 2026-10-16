@@ -49,16 +49,64 @@ import {
   mlBuscarVisitas30d,
   mlSugerirCategoria,
   menorLadoFotoMaxSize,
+  mlBuscarReclamacoesAbertas,
+  mlBuscarPedidoItemPrincipal,
   type MercadoLivreAuthContext,
   type MercadoLivreAtributoCategoria,
 } from "@/lib/mercadoLivreApiClient";
 import { getValidMercadoLivreAvulsoAccessToken } from "@/lib/mercadoLivreAvulsoToken";
+import { buscarPerguntasContexto, type PerguntaContexto } from "./gestorReputacaoAtendimentoDados";
+
+/** Normaliza acento/caixa pra comparar texto de pergunta com nome de atributo — "Tamanho" e
+ * "tamanho" no meio de uma frase precisam bater. */
+function normalizarTextoBusca(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+}
+
+/** Pergunta real de comprador cruzada com os gaps estruturais já detectados do grupo —
+ * correspondência simples por palavra-chave (nome do atributo aparece no texto da pergunta),
+ * sem IA nova nessa etapa. Nomes de atributo curtos (≤2 letras) são ignorados pra evitar falso
+ * positivo. */
+function perguntaReforcaAlgumGap(
+  perguntaTexto: string,
+  gaps: AtributoFaltando[]
+): AtributoFaltando | null {
+  const textoNorm = normalizarTextoBusca(perguntaTexto);
+  for (const gap of gaps) {
+    const nomeNorm = normalizarTextoBusca(gap.name);
+    if (nomeNorm.length <= 2) continue;
+    if (textoNorm.includes(nomeNorm)) return gap;
+  }
+  return null;
+}
+
+/** Resolve reclamação pós-venda em aberto → item_id, mesma técnica já em produção em
+ * `gestorDisputasFornecedorDados.ts` (resourceId da reclamação É o order_id). Falha de
+ * resolução de 1 reclamação nunca derruba as outras. */
+async function resolverReclamacoesAbertasPorItemAvulso(
+  ctx: MercadoLivreAuthContext
+): Promise<Map<string, string>> {
+  const reclamacoes = await mlBuscarReclamacoesAbertas(ctx).catch(() => []);
+  const porItem = new Map<string, string>();
+  await Promise.all(
+    reclamacoes.map(async (r) => {
+      const item = await mlBuscarPedidoItemPrincipal(r.resourceId, ctx).catch(() => null);
+      if (item && !porItem.has(item.itemId)) porItem.set(item.itemId, r.reasonId);
+    })
+  );
+  return porItem;
+}
 
 async function montarContextoGrupoAvulso(
   chave: string,
   membros: ItemComDias[],
   ctx: MercadoLivreAuthContext,
-  cacheAtributos: Map<string, MercadoLivreAtributoCategoria[]>
+  cacheAtributos: Map<string, MercadoLivreAtributoCategoria[]>,
+  perguntasPorItem: Map<string, PerguntaContexto[]>,
+  reclamacoesPorItem: Map<string, string>
 ): Promise<AnuncioSeoContexto> {
   const representante = [...membros].sort((a, b) => b.sold_quantity - a.sold_quantity)[0];
 
@@ -90,6 +138,25 @@ async function montarContextoGrupoAvulso(
     `${representante.title} ${descricao}`
   );
 
+  const gapsDoGrupo = [...atributosFaltando.principais, ...atributosFaltando.secundarios];
+  let perguntaReforcaGap: { pergunta: string; itemId: string; gap: string } | null = null;
+  let reclamacaoAbertaCodigo: string | null = null;
+  for (const m of membros) {
+    if (!perguntaReforcaGap) {
+      for (const p of perguntasPorItem.get(m.id) ?? []) {
+        const gap = perguntaReforcaAlgumGap(p.pergunta, gapsDoGrupo);
+        if (gap) {
+          perguntaReforcaGap = { pergunta: p.pergunta, itemId: m.id, gap: gap.name };
+          break;
+        }
+      }
+    }
+    if (!reclamacaoAbertaCodigo) {
+      const codigo = reclamacoesPorItem.get(m.id);
+      if (codigo) reclamacaoAbertaCodigo = codigo;
+    }
+  }
+
   return {
     chave,
     itemIdRepresentante: representante.id,
@@ -107,6 +174,8 @@ async function montarContextoGrupoAvulso(
     atributosSemReforcoTexto,
     atributosConflitantes,
     membros: membrosContexto,
+    perguntaReforcaGap,
+    reclamacaoAbertaCodigo,
   };
 }
 
@@ -160,10 +229,30 @@ export async function buscarDadosAnunciosSeoAvulso(assinanteId: string): Promise
 
   const grupos = [...candidatosComMudanca].sort((a, b) => a.vendasTotalGrupo - b.vendasTotalGrupo).slice(0, MAX_CANDIDATOS);
 
+  // Cruzamento com Reputação (perguntas pendentes) e reclamações pós-venda — busca 1x pra
+  // conta inteira, não por grupo (evita N chamadas repetidas à API do ML).
+  const [perguntas, reclamacoesPorItem] = await Promise.all([
+    buscarPerguntasContexto(ctx).catch(() => [] as PerguntaContexto[]),
+    resolverReclamacoesAbertasPorItemAvulso(ctx).catch(() => new Map<string, string>()),
+  ]);
+  const perguntasPorItem = new Map<string, PerguntaContexto[]>();
+  for (const p of perguntas) {
+    const lista = perguntasPorItem.get(p.itemId) ?? [];
+    lista.push(p);
+    perguntasPorItem.set(p.itemId, lista);
+  }
+
   const cacheAtributos = new Map<string, MercadoLivreAtributoCategoria[]>();
   const contexto: AnuncioSeoContexto[] = [];
   for (const grupo of grupos) {
-    const c = await montarContextoGrupoAvulso(grupo.chave, grupo.membros, ctx, cacheAtributos);
+    const c = await montarContextoGrupoAvulso(
+      grupo.chave,
+      grupo.membros,
+      ctx,
+      cacheAtributos,
+      perguntasPorItem,
+      reclamacoesPorItem
+    );
     contexto.push({ ...c, duplicidade: duplicidadePorChave.get(grupo.chave) ?? null });
   }
   return contexto;
@@ -232,6 +321,9 @@ export type AnuncioResultadoEnriquecidoAvulso = Omit<AnuncioResultadoIA, "caract
   duplicidade: DuplicidadeAnuncio | null;
   atributos_sem_reforco_texto: AtributoPreenchido[];
   atributos_conflitantes: AtributoConflitante[];
+  /** Pergunta real de comprador pendente que reforça um gap estrutural já detectado — `null`
+   * quando nenhuma pergunta pendente bateu com nenhum atributo faltando desse grupo. */
+  pergunta_reforca_gap: { texto: string; gap: string } | null;
 };
 
 export type ResultadoAnunciosSeoEnriquecidoAvulso = {
@@ -275,6 +367,9 @@ export async function enriquecerResultadoAnunciosSeoAvulso(
       duplicidade: grupo?.duplicidade ?? null,
       atributos_sem_reforco_texto: grupo?.atributosSemReforcoTexto ?? [],
       atributos_conflitantes: grupo?.atributosConflitantes ?? [],
+      pergunta_reforca_gap: grupo?.perguntaReforcaGap
+        ? { texto: grupo.perguntaReforcaGap.pergunta, gap: grupo.perguntaReforcaGap.gap }
+        : null,
       membros: (grupo?.membros ?? []).map((m) => ({
         item_id: m.itemId,
         titulo_completo: m.tituloCompleto,

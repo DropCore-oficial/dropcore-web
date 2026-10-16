@@ -9,19 +9,22 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import type { AtividadeAoVivo } from "@/components/seller/SellerGestoresIaEscritorio3D";
 import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
 import { buildSellerSupportWhatsAppHref } from "@/lib/sellerSupportWhatsAppPrefill";
-import { IconAndrey, IconAmanda, IconUlisses, IconTiago } from "@/components/seller/GestorAvulsoIcons";
+import { IconAndrey, IconAmanda, IconUlisses, IconTiago, IconEstoque } from "@/components/seller/GestorAvulsoIcons";
 import { GestorAvulsoPendenciasLista, type GestorPendenciaItem } from "@/components/seller/GestorAvulsoPendenciasLista";
 import {
   type AndreyRun,
   type AmandaRun,
   type UlissesRun,
+  type EstoqueRun,
   resumoStatusAndrey,
   resumoStatusAmanda,
   resumoStatusUlisses,
+  resumoStatusEstoque,
   descricaoOuStatus,
   severidadeAndrey,
   severidadeAmanda,
   severidadeUlisses,
+  severidadeEstoque,
 } from "@/lib/ai/gestorAvulsoStatusResumo";
 
 const SellerGestoresIaEscritorio3D = dynamic(
@@ -44,7 +47,12 @@ const SellerGestoresIaEscritorio3D = dynamic(
 
 type Access = "loading" | "liberado" | "sem_pacote" | "denied";
 
-function montarAtividades(andreyRun: AndreyRun, amandaRun: AmandaRun, ulissesRun: UlissesRun): AtividadeAoVivo[] {
+function montarAtividades(
+  andreyRun: AndreyRun,
+  amandaRun: AmandaRun,
+  ulissesRun: UlissesRun,
+  estoqueRun: EstoqueRun
+): AtividadeAoVivo[] {
   const atividades: AtividadeAoVivo[] = [];
   if (andreyRun && andreyRun.status === "ok" && andreyRun.resultado) {
     const destaqueChave = andreyRun.resultado.destaque_prioridade?.[0];
@@ -77,6 +85,17 @@ function montarAtividades(andreyRun: AndreyRun, amandaRun: AmandaRun, ulissesRun
       });
     }
   }
+  if (estoqueRun && estoqueRun.status === "ok" && estoqueRun.resultado) {
+    const pior = estoqueRun.resultado.skus.find((s) => s.risco === "alto");
+    if (pior) {
+      atividades.push({
+        texto: `${pior.nome_produto}: risco alto de ruptura`,
+        gestor: "estoque_fulfillment",
+        tom: "erro",
+        quando: estoqueRun.executado_em,
+      });
+    }
+  }
   return atividades;
 }
 
@@ -93,6 +112,7 @@ export default function GestoresIaAvulsoPage() {
   const [andreyRun, setAndreyRun] = useState<AndreyRun>(null);
   const [amandaRun, setAmandaRun] = useState<AmandaRun>(null);
   const [ulissesRun, setUlissesRun] = useState<UlissesRun>(null);
+  const [estoqueRun, setEstoqueRun] = useState<EstoqueRun>(null);
   const [usoTokensHoje, setUsoTokensHoje] = useState<UsoTokensHoje | null>(null);
   const [bloqueadoHoje, setBloqueadoHoje] = useState(false);
 
@@ -114,10 +134,11 @@ export default function GestoresIaAvulsoPage() {
     }
     if (j.access === "calc_only" && j.inclui_gestores_ia === true) {
       setAccess("liberado");
-      const [andreyRes, amandaRes, ulissesRes] = await Promise.all([
+      const [andreyRes, amandaRes, ulissesRes, estoqueRes] = await Promise.all([
         fetch("/api/gestores-ia-avulso/andrey", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
         fetch("/api/gestores-ia-avulso/amanda", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
         fetch("/api/gestores-ia-avulso/ulisses", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
+        fetch("/api/gestores-ia-avulso/estoque", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
       ]);
       const andreyJson = await andreyRes.json().catch(() => ({}));
       if (andreyRes.ok) setAndreyRun(andreyJson.run ?? null);
@@ -125,6 +146,8 @@ export default function GestoresIaAvulsoPage() {
       if (amandaRes.ok) setAmandaRun(amandaJson.run ?? null);
       const ulissesJson = await ulissesRes.json().catch(() => ({}));
       if (ulissesRes.ok) setUlissesRun(ulissesJson.run ?? null);
+      const estoqueJson = await estoqueRes.json().catch(() => ({}));
+      if (estoqueRes.ok) setEstoqueRun(estoqueJson.run ?? null);
       // Orçamento diário é da conta inteira (não por gestor) — qualquer uma das 3 respostas
       // já traz o mesmo valor; usa a do Andrey (primeira chamada) como fonte.
       setUsoTokensHoje(andreyJson.uso_tokens_hoje ?? null);
@@ -196,7 +219,7 @@ export default function GestoresIaAvulsoPage() {
               </div>
               <p className="text-sm leading-snug text-[var(--muted)]">
                 Sua assinatura atual é só da Calculadora. Assine o pacote de Gestores de IA (mensal ou anual) pra
-                liberar Anúncio, SAC, ADS e Gestor.
+                liberar Anúncio, SAC, ADS, Estoque e Gestor.
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <button
@@ -240,7 +263,7 @@ export default function GestoresIaAvulsoPage() {
               />
             </div>
             <p className="text-sm leading-snug text-[var(--muted)]">
-              <span className="font-medium text-[var(--foreground)]">A equipe com os 4 gestores está completa.</span>
+              <span className="font-medium text-[var(--foreground)]">A equipe com os 5 gestores está completa.</span>
             </p>
           </div>
         </header>
@@ -248,11 +271,11 @@ export default function GestoresIaAvulsoPage() {
         <GestorAvulsoOrcamentoBar usoTokensHoje={usoTokensHoje} bloqueadoHoje={bloqueadoHoje} />
 
         <SellerGestoresIaEscritorio3D
-          statusDiogo="Em breve"
+          statusDiogo={resumoStatusEstoque(estoqueRun)}
           statusAndrey={resumoStatusAndrey(andreyRun)}
           statusAmanda={resumoStatusAmanda(amandaRun)}
           statusUlisses={resumoStatusUlisses(ulissesRun)}
-          atividades={montarAtividades(andreyRun, amandaRun, ulissesRun)}
+          atividades={montarAtividades(andreyRun, amandaRun, ulissesRun, estoqueRun)}
           nomeResponsavel={null}
         />
 
@@ -292,6 +315,18 @@ export default function GestoresIaAvulsoPage() {
                 "Confere margem e preço de cada SKU, sinaliza o que tá fora do saudável."
               ),
               severidade: severidadeUlisses(ulissesRun),
+              bloqueado: bloqueadoHoje,
+            },
+            {
+              href: "/seller/gestores-ia-avulso/estoque",
+              icon: <IconEstoque />,
+              nome: "Estoque",
+              funcao: "Risco de ruptura",
+              status: descricaoOuStatus(
+                resumoStatusEstoque(estoqueRun),
+                "Cruza estoque e venda dos últimos 30 dias pra apontar o que está perto de esgotar."
+              ),
+              severidade: severidadeEstoque(estoqueRun),
               bloqueado: bloqueadoHoje,
             },
             {

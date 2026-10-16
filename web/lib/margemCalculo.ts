@@ -159,3 +159,67 @@ export function calcularMargemRealizada(input: MargemRealizadaInput): number {
   const totalPct = 100 * (1 - custosFixos / precoVenda);
   return totalPct - impostoPct - comissaoPct - adsPct - afiliadoPct - perdaPct - extraPct;
 }
+
+export type PrecoPisoFormalInput = {
+  custo: number;
+  embalagem: number;
+  custoFull: number;
+  /** % 0-100. Devolução esperada = devolucaoTaxaPct/100 × devolucaoCustoBrl. */
+  devolucaoTaxaPct: number;
+  devolucaoCustoBrl: number;
+  comissaoPct: number;
+  impostoPct: number;
+  margemMinimaPct: number;
+  acosAlvoPct: number;
+  /** Custo operacional/frete em função do preço candidato (ex.: a regra do ML de custo
+   * operacional variável abaixo de R$79 depende do próprio preço) — função pura, recebe o
+   * preço candidato da iteração, devolve o custo pra aquela faixa. Quem chama decide a
+   * tabela de faixas real; aqui é só o ponto de injeção. */
+  custoOperacionalPorPreco: (precoCandidato: number) => number;
+};
+
+export type PrecoPisoFormalResultado = { precoPiso: number; iteracoes: number } | null;
+
+const PISO_FORMAL_MAX_ITERACOES = 20;
+const PISO_FORMAL_TOLERANCIA_BRL = 0.01;
+
+/**
+ * Preço piso formal = (custo + embalagem + custo Full + devolução esperada + custo
+ * operacional(P)) ÷ (1 − comissão% − imposto% − margem mínima% − ACOS alvo%). Como o custo
+ * operacional pode depender do próprio preço candidato (faixa <R$79 do ML), resolve por
+ * ponto fixo: calcula um preço, recalcula o custo operacional pra esse preço, refaz a conta,
+ * repete até estabilizar (< R$0,01) ou até `PISO_FORMAL_MAX_ITERACOES` — se não convergir,
+ * retorna `null` (mesma postura de "preço indefinido" de `calcularMargem`).
+ */
+export function calcularPrecoPisoFormal(input: PrecoPisoFormalInput): PrecoPisoFormalResultado {
+  const {
+    custo,
+    embalagem,
+    custoFull,
+    devolucaoTaxaPct,
+    devolucaoCustoBrl,
+    comissaoPct,
+    impostoPct,
+    margemMinimaPct,
+    acosAlvoPct,
+    custoOperacionalPorPreco,
+  } = input;
+
+  const percTotal = comissaoPct + impostoPct + margemMinimaPct + acosAlvoPct;
+  if (percTotal >= 100) return null;
+
+  const devolucaoEsperada = (devolucaoTaxaPct / 100) * devolucaoCustoBrl;
+  const custosFixosBase = custo + embalagem + custoFull + devolucaoEsperada;
+  const fator = 1 - percTotal / 100;
+
+  let precoCandidato = custosFixosBase / fator;
+  for (let i = 1; i <= PISO_FORMAL_MAX_ITERACOES; i++) {
+    const custoOperacional = custoOperacionalPorPreco(precoCandidato);
+    const novoPreco = (custosFixosBase + custoOperacional) / fator;
+    if (Math.abs(novoPreco - precoCandidato) < PISO_FORMAL_TOLERANCIA_BRL) {
+      return { precoPiso: Math.round(novoPreco * 100) / 100, iteracoes: i };
+    }
+    precoCandidato = novoPreco;
+  }
+  return null;
+}
