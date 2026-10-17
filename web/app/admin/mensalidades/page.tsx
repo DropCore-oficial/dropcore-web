@@ -191,6 +191,9 @@ export default function MensalidadesPage() {
   const [trialLoadingOpts, setTrialLoadingOpts] = useState(false);
   /** `add` = conceder dias; `remove` = limpar trial */
   const [trialBusy, setTrialBusy] = useState<false | "add" | "remove">(false);
+  const [confirmacao, setConfirmacao] = useState<{ titulo: string; mensagem: string; onConfirmar: () => void } | null>(
+    null
+  );
 
   const [detalhe, setDetalhe] = useState<{ tipo: string; id: string; nome: string } | null>(null);
   const [detalheRows, setDetalheRows] = useState<Mensalidade[]>([]);
@@ -381,18 +384,23 @@ export default function MensalidadesPage() {
     }
   }
 
-  async function removerTrial() {
+  function confirmarRemoverTrial() {
     if (!trialEntidadeId) {
       setError("Selecione um seller ou fornecedor.");
       return;
     }
-    if (
-      !window.confirm(
-        "Tem certeza que deseja excluir o teste grátis desta entidade? O portal voltará a aplicar bloqueio por mensalidade conforme as regras normais."
-      )
-    ) {
-      return;
-    }
+    setConfirmacao({
+      titulo: "Excluir teste grátis?",
+      mensagem:
+        "Tem certeza que deseja excluir o teste grátis desta entidade? O portal voltará a aplicar bloqueio por mensalidade conforme as regras normais.",
+      onConfirmar: () => {
+        setConfirmacao(null);
+        void removerTrial();
+      },
+    });
+  }
+
+  async function removerTrial() {
     setTrialBusy("remove");
     setError(null);
     try {
@@ -430,16 +438,20 @@ export default function MensalidadesPage() {
     return `${nome} (sem trial)`;
   }
 
-  async function marcarPago(id: string) {
+  function confirmarMarcarPago(id: string) {
     const r = rows.find((row) => row.id === id);
     const nome = r?.entidade_nome?.trim() || "esta entidade";
-    if (
-      !window.confirm(
-        `Confirma que ${nome} pagou de verdade (comprovante/PIX conferido) e quer marcar esta mensalidade como paga?`
-      )
-    ) {
-      return;
-    }
+    setConfirmacao({
+      titulo: "Marcar como paga?",
+      mensagem: `Confirma que ${nome} pagou de verdade (comprovante/PIX conferido) e quer marcar esta mensalidade como paga?`,
+      onConfirmar: () => {
+        setConfirmacao(null);
+        void marcarPago(id);
+      },
+    });
+  }
+
+  async function marcarPago(id: string) {
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) return;
@@ -455,8 +467,18 @@ export default function MensalidadesPage() {
     }
   }
 
+  function confirmarExcluirMensalidade(id: string) {
+    setConfirmacao({
+      titulo: "Excluir mensalidade?",
+      mensagem: "Excluir esta mensalidade pendente?",
+      onConfirmar: () => {
+        setConfirmacao(null);
+        void excluirMensalidade(id);
+      },
+    });
+  }
+
   async function excluirMensalidade(id: string) {
-    if (!window.confirm("Excluir esta mensalidade pendente?")) return;
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) return;
@@ -555,7 +577,7 @@ export default function MensalidadesPage() {
           {podeMarcarPagoManual(r) && (
             <button
               type="button"
-              onClick={() => marcarPago(r.id)}
+              onClick={() => confirmarMarcarPago(r.id)}
               className={
                 layout === "card"
                   ? "min-h-[44px] min-w-0 flex-1 touch-manipulation rounded-md px-3 text-sm font-semibold text-white hover:brightness-105 active:brightness-95"
@@ -569,7 +591,7 @@ export default function MensalidadesPage() {
           <button
             type="button"
             title="Excluir esta linha (mensalidade não paga)"
-            onClick={() => excluirMensalidade(r.id)}
+            onClick={() => confirmarExcluirMensalidade(r.id)}
             className={
               layout === "card"
                 ? "min-h-[44px] min-w-0 flex-1 touch-manipulation rounded-md px-3 text-sm font-semibold text-white hover:brightness-110 active:brightness-95"
@@ -586,7 +608,7 @@ export default function MensalidadesPage() {
           <div className="flex w-full flex-col gap-2">
             <button
               type="button"
-              onClick={() => marcarPago(r.id)}
+              onClick={() => confirmarMarcarPago(r.id)}
               className="w-full min-h-[44px] touch-manipulation rounded-md px-3 text-sm font-semibold"
               style={{
                 border: "1px solid #dc2626",
@@ -602,7 +624,7 @@ export default function MensalidadesPage() {
             <button
               type="button"
               title="Excluir a linha (não paga)"
-              onClick={() => excluirMensalidade(r.id)}
+              onClick={() => confirmarExcluirMensalidade(r.id)}
               className="w-full min-h-[44px] touch-manipulation rounded-md px-3 text-sm font-semibold text-white"
               style={{ ...btnDangerSolid, padding: "10px 14px" }}
             >
@@ -613,7 +635,7 @@ export default function MensalidadesPage() {
           <>
             <button
               type="button"
-              onClick={() => marcarPago(r.id)}
+              onClick={() => confirmarMarcarPago(r.id)}
               className={tableActionBtnOutlineInadimplenteCompact}
             >
               Regularizar
@@ -621,7 +643,7 @@ export default function MensalidadesPage() {
             <button
               type="button"
               title="Excluir a linha (não paga)"
-              onClick={() => excluirMensalidade(r.id)}
+              onClick={() => confirmarExcluirMensalidade(r.id)}
               className={`${tableActionBtnBaseCompact} bg-red-600 text-white shadow-sm hover:brightness-110 active:brightness-95`}
             >
               Excluir
@@ -756,7 +778,7 @@ export default function MensalidadesPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={removerTrial}
+                    onClick={confirmarRemoverTrial}
                     disabled={
                       !!trialBusy ||
                       listaTrialAtual.length === 0 ||
@@ -1184,6 +1206,43 @@ export default function MensalidadesPage() {
             </div>
           </div>
         </>
+      )}
+
+      {confirmacao && (
+        <div
+          className={MODAL_OVERLAY_CLASS}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirmacao-modal-title"
+          onClick={(ev) => {
+            if (ev.target === ev.currentTarget) setConfirmacao(null);
+          }}
+        >
+          <div className={MODAL_PANEL_CLASS} style={{ maxWidth: "28rem" }}>
+            <div className={`${MODAL_PANEL_BODY_CLASS} p-5`}>
+              <p id="confirmacao-modal-title" className="font-semibold text-[var(--foreground)]">
+                {confirmacao.titulo}
+              </p>
+              <p className="mt-1.5 text-sm text-[var(--muted)]">{confirmacao.mensagem}</p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmacao(null)}
+                  className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmacao.onConfirmar}
+                  className="rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       </div>
     </div>

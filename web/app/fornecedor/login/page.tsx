@@ -35,7 +35,7 @@ export default function FornecedorLoginPage() {
       const { error: err } = await supabaseBrowser.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/fornecedor/reset-password`,
       });
-      if (err) throw err;
+      if (err) throw new Error("Não foi possível enviar o e-mail agora. Tente novamente em instantes.");
       setResetEnviado(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro ao enviar e-mail. Tente novamente.");

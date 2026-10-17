@@ -8,7 +8,7 @@
  */
 import { randomBytes } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { VALOR_GESTORES_IA_AVULSO_MENSAL } from "@/lib/gestoresIaAvulsoPlanos";
+import { calcularValorMensalGestoresIaAvulso, isGestoresIaAvulsoDescontoTipo } from "@/lib/gestoresIaAvulsoPlanos";
 import { computeCalendarCycleValidoAte } from "@/lib/calculadoraRenovacaoValidoAte";
 import { valorLiquidoRecebidoMp } from "@/lib/mercadoPagoValorRecebido";
 
@@ -74,8 +74,20 @@ export async function processarGestoresIaAvulsoPlanoPago(
   const extFromMp = String(payment?.external_reference ?? "").trim();
   if (extFromMp !== externalReference.trim()) return false;
 
-  if (!valorCompativel(payment?.transaction_amount, VALOR_GESTORES_IA_AVULSO_MENSAL)) {
-    console.warn("[gestoresIaAvulsoPix] valor MP incompatível com a parcela mensal.");
+  // Valor esperado é por assinante — desconto definido pelo admin (2026-10-17) muda o que
+  // cada um paga de verdade, nunca a constante fixa sozinha.
+  const { data: assinanteData } = await supabaseAdmin.rpc("fn_calculadora_assinante_por_user_id", {
+    p_user_id: parsed.userId,
+  });
+  const assinanteRow = assinanteData as
+    | { gestores_ia_desconto_tipo: string | null; gestores_ia_desconto_valor: number | null }
+    | null;
+  const tipoRaw = assinanteRow?.gestores_ia_desconto_tipo ?? null;
+  const descontoTipo = isGestoresIaAvulsoDescontoTipo(tipoRaw) ? tipoRaw : null;
+  const valorEsperado = calcularValorMensalGestoresIaAvulso(descontoTipo, assinanteRow?.gestores_ia_desconto_valor ?? null);
+
+  if (!valorCompativel(payment?.transaction_amount, valorEsperado)) {
+    console.warn("[gestoresIaAvulsoPix] valor MP incompatível com a parcela esperada do assinante.");
     return false;
   }
 

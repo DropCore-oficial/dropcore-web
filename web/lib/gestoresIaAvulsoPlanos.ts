@@ -16,3 +16,29 @@ export const GESTORES_IA_AVULSO_CONTRATO_ANUAL_CARENCIA_DIAS = 60;
 export function isGestoresIaAvulsoCiclo(v: unknown): v is GestoresIaAvulsoCiclo {
   return v === "mensal" || v === "anual";
 }
+
+/** Desconto definido pelo admin por assinante (2026-10-17) — `null` = preço cheio. */
+export type GestoresIaAvulsoDescontoTipo = "valor" | "percentual";
+
+export function isGestoresIaAvulsoDescontoTipo(v: unknown): v is GestoresIaAvulsoDescontoTipo {
+  return v === "valor" || v === "percentual";
+}
+
+/**
+ * Valor real da parcela mensal pra um assinante, aplicando o desconto dele (se houver).
+ * `tipo=null` ou `valor` ausente/≤0 → preço cheio. Arredonda pra 2 casas (centavos).
+ */
+export function calcularValorMensalGestoresIaAvulso(
+  descontoTipo: GestoresIaAvulsoDescontoTipo | null,
+  descontoValor: number | null
+): number {
+  const cheio = VALOR_GESTORES_IA_AVULSO_MENSAL;
+  if (!descontoTipo || descontoValor == null || !Number.isFinite(descontoValor) || descontoValor <= 0) {
+    return cheio;
+  }
+  if (descontoTipo === "valor") {
+    return Math.round(Math.max(0, cheio - descontoValor) * 100) / 100;
+  }
+  const pct = Math.min(100, descontoValor);
+  return Math.round(cheio * (1 - pct / 100) * 100) / 100;
+}

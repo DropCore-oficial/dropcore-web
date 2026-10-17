@@ -13,12 +13,19 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status")?.trim();
     const q = searchParams.get("q")?.trim().toLowerCase();
+    const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
+    const limit = Math.min(300, Math.max(1, Number(searchParams.get("limit") ?? "50") || 50));
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
 
     let query = supabaseAdmin
       .from("sellers")
-      .select("id, nome, documento, plano, status, saldo_atual, saldo_bloqueado, data_entrada, criado_em, user_id")
+      .select("id, nome, documento, plano, status, saldo_atual, saldo_bloqueado, data_entrada, criado_em, user_id", {
+        count: "exact",
+      })
       .eq("org_id", org_id)
-      .order("nome", { ascending: true });
+      .order("nome", { ascending: true })
+      .range(from, to);
 
     if (status && ["ativo", "inativo", "bloqueado"].includes(status)) {
       query = query.eq("status", status);
@@ -27,7 +34,7 @@ export async function GET(req: Request) {
       query = query.or(`nome.ilike.%${q}%,documento.ilike.%${q}%`);
     }
 
-    const { data, error } = await query;
+    const { data, error, count } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     const { data: invitesAtivos } = await supabaseAdmin
@@ -45,7 +52,7 @@ export async function GET(req: Request) {
       convite_pendente_expira_em: !s.user_id ? conviteExpiraEmMap.get(s.id) ?? null : null,
     }));
 
-    return NextResponse.json(enriched);
+    return NextResponse.json({ items: enriched, total_count: count ?? enriched.length });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     const status = msg === "Unauthorized" || msg === "Usuário sem organização." ? 401 : msg === "Sem permissão." ? 403 : 500;

@@ -11,6 +11,8 @@ import { formatCnpjBr } from "@/lib/fornecedorCadastro";
 import { AMBER_PREMIUM_LINK } from "@/lib/amberPremium";
 import { DANGER_PREMIUM_TEXT_SOFT } from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
+import { ModalOverlay } from "@/components/ui/ModalOverlay";
+import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 
 type Fornecedor = {
   id: string;
@@ -163,12 +165,10 @@ export default function AdminEmpresasPage() {
     }
   }
 
+  const [confirmarExclusao, setConfirmarExclusao] = useState<Fornecedor | null>(null);
+
   async function excluirFornecedor(emp: Fornecedor) {
     if (!orgId) return;
-    const ok = window.confirm(
-      `Excluir permanentemente "${emp.nome || "esta empresa"}"? Pedidos, SKUs e dados financeiros ligados a este fornecedor serão excluídos. Essa ação não pode ser desfeita.`
-    );
-    if (!ok) return;
     setDeletingId(emp.id);
     setError(null);
     try {
@@ -256,6 +256,38 @@ export default function AdminEmpresasPage() {
             </div>
           </Card>
         )}
+
+        {confirmarExclusao ? (
+          <ModalOverlay onBackdropClick={() => setConfirmarExclusao(null)}>
+            <div className={cn(MODAL_PANEL_BODY_CLASS, "p-5")}>
+              <p className="font-semibold text-[var(--foreground)]">Excluir empresa?</p>
+              <p className="mt-1.5 text-sm text-[var(--muted)]">
+                Excluir permanentemente &quot;{confirmarExclusao.nome || "esta empresa"}&quot;? Pedidos, SKUs e dados
+                financeiros ligados a este fornecedor serão excluídos. Essa ação não pode ser desfeita.
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmarExclusao(null)}
+                  className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const emp = confirmarExclusao;
+                    setConfirmarExclusao(null);
+                    void excluirFornecedor(emp);
+                  }}
+                  className="rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20"
+                >
+                  Excluir
+                </button>
+              </div>
+            </div>
+          </ModalOverlay>
+        ) : null}
 
         {inviteLink && (
           <Alert variant="info" title={`Convite para ${inviteLink.nome}`} action={
@@ -352,7 +384,7 @@ export default function AdminEmpresasPage() {
                   <Button
                     variant="danger"
                     size="sm"
-                    onClick={() => excluirFornecedor(emp)}
+                    onClick={() => setConfirmarExclusao(emp)}
                     disabled={deletingId !== null}
                   >
                     {deletingId === emp.id ? "Excluindo..." : "Excluir"}

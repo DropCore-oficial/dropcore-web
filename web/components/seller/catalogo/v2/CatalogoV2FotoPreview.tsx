@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { catalogoV2UrlImagem } from "./catalogoV2Imagem";
+import { ImagemMiniatura } from "@/components/ImagemMiniatura";
 import { linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
 import { strSellerCatalogo as str } from "@/components/seller/SellerCatalogoGrupoUi";
 import { cn } from "@/lib/utils";
@@ -122,22 +123,33 @@ export function CatalogoV2FotoPreview({
           className,
         )}
       >
-        <img
-          src={src}
-          alt="Foto do produto"
-          loading="lazy"
-          decoding="async"
-          {...(grade ? {} : { width: imgPx, height: imgPx })}
-          className={cn(
-            grade
-              ? "block h-full w-full max-w-full object-cover object-top"
-              : "block h-full w-full object-cover",
-          )}
-          onError={() => {
-            setImgErro(true);
-            onThumbError?.();
-          }}
-        />
+        {grade ? (
+          <ImagemMiniatura
+            src={src}
+            alt="Foto do produto"
+            fill
+            sizes="(min-width: 768px) 160px, 100vw"
+            loading="lazy"
+            className="object-cover object-top"
+            onError={() => {
+              setImgErro(true);
+              onThumbError?.();
+            }}
+          />
+        ) : (
+          <ImagemMiniatura
+            src={src}
+            alt="Foto do produto"
+            width={imgPx}
+            height={imgPx}
+            loading="lazy"
+            className="block h-full w-full object-cover"
+            onError={() => {
+              setImgErro(true);
+              onThumbError?.();
+            }}
+          />
+        )}
       </button>
       {previewAberto && previewImgBlock && (
         <div

@@ -29,6 +29,8 @@ import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
 import { parseDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { cn } from "@/lib/utils";
 import { ProdutoRowSkeleton } from "@/components/ui/Skeleton";
+import { ModalOverlay } from "@/components/ui/ModalOverlay";
+import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { calcularCustoTotal } from "@/lib/taxaDropcore";
 
 const BRL_CUSTO_FORNECEDOR = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -521,17 +523,24 @@ export default function FornecedorProdutosPage() {
     router.push(`/fornecedor/produtos/criar-variantes?editar=${encodeURIComponent(grupo)}`);
   }
 
-  async function handleSolicitarExclusaoGrupo(g: GrupoProduto) {
+  const [confirmacaoExclusaoGrupo, setConfirmacaoExclusaoGrupo] = useState<{ titulo: string; mensagem: string; g: GrupoProduto } | null>(
+    null
+  );
+
+  function confirmarSolicitarExclusaoGrupo(g: GrupoProduto) {
     const representante = g.pai ?? g.filhos[0];
     const nome = representante?.nome_produto ?? g.paiKey;
     const n = g.pai ? 1 + g.filhos.length : g.filhos.length;
-    if (
-      !window.confirm(
-        `Pedir à DropCore para excluir "${nome}" (${g.paiKey})?\n\nSerão ${n} SKU(s). Nada é excluído na hora: um admin aprova em Alterações de produtos.`
-      )
-    ) {
-      return;
-    }
+    setConfirmacaoExclusaoGrupo({
+      titulo: "Pedir exclusão à DropCore?",
+      mensagem: `Pedir à DropCore para excluir "${nome}" (${g.paiKey})? Serão ${n} SKU(s). Nada é excluído na hora: um admin aprova em Alterações de produtos.`,
+      g,
+    });
+  }
+
+  async function handleSolicitarExclusaoGrupo(g: GrupoProduto) {
+    const representante = g.pai ?? g.filhos[0];
+    const nome = representante?.nome_produto ?? g.paiKey;
     setFormError(null);
     setSolicitandoExclusao(g.paiKey);
     try {
@@ -1021,7 +1030,7 @@ export default function FornecedorProdutosPage() {
                                         );
                                         return;
                                       }
-                                      void handleSolicitarExclusaoGrupo(g);
+                                      confirmarSolicitarExclusaoGrupo(g);
                                     }}
                                     disabled={solicitandoExclusao === g.paiKey}
                                     className="block w-full rounded-md px-3 py-2 text-left text-sm text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-950/50 disabled:cursor-wait disabled:opacity-80"
@@ -1784,6 +1793,36 @@ export default function FornecedorProdutosPage() {
           </div>
         </div>
       )}
+
+      {confirmacaoExclusaoGrupo ? (
+        <ModalOverlay onBackdropClick={() => setConfirmacaoExclusaoGrupo(null)}>
+          <div className={cn(MODAL_PANEL_BODY_CLASS, "p-5")}>
+            <p className="font-semibold text-[var(--foreground)]">{confirmacaoExclusaoGrupo.titulo}</p>
+            <p className="mt-1.5 text-sm text-[var(--muted)]">{confirmacaoExclusaoGrupo.mensagem}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmacaoExclusaoGrupo(null)}
+                className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const g = confirmacaoExclusaoGrupo.g;
+                  setConfirmacaoExclusaoGrupo(null);
+                  void handleSolicitarExclusaoGrupo(g);
+                }}
+                className="rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20"
+              >
+                Pedir exclusão
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      ) : null}
+
       <FornecedorNav active="produtos" wide />
     </div>
   );

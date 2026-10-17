@@ -147,7 +147,7 @@ export default function LoginPage() {
         password: senha,
       });
 
-      if (error) throw error;
+      if (error) throw new Error("E-mail ou senha incorretos.");
       if (!data.session) throw new Error("Sessão não veio do Supabase.");
 
       const { data: s } = await supabaseBrowser.auth.getSession();

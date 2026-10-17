@@ -16,6 +16,7 @@ const MAIS_GRUPOS = [
       { href: "/admin/disputas-fornecedor", label: "Disputas com fornecedor" },
       { href: "/admin/mensalidades", label: "Mensalidades" },
       { href: "/admin/depositos-pix", label: "Depósitos PIX" },
+      { href: "/admin/gestores-ia-convites", label: "Gestores de IA avulso" },
     ],
   },
   {

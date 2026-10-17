@@ -12,6 +12,8 @@ import {
 import { IconClipboard } from "@/components/seller/Icons";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { PedidoCardSkeleton } from "@/components/ui/Skeleton";
+import { ModalOverlay } from "@/components/ui/ModalOverlay";
+import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { cn } from "@/lib/utils";
 
 // Padrão compacto de toolbar/badge — mesmo teste de web/app/admin/pedidos/page.tsx
@@ -253,11 +255,22 @@ export default function FornecedorPedidosPage() {
   }
 
   const [reportandoId, setReportandoId] = useState<string | null>(null);
+  const [confirmacao, setConfirmacao] = useState<{ titulo: string; mensagem: string; onConfirmar: () => void } | null>(
+    null
+  );
+
+  function confirmarReportarEtiquetaErrada(id: string) {
+    setConfirmacao({
+      titulo: "Etiqueta errada?",
+      mensagem: "Confirma que a etiqueta desse pedido está errada? Isso remove a etiqueta e avisa o seller de novo.",
+      onConfirmar: () => {
+        setConfirmacao(null);
+        void reportarEtiquetaErrada(id);
+      },
+    });
+  }
 
   async function reportarEtiquetaErrada(id: string) {
-    if (!window.confirm("Confirma que a etiqueta desse pedido está errada? Isso remove a etiqueta e avisa o seller de novo.")) {
-      return;
-    }
     setReportandoId(id);
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
@@ -951,7 +964,7 @@ export default function FornecedorPedidosPage() {
                     <div className="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:justify-end">
                       <button
                         type="button"
-                        onClick={() => void reportarEtiquetaErrada(p.id)}
+                        onClick={() => confirmarReportarEtiquetaErrada(p.id)}
                         disabled={reportandoId === p.id}
                         title="A etiqueta não é do pedido certo (endereço/produto não bate)"
                         className="w-full rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:w-auto"
@@ -1044,6 +1057,32 @@ export default function FornecedorPedidosPage() {
         )}
 
       </div>
+
+      {confirmacao ? (
+        <ModalOverlay onBackdropClick={() => setConfirmacao(null)}>
+          <div className={cn(MODAL_PANEL_BODY_CLASS, "p-5")}>
+            <p className="font-semibold text-[var(--foreground)]">{confirmacao.titulo}</p>
+            <p className="mt-1.5 text-sm text-[var(--muted)]">{confirmacao.mensagem}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmacao(null)}
+                className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmacao.onConfirmar}
+                className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      ) : null}
+
       <FornecedorNav active="pedidos" wide />
     </div>
   );

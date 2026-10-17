@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SkuInlineSeller } from "@/components/seller/SkuInlineSeller";
+import { ImagemMiniatura } from "@/components/ImagemMiniatura";
 import { parseDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { formatPesoCatalogo } from "@/lib/formatPesoCatalogo";
 import { skuProntoParaVender, skuReadinessLabelsFalha } from "@/lib/sellerSkuReadiness";
@@ -508,13 +509,13 @@ export function SellerCatalogoItemCard({
             aria-label={imgSrc ? "Ampliar foto do produto" : undefined}
           >
             {imgSrc ? (
-              <img
+              <ImagemMiniatura
                 src={imgSrc}
                 alt=""
-                decoding="async"
+                fill
                 loading="lazy"
                 sizes="64px"
-                className="h-full w-full object-cover object-center sm:cursor-zoom-in"
+                className="object-cover object-center sm:cursor-zoom-in"
               />
             ) : (
               <div className="flex flex-col items-center justify-center px-1 text-center text-[11px] text-zinc-500">
@@ -692,17 +693,13 @@ export function SellerCatalogoItemCard({
           aria-label={imgSrc ? "Ampliar foto do produto" : undefined}
         >
           {imgSrc ? (
-            <img
+            <ImagemMiniatura
               src={imgSrc}
               alt=""
-              decoding="async"
+              fill
               loading="lazy"
               sizes={sóVariante ? "(max-width: 640px) 46vw, 112px" : "(max-width: 640px) 100vw, 320px"}
-              className={
-                sóVariante
-                  ? "relative z-0 mx-auto block h-full w-full max-h-full object-contain object-center cursor-zoom-in"
-                  : "h-full w-full min-h-0 object-contain sm:object-contain sm:cursor-zoom-in"
-              }
+              className={sóVariante ? "object-contain object-center cursor-zoom-in" : "object-contain sm:cursor-zoom-in"}
             />
           ) : (
             <div className={`w-full flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500 text-xs p-2 ${sóVariante ? "min-h-[8rem] sm:min-h-0 sm:h-full" : "h-full"}`}>

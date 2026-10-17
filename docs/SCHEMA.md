@@ -1662,6 +1662,88 @@ terminaram (Anúncio 8h, SAC 8h15, ADS 8h30, Estoque 8h45) e notifica de verdade
 - `web/scripts/add-cron-gestores-ia-avulso-resumo-diario.sql` — `9 9 * * *` (depois dos 4
   gestores). **Aplicado em produção em 2026-10-16.**
 
+## Tela admin "Gestores de IA avulso" com métricas (v2, 2026-10-17)
+
+Item do backlog de v2 (ver memória `project_doc_13_gestores_absorcao_avulso`): dar
+visibilidade pro admin de quais assinantes da Calculadora têm o pacote avulso ativo. Achado
+no caminho: a listagem em si **já existia** dentro de `admin/gestores-ia-convites/page.tsx`
+(seção "Assinantes do pacote"), só nunca tinha link no menu — não era uma tela nova, era um
+item de menu faltando + melhoria da tela já existente.
+
+- `fn_calculadora_assinantes_gestores_ia_list(p_limit, p_offset)`
+  (`web/scripts/add-fn-calculadora-assinantes-gestores-ia-list.sql`) — RPC nova (regra 9 do
+  CLAUDE.md: tabela/rota nova nunca usa `.from()` direto), `SECURITY DEFINER` +
+  `GRANT ... TO service_role`. Devolve `id, user_id, nome, ativo, gestores_ia_ciclo,
+  valido_ate, gestores_ia_contrato_aceite_em, created_at, total_count` (window `count(*)
+  over()`) de `calculadora_assinantes where inclui_gestores_ia = true`, paginado.
+- `web/app/api/org/gestores-ia-avulso/assinantes/route.ts` (`GET`) — `requireAdmin(req)` →
+  `supabaseAdmin.rpc(...)` → resolve e-mail de cada `user_id` via
+  `supabaseAdmin.auth.admin.getUserById` (mesmo padrão de `notifyEmail.ts`).
+- `web/app/admin/gestores-ia-convites/page.tsx` — a tabela de assinantes passou a consumir
+  essa rota nova (antes usava `/api/org/calculadora/assinantes?inclui_gestores_ia=true`,
+  rota legada `.from()` direto, mantida intocada pra quem ainda a usa em
+  `calculadora-convites`) — ganhou colunas `Nome`/`Ciclo` e um grid de 4 métricas (Total,
+  Ativos, Mensal, Anual) acima da tabela. Badge de status e botões de ação corrigidos pro
+  padrão travado (`dropcore-layout`: badge sem borda com bolinha, botão escala compacta)
+  enquanto a tela estava sendo tocada.
+- `web/components/AdminNav.tsx` — item novo "Gestores de IA avulso" no grupo **Financeiro**
+  (antes a página só era acessível por link direto, sem nenhum item de menu).
+
+## Desconto por assinante no pacote avulso "Gestores de IA" (2026-10-17)
+
+Pedido do Sr Stark depois de ver a tela de métricas (onda anterior): admin poder dar
+desconto — valor fixo em R$, percentual, ou preço cheio — pra um assinante específico.
+Preço base continua fixo em `lib/gestoresIaAvulsoPlanos.ts`
+(`VALOR_GESTORES_IA_AVULSO_MENSAL`); as colunas novas só guardam a REGRA do desconto, o
+valor final é sempre calculado em código (`calcularValorMensalGestoresIaAvulso`), nunca
+guardado como número solto.
+
+- `calculadora_assinantes.gestores_ia_desconto_tipo` (`'valor'|'percentual'|null`) +
+  `.gestores_ia_desconto_valor numeric` — `web/scripts/add-calculadora-assinante-gestores-ia-desconto.sql`.
+- `fn_calculadora_assinante_gestores_ia_desconto_set(p_assinante_id, p_tipo, p_valor)` —
+  `SECURITY DEFINER`, só `service_role`. Único caminho que escreve essas colunas.
+- **Achado crítico corrigido no mesmo commit**: o processor do webhook do PIX
+  (`lib/gestoresIaAvulsoPixProcessor.ts`, função `processarGestoresIaAvulsoPlanoPago`)
+  comparava o valor pago no Mercado Pago contra a constante fixa — com desconto, o
+  assinante pagaria menos e o webhook **recusaria silenciosamente** reconhecer o
+  pagamento (dinheiro entraria, conta nunca renovaria). Corrigido pra buscar o desconto do
+  assinante (`fn_calculadora_assinante_por_user_id`, já devolve as colunas novas por ser
+  `select *`) e comparar contra o valor esperado dele, não mais o fixo.
+- `app/api/gestores-ia-avulso/planos/route.ts` — `GET` agora exige auth (antes era público,
+  sem uso real no front) e devolve o valor real do assinante; `POST` cobra esse mesmo valor
+  no PIX em vez da constante. Valor nunca vem do client — sempre calculado no servidor a
+  partir do que está no banco.
+- `app/seller/gestores-ia-avulso/planos/page.tsx` — busca o valor real via `GET` em vez de
+  importar a constante direto, pros cards Mensal/Anual refletirem o desconto do assinante.
+- `app/api/org/gestores-ia-avulso/assinantes/[id]/desconto/route.ts` (`POST`) —
+  `requireAdmin`, valida tipo/valor (percentual ≤100, valor em R$ < preço cheio) antes de
+  chamar a RPC.
+- `app/admin/gestores-ia-convites/page.tsx` — coluna "Desconto" (mostra "X% off"/"RS off" +
+  valor efetivo) + botão "Dar desconto"/"Editar desconto" abrindo modal (preço cheio / valor
+  fixo / percentual, com preview do valor final antes de salvar).
+- **Segurança conferida direto no banco antes de codar** (não assumida): `calculadora_assinantes`
+  tem RLS ligada com zero policies — `anon`/`authenticated` têm `rolbypassrls: false`, então
+  mesmo com grant de tabela (padrão Supabase) ficam 100% bloqueados; só `service_role`
+  (`rolbypassrls: true`, nunca sai do servidor) acessa. RPC testada direto no banco (set +
+  list + reset) antes de considerar pronta.
+
+## Paginação real em `/api/org/sellers` (performance, 2026-10-17)
+
+Parte da onda de performance (ver `project_performance_sistema_pesado` na memória): rota
+buscava todos os sellers da org sem `.range()`/limite. Corrigido com `page`/`limit` +
+`count: "exact"`, resposta virou `{items, total_count}` (antes era array solto — único
+consumidor, `app/admin/sellers/page.tsx`, atualizado junto, com a mesma barra de paginação
+já usada em `fornecedor/pedidos`/`seller/pedidos`).
+
+**Por que as outras 3 rotas do plano original ficaram de fora desta leva**
+(`seller/catalogo`, `fornecedor/produtos`, `org/catalogo/search`): as telas que consomem
+essas três (`seller/produtos`, `fornecedor/produtos`, `admin/catalogo`) fazem busca e
+agrupamento (SKU-pai + variantes) **client-side**, em cima do catálogo inteiro carregado de
+uma vez. Paginar a API sem redesenhar a busca/agrupamento quebraria a forma como a tela
+agrupa variante por produto hoje — não é um fix mecânico de `.range()`, é mudança de
+arquitetura de UI. Fica registrado como pendência que precisa de conversa de produto antes,
+não entra em "performance" como ganho rápido.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

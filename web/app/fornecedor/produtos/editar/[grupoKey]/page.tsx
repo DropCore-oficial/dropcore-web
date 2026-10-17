@@ -25,6 +25,8 @@ import {
 } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
 import { FormRowsSkeleton, Skeleton } from "@/components/ui/Skeleton";
+import { ModalOverlay } from "@/components/ui/ModalOverlay";
+import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 
 type Produto = {
   id: string;
@@ -638,9 +640,20 @@ export default function EditarVariantesPage() {
     }
   }
 
-  async function handleExcluirVariante(row: Produto) {
+  const [confirmacaoExclusao, setConfirmacaoExclusao] = useState<{ titulo: string; mensagem: string; row: Produto } | null>(
+    null
+  );
+
+  function confirmarExcluirVariante(row: Produto) {
     const rotulo = [row.cor, row.tamanho].filter(Boolean).join(" · ") || row.sku;
-    if (!window.confirm(`Excluir a variante ${row.sku} (${rotulo})? Esta ação não pode ser desfeita.`)) return;
+    setConfirmacaoExclusao({
+      titulo: "Excluir variante?",
+      mensagem: `Excluir a variante ${row.sku} (${rotulo})? Esta ação não pode ser desfeita.`,
+      row,
+    });
+  }
+
+  async function handleExcluirVariante(row: Produto) {
     setFormError(null);
     setExcluindoId(row.id);
     try {
@@ -1177,7 +1190,7 @@ export default function EditarVariantesPage() {
                                 {showExcluir ? (
                                   <button
                                     type="button"
-                                    onClick={() => handleExcluirVariante(row)}
+                                    onClick={() => confirmarExcluirVariante(row)}
                                     disabled={excluindoId === row.id}
                                     className="rounded-md px-2 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-950/30 touch-manipulation disabled:opacity-50"
                                   >
@@ -1336,7 +1349,7 @@ export default function EditarVariantesPage() {
                                   return (
                                     <button
                                       type="button"
-                                      onClick={() => handleExcluirVariante(row)}
+                                      onClick={() => confirmarExcluirVariante(row)}
                                       disabled={excluindoId === row.id}
                                       className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
                                     >
@@ -1897,6 +1910,35 @@ export default function EditarVariantesPage() {
           </div>
         </div>
       )}
+
+      {confirmacaoExclusao ? (
+        <ModalOverlay onBackdropClick={() => setConfirmacaoExclusao(null)}>
+          <div className={cn(MODAL_PANEL_BODY_CLASS, "p-5")}>
+            <p className="font-semibold text-[var(--foreground)]">{confirmacaoExclusao.titulo}</p>
+            <p className="mt-1.5 text-sm text-[var(--muted)]">{confirmacaoExclusao.mensagem}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmacaoExclusao(null)}
+                className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const row = confirmacaoExclusao.row;
+                  setConfirmacaoExclusao(null);
+                  void handleExcluirVariante(row);
+                }}
+                className="rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      ) : null}
     </div>
   );
 }

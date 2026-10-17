@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ProdutoResumoListaGrupo } from "@/components/fornecedor/ProdutoResumoListaGrupo";
+import { ImagemMiniatura } from "@/components/ImagemMiniatura";
 import { CorCelulaProduto } from "@/components/fornecedor/CorCelulaProduto";
 import type { SellerCatalogoItem } from "@/components/seller/SellerCatalogoGrupoUi";
 import {
@@ -258,12 +259,13 @@ function MiniaturaListaGrupoSeller({ g }: { g: GrupoCatalogoV2 }) {
     return <span className="text-lg text-[var(--muted)]">—</span>;
   }
   return (
-    <img
+    <ImagemMiniatura
       src={src}
       alt=""
+      fill
+      sizes="80px"
       loading="lazy"
-      decoding="async"
-      className="h-full w-full object-contain object-top"
+      className="object-contain object-top"
       onError={() => setFailIdx((i) => i + 1)}
     />
   );
@@ -482,7 +484,7 @@ export function SellerListaGrupoArmazem({
                 <path d="M9 18l6-6-6-6" />
               </svg>
             </button>
-            <div className="flex h-[3.625rem] w-[3.625rem] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--muted)]/10 p-0.5 sm:h-20 sm:w-20">
+            <div className="relative flex h-[3.625rem] w-[3.625rem] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--muted)]/10 p-0.5 sm:h-20 sm:w-20">
               <MiniaturaListaGrupoSeller g={grupo} />
             </div>
           </div>

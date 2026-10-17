@@ -1,7 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-type AssinanteRow = { id: string; user_id: string; ativo: boolean; inclui_gestores_ia: boolean };
+type AssinanteRow = {
+  id: string;
+  user_id: string;
+  ativo: boolean;
+  inclui_gestores_ia: boolean;
+  gestores_ia_desconto_tipo: "valor" | "percentual" | null;
+  gestores_ia_desconto_valor: number | null;
+};
 
 /** Mesmo padrão de `sellerSessionAuth.ts`, mas pro assinante avulso (`calculadora_assinantes`).
  * Leitura via RPC (fn_calculadora_assinante_por_user_id, 2026-10-07) — ver docs/SCHEMA.md

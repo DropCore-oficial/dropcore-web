@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { GESTORES_IA_AVULSO_CONTRATO_ANUAL_CARENCIA_DIAS } from "@/lib/gestoresIaAvulsoPlanos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,12 +16,17 @@ type InviteRow = {
   expira_em: string;
   usado: boolean;
   inclui_gestores_ia: boolean;
+  gestores_ia_ciclo: "mensal" | "anual" | null;
+  gestores_ia_desconto_tipo: "valor" | "percentual" | null;
+  gestores_ia_desconto_valor: number | null;
 };
 
 async function resolveInvite(token: string): Promise<{ invite: InviteRow | null; error: string | null }> {
   const { data, error } = await supabaseAdmin
     .from("calculadora_invites")
-    .select("id, token, email_alvo, validade_dias, expira_em, usado, inclui_gestores_ia")
+    .select(
+      "id, token, email_alvo, validade_dias, expira_em, usado, inclui_gestores_ia, gestores_ia_ciclo, gestores_ia_desconto_tipo, gestores_ia_desconto_valor"
+    )
     .eq("token", token)
     .maybeSingle<InviteRow>();
 
@@ -171,9 +177,15 @@ export async function POST(req: Request, { params }: Params) {
 
     const { data: currentAssin, error: assinReadErr } = await supabaseAdmin
       .from("calculadora_assinantes")
-      .select("id, valido_ate, ativo, inclui_gestores_ia")
+      .select("id, valido_ate, ativo, inclui_gestores_ia, gestores_ia_ciclo")
       .eq("user_id", userId)
-      .maybeSingle<{ id: string; valido_ate: string; ativo: boolean; inclui_gestores_ia: boolean }>();
+      .maybeSingle<{
+        id: string;
+        valido_ate: string;
+        ativo: boolean;
+        inclui_gestores_ia: boolean;
+        gestores_ia_ciclo: "mensal" | "anual" | null;
+      }>();
 
     if (assinReadErr) {
       return NextResponse.json(
@@ -185,18 +197,42 @@ export async function POST(req: Request, { params }: Params) {
       );
     }
 
-    const novoValidoAte = computeValidoAte(currentAssin?.valido_ate ?? null, invite.validade_dias);
+    // Convite com ciclo "anual" escolhido pelo admin aplica direto a mesma regra de
+    // carência do fluxo manual (60 dias sem cobrança) em vez dos `validade_dias` genéricos —
+    // mantém os dois caminhos consistentes (ver fn_calculadora_assinante_gestores_ia_contrato_anual_iniciar).
+    const escolheuAnualNoConvite = invite.inclui_gestores_ia && invite.gestores_ia_ciclo === "anual";
+    const novoValidoAte = escolheuAnualNoConvite
+      ? new Date(
+          Math.max(
+            currentAssin?.valido_ate ? new Date(currentAssin.valido_ate).getTime() : 0,
+            Date.now() + GESTORES_IA_AVULSO_CONTRATO_ANUAL_CARENCIA_DIAS * 24 * 60 * 60 * 1000,
+          ),
+        ).toISOString()
+      : computeValidoAte(currentAssin?.valido_ate ?? null, invite.validade_dias);
 
-    const { error: upsertErr } = await supabaseAdmin.from("calculadora_assinantes").upsert(
-      {
-        user_id: userId,
-        valido_ate: novoValidoAte,
-        ativo: true,
-        // Nunca remove o pacote se a conta já tinha — só liga quando o convite usado inclui.
-        inclui_gestores_ia: currentAssin?.inclui_gestores_ia === true || invite.inclui_gestores_ia === true,
-      },
-      { onConflict: "user_id" },
-    );
+    const upsertData: Record<string, unknown> = {
+      user_id: userId,
+      valido_ate: novoValidoAte,
+      ativo: true,
+      // Nunca remove o pacote se a conta já tinha — só liga quando o convite usado inclui.
+      inclui_gestores_ia: currentAssin?.inclui_gestores_ia === true || invite.inclui_gestores_ia === true,
+    };
+    // Ciclo/desconto só aplicam quando o convite de Gestores de IA especifica — convite sem
+    // isso (ou convite só-calculadora) não mexe no que a conta já tinha.
+    if (invite.inclui_gestores_ia && invite.gestores_ia_ciclo) {
+      upsertData.gestores_ia_ciclo = invite.gestores_ia_ciclo;
+      if (invite.gestores_ia_ciclo === "anual") {
+        upsertData.gestores_ia_contrato_aceite_em = new Date().toISOString();
+      }
+    }
+    if (invite.inclui_gestores_ia && invite.gestores_ia_desconto_tipo) {
+      upsertData.gestores_ia_desconto_tipo = invite.gestores_ia_desconto_tipo;
+      upsertData.gestores_ia_desconto_valor = invite.gestores_ia_desconto_valor;
+    }
+
+    const { error: upsertErr } = await supabaseAdmin
+      .from("calculadora_assinantes")
+      .upsert(upsertData, { onConflict: "user_id" });
 
     if (upsertErr) {
       return NextResponse.json({ error: "Erro ao ativar assinatura: " + upsertErr.message }, { status: 500 });

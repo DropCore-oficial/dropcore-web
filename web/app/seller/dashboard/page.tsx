@@ -1333,7 +1333,7 @@ export default function SellerDashboardPage() {
                 type="button"
                 onClick={() => setModalDeposito(true)}
                 className={cn(
-                  "rounded-full px-2.5 py-1.5 text-[11px] font-semibold text-white shrink-0 shadow-sm transition-colors",
+                  "rounded-md px-2.5 py-1.5 text-[11px] font-semibold text-white shrink-0 shadow-sm transition-colors",
                   saldoAlerta?.nivel === "critico"
                     ? "bg-[var(--danger)] hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:hover:opacity-100 dark:ring-1 dark:ring-inset dark:ring-white/20"
                     : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"

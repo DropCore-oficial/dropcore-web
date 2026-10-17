@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { DashboardSkeleton } from "@/components/ui/Skeleton";
 
 const PUBLIC_PREFIXES = ["/seller/login", "/seller/register", "/seller/reset-password", "/seller/calculadora"];
 
@@ -69,11 +70,12 @@ export function SellerPortalGate({ children }: { children: ReactNode }) {
       {ok ? children : null}
       {!ok ? (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--background)]"
+          className="fixed inset-0 z-[100] overflow-y-auto bg-[var(--background)] pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14"
           aria-live="polite"
           aria-busy="true"
         >
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">Verificando acesso…</p>
+          <span className="sr-only">Verificando acesso…</span>
+          <DashboardSkeleton />
         </div>
       ) : null}
     </>

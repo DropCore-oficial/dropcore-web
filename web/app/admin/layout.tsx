@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { AdminNav } from "@/components/AdminNav";
 import { AdminMobileBottomNav } from "@/components/AdminMobileBottomNav";
 import { AppVersionUpdateBanner } from "@/components/AppVersionUpdateBanner";
+import { DashboardSkeleton } from "@/components/ui/Skeleton";
 
 export default function AdminLayout({
   children,
@@ -67,8 +68,9 @@ export default function AdminLayout({
 
   if (checking) {
     return (
-      <div style={{ padding: 24, textAlign: "center" }}>
-        Verificando permissão...
+      <div role="status" aria-live="polite" className="bg-[var(--background)] pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14">
+        <span className="sr-only">Verificando permissão...</span>
+        <DashboardSkeleton />
       </div>
     );
   }

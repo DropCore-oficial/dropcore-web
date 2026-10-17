@@ -5,6 +5,7 @@ import type { SellerCatalogoItem } from "@/components/seller/SellerCatalogoGrupo
 import { agruparPaiFilhosSeller as agruparPaiFilhos, infoDoGrupo, strSellerCatalogo as str } from "@/components/seller/SellerCatalogoGrupoUi";
 import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
 import { catalogoV2UrlImagem } from "@/components/seller/catalogo/v2/catalogoV2Imagem";
+import { ImagemMiniatura } from "@/components/ImagemMiniatura";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -59,13 +60,14 @@ export function SellerCatalogoProdutoCard({ fornecedorId, grupo }: { fornecedorI
       href={`/seller/catalogo/fornecedor/${encodeURIComponent(fornecedorId)}/produto/${encodeURIComponent(grupo.paiKey)}`}
       className="group block rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-3 shadow-sm transition-all hover:-translate-y-[1px] hover:border-emerald-300 hover:shadow-md dark:hover:border-emerald-700"
     >
-      <div className="aspect-square w-full overflow-hidden rounded-xl bg-[var(--muted)]/10">
+      <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-[var(--muted)]/10">
         {fotoSrc ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <ImagemMiniatura
             src={fotoSrc}
             alt={nomeGrupo}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            fill
+            sizes="(min-width: 1024px) 220px, (min-width: 640px) 33vw, 50vw"
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             loading="lazy"
           />
         ) : (

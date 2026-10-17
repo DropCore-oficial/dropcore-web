@@ -34,6 +34,8 @@ type Dados = {
   gestoresIaCiclo: GestoresIaAvulsoCiclo | null;
   contratoAceiteEm: string | null;
   validoAte: string | null;
+  /** Preço real da parcela mensal desse assinante (já aplica desconto, se houver). */
+  valorMensal: number;
 };
 
 type PixData = {
@@ -75,10 +77,16 @@ export default function GestoresIaAvulsoPlanosPage() {
       router.replace("/gestores-ia/login");
       return;
     }
-    const res = await fetch(`/api/calculadora/me?t=${Date.now()}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
+    const [res, resPlanos] = await Promise.all([
+      fetch(`/api/calculadora/me?t=${Date.now()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      }),
+      fetch("/api/gestores-ia-avulso/planos", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      }),
+    ]);
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
       setEstado("denied");
@@ -88,11 +96,15 @@ export default function GestoresIaAvulsoPlanosPage() {
       router.replace("/seller/cadastro");
       return;
     }
+    const jPlanos = await resPlanos.json().catch(() => ({}));
+    const valorMensal =
+      resPlanos.ok && typeof jPlanos.mensal === "number" ? jPlanos.mensal : VALOR_GESTORES_IA_AVULSO_MENSAL;
     setDados({
       incluiGestoresIa: j.inclui_gestores_ia === true,
       gestoresIaCiclo: j.gestores_ia_ciclo === "mensal" || j.gestores_ia_ciclo === "anual" ? j.gestores_ia_ciclo : null,
       contratoAceiteEm: j.gestores_ia_contrato_aceite_em ?? null,
       validoAte: j.valido_ate ?? null,
+      valorMensal,
     });
     setEstado("pronto");
   }, [router]);
@@ -188,6 +200,7 @@ export default function GestoresIaAvulsoPlanosPage() {
   }, [carregar]);
 
   const temGestoresIa = dados?.incluiGestoresIa ?? false;
+  const valorMensal = dados?.valorMensal ?? VALOR_GESTORES_IA_AVULSO_MENSAL;
   const jaEstaNoContratoAnual = temGestoresIa && dados?.gestoresIaCiclo === "anual";
 
   if (estado === "denied") {
@@ -242,7 +255,7 @@ export default function GestoresIaAvulsoPlanosPage() {
                 {jaEstaNoContratoAnual && dados?.contratoAceiteEm ? (
                   <p className="mt-0.5 text-xs text-[var(--muted)]">
                     Assinado em {new Date(dados.contratoAceiteEm).toLocaleDateString("pt-BR")} · 12 parcelas de{" "}
-                    {BRL.format(VALOR_GESTORES_IA_AVULSO_MENSAL)}
+                    {BRL.format(valorMensal)}
                   </p>
                 ) : null}
               </section>
@@ -252,7 +265,7 @@ export default function GestoresIaAvulsoPlanosPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <PlanoCard
                   titulo="Mensal"
-                  valorLabel={BRL.format(VALOR_GESTORES_IA_AVULSO_MENSAL)}
+                  valorLabel={BRL.format(valorMensal)}
                   subLabel="por mês, sem compromisso"
                   destaque={false}
                   features={FEATURES_PACOTE}
@@ -271,7 +284,7 @@ export default function GestoresIaAvulsoPlanosPage() {
                       </span>
                     </div>
                     <p className="mt-2 text-2xl font-bold tracking-tight text-[var(--foreground)]">
-                      {BRL.format(VALOR_GESTORES_IA_AVULSO_MENSAL)}
+                      {BRL.format(valorMensal)}
                     </p>
                     <p className="text-xs text-[var(--muted)]">por mês · 12 parcelas no total</p>
                     <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">
@@ -281,7 +294,7 @@ export default function GestoresIaAvulsoPlanosPage() {
                 ) : !anualConfirmando ? (
                   <PlanoCard
                     titulo="Anual"
-                    valorLabel={BRL.format(VALOR_GESTORES_IA_AVULSO_MENSAL)}
+                    valorLabel={BRL.format(valorMensal)}
                     subLabel={`por mês · ${GESTORES_IA_AVULSO_CONTRATO_ANUAL_PARCELAS} parcelas, mesmo valor do mensal`}
                     destaque
                     badgeLabel={`Ganhe ${GESTORES_IA_AVULSO_CONTRATO_ANUAL_CARENCIA_DIAS} dias grátis`}
@@ -296,7 +309,7 @@ export default function GestoresIaAvulsoPlanosPage() {
                     <p className="text-sm font-semibold text-[var(--foreground)]">Confirmar contrato anual</p>
                     <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
                       Você está assumindo um compromisso de {GESTORES_IA_AVULSO_CONTRATO_ANUAL_PARCELAS} parcelas
-                      mensais de {BRL.format(VALOR_GESTORES_IA_AVULSO_MENSAL)}, pagas via PIX, uma por vez. Os
+                      mensais de {BRL.format(valorMensal)}, pagas via PIX, uma por vez. Os
                       primeiros {GESTORES_IA_AVULSO_CONTRATO_ANUAL_CARENCIA_DIAS} dias são de carência — sua 1ª
                       parcela só vence depois desse período.
                     </p>

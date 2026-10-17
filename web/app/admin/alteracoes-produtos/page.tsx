@@ -7,6 +7,8 @@ import { toTitleCase } from "@/lib/formatText";
 import { cn } from "@/lib/utils";
 import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { ModalOverlay } from "@/components/ui/ModalOverlay";
+import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 
 type Alteracao = {
   id: string;
@@ -108,6 +110,9 @@ export default function AdminAlteracoesProdutosPage() {
   const [motivoRejeicao, setMotivoRejeicao] = useState("");
   const [fornecedorSelecionado, setFornecedorSelecionado] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [confirmacao, setConfirmacao] = useState<{ titulo: string; mensagem: string; onConfirmar: () => void } | null>(
+    null
+  );
   /** Motivo único aplicado a cada item em rejeição em massa (opcional) */
   const [motivoRejeicaoMassa, setMotivoRejeicaoMassa] = useState("");
 
@@ -446,14 +451,15 @@ export default function AdminAlteracoesProdutosPage() {
                         type="button"
                         onClick={() => {
                           if (selectedIds.size === 0) return;
-                          if (
-                            !window.confirm(
-                              `Rejeitar ${selectedIds.size} alteração(ões) selecionada(s)? Os fornecedores serão notificados.`
-                            )
-                          ) {
-                            return;
-                          }
-                          void rejeitarEmMassa([...selectedIds]);
+                          const ids = [...selectedIds];
+                          setConfirmacao({
+                            titulo: "Rejeitar selecionadas?",
+                            mensagem: `Rejeitar ${ids.length} alteração(ões) selecionada(s)? Os fornecedores serão notificados.`,
+                            onConfirmar: () => {
+                              setConfirmacao(null);
+                              void rejeitarEmMassa(ids);
+                            },
+                          });
                         }}
                         disabled={selectedIds.size === 0 || actingBulk}
                         className="inline-flex flex-1 items-center justify-center rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:min-w-[200px] sm:flex-none"
@@ -463,14 +469,15 @@ export default function AdminAlteracoesProdutosPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (
-                            !window.confirm(
-                              `Rejeitar todas as ${filtradas.length} alterações pendentes deste fornecedor? Esta ação não pode ser desfeita.`
-                            )
-                          ) {
-                            return;
-                          }
-                          void rejeitarEmMassa(filtradas.map((x) => x.id));
+                          const ids = filtradas.map((x) => x.id);
+                          setConfirmacao({
+                            titulo: "Rejeitar todas?",
+                            mensagem: `Rejeitar todas as ${ids.length} alterações pendentes deste fornecedor? Esta ação não pode ser desfeita.`,
+                            onConfirmar: () => {
+                              setConfirmacao(null);
+                              void rejeitarEmMassa(ids);
+                            },
+                          });
                         }}
                         disabled={actingBulk || filtradas.length === 0}
                         className="inline-flex flex-1 items-center justify-center rounded-md border border-red-600 bg-red-100 px-2.5 py-1.5 text-[11px] font-semibold text-red-800 transition hover:bg-red-100/60 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/80 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50 sm:min-w-[240px] sm:flex-none"
@@ -662,6 +669,31 @@ export default function AdminAlteracoesProdutosPage() {
           </div>
         )}
       </div>
+
+      {confirmacao ? (
+        <ModalOverlay onBackdropClick={() => setConfirmacao(null)}>
+          <div className={cn(MODAL_PANEL_BODY_CLASS, "p-5")}>
+            <p className="font-semibold text-[var(--foreground)]">{confirmacao.titulo}</p>
+            <p className="mt-1.5 text-sm text-[var(--muted)]">{confirmacao.mensagem}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmacao(null)}
+                className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmacao.onConfirmar}
+                className="rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:opacity-90 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20"
+              >
+                Rejeitar
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      ) : null}
     </div>
   );
 }

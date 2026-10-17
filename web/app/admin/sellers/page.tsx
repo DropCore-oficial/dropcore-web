@@ -28,6 +28,17 @@ function diasParaVencerConvite(iso: string): number {
   return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
 }
 
+/** Números de página com reticências pra não estourar a barra quando há muitas páginas. */
+function getPageNumbers(current: number, total: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | "...")[] = [1];
+  if (current > 3) pages.push("...");
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) pages.push(p);
+  if (current < total - 2) pages.push("...");
+  pages.push(total);
+  return pages;
+}
+
 const modalOverlay: React.CSSProperties = {
   position: "fixed",
   inset: 0,
@@ -47,6 +58,9 @@ export default function AdminSellersPage() {
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalSellers, setTotalSellers] = useState(0);
   const [modalNew, setModalNew] = useState(false);
   const [newNome, setNewNome] = useState("");
   const [newSending, setNewSending] = useState(false);
@@ -82,13 +96,16 @@ export default function AdminSellersPage() {
         const params = new URLSearchParams();
         if (statusFilter) params.set("status", statusFilter);
         if (q) params.set("q", q);
+        params.set("page", String(page));
+        params.set("limit", String(pageSize));
         const res = await fetch(`/api/org/sellers?${params}`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
         const data = await res.json();
         if (cancelled) return;
         if (!res.ok) throw new Error(data?.error || "Erro ao carregar");
-        setSellers(Array.isArray(data) ? data : []);
+        setSellers(Array.isArray(data?.items) ? data.items : []);
+        setTotalSellers(typeof data?.total_count === "number" ? data.total_count : 0);
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Erro");
         if (!cancelled) setSellers([]);
@@ -97,7 +114,11 @@ export default function AdminSellersPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [orgId, statusFilter, q]);
+  }, [orgId, statusFilter, q, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, q]);
 
   async function createSeller() {
     if (!newNome.trim()) {
@@ -207,6 +228,86 @@ export default function AdminSellersPage() {
               </div>
             </button>
           ))}
+        </div>
+      )}
+
+      {!listLoading && totalSellers > 0 && (
+        <div className="mt-4 flex flex-col items-center gap-3 pt-1 sm:flex-row sm:justify-between">
+          <p className="text-xs text-[var(--muted)]">
+            Total <span className="font-semibold text-[var(--foreground)]">{totalSellers}</span> seller
+            {totalSellers !== 1 ? "s" : ""}
+          </p>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              aria-label="Página anterior"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+            </button>
+            {getPageNumbers(page, Math.max(1, Math.ceil(totalSellers / pageSize))).map((p, idx) =>
+              p === "..." ? (
+                <span key={`ellipsis-${idx}`} className="px-1 text-xs text-[var(--muted)]">
+                  …
+                </span>
+              ) : (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPage(p)}
+                  aria-current={p === page ? "page" : undefined}
+                  className={cn(
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold transition-colors",
+                    p === page
+                      ? "bg-emerald-600 text-white"
+                      : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                  )}
+                >
+                  {p}
+                </button>
+              )
+            )}
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(Math.max(1, Math.ceil(totalSellers / pageSize)), p + 1))}
+              disabled={page >= Math.max(1, Math.ceil(totalSellers / pageSize))}
+              aria-label="Próxima página"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </button>
+            <div className="relative ml-1.5 shrink-0">
+              <div
+                aria-hidden
+                className="pointer-events-none flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)]"
+              >
+                {pageSize}/página
+                <svg className="h-3.5 w-3.5 shrink-0 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </div>
+              <select
+                aria-label="Itens por página"
+                value={pageSize}
+                onChange={(e) => {
+                  setPage(1);
+                  setPageSize(Number(e.target.value));
+                }}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              >
+                <option value={20}>20/página</option>
+                <option value={50}>50/página</option>
+                <option value={100}>100/página</option>
+                <option value={300}>300/página</option>
+              </select>
+            </div>
+          </div>
         </div>
       )}
 

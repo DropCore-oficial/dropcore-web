@@ -10,6 +10,7 @@ import {
 } from "@/lib/sellerSkuReadiness";
 import type { LinhaCatalogoV2 } from "./aggregates";
 import { catalogoV2UrlImagem } from "./catalogoV2Imagem";
+import { ImagemMiniatura } from "@/components/ImagemMiniatura";
 import { AMBER_PREMIUM_SURFACE, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
 
@@ -35,12 +36,13 @@ function ThumbModal({ url }: { url: string | null }) {
       <div
         className={`relative h-[80px] w-[80px] shrink-0 overflow-hidden rounded-lg ${imgShell} p-1.5 shadow-[0_2px_6px_rgba(15,23,42,0.06)]`}
       >
-        <img
+        <ImagemMiniatura
           src={img}
           alt=""
-          className="h-full w-full object-contain object-center"
+          fill
+          sizes="80px"
+          className="object-contain object-center"
           loading="lazy"
-          decoding="async"
           onError={() => setFailed(true)}
         />
       </div>

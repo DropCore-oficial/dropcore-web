@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ModalOverlay } from "@/components/ui/ModalOverlay";
+import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 
 type EtiquetaItem = {
   sku_id: string | null;
@@ -105,12 +107,10 @@ export default function FornecedorPedidoEtiquetaPage() {
   }, [etiqueta, temEtiqueta]);
 
   const [reportando, setReportando] = useState(false);
+  const [confirmarReportar, setConfirmarReportar] = useState(false);
 
   async function reportarEtiquetaErrada() {
     if (!pedidoId) return;
-    if (!window.confirm("Confirma que essa etiqueta está errada pra esse pedido? Isso remove a etiqueta e avisa o seller de novo.")) {
-      return;
-    }
     setReportando(true);
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
@@ -208,7 +208,7 @@ export default function FornecedorPedidoEtiquetaPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => void reportarEtiquetaErrada()}
+                      onClick={() => setConfirmarReportar(true)}
                       disabled={reportando}
                       className="rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--danger)] underline decoration-dotted underline-offset-2 hover:opacity-80"
                       title="A etiqueta não é do pedido certo (endereço/produto não bate)"
@@ -377,6 +377,36 @@ export default function FornecedorPedidoEtiquetaPage() {
           </div>
         )}
       </div>
+
+      {confirmarReportar ? (
+        <ModalOverlay onBackdropClick={() => setConfirmarReportar(false)}>
+          <div className={MODAL_PANEL_BODY_CLASS + " p-5"}>
+            <p className="font-semibold text-[var(--foreground)]">Etiqueta errada?</p>
+            <p className="mt-1.5 text-sm text-[var(--muted)]">
+              Confirma que essa etiqueta está errada pra esse pedido? Isso remove a etiqueta e avisa o seller de novo.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmarReportar(false)}
+                className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmarReportar(false);
+                  void reportarEtiquetaErrada();
+                }}
+                className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
+import { ImagemMiniatura } from "@/components/ImagemMiniatura";
 import { fornecedorProdutoImagemSrc, linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
 
 export type FotoVariacaoCellHandle = {
@@ -214,13 +215,12 @@ export const FotoVariacaoCell = forwardRef<FotoVariacaoCellHandle | null, Props>
         }}
         className={`shrink-0 max-md:min-w-0 ${box} ${stackedLarge ? "rounded-xl" : "rounded"} border border-[var(--card-border)] overflow-hidden bg-[var(--card)] p-0 block max-md:w-full focus:outline-none focus:ring-2 focus:ring-[var(--primary-blue)] cursor-pointer touch-manipulation`}
       >
-        <img
+        <ImagemMiniatura
           src={srcThumb}
           alt="Foto"
           width={imgPx}
           height={imgPx}
           loading="lazy"
-          decoding="async"
           className="w-full h-full object-cover block"
           onError={() => setImgErro(true)}
         />
