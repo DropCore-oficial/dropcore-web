@@ -8,6 +8,7 @@ import { SellerNav } from "../SellerNav";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { AtividadeAoVivo } from "@/components/seller/SellerGestoresIaEscritorio3D";
 import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
+import { GestorAvulsoResumoDiario } from "@/components/seller/GestorAvulsoResumoDiario";
 import { buildSellerSupportWhatsAppHref } from "@/lib/sellerSupportWhatsAppPrefill";
 import { IconAndrey, IconAmanda, IconUlisses, IconTiago, IconEstoque } from "@/components/seller/GestorAvulsoIcons";
 import { GestorAvulsoPendenciasLista, type GestorPendenciaItem } from "@/components/seller/GestorAvulsoPendenciasLista";
@@ -278,6 +279,8 @@ export default function GestoresIaAvulsoPage() {
           atividades={montarAtividades(andreyRun, amandaRun, ulissesRun, estoqueRun)}
           nomeResponsavel={null}
         />
+
+        <GestorAvulsoResumoDiario />
 
         <GestorAvulsoPendenciasLista
           itens={[

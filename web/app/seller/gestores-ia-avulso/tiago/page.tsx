@@ -15,88 +15,6 @@ import { buildSellerSupportWhatsAppHref } from "@/lib/sellerSupportWhatsAppPrefi
 type Mensagem = { id: string; role: "user" | "assistant"; content: string; criado_em: string };
 type Sessao = { id: string; titulo: string | null; criado_em: string; atualizado_em: string };
 
-type PropostaResumoDiario = {
-  gestor: "estoque" | "reputacao_atendimento" | "ads" | "anuncios_seo";
-  gestor_nome: string;
-  item_ou_sku: string;
-  acao: string;
-  motivo: string;
-  severidade: number;
-};
-type ResumoDiario = { top3: PropostaResumoDiario[]; total_candidatas: number; gestores_sem_rodada: string[] };
-
-const ROTA_POR_GESTOR: Record<PropostaResumoDiario["gestor"], string> = {
-  estoque: "/seller/gestores-ia-avulso/estoque",
-  ads: "/seller/gestores-ia-avulso/ulisses",
-  anuncios_seo: "/seller/gestores-ia-avulso/andrey",
-  reputacao_atendimento: "/seller/gestores-ia-avulso/amanda",
-};
-
-const BADGE_SEVERIDADE: Record<"urgente" | "atencao" | "oportunidade", string> = {
-  urgente: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
-  atencao: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
-  oportunidade: "bg-[var(--muted)]/15 text-[var(--muted)]",
-};
-
-function rotuloSeveridade(severidade: number): "urgente" | "atencao" | "oportunidade" {
-  if (severidade >= 2.5) return "urgente";
-  if (severidade >= 1) return "atencao";
-  return "oportunidade";
-}
-
-function ResumoDiarioCard({ resumo }: { resumo: ResumoDiario }) {
-  if (resumo.top3.length === 0) {
-    return (
-      <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 text-sm text-[var(--muted)] shadow-sm sm:p-5">
-        Nenhuma ação prioritária agora.
-        {resumo.gestores_sem_rodada.length > 0
-          ? ` ${resumo.gestores_sem_rodada.join(", ")} ainda não rodou — o resumo fica mais completo depois.`
-          : ""}
-      </div>
-    );
-  }
-
-  return (
-    <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
-      <h2 className="text-sm font-semibold text-[var(--foreground)]">Resumo de hoje — as 3 ações mais importantes</h2>
-      <div className="mt-3 space-y-2.5">
-        {resumo.top3.map((p, i) => {
-          const rotulo = rotuloSeveridade(p.severidade);
-          return (
-            <article key={`${p.gestor}-${i}`} className="rounded-xl border border-[var(--card-border)] p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-medium text-[var(--foreground)]">{p.item_ou_sku}</p>
-                <span
-                  className={cn(
-                    "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
-                    BADGE_SEVERIDADE[rotulo]
-                  )}
-                >
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                  {p.gestor_nome}
-                </span>
-              </div>
-              <p className="mt-1.5 text-sm text-[var(--foreground)]">{p.acao}</p>
-              <p className="mt-1 text-xs text-[var(--muted)]">{p.motivo}</p>
-              <Link
-                href={ROTA_POR_GESTOR[p.gestor]}
-                className="mt-1.5 inline-block text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
-              >
-                Resolver no {p.gestor_nome} →
-              </Link>
-            </article>
-          );
-        })}
-      </div>
-      {resumo.gestores_sem_rodada.length > 0 ? (
-        <p className="mt-3 text-xs text-[var(--muted)]">
-          {resumo.gestores_sem_rodada.join(", ")} ainda não rodou — o resumo fica mais completo depois.
-        </p>
-      ) : null}
-    </section>
-  );
-}
-
 /** Mesma linguagem de ícone já usada nas abas do Anúncio/ADS (pergunta sem resposta ~
  * balão de chat, margem ~ cifrão cortado, resumo ~ ficha) — reaproveitada aqui de propósito
  * pra dar consistência visual entre os gestores. */
@@ -167,7 +85,6 @@ export default function TiagoAvulsoPage() {
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [usoTokensHoje, setUsoTokensHoje] = useState<UsoTokensHoje | null>(null);
   const [bloqueadoHoje, setBloqueadoHoje] = useState(false);
-  const [resumoDiario, setResumoDiario] = useState<ResumoDiario | null>(null);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [erroEnvio, setErroEnvio] = useState<string | null>(null);
@@ -210,19 +127,6 @@ export default function TiagoAvulsoPage() {
   useEffect(() => {
     void carregar();
   }, [carregar]);
-
-  useEffect(() => {
-    void (async () => {
-      const token = await getAccessToken();
-      if (!token) return;
-      const res = await fetch("/api/gestores-ia-avulso/tiago/resumo-diario", {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-      const json = await res.json().catch(() => null);
-      if (res.ok && json?.liberado !== false) setResumoDiario(json);
-    })();
-  }, []);
 
   useEffect(() => {
     fimRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -397,7 +301,6 @@ export default function TiagoAvulsoPage() {
         ) : (
           <div className="space-y-3">
             <GestorAvulsoOrcamentoBar usoTokensHoje={usoTokensHoje} bloqueadoHoje={bloqueadoHoje} />
-            {resumoDiario ? <ResumoDiarioCard resumo={resumoDiario} /> : null}
 
             <div className="flex items-center gap-2">
               {sessoes.length > 1 && (

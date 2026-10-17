@@ -19,14 +19,6 @@ export const SEVERIDADE_TEXT_CLASS: Record<Severidade, string> = {
   neutro: "text-[var(--muted)]",
 };
 
-/** Ordem de urgência pra ordenar lista de pendências — maior primeiro. */
-export const SEVERIDADE_RANK: Record<Severidade, number> = {
-  critica: 3,
-  atencao: 2,
-  sucesso: 1,
-  neutro: 0,
-};
-
 type AndreyAnuncio = { chave: string; diagnostico: string; observacao: string; item_id_representante: string };
 export type AndreyRun = {
   status: "pendente" | "ok" | "erro";

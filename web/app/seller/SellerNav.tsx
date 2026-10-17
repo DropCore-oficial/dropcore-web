@@ -353,6 +353,7 @@ const GESTORES_IA_SUBITENS = [
   { href: "/seller/gestores-ia-avulso/andrey", label: "Anúncio" },
   { href: "/seller/gestores-ia-avulso/amanda", label: "SAC" },
   { href: "/seller/gestores-ia-avulso/ulisses", label: "ADS" },
+  { href: "/seller/gestores-ia-avulso/estoque", label: "Estoque" },
   { href: "/seller/gestores-ia-avulso/tiago", label: "Gestor" },
 ] as const;
 

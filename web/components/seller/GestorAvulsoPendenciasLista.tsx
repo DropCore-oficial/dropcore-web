@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { type Severidade, SEVERIDADE_TEXT_CLASS, SEVERIDADE_RANK } from "@/lib/ai/gestorAvulsoStatusResumo";
+import { type Severidade, SEVERIDADE_TEXT_CLASS } from "@/lib/ai/gestorAvulsoStatusResumo";
 
 export type GestorPendenciaItem = {
   href: string;
@@ -23,21 +23,16 @@ export type GestorPendenciaItem = {
 const GESTOR_ICON_CHIP_CLASS =
   "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] text-[var(--foreground)]";
 
-export function ordenarPendenciasPorUrgencia(itens: GestorPendenciaItem[]): GestorPendenciaItem[] {
-  return [...itens].sort((a, b) => SEVERIDADE_RANK[b.severidade] - SEVERIDADE_RANK[a.severidade]);
-}
-
-/** Lista compacta de status dos gestores, mais urgente primeiro — substitui (2026-10-15) o
- * grid de cards grandes `GestorCardAvulso` que vivia só no hub. Reaproveitada no hub
- * (`/seller/gestores-ia-avulso`, sem `titulo` — as linhas vão soltas, o cabeçalho da página
- * já dá contexto) e no Dashboard (`/seller/gestores-ia-avulso/dashboard`, com `titulo`,
- * dentro do próprio card "Pendências dos gestores"). */
+/** Lista compacta de status dos gestores, na mesma sequência do menu "Gestor de IA"
+ * (`GESTORES_IA_SUBITENS` em `SellerNav.tsx`) — ordem fixa, não por urgência (ajuste
+ * 2026-10-16, pedido do Sr Stark: a lista ficava fora de ordem em relação ao menu quando um
+ * gestor tinha severidade maior). Substitui (2026-10-15) o grid de cards grandes
+ * `GestorCardAvulso` que vivia só no hub. Usada no hub (`/seller/gestores-ia-avulso`, sem
+ * `titulo` — as linhas vão soltas, o cabeçalho da página já dá contexto). */
 export function GestorAvulsoPendenciasLista({ itens, titulo }: { itens: GestorPendenciaItem[]; titulo?: string }) {
-  const ordenados = ordenarPendenciasPorUrgencia(itens);
-
   const lista = (
     <div className="space-y-2">
-      {ordenados.map((item) => (
+      {itens.map((item) => (
         <Link
           key={item.href}
           href={item.href}
