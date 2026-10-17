@@ -26,7 +26,7 @@ function escapeHtml(s: string): string {
 
 function renderEmailHtml(params: { titulo: string; mensagem: string; ctaUrl?: string; ctaLabel?: string }): string {
   const titulo = escapeHtml(params.titulo);
-  const mensagem = escapeHtml(params.mensagem);
+  const mensagem = escapeHtml(params.mensagem).replace(/\n/g, "<br>");
   const ctaLabel = params.ctaLabel ? escapeHtml(params.ctaLabel) : undefined;
   const cta =
     params.ctaUrl && ctaLabel

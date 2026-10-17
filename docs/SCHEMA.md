@@ -1642,6 +1642,26 @@ nova, zero banco/RPC novo — só cruzamento de dado já buscado/testado.
   categoria humana, e "perguntas repetidas" como série histórica (hoje só pega pendentes do
   momento).
 
+## "Reunião matinal" dos gestores avulso + notificação proativa (v2, 2026-10-16)
+
+Primeiro item do backlog de v2 do roadmap dos 13 gestores (ver `docs/SCHEMA.md` seção
+"Estoque avulso" e a memória `project_doc_13_gestores_absorcao_avulso`). Até aqui o resumo
+diário do Gestor (`montarResumoDiarioAvulso`) só calculava quando o assinante abria o chat ou
+a tela — nunca rodava por conta própria. Entrega: cron que roda depois que os 4 gestores já
+terminaram (Anúncio 8h, SAC 8h15, ADS 8h30, Estoque 8h45) e notifica de verdade.
+
+- `web/lib/ai/gestorNotificacaoAvulso.ts` — `notificarAssinanteResumoDiarioAvulso(assinanteId,
+  top3)`, espelha `gestorNotificacao.ts` do hub trocando `sellers`→`calculadora_assinantes`.
+  Grava em `notifications` (sino) e chama `notifyUserEmail` (`lib/notifyEmail.ts`, já em
+  produção via Resend) — e-mail de verdade, não só sino. **Só notifica quando `top3.length >
+  0`** — não manda "nada pra ver hoje" todo dia, seria ruído.
+- `web/app/api/cron/gestores-ia-avulso-resumo-diario/route.ts` — mesmo padrão de
+  `CRON_SECRET` e filtro de assinante elegível (`inclui_gestores_ia = true` com
+  `calculadora_assinante_mercadolivre_integrations!inner`) dos crons irmãos. Zero banco novo:
+  `notifications` já é chaveada por `user_id`, que `calculadora_assinantes` já tem.
+- `web/scripts/add-cron-gestores-ia-avulso-resumo-diario.sql` — `9 9 * * *` (depois dos 4
+  gestores). **Aplicado em produção em 2026-10-16.**
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

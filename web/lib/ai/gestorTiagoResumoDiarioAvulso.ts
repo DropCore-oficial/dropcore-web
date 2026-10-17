@@ -182,22 +182,44 @@ function propostasSac(resultado: ResultadoReputacaoAtendimentoEnriquecido): Prop
 
 type RunRow<T> = { resultado: T | null };
 
-/** `null` quando o gestor nunca rodou pra esse assinante — nunca inventa proposta. */
-async function ultimaRodada<T>(assinanteId: string, gestor: GestorIdResumoAvulso): Promise<T | null> {
+async function buscarRodadas<T>(assinanteId: string, gestor: GestorIdResumoAvulso, limit: number): Promise<T[]> {
   const { data } = await supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
     p_assinante_id: assinanteId,
     p_gestor: gestor,
-    p_limit: 1,
+    p_limit: limit,
   });
-  const linha = ((data ?? []) as RunRow<T>[])[0];
-  return linha?.resultado ?? null;
+  return ((data ?? []) as RunRow<T>[]).map((l) => l.resultado).filter((r): r is T => r !== null);
+}
+
+/** `null` quando o gestor nunca rodou pra esse assinante — nunca inventa proposta. */
+async function ultimaRodada<T>(assinanteId: string, gestor: GestorIdResumoAvulso): Promise<T | null> {
+  const [rodada] = await buscarRodadas<T>(assinanteId, gestor, 1);
+  return rodada ?? null;
+}
+
+function ehResumoAnuncioSeo(resultado: unknown): resultado is ResultadoAnunciosSeoEnriquecidoAvulso {
+  return (
+    !!resultado &&
+    typeof resultado === "object" &&
+    Array.isArray((resultado as { anuncios?: unknown }).anuncios)
+  );
+}
+
+/**
+ * O gestor Anúncio grava na mesma tabela rodadas da varredura diária de SEO e rodadas da
+ * feature separada "ideias de produto novo" (`tipo: "ideias_produto_novo"`) — pega a mais
+ * recente que seja de fato a varredura de SEO, ignorando as de ideias pelo caminho.
+ */
+async function ultimaRodadaAnuncioSeo(assinanteId: string): Promise<ResultadoAnunciosSeoEnriquecidoAvulso | null> {
+  const rodadas = await buscarRodadas<unknown>(assinanteId, "anuncios_seo", 10);
+  return rodadas.find(ehResumoAnuncioSeo) ?? null;
 }
 
 export async function montarResumoDiarioAvulso(assinanteId: string): Promise<ResumoDiarioAvulso> {
   const [estoque, ads, anuncio, sac] = await Promise.all([
     ultimaRodada<ResultadoEstoqueAvulsoEnriquecido>(assinanteId, "estoque"),
     ultimaRodada<ResultadoAdsAvulsoEnriquecido>(assinanteId, "ads"),
-    ultimaRodada<ResultadoAnunciosSeoEnriquecidoAvulso>(assinanteId, "anuncios_seo"),
+    ultimaRodadaAnuncioSeo(assinanteId),
     ultimaRodada<ResultadoReputacaoAtendimentoEnriquecido>(assinanteId, "reputacao_atendimento"),
   ]);
 

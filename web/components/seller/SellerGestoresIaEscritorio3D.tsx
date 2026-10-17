@@ -1126,12 +1126,14 @@ export function SellerGestoresIaEscritorio3D({
       agentLabels[nome] = tag;
     });
 
-    // Modo mesa vs reunião — TWEEN anima posição + rotação de verdade
+    // Modo mesa vs reunião — TWEEN anima posição + rotação de verdade. "Seller" (dono da
+    // conta) nunca vai pra reunião — quem se reúne é só a equipe de IA (Diogo/Andrey/Amanda/
+    // Ulisses/TiagoSilva); pedido do Sr Stark 2026-10-16.
     let modoAtual: "individual" | "reuniao" = "individual";
     function aplicarModo(m: "individual" | "reuniao") {
       modoAtual = m;
       setModoState(m);
-      NOMES_GESTOR.forEach((nome) => {
+      NOMES_GESTOR.filter((nome) => nome !== "Seller").forEach((nome) => {
         const cfg = GESTORES[nome];
         const mesh = agentMeshes[nome];
         if (!mesh) return;

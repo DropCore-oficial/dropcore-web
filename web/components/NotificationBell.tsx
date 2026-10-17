@@ -291,7 +291,9 @@ export function NotificationBell({
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-[var(--foreground)]">{n.titulo}</p>
                         {n.mensagem && (
-                          <p className={`mt-0.5 text-xs text-[var(--muted)] ${isExpanded ? "" : "line-clamp-2"}`}>
+                          <p
+                            className={`mt-0.5 whitespace-pre-line text-xs text-[var(--muted)] ${isExpanded ? "" : "line-clamp-2"}`}
+                          >
                             {n.mensagem}
                           </p>
                         )}
