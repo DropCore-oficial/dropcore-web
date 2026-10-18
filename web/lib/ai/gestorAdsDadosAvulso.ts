@@ -28,6 +28,9 @@ import {
   mlBuscarCustoRealEnvioParaDestino,
   mlBuscarPromocoesAtivas,
   mlBuscarPromocaoAtivaItem,
+  mlBuscarAdvertiserId,
+  mlBuscarCampanhasAdsComMetricas,
+  mlBuscarResumoPedidosPeriodo,
   type MercadoLivreAuthContext,
 } from "@/lib/mercadoLivreApiClient";
 import { getValidMercadoLivreAvulsoAccessToken } from "@/lib/mercadoLivreAvulsoToken";
@@ -255,6 +258,13 @@ export type SkuResultadoAdsAvulso = {
   afiliado_pct_teto_seguro: number | null;
   preco_original: number | null;
   desconto_ativo_pct: number;
+  /** Código do tipo (ex. `SELLER_CAMPAIGN`, `SMART`, `LIGHTNING`) — front traduz via
+   * `PROMOCAO_TIPO_LABEL`, mesmo mapa já usado em `PromocaoContaLinha` (separado do nome
+   * desde 2026-10-17; antes vinha concatenado cru `"SELLER_CAMPAIGN \"DESCONTO OUTUBRO\""`,
+   * ilegível e inconsistente com o resto da tela). */
+  desconto_ativo_tipo: string | null;
+  /** Nome que o próprio seller deu à campanha (ex. "DESCONTO OUTUBRO") — `null` quando o
+   * tipo não tem nome customizado (ex. Oferta Relâmpago). */
   desconto_ativo_nome: string | null;
   desconto_ativo_fim: string | null;
   /** Todos os anúncios (item_id) que compõem essa família — aplicar promoção precisa atingir
@@ -284,7 +294,159 @@ export type ResultadoAdsAvulsoEnriquecido = {
   cupom_ativo_na_conta: boolean;
   promocoes_conta: PromocaoContaResumo[];
   campanhas: ReturnType<typeof campanhaParaJson>[];
+  /** Calendário fixo curado (não vem de API — pesquisado 2026-10-17: o Mercado Livre não
+   * expõe endpoint de leitura de calendário comercial, só `POST` de campanha própria). */
+  calendario_datas_fortes: DataComercial[];
+  /** Dado real da própria conta (soma de campanhas de Ads nos últimos 90 dias) — `null`
+   * quando a conta nunca teve Ads habilitado/nunca gastou nada no período, pra não mostrar
+   * bloco zerado sem sentido. Nunca é projeção/estimativa. */
+  historico_ads_real: HistoricoAdsReal;
+  /** Métrica de valor (B5) — pra cada promoção aplicada recentemente via botão, quantas
+   * unidades venderam de verdade desde então. Puramente descritivo, nunca afirma causa. */
+  valor_acoes_recentes: ValorAcaoAdsAvulso[];
 };
+
+// --- Calendário de datas comerciais fortes — fixo, curado, sem API (2026-10-17) ------------
+//
+// Mercado Livre não expõe endpoint de leitura de calendário promocional (testado ao vivo:
+// `/seller-promotions/users/{id}/offers` 404, `/marketplace/seller-promotions/seller-
+// campaign/{id}` existe mas só aceita POST pra criar campanha própria, não lista datas).
+// Datas variáveis (Black Friday/Dia das Mães/Dia dos Pais) são calculadas, não hardcoded por
+// ano, pra não ficar stale — fixas (Natal, Dia dos Namorados etc.) usam o mesmo dia todo ano.
+
+export type DataComercial = { nome: string; data: string; dias_restantes: number };
+
+function nthWeekday(ano: number, mes0: number, diaSemana: number, n: number): Date {
+  const primeiro = new Date(ano, mes0, 1);
+  const diff = (diaSemana - primeiro.getDay() + 7) % 7;
+  return new Date(ano, mes0, 1 + diff + (n - 1) * 7);
+}
+
+function lastWeekday(ano: number, mes0: number, diaSemana: number): Date {
+  const ultimo = new Date(ano, mes0 + 1, 0);
+  const diff = (ultimo.getDay() - diaSemana + 7) % 7;
+  return new Date(ano, mes0, ultimo.getDate() - diff);
+}
+
+function datasComerciaisDoAno(ano: number): { nome: string; data: Date }[] {
+  const blackFriday = lastWeekday(ano, 10, 5); // última sexta de novembro
+  const cyberMonday = new Date(blackFriday);
+  cyberMonday.setDate(cyberMonday.getDate() + 3);
+  return [
+    { nome: "Dia do Consumidor", data: new Date(ano, 2, 15) },
+    { nome: "Dia das Mães", data: nthWeekday(ano, 4, 0, 2) }, // 2º domingo de maio
+    { nome: "Dia dos Namorados", data: new Date(ano, 5, 12) },
+    { nome: "Dia dos Pais", data: nthWeekday(ano, 7, 0, 2) }, // 2º domingo de agosto
+    { nome: "Dia das Crianças", data: new Date(ano, 9, 12) },
+    { nome: "Black Friday", data: blackFriday },
+    { nome: "Cyber Monday", data: cyberMonday },
+    { nome: "Natal", data: new Date(ano, 11, 25) },
+  ];
+}
+
+const DATAS_FORTES_LIMITE = 3;
+
+export function proximasDatasComerciais(hoje: Date = new Date()): DataComercial[] {
+  const hojeZerado = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const candidatas = [...datasComerciaisDoAno(hoje.getFullYear()), ...datasComerciaisDoAno(hoje.getFullYear() + 1)]
+    .filter((d) => d.data.getTime() >= hojeZerado.getTime())
+    .sort((a, b) => a.data.getTime() - b.data.getTime());
+
+  return candidatas.slice(0, DATAS_FORTES_LIMITE).map((d) => ({
+    nome: d.nome,
+    data: d.data.toISOString().slice(0, 10),
+    dias_restantes: Math.round((d.data.getTime() - hojeZerado.getTime()) / (1000 * 60 * 60 * 24)),
+  }));
+}
+
+// --- Histórico real de Ads (dado de verdade, não projeção) --------------------------------
+
+export type HistoricoAdsReal = { periodo_dias: number; gasto_total: number; venda_total: number; roas: number | null } | null;
+
+const HISTORICO_ADS_DIAS = 90;
+
+/** Soma real de todas as campanhas de Ads nos últimos `HISTORICO_ADS_DIAS` — usado no painel
+ * pra mostrar "nas suas últimas campanhas, o Ads trouxe R$X em vendas" com dado de verdade,
+ * em vez de uma estimativa de lucro de promoção futura (decisão 2026-10-17: nunca projetar).
+ * `null` quando Ads nunca foi habilitado ou não gastou nada no período — não mostra bloco
+ * zerado sem sentido. */
+async function buscarHistoricoAdsReal(ctx: MercadoLivreAuthContext): Promise<HistoricoAdsReal> {
+  const advertiserId = await mlBuscarAdvertiserId(ctx);
+  if (!advertiserId) return null;
+
+  const hoje = new Date();
+  const desde = new Date(hoje);
+  desde.setDate(desde.getDate() - HISTORICO_ADS_DIAS);
+
+  const campanhas = await mlBuscarCampanhasAdsComMetricas(
+    ctx,
+    advertiserId,
+    "MLB",
+    desde.toISOString().slice(0, 10),
+    hoje.toISOString().slice(0, 10)
+  );
+  const gastoTotal = campanhas.reduce((s, c) => s + (c.metrics?.cost ?? 0), 0);
+  const vendaTotal = campanhas.reduce((s, c) => s + (c.metrics?.total_amount ?? 0), 0);
+  if (gastoTotal === 0 && vendaTotal === 0) return null;
+
+  return {
+    periodo_dias: HISTORICO_ADS_DIAS,
+    gasto_total: gastoTotal,
+    venda_total: vendaTotal,
+    roas: gastoTotal > 0 ? vendaTotal / gastoTotal : null,
+  };
+}
+
+// --- Métrica de valor (B5, 2026-10-17) — vendas reais depois de uma promoção aplicada ----
+//
+// Dado puramente descritivo, nunca causal: "desde que você aplicou, vendeu X unidades,
+// faturou R$Y" — NÃO afirma que a promoção causou a venda (isso exigiria comparar com um
+// cenário sem promoção, que não temos como saber). Só o fato real depois da ação.
+
+export type ValorAcaoAdsAvulso = {
+  item_id: string;
+  aplicado_em: string;
+  valor_antes: number | null;
+  valor_depois: number | null;
+  unidades_vendidas_depois: number;
+  faturamento_depois: number;
+};
+
+const MAX_ACOES_VALOR_ADS = 10;
+
+async function buscarValorAcoesAdsAvulso(
+  assinanteId: string,
+  ctx: MercadoLivreAuthContext
+): Promise<ValorAcaoAdsAvulso[]> {
+  const { data } = await supabaseAdmin
+    .from("calculadora_assinante_ai_acoes")
+    .select("item_id, valor_antes, valor_depois, criado_em")
+    .eq("assinante_id", assinanteId)
+    .eq("gestor", "ads")
+    .eq("tipo_acao", "aplicar_promocao_lote")
+    .order("criado_em", { ascending: false })
+    .limit(MAX_ACOES_VALOR_ADS);
+
+  type AcaoRow = { item_id: string | null; valor_antes: number | null; valor_depois: number | null; criado_em: string };
+  const acoes = ((data ?? []) as AcaoRow[]).filter((a) => a.item_id);
+  if (acoes.length === 0) return [];
+
+  const agora = new Date().toISOString();
+  return Promise.all(
+    acoes.map(async (a) => {
+      const resumo = await mlBuscarResumoPedidosPeriodo(ctx, a.criado_em, agora).catch(() => null);
+      const item = resumo?.itens.find((i) => i.itemId === a.item_id);
+      return {
+        item_id: a.item_id as string,
+        aplicado_em: a.criado_em,
+        valor_antes: a.valor_antes,
+        valor_depois: a.valor_depois,
+        unidades_vendidas_depois: item?.quantidade ?? 0,
+        faturamento_depois: item?.faturamento ?? 0,
+      };
+    })
+  );
+}
 
 /** Folga mínima (pontos de margem) pra sugerir subir o % de afiliado — abaixo disso a
  * sugestão seria ruído. Mesmo valor do hub (`AFILIADO_HEADROOM_MINIMO_PCT` em
@@ -317,17 +479,26 @@ export async function montarResultadoAdsAvulso(assinanteId: string): Promise<Res
   const periodoInicio = inicioMes.toISOString().slice(0, 10);
   const periodoFim = hoje.toISOString().slice(0, 10);
 
-  const [grupos, custosPorChave, metricasAds, promocoesAtivas, estoqueRunRes] = await Promise.all([
-    buscarCatalogoAgrupado(ctx),
-    buscarCustosUlissesAvulso(assinanteId),
-    buscarMetricasAdsPorChave(ctx, "MLB", periodoInicio, periodoFim),
-    mlBuscarPromocoesAtivas(ctx),
-    supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
-      p_assinante_id: assinanteId,
-      p_gestor: "estoque",
-      p_limit: 1,
-    }),
-  ]);
+  const [grupos, custosPorChave, metricasAds, promocoesAtivas, estoqueRunRes, historicoAdsReal, valorAcoesRecentes] =
+    await Promise.all([
+      buscarCatalogoAgrupado(ctx),
+      buscarCustosUlissesAvulso(assinanteId),
+      buscarMetricasAdsPorChave(ctx, "MLB", periodoInicio, periodoFim),
+      mlBuscarPromocoesAtivas(ctx),
+      supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
+        p_assinante_id: assinanteId,
+        p_gestor: "estoque",
+        p_limit: 1,
+      }),
+      buscarHistoricoAdsReal(ctx).catch((e) => {
+        console.error("[gestorAdsDadosAvulso] histórico real de Ads falhou", e);
+        return null;
+      }),
+      buscarValorAcoesAdsAvulso(assinanteId, ctx).catch((e) => {
+        console.error("[gestorAdsDadosAvulso] valor de ações recentes falhou", e);
+        return [] as ValorAcaoAdsAvulso[];
+      }),
+    ]);
   if (grupos.length === 0) return null;
 
   // Cruzamento com o Estoque avulso (quando já rodou alguma vez) — mesma chave de família
@@ -374,12 +545,14 @@ export async function montarResultadoAdsAvulso(assinanteId: string): Promise<Res
       const precoOriginal = detalhe?.original_price ?? null;
       const descontoAtivoPct =
         precoOriginal != null && precoOriginal > grupo.preco ? ((precoOriginal - grupo.preco) / precoOriginal) * 100 : 0;
+      let descontoAtivoTipo: string | null = null;
       let descontoAtivoNome: string | null = null;
       let descontoAtivoFim: string | null = null;
       if (descontoAtivoPct > DESCONTO_ATIVO_MINIMO_PCT && precoOriginal != null) {
         const promosAtivas = await mlBuscarPromocaoAtivaItem(grupo.itemIdRepresentante, ctx);
         const promo = promosAtivas[0];
-        descontoAtivoNome = promo ? `${promo.type}${promo.name ? ` "${promo.name}"` : ""}` : null;
+        descontoAtivoTipo = promo?.type ?? null;
+        descontoAtivoNome = promo?.name ?? null;
         descontoAtivoFim = promo?.finish_date?.slice(0, 10) ?? null;
       }
 
@@ -412,6 +585,7 @@ export async function montarResultadoAdsAvulso(assinanteId: string): Promise<Res
           afiliado_pct_teto_seguro: null,
           preco_original: precoOriginal,
           desconto_ativo_pct: descontoAtivoPct,
+          desconto_ativo_tipo: descontoAtivoTipo,
           desconto_ativo_nome: descontoAtivoNome,
           desconto_ativo_fim: descontoAtivoFim,
           membros,
@@ -483,6 +657,7 @@ export async function montarResultadoAdsAvulso(assinanteId: string): Promise<Res
         afiliado_pct_teto_seguro: afiliadoPctTetoSeguro,
         preco_original: precoOriginal,
         desconto_ativo_pct: descontoAtivoPct,
+        desconto_ativo_tipo: descontoAtivoTipo,
         desconto_ativo_nome: descontoAtivoNome,
         desconto_ativo_fim: descontoAtivoFim,
         membros,
@@ -508,5 +683,8 @@ export async function montarResultadoAdsAvulso(assinanteId: string): Promise<Res
     cupom_ativo_na_conta: cupomAtivoNaConta,
     promocoes_conta: promocoesConta,
     campanhas,
+    calendario_datas_fortes: proximasDatasComerciais(),
+    historico_ads_real: historicoAdsReal,
+    valor_acoes_recentes: valorAcoesRecentes,
   };
 }

@@ -46,10 +46,16 @@ export type PropostaResumoDiarioAvulso = {
   avaliar_em_dias: number;
 };
 
+export type EngajamentoGestorAvulso = { gestor: GestorIdResumoAvulso; gestor_nome: string; qtd_acoes_30d: number };
+
 export type ResumoDiarioAvulso = {
   top3: PropostaResumoDiarioAvulso[];
   total_candidatas: number;
   gestores_sem_rodada: string[];
+  /** Quantas sugestões o assinante aplicou de verdade (clique real, não estimativa) por
+   * gestor, últimos 30 dias — loop de aprendizado (2026-10-17): o Gestor usa isso pra
+   * perceber quais gestores o assinante realmente usa, não só o que foi sugerido. */
+  engajamento: EngajamentoGestorAvulso[];
 };
 
 function montarProposta(
@@ -216,12 +222,28 @@ async function ultimaRodadaAnuncioSeo(assinanteId: string): Promise<ResultadoAnu
 }
 
 export async function montarResumoDiarioAvulso(assinanteId: string): Promise<ResumoDiarioAvulso> {
-  const [estoque, ads, anuncio, sac] = await Promise.all([
+  const [estoque, ads, anuncio, sac, acoesResumo] = await Promise.all([
     ultimaRodada<ResultadoEstoqueAvulsoEnriquecido>(assinanteId, "estoque"),
     ultimaRodada<ResultadoAdsAvulsoEnriquecido>(assinanteId, "ads"),
     ultimaRodadaAnuncioSeo(assinanteId),
     ultimaRodada<ResultadoReputacaoAtendimentoEnriquecido>(assinanteId, "reputacao_atendimento"),
+    supabaseAdmin
+      .rpc("fn_calculadora_assinante_ai_acoes_resumo", { p_assinante_id: assinanteId, p_dias: 30 })
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("[gestorTiagoResumoDiarioAvulso] resumo de ações falhou", error);
+          return [] as { gestor: GestorIdResumoAvulso; qtd_acoes: number }[];
+        }
+        return (data ?? []) as { gestor: GestorIdResumoAvulso; qtd_acoes: number }[];
+      }),
   ]);
+
+  const qtdAcoesPorGestor = new Map(acoesResumo.map((r) => [r.gestor, r.qtd_acoes]));
+  const engajamento: EngajamentoGestorAvulso[] = (Object.keys(NOME_GESTOR) as GestorIdResumoAvulso[]).map((g) => ({
+    gestor: g,
+    gestor_nome: NOME_GESTOR[g],
+    qtd_acoes_30d: qtdAcoesPorGestor.get(g) ?? 0,
+  }));
 
   const gestoresSemRodada: string[] = [];
   if (!estoque) gestoresSemRodada.push(NOME_GESTOR.estoque);
@@ -242,5 +264,6 @@ export async function montarResumoDiarioAvulso(assinanteId: string): Promise<Res
     top3: todasPropostas.slice(0, 3),
     total_candidatas: todasPropostas.length,
     gestores_sem_rodada: gestoresSemRodada,
+    engajamento,
   };
 }

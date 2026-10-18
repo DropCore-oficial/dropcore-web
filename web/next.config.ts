@@ -61,6 +61,18 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Gestores de IA avulso: slug de rota trocou de nome de pessoa pra título genérico
+  // (2026-10-17) — mantém link de favorito/e-mail já enviado funcionando.
+  async redirects() {
+    return [
+      { source: "/seller/gestores-ia-avulso/andrey/novo-anuncio", destination: "/seller/gestores-ia-avulso/anuncio/novo-anuncio", permanent: true },
+      { source: "/seller/gestores-ia-avulso/andrey", destination: "/seller/gestores-ia-avulso/anuncio", permanent: true },
+      { source: "/seller/gestores-ia-avulso/amanda", destination: "/seller/gestores-ia-avulso/sac", permanent: true },
+      { source: "/seller/gestores-ia-avulso/ulisses/custos", destination: "/seller/gestores-ia-avulso/ads/custos", permanent: true },
+      { source: "/seller/gestores-ia-avulso/ulisses", destination: "/seller/gestores-ia-avulso/ads", permanent: true },
+      { source: "/seller/gestores-ia-avulso/tiago", destination: "/seller/gestores-ia-avulso/gestor", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

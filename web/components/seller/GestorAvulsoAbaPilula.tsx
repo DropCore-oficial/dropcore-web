@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-/** Pílula de aba — extraída de `gestores-ia-avulso/ulisses/page.tsx` (2026-10-14) pra
+/** Pílula de aba — extraída de `gestores-ia-avulso/ads/page.tsx` (2026-10-14) pra
  * reaproveitar no Andrey e em futuros gestores que precisem filtrar resultado por tipo,
  * em vez de listar tudo solto junto numa lista só. */
 export function AbaPilula({

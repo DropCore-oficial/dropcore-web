@@ -29,6 +29,7 @@ const PERGUNTAS_RAPIDAS = [
   { label: "Anúncio com pergunta parada?", pergunta: "Tem algum anúncio com pergunta de cliente sem resposta?" },
   { label: "Promoção furando margem?", pergunta: "Alguma promoção ou desconto ativo está furando a margem mínima?" },
   { label: "Resumo geral de hoje", pergunta: "Me dá um resumo geral: estoque, anúncios, reputação e promoções." },
+  { label: "Estou aproveitando os gestores?", pergunta: "Estou aproveitando os gestores? Quantas sugestões eu apliquei de cada um?" },
 ];
 
 function saudacaoPorHorario(): string {

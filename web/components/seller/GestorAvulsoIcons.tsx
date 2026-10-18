@@ -1,6 +1,6 @@
 /** Ícones dos 5 gestores do Avulso — extraídos de `gestores-ia-avulso/page.tsx` (2026-10-14)
  * pra poder reaproveitar o mesmo ícone no card do hub E no estado vazio "conectar Mercado
- * Livre" de cada painel (`andrey`/`amanda`/`ulisses`/`estoque`/`page.tsx`), sem duplicar o
+ * Livre" de cada painel (`anuncio`/`sac`/`ads`/`estoque`/`page.tsx`), sem duplicar o
  * SVG. `IconEstoque` adicionado 2026-10-15 junto com o 5º gestor (Estoque). */
 export function IconEstoque({ className = "h-4 w-4 shrink-0" }: { className?: string }) {
   return (

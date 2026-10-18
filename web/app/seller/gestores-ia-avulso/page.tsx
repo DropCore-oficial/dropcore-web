@@ -136,9 +136,9 @@ export default function GestoresIaAvulsoPage() {
     if (j.access === "calc_only" && j.inclui_gestores_ia === true) {
       setAccess("liberado");
       const [andreyRes, amandaRes, ulissesRes, estoqueRes] = await Promise.all([
-        fetch("/api/gestores-ia-avulso/andrey", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
-        fetch("/api/gestores-ia-avulso/amanda", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
-        fetch("/api/gestores-ia-avulso/ulisses", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
+        fetch("/api/gestores-ia-avulso/anuncio", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
+        fetch("/api/gestores-ia-avulso/sac", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
+        fetch("/api/gestores-ia-avulso/ads", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
         fetch("/api/gestores-ia-avulso/estoque", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
       ]);
       const andreyJson = await andreyRes.json().catch(() => ({}));
@@ -272,10 +272,10 @@ export default function GestoresIaAvulsoPage() {
         <GestorAvulsoOrcamentoBar usoTokensHoje={usoTokensHoje} bloqueadoHoje={bloqueadoHoje} />
 
         <SellerGestoresIaEscritorio3D
-          statusDiogo={resumoStatusEstoque(estoqueRun)}
-          statusAndrey={resumoStatusAndrey(andreyRun)}
-          statusAmanda={resumoStatusAmanda(amandaRun)}
-          statusUlisses={resumoStatusUlisses(ulissesRun)}
+          statusEstoque={resumoStatusEstoque(estoqueRun)}
+          statusAnuncio={resumoStatusAndrey(andreyRun)}
+          statusSac={resumoStatusAmanda(amandaRun)}
+          statusAds={resumoStatusUlisses(ulissesRun)}
           atividades={montarAtividades(andreyRun, amandaRun, ulissesRun, estoqueRun)}
           nomeResponsavel={null}
         />
@@ -285,7 +285,7 @@ export default function GestoresIaAvulsoPage() {
         <GestorAvulsoPendenciasLista
           itens={[
             {
-              href: "/seller/gestores-ia-avulso/andrey",
+              href: "/seller/gestores-ia-avulso/anuncio",
               icon: <IconAndrey />,
               nome: "Anúncio",
               funcao: "Anúncios & SEO",
@@ -297,7 +297,7 @@ export default function GestoresIaAvulsoPage() {
               bloqueado: bloqueadoHoje,
             },
             {
-              href: "/seller/gestores-ia-avulso/amanda",
+              href: "/seller/gestores-ia-avulso/sac",
               icon: <IconAmanda />,
               nome: "SAC",
               funcao: "Reputação & Atendimento",
@@ -309,7 +309,7 @@ export default function GestoresIaAvulsoPage() {
               bloqueado: bloqueadoHoje,
             },
             {
-              href: "/seller/gestores-ia-avulso/ulisses",
+              href: "/seller/gestores-ia-avulso/ads",
               icon: <IconUlisses />,
               nome: "ADS",
               funcao: "Ads & Preço",
@@ -333,7 +333,7 @@ export default function GestoresIaAvulsoPage() {
               bloqueado: bloqueadoHoje,
             },
             {
-              href: "/seller/gestores-ia-avulso/tiago",
+              href: "/seller/gestores-ia-avulso/gestor",
               icon: <IconTiago />,
               nome: "Gestor",
               funcao: "Gestor Mestre, chat",

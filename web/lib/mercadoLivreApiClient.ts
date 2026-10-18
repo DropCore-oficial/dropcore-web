@@ -314,6 +314,9 @@ export async function mlBuscarVisitas30d(itemId: string, ctx: MercadoLivreAuthCo
 
 export type MercadoLivreReclamacao = {
   id: number;
+  /** "order" ou "shipment" (ou outro raro) — determina como resolver o item por trás da
+   * reclamação, ver `mlResolverItemPrincipalReclamacao`. */
+  resource: string;
   resourceId: string;
   status: string;
   type: string;
@@ -330,13 +333,22 @@ export async function mlBuscarReclamacoesAbertas(
   limit = 30
 ): Promise<MercadoLivreReclamacao[]> {
   const json = await mlGet<{
-    data?: Array<{ id: number; resource_id: number | string; status: string; type: string; reason_id: string; date_created: string }>;
+    data?: Array<{
+      id: number;
+      resource: string;
+      resource_id: number | string;
+      status: string;
+      type: string;
+      reason_id: string;
+      date_created: string;
+    }>;
   }>(
     `/post-purchase/v1/claims/search?player_role=respondent&player_user_id=${ctx.mlUserId}&status=opened&limit=${limit}`,
     ctx.accessToken
   );
   return (json?.data ?? []).map((c) => ({
     id: c.id,
+    resource: c.resource,
     resourceId: String(c.resource_id),
     status: c.status,
     type: c.type,
@@ -353,6 +365,33 @@ export async function mlBuscarReclamacoesAbertas(
 export async function mlReclamacaoAindaAberta(claimId: string, ctx: MercadoLivreAuthContext): Promise<boolean> {
   const json = await mlGet<{ status?: string }>(`/post-purchase/v1/claims/${claimId}`, ctx.accessToken);
   return json?.status === "opened";
+}
+
+export type MercadoLivreMotivoReclamacao = {
+  detail: string | null;
+  /** Classificação própria do ML pro motivo (ex. `["repentant"]` pra arrependimento de
+   * compra) — testado ao vivo 2026-10-17 com `PDD9939` ("A minha compra chegou em boas
+   * condições, mas eu não a quero mais"): mesmo começando com `PDD` (categoria "produto
+   * diferente/defeituoso"), o motivo real é arrependimento, nada a ver com o anúncio estar
+   * errado. Esse campo é o sinal confiável pra distinguir os dois — melhor que só olhar o
+   * prefixo do código. */
+  rulesEngineTriage: string[];
+};
+
+/** Motivo humano (já em português) de um `reason_id` de reclamação pós-venda — endpoint
+ * oficial testado ao vivo 2026-10-17. Resolve o que antes era tratado como "ML não
+ * documenta esses códigos" (ver nota antiga em `gestorAnunciosSeoDados.ts`) — é dado real
+ * da API, não dicionário inventado. */
+export async function mlBuscarMotivoReclamacao(
+  reasonId: string,
+  ctx: MercadoLivreAuthContext
+): Promise<MercadoLivreMotivoReclamacao | null> {
+  const json = await mlGet<{ detail?: string; settings?: { rules_engine_triage?: string[] } }>(
+    `/post-purchase/v1/claims/reasons/${reasonId}`,
+    ctx.accessToken
+  );
+  if (!json) return null;
+  return { detail: json.detail ?? null, rulesEngineTriage: json.settings?.rules_engine_triage ?? [] };
 }
 
 export type MercadoLivreEvidenciaAnexo = { filename: string; originalFilename: string; type: string; dateCreated: string };
@@ -403,6 +442,29 @@ export async function mlBuscarPedidoItemPrincipal(
     titulo: primeiro.title,
     atributos: (primeiro.variation_attributes ?? []).map((a) => ({ nome: a.name, valor: a.value_name })),
   };
+}
+
+/** Resolve o item/anúncio por trás de uma reclamação — o `resource_id` vem direto como
+ * pedido (`resource: "order"`) em alguns tipos de claim (ex. mediations, returns) e como
+ * envio (`resource: "shipment"`) em outros (ex. cancel_purchase) — testado ao vivo
+ * 2026-10-17 nos dois formatos. Shipment precisa de 1 hop a mais em `/shipments/{id}` pra
+ * achar o `order_id` (mesmo endpoint já usado em `mercadoLivreShipmentIngest.ts`). Resource
+ * desconhecido (ex. "payment", raro) devolve `null` — não dá pra resolver item a partir só
+ * de pagamento. */
+export async function mlResolverItemPrincipalReclamacao(
+  reclamacao: MercadoLivreReclamacao,
+  ctx: MercadoLivreAuthContext
+): Promise<MercadoLivrePedidoItemML | null> {
+  if (reclamacao.resource === "order") {
+    return mlBuscarPedidoItemPrincipal(reclamacao.resourceId, ctx);
+  }
+  if (reclamacao.resource === "shipment") {
+    const json = await mlGet<{ order_id?: number | string | null }>(`/shipments/${reclamacao.resourceId}`, ctx.accessToken);
+    const orderId = json?.order_id != null ? String(json.order_id) : null;
+    if (!orderId) return null;
+    return mlBuscarPedidoItemPrincipal(orderId, ctx);
+  }
+  return null;
 }
 
 export type MercadoLivreAtributoCategoria = {

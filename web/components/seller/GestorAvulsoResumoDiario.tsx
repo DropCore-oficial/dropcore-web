@@ -19,9 +19,9 @@ type ResumoDiario = { top3: PropostaResumoDiario[]; total_candidatas: number; ge
 
 const ROTA_POR_GESTOR: Record<PropostaResumoDiario["gestor"], string> = {
   estoque: "/seller/gestores-ia-avulso/estoque",
-  ads: "/seller/gestores-ia-avulso/ulisses",
-  anuncios_seo: "/seller/gestores-ia-avulso/andrey",
-  reputacao_atendimento: "/seller/gestores-ia-avulso/amanda",
+  ads: "/seller/gestores-ia-avulso/ads",
+  anuncios_seo: "/seller/gestores-ia-avulso/anuncio",
+  reputacao_atendimento: "/seller/gestores-ia-avulso/sac",
 };
 
 const BADGE_SEVERIDADE: Record<"urgente" | "atencao" | "oportunidade", string> = {
@@ -71,7 +71,7 @@ export function GestorAvulsoResumoDiario() {
     void (async () => {
       const token = await getAccessToken();
       if (!token) return;
-      const res = await fetch("/api/gestores-ia-avulso/tiago/resumo-diario", {
+      const res = await fetch("/api/gestores-ia-avulso/gestor/resumo-diario", {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
       });

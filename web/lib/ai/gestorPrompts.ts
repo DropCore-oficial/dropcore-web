@@ -37,7 +37,7 @@ export interface SkuRupturaContexto {
   fornecedorNome: string | null;
 }
 
-// Gestor "Estoque & Fulfillment" (Diogo) deixou de usar prompt/schema de IA em 2026-09-07
+// Gestor "Estoque & Fulfillment" deixou de usar prompt/schema de IA em 2026-09-07
 // — risco e ação recomendada viraram código puro (comparação de dias-até-ruptura contra
 // limite, ver `classificarSkuRuptura` em gestorRupturaFulfillmentDados.ts). `montarPrompt`
 // abaixo continua valendo pros outros gestores que ainda usam IA de verdade.

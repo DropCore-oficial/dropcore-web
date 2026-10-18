@@ -24,7 +24,11 @@ type SkuEstoqueResultado = {
   membros: MembroEstoque[];
 };
 
-export type EstoqueAvulsoResultado = { skus: SkuEstoqueResultado[]; destaque_risco_alto: string[] };
+export type EstoqueAvulsoResultado = {
+  skus: SkuEstoqueResultado[];
+  destaque_risco_alto: string[];
+  pausas_recentes_confirmado?: { total_pausas_30d: number; hoje_fora_do_risco_alto: number };
+};
 
 const RISCO_BADGE: Record<Risco, string> = {
   alto: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
@@ -228,8 +232,24 @@ export function SellerGestorEstoquePanelAvulso({
           });
         const resto = skus.filter((s) => s.risco === "sem_risco" || s.risco === "dado_insuficiente");
 
+        const pausas = resultado.pausas_recentes_confirmado;
+
         return (
           <>
+            {pausas && pausas.total_pausas_30d > 0 ? (
+              <div className="mb-4 rounded-xl border border-[var(--card-border)] p-3.5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+                  Valor real — pausas aplicadas (últimos 30 dias)
+                </p>
+                <p className="mt-1.5 text-sm text-[var(--foreground)]">
+                  Você pausou <span className="font-semibold">{pausas.total_pausas_30d}</span> anúncio
+                  {pausas.total_pausas_30d === 1 ? "" : "s"}, e{" "}
+                  <span className="font-semibold">{pausas.hoje_fora_do_risco_alto}</span> já não{" "}
+                  {pausas.hoje_fora_do_risco_alto === 1 ? "está" : "estão"} mais em risco alto hoje.
+                </p>
+              </div>
+            ) : null}
+
             {emAtencao.length === 0 ? (
               <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-4 text-center text-sm text-[var(--muted)]">
                 Nenhum anúncio em risco alto ou médio agora.

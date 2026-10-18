@@ -12,7 +12,7 @@
  * - Sem `buscarSkusSemAnuncio` — isso lê `skus`/`seller_skus_habilitados` (catálogo de
  *   fornecedor), que não existe pro avulso.
  * - Sem comparação com ações aplicadas (`seller_ai_acoes`) — o avulso já tem botão de
- *   aplicar título/descrição/característica (ver app/api/gestores-ia-avulso/andrey/
+ *   aplicar título/descrição/característica (ver app/api/gestores-ia-avulso/anuncio/
  *   aplicar-*), só não tem tabela de auditoria ainda pra comparar visita/venda antes vs.
  *   depois da ação (esse "fechamento de loop" é só no hub por enquanto).
  */
@@ -50,7 +50,8 @@ import {
   mlSugerirCategoria,
   menorLadoFotoMaxSize,
   mlBuscarReclamacoesAbertas,
-  mlBuscarPedidoItemPrincipal,
+  mlResolverItemPrincipalReclamacao,
+  mlBuscarMotivoReclamacao,
   type MercadoLivreAuthContext,
   type MercadoLivreAtributoCategoria,
 } from "@/lib/mercadoLivreApiClient";
@@ -83,18 +84,26 @@ function perguntaReforcaAlgumGap(
   return null;
 }
 
-/** Resolve reclamação pós-venda em aberto → item_id, mesma técnica já em produção em
- * `gestorDisputasFornecedorDados.ts` (resourceId da reclamação É o order_id). Falha de
- * resolução de 1 reclamação nunca derruba as outras. */
+export type ReclamacaoAbertaInfo = { codigo: string; motivo: string | null; triage: string[] };
+
+/** Resolve reclamação pós-venda em aberto → item_id. `resource` da claim varia por tipo
+ * (`order` em mediations/returns, `shipment` em cancel_purchase — confirmado ao vivo
+ * 2026-10-17, ver `mlResolverItemPrincipalReclamacao`); usar só `mlBuscarPedidoItemPrincipal`
+ * direto no `resourceId` (como era antes) falhava silenciosamente pras claims tipo shipment.
+ * Também resolve o motivo humano do `reason_id` via API oficial (`mlBuscarMotivoReclamacao`,
+ * 2026-10-17) — antes só passava o código cru pra IA. Falha de resolução de 1 reclamação
+ * nunca derruba as outras. */
 async function resolverReclamacoesAbertasPorItemAvulso(
   ctx: MercadoLivreAuthContext
-): Promise<Map<string, string>> {
+): Promise<Map<string, ReclamacaoAbertaInfo>> {
   const reclamacoes = await mlBuscarReclamacoesAbertas(ctx).catch(() => []);
-  const porItem = new Map<string, string>();
+  const porItem = new Map<string, ReclamacaoAbertaInfo>();
   await Promise.all(
     reclamacoes.map(async (r) => {
-      const item = await mlBuscarPedidoItemPrincipal(r.resourceId, ctx).catch(() => null);
-      if (item && !porItem.has(item.itemId)) porItem.set(item.itemId, r.reasonId);
+      const item = await mlResolverItemPrincipalReclamacao(r, ctx).catch(() => null);
+      if (!item || porItem.has(item.itemId)) return;
+      const info = await mlBuscarMotivoReclamacao(r.reasonId, ctx).catch(() => null);
+      porItem.set(item.itemId, { codigo: r.reasonId, motivo: info?.detail ?? null, triage: info?.rulesEngineTriage ?? [] });
     })
   );
   return porItem;
@@ -106,7 +115,8 @@ async function montarContextoGrupoAvulso(
   ctx: MercadoLivreAuthContext,
   cacheAtributos: Map<string, MercadoLivreAtributoCategoria[]>,
   perguntasPorItem: Map<string, PerguntaContexto[]>,
-  reclamacoesPorItem: Map<string, string>
+  reclamacoesPorItem: Map<string, ReclamacaoAbertaInfo>,
+  historicoPerguntaGap: Map<string, number>
 ): Promise<AnuncioSeoContexto> {
   const representante = [...membros].sort((a, b) => b.sold_quantity - a.sold_quantity)[0];
 
@@ -139,21 +149,26 @@ async function montarContextoGrupoAvulso(
   );
 
   const gapsDoGrupo = [...atributosFaltando.principais, ...atributosFaltando.secundarios];
-  let perguntaReforcaGap: { pergunta: string; itemId: string; gap: string } | null = null;
-  let reclamacaoAbertaCodigo: string | null = null;
+  let perguntaReforcaGap: { pergunta: string; itemId: string; gap: string; repeticoes: number } | null = null;
+  let reclamacaoAberta: ReclamacaoAbertaInfo | null = null;
   for (const m of membros) {
     if (!perguntaReforcaGap) {
       for (const p of perguntasPorItem.get(m.id) ?? []) {
         const gap = perguntaReforcaAlgumGap(p.pergunta, gapsDoGrupo);
         if (gap) {
-          perguntaReforcaGap = { pergunta: p.pergunta, itemId: m.id, gap: gap.name };
+          perguntaReforcaGap = {
+            pergunta: p.pergunta,
+            itemId: m.id,
+            gap: gap.name,
+            repeticoes: historicoPerguntaGap.get(`${chave}|${gap.name}`) ?? 0,
+          };
           break;
         }
       }
     }
-    if (!reclamacaoAbertaCodigo) {
-      const codigo = reclamacoesPorItem.get(m.id);
-      if (codigo) reclamacaoAbertaCodigo = codigo;
+    if (!reclamacaoAberta) {
+      const info = reclamacoesPorItem.get(m.id);
+      if (info) reclamacaoAberta = info;
     }
   }
 
@@ -175,7 +190,9 @@ async function montarContextoGrupoAvulso(
     atributosConflitantes,
     membros: membrosContexto,
     perguntaReforcaGap,
-    reclamacaoAbertaCodigo,
+    reclamacaoAbertaCodigo: reclamacaoAberta?.codigo ?? null,
+    reclamacaoAbertaMotivo: reclamacaoAberta?.motivo ?? null,
+    reclamacaoAbertaTriage: reclamacaoAberta?.triage ?? [],
   };
 }
 
@@ -229,11 +246,13 @@ export async function buscarDadosAnunciosSeoAvulso(assinanteId: string): Promise
 
   const grupos = [...candidatosComMudanca].sort((a, b) => a.vendasTotalGrupo - b.vendasTotalGrupo).slice(0, MAX_CANDIDATOS);
 
-  // Cruzamento com Reputação (perguntas pendentes) e reclamações pós-venda — busca 1x pra
-  // conta inteira, não por grupo (evita N chamadas repetidas à API do ML).
-  const [perguntas, reclamacoesPorItem] = await Promise.all([
+  // Cruzamento com Reputação (perguntas pendentes), reclamações pós-venda e histórico de
+  // "pergunta repetida" — busca 1x pra conta inteira, não por grupo (evita N chamadas
+  // repetidas à API do ML / ao banco).
+  const [perguntas, reclamacoesPorItem, historicoPerguntaGap] = await Promise.all([
     buscarPerguntasContexto(ctx).catch(() => [] as PerguntaContexto[]),
-    resolverReclamacoesAbertasPorItemAvulso(ctx).catch(() => new Map<string, string>()),
+    resolverReclamacoesAbertasPorItemAvulso(ctx).catch(() => new Map<string, ReclamacaoAbertaInfo>()),
+    buscarHistoricoPerguntaGapAvulso(assinanteId).catch(() => new Map<string, number>()),
   ]);
   const perguntasPorItem = new Map<string, PerguntaContexto[]>();
   for (const p of perguntas) {
@@ -251,7 +270,8 @@ export async function buscarDadosAnunciosSeoAvulso(assinanteId: string): Promise
       ctx,
       cacheAtributos,
       perguntasPorItem,
-      reclamacoesPorItem
+      reclamacoesPorItem,
+      historicoPerguntaGap
     );
     contexto.push({ ...c, duplicidade: duplicidadePorChave.get(grupo.chave) ?? null });
   }
@@ -261,7 +281,7 @@ export async function buscarDadosAnunciosSeoAvulso(assinanteId: string): Promise
 /** Monta os params de request da Anthropic pro assinante avulso — mesma config do hub
  * (`montarRequestAnunciosSeo` em gestorRequestBuilders.ts), usada pelo batch submit do cron
  * (gestorAvulsoBatchSubmit.ts, desconto de 50%). O clique manual/BYOK continua chamando
- * `client.messages.create` direto em gestorAvulsoAndreyRodar.ts (precisa de resposta síncrona,
+ * `client.messages.create` direto em gestorAvulsoAnuncioRodar.ts (precisa de resposta síncrona,
  * Batch API não serve pra isso). */
 export async function montarRequestAnunciosSeoAvulso(
   assinanteId: string
@@ -322,8 +342,12 @@ export type AnuncioResultadoEnriquecidoAvulso = Omit<AnuncioResultadoIA, "caract
   atributos_sem_reforco_texto: AtributoPreenchido[];
   atributos_conflitantes: AtributoConflitante[];
   /** Pergunta real de comprador pendente que reforça um gap estrutural já detectado — `null`
-   * quando nenhuma pergunta pendente bateu com nenhum atributo faltando desse grupo. */
-  pergunta_reforca_gap: { texto: string; gap: string } | null;
+   * quando nenhuma pergunta pendente bateu com nenhum atributo faltando desse grupo.
+   * `repeticoes` conta em quantas das últimas `JANELA_HISTORICO_PERGUNTA_REPETIDA` rodadas
+   * salvas esse MESMO gap já reforçou pergunta pra esse MESMO grupo — reforça urgência
+   * (não é só "perguntaram uma vez", é "perguntam disso toda hora"), sem API nova, só
+   * agregação do que já tá salvo em `calculadora_assinante_ai_runs`. */
+  pergunta_reforca_gap: { texto: string; gap: string; repeticoes: number } | null;
 };
 
 export type ResultadoAnunciosSeoEnriquecidoAvulso = {
@@ -331,10 +355,42 @@ export type ResultadoAnunciosSeoEnriquecidoAvulso = {
   destaque_prioridade: string[];
 };
 
+const JANELA_HISTORICO_PERGUNTA_REPETIDA = 10;
+
+type RunHistoricoAnuncioRow = {
+  resultado: { anuncios?: Array<{ chave: string; pergunta_reforca_gap?: { gap: string } | null }> } | null;
+};
+
+/** Conta, por `chave|gap`, em quantas das últimas rodadas salvas esse gap já reforçou
+ * pergunta pra esse grupo — 1 busca só pra conta inteira, não por grupo. */
+async function buscarHistoricoPerguntaGapAvulso(assinanteId: string): Promise<Map<string, number>> {
+  const { data } = await supabaseAdmin
+    .from("calculadora_assinante_ai_runs")
+    .select("resultado")
+    .eq("assinante_id", assinanteId)
+    .eq("gestor", "anuncios_seo")
+    .eq("status", "ok")
+    .order("criado_em", { ascending: false })
+    .limit(JANELA_HISTORICO_PERGUNTA_REPETIDA);
+
+  const contagem = new Map<string, number>();
+  for (const row of (data ?? []) as RunHistoricoAnuncioRow[]) {
+    for (const a of row.resultado?.anuncios ?? []) {
+      const gap = a.pergunta_reforca_gap?.gap;
+      if (!gap) continue;
+      const chaveComposta = `${a.chave}|${gap}`;
+      contagem.set(chaveComposta, (contagem.get(chaveComposta) ?? 0) + 1);
+    }
+  }
+  return contagem;
+}
+
 export async function enriquecerResultadoAnunciosSeoAvulso(
   assinanteId: string,
   resultadoIA: { anuncios: AnuncioResultadoIA[]; destaque_prioridade: string[] }
 ): Promise<ResultadoAnunciosSeoEnriquecidoAvulso> {
+  // `repeticoes` já vem calculado dentro de cada `grupo.perguntaReforcaGap`
+  // (buscarDadosAnunciosSeoAvulso → montarContextoGrupoAvulso), não precisa buscar de novo.
   const dadosContexto = await buscarDadosAnunciosSeoAvulso(assinanteId);
   const porChave = new Map(dadosContexto.map((d) => [d.chave, d]));
 
@@ -368,7 +424,11 @@ export async function enriquecerResultadoAnunciosSeoAvulso(
       atributos_sem_reforco_texto: grupo?.atributosSemReforcoTexto ?? [],
       atributos_conflitantes: grupo?.atributosConflitantes ?? [],
       pergunta_reforca_gap: grupo?.perguntaReforcaGap
-        ? { texto: grupo.perguntaReforcaGap.pergunta, gap: grupo.perguntaReforcaGap.gap }
+        ? {
+            texto: grupo.perguntaReforcaGap.pergunta,
+            gap: grupo.perguntaReforcaGap.gap,
+            repeticoes: grupo.perguntaReforcaGap.repeticoes,
+          }
         : null,
       membros: (grupo?.membros ?? []).map((m) => ({
         item_id: m.itemId,

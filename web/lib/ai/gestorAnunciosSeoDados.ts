@@ -127,12 +127,25 @@ export type AnuncioSeoContexto = {
    * — evidência concreta de comprador pedindo essa informação agora. Só preenchido pelo
    * avulso hoje (`gestorAnunciosSeoDadosAvulso.ts`); hub não cruza isso ainda, por isso é
    * opcional e `formatarAnunciosSeo` só menciona quando presente. */
-  perguntaReforcaGap?: { pergunta: string; itemId: string; gap: string } | null;
-  /** Código bruto (`reason_id`) de reclamação pós-venda em aberto nesse grupo, sem tradução —
-   * o ML não documenta esses códigos num dicionário confiável, então não inventamos a
-   * categoria aqui, só passamos o código pra IA mencionar se fizer sentido. Só preenchido
+  /** `repeticoes` conta em quantas das últimas rodadas salvas esse mesmo gap já reforçou
+   * pergunta pra esse mesmo grupo (2026-10-17, agregação de `calculadora_assinante_ai_runs`,
+   * sem API nova) — reforça urgência real ("perguntam isso toda hora"), não é só 1 ocorrência. */
+  perguntaReforcaGap?: { pergunta: string; itemId: string; gap: string; repeticoes: number } | null;
+  /** Código bruto (`reason_id`) de reclamação pós-venda em aberto nesse grupo. Só preenchido
    * pelo avulso hoje, mesmo motivo do campo acima. */
   reclamacaoAbertaCodigo?: string | null;
+  /** Motivo humano (já em português) do código acima — resolvido via API oficial do ML
+   * (`GET /post-purchase/v1/claims/reasons/{reason_id}`, testado ao vivo 2026-10-17). Antes
+   * não existia essa tradução ("ML não documenta esses códigos"); o endpoint devolve o texto
+   * real, não precisa mais evitar mencionar o motivo. `null` quando o código não resolveu. */
+  reclamacaoAbertaMotivo?: string | null;
+  /** Classificação própria do ML pro motivo (`settings.rules_engine_triage` do endpoint de
+   * reasons) — ex. `["repentant"]` pra arrependimento de compra. Achado real 2026-10-17:
+   * código `PDD9939` (categoria "produto diferente/defeituoso") na prática é 100%
+   * arrependimento, nada a ver com o anúncio estar errado — por isso o prefixo do código
+   * sozinho não basta pra decidir se vale mencionar na observação do Anúncio, usa esse campo
+   * junto. */
+  reclamacaoAbertaTriage?: string[];
 };
 
 export type DuplicidadeAnuncio = {
@@ -706,11 +719,28 @@ function formatarAnunciosSeo(grupos: AnuncioSeoContexto[]): string {
         g.atributosConflitantes.length > 0
           ? ` | CONFLITO ficha técnica vs texto (NÃO sugira trocar cego — mencione a divergência na observação pro vendedor conferir qual valor está certo): ${g.atributosConflitantes.map((a) => `${a.name}: ficha diz "${a.valor}", mas título/descrição já diz "${a.valorNoTexto}"`).join("; ")}`
           : "";
+      const repeticoesTxt =
+        g.perguntaReforcaGap && g.perguntaReforcaGap.repeticoes > 0
+          ? ` (e já apareceu em mais ${g.perguntaReforcaGap.repeticoes} rodada(s) anterior(es) — não é só hoje, é recorrente)`
+          : "";
       const perguntaTxt = g.perguntaReforcaGap
-        ? ` | PERGUNTA PENDENTE DE COMPRADOR reforça esse gap: comprador perguntou "${g.perguntaReforcaGap.pergunta}" sobre o anúncio ${g.perguntaReforcaGap.itemId}, relacionado a "${g.perguntaReforcaGap.gap}"`
+        ? ` | PERGUNTA PENDENTE DE COMPRADOR reforça esse gap: comprador perguntou "${g.perguntaReforcaGap.pergunta}" sobre o anúncio ${g.perguntaReforcaGap.itemId}, relacionado a "${g.perguntaReforcaGap.gap}"${repeticoesTxt}`
         : "";
-      const reclamacaoTxt = g.reclamacaoAbertaCodigo
-        ? ` | este grupo tem reclamação pós-venda em aberto (código Mercado Livre: ${g.reclamacaoAbertaCodigo}) — mencione na observação se fizer sentido, sem inventar o motivo exato a partir do código`
+      // Só menciona a reclamação quando (a) o código começa com "PDD" (Produto com Defeito/
+      // Diferente, classificação oficial do ML pelos 3 primeiros caracteres do reason_id) E
+      // (b) o triage do próprio ML não marca como arrependimento ("repentant") — testado ao
+      // vivo 2026-10-17: o código real dessa conta de teste (PDD9939) começa com "PDD" mas
+      // `rules_engine_triage` é `["repentant"]` ("A minha compra chegou em boas condições,
+      // mas eu não a quero mais") — o prefixo sozinho NÃO bastava, teria mencionado uma
+      // reclamação de arrependimento como se fosse problema de anúncio. "PNR" (não recebido,
+      // é frete/logística) e "CS" (cancelamento) continuam fora por não terem nada a ver com
+      // conteúdo — isso o SAC (reputação) já mostra melhor, com o motivo completo.
+      const reclamacaoEhSobreConteudo =
+        g.reclamacaoAbertaCodigo?.startsWith("PDD") === true && !(g.reclamacaoAbertaTriage ?? []).includes("repentant");
+      const reclamacaoTxt = reclamacaoEhSobreConteudo
+        ? g.reclamacaoAbertaMotivo
+          ? ` | este grupo tem reclamação pós-venda em aberto sobre o produto em si, motivo real do comprador: "${g.reclamacaoAbertaMotivo}" — mencione na observação se fizer sentido`
+          : ` | este grupo tem reclamação pós-venda em aberto sobre o produto em si (código Mercado Livre: ${g.reclamacaoAbertaCodigo}, motivo não resolvido) — mencione na observação se fizer sentido, sem inventar o motivo exato a partir do código`
         : "";
       const membrosTxt = g.membros
         .map((m) => {

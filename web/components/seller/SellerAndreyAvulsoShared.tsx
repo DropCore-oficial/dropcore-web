@@ -2,8 +2,8 @@
 
 /**
  * Tipos, badge e botões de aplicar (título/descrição/características) do Andrey avulso —
- * compartilhado entre a lista (web/app/seller/gestores-ia-avulso/andrey/page.tsx) e a
- * página de detalhe por produto (web/app/seller/gestores-ia-avulso/andrey/[chave]/page.tsx).
+ * compartilhado entre a lista (web/app/seller/gestores-ia-avulso/anuncio/page.tsx) e a
+ * página de detalhe por produto (web/app/seller/gestores-ia-avulso/anuncio/[chave]/page.tsx).
  * Extraído em 2026-10-10 quando o diagnóstico de cada anúncio virou página própria (em vez
  * de accordion na lista) — ver achado no histórico da conversa: lista ficava "rasa" demais
  * pra revisar um produto de verdade dentro de um `<details>` espremido.
@@ -111,7 +111,7 @@ export function AplicarTituloBotao({ itemId, tituloSugerido }: { itemId: string;
       setEstado("erro");
       return;
     }
-    const res = await fetch("/api/gestores-ia-avulso/andrey/aplicar-titulo", {
+    const res = await fetch("/api/gestores-ia-avulso/anuncio/aplicar-titulo", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ item_id: itemId, titulo_novo: tituloSugerido }),
@@ -191,7 +191,7 @@ export function AplicarDescricaoBotao({ itemIds, descricaoSugerida }: { itemIds:
       setEstado("erro");
       return;
     }
-    const res = await fetch("/api/gestores-ia-avulso/andrey/aplicar-descricao", {
+    const res = await fetch("/api/gestores-ia-avulso/anuncio/aplicar-descricao", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ item_ids: itemIds, descricao_nova: descricaoSugerida }),
@@ -293,7 +293,7 @@ export function AplicarCaracteristicasBotao({
       setEstado("erro");
       return;
     }
-    const res = await fetch("/api/gestores-ia-avulso/andrey/aplicar-caracteristicas", {
+    const res = await fetch("/api/gestores-ia-avulso/anuncio/aplicar-caracteristicas", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({

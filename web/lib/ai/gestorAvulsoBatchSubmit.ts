@@ -12,7 +12,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { montarRequestAnunciosSeoAvulso } from "./gestorAnunciosSeoDadosAvulso";
-import { foraDoCooldownAndreyAvulso } from "./gestorAvulsoAndreyRodar";
+import { foraDoCooldownAndreyAvulso } from "./gestorAvulsoAnuncioRodar";
 import { temOrcamentoDisponivelHoje, chaveByokDoAssinante, type AssinanteByok } from "./gestorAvulsoOrcamento";
 
 export type SubmeterAndreyAvulsoResultado = {

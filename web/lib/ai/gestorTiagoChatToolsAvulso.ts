@@ -29,14 +29,14 @@ export const TIAGO_CHAT_TOOLS_AVULSO: Anthropic.Messages.Tool[] = [
   {
     name: "consultar_gestor",
     description:
-      "Consulta o resultado mais recente já calculado por um dos gestores da equipe (Andrey, Amanda, Ulisses ou Estoque) pra esse assinante. NUNCA dispara uma rodada nova — só lê o que já foi gravado. Se o gestor ainda não rodou, avisa e sugere o assinante clicar em 'Rodar de novo agora' na tela dele.",
+      "Consulta o resultado mais recente já calculado por um dos gestores da equipe (Anúncio, SAC, ADS ou Estoque) pra esse assinante. NUNCA dispara uma rodada nova — só lê o que já foi gravado. Se o gestor ainda não rodou, avisa e sugere o assinante clicar em 'Rodar de novo agora' na tela dele.",
     input_schema: {
       type: "object",
       properties: {
         gestor: {
           type: "string",
           enum: GESTORES_CONSULTAVEIS_AVULSO.map((g) => g.id),
-          description: "anuncios_seo=Andrey, reputacao_atendimento=Amanda, ads=Ulisses, estoque=Estoque",
+          description: "anuncios_seo=Anúncio, reputacao_atendimento=SAC, ads=ADS, estoque=Estoque",
         },
       },
       required: ["gestor"],
@@ -45,7 +45,7 @@ export const TIAGO_CHAT_TOOLS_AVULSO: Anthropic.Messages.Tool[] = [
   {
     name: "resumo_diario_acoes",
     description:
-      "Monta o resumo diário com as 3 ações mais importantes do dia, cruzando o que os 4 gestores (Andrey, Amanda, Ulisses, Estoque) já calcularam na última rodada de cada um. Pontuação por severidade×confiança÷esforço, sem inventar número — usa só dado real já gravado. Use quando o assinante perguntar algo como 'como está hoje' ou 'resumo do dia'.",
+      "Monta o resumo diário com as 3 ações mais importantes do dia, cruzando o que os 4 gestores (Anúncio, SAC, ADS, Estoque) já calcularam na última rodada de cada um. Pontuação por severidade×confiança÷esforço, sem inventar número — usa só dado real já gravado. Também devolve 'engajamento': quantas sugestões o assinante aplicou de verdade (clique real) por gestor nos últimos 30 dias. Use quando o assinante perguntar algo como 'como está hoje', 'resumo do dia', ou se perguntar se está aproveitando/aplicando as sugestões dos gestores.",
     input_schema: { type: "object", properties: {}, required: [] },
   },
 ];

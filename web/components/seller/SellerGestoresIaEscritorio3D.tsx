@@ -53,10 +53,10 @@ function tempoRelativo(iso: string): string {
  * dentro do componente. Laura segue fora do escritório (Design & Criativo, pipeline ainda não
  * construído). Tiago Silva (Gestor Mestre) ENTROU em 2026-10-07 — chat dele já está construído
  * e no ar desde 2026-10-03 — senta na mesa comum junto dos outros gestores de IA, não ganha
- * sala isolada (ocupa o lugar que estava reservado/vazio ao lado do Ulisses). */
-type NomeGestor = "Diogo" | "Andrey" | "Amanda" | "Ulisses" | "TiagoSilva" | "Seller";
+ * sala isolada (ocupa o lugar que estava reservado/vazio ao lado do Ads). */
+type NomeGestor = "Estoque" | "Anuncio" | "Sac" | "Ads" | "Gestor" | "Seller";
 
-const NOMES_GESTOR: NomeGestor[] = ["Diogo", "Andrey", "Amanda", "Ulisses", "TiagoSilva", "Seller"];
+const NOMES_GESTOR: NomeGestor[] = ["Estoque", "Anuncio", "Sac", "Ads", "Gestor", "Seller"];
 
 const SUIT_NEUTRAL = "#374151";
 const SUIT_LIDER = "#022c22";
@@ -79,7 +79,7 @@ type GestorConfig = {
  * 1 do outro + 2 lugares vagos pra crescer) pros 4 gestores de IA, sala executiva isolada
  * pro Seller (dono da conta) com mesa própria. Sem balcão de recepção, sem sala de jogos. */
 const GESTORES: Record<NomeGestor, GestorConfig> = {
-  Diogo: {
+  Estoque: {
     funcao: "Risco de Ruptura",
     icone: "📦",
     corDot: SUIT_NEUTRAL,
@@ -91,7 +91,7 @@ const GESTORES: Record<NomeGestor, GestorConfig> = {
     hairColor: 0x3d2314,
     genero: "m",
   },
-  Andrey: {
+  Anuncio: {
     funcao: "Anúncios & SEO",
     icone: "🏷️",
     corDot: PRIMARY_ACTION_BLUE_HEX,
@@ -103,7 +103,7 @@ const GESTORES: Record<NomeGestor, GestorConfig> = {
     hairColor: 0x1f140e,
     genero: "m",
   },
-  Amanda: {
+  Sac: {
     funcao: "Reputação & Atendimento",
     icone: "🎧",
     corDot: EMERALD_SCALE[600],
@@ -115,7 +115,7 @@ const GESTORES: Record<NomeGestor, GestorConfig> = {
     hairColor: 0x8d5524,
     genero: "f",
   },
-  Ulisses: {
+  Ads: {
     funcao: "Ads",
     icone: "📈",
     corDot: SUIT_NEUTRAL,
@@ -127,15 +127,15 @@ const GESTORES: Record<NomeGestor, GestorConfig> = {
     hairColor: 0x4a2c11,
     genero: "m",
   },
-  TiagoSilva: {
+  Gestor: {
     funcao: "Gestor Mestre",
     icone: "🧠",
     corDot: SUIT_NEUTRAL,
     // Ocupa o lugar que era só a cadeira vazia `cadeiraVaga` (x=6.2 na mesa comum, ao lado
-    // do Ulisses) — removida do cenário estático agora que tem gestor de verdade sentando.
+    // do Ads) — removida do cenário estático agora que tem gestor de verdade sentando.
     deskPos: [6.2, 0, 7.75],
     deskRot: Math.PI,
-    // Centro da fileira norte da mesa de reunião, entre Amanda (-8.8) e Ulisses (-6.2) —
+    // Centro da fileira norte da mesa de reunião, entre Sac (-8.8) e Ads (-6.2) —
     // mesmo espaçamento de 1.3 já validado, espelhando o Seller no centro da fileira sul.
     meetingPos: [-7.5, 0, -7.9],
     meetingRot: 0,
@@ -152,7 +152,7 @@ const GESTORES: Record<NomeGestor, GestorConfig> = {
     // Era [-10.2,0,-6.5] (ponta oeste da mesa) — corrigido 2026-10-07: essa ponta só tem
     // 0,19 unidade de sobra até a parede de vidro (mesa de 6.5 larga quase encosta nas duas
     // paredes de 0,5 cada, dentro de um vão de só 6,88), sem espaço de verdade pra sentar —
-    // por isso "dentro da parede". Lugar novo: centro da fileira sul, entre Diogo e Andrey
+    // por isso "dentro da parede". Lugar novo: centro da fileira sul, entre Estoque e Anuncio
     // (mesmo espaçamento de 1.3 que já funciona pros dois).
     meetingPos: [-7.5, 0, -5.1],
     meetingRot: Math.PI,
@@ -755,15 +755,15 @@ const NOMES_FOCO = NOMES_GESTOR;
 
 function statusPorNome(
   nome: NomeGestor,
-  statusDiogo: string,
-  statusAndrey: string,
-  statusAmanda: string,
-  statusUlisses: string
+  statusEstoque: string,
+  statusAnuncio: string,
+  statusSac: string,
+  statusAds: string
 ): string {
-  if (nome === "Diogo") return statusDiogo;
-  if (nome === "Andrey") return statusAndrey;
-  if (nome === "Amanda") return statusAmanda;
-  if (nome === "Ulisses") return statusUlisses;
+  if (nome === "Estoque") return statusEstoque;
+  if (nome === "Anuncio") return statusAnuncio;
+  if (nome === "Sac") return statusSac;
+  if (nome === "Ads") return statusAds;
   if (nome === "Seller") return "Acompanha o desempenho da própria loja.";
   return "Em breve — painel ainda não construído.";
 }
@@ -775,17 +775,17 @@ type CenaAPI = {
 };
 
 export function SellerGestoresIaEscritorio3D({
-  statusDiogo,
-  statusAndrey,
-  statusAmanda,
-  statusUlisses,
+  statusEstoque,
+  statusAnuncio,
+  statusSac,
+  statusAds,
   atividades,
   nomeResponsavel,
 }: {
-  statusDiogo: string;
-  statusAndrey: string;
-  statusAmanda: string;
-  statusUlisses: string;
+  statusEstoque: string;
+  statusAnuncio: string;
+  statusSac: string;
+  statusAds: string;
   atividades: AtividadeAoVivo[];
   /** Nome de exibição do personagem "Seller" (dono da conta) — `sellers.nome_responsavel`.
    * Fallback "Você" quando o seller ainda não preencheu esse dado no cadastro. */
@@ -797,11 +797,11 @@ export function SellerGestoresIaEscritorio3D({
   const [focoNome, setFocoNome] = useState<NomeGestor | null>(null);
   const [modo, setModoState] = useState<"individual" | "reuniao">("individual");
   const nomeExibicao: Record<NomeGestor, string> = {
-    Diogo: "Estoque",
-    Andrey: "Anúncio",
-    Amanda: "SAC",
-    Ulisses: "ADS",
-    TiagoSilva: "Gestor",
+    Estoque: "Estoque",
+    Anuncio: "Anúncio",
+    Sac: "SAC",
+    Ads: "ADS",
+    Gestor: "Gestor",
     Seller: nomeResponsavel?.trim() || "Você",
   };
 
@@ -1127,8 +1127,8 @@ export function SellerGestoresIaEscritorio3D({
     });
 
     // Modo mesa vs reunião — TWEEN anima posição + rotação de verdade. "Seller" (dono da
-    // conta) nunca vai pra reunião — quem se reúne é só a equipe de IA (Diogo/Andrey/Amanda/
-    // Ulisses/TiagoSilva); pedido do Sr Stark 2026-10-16.
+    // conta) nunca vai pra reunião — quem se reúne é só a equipe de IA (Estoque/Anuncio/Sac/
+    // Ads/Gestor); pedido do Sr Stark 2026-10-16.
     let modoAtual: "individual" | "reuniao" = "individual";
     function aplicarModo(m: "individual" | "reuniao") {
       modoAtual = m;
@@ -1513,10 +1513,10 @@ export function SellerGestoresIaEscritorio3D({
           <div className="pointer-events-auto absolute right-2 top-2 hidden gap-1.5 md:flex">
             {(
               [
-                ["Diogo", statusDiogo],
-                ["Andrey", statusAndrey],
-                ["Amanda", statusAmanda],
-                ["Ulisses", statusUlisses],
+                ["Estoque", statusEstoque],
+                ["Anuncio", statusAnuncio],
+                ["Sac", statusSac],
+                ["Ads", statusAds],
               ] as const
             ).map(([nome, texto]) => (
               <button
@@ -1597,7 +1597,7 @@ export function SellerGestoresIaEscritorio3D({
                 </div>
               </div>
               <p className="mt-2 text-[10px] leading-snug text-neutral-300">
-                {statusPorNome(focoNome, statusDiogo, statusAndrey, statusAmanda, statusUlisses)}
+                {statusPorNome(focoNome, statusEstoque, statusAnuncio, statusSac, statusAds)}
               </p>
             </div>
           ) : null}

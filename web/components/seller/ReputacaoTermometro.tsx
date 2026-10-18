@@ -6,7 +6,7 @@
  * cor não é decisão de UI nossa, é a identidade visual do próprio ML — pedido explícito do
  * Sr Stark pra bater exato, não aproximar com emerald/âmbar/vermelho. Usado no hub
  * (`SellerGestorReputacaoAtendimentoPanel.tsx`) e no avulso
- * (`app/seller/gestores-ia-avulso/amanda/page.tsx`).
+ * (`app/seller/gestores-ia-avulso/sac/page.tsx`).
  */
 const ML_REPUTACAO_CORES = ["#F23D4F", "#FFB657", "#FEF211", "#AEEF1B", "#00A650"] as const;
 

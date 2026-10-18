@@ -43,7 +43,7 @@ export async function notificarAssinanteResumoDiarioAvulso(
     subject: titulo,
     titulo,
     mensagem,
-    ctaUrl: "https://www.dropcore.com.br/seller/gestores-ia-avulso/tiago",
+    ctaUrl: "https://www.dropcore.com.br/seller/gestores-ia-avulso/gestor",
     ctaLabel: "Ver resumo completo",
   });
 }

@@ -13,6 +13,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   buscarPerguntasContexto,
   classificarReputacao,
+  calcularMargemReputacaoMl,
   responderPerguntasComIA,
   type ReputacaoAtendimentoContexto,
   type PerguntaResultadoEnriquecido,
@@ -21,9 +22,41 @@ import {
   type UsoAnthropicGestor,
   type TendenciaMetrica,
   type TendenciaReputacao,
+  type RankingSkuReclamacao,
 } from "./gestorReputacaoAtendimentoDados";
-import { mlBuscarReputacao } from "@/lib/mercadoLivreApiClient";
+import {
+  mlBuscarReputacao,
+  mlBuscarReclamacoesAbertas,
+  mlResolverItemPrincipalReclamacao,
+  type MercadoLivreAuthContext,
+} from "@/lib/mercadoLivreApiClient";
 import { getValidMercadoLivreAvulsoAccessToken } from "@/lib/mercadoLivreAvulsoToken";
+
+const MAX_RECLAMACOES_RANKING = 15;
+const MAX_ITENS_RANKING = 5;
+
+/** Top 5 SKU/anúncio com mais reclamação aberta — resolve pedido→item pra cada reclamação
+ * (1 chamada a mais por reclamação; conta de teste real teve só 3 abertas, custo baixo).
+ * Reclamação que não resolve (resource desconhecido, item apagado etc.) é ignorada, não
+ * derruba o ranking inteiro. */
+export async function buscarRankingSkuReclamacoesAvulso(ctx: MercadoLivreAuthContext): Promise<RankingSkuReclamacao[]> {
+  const reclamacoes = await mlBuscarReclamacoesAbertas(ctx, MAX_RECLAMACOES_RANKING);
+  if (reclamacoes.length === 0) return [];
+
+  const porItem = new Map<string, RankingSkuReclamacao>();
+  for (const r of reclamacoes) {
+    const item = await mlResolverItemPrincipalReclamacao(r, ctx).catch(() => null);
+    if (!item) continue;
+    const atual = porItem.get(item.itemId) ?? { itemId: item.itemId, titulo: item.titulo, qtd: 0, reasonIds: [] };
+    atual.qtd += 1;
+    atual.reasonIds.push(r.reasonId);
+    porItem.set(item.itemId, atual);
+  }
+
+  return Array.from(porItem.values())
+    .sort((a, b) => b.qtd - a.qtd)
+    .slice(0, MAX_ITENS_RANKING);
+}
 
 const MIN_PONTOS_TENDENCIA = 2;
 const JANELA_HISTORICO_RODADAS_TENDENCIA = 30;
@@ -94,13 +127,24 @@ export async function calcularTendenciaReputacaoAvulso(assinanteId: string): Pro
   return { reclamacoes, atrasoManuseio, cancelamento };
 }
 
+export type ReputacaoAtendimentoContextoAvulso = ReputacaoAtendimentoContexto & {
+  rankingSkuReclamacoes: RankingSkuReclamacao[];
+};
+
 export async function buscarDadosReputacaoAtendimentoAvulso(
   assinanteId: string
-): Promise<ReputacaoAtendimentoContexto | null> {
+): Promise<ReputacaoAtendimentoContextoAvulso | null> {
   const ctx = await getValidMercadoLivreAvulsoAccessToken(assinanteId);
   if (!ctx) return null;
 
-  const [reputacao, perguntas] = await Promise.all([mlBuscarReputacao(ctx), buscarPerguntasContexto(ctx)]);
+  const [reputacao, perguntas, rankingSkuReclamacoes] = await Promise.all([
+    mlBuscarReputacao(ctx),
+    buscarPerguntasContexto(ctx),
+    buscarRankingSkuReclamacoesAvulso(ctx).catch((e) => {
+      console.error("[gestorReputacaoAtendimentoDadosAvulso] ranking de SKU falhou", e);
+      return [];
+    }),
+  ]);
   if (!reputacao) return null;
 
   return {
@@ -114,21 +158,59 @@ export async function buscarDadosReputacaoAtendimentoAvulso(
     periodoMetrica: reputacao.atrasoManuseio?.period ?? reputacao.reclamacoes?.period ?? "60 days",
     fornecedoresAtraso: [],
     perguntas,
+    rankingSkuReclamacoes,
   };
+}
+
+const JANELA_PERGUNTAS_RESOLVIDAS_DIAS = 30;
+
+/** Métrica de valor (B5) — de toda resposta aplicada (clique real) nos últimos 30 dias,
+ * conta quantas já não aparecem mais na lista de pendentes atual (`perguntasPendentesIds`)
+ * — confirma que resolveu de verdade, não só que o assinante clicou em aplicar. Contagem,
+ * nunca R$ (não dá pra converter pergunta respondida em dinheiro com certeza). */
+async function contarPerguntasResolvidasAvulso(
+  assinanteId: string,
+  perguntasPendentesIds: Set<number>
+): Promise<{ total_respondidas: number; confirmadas_resolvidas: number }> {
+  const desde = new Date();
+  desde.setDate(desde.getDate() - JANELA_PERGUNTAS_RESOLVIDAS_DIAS);
+
+  const { data, error } = await supabaseAdmin
+    .from("calculadora_assinante_ai_acoes")
+    .select("item_id")
+    .eq("assinante_id", assinanteId)
+    .eq("gestor", "reputacao_atendimento")
+    .eq("tipo_acao", "aplicar_resposta_pergunta")
+    .gte("criado_em", desde.toISOString());
+  if (error) {
+    console.error("[gestorReputacaoAtendimentoDadosAvulso] contagem de perguntas resolvidas falhou", error);
+    return { total_respondidas: 0, confirmadas_resolvidas: 0 };
+  }
+
+  const linhas = (data ?? []) as { item_id: string | null }[];
+  const totalRespondidas = linhas.length;
+  const confirmadasResolvidas = linhas.filter(
+    (l) => l.item_id && !perguntasPendentesIds.has(Number(l.item_id))
+  ).length;
+  return { total_respondidas: totalRespondidas, confirmadas_resolvidas: confirmadasResolvidas };
 }
 
 /** Monta o resultado a partir de dados já buscados (`buscarDadosReputacaoAtendimentoAvulso`)
  * — `apiKey` vem `null` quando não há pergunta pendente, ou quando há pergunta mas o
  * orçamento diário já estourou e não tem BYOK (decisão fica com quem chama, ver
- * gestorAvulsoAmandaRodar.ts). Nunca deixa a rodada inteira falhar só porque a resposta a
+ * gestorAvulsoSacRodar.ts). Nunca deixa a rodada inteira falhar só porque a resposta a
  * pergunta deu erro — diagnóstico de reputação continua valendo mesmo assim. */
 export async function montarResultadoReputacaoAtendimentoAvulso(
   assinanteId: string,
-  dados: ReputacaoAtendimentoContexto,
+  dados: ReputacaoAtendimentoContextoAvulso,
   apiKey: string | null
 ): Promise<ResultadoReputacaoComUso> {
   const { diagnostico, observacao } = classificarReputacao(dados);
-  const tendencia = await calcularTendenciaReputacaoAvulso(assinanteId);
+  const perguntasPendentesIds = new Set(dados.perguntas.map((p) => p.perguntaId));
+  const [tendencia, perguntasResolvidasConfirmado] = await Promise.all([
+    calcularTendenciaReputacaoAvulso(assinanteId),
+    contarPerguntasResolvidasAvulso(assinanteId, perguntasPendentesIds),
+  ]);
 
   let respostaPorPergunta = new Map<number, { urgencia: "alta" | "media" | "baixa"; resposta_sugerida: string }>();
   let usage: UsoAnthropicGestor | null = null;
@@ -171,6 +253,9 @@ export async function montarResultadoReputacaoAtendimentoAvulso(
     fornecedores_atraso: [],
     perguntas,
     tendencia,
+    margem_ml: calcularMargemReputacaoMl(dados),
+    ranking_sku_reclamacoes: dados.rankingSkuReclamacoes,
+    perguntas_resolvidas_confirmado: perguntasResolvidasConfirmado,
   };
 
   return { resultado, usage };

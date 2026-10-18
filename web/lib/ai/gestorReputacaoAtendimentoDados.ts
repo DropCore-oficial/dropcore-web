@@ -316,6 +316,58 @@ export type TendenciaReputacao = {
   cancelamento: TendenciaMetrica | null;
 };
 
+// --- Margem até o próximo nível do termômetro (cor oficial do ML) --------------------------
+//
+// Limiares publicados pela própria documentação do Mercado Livre
+// (developers.mercadolivre.com.br/pt-br/reputacao-de-vendedores, consultado 2026-10-17) —
+// não são os limites de "saudável/atenção/crítica" do DropCore acima (esses são critério
+// nosso, mais rígido de propósito). Aqui é literalmente "quanto falta pra virar a cor de
+// baixo" no termômetro do próprio ML (`ReputacaoTermometro.tsx`), por métrica — a fórmula
+// real que o ML usa pra combinar as 3 num `level_id` só não é pública, por isso a margem é
+// sempre por métrica isolada, nunca um número único "combinado" (evita inventar conta).
+const ML_LIMIAR_RECLAMACOES = { lider: 0.01, verde: 0.02, amarelo: 0.045, laranja: 0.08 };
+const ML_LIMIAR_CANCELAMENTOS = { lider: 0.005, verde: 0.015, amarelo: 0.035, laranja: 0.04 };
+const ML_LIMIAR_ATRASO = { lider: 0.06, verde: 0.1, amarelo: 0.18, laranja: 0.22 };
+
+export type MargemReputacaoMetrica = {
+  tier: "lider" | "verde" | "amarelo" | "laranja" | "vermelho";
+  /** Taxa que, se ultrapassada, já piora o tier — `null` quando já está no pior tier (vermelho). */
+  proximoLimite: number | null;
+  /** Pontos percentuais até bater `proximoLimite` — `null` junto com ele. */
+  margem: number | null;
+};
+
+export type MargemReputacaoMl = {
+  reclamacoes: MargemReputacaoMetrica;
+  cancelamentos: MargemReputacaoMetrica;
+  atrasoManuseio: MargemReputacaoMetrica;
+};
+
+function classificarTierEMargem(
+  taxa: number,
+  limiares: { lider: number; verde: number; amarelo: number; laranja: number }
+): MargemReputacaoMetrica {
+  if (taxa < limiares.lider) return { tier: "lider", proximoLimite: limiares.lider, margem: limiares.lider - taxa };
+  if (taxa < limiares.verde) return { tier: "verde", proximoLimite: limiares.verde, margem: limiares.verde - taxa };
+  if (taxa < limiares.amarelo) return { tier: "amarelo", proximoLimite: limiares.amarelo, margem: limiares.amarelo - taxa };
+  if (taxa < limiares.laranja) return { tier: "laranja", proximoLimite: limiares.laranja, margem: limiares.laranja - taxa };
+  return { tier: "vermelho", proximoLimite: null, margem: null };
+}
+
+export function calcularMargemReputacaoMl(
+  d: Pick<ReputacaoAtendimentoContexto, "taxaReclamacoes" | "taxaCancelamento" | "taxaAtrasoManuseio">
+): MargemReputacaoMl {
+  return {
+    reclamacoes: classificarTierEMargem(d.taxaReclamacoes, ML_LIMIAR_RECLAMACOES),
+    cancelamentos: classificarTierEMargem(d.taxaCancelamento, ML_LIMIAR_CANCELAMENTOS),
+    atrasoManuseio: classificarTierEMargem(d.taxaAtrasoManuseio, ML_LIMIAR_ATRASO),
+  };
+}
+
+/** SKU/anúncio por trás de uma reclamação aberta, agregado por quantidade — só avulso
+ * preenche por enquanto (ver `buscarRankingSkuReclamacoesAvulso`). */
+export type RankingSkuReclamacao = { itemId: string; titulo: string; qtd: number; reasonIds: string[] };
+
 export type ResultadoReputacaoAtendimentoEnriquecido = {
   diagnostico: "saudavel" | "atencao" | "critica";
   observacao: string;
@@ -331,6 +383,15 @@ export type ResultadoReputacaoAtendimentoEnriquecido = {
   perguntas: PerguntaResultadoEnriquecido[];
   /** Só avulso preenche (ver nota do tipo acima). */
   tendencia?: TendenciaReputacao | null;
+  /** Só avulso preenche — margem até o próximo tier do termômetro oficial do ML. */
+  margem_ml?: MargemReputacaoMl;
+  /** Só avulso preenche — top 5 SKU com mais reclamação aberta. */
+  ranking_sku_reclamacoes?: RankingSkuReclamacao[];
+  /** Métrica de valor (B5, 2026-10-17) — de todas as respostas aplicadas (clique real) nos
+   * últimos 30 dias, quantas realmente saíram da lista de pendentes (confirma que resolveu,
+   * não só que o assinante clicou). Contagem, não R$ — não dá pra converter pergunta
+   * respondida em dinheiro com certeza. Só avulso preenche. */
+  perguntas_resolvidas_confirmado?: { total_respondidas: number; confirmadas_resolvidas: number };
 };
 
 export type ResultadoReputacaoComUso = {

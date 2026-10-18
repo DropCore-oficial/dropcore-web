@@ -93,7 +93,7 @@ export async function processarAndreyAvulsoBatchesPendentes(): Promise<Processar
 
         const usage = item.result.message.usage;
         // BYOK não grava custo (chave própria, não é gasto do DropCore) — mesmo princípio do
-        // caminho síncrono em gestorAvulsoAndreyRodar.ts.
+        // caminho síncrono em gestorAvulsoAnuncioRodar.ts.
         const ehByok = chaveByokDoBatch !== null;
 
         await supabaseAdmin

@@ -85,7 +85,7 @@ export default function SellerGestorDetalhePage() {
     setGestoresLiberados(json.gestores_liberados ?? {});
     setChatLiberado(json.chat_liberado === true);
 
-    if (slug === "ulisses") {
+    if (slug === "ads") {
       const prefRes = await fetch("/api/seller/gestores-ia/ulisses-preferencias", {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
@@ -143,7 +143,7 @@ export default function SellerGestorDetalhePage() {
               <div className={cn("rounded-2xl p-4 text-sm", DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY)}>
                 {error}
               </div>
-            ) : pro && !saldoSuficiente && perfil.slug !== "tiago-silva" ? (
+            ) : pro && !saldoSuficiente && perfil.slug !== "gestor" ? (
               <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 text-center shadow-sm sm:p-8">
                 <p className="font-medium text-[var(--foreground)]">Recarregue seu saldo pra usar os Gestores de IA</p>
                 <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">
@@ -164,7 +164,7 @@ export default function SellerGestorDetalhePage() {
                   Esse gestor ({perfil.funcao}) ainda não está disponível. Assim que estiver pronto, aparece aqui.
                 </p>
               </section>
-            ) : (perfil.slug === "tiago-silva" ? !chatLiberado : perfil.gestorId ? !gestoresLiberados[perfil.gestorId] : false) ? (
+            ) : (perfil.slug === "gestor" ? !chatLiberado : perfil.gestorId ? !gestoresLiberados[perfil.gestorId] : false) ? (
               <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 text-center shadow-sm sm:p-8">
                 <p className="font-medium text-[var(--foreground)]">🔒 {perfil.nome} exige o add-on Gestores de IA</p>
                 <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">
@@ -176,26 +176,26 @@ export default function SellerGestorDetalhePage() {
                   .
                 </p>
               </section>
-            ) : perfil.slug === "diogo" ? (
+            ) : perfil.slug === "estoque" ? (
               <SellerGestorEstoqueFulfillmentPanel
                 pro={pro}
                 run={(runs["estoque_fulfillment"] as SellerAiRun<RupturaFulfillmentResultado> | undefined) ?? null}
                 onRodarAgora={() => dispararRodada("estoque_fulfillment")}
                 skuMlMap={skuMlMap}
               />
-            ) : perfil.slug === "andrey" ? (
+            ) : perfil.slug === "anuncio" ? (
               <SellerGestorAnunciosSeoPanel
                 pro={pro}
                 run={(runs["anuncios_seo"] as SellerAiRun<AnunciosSeoResultado> | undefined) ?? null}
                 onRodarAgora={() => dispararRodada("anuncios_seo")}
               />
-            ) : perfil.slug === "amanda" ? (
+            ) : perfil.slug === "sac" ? (
               <SellerGestorReputacaoAtendimentoPanel
                 pro={pro}
                 run={(runs["reputacao"] as SellerAiRun<ReputacaoAtendimentoResultado> | undefined) ?? null}
                 onRodarAgora={() => dispararRodada("reputacao")}
               />
-            ) : perfil.slug === "ulisses" ? (
+            ) : perfil.slug === "ads" ? (
               ulissesPreferencias === undefined ? (
                 <Skeleton className="h-40 w-full rounded-2xl" />
               ) : ulissesPreferencias === null || editandoPreferenciasUlisses ? (
@@ -226,7 +226,7 @@ export default function SellerGestorDetalhePage() {
                   />
                 </div>
               )
-            ) : perfil.slug === "tiago-silva" ? (
+            ) : perfil.slug === "gestor" ? (
               <SellerGestorTiagoChatPanel />
             ) : null}
           </>

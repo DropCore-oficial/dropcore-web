@@ -2,13 +2,13 @@
  * POST /api/gestores-ia-avulso/estoque/alterar-status-anuncio — pausa (ou reativa) de
  * verdade o anúncio no Mercado Livre, mesmo padrão do hub
  * (app/api/seller/gestores-ia/alterar-status-anuncio/route.ts), mas com o token do
- * assinante avulso e sem a auditoria em `seller_ai_acoes` (tabela só do hub — mesma decisão
- * já tomada pra `amanda/aplicar-resposta-pergunta`).
+ * assinante avulso. Auditoria via `calculadora_assinante_ai_acoes` (2026-10-17).
  */
 import { NextResponse } from "next/server";
 import { getAssinanteFromToken } from "@/lib/calculadoraAssinanteSessionAuth";
 import { getValidMercadoLivreAvulsoAccessToken } from "@/lib/mercadoLivreAvulsoToken";
 import { mlAtualizarStatus, mlBuscarItemDono } from "@/lib/mercadoLivreApiClient";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,6 +44,17 @@ export async function POST(req: Request) {
   if (!resultado.ok) {
     return NextResponse.json({ error: resultado.erro }, { status: 502 });
   }
+
+  await supabaseAdmin
+    .rpc("fn_calculadora_assinante_ai_acao_registrar", {
+      p_assinante_id: assinante.id,
+      p_gestor: "estoque",
+      p_tipo_acao: `alterar_status_anuncio_${status}`,
+      p_item_id: itemId,
+    })
+    .then(({ error }) => {
+      if (error) console.error("[alterar-status-anuncio] registrar ação falhou", error);
+    });
 
   return NextResponse.json({ ok: true, item_id: itemId, status });
 }

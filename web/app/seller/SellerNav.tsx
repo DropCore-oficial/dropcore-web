@@ -350,11 +350,11 @@ function SellerNavHelpMenu({ supportHref, expanded = false }: { supportHref: str
  * ícones próprios. "Visão geral" é o Portal (/seller/gestores-ia-avulso exato). */
 const GESTORES_IA_SUBITENS = [
   { href: "/seller/gestores-ia-avulso", label: "Visão geral" },
-  { href: "/seller/gestores-ia-avulso/andrey", label: "Anúncio" },
-  { href: "/seller/gestores-ia-avulso/amanda", label: "SAC" },
-  { href: "/seller/gestores-ia-avulso/ulisses", label: "ADS" },
+  { href: "/seller/gestores-ia-avulso/anuncio", label: "Anúncio" },
+  { href: "/seller/gestores-ia-avulso/sac", label: "SAC" },
+  { href: "/seller/gestores-ia-avulso/ads", label: "ADS" },
   { href: "/seller/gestores-ia-avulso/estoque", label: "Estoque" },
-  { href: "/seller/gestores-ia-avulso/tiago", label: "Gestor" },
+  { href: "/seller/gestores-ia-avulso/gestor", label: "Gestor" },
 ] as const;
 
 function gestorSubitemAtivo(pathname: string, href: string): boolean {

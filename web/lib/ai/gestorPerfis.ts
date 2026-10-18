@@ -8,7 +8,7 @@
 import { isPro, temAddonGestoresIaAtivo } from "@/lib/planos";
 import type { GestorId } from "./gestorPrompts";
 
-export type GestorSlug = "diogo" | "andrey" | "amanda" | "ulisses" | "laura" | "tiago-silva";
+export type GestorSlug = "estoque" | "anuncio" | "sac" | "ads" | "design" | "gestor";
 
 export type GestorPerfil = {
   slug: GestorSlug;
@@ -23,12 +23,12 @@ export type GestorPerfil = {
 };
 
 export const GESTORES_PERFIS: GestorPerfil[] = [
-  { slug: "diogo", nome: "Estoque", funcao: "Risco de Ruptura & Fulfillment", gestorId: "estoque_fulfillment", ativo: true, gratisNoPro: false },
-  { slug: "andrey", nome: "Anúncio", funcao: "Anúncios & SEO", gestorId: "anuncios_seo", ativo: true, gratisNoPro: false },
-  { slug: "amanda", nome: "SAC", funcao: "Reputação & Atendimento", gestorId: "reputacao", ativo: true, gratisNoPro: false },
-  { slug: "ulisses", nome: "ADS", funcao: "Ads, Preço & Promoção", gestorId: "ads", ativo: true, gratisNoPro: true },
-  { slug: "laura", nome: "Design", funcao: "Design & Criativo", gestorId: null, ativo: false, gratisNoPro: false },
-  { slug: "tiago-silva", nome: "Gestor", funcao: "Gestor Mestre", gestorId: null, ativo: true, gratisNoPro: false },
+  { slug: "estoque", nome: "Estoque", funcao: "Risco de Ruptura & Fulfillment", gestorId: "estoque_fulfillment", ativo: true, gratisNoPro: false },
+  { slug: "anuncio", nome: "Anúncio", funcao: "Anúncios & SEO", gestorId: "anuncios_seo", ativo: true, gratisNoPro: false },
+  { slug: "sac", nome: "SAC", funcao: "Reputação & Atendimento", gestorId: "reputacao", ativo: true, gratisNoPro: false },
+  { slug: "ads", nome: "ADS", funcao: "Ads, Preço & Promoção", gestorId: "ads", ativo: true, gratisNoPro: true },
+  { slug: "design", nome: "Design", funcao: "Design & Criativo", gestorId: null, ativo: false, gratisNoPro: false },
+  { slug: "gestor", nome: "Gestor", funcao: "Gestor Mestre", gestorId: null, ativo: true, gratisNoPro: false },
 ];
 
 /** Fonte única de verdade do gate por plano/add-on — usada pelas rotas de API, pelo cron

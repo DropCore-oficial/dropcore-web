@@ -207,11 +207,11 @@ async function getAccessToken(): Promise<string | null> {
  * explica a função pra quem nunca entrou no gestor ainda. Mesmo texto do portal avulso
  * (web/app/seller/gestores-ia-avulso/page.tsx), replicado aqui na mesma passada. */
 const DESCRICAO_GESTOR: Record<string, string> = {
-  diogo: "Olha o estoque e avisa antes de faltar produto que já tá vendendo.",
-  andrey: "Analisa seus anúncios e aponta o que pode estar travando visitas e vendas.",
-  amanda: "Acompanha perguntas e reclamações, sugere resposta pronta pra você enviar.",
-  ulisses: "Confere margem e preço de cada SKU, sinaliza o que tá fora do saudável.",
-  "tiago-silva": "Converse sobre o que a equipe já analisou.",
+  estoque: "Olha o estoque e avisa antes de faltar produto que já tá vendendo.",
+  anuncio: "Analisa seus anúncios e aponta o que pode estar travando visitas e vendas.",
+  sac: "Acompanha perguntas e reclamações, sugere resposta pronta pra você enviar.",
+  ads: "Confere margem e preço de cada SKU, sinaliza o que tá fora do saudável.",
+  gestor: "Converse sobre o que a equipe já analisou.",
 };
 
 function GestorCard({
@@ -370,10 +370,10 @@ export default function SellerGestoresIaPage() {
         ) : (
           <div className="space-y-5">
             <SellerGestoresIaEscritorio3D
-              statusDiogo={resumoStatusDiogo(runsLiberados["estoque_fulfillment"] as SellerAiRun<RupturaFulfillmentResultado> | undefined)}
-              statusAndrey={resumoStatusAndrey(runsLiberados["anuncios_seo"] as SellerAiRun<AnunciosSeoResultado> | undefined)}
-              statusAmanda={resumoStatusAmanda(runsLiberados["reputacao"] as SellerAiRun<ReputacaoAtendimentoResultado> | undefined)}
-              statusUlisses={resumoStatusUlisses(runsLiberados["ads"] as SellerAiRun<AdsPricingResultado> | undefined)}
+              statusEstoque={resumoStatusDiogo(runsLiberados["estoque_fulfillment"] as SellerAiRun<RupturaFulfillmentResultado> | undefined)}
+              statusAnuncio={resumoStatusAndrey(runsLiberados["anuncios_seo"] as SellerAiRun<AnunciosSeoResultado> | undefined)}
+              statusSac={resumoStatusAmanda(runsLiberados["reputacao"] as SellerAiRun<ReputacaoAtendimentoResultado> | undefined)}
+              statusAds={resumoStatusUlisses(runsLiberados["ads"] as SellerAiRun<AdsPricingResultado> | undefined)}
               atividades={montarAtividades(
                 runsLiberados["estoque_fulfillment"] as SellerAiRun<RupturaFulfillmentResultado> | undefined,
                 runsLiberados["anuncios_seo"] as SellerAiRun<AnunciosSeoResultado> | undefined,
@@ -391,7 +391,7 @@ export default function SellerGestoresIaPage() {
                   nome={g.nome}
                   funcao={g.funcao}
                   ativo={g.ativo}
-                  liberado={g.slug === "tiago-silva" ? chatLiberado : g.gestorId ? gestoresLiberados[g.gestorId] === true : false}
+                  liberado={g.slug === "gestor" ? chatLiberado : g.gestorId ? gestoresLiberados[g.gestorId] === true : false}
                 />
               ))}
             </div>

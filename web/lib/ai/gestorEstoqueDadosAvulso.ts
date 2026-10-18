@@ -57,6 +57,11 @@ export type SkuEstoqueResultadoAvulso = {
 export type ResultadoEstoqueAvulsoEnriquecido = {
   skus: SkuEstoqueResultadoAvulso[];
   destaque_risco_alto: string[];
+  /** Métrica de valor (B5, 2026-10-17) — de toda pausa aplicada (clique real) nos últimos 30
+   * dias, quantos desses itens não estão mais em risco alto hoje. Não afirma que o item
+   * estava em risco alto NO MOMENTO da pausa (isso não foi capturado na ação) — é só "pausou
+   * e hoje não está mais em risco", sinal, não prova de causa. Contagem, nunca R$. */
+  pausas_recentes_confirmado?: { total_pausas_30d: number; hoje_fora_do_risco_alto: number };
 };
 
 /** Estoque atual ÷ velocidade diária de venda. `null` quando não há venda suficiente pra
@@ -125,6 +130,34 @@ const RANK_RISCO: Record<Risco, number> = { sem_risco: 0, dado_insuficiente: 1, 
 
 type RunRecenteRow = { resultado: ResultadoEstoqueAvulsoEnriquecido | null };
 
+const JANELA_PAUSAS_DIAS = 30;
+
+/** Métrica de valor (B5) — pausas aplicadas (clique real) nos últimos 30 dias cujo item hoje
+ * não está mais em risco alto (`riscoAtualPorItem`, já calculado nesta mesma rodada). */
+async function contarPausasRecentesConfirmadoAvulso(
+  assinanteId: string,
+  riscoAtualPorItem: Map<string, Risco>
+): Promise<{ total_pausas_30d: number; hoje_fora_do_risco_alto: number }> {
+  const desde = new Date();
+  desde.setDate(desde.getDate() - JANELA_PAUSAS_DIAS);
+
+  const { data, error } = await supabaseAdmin
+    .from("calculadora_assinante_ai_acoes")
+    .select("item_id")
+    .eq("assinante_id", assinanteId)
+    .eq("gestor", "estoque")
+    .eq("tipo_acao", "alterar_status_anuncio_paused")
+    .gte("criado_em", desde.toISOString());
+  if (error) {
+    console.error("[gestorEstoqueDadosAvulso] contagem de pausas recentes falhou", error);
+    return { total_pausas_30d: 0, hoje_fora_do_risco_alto: 0 };
+  }
+
+  const linhas = (data ?? []) as { item_id: string | null }[];
+  const foraDoRiscoAlto = linhas.filter((l) => l.item_id && riscoAtualPorItem.get(l.item_id) !== "alto").length;
+  return { total_pausas_30d: linhas.length, hoje_fora_do_risco_alto: foraDoRiscoAlto };
+}
+
 /** `null` quando ML não conectado OU catálogo vazio — mesmo padrão dos outros gestores
  * avulso (Andrey/Amanda/Ulisses). Leitura da rodada anterior (pra "piorou desde ontem") via
  * RPC genérica `fn_calculadora_assinante_ai_runs_recentes` — nunca `.from()` direto, 1º
@@ -183,5 +216,16 @@ export async function montarResultadoEstoqueAvulso(assinanteId: string): Promise
 
   const destaqueRiscoAlto = skus.filter((s) => s.risco === "alto").map((s) => s.chave);
 
-  return { skus, destaque_risco_alto: destaqueRiscoAlto };
+  const riscoAtualPorItem = new Map<string, Risco>();
+  for (const s of skus) {
+    for (const m of s.membros) riscoAtualPorItem.set(m.item_id, s.risco);
+  }
+  const pausasRecentesConfirmado = await contarPausasRecentesConfirmadoAvulso(assinanteId, riscoAtualPorItem).catch(
+    (e) => {
+      console.error("[gestorEstoqueDadosAvulso] pausas recentes falhou", e);
+      return { total_pausas_30d: 0, hoje_fora_do_risco_alto: 0 };
+    }
+  );
+
+  return { skus, destaque_risco_alto: destaqueRiscoAlto, pausas_recentes_confirmado: pausasRecentesConfirmado };
 }

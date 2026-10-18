@@ -17,7 +17,7 @@ const GESTORES_CONSULTAVEIS: { id: GestorId; nome: string; funcao: string }[] = 
 ];
 
 /** Nome amigável do gestor por `gestorId` — usado pro status transitório durante o
- * streaming do chat ("Consultando o Andrey…", ver chat/route.ts). */
+ * streaming do chat ("Consultando o Anúncio…", ver chat/route.ts). */
 export function nomeGestorConsultavel(gestorId: string): string | null {
   return GESTORES_CONSULTAVEIS.find((g) => g.id === gestorId)?.nome ?? null;
 }
@@ -26,18 +26,24 @@ export const TIAGO_CHAT_TOOLS: Anthropic.Messages.Tool[] = [
   {
     name: "consultar_gestor",
     description:
-      "Consulta o resultado mais recente já calculado por um dos gestores da equipe (Diogo, Andrey, Amanda ou Ulisses) pra esse seller. NUNCA dispara uma rodada nova — só lê o que já foi gravado. Se o gestor ainda não rodou, avisa e sugere o seller clicar em 'Rodar de novo agora' na tela dele.",
+      "Consulta o resultado mais recente já calculado por um dos gestores da equipe (Estoque, Anúncio, SAC ou ADS) pra esse seller. NUNCA dispara uma rodada nova — só lê o que já foi gravado. Se o gestor ainda não rodou, avisa e sugere o seller clicar em 'Rodar de novo agora' na tela dele.",
     input_schema: {
       type: "object",
       properties: {
         gestor: {
           type: "string",
           enum: GESTORES_CONSULTAVEIS.map((g) => g.id),
-          description: "estoque_fulfillment=Diogo, anuncios_seo=Andrey, reputacao=Amanda, ads=Ulisses",
+          description: "estoque_fulfillment=Estoque, anuncios_seo=Anúncio, reputacao=SAC, ads=ADS",
         },
       },
       required: ["gestor"],
     },
+  },
+  {
+    name: "consultar_engajamento",
+    description:
+      "Devolve quantas sugestões o seller aplicou de verdade (clique real em 'aplicar'/'confirmar', não estimativa) por gestor, nos últimos 30 dias. Use quando o seller perguntar se está aproveitando os gestores, ou qual gestor ele mais/menos usa. Nunca transforme isso em 'taxa de acerto' ou percentual — é contagem real, não um score.",
+    input_schema: { type: "object", properties: {}, required: [] },
   },
 ];
 
@@ -129,6 +135,25 @@ export async function executarToolTiago(
   sellerId: string,
   orcamento?: OrcamentoResultadoChat
 ): Promise<string> {
+  if (nomeTool === "consultar_engajamento") {
+    const { data, error } = await supabaseAdmin.rpc("fn_seller_ai_acoes_resumo", {
+      p_seller_id: sellerId,
+      p_dias: 30,
+    });
+    if (error) {
+      console.error("[gestorTiagoChatTools] consultar_engajamento falhou", error);
+      return JSON.stringify({ erro: "Não foi possível consultar o engajamento agora." });
+    }
+    const qtdPorGestor = new Map(
+      ((data ?? []) as { gestor: GestorId; qtd_acoes: number }[]).map((r) => [r.gestor, r.qtd_acoes])
+    );
+    const engajamento = GESTORES_CONSULTAVEIS.map((g) => ({
+      gestor: g.nome,
+      qtd_acoes_30d: qtdPorGestor.get(g.id) ?? 0,
+    }));
+    return JSON.stringify({ engajamento });
+  }
+
   if (nomeTool !== "consultar_gestor") {
     return JSON.stringify({ erro: "Ferramenta desconhecida." });
   }

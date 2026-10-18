@@ -1744,6 +1744,50 @@ agrupa variante por produto hoje — não é um fix mecânico de `.range()`, é 
 arquitetura de UI. Fica registrado como pendência que precisa de conversa de produto antes,
 não entra em "performance" como ganho rápido.
 
+## Rotas dos Gestores de IA: slug de pessoa → título genérico (2026-10-17)
+
+Em 2026-10-11 os gestores trocaram de nome de pessoa (Diogo/Andrey/Amanda/Ulisses/Laura/
+Tiago Silva) pra título genérico de função (Estoque/Anúncio/SAC/ADS/Design/Gestor) **só na
+UI** — rota, slug, cron job e arquivo interno continuaram com o nome antigo de propósito,
+pra evitar o custo/risco do rename (ver skill `dropcore-gestores-ia`). Em 2026-10-17 essa
+decisão foi revertida a pedido do Sr Stark: rota, pasta, cron e a maior parte dos arquivos
+internos agora usam o nome genérico também. **Referências a "Andrey"/"Amanda"/"Ulisses"/
+"Diogo"/"Tiago Silva" em entradas de changelog anteriores a esta seção continuam como
+estavam na época** (histórico, não reescrito) — não são mais os nomes reais de rota/arquivo
+hoje.
+
+- **Slug novo** (fonte única: `web/lib/ai/gestorPerfis.ts`, tipo `GestorSlug`): `diogo`→
+  `estoque`, `andrey`→`anuncio`, `amanda`→`sac`, `ulisses`→`ads`, `tiago-silva`→`gestor`,
+  `laura`→`design` (gestor ainda `ativo: false`, sem rota avulso).
+- **Hub** (`/seller/gestores-ia/[gestor]`): só a comparação de slug mudou
+  (`perfil.slug === "estoque"` etc. em `[gestor]/page.tsx`); rota já era dinâmica via
+  `gestorPerfis.ts`, não tinha pasta física por gestor.
+- **Avulso**: pastas de página e de API renomeadas juntas (`git mv`, histórico preservado):
+  `app/seller/gestores-ia-avulso/{andrey,amanda,ulisses,tiago}` →
+  `{anuncio,sac,ads,gestor}` (estoque já era `estoque`) e o mesmo em
+  `app/api/gestores-ia-avulso/`. Arquivos `lib/ai/gestorAvulso{Andrey,Amanda,Ulisses}Rodar.ts`
+  viraram `gestorAvulso{Anuncio,Sac,Ads}Rodar.ts` (nomes de função internos não mudaram).
+- **Cron em produção**: pg_cron não tem rename direto de job (`cron.alter_job` não muda
+  nome) — os 4 jobs afetados foram recriados via `cron.unschedule` + `cron.schedule` com
+  nome/URL novos, mesmo horário/lógica (`web/scripts/rename-cron-gestores-ia-avulso-rotas.sql`).
+  `gestores-ia-avulso-estoque` e `gestores-ia-avulso-resumo-diario` já tinham nome genérico,
+  não mudaram.
+- **Redirects**: `next.config.ts` ganhou `redirects()` (308) de cada rota de página antiga
+  do avulso pra nova — cobre favorito salvo e o CTA do e-mail de resumo diário já enviado
+  pra assinante real antes do rename (o CTA em si também foi atualizado pro link novo em
+  `lib/ai/gestorNotificacaoAvulso.ts`).
+- **Escritório 3D e chat da IA**: `SellerGestoresIaEscritorio3D.tsx` teve o tipo interno
+  `NomeGestor` e as chaves de config renomeadas junto (`Diogo`→`Estoque` etc. como string,
+  não só label); `gestorTiagoChatTools.ts`/`gestorTiagoChatToolsAvulso.ts` tiveram a
+  descrição/enum da tool `consultar_gestor` atualizados — o texto que o modelo Anthropic lê
+  não cita mais nome de pessoa.
+- **Fora do escopo do rename**: rotas de *ação* dentro de cada gestor (ex.
+  `/api/seller/gestores-ia/ulisses-preferencias`, `/api/seller/gestores-ia/ulisses-aplicar-*`)
+  continuam com o nome antigo — são endpoints internos, não a identidade/slug do gestor.
+  Valores gravados em `seller_ai_runs.gestor`/`calculadora_assinante_ai_runs.gestor`
+  (`estoque_fulfillment`, `anuncios_seo`, `reputacao`/`reputacao_atendimento`, `ads`) também
+  não mudaram — já eram nomes funcionais, nunca usaram nome de pessoa.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
