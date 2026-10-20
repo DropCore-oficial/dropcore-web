@@ -59,26 +59,39 @@ vira linha de texto, não caixa. E aplicar a mesma decisão visual nos outros ge
 na mesma passada (não deixar um gestor com o padrão novo e o outro com o antigo — foi
 exatamente o que aconteceu entre Andrey e Diogo antes dessa correção).
 
-## 3. Nomes — título genérico, não o ID técnico
+## 3. Nomes — título genérico, e desde 2026-10-17 isso é também o slug/rota de verdade
 
 **Decisão 2026-10-11: os gestores trocaram de nome de pessoa pra título genérico de
 função** — Diogo→Estoque, Andrey→Anúncio, Amanda→SAC, Ulisses→ADS, Laura→Design, Tiago
-Silva→Gestor. Motivo: evitar o custo/risco de renomear rota, cron job e arquivo interno
-(que usam o nome antigo) só pra mudar o que o seller vê na tela — então o nome exibido
-mudou, mas o resto ficou como estava. ("Gestor" sozinho colide em soletração com o nome do
-produto "Gestores de IA" — decisão explícita do Sr Stark mesmo depois de eu avisar, manter.)
+Silva→Gestor. ("Gestor" sozinho colide em soletração com o nome do produto "Gestores de
+IA" — decisão explícita do Sr Stark mesmo depois de eu avisar, manter.)
 
-Esses títulos só existem no front/UI, no system prompt da IA (`gestorTiagoChatPrompt.ts`/
-`...Avulso.ts`, incluindo o roteiro "Sua equipe" com o nome de cada colega), em
-`gestorPerfis.ts` (campo `nome`), no `gestorTiagoChatTools.ts`/`gestorTiagoChatToolsAvulso.ts`
-(campo `nome` que o Gestor usa pra se referir aos outros no chat) e no mapa `nomeExibicao` do
-`SellerGestoresIaEscritorio3D.tsx` (placa do personagem 3D — a figura humana em si **não**
-mudou, só o texto da placa). Por dentro, tudo continua com o nome antigo: `slug` em
-`gestorPerfis.ts` (`diogo`, `andrey`, `amanda`, `ulisses`, `tiago-silva`), rota (`/seller/
-gestores-ia-avulso/andrey` etc.), nome de arquivo/função (`gestorAvulsoAndreyRodar.ts`,
-`NomeGestor` no 3D) e cron job — nunca renomear nenhum desses pro título novo, é só rótulo
-de UI. `seller_ai_runs.gestor`/`seller_ai_acoes.gestor` continuam com o ID técnico
-(`estoque_fulfillment`, `anuncios_seo`, ...), como já era antes dessa mudança.
+**Atualização 2026-10-17 — a decisão de "não renomear rota/arquivo" foi revertida.** Na
+época (2026-10-11) só a UI mudou, pra evitar o custo/risco do rename; o Sr Stark pediu
+depois pra fazer o rename de verdade também. Hoje:
+- `slug` em `gestorPerfis.ts` já é o nome novo: `estoque`, `anuncio`, `sac`, `ads`,
+  `design`, `gestor` (não mais `diogo`/`andrey`/`amanda`/`ulisses`/`laura`/`tiago-silva`).
+- Rota do avulso também: `/seller/gestores-ia-avulso/anuncio` etc. (pasta renomeada com
+  `git mv`, histórico preservado).
+- Arquivo `gestorAvulso<Nome>Rodar.ts` também: `gestorAvulsoAnuncioRodar.ts`,
+  `gestorAvulsoSacRodar.ts`, `gestorAvulsoAdsRodar.ts` (nome de *função* interna dentro
+  desses arquivos não foi tocado, só o nome do arquivo).
+- Cron job em produção também (pg_cron não tem rename direto — foi `unschedule`+`schedule`
+  com nome/URL novos, ver `web/scripts/rename-cron-gestores-ia-avulso-rotas.sql` e a seção
+  "Rotas dos Gestores de IA" em `docs/SCHEMA.md`).
+- `NomeGestor` dentro de `SellerGestoresIaEscritorio3D.tsx` também usa o nome novo como
+  string interna, não só como label (`nomeExibicao`).
+
+**O que continua com nome antigo, de propósito** (não é esquecimento, é fora do escopo do
+rename): rota de *ação* dentro de um gestor, não a identidade dele — ex.
+`/api/seller/gestores-ia/ulisses-preferencias`, `/api/seller/gestores-ia/ulisses-aplicar-*`.
+`seller_ai_runs.gestor`/`seller_ai_acoes.gestor` continuam com o ID técnico
+(`estoque_fulfillment`, `anuncios_seo`, `reputacao`, `ads`...) — nunca foram nome de pessoa,
+não precisaram mudar.
+
+**Ao criar algo novo pra um gestor:** usar sempre o slug/nome novo (`estoque`, `anuncio`,
+`sac`, `ads`, `gestor`) — nunca reintroduzir `diogo`/`andrey`/`amanda`/`ulisses`/
+`tiago-silva` em código novo, rota nova ou nome de arquivo novo.
 
 **How to apply:** antes de tocar em painel de gestor, ler as seções 1 e 2 inteiras — não só
 "o que o Sr Stark pediu agora", porque toda mudança de sinal/cor tende a se replicar pros
