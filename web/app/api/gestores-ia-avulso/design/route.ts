@@ -41,7 +41,11 @@ export async function GET(req: Request) {
   ]);
 
   const run = ((runsRecentes ?? []) as RunRow[])[0] ?? null;
-  const anunciosComFoto = (run?.resultado?.anuncios ?? []).filter((a) => a.foto_diagnostico !== null);
+  // `!== null` não bastava: rodada salva ANTES do campo `foto_diagnostico` existir não tem a
+  // chave, então vem `undefined` — e `undefined !== null` é `true`, incluindo todo anúncio
+  // de rodada antiga na lista sem nenhum diagnóstico de verdade (achado ao vivo 2026-10-20,
+  // página mostrando item sem badge/motivo nenhum). `Boolean(...)` cobre os dois casos.
+  const anunciosComFoto = (run?.resultado?.anuncios ?? []).filter((a) => Boolean(a.foto_diagnostico));
 
   return NextResponse.json({
     ml_conectado: Boolean(ml?.ml_user_id),
