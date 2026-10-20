@@ -9,6 +9,7 @@
  * pra revisar um produto de verdade dentro de um `<details>` espremido.
  */
 import { useState } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
@@ -25,6 +26,7 @@ export type Membro = {
   dias_no_ar: number;
   fotos_insuficientes: boolean;
   foto_baixa_resolucao: boolean;
+  foto_fora_do_padrao: boolean;
 };
 
 export type CaracteristicaSugerida = { atributo_id: string; atributo_nome: string; valor: string; valorValido: boolean };
@@ -58,6 +60,30 @@ export type Anuncio = {
    * Mao", título já diz "Gola Padre"). Diferente de ausência: aqui já existe resposta, só
    * que diferente — não é pra sugerir trocar, é pra avisar a divergência. */
   atributos_conflitantes: { id: string; name: string; valor: string; valorNoTexto: string }[];
+  /** Funil de CONVERSÃO (2026-10-19): teve visita real nos últimos 30 dias e zero venda real
+   * no mesmo período — sinal independente do `diagnostico` de texto (um anúncio pode estar
+   * "sem_problema_aparente" no título/descrição e MESMO ASSIM ter funil quebrado por outra
+   * causa real). */
+  funil_alerta: boolean;
+  funil_causa_provavel:
+    | "reclamacao"
+    | "reputacao_baixa"
+    | "sem_promocao"
+    | "preco_subiu"
+    | "variacao_sem_estoque"
+    | "texto_fraco"
+    | "foto_ruim"
+    | "sem_causa_identificada"
+    | null;
+  funil_causa_detalhe: string | null;
+  /** Diagnóstico da Laura (gestor Design) — só preenchido quando `funil_causa_provavel` é
+   * "foto_ruim" ou "sem_causa_identificada" (ela já rodou nesses dois casos). */
+  foto_diagnostico: { veredito: "boa" | "ruim"; motivo: string; picture_ids: string[] } | null;
+  /** Funil de TRÁFEGO — zero visita real em 30d, ou queda de pelo menos a metade frente a
+   * ~60-90 dias atrás. */
+  visitas_baixas_alerta: boolean;
+  visitas_baixas_causa_provavel: "ads_removido" | "trafego_caiu_sem_causa_aparente" | null;
+  visitas_baixas_causa_detalhe: string | null;
 };
 
 export type AndreyResultado = { anuncios: Anuncio[]; destaque_prioridade: string[] };
@@ -427,6 +453,7 @@ export function AnuncioDiagnosticoDetalhe({ anuncio }: { anuncio: Anuncio }) {
                 {m.visitas_30d === 0 ? <span className="font-semibold text-[var(--danger)]">zero visitas</span> : null}
                 {m.fotos_insuficientes ? <span>poucas fotos</span> : null}
                 {m.foto_baixa_resolucao ? <span>foto ruim</span> : null}
+                {m.foto_fora_do_padrao ? <span>foto fora do padrão do ML</span> : null}
               </div>
             </div>
           ))}
@@ -437,6 +464,42 @@ export function AnuncioDiagnosticoDetalhe({ anuncio }: { anuncio: Anuncio }) {
         <div className="rounded-lg bg-[var(--muted)]/8 px-3 py-2.5">
           <SecaoEyebrow>Diagnóstico</SecaoEyebrow>
           <p className="mt-0.5 text-sm text-[var(--foreground)]">{anuncio.observacao}</p>
+        </div>
+      ) : null}
+
+      {anuncio.funil_alerta || anuncio.visitas_baixas_alerta ? (
+        <div className="rounded-lg bg-[var(--muted)]/8 px-3 py-2.5">
+          <SecaoEyebrow>Funil de vendas</SecaoEyebrow>
+          {anuncio.funil_alerta ? (
+            <p className="mt-0.5 flex items-start gap-1.5 text-sm text-[var(--danger)]">
+              <span aria-hidden>⚠</span>
+              <span>Teve visita real e não vendeu nada nos últimos 30 dias — {anuncio.funil_causa_detalhe}</span>
+            </p>
+          ) : null}
+          {anuncio.visitas_baixas_alerta ? (
+            <p className="mt-0.5 flex items-start gap-1.5 text-sm text-[var(--danger)]">
+              <span aria-hidden>⚠</span>
+              <span>
+                {anuncio.visitas_baixas_causa_detalhe ?? "Visita caiu nos últimos 30 dias, sem causa identificada."}
+              </span>
+            </p>
+          ) : null}
+          {anuncio.funil_causa_provavel === "variacao_sem_estoque" ? (
+            <Link
+              href="/seller/gestores-ia-avulso/estoque"
+              className="mt-1.5 inline-block text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
+            >
+              Ver no Estoque →
+            </Link>
+          ) : null}
+          {anuncio.funil_causa_provavel === "foto_ruim" || anuncio.funil_causa_provavel === "sem_causa_identificada" ? (
+            <Link
+              href="/seller/gestores-ia-avulso/design"
+              className="mt-1.5 inline-block text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
+            >
+              Ver análise da Laura →
+            </Link>
+          ) : null}
         </div>
       ) : null}
 

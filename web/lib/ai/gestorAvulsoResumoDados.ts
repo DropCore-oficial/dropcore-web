@@ -10,8 +10,9 @@
  * nunca como número contábil exato.
  */
 import { getValidMercadoLivreAvulsoAccessToken } from "@/lib/mercadoLivreAvulsoToken";
-import { mlBuscarResumoPedidosPeriodo } from "@/lib/mercadoLivreApiClient";
+import { mlBuscarItensDetalhe, mlBuscarResumoPedidosPeriodo, type MercadoLivreAuthContext } from "@/lib/mercadoLivreApiClient";
 import { montarResultadoAdsAvulso } from "./gestorAdsDadosAvulso";
+import { nomeVariacao } from "./gestorEstoqueDadosAvulso";
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
@@ -26,6 +27,11 @@ export type ResumoFinanceiroAvulso = {
   /** null quando não houve venda no período (sem como dividir). */
   ticketMedio30d: number | null;
   produtoCampeao: { itemId: string; nome: string; vendas: number } | null;
+  /** Variação (cor/tamanho) com mais venda real no período, dentro de qualquer anúncio —
+   * achado 2026-10-19: um anúncio pode vender bem no total mas ser 1 variação específica
+   * carregando quase tudo (ex. tamanho G de uma camisa). `null` quando nenhuma venda do
+   * período teve `variation_id` (anúncio sem variação) ou não houve venda. */
+  variacaoCampea: { itemId: string; nomeProduto: string; nomeVariacao: string; vendas: number } | null;
   /** Top 5 produtos por faturamento real no período (não só quantidade) — base do ranking
    * "Top produtos" do Dashboard. Vazio quando não houve venda no período. */
   topProdutos: { itemId: string; nome: string; vendas: number; faturamento: number }[];
@@ -77,6 +83,26 @@ export async function buscarResumoFinanceiroAvulso(assinanteId: string): Promise
 
   const ticketMedio30d = periodoAtual.vendas > 0 ? periodoAtual.faturamento / periodoAtual.vendas : null;
 
+  // Variação campeã — só 1 fetch extra (do item da melhor variação), não de todo o
+  // catálogo, pra resolver o nome real (cor/tamanho) a partir de `attribute_combinations`.
+  let variacaoCampea: ResumoFinanceiroAvulso["variacaoCampea"] = null;
+  let melhorVariacao: { itemId: string; variationId: number; quantidade: number } | null = null;
+  for (const v of periodoAtual.porVariacao) {
+    if (!melhorVariacao || v.quantidade > melhorVariacao.quantidade) melhorVariacao = v;
+  }
+  if (melhorVariacao) {
+    const [detalhe] = await mlBuscarItensDetalhe([melhorVariacao.itemId], ctx as MercadoLivreAuthContext);
+    const variacao = detalhe?.variations?.find((va) => va.id === melhorVariacao!.variationId);
+    if (detalhe && variacao) {
+      variacaoCampea = {
+        itemId: melhorVariacao.itemId,
+        nomeProduto: detalhe.title,
+        nomeVariacao: nomeVariacao(variacao),
+        vendas: melhorVariacao.quantidade,
+      };
+    }
+  }
+
   return {
     faturamento30d: periodoAtual.faturamento,
     faturamento30dVariacaoPct,
@@ -85,6 +111,7 @@ export async function buscarResumoFinanceiroAvulso(assinanteId: string): Promise
     margemMediaPct,
     ticketMedio30d,
     produtoCampeao,
+    variacaoCampea,
     topProdutos,
     porDia30d: periodoAtual.porDia,
   };

@@ -35,6 +35,7 @@ import {
   mlBuscarAtributosCategoria,
   mlSugerirCategoria,
   menorLadoFotoMaxSize,
+  proporcaoFotoRecomendada,
   type MercadoLivreAuthContext,
   type MercadoLivreItemDetail,
   type MercadoLivreAtributoCategoria,
@@ -47,9 +48,22 @@ export type MembroAnuncioSeo = {
   /** true quando a foto de capa está abaixo da resolução mínima recomendada — sinal
    * diferente de "poucas fotos" (pode ter 5 fotos, todas de baixa qualidade). */
   fotoBaixaResolucao: boolean;
+  /** true quando a foto de capa não está nem quadrada (1200×1200, ativa zoom) nem vertical
+   * (~1200×1540, 4:5, recomendada pra moda) — fora dos dois formatos que o próprio ML
+   * documenta como ideais (confirmado 2026-10-20, ver `proporcaoFotoRecomendada`). Sinal
+   * diferente de `fotoBaixaResolucao`: uma foto pode ter resolução alta e mesmo assim estar
+   * numa proporção que cria corte/sobra estranha no feed mobile. */
+  fotoForaDoPadrao: boolean;
   diasNoAr: number;
   vendasTotais: number;
   visitas30d: number;
+  /** Venda real dos últimos 30 dias (via `/orders/search`, mesma fonte que Estoque/ADS já
+   * usam) — diferente de `vendasTotais` (`sold_quantity`, lifetime). Necessário pro funil
+   * visita→venda: comparar `vendasTotais` direto com `visitas30d` dava conta errada (anúncio
+   * antigo com venda histórica alta parecia "convertendo bem" mesmo parado há meses). Só
+   * preenchido pelo avulso hoje (`gestorAnunciosSeoDadosAvulso.ts`), por isso é opcional —
+   * mesmo padrão de `perguntaReforcaGap`/`reclamacaoAbertaCodigo` abaixo. */
+  vendasReais30d?: number;
 };
 
 export type AtributoFaltando = {
@@ -146,6 +160,57 @@ export type AnuncioSeoContexto = {
    * sozinho não basta pra decidir se vale mencionar na observação do Anúncio, usa esse campo
    * junto. */
   reclamacaoAbertaTriage?: string[];
+  /** Funil de CONVERSÃO (2026-10-18): `true` quando o grupo teve visita real nos últimos 30
+   * dias e zero venda real no mesmo período — ou seja, teve tráfego e não converteu. Sinal
+   * objetivo (não é limiar de "% de conversão saudável" inventado), ver `vendasReais30d`.
+   * Achado real 2026-10-19: Ads/orçamento é fator de TRÁFEGO (gera visita), não de
+   * conversão — não entra nessa cascata, ver `visitasBaixasAlerta` abaixo pro lugar certo
+   * desse sinal. Só preenchido pelo avulso hoje. */
+  funilAlerta?: boolean;
+  /** Causa mais provável do funil de conversão quebrado, verificada com dado real de outro
+   * gestor (nunca "pode ser X ou Y" solto) — `null` só quando `funilAlerta` é `false`. Ordem
+   * de checagem: reclamação aberta > reputação da conta abaixo do nível bom > nenhuma
+   * promoção/desconto ativo > preço subiu frente ao próprio histórico (~60 dias atrás,
+   * nunca comparado com concorrência — isso foi testado ao vivo 2026-08-20 e a API do ML não
+   * expõe preço de concorrente pra catálogo não catalogado, ver `gestorPrompts.ts`) > a
+   * variação (cor/tamanho) que mais vendia está sem estoque, mesmo com o anúncio inteiro
+   * parecendo saudável (lê a última rodada do Estoque, `variacao_critica`) > resta texto/foto.
+   *
+   * `"pendente_resolver"` é um SENTINELA interno: esse campo é calculado aqui ANTES da IA
+   * rodar (`montarContextoGrupoAvulso`), então ainda não existe `diagnostico` de texto nem
+   * resultado da Laura — quem resolve esse sentinela pro valor final (`"texto_fraco"` |
+   * `"foto_ruim"` | `"sem_causa_identificada"`) é `enriquecerResultadoAnunciosSeoAvulso`,
+   * DEPOIS que a IA responde (achado real 2026-10-19: antes disso existia, o código caía
+   * direto em "deve ser a foto" sem nunca olhar se a própria IA já tinha achado um problema
+   * de título/descrição/ficha no mesmo anúncio — ficava contraditório na tela, badge dizendo
+   * uma causa e o funil dizendo outra). Esse sentinela nunca deveria aparecer pro seller. */
+  funilCausaProvavel?:
+    | "reclamacao"
+    | "reputacao_baixa"
+    | "sem_promocao"
+    | "preco_subiu"
+    | "variacao_sem_estoque"
+    | "pendente_resolver"
+    | null;
+  /** Texto curto explicando a causa provável acima, pra exibir direto na UI sem a tela
+   * precisar remontar a frase. */
+  funilCausaDetalhe?: string | null;
+  /** Foto de capa do representante do grupo (id + URL https real) — só preenchido pelo
+   * avulso, usado só quando `funilCausaProvavel` fica pendente até depois da IA responder,
+   * pra alimentar a análise de visão da Laura sem precisar buscar de novo. */
+  representanteFotos?: { id: string; url: string }[];
+  /** Funil de TRÁFEGO (2026-10-19): `true` quando o grupo teve ZERO visita real nos últimos
+   * 30 dias, OU queda de pelo menos a metade frente a ~60 dias atrás (comparação com o
+   * próprio histórico da conta, não limiar de mercado inventado) — problema diferente do de
+   * conversão acima (aqui ninguém está nem vendo o anúncio). */
+  visitasBaixasAlerta?: boolean;
+  /** `"ads_removido"` quando o grupo tinha investimento em Ads há ~60 dias e não tem mais;
+   * `"trafego_caiu_sem_causa_aparente"` quando não tinha Ads nem antes nem agora mas o
+   * tráfego próprio caiu de verdade (candidato a testar Ads, nunca testado); `null` quando
+   * `visitasBaixasAlerta` é `false` ou quando nenhuma das duas comparações bateu (não
+   * inventa causa sem dado histórico por perto). */
+  visitasBaixasCausaProvavel?: "ads_removido" | "trafego_caiu_sem_causa_aparente" | null;
+  visitasBaixasCausaDetalhe?: string | null;
 };
 
 export type DuplicidadeAnuncio = {
@@ -516,6 +581,7 @@ async function montarContextoGrupo(
             tituloCompleto: m.title,
             quantidadeFotos: m.pictures?.length ?? 0,
             fotoBaixaResolucao: ladoCapa !== null && ladoCapa < MIN_LADO_FOTO_RECOMENDADO,
+            fotoForaDoPadrao: proporcaoFotoRecomendada(m.pictures?.[0]?.max_size) === "fora_do_padrao",
             diasNoAr: m.diasNoAr,
             vendasTotais: m.sold_quantity,
             visitas30d: await mlBuscarVisitas30d(m.id, ctx),
@@ -934,6 +1000,9 @@ export type MembroResultadoEnriquecido = {
   fotos_insuficientes: boolean;
   /** Foto de capa abaixo da resolução mínima recomendada — sinal separado de "poucas fotos". */
   foto_baixa_resolucao: boolean;
+  /** Foto de capa fora das duas proporções que o ML recomenda (quadrada 1:1 ou vertical
+   * 4:5) — sinal separado de resolução baixa, ver `fotoForaDoPadrao`. */
+  foto_fora_do_padrao: boolean;
 };
 
 export type ResultadoAcaoAnterior = {
@@ -1109,6 +1178,7 @@ export async function enriquecerResultadoAnunciosSeo(
         dias_no_ar: m.diasNoAr,
         fotos_insuficientes: m.quantidadeFotos < MIN_FOTOS_RECOMENDADO,
         foto_baixa_resolucao: m.fotoBaixaResolucao,
+        foto_fora_do_padrao: m.fotoForaDoPadrao,
       })),
     };
   });

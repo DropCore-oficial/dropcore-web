@@ -179,6 +179,30 @@ function ResumoFinanceiroCard({ resumo }: { resumo: ResumoFinanceiroAvulso }) {
         )}
       </div>
 
+      {resumo.variacaoCampea ? (
+        <div className="mt-2.5 rounded-xl border border-[var(--card-border)] px-3.5 py-3">
+          <p className="text-[11px] uppercase tracking-wide text-[var(--muted)]">Variação (cor/tamanho) campeã</p>
+          <div className="mt-0.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <div className="min-w-0">
+              <p className="line-clamp-2 text-sm font-bold text-[var(--foreground)]">
+                {resumo.variacaoCampea.nomeVariacao}
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--muted)]">
+                {resumo.variacaoCampea.vendas} vendas no período · {resumo.variacaoCampea.nomeProduto}
+              </p>
+            </div>
+            <a
+              href={mlItemPermalink(resumo.variacaoCampea.itemId)}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+            >
+              Ver anúncio ↗
+            </a>
+          </div>
+        </div>
+      ) : null}
+
       {temVendaNoPeriodo ? (
         <div className="mt-2.5 rounded-xl border border-[var(--card-border)] px-3.5 pb-3 pt-2.5">
           <p className="text-[11px] uppercase tracking-wide text-[var(--muted)]">Faturamento por dia</p>

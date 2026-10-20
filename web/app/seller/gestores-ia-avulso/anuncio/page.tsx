@@ -58,9 +58,23 @@ function AnuncioLinha({
         {anuncio.observacao ? (
           <p className="mt-0.5 line-clamp-2 text-xs text-[var(--muted)] sm:truncate">{anuncio.observacao}</p>
         ) : null}
+        {anuncio.funil_alerta ? (
+          <p className="mt-0.5 line-clamp-2 text-xs text-[var(--danger)] sm:truncate">
+            Teve visita e não vendeu — {anuncio.funil_causa_detalhe}
+          </p>
+        ) : anuncio.visitas_baixas_alerta ? (
+          <p className="mt-0.5 line-clamp-2 text-xs text-[var(--danger)] sm:truncate">
+            {anuncio.visitas_baixas_causa_detalhe ?? "Visita caiu nos últimos 30 dias, sem causa identificada."}
+          </p>
+        ) : null}
       </div>
       <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
-        <DiagnosticoBadge diagnostico={anuncio.diagnostico} />
+        {/* "Sem problema aparente" ficaria contraditório (badge verde) ao lado do aviso de
+            funil quebrado (texto vermelho acima) — nesse caso o sinal forte do card passa a
+            ser o funil, não o diagnóstico de texto. */}
+        {anuncio.diagnostico === "sem_problema_aparente" && (anuncio.funil_alerta || anuncio.visitas_baixas_alerta) ? null : (
+          <DiagnosticoBadge diagnostico={anuncio.diagnostico} />
+        )}
         <svg
           className="h-4 w-4 shrink-0 text-[var(--muted)]"
           viewBox="0 0 24 24"
@@ -127,7 +141,13 @@ function AndreyResultadoAbas({ resultado }: { resultado: AndreyResultado }) {
   // elegível tem menos que isso, os que já estão bem ("sem_problema_aparente") entravam
   // igual na lista/modal — obrigando revisar card por card só pra achar os poucos com
   // problema de verdade. A lista agora só mostra quem tem diagnóstico real.
-  const anunciosComProblema = resultado.anuncios.filter((a) => a.diagnostico !== "sem_problema_aparente");
+  // Achado 2026-10-19: o funil (visita×venda) é um sinal independente do diagnóstico de
+  // texto — um anúncio pode estar "sem_problema_aparente" no título/descrição e MESMO ASSIM
+  // ter funil quebrado por outra causa real (reclamação, reputação, promoção, variação sem
+  // estoque...). Sem esse OR, esses casos ficavam 100% invisíveis na lista.
+  const anunciosComProblema = resultado.anuncios.filter(
+    (a) => a.diagnostico !== "sem_problema_aparente" || a.funil_alerta || a.visitas_baixas_alerta
+  );
 
   const porTipo = {
     problema_titulo: anunciosComProblema.filter((a) => a.diagnostico === "problema_titulo").length,
@@ -223,7 +243,10 @@ function AndreyResultadoAbas({ resultado }: { resultado: AndreyResultado }) {
                 ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <DiagnosticoBadge diagnostico={anuncioAberto.diagnostico} />
+                {anuncioAberto.diagnostico === "sem_problema_aparente" &&
+                (anuncioAberto.funil_alerta || anuncioAberto.visitas_baixas_alerta) ? null : (
+                  <DiagnosticoBadge diagnostico={anuncioAberto.diagnostico} />
+                )}
                 <button
                   type="button"
                   onClick={() => setChaveAberta(null)}

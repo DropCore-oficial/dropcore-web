@@ -9,6 +9,15 @@ type Risco = "alto" | "medio" | "sem_risco" | "dado_insuficiente";
 
 type MembroEstoque = { item_id: string; estoque: number; titulo: string };
 
+type VariacaoCritica = {
+  item_id: string;
+  nome: string;
+  estoque_atual: number;
+  vendas_30d: number;
+  dias_ate_ruptura: number | null;
+  risco: "alto" | "medio";
+};
+
 type SkuEstoqueResultado = {
   chave: string;
   item_id_representante: string;
@@ -22,6 +31,7 @@ type SkuEstoqueResultado = {
   permalink: string | null;
   piorou_desde_ontem: boolean;
   membros: MembroEstoque[];
+  variacao_critica: VariacaoCritica | null;
 };
 
 export type EstoqueAvulsoResultado = {
@@ -177,6 +187,26 @@ function SkuCard({ s }: { s: SkuEstoqueResultado }) {
       </dl>
       {s.no_full ? <p className="mt-2 text-xs text-[var(--muted)]">Enviado via Full (Mercado Envios)</p> : null}
       <p className="mt-2 text-sm text-[var(--foreground)]">{s.acao_recomendada}</p>
+      {s.variacao_critica ? (
+        <p className="mt-1 text-sm text-[var(--danger)]">
+          {s.variacao_critica.estoque_atual <= 0 ? (
+            <>
+              A variação <span className="font-medium">{s.variacao_critica.nome}</span> é a que mais vende desse
+              anúncio e <span className="font-medium">já esgotou</span> — reponha estoque pra voltar a vender mais,
+              mesmo o estoque total do anúncio parecendo saudável.
+            </>
+          ) : (
+            <>
+              A variação <span className="font-medium">{s.variacao_critica.nome}</span> é a que mais vende desse
+              anúncio e está acabando
+              {s.variacao_critica.dias_ate_ruptura !== null
+                ? ` (esgota em ~${s.variacao_critica.dias_ate_ruptura} dias)`
+                : ""}
+              {s.variacao_critica.risco === "alto" ? " — reponha com urgência" : " — vale repor em breve"}.
+            </>
+          )}
+        </p>
+      ) : null}
       {(() => {
         const membrosZerados = s.membros.filter((m) => m.estoque <= 1);
         if (membrosZerados.length === 0) return null;
@@ -224,13 +254,18 @@ export function SellerGestorEstoquePanelAvulso({
     >
       {(resultado) => {
         const skus = resultado.skus;
+        // Variação crítica entra em atenção mesmo com risco agregado "sem_risco" — é
+        // exatamente o caso que o agregado esconde (soma de todas as variações parece
+        // saudável, mas a que mais vende esgotou).
         const emAtencao = [...skus]
-          .filter((s) => s.risco === "alto" || s.risco === "medio")
+          .filter((s) => s.risco === "alto" || s.risco === "medio" || s.variacao_critica !== null)
           .sort((a, b) => {
             if (RANK_RISCO[a.risco] !== RANK_RISCO[b.risco]) return RANK_RISCO[a.risco] - RANK_RISCO[b.risco];
             return (a.dias_ate_ruptura ?? Infinity) - (b.dias_ate_ruptura ?? Infinity);
           });
-        const resto = skus.filter((s) => s.risco === "sem_risco" || s.risco === "dado_insuficiente");
+        const resto = skus.filter(
+          (s) => (s.risco === "sem_risco" || s.risco === "dado_insuficiente") && s.variacao_critica === null
+        );
 
         const pausas = resultado.pausas_recentes_confirmado;
 

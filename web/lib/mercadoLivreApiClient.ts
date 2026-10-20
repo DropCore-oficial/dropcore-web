@@ -192,6 +192,14 @@ export type MercadoLivreVariation = {
    * nunca aparecia mesmo estando cadastrado de verdade no anúncio (falso positivo de
    * "anúncio sem SKU"). */
   attributes?: MercadoLivreAttribute[];
+  /** Estoque e venda LIFETIME por variação (cor/tamanho) — confirmado ao vivo 2026-10-19
+   * que esses dois campos JÁ vêm no multiget padrão (`mlBuscarItensDetalhe`), sem precisar
+   * de `include_attributes=all` — só não eram lidos porque o tipo não os declarava. É o que
+   * permite saber que uma variação específica esgotou mesmo com `available_quantity`
+   * agregado do item inteiro ainda positivo (achado real: seller citou "G e GG de camisa
+   * acabam, mas o anúncio mostra que tem estoque" — era a soma de todas as variações). */
+  available_quantity?: number;
+  sold_quantity?: number;
 };
 
 export type MercadoLivreItemDetail = {
@@ -219,7 +227,9 @@ export type MercadoLivreItemDetail = {
   category_id: string;
   seller_id: number;
   listing_type_id?: string;
-  pictures?: { id: string; max_size?: string }[];
+  /** `secure_url` confirmado ao vivo 2026-10-19 (já vem no multiget padrão, sem parâmetro
+   * extra) — a URL https real da foto, usada pra análise de visão da Laura (gestor Design). */
+  pictures?: { id: string; max_size?: string; secure_url?: string }[];
   attributes?: MercadoLivreAttribute[];
   variations?: MercadoLivreVariation[];
   family_id?: string | number | null;
@@ -307,6 +317,25 @@ export async function mlBuscarDescricao(itemId: string, ctx: MercadoLivreAuthCon
 export async function mlBuscarVisitas30d(itemId: string, ctx: MercadoLivreAuthContext): Promise<number> {
   const json = await mlGet<{ total_visits?: number }>(
     `/items/${itemId}/visits/time_window?last=30&unit=day`,
+    ctx.accessToken
+  );
+  return json?.total_visits ?? 0;
+}
+
+/** Visita real num período PASSADO arbitrário — diferente de `mlBuscarVisitas30d`
+ * (`time_window`, sempre ancorado em "agora", só aceita janela relativa). Testado ao vivo
+ * 2026-10-19 contra conta real: o endpoint `/items/{id}/visits` aceita `date_from`/`date_to`
+ * de até 90 dias atrás sem problema — só que a data tem que ser `YYYY-MM-DD` (ISO completo
+ * com hora/milissegundo dá 400 "unknown date format"). Isso permite comparar o tráfego de
+ * HOJE com o de ~60-90 dias atrás sem esperar a própria conta acumular histórico salvo. */
+export async function mlBuscarVisitasPeriodo(
+  itemId: string,
+  dateFrom: string,
+  dateTo: string,
+  ctx: MercadoLivreAuthContext
+): Promise<number> {
+  const json = await mlGet<{ total_visits?: number }>(
+    `/items/${itemId}/visits?date_from=${dateFrom}&date_to=${dateTo}`,
     ctx.accessToken
   );
   return json?.total_visits ?? 0;
@@ -569,6 +598,27 @@ export function menorLadoFotoMaxSize(maxSize: string | undefined): number | null
   const match = maxSize.match(/^(\d+)x(\d+)$/i);
   if (!match) return null;
   return Math.min(Number(match[1]), Number(match[2]));
+}
+
+/** Proporção recomendada pelo próprio Mercado Livre (doc oficial pra desenvolvedores,
+ * confirmado 2026-10-20): quadrada 1200×1200 (ativa o zoom, zoom já liga a partir de 800px
+ * de largura) ou vertical ~1200×1540 (4:5, recomendada pra moda — preenche melhor a tela do
+ * celular). `"fora_do_padrao"` quando a foto não bate com nenhuma das duas (nem quadrada nem
+ * vertical) ou é estreita demais pra ativar o zoom — sinal de que pode estar sendo cortada/
+ * mal exibida no feed mobile. Tolerância de ±5% no quadrado e a faixa 0.73-0.83 no vertical
+ * (cobre o 4:5 exato = 0.8 e o 1200/1540 ≈ 0.779 citado no guia da categoria moda) — não
+ * exige o pixel exato, ninguém bate 1200×1540 certinho na prática. */
+export function proporcaoFotoRecomendada(maxSize: string | undefined): "quadrada" | "vertical" | "fora_do_padrao" | null {
+  if (!maxSize) return null;
+  const match = maxSize.match(/^(\d+)x(\d+)$/i);
+  if (!match) return null;
+  const largura = Number(match[1]);
+  const altura = Number(match[2]);
+  if (largura < 800) return "fora_do_padrao";
+  const razao = largura / altura;
+  if (razao >= 0.95 && razao <= 1.05) return "quadrada";
+  if (razao >= 0.73 && razao <= 0.83) return "vertical";
+  return "fora_do_padrao";
 }
 
 export type MercadoLivreItemTituloEstado = {
@@ -1014,7 +1064,11 @@ type MercadoLivreOrderSearchResultComItens = {
     status: string;
     total_amount?: number;
     date_created?: string;
-    order_items?: { item?: { id?: string; title?: string }; quantity?: number; unit_price?: number }[];
+    order_items?: {
+      item?: { id?: string; title?: string; variation_id?: number };
+      quantity?: number;
+      unit_price?: number;
+    }[];
   }[];
   paging?: { total?: number };
 };
@@ -1029,6 +1083,11 @@ export type MercadoLivreResumoPedidosPeriodo = {
    * seguinte no gráfico do seller), só com pedido pago. Base pro sparkline do Dashboard
    * avulso. */
   porDia: { dia: string; faturamento: number; vendas: number }[];
+  /** Venda REAL do período por variação (cor/tamanho) — confirmado ao vivo 2026-10-19 que
+   * `order_items[].item.variation_id` já vem na resposta padrão do `/orders/search`, sem
+   * parâmetro extra. Chave composta `${itemId}:${variationId}` pra não colidir variação de
+   * itens diferentes com o mesmo `variation_id` numérico. */
+  porVariacao: { itemId: string; variationId: number; quantidade: number }[];
 };
 
 /** `date_created` do pedido vem em UTC — desloca -3h antes de cortar a data civil, mesmo
@@ -1053,6 +1112,7 @@ export async function mlBuscarResumoPedidosPeriodo(
   let vendas = 0;
   const porItem = new Map<string, { titulo: string; quantidade: number; faturamento: number }>();
   const porDia = new Map<string, { faturamento: number; vendas: number }>();
+  const porVariacao = new Map<string, { itemId: string; variationId: number; quantidade: number }>();
 
   for (let pagina = 0; pagina < maxPaginas; pagina++) {
     const json = await mlGet<MercadoLivreOrderSearchResultComItens>(
@@ -1072,6 +1132,14 @@ export async function mlBuscarResumoPedidosPeriodo(
         atual.quantidade += oi.quantity ?? 0;
         atual.faturamento += (oi.unit_price ?? 0) * (oi.quantity ?? 0);
         porItem.set(itemId, atual);
+
+        const variationId = oi.item?.variation_id;
+        if (variationId) {
+          const chaveVariacao = `${itemId}:${variationId}`;
+          const atualVariacao = porVariacao.get(chaveVariacao) ?? { itemId, variationId, quantidade: 0 };
+          atualVariacao.quantidade += oi.quantity ?? 0;
+          porVariacao.set(chaveVariacao, atualVariacao);
+        }
       }
       if (o.date_created) {
         const dia = dataCreatedParaDiaBrt(o.date_created);
@@ -1097,6 +1165,7 @@ export async function mlBuscarResumoPedidosPeriodo(
     porDia: Array.from(porDia.entries())
       .map(([dia, v]) => ({ dia, faturamento: v.faturamento, vendas: v.vendas }))
       .sort((a, b) => a.dia.localeCompare(b.dia)),
+    porVariacao: Array.from(porVariacao.values()),
   };
 }
 

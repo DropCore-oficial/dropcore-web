@@ -17,6 +17,7 @@ type MembroAnuncio = {
   dias_no_ar: number;
   fotos_insuficientes: boolean;
   foto_baixa_resolucao: boolean;
+  foto_fora_do_padrao: boolean;
 };
 
 type DuplicidadeAnuncio = {
@@ -126,6 +127,21 @@ function FotoBaixaResolucaoBadge() {
   return (
     <span className="inline-flex items-center rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
       foto de baixa qualidade
+    </span>
+  );
+}
+
+/** ML recomenda foto quadrada (1200×1200, ativa zoom) ou vertical 4:5 (~1200×1540, melhor
+ * pra moda) — confirmado na doc oficial 2026-10-20. Fora dessas duas proporções é sinal
+ * separado de resolução baixa (uma foto pode ter resolução alta e mesmo assim estar numa
+ * proporção que corta/sobra estranho no feed mobile). */
+function FotoForaDoPadraoBadge() {
+  return (
+    <span
+      className="inline-flex items-center rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+      title="O Mercado Livre recomenda foto quadrada (1200×1200) ou vertical 4:5 (~1200×1540) — essa foto não está em nenhuma das duas."
+    >
+      foto fora do padrão do ML
     </span>
   );
 }
@@ -746,6 +762,7 @@ function GrupoCard({ g }: { g: AnuncioDiagnostico }) {
                 {m.visitas_30d === 0 ? <ZeroVisitasBadge /> : null}
                 {m.fotos_insuficientes ? <FotosInsuficientesBadge /> : null}
                 {m.foto_baixa_resolucao ? <FotoBaixaResolucaoBadge /> : null}
+                {m.foto_fora_do_padrao ? <FotoForaDoPadraoBadge /> : null}
               </span>
             </div>
           ))}
@@ -755,6 +772,7 @@ function GrupoCard({ g }: { g: AnuncioDiagnostico }) {
           {g.membros[0]?.visitas_30d === 0 ? <ZeroVisitasBadge /> : null}
           {g.membros[0]?.fotos_insuficientes ? <FotosInsuficientesBadge /> : null}
           {g.membros[0]?.foto_baixa_resolucao ? <FotoBaixaResolucaoBadge /> : null}
+          {g.membros[0]?.foto_fora_do_padrao ? <FotoForaDoPadraoBadge /> : null}
         </div>
       )}
 

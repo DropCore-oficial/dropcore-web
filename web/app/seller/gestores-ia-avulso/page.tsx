@@ -10,7 +10,7 @@ import type { AtividadeAoVivo } from "@/components/seller/SellerGestoresIaEscrit
 import { GestorAvulsoOrcamentoBar, type UsoTokensHoje } from "@/components/seller/GestorAvulsoOrcamentoBar";
 import { GestorAvulsoResumoDiario } from "@/components/seller/GestorAvulsoResumoDiario";
 import { buildSellerSupportWhatsAppHref } from "@/lib/sellerSupportWhatsAppPrefill";
-import { IconAndrey, IconAmanda, IconUlisses, IconTiago, IconEstoque } from "@/components/seller/GestorAvulsoIcons";
+import { IconAndrey, IconAmanda, IconUlisses, IconTiago, IconEstoque, IconLaura } from "@/components/seller/GestorAvulsoIcons";
 import { GestorAvulsoPendenciasLista, type GestorPendenciaItem } from "@/components/seller/GestorAvulsoPendenciasLista";
 import {
   type AndreyRun,
@@ -330,6 +330,15 @@ export default function GestoresIaAvulsoPage() {
                 "Cruza estoque e venda dos últimos 30 dias pra apontar o que está perto de esgotar."
               ),
               severidade: severidadeEstoque(estoqueRun),
+              bloqueado: bloqueadoHoje,
+            },
+            {
+              href: "/seller/gestores-ia-avulso/design",
+              icon: <IconLaura />,
+              nome: "Design",
+              funcao: "Design & Criativo",
+              status: "Analisa a foto só quando o Anúncio não acha nenhuma outra causa — roda sozinha.",
+              severidade: "neutro",
               bloqueado: bloqueadoHoje,
             },
             {

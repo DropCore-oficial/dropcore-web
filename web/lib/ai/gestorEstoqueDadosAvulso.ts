@@ -18,6 +18,7 @@ import {
   mlItemPermalink,
   type MercadoLivreAuthContext,
   type MercadoLivreItemDetail,
+  type MercadoLivreVariation,
 } from "@/lib/mercadoLivreApiClient";
 import { getValidMercadoLivreAvulsoAccessToken } from "@/lib/mercadoLivreAvulsoToken";
 
@@ -33,6 +34,23 @@ const DIAS_RUPTURA_RISCO_MEDIO = 20;
 export type Risco = "alto" | "medio" | "sem_risco" | "dado_insuficiente";
 
 export type MembroEstoqueAvulso = { item_id: string; estoque: number; titulo: string };
+
+/** Variação (cor/tamanho) específica dentro de um anúncio com múltiplas variações — achado
+ * real 2026-10-19 (pedido direto do Sr Stark: "minhas G e GG de camisa acabam, mas o
+ * anúncio mostra que tem estoque" — é a soma de TODAS as variações, não a que realmente
+ * vende). `estoque_atual`/`vendas_30d` são só dessa variação específica, não do anúncio
+ * inteiro. `risco` usa os MESMOS limiares (`DIAS_RUPTURA_RISCO_ALTO`/`_MEDIO`) da ruptura
+ * agregada, só aplicados nessa variação — "alto" pode já estar zerada ou perto disso,
+ * "medio" ainda tem estoque mas está esvaziando rápido (antecipa, não só avisa depois que já
+ * zerou — pedido explícito 2026-10-19). */
+export type VariacaoCriticaAvulso = {
+  item_id: string;
+  nome: string;
+  estoque_atual: number;
+  vendas_30d: number;
+  dias_ate_ruptura: number | null;
+  risco: "alto" | "medio";
+};
 
 export type SkuEstoqueResultadoAvulso = {
   chave: string;
@@ -52,6 +70,10 @@ export type SkuEstoqueResultadoAvulso = {
    * pausar (nunca `item_id_representante`, que é só o de maior estoque, escolhido pra
    * nome/permalink de exibição, não pra ação). */
   membros: MembroEstoqueAvulso[];
+  /** `null` quando nenhum membro do grupo tem variação (cor/tamanho) crítica — ver
+   * `VariacaoCriticaAvulso`. Mesmo quando `estoque_atual` do grupo está saudável, uma
+   * variação específica pode estar esgotada. */
+  variacao_critica: VariacaoCriticaAvulso | null;
 };
 
 export type ResultadoEstoqueAvulsoEnriquecido = {
@@ -108,6 +130,56 @@ function agruparParaEstoque(detalhes: MercadoLivreItemDetail[]): GrupoEstoque[] 
       membros: membros.map((m) => ({ item_id: m.id, estoque: m.available_quantity ?? 0, titulo: m.title })),
     };
   });
+}
+
+/** Nome legível da variação a partir de `attribute_combinations` (cor/tamanho) — ex. "Bege e
+ * Branco / G". Fallback pro id numérico só se o ML não mandar nenhum `value_name` (raro). */
+export function nomeVariacao(v: MercadoLivreVariation): string {
+  const partes = (v.attribute_combinations ?? []).map((a) => a.value_name).filter((n): n is string => !!n);
+  return partes.length > 0 ? partes.join(" / ") : `Variação ${v.id}`;
+}
+
+/** Entre os itens com MÚLTIPLAS variações (cor/tamanho dentro do mesmo anúncio — item sem
+ * variação não tem o que esconder), acha a variação que mais vendeu de verdade nos últimos
+ * 30 dias (`vendas30dPorVariacao`, nunca o `sold_quantity` lifetime da variação — mesmo
+ * cuidado já aplicado no Anúncio) e flagra se ELA especificamente está com estoque quase
+ * zero, mesmo que o anúncio inteiro (soma de todas as variações) ainda pareça saudável. */
+function buscarVariacaoCriticaPorItem(
+  detalhes: MercadoLivreItemDetail[],
+  vendas30dPorVariacao: Map<string, number>
+): Map<string, VariacaoCriticaAvulso> {
+  const mapa = new Map<string, VariacaoCriticaAvulso>();
+  for (const item of detalhes) {
+    const variacoes = item.variations ?? [];
+    if (variacoes.length < 2) continue;
+
+    let melhor: { v: MercadoLivreVariation; vendas30d: number } | null = null;
+    for (const v of variacoes) {
+      const vendas30d = vendas30dPorVariacao.get(`${item.id}:${v.id}`) ?? 0;
+      if (!melhor || vendas30d > melhor.vendas30d) melhor = { v, vendas30d };
+    }
+    if (!melhor || melhor.vendas30d <= 0) continue;
+
+    const estoqueAtual = melhor.v.available_quantity ?? 0;
+    const diasAteRuptura = calcularDiasAteRuptura(estoqueAtual, melhor.vendas30d);
+    const risco: "alto" | "medio" | null =
+      estoqueAtual <= 0 || (diasAteRuptura !== null && diasAteRuptura <= DIAS_RUPTURA_RISCO_ALTO)
+        ? "alto"
+        : diasAteRuptura !== null && diasAteRuptura <= DIAS_RUPTURA_RISCO_MEDIO
+          ? "medio"
+          : null;
+    if (risco) {
+      mapa.set(item.id, {
+        item_id: item.id,
+        nome: nomeVariacao(melhor.v),
+        estoque_atual: estoqueAtual,
+        vendas_30d: melhor.vendas30d,
+        dias_ate_ruptura: diasAteRuptura,
+        risco,
+      });
+    }
+  }
+  return mapa;
 }
 
 function classificarEstoque(estoqueAtual: number, vendas30d: number, diasAteRuptura: number | null): { risco: Risco; acaoRecomendada: string } {
@@ -186,6 +258,8 @@ export async function montarResultadoEstoqueAvulso(assinanteId: string): Promise
   if (grupos.length === 0) return null;
 
   const vendasPorItem = new Map(resumoPedidos.itens.map((i) => [i.itemId, i.quantidade]));
+  const vendas30dPorVariacao = new Map(resumoPedidos.porVariacao.map((v) => [`${v.itemId}:${v.variationId}`, v.quantidade]));
+  const variacaoCriticaPorItem = buscarVariacaoCriticaPorItem(detalhes, vendas30dPorVariacao);
 
   const riscoAnteriorPorChave = new Map<string, string>();
   const runAnterior = ((runAnteriorRes.data ?? []) as RunRecenteRow[])[0];
@@ -197,6 +271,7 @@ export async function montarResultadoEstoqueAvulso(assinanteId: string): Promise
     const { risco, acaoRecomendada } = classificarEstoque(grupo.estoqueAtual, vendas30d, diasAteRuptura);
     const riscoAnterior = riscoAnteriorPorChave.get(grupo.chave);
     const piorou = riscoAnterior !== undefined && (RANK_RISCO[risco] ?? 0) > (RANK_RISCO[riscoAnterior as Risco] ?? 0);
+    const variacaoCritica = grupo.membros.map((m) => variacaoCriticaPorItem.get(m.item_id)).find((v) => v) ?? null;
 
     return {
       chave: grupo.chave,
@@ -211,6 +286,7 @@ export async function montarResultadoEstoqueAvulso(assinanteId: string): Promise
       permalink: grupo.permalink ?? mlItemPermalink(grupo.itemIdRepresentante),
       piorou_desde_ontem: piorou,
       membros: grupo.membros,
+      variacao_critica: variacaoCritica,
     };
   });
 

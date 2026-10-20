@@ -102,11 +102,19 @@ export async function rodarAndreyAvulsoParaAssinante(assinanteId: string): Promi
   }
 
   if (!erroMensagem && resultado) {
+    // Acumulador mutado por referência dentro do enriquecimento — a Laura (análise de foto,
+    // só quando o funil esgota as outras causas) soma aqui o custo real dela, pra entrar no
+    // MESMO `tokens_input`/`tokens_output` dessa rodada (nunca gasto invisível pro orçamento
+    // diário — ver `gestorAvulsoOrcamento.ts`).
+    const acumuladorTokensLaura = { input: 0, output: 0 };
     try {
       resultado = await enriquecerResultadoAnunciosSeoAvulso(
         assinanteId,
-        resultado as Parameters<typeof enriquecerResultadoAnunciosSeoAvulso>[1]
+        resultado as Parameters<typeof enriquecerResultadoAnunciosSeoAvulso>[1],
+        { apiKey, assinanteByok, acumuladorTokens: acumuladorTokensLaura }
       );
+      tokensInput += acumuladorTokensLaura.input;
+      tokensOutput += acumuladorTokensLaura.output;
     } catch (e) {
       console.error("[gestorAvulsoAnuncioRodar] enriquecimento falhou", e);
     }

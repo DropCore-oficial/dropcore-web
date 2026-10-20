@@ -50,6 +50,9 @@ export async function processarAndreyAvulsoBatchesPendentes(): Promise<Processar
       chaveByokDoAssinante({ anthropic_api_key_encriptada: a.anthropic_api_key_encriptada } as AssinanteByok),
     ])
   );
+  const assinanteByokPorId = new Map<string, AssinanteByok>(
+    (assinantesRaw ?? []).map((a) => [a.id as string, { anthropic_api_key_encriptada: a.anthropic_api_key_encriptada } as AssinanteByok])
+  );
 
   let ainda = 0;
   let atualizadas = 0;
@@ -80,18 +83,32 @@ export async function processarAndreyAvulsoBatchesPendentes(): Promise<Processar
         let resultado = parsed.resultado;
         const erroMensagem = parsed.erroMensagem;
 
+        const usage = item.result.message.usage;
+        let tokensInputLaura = 0;
+        let tokensOutputLaura = 0;
+
         if (!erroMensagem && resultado) {
+          // Mesmo acumulador por referência do caminho síncrono (ver
+          // gestorAvulsoAnuncioRodar.ts) — a Laura soma aqui o custo dela pra entrar no
+          // MESMO tokens_input/tokens_output da rodada, nunca gasto invisível.
+          const acumuladorTokensLaura = { input: 0, output: 0 };
           try {
             resultado = await enriquecerResultadoAnunciosSeoAvulso(
               linha.assinante_id,
-              resultado as Parameters<typeof enriquecerResultadoAnunciosSeoAvulso>[1]
+              resultado as Parameters<typeof enriquecerResultadoAnunciosSeoAvulso>[1],
+              {
+                apiKey: chaveByokDoBatch ?? apiKeyCasa,
+                assinanteByok: assinanteByokPorId.get(linha.assinante_id) ?? { anthropic_api_key_encriptada: null },
+                acumuladorTokens: acumuladorTokensLaura,
+              }
             );
+            tokensInputLaura = acumuladorTokensLaura.input;
+            tokensOutputLaura = acumuladorTokensLaura.output;
           } catch (e) {
             console.error("[gestorAvulsoBatchResultado] enriquecimento falhou", e);
           }
         }
 
-        const usage = item.result.message.usage;
         // BYOK não grava custo (chave própria, não é gasto do DropCore) — mesmo princípio do
         // caminho síncrono em gestorAvulsoAnuncioRodar.ts.
         const ehByok = chaveByokDoBatch !== null;
@@ -102,8 +119,8 @@ export async function processarAndreyAvulsoBatchesPendentes(): Promise<Processar
             status: erroMensagem ? "erro" : "ok",
             resultado,
             erro: erroMensagem,
-            tokens_input: ehByok ? null : usage?.input_tokens ?? null,
-            tokens_output: ehByok ? null : usage?.output_tokens ?? null,
+            tokens_input: ehByok ? null : (usage?.input_tokens ?? 0) + tokensInputLaura,
+            tokens_output: ehByok ? null : (usage?.output_tokens ?? 0) + tokensOutputLaura,
             atualizado_em: new Date().toISOString(),
           })
           .eq("id", linha.id);
