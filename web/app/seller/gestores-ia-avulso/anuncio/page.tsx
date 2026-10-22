@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -17,7 +17,6 @@ import { HelpBubble } from "@/components/HelpBubble";
 import {
   type Anuncio,
   type AndreyResultado,
-  type Diagnostico,
   DIAGNOSTICO_LABEL,
   DiagnosticoBadge,
   AnuncioDiagnosticoDetalhe,
@@ -126,38 +125,111 @@ function IconFicha() {
     </svg>
   );
 }
+function IconFunilToggle() {
+  return (
+    <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3Z" />
+    </svg>
+  );
+}
+function IconAlertaFunil() {
+  return (
+    <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+      <path d="M12 9v4M12 17h.01" />
+    </svg>
+  );
+}
 
-/** Filtro por tipo de diagnóstico (mesma ideia da aba Margem/Ads/Promoções/Afiliados do
- * Ulisses) — achado 2026-10-14: com vários tipos misturados numa lista só, ficava "tudo
- * solto junto"; separar por aba deixa escanear um tipo de problema por vez. */
-type AbaAndrey = "todos" | Diagnostico;
+/** Causa unificada (2026-10-22): junta diagnóstico de texto (problema_titulo/descricao/
+ * caracteristicas_incompletas, calculado pela própria IA do Andrey) com causa de funil
+ * (verificada por código, inclui a foto da Laura) numa ÚNICA lista de filtro, na mesma
+ * ordem em que o backend realmente cascateia (`gestorAnunciosSeoDadosAvulso.ts`): tráfego é
+ * checado antes de tudo (sinal próprio, `visitas_baixas_alerta`), depois reclamação →
+ * reputação → sem promoção → preço subiu → variação sem estoque → texto (o motivo de ser 3
+ * valores aqui, não 1 "texto_fraco" genérico — o backend resolve texto fraco em 3 causas
+ * diferentes e é essa granularidade que o Sr Stark pediu pra manter) → foto ruim → sem causa
+ * identificada. Antes tentamos separar texto/funil em 2 modos com toggle — ficou "pesado"
+ * de alternar; voltar a 1 lista só, mas com a ordem certa, resolve sem reintroduzir a
+ * confusão original de 2026-10-20 (lá não tinha explicação nenhuma de causa de funil, só
+ * misturava sem filtro — aqui cada causa tem sua aba). */
+type CausaUnificada =
+  | "trafego"
+  | "reclamacao"
+  | "reputacao_baixa"
+  | "sem_promocao"
+  | "preco_subiu"
+  | "variacao_sem_estoque"
+  | "problema_titulo"
+  | "problema_descricao"
+  | "caracteristicas_incompletas"
+  | "foto_ruim"
+  | "sem_causa_identificada";
+
+const CAUSA_UNIFICADA_LABEL: Record<CausaUnificada, string> = {
+  trafego: "Pouca visita",
+  reclamacao: "Reclamação",
+  reputacao_baixa: "Reputação",
+  sem_promocao: "Sem promoção",
+  preco_subiu: "Preço subiu",
+  variacao_sem_estoque: "Variação sem estoque",
+  problema_titulo: DIAGNOSTICO_LABEL.problema_titulo,
+  problema_descricao: DIAGNOSTICO_LABEL.problema_descricao,
+  caracteristicas_incompletas: DIAGNOSTICO_LABEL.caracteristicas_incompletas,
+  foto_ruim: "Foto ruim",
+  sem_causa_identificada: "Sem causa identificada",
+};
+
+const CAUSA_UNIFICADA_ICON: Record<CausaUnificada, ReactNode> = {
+  trafego: <IconFunilToggle />,
+  reclamacao: <IconAlertaFunil />,
+  reputacao_baixa: <IconAlertaFunil />,
+  sem_promocao: <IconAlertaFunil />,
+  preco_subiu: <IconAlertaFunil />,
+  variacao_sem_estoque: <IconAlertaFunil />,
+  problema_titulo: <IconTitulo />,
+  problema_descricao: <IconDescricao />,
+  caracteristicas_incompletas: <IconFicha />,
+  foto_ruim: <IconAlertaFunil />,
+  sem_causa_identificada: <IconAlertaFunil />,
+};
+
+/** `null` quando o anúncio não tem nenhuma causa (nem texto, nem funil) — prioriza tráfego
+ * sobre o resto (não adianta resolver conversão se quase ninguém vê o anúncio ainda), depois
+ * segue a autoridade do backend (`funil_causa_provavel`) quando ele já rodou a cascata
+ * completa; só cai pro `diagnostico` cru quando o item nem chegou a ter `funil_alerta`
+ * (ex.: já vendeu normal, mas o título ainda está fraco). */
+function causaUnificadaDoAnuncio(a: Anuncio): CausaUnificada | null {
+  if (a.visitas_baixas_alerta) return "trafego";
+  if (a.funil_alerta && a.funil_causa_provavel) {
+    if (a.funil_causa_provavel === "texto_fraco") {
+      if (a.diagnostico === "sem_problema_aparente") return "sem_causa_identificada";
+      return a.diagnostico;
+    }
+    return a.funil_causa_provavel;
+  }
+  if (a.diagnostico !== "sem_problema_aparente") return a.diagnostico;
+  return null;
+}
 
 function AndreyResultadoAbas({ resultado }: { resultado: AndreyResultado }) {
-  const [aba, setAba] = useState<AbaAndrey>("todos");
+  const [aba, setAba] = useState<"todos" | CausaUnificada>("todos");
   const [chaveAberta, setChaveAberta] = useState<string | null>(null);
   const destaques = new Set(resultado.destaque_prioridade);
 
   // Achado 2026-10-15: a amostra manda até 20 grupos pra IA avaliar, mas quando o catálogo
   // elegível tem menos que isso, os que já estão bem ("sem_problema_aparente") entravam
   // igual na lista/modal — obrigando revisar card por card só pra achar os poucos com
-  // problema de verdade. A lista agora só mostra quem tem diagnóstico real.
-  // Achado 2026-10-19: o funil (visita×venda) é um sinal independente do diagnóstico de
-  // texto — um anúncio pode estar "sem_problema_aparente" no título/descrição e MESMO ASSIM
-  // ter funil quebrado por outra causa real (reclamação, reputação, promoção, variação sem
-  // estoque...). Sem esse OR, esses casos ficavam 100% invisíveis na lista.
-  const anunciosComProblema = resultado.anuncios.filter(
-    (a) => a.diagnostico !== "sem_problema_aparente" || a.funil_alerta || a.visitas_baixas_alerta
-  );
-
-  const porTipo = {
-    problema_titulo: anunciosComProblema.filter((a) => a.diagnostico === "problema_titulo").length,
-    problema_descricao: anunciosComProblema.filter((a) => a.diagnostico === "problema_descricao").length,
-    caracteristicas_incompletas: anunciosComProblema.filter((a) => a.diagnostico === "caracteristicas_incompletas")
-      .length,
-  };
+  // problema de verdade. A lista agora só mostra quem tem causa real (texto OU funil).
+  const anunciosComCausa = resultado.anuncios.filter((a) => causaUnificadaDoAnuncio(a) !== null);
+  const porCausa = anunciosComCausa.reduce((acc, a) => {
+    const causa = causaUnificadaDoAnuncio(a);
+    if (causa) acc[causa] = (acc[causa] ?? 0) + 1;
+    return acc;
+  }, {} as Partial<Record<CausaUnificada, number>>);
 
   const filtrados = (
-    aba === "todos" ? anunciosComProblema : anunciosComProblema.filter((a) => a.diagnostico === aba)
+    aba === "todos" ? anunciosComCausa : anunciosComCausa.filter((a) => causaUnificadaDoAnuncio(a) === aba)
   )
     .slice()
     .sort((a, b) => {
@@ -171,34 +243,30 @@ function AndreyResultadoAbas({ resultado }: { resultado: AndreyResultado }) {
 
   return (
     <div className="space-y-4">
+      {/* Lista unificada (2026-10-22): antes tentamos 2 modos com toggle (texto/funil) —
+       * ficou pesado de alternar entre um sinal com poucos itens e outro com muitos. Agora é
+       * 1 fileira só, na ordem real da cascata do backend — ver comentário de
+       * `CausaUnificada` acima. Achado mesmo dia: com a maioria das causas zeradas na
+       * amostra real (ex. 8 de 11 em 0), mostrar todas as abas sempre virava poluição visual
+       * sem informação nova — só aparece aba de causa com pelo menos 1 anúncio de verdade. */}
       <div className="flex gap-1 overflow-x-auto rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-1 sm:flex-wrap">
         <AbaPilula ativo={aba === "todos"} onClick={() => setAba("todos")} icon={<IconTodos />}>
-          {`Todos (${anunciosComProblema.length})`}
+          {`Todos (${anunciosComCausa.length})`}
         </AbaPilula>
-        <AbaPilula ativo={aba === "problema_titulo"} onClick={() => setAba("problema_titulo")} icon={<IconTitulo />}>
-          {`${DIAGNOSTICO_LABEL.problema_titulo} (${porTipo.problema_titulo})`}
-        </AbaPilula>
-        <AbaPilula
-          ativo={aba === "problema_descricao"}
-          onClick={() => setAba("problema_descricao")}
-          icon={<IconDescricao />}
-        >
-          {`${DIAGNOSTICO_LABEL.problema_descricao} (${porTipo.problema_descricao})`}
-        </AbaPilula>
-        <AbaPilula
-          ativo={aba === "caracteristicas_incompletas"}
-          onClick={() => setAba("caracteristicas_incompletas")}
-          icon={<IconFicha />}
-        >
-          {`${DIAGNOSTICO_LABEL.caracteristicas_incompletas} (${porTipo.caracteristicas_incompletas})`}
-        </AbaPilula>
+        {(Object.keys(CAUSA_UNIFICADA_LABEL) as CausaUnificada[])
+          .filter((causa) => (porCausa[causa] ?? 0) > 0)
+          .map((causa) => (
+            <AbaPilula key={causa} ativo={aba === causa} onClick={() => setAba(causa)} icon={CAUSA_UNIFICADA_ICON[causa]}>
+              {`${CAUSA_UNIFICADA_LABEL[causa]} (${porCausa[causa]})`}
+            </AbaPilula>
+          ))}
       </div>
 
       {filtrados.length === 0 ? (
         <p className="text-sm text-[var(--muted)]">
           {aba === "todos"
             ? "Nenhum anúncio com problema agora — amostra inteira revisada sem achado relevante."
-            : "Nenhum anúncio nesse tipo de diagnóstico agora."}
+            : "Nenhum anúncio com essa causa agora."}
         </p>
       ) : (
         <div className="space-y-3">
