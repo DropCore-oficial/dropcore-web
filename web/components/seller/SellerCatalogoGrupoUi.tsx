@@ -201,11 +201,16 @@ function BadgeReadiness({ item }: { item: SellerCatalogoItem }) {
 }
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+/**
+ * Proxy público (sem sessão): o `next/image` interno (`/_next/image`, usado por
+ * ImagemMiniatura) não repassa cookie no fetch de origem, então contra o proxy do fornecedor
+ * (que exige sessão no middleware) sempre voltava 401. Imagem já é pública no Storage.
+ */
 function urlImagem(imagemUrl: string | null): string | null {
   if (!imagemUrl || !imagemUrl.trim()) return null;
   const url = imagemUrl.trim();
   if (SUPABASE_URL && url.startsWith(SUPABASE_URL)) {
-    return `/api/fornecedor/produtos/imagem-proxy?url=${encodeURIComponent(url)}&w=1536`;
+    return `/api/public/imagem-proxy?url=${encodeURIComponent(url)}&w=1536`;
   }
   return url;
 }
