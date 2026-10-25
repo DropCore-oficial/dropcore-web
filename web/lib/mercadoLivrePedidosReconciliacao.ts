@@ -4,16 +4,20 @@
  * seller reconectando token, etc.). Varre pedidos recentes de cada seller com ML direto
  * conectado (e sem Olist ativo, pra não duplicar) e importa o que o webhook não pegou.
  *
- * Janela de 3h com cron a cada 15 min: sobra de margem generosa (12x o intervalo) pra
- * cobrir qualquer atraso de notificação sem reprocessar o catálogo inteiro a cada run —
- * `ingerirPedidoMercadoLivrePorSeller` já é idempotente (PEDIDO_DUPLICADO vira "duplicado",
- * não erro), então rever o mesmo pedido várias vezes em janelas sobrepostas é barato e seguro.
+ * Janela de 24h com cron a cada 15 min (achado real 2026-10-24: venda real no ML do seller
+ * Vinz Collection nunca virou pedido no DropCore — a janela de 3h de antes não dava margem
+ * suficiente pra cobrir uma rodada perdida por token/erro pontual, e cada seller tinha só
+ * uma chance por pedido dentro daquela janela curta). `ingerirPedidoMercadoLivrePorSeller`
+ * já é idempotente (PEDIDO_DUPLICADO vira "duplicado", não erro), então rever o mesmo
+ * pedido várias vezes em janelas sobrepostas é barato e seguro — o limite por seller
+ * (MAX_PEDIDOS_POR_SELLER) continua segurando o custo.
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getValidMercadoLivreAccessToken } from "@/lib/mercadoLivreApiClient";
 import { ingerirPedidoMercadoLivrePorSeller } from "@/lib/mercadoLivrePedidoIngest";
+import { registrarMlSyncFalha } from "@/lib/mlSyncFalhas";
 
-const JANELA_HORAS = 3;
+const JANELA_HORAS = 24;
 const MAX_PEDIDOS_POR_SELLER = 50;
 
 export type MercadoLivreReconciliacaoSummary = {
@@ -50,7 +54,7 @@ export async function runMercadoLivrePedidosReconciliacao(): Promise<MercadoLivr
 
   const { data: integracoes, error } = await supabaseAdmin
     .from("seller_mercadolivre_integrations")
-    .select("seller_id, ml_user_id")
+    .select("seller_id, ml_user_id, sellers(org_id, fornecedor_id)")
     .not("ml_access_token", "is", null);
   if (error) {
     console.error("[mercadoLivrePedidosReconciliacao] listar integrações:", error.message);
@@ -61,36 +65,77 @@ export async function runMercadoLivrePedidosReconciliacao(): Promise<MercadoLivr
     if (!integ.ml_user_id) continue;
     summary.sellers_verificados += 1;
 
-    const { data: olistRow } = await supabaseAdmin
-      .from("seller_olist_integrations")
-      .select("olist_token_ciphertext")
-      .eq("seller_id", integ.seller_id)
-      .maybeSingle();
-    if (olistRow?.olist_token_ciphertext) continue; // exclusivo — mesma trava do webhook
+    // Isolamento por seller — achado real 2026-10-24: antes, uma exceção (ex.: fetch
+    // falhando por instabilidade de rede) num seller abortava o processamento de TODOS os
+    // sellers seguintes nessa mesma rodada, sem nenhum rastro (o cron roda de novo em 15
+    // min, mas se o mesmo seller travar sempre, os seguintes na ordem nunca são verificados).
+    try {
+      const sellerRow = integ.sellers as { org_id?: string; fornecedor_id?: string } | null;
+      const orgId = sellerRow?.org_id;
+      const fornecedorId = sellerRow?.fornecedor_id ?? null;
 
-    const ctx = await getValidMercadoLivreAccessToken(integ.seller_id);
-    if (!ctx) continue;
+      const { data: olistRow } = await supabaseAdmin
+        .from("seller_olist_integrations")
+        .select("olist_token_ciphertext")
+        .eq("seller_id", integ.seller_id)
+        .maybeSingle();
+      if (olistRow?.olist_token_ciphertext) continue; // exclusivo — mesma trava do webhook
 
-    const orderIds = await buscarPedidosRecentes(integ.ml_user_id, ctx.accessToken);
-    summary.pedidos_encontrados += orderIds.length;
+      const ctx = await getValidMercadoLivreAccessToken(integ.seller_id);
+      if (!ctx) continue;
 
-    for (const orderId of orderIds) {
-      const resultado = await ingerirPedidoMercadoLivrePorSeller({ sellerId: integ.seller_id, orderId });
-      if (resultado.ok) {
-        if (resultado.status === "duplicado") summary.pedidos_ja_existentes += 1;
-        else if (
-          resultado.status === "novo" ||
-          resultado.status === "bloqueado" ||
-          resultado.status === "pendente_estoque" ||
-          resultado.status === "produto_nao_vinculado" ||
-          resultado.status === "anuncio_sem_sku"
-        ) {
-          summary.pedidos_novos += 1;
+      const orderIds = await buscarPedidosRecentes(integ.ml_user_id, ctx.accessToken);
+      summary.pedidos_encontrados += orderIds.length;
+
+      for (const orderId of orderIds) {
+        try {
+          const resultado = await ingerirPedidoMercadoLivrePorSeller({ sellerId: integ.seller_id, orderId });
+          if (resultado.ok) {
+            if (resultado.status === "duplicado") summary.pedidos_ja_existentes += 1;
+            else if (
+              resultado.status === "novo" ||
+              resultado.status === "bloqueado" ||
+              resultado.status === "pendente_estoque" ||
+              resultado.status === "produto_nao_vinculado" ||
+              resultado.status === "anuncio_sem_sku"
+            ) {
+              summary.pedidos_novos += 1;
+            }
+          } else {
+            summary.falhas += 1;
+            console.error(`[mercadoLivrePedidosReconciliacao] pedido ${orderId} (seller ${integ.seller_id}):`, resultado.motivo);
+            if (orgId) {
+              await registrarMlSyncFalha({
+                orgId,
+                sellerId: integ.seller_id,
+                fornecedorId,
+                tipo: "pedido_ingest",
+                referenciaExterna: orderId,
+                erro: resultado.motivo,
+              });
+            }
+          }
+        } catch (e: unknown) {
+          // Isolamento por pedido — 1 exceção aqui não pode impedir os outros pedidos
+          // do mesmo seller nessa rodada.
+          summary.falhas += 1;
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error(`[mercadoLivrePedidosReconciliacao] pedido ${orderId} (seller ${integ.seller_id}) excecao:`, e);
+          if (orgId) {
+            await registrarMlSyncFalha({
+              orgId,
+              sellerId: integ.seller_id,
+              fornecedorId,
+              tipo: "pedido_ingest",
+              referenciaExterna: orderId,
+              erro: msg,
+            });
+          }
         }
-      } else {
-        summary.falhas += 1;
-        console.error(`[mercadoLivrePedidosReconciliacao] pedido ${orderId} (seller ${integ.seller_id}):`, resultado.motivo);
       }
+    } catch (e: unknown) {
+      summary.falhas += 1;
+      console.error(`[mercadoLivrePedidosReconciliacao] seller ${integ.seller_id} excecao:`, e);
     }
   }
 

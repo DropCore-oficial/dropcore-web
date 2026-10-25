@@ -13,6 +13,7 @@ import {
 } from "@/lib/mercadoLivreApiClient";
 import { estoqueDisponivelParaVenda } from "@/lib/sellerOlistSyncEstoque";
 import { sincronizarSkuMercadoLivre } from "@/lib/ai/mercadoLivreSkuSync";
+import { registrarMlSyncFalha } from "@/lib/mlSyncFalhas";
 
 const API_PAUSE_MS = 220;
 
@@ -125,13 +126,30 @@ export async function syncMercadoLivreEstoqueSkusSeller(opts: {
     porItem.set(itemId, lista);
   }
 
+  const skuPorItem = new Map<string, string>();
+  for (const row of mapRows) {
+    skuPorItem.set(String((row as { ml_item_id: string }).ml_item_id), String((row as { sku: string }).sku));
+  }
+
   const result: SyncMercadoLivreEstoqueResult = { conectado: true, itens_atualizados: 0, falhas: [] };
   const itens = [...porItem.entries()];
   for (let i = 0; i < itens.length; i++) {
     const [itemId, atualizacoes] = itens[i]!;
     const r = await mlAtualizarEstoque(itemId, atualizacoes, ctx);
-    if (r.ok) result.itens_atualizados += 1;
-    else result.falhas.push({ ml_item_id: itemId, erro: r.erro });
+    if (r.ok) {
+      result.itens_atualizados += 1;
+    } else {
+      result.falhas.push({ ml_item_id: itemId, erro: r.erro });
+      await registrarMlSyncFalha({
+        orgId: opts.orgId,
+        sellerId: opts.sellerId,
+        fornecedorId: opts.fornecedorId,
+        tipo: "estoque_push",
+        sku: skuPorItem.get(itemId) ?? null,
+        mlItemId: itemId,
+        erro: r.erro,
+      });
+    }
     if (i + 1 < itens.length) await sleep(API_PAUSE_MS);
   }
 

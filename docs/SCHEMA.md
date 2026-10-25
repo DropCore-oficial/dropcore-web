@@ -1788,6 +1788,37 @@ hoje.
   (`estoque_fulfillment`, `anuncios_seo`, `reputacao`/`reputacao_atendimento`, `ads`) também
   não mudaram — já eram nomes funcionais, nunca usaram nome de pessoa.
 
+## Log + retry de falha de sync com o Mercado Livre (2026-10-24)
+
+Achado real: venda no anúncio do seller Vinz Collection (SKU DJU005003, item
+`MLB5022127077`) nunca gerou pedido no DropCore — sem nenhum log/alerta, só descoberto
+comparando manualmente o estoque real do ML (API) com o ledger do DropCore. Até aqui, falha
+de push de estoque pro ML (`sellerMercadoLivreSyncEstoque.ts`) ou de ingestão de pedido do
+ML (`mercadoLivrePedidosReconciliacao.ts`) só virava `console.error`, perdido em produção.
+
+- **Tabela `ml_sync_falhas`** (`web/scripts/create-ml-sync-falhas-log-retry.sql`): log de
+  falha, `tipo` (`estoque_push` | `pedido_ingest`), `sku`/`ml_item_id` ou
+  `referencia_externa` (order id do ML, sem prefixo `ml:`), `tentativas`/`max_tentativas`,
+  `status` (`pendente`/`resolvido`/`esgotado`). RLS: 1 policy `SELECT` usando
+  `fn_user_can_access_seller` (mesma trava de `erp_event_logs`); escrita só via RPC
+  `SECURITY DEFINER`, grant só `service_role` (regra 9 do CLAUDE.md).
+- **RPCs**: `fn_ml_sync_falha_registrar` (insere ou soma tentativa numa falha pendente
+  igual — unique index parcial em `seller_id, tipo, sku, referencia_externa WHERE
+  status='pendente'`), `fn_ml_sync_falha_listar_pendentes`, `fn_ml_sync_falha_marcar_resultado`.
+  Helpers TS em `web/lib/mlSyncFalhas.ts`.
+- **Cron novo `dropcore-ml-sync-retry`** (a cada 15 min, lock advisory `913019`,
+  `web/app/api/cron/ml-sync-retry/route.ts` → `web/lib/mlSyncRetry.ts`): reprocessa cada
+  falha pendente reusando o pipeline real (`syncMercadoLivreEstoqueSkusSeller` ou
+  `ingerirPedidoMercadoLivrePorSeller`), marca resolvido ou soma tentativa.
+- **`mercadoLivrePedidosReconciliacao.ts`**: janela de busca de pedido recente foi de 3h→24h
+  (3h não dava margem pra cobrir uma rodada perdida por erro pontual) + isolamento de erro
+  por seller e por pedido dentro do loop (1 exceção não trava mais os sellers seguintes na
+  mesma rodada) + toda falha de ingestão agora grava em `ml_sync_falhas`.
+- **`mercadoLivreApiClient.ts`**: nova `mlBuscarTodosItensAtivosEPausados` (usada só pelo
+  sync de vínculo SKU↔anúncio, `mercadoLivreSkuSync.ts`) — anúncio que o próprio ML pausa
+  sozinho por `available_quantity` zerar (`sub_status: out_of_stock`) some da busca
+  `status=active`; incluir `paused` garante que o vínculo não fique órfão quando reabastecer.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

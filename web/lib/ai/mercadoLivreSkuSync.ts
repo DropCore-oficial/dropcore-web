@@ -7,7 +7,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   getValidMercadoLivreAccessToken,
-  mlBuscarTodosItensAtivos,
+  mlBuscarTodosItensAtivosEPausados,
   mlBuscarItensDetalheComAtributosVariacao,
   type MercadoLivreItemDetail,
 } from "@/lib/mercadoLivreApiClient";
@@ -52,7 +52,7 @@ export async function sincronizarSkuMercadoLivre(sellerId: string): Promise<Sinc
   const ctx = await getValidMercadoLivreAccessToken(sellerId);
   if (!ctx) return { conectado: false, itens_escaneados: 0, skus_encontrados: 0, itens_sem_sku: [] };
 
-  const ids = await mlBuscarTodosItensAtivos(ctx);
+  const ids = await mlBuscarTodosItensAtivosEPausados(ctx);
   const itens = await mlBuscarItensDetalheComAtributosVariacao(ids, ctx);
 
   // Chave por anúncio+variação, não por SKU — o mesmo SKU pode estar em vários anúncios

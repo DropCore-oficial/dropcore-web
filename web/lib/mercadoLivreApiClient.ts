@@ -163,12 +163,16 @@ export async function mlBuscarItensAtivos(
 /** Pagina até acabar o catálogo ativo — usado pelo sync do vínculo SKU↔item (precisa do
  * catálogo inteiro, diferente do gestor de Anúncios & SEO, que só olha uma amostra). */
 export async function mlBuscarTodosItensAtivos(ctx: MercadoLivreAuthContext): Promise<string[]> {
+  return mlBuscarTodosItensPorStatus(ctx, "active");
+}
+
+async function mlBuscarTodosItensPorStatus(ctx: MercadoLivreAuthContext, status: string): Promise<string[]> {
   const limit = 100;
   const ids: string[] = [];
   let offset = 0;
   while (true) {
     const json = await mlGet<MercadoLivreItemSearchResult>(
-      `/users/${ctx.mlUserId}/items/search?status=active&limit=${limit}&offset=${offset}`,
+      `/users/${ctx.mlUserId}/items/search?status=${status}&limit=${limit}&offset=${offset}`,
       ctx.accessToken
     );
     const pagina = json?.results ?? [];
@@ -177,6 +181,21 @@ export async function mlBuscarTodosItensAtivos(ctx: MercadoLivreAuthContext): Pr
     offset += limit;
   }
   return ids;
+}
+
+/** Igual `mlBuscarTodosItensAtivos`, mas inclui também os anúncios pausados — achado real
+ * 2026-10-24: o ML pausa sozinho um anúncio quando `available_quantity` zera
+ * (`sub_status: ["out_of_stock"]`, ver MercadoLivreItemDetail.status), e esse item some da
+ * busca `status=active`. Pra quem só precisa descobrir "quem é o anúncio desse SKU" (sync
+ * do vínculo SKU↔item), isso não importa: o vínculo deve existir mesmo com o anúncio
+ * pausado, senão ele nunca é remapeado quando reabastecer. Usada só pelo sync de vínculo —
+ * quem precisa listar "o que está realmente à venda agora" continua usando a versão só-ativa. */
+export async function mlBuscarTodosItensAtivosEPausados(ctx: MercadoLivreAuthContext): Promise<string[]> {
+  const [ativos, pausados] = await Promise.all([
+    mlBuscarTodosItensPorStatus(ctx, "active"),
+    mlBuscarTodosItensPorStatus(ctx, "paused"),
+  ]);
+  return [...new Set([...ativos, ...pausados])];
 }
 
 export type MercadoLivreAttribute = { id: string; value_name: string | null };
