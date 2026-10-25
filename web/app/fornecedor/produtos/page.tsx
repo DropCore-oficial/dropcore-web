@@ -11,6 +11,7 @@ import {
   FornecedorImportEstoquePanel,
   type FornecedorImportEstoquePanelHandle,
 } from "@/components/fornecedor/FornecedorImportEstoquePanel";
+import { FornecedorMlSyncLogPanel } from "@/components/fornecedor/FornecedorMlSyncLogPanel";
 import { FotoVariacaoCell, type FotoVariacaoCellHandle } from "@/components/FotoVariacaoCell";
 import { toTitleCase } from "@/lib/formatText";
 import { fornecedorProdutoImagemSrc } from "@/lib/fornecedorProdutoImagemSrc";
@@ -678,6 +679,8 @@ export default function FornecedorProdutosPage() {
             </button>
           </div>
         )}
+
+        <FornecedorMlSyncLogPanel />
 
         {/* Lista — mobile: cartões; desktop largo: tabela */}
         <div className="min-w-0 overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">

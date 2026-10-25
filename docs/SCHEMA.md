@@ -1819,6 +1819,31 @@ ML (`mercadoLivrePedidosReconciliacao.ts`) só virava `console.error`, perdido e
   sozinho por `available_quantity` zerar (`sub_status: out_of_stock`) some da busca
   `status=active`; incluir `paused` garante que o vínculo não fique órfão quando reabastecer.
 
+## Log de sync (sucesso ou falha) de estoque com o Mercado Livre (2026-10-25)
+
+Achado real: fornecedor Djulios ajustou estoque de um SKU (DJU005013) e não havia forma do
+admin confirmar que o push chegou no anúncio do seller (Vinz Collection) sem acesso à conta
+Mercado Livre dele — `ml_sync_falhas` só registra problema (fila de retry), nunca sucesso.
+
+- **Tabela `ml_sync_log`** (`web/scripts/create-ml-sync-log-estoque.sql`): uma linha por
+  tentativa de push de estoque pro ML (sucesso ou falha) — `seller_id`, `fornecedor_id`,
+  `sku`, `ml_item_id`, `estoque_enviado`, `sucesso` (bool), `erro`, `criado_em`. Tabela
+  separada de `ml_sync_falhas` de propósito: aquela foi desenhada em torno de "toda linha é
+  pendência" (índice único parcial + RLS parcial em `status='pendente'`), misturar log de
+  sucesso ali quebraria essa suposição. RLS: 1 policy `FOR ALL` cobrindo
+  `fn_user_can_access_seller` OU `fn_user_can_access_fornecedor` (fornecedor também lê o
+  próprio histórico); escrita só via RPC `SECURITY DEFINER`, grant só `service_role`.
+- **RPCs**: `fn_ml_sync_log_registrar` (insert simples) e
+  `fn_ml_sync_log_listar_por_fornecedor` (lista por `fornecedor_id`, filtro opcional por
+  `sku`, join com `sellers` pro nome). Helpers TS em `web/lib/mlSyncLog.ts`.
+- **`sellerMercadoLivreSyncEstoque.ts`**: `syncMercadoLivreEstoqueSkusSeller` agora chama
+  `registrarMlSyncLog` pra cada SKU de cada item pushado, sucesso ou falha (antes só
+  gravava em caso de falha, via `registrarMlSyncFalha`).
+- **UI**: painel colapsável "Últimos envios de estoque pro Mercado Livre" em
+  `/fornecedor/produtos` (`web/components/fornecedor/FornecedorMlSyncLogPanel.tsx`, lido via
+  `GET /api/fornecedor/ml-sync-log`) — mostra SKU, seller, valor enviado, horário e
+  sucesso/erro sem precisar logar na conta ML do seller.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

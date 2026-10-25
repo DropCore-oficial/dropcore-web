@@ -14,6 +14,7 @@ import {
 import { estoqueDisponivelParaVenda } from "@/lib/sellerOlistSyncEstoque";
 import { sincronizarSkuMercadoLivre } from "@/lib/ai/mercadoLivreSkuSync";
 import { registrarMlSyncFalha } from "@/lib/mlSyncFalhas";
+import { registrarMlSyncLog } from "@/lib/mlSyncLog";
 
 const API_PAUSE_MS = 220;
 
@@ -126,9 +127,13 @@ export async function syncMercadoLivreEstoqueSkusSeller(opts: {
     porItem.set(itemId, lista);
   }
 
-  const skuPorItem = new Map<string, string>();
+  const skusPorItem = new Map<string, string[]>();
   for (const row of mapRows) {
-    skuPorItem.set(String((row as { ml_item_id: string }).ml_item_id), String((row as { sku: string }).sku));
+    const itemId = String((row as { ml_item_id: string }).ml_item_id);
+    const sku = String((row as { sku: string }).sku);
+    const lista = skusPorItem.get(itemId) ?? [];
+    lista.push(sku);
+    skusPorItem.set(itemId, lista);
   }
 
   const result: SyncMercadoLivreEstoqueResult = { conectado: true, itens_atualizados: 0, falhas: [] };
@@ -136,6 +141,7 @@ export async function syncMercadoLivreEstoqueSkusSeller(opts: {
   for (let i = 0; i < itens.length; i++) {
     const [itemId, atualizacoes] = itens[i]!;
     const r = await mlAtualizarEstoque(itemId, atualizacoes, ctx);
+    const skusDoItem = skusPorItem.get(itemId) ?? [];
     if (r.ok) {
       result.itens_atualizados += 1;
     } else {
@@ -145,9 +151,21 @@ export async function syncMercadoLivreEstoqueSkusSeller(opts: {
         sellerId: opts.sellerId,
         fornecedorId: opts.fornecedorId,
         tipo: "estoque_push",
-        sku: skuPorItem.get(itemId) ?? null,
+        sku: skusDoItem[0] ?? null,
         mlItemId: itemId,
         erro: r.erro,
+      });
+    }
+    for (const sku of skusDoItem) {
+      await registrarMlSyncLog({
+        orgId: opts.orgId,
+        sellerId: opts.sellerId,
+        fornecedorId: opts.fornecedorId,
+        sku,
+        mlItemId: itemId,
+        estoqueEnviado: saldoPorSku.get(sku.toUpperCase()) ?? null,
+        sucesso: r.ok,
+        erro: r.ok ? null : r.erro,
       });
     }
     if (i + 1 < itens.length) await sleep(API_PAUSE_MS);
