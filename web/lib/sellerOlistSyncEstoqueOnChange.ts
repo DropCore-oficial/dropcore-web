@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { getFornecedorOlistApiToken } from "@/lib/fornecedorOlistIntegration";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSellerOlistApiToken } from "@/lib/sellerOlistIntegration";
@@ -19,21 +20,32 @@ export type SyncOlistEstoqueOutboundOpts = {
   skipFornecedorPush?: boolean;
 };
 
-/** Dispara sync de estoque na Olist em background (não bloqueia pedido/upload). */
+/** Dispara sync de estoque na Olist/ML em background (não bloqueia pedido/upload).
+ *
+ * Usa `after()` (Next.js 15) em vez de só `void promise.catch()` — achado real
+ * 2026-10-25: numa serverless function da Vercel, depois que a rota devolve a resposta
+ * (`NextResponse.json`), a instância pode ser congelada/encerrada ANTES de uma promise
+ * solta (não aguardada) terminar, sem nenhum erro. Reproduzido ao vivo: fornecedor
+ * restockou SKU que tinha anúncio pausado por falta de estoque no ML — `skus.estoque_atual`
+ * gravou certo (isso é `await`do antes do response), mas o push pro ML nunca saiu do lugar
+ * e nem chegou a registrar falha em `ml_sync_falhas` (processo morreu antes de chegar lá).
+ * `after()` garante que a função só é encerrada depois que este callback terminar. */
 export function dispararSyncEstoqueOlistFornecedorSkus(
   opts: SyncOlistEstoqueOutboundOpts & { skuCodes: string[] },
 ): void {
   const skuCodes = opts.skuCodes.map((s) => s.trim().toUpperCase()).filter(Boolean);
   if (skuCodes.length === 0) return;
 
-  void syncOlistEstoqueFornecedorSkus({
-    orgId: opts.orgId,
-    fornecedorId: opts.fornecedorId,
-    skuCodes,
-    skipFornecedorPush: opts.skipFornecedorPush,
-  }).catch((e: unknown) => {
-    console.error("[dispararSyncEstoqueOlistFornecedorSkus]", skuCodes.join(","), e);
-  });
+  after(() =>
+    syncOlistEstoqueFornecedorSkus({
+      orgId: opts.orgId,
+      fornecedorId: opts.fornecedorId,
+      skuCodes,
+      skipFornecedorPush: opts.skipFornecedorPush,
+    }).catch((e: unknown) => {
+      console.error("[dispararSyncEstoqueOlistFornecedorSkus]", skuCodes.join(","), e);
+    })
+  );
 }
 
 export function dispararSyncEstoqueOlistFornecedorGrupo(
@@ -42,14 +54,16 @@ export function dispararSyncEstoqueOlistFornecedorGrupo(
   const grupoKey = opts.grupoKey.trim().toUpperCase();
   if (!grupoKey) return;
 
-  void syncOlistEstoqueFornecedorGrupo({
-    orgId: opts.orgId,
-    fornecedorId: opts.fornecedorId,
-    grupoKey,
-    skipFornecedorPush: opts.skipFornecedorPush,
-  }).catch((e: unknown) => {
-    console.error("[dispararSyncEstoqueOlistFornecedorGrupo]", grupoKey, e);
-  });
+  after(() =>
+    syncOlistEstoqueFornecedorGrupo({
+      orgId: opts.orgId,
+      fornecedorId: opts.fornecedorId,
+      grupoKey,
+      skipFornecedorPush: opts.skipFornecedorPush,
+    }).catch((e: unknown) => {
+      console.error("[dispararSyncEstoqueOlistFornecedorGrupo]", grupoKey, e);
+    })
+  );
 }
 
 async function pushEstoqueToFornecedorOlist(opts: {
