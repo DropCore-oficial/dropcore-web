@@ -54,7 +54,11 @@ export async function runMercadoLivrePedidosReconciliacao(): Promise<MercadoLivr
 
   const { data: integracoes, error } = await supabaseAdmin
     .from("seller_mercadolivre_integrations")
-    .select("seller_id, ml_user_id, sellers(org_id, fornecedor_id)")
+    // FK explícita (seller_id) — a tabela também tem linked_seller_id apontando pra
+    // sellers, e sem desambiguar o embed falha com "more than one relationship" e a query
+    // inteira retorna erro (achado ao vivo 2026-10-25: isso zerava silenciosamente
+    // sellers_verificados, sem aparecer em lugar nenhum fora do console.error).
+    .select("seller_id, ml_user_id, sellers!seller_mercadolivre_integrations_seller_id_fkey(org_id, fornecedor_id)")
     .not("ml_access_token", "is", null);
   if (error) {
     console.error("[mercadoLivrePedidosReconciliacao] listar integrações:", error.message);
