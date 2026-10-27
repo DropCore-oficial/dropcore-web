@@ -4,7 +4,7 @@
  * batch (gestorAnunciosSeoDados.ts etc.) não sabem nada de OAuth, só chamam getValid... e
  * usam o token pronto.
  */
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, degrees } from "pdf-lib";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { decryptSellerErpSecret, encryptSellerErpSecret } from "@/lib/sellerErpSecretBox";
 import { refreshMercadoLivreAccessToken, computeMercadoLivreAccessTokenExpiresAt } from "@/lib/mercadoLivreOAuth";
@@ -1616,20 +1616,20 @@ export async function mlBuscarEtiquetaPdf(
 
     // Com 1 shipment_id, o ML devolve a etiqueta real na página 1 e, junto, uma 2ª página de
     // "lista de coleta" (resumo pro operador do centro de distribuição do próprio ML) — não
-    // existe parâmetro na API pra excluir essa página, e ela sai no formato errado quando
-    // impressa na impressora térmica do fornecedor (achado 2026-10-27, comparado ao formato
-    // da UpSeller, que manda só a etiqueta). Corta pra ficar só a página 1.
+    // existe parâmetro na API pra excluir essa página. Corta pra ficar só a página 1 e gira
+    // 90° pra bater com a orientação que sai na impressora térmica do fornecedor (comparado
+    // ao formato da UpSeller — achado 2026-10-27, confirmado com o Sr Stark que o problema
+    // era só a rotação, não a página extra em si nem a nota fiscal).
     let pdfFinal: ArrayBuffer | Uint8Array = buf;
     try {
       const doc = await PDFDocument.load(buf);
-      if (doc.getPageCount() > 1) {
-        const soEtiqueta = await PDFDocument.create();
-        const [pagina1] = await soEtiqueta.copyPages(doc, [0]);
-        soEtiqueta.addPage(pagina1);
-        pdfFinal = await soEtiqueta.save();
-      }
+      const soEtiqueta = await PDFDocument.create();
+      const [pagina1] = await soEtiqueta.copyPages(doc, [0]);
+      pagina1.setRotation(degrees(90));
+      soEtiqueta.addPage(pagina1);
+      pdfFinal = await soEtiqueta.save();
     } catch (e: unknown) {
-      console.error("[mlBuscarEtiquetaPdf] corte de página falhou, usando PDF original:", e);
+      console.error("[mlBuscarEtiquetaPdf] corte/rotação de página falhou, usando PDF original:", e);
     }
 
     if (pdfFinal.byteLength > MAX_ETIQUETA_PDF_BYTES_ML) {

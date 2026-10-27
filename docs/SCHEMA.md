@@ -1873,6 +1873,15 @@ salvar em `etiqueta_pdf_base64` — se o corte falhar por qualquer motivo, usa o
 original sem quebrar o fluxo (fallback silencioso, só loga). Não muda nada do caminho da
 Olist (`olistTinyApi.ts`), que é uma API diferente.
 
+**Correção no mesmo dia (2026-10-27, depois de comparar prints lado a lado com o Sr
+Stark):** cortar a página não bastou — mesmo com só 1 página, a etiqueta do ML ainda saía
+reta (sem rotação), diferente do formato físico da UpSeller (que sai rotacionada 90° pra
+bater com a orientação da impressora térmica). Sr Stark confirmou que o problema real era
+só a rotação, não a página extra em si nem anexar nota fiscal (DANFE) — isso NÃO foi
+pedido, não replicar sem perguntar de novo. `mlBuscarEtiquetaPdf` agora sempre recria a
+página 1 num doc novo com `pagina1.setRotation(degrees(90))`, independente de o PDF
+original ter 1 ou 2 páginas.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
