@@ -778,8 +778,8 @@ de outra pessoa).
 - `calculadora_assinante_ulisses_preferencias` (margem mínima/máxima, imposto, perda) e
   `calculadora_assinante_ulisses_custos` (chave = item_id/family_id do ML → custo) — ambas
   deny-all, acesso só via RPC:
-  `fn_calculadora_assinante_ulisses_preferencias_get/upsert`,
-  `fn_calculadora_assinante_ulisses_custos_list`, `_custo_upsert`, `_custo_delete`.
+  `fn_gestores_ia_avulso_ulisses_preferencias_get/upsert`,
+  `fn_gestores_ia_avulso_ulisses_custos_list`, `_custo_upsert`, `_custo_delete`.
 - `lib/ai/gestorAdsDadosAvulso.ts` — reaproveita `calcularMargemRealizada`
   (`lib/margemCalculo.ts`) e `calcularPrecoMinimoSeguro` (exportada de `gestorAdsDados.ts`
   pro hub) — mesmas fórmulas, zero duplicação. Catálogo agrupado por família (mesma
@@ -807,7 +807,7 @@ original). Entrega:
 - `SkuResultadoAdsAvulso` ganhou `membros: {item_id, titulo}[]` (todos os anúncios da
   família, não só o representante — aplica a promoção em todos, mesmo cuidado do botão de
   pausar do Estoque) e `risco_ruptura_estoque` (lido da última rodada do Estoque avulso via
-  `fn_calculadora_assinante_ai_runs_recentes` com `p_gestor: "estoque"`, mesma chave de
+  `fn_gestores_ia_avulso_ai_runs_recentes` com `p_gestor: "estoque"`, mesma chave de
   família — avisa sem bloquear quando o SKU está em risco alto de ruptura).
 - Tela: nova seção "Sem promoção ativa — pode entrar sem furar a margem" na aba Promoções,
   com botão que cria a promoção (preço editável, trava de confirmação se furar o piso —
@@ -818,11 +818,11 @@ original). Entrega:
 
 **Retrofit da leitura do resto do avulso pra RPC (mesmo dia, pedido explícito do Sr Stark de
 "organizar" o avulso em partes):** 3 funções novas —
-`fn_calculadora_assinante_ai_runs_recentes(p_assinante_id, p_gestor, p_limit)` (genérica,
+`fn_gestores_ia_avulso_ai_runs_recentes(p_assinante_id, p_gestor, p_limit)` (genérica,
 substitui o `.from("calculadora_assinante_ai_runs").select()...` que cada rota de status
-fazia), `fn_calculadora_assinante_ml_status_get(p_assinante_id)` (devolve a linha inteira de
+fazia), `fn_gestores_ia_avulso_ml_status_get(p_assinante_id)` (devolve a linha inteira de
 `...mercadolivre_integrations`, inclusive token — só roda no servidor, nunca serializado pro
-front) e `fn_calculadora_assinante_byok_configurado(p_assinante_id)` (boolean puro, sem
+front) e `fn_gestores_ia_avulso_byok_anthropic_configurado(p_assinante_id)` (boolean puro, sem
 decriptar nada). Aplicadas em `andrey/route.ts`, `amanda/route.ts`, `ulisses/route.ts`,
 `mercadolivre/route.ts` (GET), `byok/route.ts` (GET) **e também a checagem "ML conectado?"
 nos 3 `rodar/route.ts`** (Andrey/Amanda/Ulisses — mesma leitura simples de `ml_user_id` antes
@@ -848,7 +848,7 @@ campo novo duplicado.
 
 - `web/scripts/add-devolucao-acos-ulisses-preferencias-avulso.sql` — 3 colunas novas na mesma
   tabela (`devolucao_taxa_pct`, `devolucao_custo_brl`, `acos_alvo_pct`, todas `numeric not
-  null default 0`) + `fn_calculadora_assinante_ulisses_preferencias_upsert` recriada com os 3
+  null default 0`) + `fn_gestores_ia_avulso_ulisses_preferencias_upsert` recriada com os 3
   parâmetros novos (drop+create, mudança de assinatura). `_get` não precisou de alteração
   (`RETURNS calculadora_assinante_ulisses_preferencias` + `select *` acompanha coluna nova da
   tabela automaticamente). `revoke all from public/anon/authenticated` + `grant execute to
@@ -915,7 +915,7 @@ reaproveitável), busca de dado 100% isolada via API do ML.
   por isso o que entrou foi só o que tem dado real: `calcularTendenciaReputacaoAvulso`
   (`gestorReputacaoAtendimentoDadosAvulso.ts`) extrapola linearmente (mínimos quadrados) as 3
   taxas a partir do histórico de rodadas já salvo em `calculadora_assinante_ai_runs` (RPC
-  genérica `fn_calculadora_assinante_ai_runs_recentes` com `p_limit=30`, zero banco novo, zero
+  genérica `fn_gestores_ia_avulso_ai_runs_recentes` com `p_limit=30`, zero banco novo, zero
   chamada nova à API do ML), projetando 7/30 dias. `null` com menos de 2 rodadas com resultado
   válido — nunca inventa número. Campo novo e opcional `tendencia?` em
   `ResultadoReputacaoAtendimentoEnriquecido` (`gestorReputacaoAtendimentoDados.ts`, tipo
@@ -1071,7 +1071,7 @@ NDJSON (mesmo padrão de `app/api/seller/gestores-ia/tiago/chat/route.ts`), tool
 lê `calculadora_assinante_ai_runs` (nunca dispara rodada nova).
 
 - `calculadora_assinante_ai_chat_sessions`/`calculadora_assinante_ai_chat_mensagens` — deny-
-  all, nascem já em RPC (`fn_calculadora_assinante_ai_chat_historico/criar_sessao/
+  all, nascem já em RPC (`fn_gestores_ia_avulso_ai_chat_historico/criar_sessao/
   gravar_mensagem`, `revoke all` + `grant` só pra `service_role`, mesmo padrão do hub e das
   RPC do Ulisses).
 - `lib/ai/gestorTiagoChatToolsAvulso.ts` — reaproveita `resumirResultado`/
@@ -1094,7 +1094,7 @@ calcula) em vez de inventar valor monetário universal.
   "avulso não tem esse gestor" (verdade só até o Estoque avulso existir). Corrigido: Tiago
   agora consulta os 4 (Andrey/Amanda/Ulisses/Estoque).
 - `lib/ai/gestorTiagoResumoDiarioAvulso.ts` (novo) — lê a última rodada dos 4 gestores via
-  `fn_calculadora_assinante_ai_runs_recentes` (zero banco novo), extrai candidatos a proposta
+  `fn_gestores_ia_avulso_ai_runs_recentes` (zero banco novo), extrai candidatos a proposta
   de cada um (Estoque: SKU com risco alto/médio; ADS: margem abaixo do mínimo; Anúncio:
   diagnóstico com problema, cruzado com pergunta/reclamação já existentes; SAC: pergunta
   pendente + diagnóstico crítico da conta), pontua por `severidade × confiança ÷ esforço` e
@@ -1386,8 +1386,8 @@ nada (o hub trava o painel até o cadastro ficar completo; o avulso não).
   `calculadora_assinantes` (`nome`, `tipo_documento` default `'CNPJ'` com check
   `in ('CNPJ','CPF')`, `documento`, `email_comercial`, `telefone`, `cep`, `endereco`,
   `nome_responsavel`, `cpf_responsavel`, `data_nascimento`) + 2 funções RPC (regra 9):
-  `fn_calculadora_assinante_cadastro_get(p_assinante_id)` (devolve a linha inteira) e
-  `fn_calculadora_assinante_cadastro_upsert(p_assinante_id, p_nome, p_tipo_documento,
+  `fn_gestores_ia_avulso_cadastro_get(p_assinante_id)` (devolve a linha inteira) e
+  `fn_gestores_ia_avulso_cadastro_upsert(p_assinante_id, p_nome, p_tipo_documento,
   p_documento, p_email_comercial, p_telefone, p_cep, p_endereco, p_nome_responsavel,
   p_cpf_responsavel, p_data_nascimento)` (sempre `update`, nunca `insert` — a linha já existe
   desde o registro da assinatura). Ambas `SECURITY DEFINER`, `revoke all from public` +
@@ -1430,24 +1430,24 @@ sempre R$797,90):**
 - `web/scripts/add-gestores-ia-avulso-contrato-anual.sql` (2ª migration, mesmo dia — corrige
   o modelo) — coluna `gestores_ia_contrato_aceite_em timestamptz` (registro de quando o
   compromisso de 12 parcelas foi aceito); `drop + recreate` de
-  `fn_calculadora_assinante_gestores_ia_pix_confirmar` **sem** o parâmetro `p_ciclo` (toda
+  `fn_gestores_ia_avulso_pix_confirmar` **sem** o parâmetro `p_ciclo` (toda
   parcela paga é o mesmo valor/extensão de 1 mês, não importa o ciclo da conta — `gestores_ia_ciclo`
   só é setado por quem decide: `coalesce(gestores_ia_ciclo, 'mensal')` na própria confirmação,
   ou a RPC de início de contrato abaixo); nova RPC
-  `fn_calculadora_assinante_gestores_ia_contrato_anual_iniciar(p_user_id)` — sem PIX, libera
+  `fn_gestores_ia_avulso_contrato_anual_iniciar(p_user_id)` — sem PIX, libera
   o pacote na hora com `valido_ate = now() + 60 dias` (hardcoded na função, não confia em
   parâmetro do client), `gestores_ia_ciclo = 'anual'`, grava `gestores_ia_contrato_aceite_em`.
 - Todas as RPCs (regra 9): `SECURITY DEFINER`, `revoke all from public` + `grant execute to
   service_role`. Inventário completo:
-  - `fn_calculadora_assinante_gestores_ia_pix_pendente_set(p_user_id, p_mp_pendente_id)` —
+  - `fn_gestores_ia_avulso_pix_pendente_set(p_user_id, p_mp_pendente_id)` —
     upsert por `user_id` (já é `unique`), grava o pagamento pendente antes de mostrar o QR.
-  - `fn_calculadora_assinante_gestores_ia_pix_get(p_user_id)` — leitura mínima usada pelo
+  - `fn_gestores_ia_avulso_pix_get(p_user_id)` — leitura mínima usada pelo
     processor (idempotência + base pra estender `valido_ate`) e pela rota de sync.
-  - `fn_calculadora_assinante_gestores_ia_pix_confirmar(p_user_id, p_novo_valido_ate,
+  - `fn_gestores_ia_avulso_pix_confirmar(p_user_id, p_novo_valido_ate,
     p_mp_payment_id, p_external_reference, p_valor_pago, p_pago_em)` — ativa/renova o pacote +
     grava `calculadora_recebimentos` num único `plpgsql` atômico; idempotente comparando
     `mp_gestores_ia_ultimo_aprovado_id` com o `mp_payment_id` recebido.
-  - `fn_calculadora_assinante_gestores_ia_contrato_anual_iniciar(p_user_id)` — início do
+  - `fn_gestores_ia_avulso_contrato_anual_iniciar(p_user_id)` — início do
     contrato anual, sem PIX (ver acima).
 
 ### Código
@@ -1550,9 +1550,9 @@ digitado porque isso não existe no ML.
 2026-10-15) prepara o banco:
 - `calculadora_assinante_ai_runs_gestor_check` — valor `'estoque'` liberado na constraint
   (antes só `anuncios_seo | reputacao_atendimento | ads | gestor_mestre`).
-- `fn_calculadora_assinante_ai_run_insert(p_assinante_id, p_gestor, p_status, p_resultado,
+- `fn_gestores_ia_avulso_ai_run_insert(p_assinante_id, p_gestor, p_status, p_resultado,
   p_erro)` — 1ª RPC de **escrita** pra essa tabela (o retrofit de 2026-10-07 só tinha migrado
-  leitura — `fn_calculadora_assinante_ai_runs_recentes`/`_ml_status_get`/
+  leitura — `fn_gestores_ia_avulso_ai_runs_recentes`/`_ml_status_get`/
   `_byok_configurado`/`_por_user_id` — pra RPC; gravar rodada nova continuava em `.from()`
   nos 3 gestores existentes, que não foram migrados agora, só o código novo do Estoque usa
   RPC desde já). `SECURITY DEFINER` + `search_path=public`, `revoke all from
@@ -1579,7 +1579,7 @@ depende de custo digitado porque isso não existe no ML):
 - `lib/ai/gestorAvulsoEstoqueRodar.ts` — cooldown 6h + orçamento compartilhado (nova
   `temOrcamentoDisponivelHojeComByokBooleano` em `gestorAvulsoOrcamento.ts`, aceita o
   booleano da RPC em vez do objeto com a chave crua) + grava via
-  `fn_calculadora_assinante_ai_run_insert`.
+  `fn_gestores_ia_avulso_ai_run_insert`.
 - `components/seller/SellerGestorEstoquePanelAvulso.tsx` — painel segue o SKILL
   `dropcore-gestores-ia` (borda neutra, 1 badge só) e tem ação real, não só diagnóstico:
   botão "Pausar anúncio" (confirmação inline no card, sem modal — réplica 1:1 do
@@ -1670,7 +1670,7 @@ no caminho: a listagem em si **já existia** dentro de `admin/gestores-ia-convit
 (seção "Assinantes do pacote"), só nunca tinha link no menu — não era uma tela nova, era um
 item de menu faltando + melhoria da tela já existente.
 
-- `fn_calculadora_assinantes_gestores_ia_list(p_limit, p_offset)`
+- `fn_gestores_ia_avulso_assinantes_list(p_limit, p_offset)`
   (`web/scripts/add-fn-calculadora-assinantes-gestores-ia-list.sql`) — RPC nova (regra 9 do
   CLAUDE.md: tabela/rota nova nunca usa `.from()` direto), `SECURITY DEFINER` +
   `GRANT ... TO service_role`. Devolve `id, user_id, nome, ativo, gestores_ia_ciclo,
@@ -1700,14 +1700,14 @@ guardado como número solto.
 
 - `calculadora_assinantes.gestores_ia_desconto_tipo` (`'valor'|'percentual'|null`) +
   `.gestores_ia_desconto_valor numeric` — `web/scripts/add-calculadora-assinante-gestores-ia-desconto.sql`.
-- `fn_calculadora_assinante_gestores_ia_desconto_set(p_assinante_id, p_tipo, p_valor)` —
+- `fn_gestores_ia_avulso_desconto_set(p_assinante_id, p_tipo, p_valor)` —
   `SECURITY DEFINER`, só `service_role`. Único caminho que escreve essas colunas.
 - **Achado crítico corrigido no mesmo commit**: o processor do webhook do PIX
   (`lib/gestoresIaAvulsoPixProcessor.ts`, função `processarGestoresIaAvulsoPlanoPago`)
   comparava o valor pago no Mercado Pago contra a constante fixa — com desconto, o
   assinante pagaria menos e o webhook **recusaria silenciosamente** reconhecer o
   pagamento (dinheiro entraria, conta nunca renovaria). Corrigido pra buscar o desconto do
-  assinante (`fn_calculadora_assinante_por_user_id`, já devolve as colunas novas por ser
+  assinante (`fn_gestores_ia_avulso_assinante_por_user_id`, já devolve as colunas novas por ser
   `select *`) e comparar contra o valor esperado dele, não mais o fixo.
 - `app/api/gestores-ia-avulso/planos/route.ts` — `GET` agora exige auth (antes era público,
   sem uso real no front) e devolve o valor real do assinante; `POST` cobra esse mesmo valor

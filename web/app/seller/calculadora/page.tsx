@@ -2474,7 +2474,12 @@ export default function SellerCalculadoraPage() {
           </div>
         </div>
       </div>
-      <SellerNav active="calculadora" calcOnly={calcOnlyLite} temGestoresIa={temGestoresIa} wide={!calcOnlyLite} />
+      <SellerNav
+        active="calculadora"
+        calcOnly={calcOnlyLite}
+        produto={temGestoresIa ? "gestores_ia_avulso" : "calculadora"}
+        wide={!calcOnlyLite}
+      />
     </div>
   );
 }

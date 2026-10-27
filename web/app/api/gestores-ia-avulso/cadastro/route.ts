@@ -3,7 +3,7 @@
  * PATCH /api/gestores-ia-avulso/cadastro — atualiza campos comerciais (opcional, não
  * bloqueia nada — diferente do onboarding obrigatório do hub em /api/seller/cadastro).
  *
- * Leitura/escrita via RPC (`fn_calculadora_assinante_cadastro_get/upsert`, ver
+ * Leitura/escrita via RPC (`fn_gestores_ia_avulso_cadastro_get/upsert`, ver
  * web/scripts/add-calculadora-assinante-cadastro-comercial.sql) — regra 9 do CLAUDE.md.
  */
 import { NextResponse } from "next/server";
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
     }
 
-    const { data, error } = await supabaseAdmin.rpc("fn_calculadora_assinante_cadastro_get", {
+    const { data, error } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_cadastro_get", {
       p_assinante_id: assinante.id,
     });
     if (error) {
@@ -127,7 +127,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Endereço completo é obrigatório." }, { status: 400 });
     }
 
-    const { data, error } = await supabaseAdmin.rpc("fn_calculadora_assinante_cadastro_upsert", {
+    const { data, error } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_cadastro_upsert", {
       p_assinante_id: assinante.id,
       p_nome: nome,
       p_tipo_documento: tipo_documento,

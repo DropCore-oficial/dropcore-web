@@ -23,7 +23,7 @@ export type SubmeterAndreyAvulsoResultado = {
   linhas_sem_dado: number;
 };
 
-type AssinanteElegivel = { id: string; anthropic_api_key_encriptada: string | null };
+type AssinanteElegivel = { id: string };
 
 export async function submeterAndreyAvulsoDiario(): Promise<SubmeterAndreyAvulsoResultado> {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
@@ -33,11 +33,22 @@ export async function submeterAndreyAvulsoDiario(): Promise<SubmeterAndreyAvulso
 
   const { data: assinantesRaw, error } = await supabaseAdmin
     .from("calculadora_assinantes")
-    .select("id, anthropic_api_key_encriptada, calculadora_assinante_mercadolivre_integrations!inner(ml_user_id)")
+    .select("id, calculadora_assinante_mercadolivre_integrations!inner(ml_user_id)")
     .eq("inclui_gestores_ia", true);
   if (error) throw new Error(error.message);
 
   const assinantes = (assinantesRaw ?? []) as AssinanteElegivel[];
+
+  const byokPorAssinanteId = new Map<string, string | null>();
+  if (assinantes.length > 0) {
+    const { data: planosRaw } = await supabaseAdmin
+      .from("calculadora_assinante_plano_gestores_ia")
+      .select("assinante_id, anthropic_api_key_encriptada")
+      .in("assinante_id", assinantes.map((a) => a.id));
+    for (const p of planosRaw ?? []) {
+      byokPorAssinanteId.set(p.assinante_id as string, p.anthropic_api_key_encriptada as string | null);
+    }
+  }
 
   const requests: Array<{ custom_id: string; params: Anthropic.Messages.MessageCreateParamsNonStreaming }> = [];
   const pendentes: string[] = [];
@@ -45,7 +56,7 @@ export async function submeterAndreyAvulsoDiario(): Promise<SubmeterAndreyAvulso
   let semDado = 0;
 
   for (const assinante of assinantes) {
-    const byok: AssinanteByok = { anthropic_api_key_encriptada: assinante.anthropic_api_key_encriptada };
+    const byok: AssinanteByok = { anthropic_api_key_encriptada: byokPorAssinanteId.get(assinante.id) ?? null };
     const chaveByok = chaveByokDoAssinante(byok);
 
     if (!(await foraDoCooldownAndreyAvulso(assinante.id))) {

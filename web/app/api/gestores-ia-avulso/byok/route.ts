@@ -6,7 +6,7 @@
  * de desconto da Batch API, só que o gasto sai da conta Anthropic dele, não do DropCore.
  *
  * Nunca devolve a chave de volta pro front (nem na GET) — só se está configurada ou não.
- * GET lê via RPC (fn_calculadora_assinante_byok_configurado, 2026-10-07) — ver
+ * GET lê via RPC (fn_gestores_ia_avulso_byok_anthropic_configurado, 2026-10-07) — ver
  * docs/SCHEMA.md "Ulisses avulso ... 1º uso real de RPC".
  */
 import Anthropic from "@anthropic-ai/sdk";
@@ -24,8 +24,11 @@ export async function GET(req: Request) {
   if (!assinante) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   }
+  if (assinante.inclui_gestores_ia !== true) {
+    return NextResponse.json({ error: "Recurso não disponível." }, { status: 403 });
+  }
 
-  const { data } = await supabaseAdmin.rpc("fn_calculadora_assinante_byok_configurado", {
+  const { data } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_byok_anthropic_configurado", {
     p_assinante_id: assinante.id,
   });
 
@@ -62,10 +65,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Chave inválida ou sem acesso ao modelo: ${msg}` }, { status: 422 });
   }
 
-  const { error } = await supabaseAdmin
-    .from("calculadora_assinantes")
-    .update({ anthropic_api_key_encriptada: encryptCalculadoraAssinanteSecret(apiKey) })
-    .eq("id", assinante.id);
+  const { error } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_byok_anthropic_upsert", {
+    p_assinante_id: assinante.id,
+    p_key_encriptada: encryptCalculadoraAssinanteSecret(apiKey),
+  });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -78,11 +81,13 @@ export async function DELETE(req: Request) {
   if (!assinante) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   }
+  if (assinante.inclui_gestores_ia !== true) {
+    return NextResponse.json({ error: "Recurso não disponível." }, { status: 403 });
+  }
 
-  const { error } = await supabaseAdmin
-    .from("calculadora_assinantes")
-    .update({ anthropic_api_key_encriptada: null })
-    .eq("id", assinante.id);
+  const { error } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_byok_anthropic_delete", {
+    p_assinante_id: assinante.id,
+  });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

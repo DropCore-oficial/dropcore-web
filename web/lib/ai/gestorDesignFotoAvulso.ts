@@ -38,7 +38,7 @@ const SCHEMA_ANALISE_FOTO = {
  * medida) — analisar só 1-2 fotos nunca pegaria isso. */
 const MAX_FOTOS_ANALISADAS = 10;
 
-type MediaTypeSuportado = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+export type MediaTypeSuportado = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
 
 /** Baixa a foto e converte pra base64 — testado ao vivo 2026-10-19: passar a URL direto
  * (`source: {type: "url"}`) dá 400 "Unable to download the file" porque o CDN do Mercado
@@ -50,7 +50,7 @@ type MediaTypeSuportado = "image/jpeg" | "image/png" | "image/webp" | "image/gif
  * "jpeg" numa foto que é webp de verdade) dá 400 da Anthropic. Detecta pelo `content-type`
  * real da resposta, nunca assume. `null` quando o formato não é um dos suportados pela API
  * de visão (mais seguro que mandar um `media_type` forçado/errado). */
-async function baixarFotoComoBase64(url: string): Promise<{ mediaType: MediaTypeSuportado; data: string } | null> {
+export async function baixarFotoComoBase64(url: string): Promise<{ mediaType: MediaTypeSuportado; data: string } | null> {
   try {
     const res = await fetch(url);
     if (!res.ok) return null;

@@ -487,15 +487,17 @@ function SellerNavGestorIaItem({
 export function SellerNav({
   active,
   calcOnly = false,
-  temGestoresIa = false,
+  produto = "calculadora",
   wide = false,
 }: {
   /** Sem valor = nenhuma aba destacada (ex.: páginas institucionais fora do menu principal). */
   active?: NavKey;
   /** Só assinatura calculadora: esconde Dashboard e ERP */
   calcOnly?: boolean;
-  /** No modo calcOnly, assinante também tem o pacote "Gestores de IA" avulso — mostra a aba extra. */
-  temGestoresIa?: boolean;
+  /** No modo calcOnly, qual dos dois produtos avulso essa conta tem — decide o que aparece no
+   * nav (Dashboard/Gestor de IA/Integrações só existem pra quem tem o pacote completo) e pra
+   * onde "Planos"/logout apontam. Nunca inferir um produto a partir do outro. */
+  produto?: "calculadora" | "gestores_ia_avulso";
   /** Página já migrada pro padrão largo (dropcore-shell-6xl) — usado pra escalar a largura da barra inferior no mobile junto com o conteúdo. Não afeta mais o desktop (virou rail lateral de largura fixa). */
   wide?: boolean;
 }) {
@@ -550,7 +552,7 @@ export function SellerNav({
 
   async function sairCalculadoraNav() {
     await supabaseBrowser.auth.signOut();
-    router.replace("/calculadora/login");
+    router.replace(produto === "gestores_ia_avulso" ? "/gestores-ia/login" : "/calculadora/login");
   }
 
   const mobileLinkClass = (key: NavKey) =>
@@ -566,7 +568,9 @@ export function SellerNav({
       : inactiveMobile + (mobileMaisOpen ? " bg-[var(--surface-hover)]" : ""));
 
   if (calcOnly) {
+    const temGestoresIa = produto === "gestores_ia_avulso";
     const homeHref = temGestoresIa ? "/seller/gestores-ia-avulso/dashboard" : "/seller/calculadora";
+    const planosHref = temGestoresIa ? "/seller/gestores-ia-avulso/planos" : "/seller/calculadora/planos";
     const calcMaisActive = active === "integracoes" || active === "cadastro" || active === "plano";
     const calcMaisBtnClass =
       `flex min-w-0 flex-1 flex-row items-center justify-center gap-1 overflow-hidden px-0.5 py-2 transition-all duration-200 border-t-2 touch-manipulation relative ` +
@@ -657,7 +661,7 @@ export function SellerNav({
             </>
           )}
           <SellerNavRailItem
-            href="/seller/gestores-ia-avulso/planos"
+            href={planosHref}
             label="Planos"
             isActive={active === "plano"}
             glow
@@ -730,7 +734,7 @@ export function SellerNav({
                 </Link>
               )}
               <Link
-                href="/seller/gestores-ia-avulso/planos"
+                href={planosHref}
                 role="menuitem"
                 className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
                   active === "plano"

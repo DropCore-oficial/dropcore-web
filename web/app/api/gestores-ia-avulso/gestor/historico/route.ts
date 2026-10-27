@@ -1,6 +1,6 @@
 /**
  * GET /api/gestores-ia-avulso/gestor/historico — carrega a tela do chat (sessões + mensagens
- * da sessão ativa) numa chamada só (fn_calculadora_assinante_ai_chat_historico) + uso do
+ * da sessão ativa) numa chamada só (fn_gestores_ia_avulso_ai_chat_historico) + uso do
  * orçamento diário compartilhado (mesmo pote do Andrey/Amanda/Ulisses, não um contador
  * próprio). ?session_id=... pra trocar de conversa (senão pega a mais recente). Sessão nova
  * automática por dia, mesmo princípio do hub (app/api/seller/gestores-ia/tiago/historico).
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const sessionIdParam = url.searchParams.get("session_id") || null;
 
-  const historicoRes = await supabaseAdmin.rpc("fn_calculadora_assinante_ai_chat_historico", {
+  const historicoRes = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_chat_historico", {
     p_assinante_id: assinante.id,
     p_session_id: sessionIdParam,
   });
@@ -46,11 +46,11 @@ export async function GET(req: Request) {
     const sessaoAtiva = historicoData.sessoes.find((s) => s.id === historicoData.sessao_ativa_id);
     const sessaoEhDeHoje = sessaoAtiva ? dataBrtDeIso(sessaoAtiva.criado_em) === hojeBrtIso() : false;
     if (!sessaoEhDeHoje) {
-      const { data: novaSessaoId, error: criarErr } = await supabaseAdmin.rpc("fn_calculadora_assinante_ai_chat_criar_sessao", {
+      const { data: novaSessaoId, error: criarErr } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_chat_criar_sessao", {
         p_assinante_id: assinante.id,
       });
       if (!criarErr && novaSessaoId) {
-        const historicoRes2 = await supabaseAdmin.rpc("fn_calculadora_assinante_ai_chat_historico", {
+        const historicoRes2 = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_chat_historico", {
           p_assinante_id: assinante.id,
           p_session_id: novaSessaoId,
         });
@@ -59,7 +59,7 @@ export async function GET(req: Request) {
     }
   }
 
-  const { data: byokRaw } = await supabaseAdmin.rpc("fn_calculadora_assinante_byok_configurado", {
+  const { data: byokRaw } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_byok_anthropic_configurado", {
     p_assinante_id: assinante.id,
   });
   const byok = Boolean(byokRaw);

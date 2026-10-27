@@ -4,7 +4,7 @@
  * mas `uso_tokens_hoje` devolvido aqui é o orçamento diário COMPARTILHADO da conta (mesmo
  * cálculo de Andrey/Amanda) — pedido explícito pra barra aparecer em toda página do avulso,
  * não só nos gestores que de fato consomem. Leitura via RPC
- * (fn_calculadora_assinante_ai_runs_recentes/ml_status_get, 2026-10-07).
+ * (fn_gestores_ia_avulso_ai_runs_recentes/ml_status_get, 2026-10-07).
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -28,14 +28,14 @@ export async function GET(req: Request) {
   }
 
   const [{ data: ml }, { data: runsRecentes }, preferencias, { data: byok }] = await Promise.all([
-    supabaseAdmin.rpc("fn_calculadora_assinante_ml_status_get", { p_assinante_id: assinante.id }),
-    supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
+    supabaseAdmin.rpc("fn_gestores_ia_avulso_ml_status_get", { p_assinante_id: assinante.id }),
+    supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_runs_recentes", {
       p_assinante_id: assinante.id,
       p_gestor: "ads",
       p_limit: 1,
     }),
     buscarPreferenciasUlissesAvulso(assinante.id),
-    supabaseAdmin.rpc("fn_calculadora_assinante_byok_configurado", { p_assinante_id: assinante.id }),
+    supabaseAdmin.rpc("fn_gestores_ia_avulso_byok_anthropic_configurado", { p_assinante_id: assinante.id }),
   ]);
   const run = ((runsRecentes ?? []) as RunRow[])[0] ?? null;
 

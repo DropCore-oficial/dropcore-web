@@ -101,7 +101,7 @@ type RunHistoricoRow = { resultado: ResultadoReputacaoAtendimentoEnriquecido | n
  * zero chamada nova à API do ML). `null` com menos de 2 rodadas com resultado válido — sem
  * sinal de tendência ainda, não inventa número. */
 export async function calcularTendenciaReputacaoAvulso(assinanteId: string): Promise<TendenciaReputacao | null> {
-  const { data } = await supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
+  const { data } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_runs_recentes", {
     p_assinante_id: assinanteId,
     p_gestor: "reputacao_atendimento",
     p_limit: JANELA_HISTORICO_RODADAS_TENDENCIA,

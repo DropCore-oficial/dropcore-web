@@ -3,7 +3,7 @@
  * chamada por dentro da rodada do Anúncio (`gestorAnunciosSeoDadosAvulso.ts`), quando o funil
  * de conversão esgota todas as outras causas checáveis por código. Essa rota só LÊ o que o
  * Anúncio já salvou e filtra os anúncios que têm `foto_diagnostico` — página 100% passiva.
- * Leitura via RPC (`fn_calculadora_assinante_ai_runs_recentes`), nunca `.from()` direto
+ * Leitura via RPC (`fn_gestores_ia_avulso_ai_runs_recentes`), nunca `.from()` direto
  * (regra 9 do CLAUDE.md).
  */
 import { NextResponse } from "next/server";
@@ -32,8 +32,8 @@ export async function GET(req: Request) {
   }
 
   const [{ data: ml }, { data: runsRecentes }] = await Promise.all([
-    supabaseAdmin.rpc("fn_calculadora_assinante_ml_status_get", { p_assinante_id: assinante.id }),
-    supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
+    supabaseAdmin.rpc("fn_gestores_ia_avulso_ml_status_get", { p_assinante_id: assinante.id }),
+    supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_runs_recentes", {
       p_assinante_id: assinante.id,
       p_gestor: "anuncios_seo",
       p_limit: 1,

@@ -1,7 +1,7 @@
 /**
  * GET /api/org/gestores-ia-avulso/assinantes — lista, pro admin, os assinantes da
  * Calculadora com o pacote Gestores de IA avulso ativo (`inclui_gestores_ia = true`).
- * Leitura 100% via RPC (`fn_calculadora_assinantes_gestores_ia_list`), nunca `.from()`
+ * Leitura 100% via RPC (`fn_gestores_ia_avulso_assinantes_list`), nunca `.from()`
  * direto — regra 9 do CLAUDE.md pra tabela/rota nova.
  */
 import { NextResponse } from "next/server";
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     const limit = Math.min(Number(searchParams.get("limit") ?? 50) || 50, 200);
     const offset = Math.max(Number(searchParams.get("offset") ?? 0) || 0, 0);
 
-    const { data, error } = await supabaseAdmin.rpc("fn_calculadora_assinantes_gestores_ia_list", {
+    const { data, error } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_assinantes_list", {
       p_limit: limit,
       p_offset: offset,
     });

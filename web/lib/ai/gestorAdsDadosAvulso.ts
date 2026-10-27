@@ -7,8 +7,8 @@
  *
  * Diferença estrutural vs. o hub: avulso não tem `skus.custo_base` (não tem catálogo de
  * fornecedor) — o assinante digita o custo manualmente por anúncio/família
- * (`calculadora_assinante_ulisses_custos`, acesso via RPC, ver fn_calculadora_assinante_
- * ulisses_custo_upsert/custos_list). Preferências (margem mínima/máxima, imposto, perda)
+ * (`calculadora_assinante_ulisses_custos`, acesso via RPC, ver
+ * fn_gestores_ia_avulso_ulisses_custo_upsert/custos_list). Preferências (margem mínima/máxima, imposto, perda)
  * também via RPC (`calculadora_assinante_ulisses_preferencias`).
  *
  * 100% código, sem IA — mesma decisão do hub (2026-09-07): margem atual vs. mínima/máxima é
@@ -103,7 +103,7 @@ function linhaParaPreferencias(row: PreferenciasRow): UlissesPreferenciasAvulso 
 }
 
 export async function buscarPreferenciasUlissesAvulso(assinanteId: string): Promise<UlissesPreferenciasAvulso | null> {
-  const { data, error } = await supabaseAdmin.rpc("fn_calculadora_assinante_ulisses_preferencias_get", {
+  const { data, error } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ulisses_preferencias_get", {
     p_assinante_id: assinanteId,
   });
   if (error) throw new Error(error.message);
@@ -115,7 +115,7 @@ export async function salvarPreferenciasUlissesAvulso(
   assinanteId: string,
   prefs: UlissesPreferenciasAvulso
 ): Promise<UlissesPreferenciasAvulso> {
-  const { data, error } = await supabaseAdmin.rpc("fn_calculadora_assinante_ulisses_preferencias_upsert", {
+  const { data, error } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ulisses_preferencias_upsert", {
     p_assinante_id: assinanteId,
     p_margem_minima_pct: prefs.margemMinimaPct,
     p_margem_maxima_pct: prefs.margemMaximaPct,
@@ -142,7 +142,7 @@ export async function salvarPreferenciasUlissesAvulso(
 type CustoRow = { chave: string; custo: number };
 
 export async function buscarCustosUlissesAvulso(assinanteId: string): Promise<Map<string, number>> {
-  const { data, error } = await supabaseAdmin.rpc("fn_calculadora_assinante_ulisses_custos_list", {
+  const { data, error } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ulisses_custos_list", {
     p_assinante_id: assinanteId,
   });
   if (error) throw new Error(error.message);
@@ -150,7 +150,7 @@ export async function buscarCustosUlissesAvulso(assinanteId: string): Promise<Ma
 }
 
 export async function salvarCustoUlissesAvulso(assinanteId: string, chave: string, custo: number): Promise<void> {
-  const { error } = await supabaseAdmin.rpc("fn_calculadora_assinante_ulisses_custo_upsert", {
+  const { error } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ulisses_custo_upsert", {
     p_assinante_id: assinanteId,
     p_chave: chave,
     p_custo: custo,
@@ -159,7 +159,7 @@ export async function salvarCustoUlissesAvulso(assinanteId: string, chave: strin
 }
 
 export async function removerCustoUlissesAvulso(assinanteId: string, chave: string): Promise<void> {
-  const { error } = await supabaseAdmin.rpc("fn_calculadora_assinante_ulisses_custo_delete", {
+  const { error } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ulisses_custo_delete", {
     p_assinante_id: assinanteId,
     p_chave: chave,
   });
@@ -485,7 +485,7 @@ export async function montarResultadoAdsAvulso(assinanteId: string): Promise<Res
       buscarCustosUlissesAvulso(assinanteId),
       buscarMetricasAdsPorChave(ctx, "MLB", periodoInicio, periodoFim),
       mlBuscarPromocoesAtivas(ctx),
-      supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
+      supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_runs_recentes", {
         p_assinante_id: assinanteId,
         p_gestor: "estoque",
         p_limit: 1,

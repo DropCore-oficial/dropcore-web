@@ -105,7 +105,7 @@ function indiceReputacaoAvulso(nivel: string | null): number | null {
 
 /** Shape mínimo da última rodada salva do ADS/SAC avulso — só os campos que o funil do
  * Anúncio precisa ler (`ads_gasto_mes_real` por chave de família, `nivel` de reputação da
- * conta), via a mesma RPC genérica `fn_calculadora_assinante_ai_runs_recentes` que o Estoque
+ * conta), via a mesma RPC genérica `fn_gestores_ia_avulso_ai_runs_recentes` que o Estoque
  * já usa pra "piorou desde ontem" e o ADS avulso já usa pra cruzar com o Estoque antes de
  * sugerir promoção — cruzamento entre gestores via rodada já salva, zero API nova. */
 type AdsRunRow = {
@@ -119,7 +119,7 @@ type EstoqueRunRow = {
 };
 
 async function buscarUltimaRodadaAdsAvulso(assinanteId: string): Promise<AdsRunRow[]> {
-  const { data } = await supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
+  const { data } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_runs_recentes", {
     p_assinante_id: assinanteId,
     p_gestor: "ads",
     p_limit: 1,
@@ -128,7 +128,7 @@ async function buscarUltimaRodadaAdsAvulso(assinanteId: string): Promise<AdsRunR
 }
 
 async function buscarUltimaRodadaReputacaoAvulso(assinanteId: string): Promise<ReputacaoRunRow[]> {
-  const { data } = await supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
+  const { data } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_runs_recentes", {
     p_assinante_id: assinanteId,
     p_gestor: "reputacao_atendimento",
     p_limit: 1,
@@ -140,7 +140,7 @@ async function buscarUltimaRodadaReputacaoAvulso(assinanteId: string): Promise<R
  * pelo ADS avulso (lê a última rodada do Estoque antes de sugerir promoção). Aqui é só pra
  * saber se alguma variação do grupo está marcada como crítica (`variacao_critica`). */
 async function buscarUltimaRodadaEstoqueAvulso(assinanteId: string): Promise<EstoqueRunRow[]> {
-  const { data } = await supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
+  const { data } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_runs_recentes", {
     p_assinante_id: assinanteId,
     p_gestor: "estoque",
     p_limit: 1,
@@ -210,7 +210,7 @@ type RodadaComData = { resultado: unknown; criado_em: string };
 async function buscarHistoricoPrecoProprioAvulso(assinanteId: string): Promise<Map<string, number>> {
   const LIMITE_BUSCA = 180;
   const TOLERANCIA_DIAS = 20;
-  const { data } = await supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
+  const { data } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_runs_recentes", {
     p_assinante_id: assinanteId,
     p_gestor: "anuncios_seo",
     p_limit: LIMITE_BUSCA,
@@ -728,7 +728,7 @@ type FotoDiagnosticoCacheJson = { veredito: "boa" | "ruim"; motivo: string; pict
 /** Último diagnóstico de foto salvo por chave — permite não gastar de novo com a Laura
  * quando o conjunto de fotos do anúncio não mudou desde a última análise. */
 async function buscarUltimoFotoDiagnosticoPorChave(assinanteId: string): Promise<Map<string, FotoDiagnosticoCache>> {
-  const { data } = await supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
+  const { data } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_runs_recentes", {
     p_assinante_id: assinanteId,
     p_gestor: "anuncios_seo",
     p_limit: 1,
@@ -830,7 +830,7 @@ export async function enriquecerResultadoAnunciosSeoAvulso(
           funilCausaProvavel = fotoDiagnostico.veredito === "ruim" ? "foto_ruim" : "sem_causa_identificada";
           funilCausaDetalhe =
             fotoDiagnostico.veredito === "ruim"
-              ? `A Laura analisou a foto e encontrou um problema: ${fotoDiagnostico.motivo}`
+              ? `O Design analisou a foto e encontrou um problema: ${fotoDiagnostico.motivo}`
               : `Reclamação, reputação, promoção, preço, variação, texto e foto já foram checados e nenhum explica isso. A foto está adequada: ${fotoDiagnostico.motivo}`;
         } else {
           funilCausaProvavel = "sem_causa_identificada";

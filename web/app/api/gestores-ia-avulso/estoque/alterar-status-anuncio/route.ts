@@ -46,7 +46,7 @@ export async function POST(req: Request) {
   }
 
   await supabaseAdmin
-    .rpc("fn_calculadora_assinante_ai_acao_registrar", {
+    .rpc("fn_gestores_ia_avulso_ai_acao_registrar", {
       p_assinante_id: assinante.id,
       p_gestor: "estoque",
       p_tipo_acao: `alterar_status_anuncio_${status}`,

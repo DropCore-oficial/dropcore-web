@@ -33,6 +33,19 @@ export const COTA_TOKENS_DIA_ESTIMADA_AVULSO = Math.round((TETO_AVULSO_REAIS_DIA
 
 export type AssinanteByok = { anthropic_api_key_encriptada: string | null };
 
+/** Lê a chave BYOK (ainda criptografada) de `calculadora_assinante_plano_gestores_ia` —
+ * desmembramento 2026-10-26 (ver plano "Desmembrar Calculadora x Gestores de IA avulso x
+ * HUB"): a coluna saiu de `calculadora_assinantes` pra essa tabela-satélite. `null` quando o
+ * assinante não existe (nunca deveria acontecer pra um assinante_id válido). */
+export async function buscarAssinanteByok(assinanteId: string): Promise<AssinanteByok | null> {
+  const { data } = await supabaseAdmin
+    .from("calculadora_assinante_plano_gestores_ia")
+    .select("anthropic_api_key_encriptada")
+    .eq("assinante_id", assinanteId)
+    .maybeSingle<AssinanteByok>();
+  return data ?? null;
+}
+
 /** Chave BYOK configurada pelo assinante, descriptografada — null se não configurou. */
 export function chaveByokDoAssinante(assinante: AssinanteByok): string | null {
   if (!assinante.anthropic_api_key_encriptada) return null;
@@ -106,7 +119,7 @@ export async function temOrcamentoDisponivelHoje(assinante: AssinanteByok, assin
 }
 
 /** Mesmo princípio de `temOrcamentoDisponivelHoje`, mas pra quem já sabe só o BOOLEANO de
- * BYOK (via RPC `fn_calculadora_assinante_byok_configurado`) em vez do objeto com a chave
+ * BYOK (via RPC `fn_gestores_ia_avulso_byok_anthropic_configurado`) em vez do objeto com a chave
  * crua — usado pelo Estoque avulso (1º gestor escrito 100% em RPC: nunca busca
  * `anthropic_api_key_encriptada` à toa quando só precisa saber se está configurada). */
 export async function temOrcamentoDisponivelHojeComByokBooleano(

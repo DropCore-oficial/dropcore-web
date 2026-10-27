@@ -21,6 +21,8 @@ type AnuncioComFoto = {
   foto_diagnostico: { veredito: "boa" | "ruim"; motivo: string; picture_ids: string[] } | null;
 };
 
+type GeracaoEstado = { status: "gerando" } | { status: "pronto"; url: string } | { status: "erro"; mensagem: string };
+
 const VEREDITO_BADGE: Record<"boa" | "ruim", string> = {
   boa: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
   ruim: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
@@ -47,6 +49,8 @@ export default function LauraAvulsoPage() {
   const [acesso, setAcesso] = useState<Acesso>("loading");
   const [mlConectado, setMlConectado] = useState(true);
   const [anuncios, setAnuncios] = useState<AnuncioComFoto[]>([]);
+  const [geminiConfigurado, setGeminiConfigurado] = useState(false);
+  const [geracoes, setGeracoes] = useState<Record<string, GeracaoEstado>>({});
 
   const carregar = useCallback(async () => {
     const { data } = await supabaseBrowser.auth.getSession();
@@ -55,10 +59,16 @@ export default function LauraAvulsoPage() {
       router.replace("/gestores-ia/login");
       return;
     }
-    const res = await fetch("/api/gestores-ia-avulso/design", {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
+    const [res, resGemini] = await Promise.all([
+      fetch("/api/gestores-ia-avulso/design", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      }),
+      fetch("/api/gestores-ia-avulso/byok-gemini", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      }),
+    ]);
     if (res.status === 403) {
       setAcesso("negado");
       return;
@@ -68,6 +78,8 @@ export default function LauraAvulsoPage() {
       setAcesso("negado");
       return;
     }
+    const jsonGemini = await resGemini.json().catch(() => ({}));
+    setGeminiConfigurado(Boolean(jsonGemini.configurado));
     setMlConectado(Boolean(json.ml_conectado));
     setAnuncios(json.anuncios ?? []);
     setAcesso("liberado");
@@ -76,6 +88,27 @@ export default function LauraAvulsoPage() {
   useEffect(() => {
     void carregar();
   }, [carregar]);
+
+  async function gerarFoto(chave: string) {
+    setGeracoes((prev) => ({ ...prev, [chave]: { status: "gerando" } }));
+    const { data } = await supabaseBrowser.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+    const res = await fetch("/api/gestores-ia-avulso/design/gerar-foto", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ chave }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json.url) {
+      setGeracoes((prev) => ({
+        ...prev,
+        [chave]: { status: "erro", mensagem: json.error ?? "Erro ao gerar a foto." },
+      }));
+      return;
+    }
+    setGeracoes((prev) => ({ ...prev, [chave]: { status: "pronto", url: json.url } }));
+  }
 
   return (
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
@@ -114,7 +147,7 @@ export default function LauraAvulsoPage() {
           <GestorAvulsoConectarMlEmptyState
             icon={<IconLaura className="h-6 w-6 shrink-0" />}
             titulo="Conecte sua conta do Mercado Livre primeiro"
-            descricao="A Laura analisa a foto dos seus anúncios a partir do que o Anúncio encontra — conecte sua conta pra liberar essa rodada."
+            descricao="O Design analisa a foto dos seus anúncios a partir do que o Anúncio encontra — conecte sua conta pra liberar essa rodada."
           />
         ) : anuncios.length === 0 ? (
           <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-4 py-6 text-center text-sm text-[var(--muted)]">
@@ -142,13 +175,61 @@ export default function LauraAvulsoPage() {
                 >
                   Ver anúncio ↗
                 </a>
+
+                {a.foto_diagnostico?.veredito === "ruim" ? (
+                  <div className="mt-3 border-t border-[var(--card-border)] pt-3">
+                    {!geminiConfigurado ? (
+                      <p className="text-xs text-[var(--muted)]">
+                        Pra gerar uma foto nova, conecte sua chave do Gemini em{" "}
+                        <Link href="/seller/gestores-ia-avulso/integracoes" className="font-semibold text-emerald-700 hover:underline dark:text-emerald-400">
+                          Integrações
+                        </Link>
+                        .
+                      </p>
+                    ) : geracoes[a.chave]?.status === "pronto" ? (
+                      <div className="space-y-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={(geracoes[a.chave] as { status: "pronto"; url: string }).url}
+                          alt="Foto gerada"
+                          className="h-40 w-40 rounded-lg border border-[var(--card-border)] object-cover"
+                        />
+                        <a
+                          href={(geracoes[a.chave] as { status: "pronto"; url: string }).url}
+                          download
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                        >
+                          Baixar foto
+                        </a>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void gerarFoto(a.chave)}
+                          disabled={geracoes[a.chave]?.status === "gerando"}
+                          className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          {geracoes[a.chave]?.status === "gerando" ? "Gerando…" : "Gerar foto nova"}
+                        </button>
+                        {geracoes[a.chave]?.status === "erro" ? (
+                          <p className={cn(DANGER_PREMIUM_TEXT_BODY, "mt-1.5 text-xs")}>
+                            {(geracoes[a.chave] as { status: "erro"; mensagem: string }).mensagem}
+                          </p>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+                ) : null}
               </article>
             ))}
           </div>
         )}
       </div>
 
-      <SellerNav active="gestores_ia" calcOnly temGestoresIa />
+      <SellerNav active="gestores_ia" calcOnly produto="gestores_ia_avulso" />
     </div>
   );
 }

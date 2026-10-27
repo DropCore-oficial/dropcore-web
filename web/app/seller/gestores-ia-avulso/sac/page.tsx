@@ -495,7 +495,7 @@ export default function AmandaAvulsoPage() {
           </>
         )}
       </div>
-      <SellerNav active="gestores_ia" calcOnly temGestoresIa />
+      <SellerNav active="gestores_ia" calcOnly produto="gestores_ia_avulso" />
     </div>
   );
 }

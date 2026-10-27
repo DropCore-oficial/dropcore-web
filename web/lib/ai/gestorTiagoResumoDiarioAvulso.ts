@@ -13,7 +13,7 @@
  * Confiança reaproveita sinal que cada gestor já calcula (tendência, "piorou desde ontem",
  * resposta já rascunhada pela IA) — nunca um percentual inventado do zero.
  *
- * Zero banco novo: lê a última rodada de cada gestor via `fn_calculadora_assinante_ai_runs_recentes`,
+ * Zero banco novo: lê a última rodada de cada gestor via `fn_gestores_ia_avulso_ai_runs_recentes`,
  * já existente.
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -189,7 +189,7 @@ function propostasSac(resultado: ResultadoReputacaoAtendimentoEnriquecido): Prop
 type RunRow<T> = { resultado: T | null };
 
 async function buscarRodadas<T>(assinanteId: string, gestor: GestorIdResumoAvulso, limit: number): Promise<T[]> {
-  const { data } = await supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
+  const { data } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_runs_recentes", {
     p_assinante_id: assinanteId,
     p_gestor: gestor,
     p_limit: limit,
@@ -228,7 +228,7 @@ export async function montarResumoDiarioAvulso(assinanteId: string): Promise<Res
     ultimaRodadaAnuncioSeo(assinanteId),
     ultimaRodada<ResultadoReputacaoAtendimentoEnriquecido>(assinanteId, "reputacao_atendimento"),
     supabaseAdmin
-      .rpc("fn_calculadora_assinante_ai_acoes_resumo", { p_assinante_id: assinanteId, p_dias: 30 })
+      .rpc("fn_gestores_ia_avulso_ai_acoes_resumo", { p_assinante_id: assinanteId, p_dias: 30 })
       .then(({ data, error }) => {
         if (error) {
           console.error("[gestorTiagoResumoDiarioAvulso] resumo de ações falhou", error);

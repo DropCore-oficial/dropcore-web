@@ -1,6 +1,6 @@
 /**
  * GET/POST /api/gestores-ia-avulso/ads/preferencias — wizard de margem/imposto/perda do
- * Ulisses avulso. Lê/grava via RPC (fn_calculadora_assinante_ulisses_preferencias_get/
+ * Ulisses avulso. Lê/grava via RPC (fn_gestores_ia_avulso_ulisses_preferencias_get/
  * upsert) — mesmo princípio do resto do sistema: a rota confere o dono (getAssinanteFromToken)
  * e só então chama a função do banco, que faz a leitura/escrita.
  */

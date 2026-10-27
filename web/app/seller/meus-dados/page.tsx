@@ -316,7 +316,7 @@ export default function MeusDadosPage() {
           </>
         )}
       </div>
-      <SellerNav active="cadastro" calcOnly temGestoresIa={temGestoresIa} />
+      <SellerNav active="cadastro" calcOnly produto={temGestoresIa ? "gestores_ia_avulso" : "calculadora"} />
     </div>
   );
 }

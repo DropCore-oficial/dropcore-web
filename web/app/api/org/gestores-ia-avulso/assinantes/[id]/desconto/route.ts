@@ -2,7 +2,7 @@
  * POST /api/org/gestores-ia-avulso/assinantes/[id]/desconto — admin define (ou remove) o
  * desconto da parcela mensal de um assinante do pacote avulso. `tipo: null` remove o
  * desconto (volta pro preço cheio). Único caminho que chama
- * `fn_calculadora_assinante_gestores_ia_desconto_set` (service_role only).
+ * `fn_gestores_ia_avulso_desconto_set` (service_role only).
  */
 import { NextResponse } from "next/server";
 import { orgErrorHttpStatus, requireAdmin } from "@/lib/apiOrgAuth";
@@ -21,7 +21,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const tipoRaw = body?.tipo;
 
     if (tipoRaw === null || tipoRaw === undefined) {
-      const { error } = await supabaseAdmin.rpc("fn_calculadora_assinante_gestores_ia_desconto_set", {
+      const { error } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_desconto_set", {
         p_assinante_id: id,
         p_tipo: null,
         p_valor: null,
@@ -45,7 +45,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Desconto em R$ não pode ser maior ou igual ao preço cheio." }, { status: 400 });
     }
 
-    const { error } = await supabaseAdmin.rpc("fn_calculadora_assinante_gestores_ia_desconto_set", {
+    const { error } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_desconto_set", {
       p_assinante_id: id,
       p_tipo: tipoRaw,
       p_valor: valor,

@@ -2,7 +2,7 @@
  * Pagamento da parcela mensal (R$797,90) do pacote avulso "Gestores de IA" via PIX — vale
  * tanto pra quem assina mês a mês quanto pra quem paga uma parcela do contrato anual (mesmo
  * valor, mesma extensão de 1 mês; o que diferencia o contrato anual é só a carência inicial,
- * tratada em `fn_calculadora_assinante_gestores_ia_contrato_anual_iniciar`, sem PIX).
+ * tratada em `fn_gestores_ia_avulso_contrato_anual_iniciar`, sem PIX).
  * Referência externa ≤ 64 caracteres (limite Mercado Pago): giapix + UUID sem hífens (32 hex)
  * + nonce (8 hex) = 46 chars.
  */
@@ -76,7 +76,7 @@ export async function processarGestoresIaAvulsoPlanoPago(
 
   // Valor esperado é por assinante — desconto definido pelo admin (2026-10-17) muda o que
   // cada um paga de verdade, nunca a constante fixa sozinha.
-  const { data: assinanteData } = await supabaseAdmin.rpc("fn_calculadora_assinante_por_user_id", {
+  const { data: assinanteData } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_assinante_por_user_id", {
     p_user_id: parsed.userId,
   });
   const assinanteRow = assinanteData as
@@ -91,7 +91,7 @@ export async function processarGestoresIaAvulsoPlanoPago(
     return false;
   }
 
-  const { data: rowData, error: fetchErr } = await supabaseAdmin.rpc("fn_calculadora_assinante_gestores_ia_pix_get", {
+  const { data: rowData, error: fetchErr } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_pix_get", {
     p_user_id: parsed.userId,
   });
   if (fetchErr) {
@@ -116,7 +116,7 @@ export async function processarGestoresIaAvulsoPlanoPago(
     typeof pagoEmRaw === "string" && pagoEmRaw.trim() ? new Date(pagoEmRaw).toISOString() : new Date().toISOString();
 
   const { data: aplicou, error: confirmErr } = await supabaseAdmin.rpc(
-    "fn_calculadora_assinante_gestores_ia_pix_confirmar",
+    "fn_gestores_ia_avulso_pix_confirmar",
     {
       p_user_id: parsed.userId,
       p_novo_valido_ate: novoValido,

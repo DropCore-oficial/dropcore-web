@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Recurso não disponível." }, { status: 403 });
   }
 
-  const { data: sessionId, error } = await supabaseAdmin.rpc("fn_calculadora_assinante_ai_chat_criar_sessao", {
+  const { data: sessionId, error } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_chat_criar_sessao", {
     p_assinante_id: assinante.id,
   });
   if (error) {

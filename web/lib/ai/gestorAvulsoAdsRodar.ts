@@ -7,7 +7,7 @@
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { montarResultadoAdsAvulso } from "@/lib/ai/gestorAdsDadosAvulso";
-import { temOrcamentoDisponivelHoje, type AssinanteByok } from "@/lib/ai/gestorAvulsoOrcamento";
+import { temOrcamentoDisponivelHoje, buscarAssinanteByok } from "@/lib/ai/gestorAvulsoOrcamento";
 
 export const COOLDOWN_HORAS_ULISSES_AVULSO = 6;
 
@@ -32,11 +32,7 @@ export async function rodarUlissesAvulsoParaAssinante(assinanteId: string): Prom
     return { ok: false, motivo: "cooldown" };
   }
 
-  const { data: assinanteByok } = await supabaseAdmin
-    .from("calculadora_assinantes")
-    .select("anthropic_api_key_encriptada")
-    .eq("id", assinanteId)
-    .maybeSingle<AssinanteByok>();
+  const assinanteByok = await buscarAssinanteByok(assinanteId);
   if (!assinanteByok) {
     return { ok: false, motivo: "assinante_nao_encontrado" };
   }

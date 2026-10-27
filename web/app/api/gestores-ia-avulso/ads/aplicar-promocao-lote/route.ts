@@ -121,7 +121,7 @@ export async function POST(req: Request) {
     resultados.push({ item_id: itemId, ok: true });
 
     await supabaseAdmin
-      .rpc("fn_calculadora_assinante_ai_acao_registrar", {
+      .rpc("fn_gestores_ia_avulso_ai_acao_registrar", {
         p_assinante_id: assinante.id,
         p_gestor: "ads",
         p_tipo_acao: "aplicar_promocao_lote",

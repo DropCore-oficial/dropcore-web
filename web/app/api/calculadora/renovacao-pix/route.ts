@@ -67,15 +67,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: assinErr.message }, { status: 500 });
     }
 
-    if (!assin) {
-      const { error: insErr } = await supabaseAdmin.from("calculadora_assinantes").insert({
-        user_id: userId,
-        valido_ate: new Date().toISOString(),
-        ativo: false,
-      });
+    let assinanteId = assin?.id as string | undefined;
+    if (!assinanteId) {
+      const { data: novaLinha, error: insErr } = await supabaseAdmin
+        .from("calculadora_assinantes")
+        .insert({
+          user_id: userId,
+          valido_ate: new Date().toISOString(),
+          ativo: false,
+        })
+        .select("id")
+        .single();
       if (insErr) {
         return NextResponse.json({ error: "Erro ao preparar assinatura: " + insErr.message }, { status: 500 });
       }
+      assinanteId = novaLinha.id;
     }
 
     const valor = getCalculadoraRenovacaoValorBrl();
@@ -110,12 +116,9 @@ export async function POST(req: Request) {
     const paymentId = result.payment_id?.trim();
     if (paymentId) {
       const { error: pendErr } = await supabaseAdmin
-        .from("calculadora_assinantes")
-        .update({
-          mp_renovacao_pendente_id: paymentId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId);
+        .from("calculadora_assinante_plano_calculadora")
+        .update({ mp_renovacao_pendente_id: paymentId })
+        .eq("assinante_id", assinanteId);
 
       if (pendErr) {
         console.warn("[calculadora renovacao-pix] pendente:", pendErr.message);

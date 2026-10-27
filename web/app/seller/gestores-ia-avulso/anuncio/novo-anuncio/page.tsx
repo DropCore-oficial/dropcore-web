@@ -416,7 +416,7 @@ export default function NovoAnuncioAvulsoPage() {
           ) : null}
         </section>
       </div>
-      <SellerNav active="gestores_ia" calcOnly temGestoresIa />
+      <SellerNav active="gestores_ia" calcOnly produto="gestores_ia_avulso" />
     </div>
   );
 }

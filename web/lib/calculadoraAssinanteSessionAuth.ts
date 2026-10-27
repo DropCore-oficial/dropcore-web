@@ -11,7 +11,7 @@ type AssinanteRow = {
 };
 
 /** Mesmo padrão de `sellerSessionAuth.ts`, mas pro assinante avulso (`calculadora_assinantes`).
- * Leitura via RPC (fn_calculadora_assinante_por_user_id, 2026-10-07) — ver docs/SCHEMA.md
+ * Leitura via RPC (fn_gestores_ia_avulso_assinante_por_user_id, 2026-10-07) — ver docs/SCHEMA.md
  * "Ulisses avulso ... 1º uso real de RPC". */
 export async function getAssinanteFromToken(req: Request) {
   const auth = req.headers.get("authorization") ?? "";
@@ -26,7 +26,7 @@ export async function getAssinanteFromToken(req: Request) {
   const { data: userData, error: userErr } = await sbAnon.auth.getUser(token);
   if (userErr || !userData?.user) return null;
 
-  const { data: assinante } = await supabaseAdmin.rpc("fn_calculadora_assinante_por_user_id", {
+  const { data: assinante } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_assinante_por_user_id", {
     p_user_id: userData.user.id,
   });
   const row = (assinante as AssinanteRow | null) ?? null;

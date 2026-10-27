@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Recurso não disponível." }, { status: 403 });
   }
 
-  const { data: ml } = await supabaseAdmin.rpc("fn_calculadora_assinante_ml_status_get", {
+  const { data: ml } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ml_status_get", {
     p_assinante_id: assinante.id,
   });
   if (!ml?.ml_user_id) {

@@ -395,7 +395,7 @@ export default function GestoresIaAvulsoDashboardPage() {
           </>
         ) : null}
       </div>
-      <SellerNav active="dashboard_avulso" calcOnly temGestoresIa />
+      <SellerNav active="dashboard_avulso" calcOnly produto="gestores_ia_avulso" />
     </div>
   );
 }

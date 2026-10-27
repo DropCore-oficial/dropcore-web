@@ -1,7 +1,7 @@
 /**
  * GET /api/gestores-ia-avulso/anuncio — última rodada do Andrey (Anúncios & SEO) pro
  * assinante avulso + conexão ML e uso diário de IA, pra tela saber o que mostrar. Leitura via
- * RPC (fn_calculadora_assinante_ai_runs_recentes/ml_status_get/byok_configurado, 2026-10-07)
+ * RPC (fn_gestores_ia_avulso_ai_runs_recentes/ml_status_get/byok_configurado, 2026-10-07)
  * — ver docs/SCHEMA.md "Ulisses avulso ... 1º uso real de RPC".
  */
 import { NextResponse } from "next/server";
@@ -25,13 +25,13 @@ export async function GET(req: Request) {
   }
 
   const [{ data: ml }, { data: runsRecentes }, { data: byok }] = await Promise.all([
-    supabaseAdmin.rpc("fn_calculadora_assinante_ml_status_get", { p_assinante_id: assinante.id }),
-    supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
+    supabaseAdmin.rpc("fn_gestores_ia_avulso_ml_status_get", { p_assinante_id: assinante.id }),
+    supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_runs_recentes", {
       p_assinante_id: assinante.id,
       p_gestor: "anuncios_seo",
       p_limit: 5,
     }),
-    supabaseAdmin.rpc("fn_calculadora_assinante_byok_configurado", { p_assinante_id: assinante.id }),
+    supabaseAdmin.rpc("fn_gestores_ia_avulso_byok_anthropic_configurado", { p_assinante_id: assinante.id }),
   ]);
 
   // "Ideias pra produto novo" grava uma linha nesse mesmo gestor só pra contar no

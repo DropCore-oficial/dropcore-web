@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     }
 
     const { data: pendenteRow, error: pendErr } = await supabaseAdmin.rpc(
-      "fn_calculadora_assinante_gestores_ia_pix_get",
+      "fn_gestores_ia_avulso_pix_get",
       { p_user_id: userId },
     );
     if (pendErr) {

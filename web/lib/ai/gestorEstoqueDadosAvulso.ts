@@ -232,7 +232,7 @@ async function contarPausasRecentesConfirmadoAvulso(
 
 /** `null` quando ML não conectado OU catálogo vazio — mesmo padrão dos outros gestores
  * avulso (Andrey/Amanda/Ulisses). Leitura da rodada anterior (pra "piorou desde ontem") via
- * RPC genérica `fn_calculadora_assinante_ai_runs_recentes` — nunca `.from()` direto, 1º
+ * RPC genérica `fn_gestores_ia_avulso_ai_runs_recentes` — nunca `.from()` direto, 1º
  * gestor avulso escrito depois da regra 9 do CLAUDE.md. */
 export async function montarResultadoEstoqueAvulso(assinanteId: string): Promise<ResultadoEstoqueAvulsoEnriquecido | null> {
   const ctx: MercadoLivreAuthContext | null = await getValidMercadoLivreAvulsoAccessToken(assinanteId);
@@ -247,7 +247,7 @@ export async function montarResultadoEstoqueAvulso(assinanteId: string): Promise
   const [detalhes, resumoPedidos, runAnteriorRes] = await Promise.all([
     mlBuscarItensDetalhe(ids, ctx),
     mlBuscarResumoPedidosPeriodo(ctx, desde.toISOString(), agora.toISOString()),
-    supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
+    supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_runs_recentes", {
       p_assinante_id: assinanteId,
       p_gestor: "estoque",
       p_limit: 1,

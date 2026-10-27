@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     }
 
     const { data: carenciaAte, error } = await supabaseAdmin.rpc(
-      "fn_calculadora_assinante_gestores_ia_contrato_anual_iniciar",
+      "fn_gestores_ia_avulso_contrato_anual_iniciar",
       { p_user_id: userData.user.id },
     );
 

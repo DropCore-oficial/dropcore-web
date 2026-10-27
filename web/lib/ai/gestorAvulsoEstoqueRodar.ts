@@ -21,7 +21,7 @@ export type ResultadoRodarEstoqueAvulso = { ok: true; runId: string } | { ok: fa
 type RunRecenteRow = { criado_em: string };
 
 export async function foraDoCooldownEstoqueAvulso(assinanteId: string): Promise<boolean> {
-  const { data } = await supabaseAdmin.rpc("fn_calculadora_assinante_ai_runs_recentes", {
+  const { data } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_runs_recentes", {
     p_assinante_id: assinanteId,
     p_gestor: "estoque",
     p_limit: 1,
@@ -37,7 +37,7 @@ export async function rodarEstoqueAvulsoParaAssinante(assinanteId: string): Prom
     return { ok: false, motivo: "cooldown" };
   }
 
-  const { data: byokConfigurado, error: byokErr } = await supabaseAdmin.rpc("fn_calculadora_assinante_byok_configurado", {
+  const { data: byokConfigurado, error: byokErr } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_byok_anthropic_configurado", {
     p_assinante_id: assinanteId,
   });
   if (byokErr) {
@@ -52,7 +52,7 @@ export async function rodarEstoqueAvulsoParaAssinante(assinanteId: string): Prom
     return { ok: false, motivo: "sem_dado_suficiente" };
   }
 
-  const { data: runId, error: insertErr } = await supabaseAdmin.rpc("fn_calculadora_assinante_ai_run_insert", {
+  const { data: runId, error: insertErr } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_run_insert", {
     p_assinante_id: assinanteId,
     p_gestor: "estoque",
     p_status: "ok",

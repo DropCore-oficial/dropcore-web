@@ -17,7 +17,7 @@ import { getAssinanteFromToken } from "@/lib/calculadoraAssinanteSessionAuth";
 import { montarSystemTiagoAvulso, TIAGO_TOOLS_AVULSO_COM_CACHE } from "@/lib/ai/gestorTiagoChatPromptAvulso";
 import { executarToolTiagoAvulso, criarOrcamentoResultadoChat, nomeGestorConsultavelAvulso } from "@/lib/ai/gestorTiagoChatToolsAvulso";
 import { MODELO_CHAT_TIAGO, type UsoAnthropic } from "@/lib/ai/gestorTiagoChatCusto";
-import { temOrcamentoDisponivelHoje, chaveByokDoAssinante, type AssinanteByok } from "@/lib/ai/gestorAvulsoOrcamento";
+import { temOrcamentoDisponivelHoje, chaveByokDoAssinante, buscarAssinanteByok } from "@/lib/ai/gestorAvulsoOrcamento";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,11 +48,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Mensagem muito longa (máx ${MAX_MENSAGEM_CHARS} caracteres).` }, { status: 400 });
   }
 
-  const { data: assinanteByok } = await supabaseAdmin
-    .from("calculadora_assinantes")
-    .select("anthropic_api_key_encriptada")
-    .eq("id", assinante.id)
-    .maybeSingle<AssinanteByok>();
+  const assinanteByok = await buscarAssinanteByok(assinante.id);
   if (!assinanteByok) {
     return NextResponse.json({ error: "Erro ao carregar orçamento." }, { status: 500 });
   }
@@ -73,7 +69,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY não configurada." }, { status: 500 });
   }
 
-  const { data: historicoRaw, error: histErr } = await supabaseAdmin.rpc("fn_calculadora_assinante_ai_chat_historico", {
+  const { data: historicoRaw, error: histErr } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_chat_historico", {
     p_assinante_id: assinante.id,
     p_session_id: sessionId,
   });
@@ -169,12 +165,12 @@ export async function POST(req: Request) {
 
       // BYOK não grava custo (chave própria, não é gasto do DropCore) — mesmo princípio do
       // Andrey/Amanda/Ulisses avulso.
-      await supabaseAdmin.rpc("fn_calculadora_assinante_ai_chat_gravar_mensagem", {
+      await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_chat_gravar_mensagem", {
         p_session_id: sessionId,
         p_role: "user",
         p_content: mensagem,
       });
-      await supabaseAdmin.rpc("fn_calculadora_assinante_ai_chat_gravar_mensagem", {
+      await supabaseAdmin.rpc("fn_gestores_ia_avulso_ai_chat_gravar_mensagem", {
         p_session_id: sessionId,
         p_role: "assistant",
         p_content: textoFinal,

@@ -40,18 +40,21 @@ export async function processarAndreyAvulsoBatchesPendentes(): Promise<Processar
   const batchIds = Array.from(new Set(pendentes.map((p) => p.batch_id).filter((v): v is string => !!v)));
 
   const assinanteIds = Array.from(new Set(pendentes.map((p) => p.assinante_id)));
-  const { data: assinantesRaw } = await supabaseAdmin
-    .from("calculadora_assinantes")
-    .select("id, anthropic_api_key_encriptada")
-    .in("id", assinanteIds);
+  const { data: assinantesRaw } =
+    assinanteIds.length > 0
+      ? await supabaseAdmin
+          .from("calculadora_assinante_plano_gestores_ia")
+          .select("assinante_id, anthropic_api_key_encriptada")
+          .in("assinante_id", assinanteIds)
+      : { data: [] };
   const byokPorAssinante = new Map(
     (assinantesRaw ?? []).map((a) => [
-      a.id as string,
+      a.assinante_id as string,
       chaveByokDoAssinante({ anthropic_api_key_encriptada: a.anthropic_api_key_encriptada } as AssinanteByok),
     ])
   );
   const assinanteByokPorId = new Map<string, AssinanteByok>(
-    (assinantesRaw ?? []).map((a) => [a.id as string, { anthropic_api_key_encriptada: a.anthropic_api_key_encriptada } as AssinanteByok])
+    (assinantesRaw ?? []).map((a) => [a.assinante_id as string, { anthropic_api_key_encriptada: a.anthropic_api_key_encriptada } as AssinanteByok])
   );
 
   let ainda = 0;

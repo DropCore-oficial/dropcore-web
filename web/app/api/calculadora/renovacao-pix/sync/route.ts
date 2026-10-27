@@ -37,11 +37,19 @@ export async function POST(req: Request) {
 
     const { data: assin } = await supabaseAdmin
       .from("calculadora_assinantes")
-      .select("mp_renovacao_pendente_id")
+      .select("id")
       .eq("user_id", userId)
       .maybeSingle();
 
-    const pendenteId = (assin as { mp_renovacao_pendente_id?: string | null } | null)?.mp_renovacao_pendente_id?.trim();
+    const { data: plano } = assin
+      ? await supabaseAdmin
+          .from("calculadora_assinante_plano_calculadora")
+          .select("mp_renovacao_pendente_id")
+          .eq("assinante_id", assin.id)
+          .maybeSingle()
+      : { data: null };
+
+    const pendenteId = (plano as { mp_renovacao_pendente_id?: string | null } | null)?.mp_renovacao_pendente_id?.trim();
     if (!pendenteId) {
       return NextResponse.json({ ok: true, atualizado: false });
     }

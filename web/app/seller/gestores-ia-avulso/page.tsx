@@ -116,6 +116,7 @@ export default function GestoresIaAvulsoPage() {
   const [estoqueRun, setEstoqueRun] = useState<EstoqueRun>(null);
   const [usoTokensHoje, setUsoTokensHoje] = useState<UsoTokensHoje | null>(null);
   const [bloqueadoHoje, setBloqueadoHoje] = useState(false);
+  const [nomeResponsavel, setNomeResponsavel] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const { data } = await supabaseBrowser.auth.getSession();
@@ -135,6 +136,7 @@ export default function GestoresIaAvulsoPage() {
     }
     if (j.access === "calc_only" && j.inclui_gestores_ia === true) {
       setAccess("liberado");
+      setNomeResponsavel(typeof j.nome_responsavel === "string" ? j.nome_responsavel : null);
       const [andreyRes, amandaRes, ulissesRes, estoqueRes] = await Promise.all([
         fetch("/api/gestores-ia-avulso/anuncio", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
         fetch("/api/gestores-ia-avulso/sac", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
@@ -244,7 +246,7 @@ export default function GestoresIaAvulsoPage() {
             </div>
           </header>
         </div>
-        <SellerNav active="calculadora" calcOnly temGestoresIa={false} />
+        <SellerNav active="calculadora" calcOnly produto="calculadora" />
       </div>
     );
   }
@@ -277,7 +279,7 @@ export default function GestoresIaAvulsoPage() {
           statusSac={resumoStatusAmanda(amandaRun)}
           statusAds={resumoStatusUlisses(ulissesRun)}
           atividades={montarAtividades(andreyRun, amandaRun, ulissesRun, estoqueRun)}
-          nomeResponsavel={null}
+          nomeResponsavel={nomeResponsavel?.trim().split(/\s+/)[0] ?? null}
         />
 
         <GestorAvulsoResumoDiario />
@@ -353,7 +355,7 @@ export default function GestoresIaAvulsoPage() {
           ] satisfies GestorPendenciaItem[]}
         />
       </div>
-      <SellerNav active="gestores_ia" calcOnly temGestoresIa />
+      <SellerNav active="gestores_ia" calcOnly produto="gestores_ia_avulso" />
     </div>
   );
 }

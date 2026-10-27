@@ -10,7 +10,7 @@ import {
   buscarDadosReputacaoAtendimentoAvulso,
   montarResultadoReputacaoAtendimentoAvulso,
 } from "@/lib/ai/gestorReputacaoAtendimentoDadosAvulso";
-import { temOrcamentoDisponivelHoje, chaveByokDoAssinante, type AssinanteByok } from "@/lib/ai/gestorAvulsoOrcamento";
+import { temOrcamentoDisponivelHoje, chaveByokDoAssinante, buscarAssinanteByok } from "@/lib/ai/gestorAvulsoOrcamento";
 
 export const COOLDOWN_HORAS_AMANDA_AVULSO = 6;
 
@@ -35,11 +35,7 @@ export async function rodarAmandaAvulsoParaAssinante(assinanteId: string): Promi
     return { ok: false, motivo: "cooldown" };
   }
 
-  const { data: assinanteByok } = await supabaseAdmin
-    .from("calculadora_assinantes")
-    .select("anthropic_api_key_encriptada")
-    .eq("id", assinanteId)
-    .maybeSingle<AssinanteByok>();
+  const assinanteByok = await buscarAssinanteByok(assinanteId);
   if (!assinanteByok) {
     return { ok: false, motivo: "assinante_nao_encontrado" };
   }

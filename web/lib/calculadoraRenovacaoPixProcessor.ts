@@ -97,36 +97,56 @@ export async function processarCalculadoraRenovacaoPaga(
 
   const { data: row, error: fetchErr } = await supabaseAdmin
     .from("calculadora_assinantes")
-    .select("id, user_id, valido_ate, ativo, mp_renovacao_ultimo_aprovado_id")
+    .select("id, user_id, valido_ate, ativo")
     .eq("user_id", parsed.userId)
     .maybeSingle();
 
   if (fetchErr) return false;
 
+  const { data: planoRow } = row
+    ? await supabaseAdmin
+        .from("calculadora_assinante_plano_calculadora")
+        .select("mp_renovacao_ultimo_aprovado_id")
+        .eq("assinante_id", row.id)
+        .maybeSingle()
+    : { data: null };
+
   const now = Date.now();
-  const ultimo = (row as { mp_renovacao_ultimo_aprovado_id?: string | null } | null)?.mp_renovacao_ultimo_aprovado_id;
+  const ultimo = (planoRow as { mp_renovacao_ultimo_aprovado_id?: string | null } | null)?.mp_renovacao_ultimo_aprovado_id;
   if (ultimo && ultimo === mpPaymentId) return true;
 
-  const validoAteStr = row ? String((row as { valido_ate: string }).valido_ate) : new Date(0).toISOString();
+  const validoAteStr = row ? String(row.valido_ate) : new Date(0).toISOString();
   const novoValido = computeCalculadoraRenovacaoValidoAte(validoAteStr, now).toISOString();
 
-  const patch = {
-    valido_ate: novoValido,
-    ativo: true,
-    mp_renovacao_ultimo_aprovado_id: mpPaymentId,
-    mp_renovacao_pendente_id: null,
-    updated_at: new Date().toISOString(),
-  };
+  let assinanteId = row?.id as string | undefined;
+  if (row) {
+    const { error: upErr } = await supabaseAdmin
+      .from("calculadora_assinantes")
+      .update({ valido_ate: novoValido, ativo: true, updated_at: new Date().toISOString() })
+      .eq("id", row.id);
+    if (upErr) {
+      console.error("[calculadoraRenovacao] update:", upErr.message);
+      return false;
+    }
+  } else {
+    const { data: novaLinha, error: insErr } = await supabaseAdmin
+      .from("calculadora_assinantes")
+      .insert({ user_id: parsed.userId, valido_ate: novoValido, ativo: true })
+      .select("id")
+      .single();
+    if (insErr) {
+      console.error("[calculadoraRenovacao] insert:", insErr.message);
+      return false;
+    }
+    assinanteId = novaLinha.id;
+  }
 
-  const { error: upErr } = row
-    ? await supabaseAdmin.from("calculadora_assinantes").update(patch).eq("id", row.id)
-    : await supabaseAdmin.from("calculadora_assinantes").insert({
-        user_id: parsed.userId,
-        ...patch,
-      });
-
-  if (upErr) {
-    console.error("[calculadoraRenovacao] update:", upErr.message);
+  const { error: planoErr } = await supabaseAdmin
+    .from("calculadora_assinante_plano_calculadora")
+    .update({ mp_renovacao_ultimo_aprovado_id: mpPaymentId, mp_renovacao_pendente_id: null })
+    .eq("assinante_id", assinanteId);
+  if (planoErr) {
+    console.error("[calculadoraRenovacao] update plano:", planoErr.message);
     return false;
   }
 

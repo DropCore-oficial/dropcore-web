@@ -449,7 +449,7 @@ export default function GestoresIaAvulsoPlanosPage() {
           </>
         )}
       </div>
-      <SellerNav active="gestores_ia" calcOnly temGestoresIa={temGestoresIa} />
+      <SellerNav active="plano" calcOnly produto={temGestoresIa ? "gestores_ia_avulso" : "calculadora"} />
     </div>
   );
 }

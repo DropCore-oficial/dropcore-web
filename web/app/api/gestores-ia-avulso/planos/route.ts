@@ -3,7 +3,7 @@
  * (aplica desconto dele, se houver — 2026-10-17).
  * POST /api/gestores-ia-avulso/planos — gera PIX da parcela mensal nesse mesmo valor, auth do
  * assinante. Vale tanto pro ciclo mensal avulso quanto pra pagar uma parcela do contrato
- * anual (mesmo valor/extensão — ver fn_calculadora_assinante_gestores_ia_pix_confirmar).
+ * anual (mesmo valor/extensão — ver fn_gestores_ia_avulso_pix_confirmar).
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -21,7 +21,7 @@ type AssinanteDescontoRow = {
 };
 
 async function valorMensalDoUsuario(userId: string): Promise<number> {
-  const { data } = await supabaseAdmin.rpc("fn_calculadora_assinante_por_user_id", { p_user_id: userId });
+  const { data } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_assinante_por_user_id", { p_user_id: userId });
   const row = data as AssinanteDescontoRow | null;
   const tipo = isGestoresIaAvulsoDescontoTipo(row?.gestores_ia_desconto_tipo) ? row!.gestores_ia_desconto_tipo : null;
   return calcularValorMensalGestoresIaAvulso(tipo, row?.gestores_ia_desconto_valor ?? null);
@@ -93,7 +93,7 @@ export async function POST(req: Request) {
     }
 
     const paymentId = result.payment_id?.trim() || null;
-    const { error: pendErr } = await supabaseAdmin.rpc("fn_calculadora_assinante_gestores_ia_pix_pendente_set", {
+    const { error: pendErr } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_pix_pendente_set", {
       p_user_id: userId,
       p_mp_pendente_id: paymentId,
     });

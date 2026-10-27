@@ -129,7 +129,7 @@ export default function EstoqueAvulsoPage() {
           </>
         )}
       </div>
-      <SellerNav active="gestores_ia" calcOnly temGestoresIa />
+      <SellerNav active="gestores_ia" calcOnly produto="gestores_ia_avulso" />
     </div>
   );
 }

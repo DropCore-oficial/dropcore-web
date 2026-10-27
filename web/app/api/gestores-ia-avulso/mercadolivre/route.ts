@@ -1,6 +1,6 @@
 /**
  * GET /api/gestores-ia-avulso/mercadolivre — status da conexão ML do assinante avulso. Leitura
- * via RPC (fn_calculadora_assinante_ml_status_get, 2026-10-07) — ver docs/SCHEMA.md "Ulisses
+ * via RPC (fn_gestores_ia_avulso_ml_status_get, 2026-10-07) — ver docs/SCHEMA.md "Ulisses
  * avulso ... 1º uso real de RPC". DELETE — desconecta (remove a linha, continua `.from()`
  * direto, escrita não entrou nesse retrofit) **e revoga a autorização de verdade no Mercado
  * Livre antes** (achado 2026-10-08: mudar permissão no DevCenter não expande consentimento já
@@ -23,8 +23,11 @@ export async function GET(req: Request) {
   if (!assinante) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   }
+  if (assinante.inclui_gestores_ia !== true) {
+    return NextResponse.json({ error: "Recurso não disponível." }, { status: 403 });
+  }
 
-  const { data, error } = await supabaseAdmin.rpc("fn_calculadora_assinante_ml_status_get", {
+  const { data, error } = await supabaseAdmin.rpc("fn_gestores_ia_avulso_ml_status_get", {
     p_assinante_id: assinante.id,
   });
 
@@ -45,6 +48,9 @@ export async function DELETE(req: Request) {
   const assinante = await getAssinanteFromToken(req);
   if (!assinante) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  }
+  if (assinante.inclui_gestores_ia !== true) {
+    return NextResponse.json({ error: "Recurso não disponível." }, { status: 403 });
   }
 
   try {

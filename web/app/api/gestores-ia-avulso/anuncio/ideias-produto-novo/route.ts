@@ -20,7 +20,7 @@ import {
   buildSchemaIdeiasProdutoNovo,
   type AtributoSeoContexto,
 } from "@/lib/ai/gestorAnuncioNovoIdeiasAvulso";
-import { temOrcamentoDisponivelHoje, chaveByokDoAssinante, type AssinanteByok } from "@/lib/ai/gestorAvulsoOrcamento";
+import { temOrcamentoDisponivelHoje, chaveByokDoAssinante, buscarAssinanteByok } from "@/lib/ai/gestorAvulsoOrcamento";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,11 +80,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "category_id e descricao são obrigatórios." }, { status: 400 });
   }
 
-  const { data: assinanteByok } = await supabaseAdmin
-    .from("calculadora_assinantes")
-    .select("anthropic_api_key_encriptada")
-    .eq("id", assinante.id)
-    .maybeSingle<AssinanteByok>();
+  const assinanteByok = await buscarAssinanteByok(assinante.id);
   if (!assinanteByok) {
     return NextResponse.json({ error: "Erro ao carregar orçamento." }, { status: 500 });
   }
