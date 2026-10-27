@@ -34,11 +34,3 @@ export function computeCalendarCycleValidoAte(curIso: string, paymentMs: number,
   }
   return end;
 }
-
-/**
- * @param curIso `valido_ate` atual (ISO) antes da renovação
- * @param paymentMs instante em que o pagamento foi confirmado (normalmente `Date.now()`)
- */
-export function computeCalculadoraRenovacaoValidoAte(curIso: string, paymentMs: number): Date {
-  return computeCalendarCycleValidoAte(curIso, paymentMs, 1);
-}

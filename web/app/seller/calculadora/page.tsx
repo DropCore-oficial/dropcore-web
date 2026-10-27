@@ -1166,20 +1166,8 @@ export default function SellerCalculadoraPage() {
         : "Pague o PIX para liberar o acesso. A confirmação é automática em poucos segundos.";
 
   return (
-    <div
-      className={
-        calcOnlyLite
-          ? "bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5"
-          : "bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5"
-      }
-    >
-      <div
-        className={
-          calcOnlyLite
-            ? "dropcore-shell-4xl pt-4 sm:pt-6 lg:pt-8 pb-5 md:pb-7"
-            : "dropcore-shell-6xl pt-4 sm:pt-6 lg:pt-8 pb-5 md:pb-7"
-        }
-      >
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
+      <div className="dropcore-shell-6xl pt-4 sm:pt-6 lg:pt-8 pb-5 md:pb-7">
         <div className="grid w-full grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)] gap-x-5 gap-y-5">
           <div className="col-span-full">
             <SellerPageHeader

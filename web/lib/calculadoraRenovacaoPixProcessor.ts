@@ -1,15 +1,22 @@
 /**
- * Renovação da calculadora via PIX.
+ * Renovação da calculadora via PIX — mensal (R$14,99, recorrente) ou anual (R$149,90, PIX
+ * único por ano, "2 meses grátis" — decisão 2026-10-27, desconto visível na tela, diferente
+ * do padrão do pacote Gestores de IA). O ciclo fica codificado no próprio prefixo do
+ * external_reference (não precisa de coluna nova pra saber qual foi pago).
  * Referência externa ≤ 64 caracteres (limite Mercado Pago): crcalc + UUID sem hífens (32 hex) + nonce (8 hex) = 46 chars.
  */
 import { randomBytes } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getCalculadoraRenovacaoValorBrl } from "@/lib/calculadoraRenovacaoConfig";
-import { computeCalculadoraRenovacaoValidoAte } from "@/lib/calculadoraRenovacaoValidoAte";
+import { getCalculadoraRenovacaoValorBrl, getCalculadoraRenovacaoAnualValorBrl } from "@/lib/calculadoraRenovacaoConfig";
+import { computeCalendarCycleValidoAte } from "@/lib/calculadoraRenovacaoValidoAte";
 import { valorLiquidoRecebidoMp } from "@/lib/mercadoPagoValorRecebido";
 
 /** Prefixo único (não colide com UUID de mensalidade nem upgrade-pro / deposito). */
 export const CALC_RENOV_EXT_PREFIX = "crcalc";
+/** Prefixo do PIX anual — mesmo formato, só o prefixo muda. */
+export const CALC_RENOV_ANUAL_EXT_PREFIX = "cranual";
+
+export type CalculadoraRenovacaoCiclo = "mensal" | "anual";
 
 function uuidCompact(userId: string): string {
   return userId.replace(/-/g, "").toLowerCase();
@@ -28,18 +35,34 @@ export function buildCalculadoraRenovacaoExternalReference(userId: string): stri
   return `${CALC_RENOV_EXT_PREFIX}${compact}${nonce}`;
 }
 
-export function parseCalculadoraRenovacaoExternalReference(extRef: string): { userId: string } | null {
+/** Igual à mensal, só muda o prefixo — é isso que o processador usa pra saber que foi o PIX
+ * anual na hora de confirmar o pagamento. */
+export function buildCalculadoraRenovacaoAnualExternalReference(userId: string): string {
+  const compact = uuidCompact(userId);
+  const nonce = randomBytes(4).toString("hex");
+  return `${CALC_RENOV_ANUAL_EXT_PREFIX}${compact}${nonce}`;
+}
+
+export function parseCalculadoraRenovacaoExternalReference(
+  extRef: string,
+): { userId: string; ciclo: CalculadoraRenovacaoCiclo } | null {
   const t = String(extRef ?? "").trim();
-  const prefix = CALC_RENOV_EXT_PREFIX;
-  const expectedLen = prefix.length + 32 + 8;
-  if (t.startsWith(prefix) && t.length === expectedLen) {
-    const payload = t.slice(prefix.length);
-    if (!/^[0-9a-f]{40}$/i.test(payload)) return null;
-    const uuidPart = payload.slice(0, 32);
-    const userId = uuidExpand(uuidPart);
-    return userId ? { userId } : null;
+
+  for (const [prefix, ciclo] of [
+    [CALC_RENOV_ANUAL_EXT_PREFIX, "anual"],
+    [CALC_RENOV_EXT_PREFIX, "mensal"],
+  ] as const) {
+    const expectedLen = prefix.length + 32 + 8;
+    if (t.startsWith(prefix) && t.length === expectedLen) {
+      const payload = t.slice(prefix.length);
+      if (!/^[0-9a-f]{40}$/i.test(payload)) return null;
+      const uuidPart = payload.slice(0, 32);
+      const userId = uuidExpand(uuidPart);
+      return userId ? { userId, ciclo } : null;
+    }
   }
-  /** Legado (excedia 64 caracteres no MP — mantido só para referências antigas em voo). */
+
+  /** Legado (excedia 64 caracteres no MP — mantido só para referências antigas em voo, sempre mensal). */
   const legacy = "calc-renew::";
   if (t.startsWith(legacy)) {
     const rest = t.slice(legacy.length);
@@ -47,7 +70,7 @@ export function parseCalculadoraRenovacaoExternalReference(extRef: string): { us
     if (parts.length < 2) return null;
     const userId = parts[0]?.trim() ?? "";
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) return null;
-    return { userId };
+    return { userId, ciclo: "mensal" };
   }
   return null;
 }
@@ -75,9 +98,12 @@ export async function processarCalculadoraRenovacaoPaga(
   const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
   if (!token?.trim()) return false;
 
-  const valorEsperado = getCalculadoraRenovacaoValorBrl();
+  const valorEsperado =
+    parsed.ciclo === "anual" ? getCalculadoraRenovacaoAnualValorBrl() : getCalculadoraRenovacaoValorBrl();
   if (valorEsperado == null) {
-    console.error("[calculadoraRenovacao] CALCULADORA_RENOVACAO_VALOR não configurado.");
+    console.error(
+      `[calculadoraRenovacao] ${parsed.ciclo === "anual" ? "CALCULADORA_RENOVACAO_ANUAL_VALOR" : "CALCULADORA_RENOVACAO_VALOR"} não configurado.`,
+    );
     return false;
   }
 
@@ -116,7 +142,7 @@ export async function processarCalculadoraRenovacaoPaga(
   if (ultimo && ultimo === mpPaymentId) return true;
 
   const validoAteStr = row ? String(row.valido_ate) : new Date(0).toISOString();
-  const novoValido = computeCalculadoraRenovacaoValidoAte(validoAteStr, now).toISOString();
+  const novoValido = computeCalendarCycleValidoAte(validoAteStr, now, parsed.ciclo === "anual" ? 12 : 1).toISOString();
 
   let assinanteId = row?.id as string | undefined;
   if (row) {

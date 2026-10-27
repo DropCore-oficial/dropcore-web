@@ -12,6 +12,13 @@ import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_SOFT } from "@/
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
+const FEATURES_CALCULADORA = [
+  "Preço e margem por marketplace (Mercado Livre, Shopee, Shein, TikTok Shop)",
+  "Compara até 4 canais lado a lado, com cupom, ADS e comissão de cada um",
+  "Simula frete, imposto, perdas/devoluções e taxa de afiliado",
+  "Sem precisar virar seller completo do hub DropCore",
+];
+
 type Estado = "loading" | "denied" | "pronto";
 
 type Dados = {
@@ -20,7 +27,9 @@ type Dados = {
   vencido: boolean;
 };
 
-type PixData = { qr_code_base64: string; qr_code: string; expira_em: string; valor: number };
+type Ciclo = "mensal" | "anual";
+
+type PixData = { qr_code_base64: string; qr_code: string; expira_em: string; valor: number; ciclo: Ciclo };
 
 /**
  * Planos da Calculadora avulsa (R$14,99/mês) — tela própria, separada do pacote Gestores de
@@ -34,8 +43,10 @@ export default function CalculadoraPlanosPage() {
   const [dados, setDados] = useState<Dados | null>(null);
   const [valorMensal, setValorMensal] = useState<number | null>(null);
   const [valorConfigurado, setValorConfigurado] = useState(true);
+  const [valorAnual, setValorAnual] = useState<number | null>(null);
+  const [valorAnualConfigurado, setValorAnualConfigurado] = useState(true);
+  const [pixLoadingCiclo, setPixLoadingCiclo] = useState<Ciclo | null>(null);
 
-  const [pixLoading, setPixLoading] = useState(false);
   const [pixErr, setPixErr] = useState<string | null>(null);
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [pixCopiado, setPixCopiado] = useState(false);
@@ -86,6 +97,14 @@ export default function CalculadoraPlanosPage() {
         setValorConfigurado(Boolean(j.configurado));
       })
       .catch(() => setValorConfigurado(false));
+
+    fetch("/api/calculadora/renovacao-pix?ciclo=anual")
+      .then((r) => r.json())
+      .then((j: { valor?: number | null; configurado?: boolean }) => {
+        setValorAnual(typeof j.valor === "number" ? j.valor : null);
+        setValorAnualConfigurado(Boolean(j.configurado));
+      })
+      .catch(() => setValorAnualConfigurado(false));
   }, []);
 
   useEffect(() => {
@@ -124,8 +143,8 @@ export default function CalculadoraPlanosPage() {
     return () => clearInterval(id);
   }, [pixData, carregar]);
 
-  const gerarPix = useCallback(async () => {
-    setPixLoading(true);
+  const gerarPix = useCallback(async (ciclo: Ciclo) => {
+    setPixLoadingCiclo(ciclo);
     setPixErr(null);
     try {
       const { data } = await supabaseBrowser.auth.getSession();
@@ -133,7 +152,8 @@ export default function CalculadoraPlanosPage() {
       if (!token) return;
       const res = await fetch("/api/calculadora/renovacao-pix", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ciclo }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(typeof j?.error === "string" ? j.error : "Erro ao gerar PIX.");
@@ -142,11 +162,12 @@ export default function CalculadoraPlanosPage() {
         qr_code: String(j.qr_code ?? ""),
         expira_em: String(j.expira_em ?? ""),
         valor: Number(j.valor ?? 0),
+        ciclo,
       });
     } catch (e: unknown) {
       setPixErr(e instanceof Error ? e.message : "Erro ao gerar PIX.");
     } finally {
-      setPixLoading(false);
+      setPixLoadingCiclo(null);
     }
   }, []);
 
@@ -175,7 +196,7 @@ export default function CalculadoraPlanosPage() {
               />
             </div>
             <p className="text-sm leading-snug text-[var(--muted)]">
-              Calculadora de preço e margem. Cobrança mensal por PIX.
+              Calculadora de preço e margem. Mensal ou anual, sempre por PIX.
             </p>
           </div>
         </header>
@@ -200,28 +221,88 @@ export default function CalculadoraPlanosPage() {
             </section>
 
             {!pixData ? (
-              <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm sm:p-6">
-                <p className="text-sm font-semibold text-[var(--foreground)]">Mensal</p>
-                <p className="mt-1 text-2xl font-bold tracking-tight text-[var(--foreground)]">
-                  {valorMensal != null ? BRL.format(valorMensal) : "—"}
-                </p>
-                <p className="text-xs text-[var(--muted)]">por mês, sem compromisso</p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm sm:p-6">
+                  <p className="text-sm font-semibold text-[var(--foreground)]">Mensal</p>
+                  <p className="mt-1 text-2xl font-bold tracking-tight text-[var(--foreground)]">
+                    {valorMensal != null ? BRL.format(valorMensal) : "—"}
+                  </p>
+                  <p className="text-xs text-[var(--muted)]">por mês, sem compromisso</p>
+                  <ul className="mt-4 space-y-1.5 border-t border-[var(--card-border)] pt-4">
+                    {FEATURES_CALCULADORA.map((f) => (
+                      <li key={f} className="flex items-start gap-2 text-xs leading-snug text-[var(--muted)]">
+                        <span className="mt-0.5 text-emerald-600 dark:text-emerald-400" aria-hidden>
+                          ✓
+                        </span>
+                        <span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
 
-                {!valorConfigurado ? (
+                  <button
+                    type="button"
+                    onClick={() => void gerarPix("mensal")}
+                    disabled={pixLoadingCiclo !== null || !valorConfigurado}
+                    className="mt-4 w-full rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {pixLoadingCiclo === "mensal"
+                      ? "Gerando PIX…"
+                      : dados?.vencido
+                        ? "Gerar PIX da renovação"
+                        : "Pagar com antecedência"}
+                  </button>
+                </section>
+
+                <section className="rounded-2xl border border-emerald-500/60 bg-[var(--card)] p-5 shadow-sm sm:p-6">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-[var(--foreground)]">Anual</p>
+                    <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                      2 meses grátis
+                    </span>
+                  </div>
+                  <p className="mt-1 text-2xl font-bold tracking-tight text-[var(--foreground)]">
+                    {valorAnual != null ? BRL.format(valorAnual) : "—"}
+                  </p>
+                  <p className="text-xs text-[var(--muted)]">
+                    por ano, PIX único
+                    {valorAnual != null ? ` · equivale a ${BRL.format(valorAnual / 12)}/mês` : null}
+                  </p>
+                  <ul className="mt-4 space-y-1.5 border-t border-[var(--card-border)] pt-4">
+                    {FEATURES_CALCULADORA.map((f) => (
+                      <li key={f} className="flex items-start gap-2 text-xs leading-snug text-[var(--muted)]">
+                        <span className="mt-0.5 text-emerald-600 dark:text-emerald-400" aria-hidden>
+                          ✓
+                        </span>
+                        <span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <button
+                    type="button"
+                    onClick={() => void gerarPix("anual")}
+                    disabled={pixLoadingCiclo !== null || !valorAnualConfigurado}
+                    className="mt-4 w-full rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {pixLoadingCiclo === "anual" ? "Gerando PIX…" : "Assinar o anual"}
+                  </button>
+                </section>
+
+                {!valorConfigurado || !valorAnualConfigurado ? (
                   <p
                     className={cn(
-                      "mt-3 rounded-xl px-3 py-2.5 text-xs leading-relaxed",
+                      "sm:col-span-2 rounded-xl px-3 py-2.5 text-xs leading-relaxed",
                       DANGER_PREMIUM_SURFACE_TRANSPARENT,
                       DANGER_PREMIUM_TEXT_SOFT,
                     )}
                   >
-                    O valor da renovação ainda não está configurado no servidor. Fale com o suporte.
+                    O valor de um dos planos ainda não está configurado no servidor. Fale com o suporte.
                   </p>
                 ) : null}
                 {pixErr ? (
                   <p
                     className={cn(
-                      "mt-3 rounded-xl px-3 py-2.5 text-xs leading-relaxed",
+                      "sm:col-span-2 rounded-xl px-3 py-2.5 text-xs leading-relaxed",
                       DANGER_PREMIUM_SURFACE_TRANSPARENT,
                       DANGER_PREMIUM_TEXT_SOFT,
                     )}
@@ -229,22 +310,13 @@ export default function CalculadoraPlanosPage() {
                     {pixErr}
                   </p>
                 ) : null}
-
-                <button
-                  type="button"
-                  onClick={() => void gerarPix()}
-                  disabled={pixLoading || !valorConfigurado}
-                  className="mt-4 w-full rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-                >
-                  {pixLoading ? "Gerando PIX…" : dados?.vencido ? "Gerar PIX da renovação" : "Pagar com antecedência"}
-                </button>
-              </section>
+              </div>
             ) : (
               <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm sm:p-6">
                 <div className="mx-auto max-w-xs space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-1">
                     <span className="text-xs font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
-                      {BRL.format(pixData.valor)}
+                      {BRL.format(pixData.valor)} · {pixData.ciclo === "anual" ? "anual" : "mensal"}
                     </span>
                     <span className="text-[11px] text-neutral-500 dark:text-neutral-400">App do banco</span>
                   </div>

@@ -1,30 +1,38 @@
 /**
- * POST /api/calculadora/renovacao-pix
- * Gera cobrança PIX para renovar o plano Calculadora avulsa (Mercado Pago).
+ * GET/POST /api/calculadora/renovacao-pix?ciclo=mensal|anual
+ * Preço e cobrança PIX pra renovar o plano Calculadora avulsa (Mercado Pago). Anual é PIX
+ * único (R$149,90/ano, "2 meses grátis") — decisão 2026-10-27, não 12 parcelas.
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { criarCobrancaPix } from "@/lib/mercadopago";
-import { buildCalculadoraRenovacaoExternalReference } from "@/lib/calculadoraRenovacaoPixProcessor";
-import { getCalculadoraRenovacaoValorBrl } from "@/lib/calculadoraRenovacaoConfig";
+import {
+  buildCalculadoraRenovacaoExternalReference,
+  buildCalculadoraRenovacaoAnualExternalReference,
+  type CalculadoraRenovacaoCiclo,
+} from "@/lib/calculadoraRenovacaoPixProcessor";
+import { getCalculadoraRenovacaoValorBrl, getCalculadoraRenovacaoAnualValorBrl } from "@/lib/calculadoraRenovacaoConfig";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function parseCiclo(raw: string | null): CalculadoraRenovacaoCiclo {
+  return raw === "anual" ? "anual" : "mensal";
+}
+
 /** Preço exibido na UI antes de gerar o PIX (sem auth). */
-export async function GET() {
-  const valor = getCalculadoraRenovacaoValorBrl();
-  return NextResponse.json({
-    valor,
-    /** Exibição: renovação é um ciclo mensal no calendário (não “N dias corridos” no pagamento). */
-    ciclo: "mensal" as const,
-    configurado: valor != null,
-  });
+export async function GET(req: Request) {
+  const ciclo = parseCiclo(new URL(req.url).searchParams.get("ciclo"));
+  const valor = ciclo === "anual" ? getCalculadoraRenovacaoAnualValorBrl() : getCalculadoraRenovacaoValorBrl();
+  return NextResponse.json({ valor, ciclo, configurado: valor != null });
 }
 
 export async function POST(req: Request) {
   try {
+    const body = await req.json().catch(() => ({}));
+    const ciclo = parseCiclo(typeof body?.ciclo === "string" ? body.ciclo : null);
+
     const auth = req.headers.get("authorization") ?? "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
     if (!token) {
@@ -84,10 +92,15 @@ export async function POST(req: Request) {
       assinanteId = novaLinha.id;
     }
 
-    const valor = getCalculadoraRenovacaoValorBrl();
+    const valor = ciclo === "anual" ? getCalculadoraRenovacaoAnualValorBrl() : getCalculadoraRenovacaoValorBrl();
     if (valor == null) {
       return NextResponse.json(
-        { error: "Valor da renovação não configurado no servidor (CALCULADORA_RENOVACAO_VALOR)." },
+        {
+          error:
+            ciclo === "anual"
+              ? "Valor da renovação anual não configurado no servidor (CALCULADORA_RENOVACAO_ANUAL_VALOR)."
+              : "Valor da renovação não configurado no servidor (CALCULADORA_RENOVACAO_VALOR).",
+        },
         { status: 503 },
       );
     }
@@ -100,11 +113,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Informe um e-mail na conta para gerar o PIX." }, { status: 400 });
     }
 
-    const external_reference = buildCalculadoraRenovacaoExternalReference(userId);
+    const external_reference =
+      ciclo === "anual"
+        ? buildCalculadoraRenovacaoAnualExternalReference(userId)
+        : buildCalculadoraRenovacaoExternalReference(userId);
 
     const result = await criarCobrancaPix({
       valor,
-      descricao: "Renovação DropCore Calculadora (ciclo mensal)",
+      descricao: ciclo === "anual" ? "Renovação DropCore Calculadora (ciclo anual)" : "Renovação DropCore Calculadora (ciclo mensal)",
       email,
       external_reference,
     });
@@ -132,7 +148,7 @@ export async function POST(req: Request) {
       qr_code_base64: result.qr_code_base64,
       ticket_url: result.ticket_url,
       valor,
-      ciclo: "mensal" as const,
+      ciclo,
       expira_em: expiraEm,
       payment_id: paymentId ?? null,
     });
