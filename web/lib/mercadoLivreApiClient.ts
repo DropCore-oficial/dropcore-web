@@ -4,6 +4,7 @@
  * batch (gestorAnunciosSeoDados.ts etc.) não sabem nada de OAuth, só chamam getValid... e
  * usam o token pronto.
  */
+import { PDFDocument } from "pdf-lib";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { decryptSellerErpSecret, encryptSellerErpSecret } from "@/lib/sellerErpSecretBox";
 import { refreshMercadoLivreAccessToken, computeMercadoLivreAccessTokenExpiresAt } from "@/lib/mercadoLivreOAuth";
@@ -1567,20 +1568,30 @@ export async function mlBuscarPrevisaoLiberacaoEtiqueta(
  * de tamanho de coluna/linha no Postgres pra guardar o base64, não é limite do ML. */
 const MAX_ETIQUETA_PDF_BYTES_ML = Math.floor(1.35 * 1024 * 1024);
 
+export type MlEtiquetaPdfResultado = {
+  pdfBase64: string | null;
+  /** Motivo real devolvido pelo ML quando `pdfBase64` é null (ex.: `NOT_PRINTABLE_STATUS`,
+   * erro de nota fiscal) — só pra log/alerta, nunca usado pra decidir fluxo. */
+  erro: string | null;
+};
+
 /** Busca o PDF real da etiqueta de envio no ML e devolve em base64 — usado pelo retry
  * dedicado (`etiquetaMlRetry.ts`), já que o webhook não avisa quando ela libera (ver
  * comentário em `/api/webhooks/mercadolivre`) e a tentativa não pode rodar só uma vez.
  * `GET /shipment_labels?response_type=pdf` devolve o PDF binário quando pronto, ou um JSON
  * de erro (`NOT_PRINTABLE_STATUS` enquanto no buffer da transportadora, ou outro código se o
- * shipment não existir/token não tiver permissão) — em qualquer caso de erro devolve `null`,
- * nunca lança, pra o chamador tratar como "ainda não tem etiqueta" e tentar de novo depois. */
+ * shipment não existir/token não tiver permissão) — em qualquer caso de erro `pdfBase64` vem
+ * `null`, nunca lança, pra o chamador tratar como "ainda não tem etiqueta" e tentar de novo
+ * depois; o texto do erro agora vai em `erro` (achado 2026-10-27 investigando o seller Vinz
+ * Collection: antes o corpo do erro era descartado e não dava pra saber que era nota fiscal
+ * sem emitir, só "não achou"). */
 export async function mlBuscarEtiquetaPdf(
   ctx: MercadoLivreAuthContext,
   marketplaceNumero: string
-): Promise<string | null> {
+): Promise<MlEtiquetaPdfResultado> {
   const order = await mlGet<{ shipping?: { id?: number | string } }>(`/orders/${marketplaceNumero}`, ctx.accessToken);
   const shippingId = order?.shipping?.id;
-  if (!shippingId) return null;
+  if (!shippingId) return { pdfBase64: null, erro: "Pedido sem shipping_id no Mercado Livre." };
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 45_000);
@@ -1590,19 +1601,44 @@ export async function mlBuscarEtiquetaPdf(
       signal: ctrl.signal,
       cache: "no-store",
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const corpo = await res.text().catch(() => "");
+      return { pdfBase64: null, erro: corpo.slice(0, 500) || `HTTP ${res.status}` };
+    }
 
     const ct = (res.headers.get("content-type") ?? "").toLowerCase();
-    if (!ct.includes("pdf")) return null;
+    if (!ct.includes("pdf")) {
+      const corpo = await res.text().catch(() => "");
+      return { pdfBase64: null, erro: corpo.slice(0, 500) || "Resposta sem PDF." };
+    }
 
-    const cl = res.headers.get("content-length");
-    if (cl && Number(cl) > MAX_ETIQUETA_PDF_BYTES_ML) return null;
     const buf = await res.arrayBuffer();
-    if (buf.byteLength > MAX_ETIQUETA_PDF_BYTES_ML) return null;
 
-    return Buffer.from(buf).toString("base64");
-  } catch {
-    return null;
+    // Com 1 shipment_id, o ML devolve a etiqueta real na página 1 e, junto, uma 2ª página de
+    // "lista de coleta" (resumo pro operador do centro de distribuição do próprio ML) — não
+    // existe parâmetro na API pra excluir essa página, e ela sai no formato errado quando
+    // impressa na impressora térmica do fornecedor (achado 2026-10-27, comparado ao formato
+    // da UpSeller, que manda só a etiqueta). Corta pra ficar só a página 1.
+    let pdfFinal: ArrayBuffer | Uint8Array = buf;
+    try {
+      const doc = await PDFDocument.load(buf);
+      if (doc.getPageCount() > 1) {
+        const soEtiqueta = await PDFDocument.create();
+        const [pagina1] = await soEtiqueta.copyPages(doc, [0]);
+        soEtiqueta.addPage(pagina1);
+        pdfFinal = await soEtiqueta.save();
+      }
+    } catch (e: unknown) {
+      console.error("[mlBuscarEtiquetaPdf] corte de página falhou, usando PDF original:", e);
+    }
+
+    if (pdfFinal.byteLength > MAX_ETIQUETA_PDF_BYTES_ML) {
+      return { pdfBase64: null, erro: "PDF maior que o limite de armazenamento." };
+    }
+
+    return { pdfBase64: Buffer.from(new Uint8Array(pdfFinal)).toString("base64"), erro: null };
+  } catch (e: unknown) {
+    return { pdfBase64: null, erro: e instanceof Error ? e.message : "Erro de rede desconhecido." };
   } finally {
     clearTimeout(timer);
   }

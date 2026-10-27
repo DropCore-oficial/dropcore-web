@@ -12,6 +12,9 @@ export async function notifyAdminsEtiquetaMlFalha(params: {
   org_id: string;
   pedido_id: string;
   seller_nome?: string | null;
+  /** Motivo real devolvido pelo ML na última tentativa (ver `mlBuscarEtiquetaPdf`) — ex.:
+   * erro de nota fiscal sem emitir. Opcional porque nem toda falha tem corpo de erro útil. */
+  erro_ml?: string | null;
 }): Promise<void> {
   const { data: admins } = await supabaseAdmin
     .from("org_members")
@@ -25,8 +28,8 @@ export async function notifyAdminsEtiquetaMlFalha(params: {
       user_id: a.user_id,
       tipo: TIPO,
       titulo: "Etiqueta de envio não chegou",
-      mensagem: `A etiqueta real de envio (Mercado Livre) do pedido ${params.pedido_id}${params.seller_nome ? ` (seller ${params.seller_nome})` : ""} não foi encontrada depois de várias tentativas automáticas. Pode estar presa no buffer de liberação do próprio ML — verifique na tela de Pedidos.`,
-      metadata: { pedido_id: params.pedido_id },
+      mensagem: `A etiqueta real de envio (Mercado Livre) do pedido ${params.pedido_id}${params.seller_nome ? ` (seller ${params.seller_nome})` : ""} não foi encontrada depois de várias tentativas automáticas. Pode estar presa no buffer de liberação do próprio ML — verifique na tela de Pedidos.${params.erro_ml ? ` Motivo retornado pelo ML: "${params.erro_ml}".` : ""}`,
+      metadata: { pedido_id: params.pedido_id, erro_ml: params.erro_ml ?? null },
     }));
 
   if (rows.length === 0) return;

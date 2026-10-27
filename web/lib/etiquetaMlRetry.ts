@@ -98,7 +98,7 @@ export async function runEtiquetaMlRetry(): Promise<EtiquetaMlRetrySummary> {
       return;
     }
 
-    const pdfBase64 = await mlBuscarEtiquetaPdf(ctx, pedido.marketplace_numero);
+    const { pdfBase64, erro: erroEtiqueta } = await mlBuscarEtiquetaPdf(ctx, pedido.marketplace_numero);
 
     // SLA de despacho (Fase 2) — a data que o ML prevê já pode mudar até a véspera do
     // despacho (buffer de transportadora), então refaz a cada rodada enquanto o pedido
@@ -165,6 +165,7 @@ export async function runEtiquetaMlRetry(): Promise<EtiquetaMlRetrySummary> {
       .update({
         etiqueta_tentativas: novasTentativas,
         etiqueta_ultima_tentativa_em: agora,
+        etiqueta_ml_ultimo_erro: erroEtiqueta,
         ...(deveAlertar ? { etiqueta_alerta_enviado_em: agora } : {}),
       })
       .eq("id", pedido.id);
@@ -173,7 +174,7 @@ export async function runEtiquetaMlRetry(): Promise<EtiquetaMlRetrySummary> {
     }
 
     if (deveAlertar) {
-      await notifyAdminsEtiquetaMlFalha({ org_id: pedido.org_id, pedido_id: pedido.id });
+      await notifyAdminsEtiquetaMlFalha({ org_id: pedido.org_id, pedido_id: pedido.id, erro_ml: erroEtiqueta });
       await notifySellerPedidoAtencao({
         org_id: pedido.org_id,
         seller_id: pedido.seller_id,

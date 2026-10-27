@@ -1844,6 +1844,35 @@ Mercado Livre dele — `ml_sync_falhas` só registra problema (fila de retry), n
   `GET /api/fornecedor/ml-sync-log`) — mostra SKU, seller, valor enviado, horário e
   sucesso/erro sem precisar logar na conta ML do seller.
 
+## Motivo real de falha ao buscar etiqueta ML (2026-10-27)
+
+Achado investigando pedidos presos do seller Vinz Collection (nota fiscal do ML com erro na
+emissão — etiqueta só libera depois dela, às vezes dias depois). `mlBuscarEtiquetaPdf`
+(`mercadoLivreApiClient.ts`) descartava o corpo de erro da API e devolvia só `null`; o cron
+(`etiquetaMlRetry.ts`) não tinha como saber *por quê* uma etiqueta não chegava, só contava
+mais uma tentativa.
+
+- **Coluna nova `pedidos.etiqueta_ml_ultimo_erro text`**
+  (`web/scripts/add-etiqueta-ml-ultimo-erro.sql`) — texto/código devolvido pelo ML na última
+  tentativa falha (ex.: `NOT_PRINTABLE_STATUS`, erro de nota fiscal), sobrescrito a cada
+  rodada do cron; `null` quando a etiqueta chega.
+- `mlBuscarEtiquetaPdf` passou a devolver `{ pdfBase64, erro }` em vez de só
+  `string | null` — `erro` só é usado pra log/alerta, nunca pra decidir fluxo.
+- `etiquetaMlRetry.ts` grava `etiqueta_ml_ultimo_erro` a cada tentativa sem sucesso, e passa
+  o motivo pro alerta que já ia pro admin (`notifyAdminsEtiquetaMlFalha`, novo campo opcional
+  `erro_ml` — entra na mensagem e no `metadata` da notificação).
+
+**De quebra, mesmo achado (2026-10-27) — formato errado na impressora térmica do
+fornecedor:** `GET /shipment_labels?response_type=pdf` com 1 `shipment_id` devolve 2
+páginas — a etiqueta real + uma "lista de coleta" (resumo interno do ML pro centro de
+distribuição, não é pra sair impresso) — sem nenhum parâmetro de API pra pedir só a
+etiqueta. Era essa 2ª página (tamanho/formato diferente) que saía junto na impressora
+térmica do fornecedor, divergindo do formato da UpSeller (que manda só a etiqueta).
+`mlBuscarEtiquetaPdf` agora usa `pdf-lib` pra cortar o PDF pra só a página 1 antes de
+salvar em `etiqueta_pdf_base64` — se o corte falhar por qualquer motivo, usa o PDF
+original sem quebrar o fluxo (fallback silencioso, só loga). Não muda nada do caminho da
+Olist (`olistTinyApi.ts`), que é uma API diferente.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
