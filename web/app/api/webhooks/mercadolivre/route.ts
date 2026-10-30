@@ -32,6 +32,7 @@ import { MODELO_GESTORES_IA } from "@/lib/ai/gestorRequestBuilders";
 import { gastoHojeReais, tetoHojeReais } from "@/lib/ai/gestorTiagoChatOrcamentoDia";
 import { reconciliarCancelamentoPedidoMl } from "@/lib/cancelamentoMlReconciliacao";
 import { detectarDevolucaoMlPorMlUserId } from "@/lib/mlDevolucaoDeteccao";
+import { logCalibracaoDevolucaoMlPorMlUserId } from "@/lib/mlDevolucaoCalibracaoLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -166,6 +167,9 @@ export async function POST(req: Request) {
   // relação com devolução).
   if (appConfere && topic === "claims" && mlUserId) {
     after(() => detectarDevolucaoMlPorMlUserId(mlUserId));
+    // Calibração temporária (2026-10-30) — ver mlDevolucaoCalibracaoLog.ts. Remover depois
+    // de confirmar o sinal de entrega da devolução com um caso real.
+    after(() => logCalibracaoDevolucaoMlPorMlUserId(mlUserId));
   }
 
   if (appConfere && TOPICS_PEDIDO.has(topic) && mlUserId && resource) {

@@ -416,6 +416,36 @@ export async function mlReclamacaoAindaAberta(claimId: string, ctx: MercadoLivre
   return json?.status === "opened";
 }
 
+/** Payload bruto completo de `/post-purchase/v1/claims/{id}` — usado só pra calibração
+ * (ver mlDevolucaoCalibracaoLog.ts): nunca testamos contra um caso real se esse endpoint
+ * expõe algum sinal de "devolução entregue no fornecedor" (shipment de volta, resolution,
+ * etc) além de `status`/`available_actions`, já confirmados em 2026-08-25. */
+export async function mlBuscarReclamacaoDetalheBruto(
+  claimId: string,
+  ctx: MercadoLivreAuthContext
+): Promise<Record<string, unknown> | null> {
+  return mlGet<Record<string, unknown>>(`/post-purchase/v1/claims/${claimId}`, ctx.accessToken);
+}
+
+/** Payload bruto completo de `/shipments/{id}` — mesma calibração acima, pro caso do
+ * `resource` do claim ser "shipment" (ou pra inspecionar o shipment original do pedido). */
+export async function mlBuscarShipmentDetalheBruto(
+  shipmentId: string,
+  ctx: MercadoLivreAuthContext
+): Promise<Record<string, unknown> | null> {
+  return mlGet<Record<string, unknown>>(`/shipments/${shipmentId}`, ctx.accessToken);
+}
+
+/** Payload bruto completo de `/orders/{id}` — mesma calibração acima, pra achar o
+ * `shipping.id` do pedido quando o `resource` do claim é "order" (aí dá pra seguir pro
+ * shipment de verdade via `mlBuscarShipmentDetalheBruto`). */
+export async function mlBuscarOrderDetalheBruto(
+  orderId: string,
+  ctx: MercadoLivreAuthContext
+): Promise<Record<string, unknown> | null> {
+  return mlGet<Record<string, unknown>>(`/orders/${orderId}`, ctx.accessToken);
+}
+
 export type MercadoLivreMotivoReclamacao = {
   detail: string | null;
   /** Classificação própria do ML pro motivo (ex. `["repentant"]` pra arrependimento de
