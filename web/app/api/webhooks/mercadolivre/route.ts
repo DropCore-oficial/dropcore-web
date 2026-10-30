@@ -31,6 +31,7 @@ import { montarResultadoReputacao } from "@/lib/ai/gestorReputacaoAtendimentoDad
 import { MODELO_GESTORES_IA } from "@/lib/ai/gestorRequestBuilders";
 import { gastoHojeReais, tetoHojeReais } from "@/lib/ai/gestorTiagoChatOrcamentoDia";
 import { reconciliarCancelamentoPedidoMl } from "@/lib/cancelamentoMlReconciliacao";
+import { detectarDevolucaoMlPorMlUserId } from "@/lib/mlDevolucaoDeteccao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -158,6 +159,13 @@ export async function POST(req: Request) {
 
   if (appConfere && TOPICS_RELEVANTES.has(topic) && mlUserId) {
     after(() => reprocessarAmandaPorMlUserId(mlUserId));
+  }
+
+  // Detecção de devolução — independente de add-on/saldo/teto da Amanda (ver
+  // mlDevolucaoDeteccao.ts). Só o tópico "claims" interessa aqui ("questions" não tem
+  // relação com devolução).
+  if (appConfere && topic === "claims" && mlUserId) {
+    after(() => detectarDevolucaoMlPorMlUserId(mlUserId));
   }
 
   if (appConfere && TOPICS_PEDIDO.has(topic) && mlUserId && resource) {

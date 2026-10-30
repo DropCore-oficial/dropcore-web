@@ -1882,6 +1882,100 @@ pedido, não replicar sem perguntar de novo. `mlBuscarEtiquetaPdf` agora sempre 
 página 1 num doc novo com `pagina1.setRotation(degrees(90))`, independente de o PDF
 original ter 1 ou 2 páginas.
 
+## Detecção de devolução ML (2026-10-29)
+
+Achado real: o seller Vinz Collection teve uma devolução no Mercado Livre que não apareceu
+em nenhuma tabela do DropCore (`financial_ledger`, `pedido_eventos`,
+`seller_ai_disputas_fornecedor`, `erp_event_logs`). Causa raiz: o único código que lia
+"claims" (reclamações) do ML era o da Amanda (gestor de reputação), que descarta de
+propósito reclamação sem foto/evidência anexada — e "sem foto" é exatamente o caso mais
+comum de devolução real ("cliente mudou de ideia"). Além disso, o Vinz estava com o add-on
+de Gestores de IA desligado, então o pipeline da Amanda nem rodava.
+
+Solução: pipeline novo, determinístico (sem IA/gestor nenhum envolvido), que roda pra TODO
+seller com `seller_mercadolivre_integrations` ativa, independente de add-on/saldo/teto de
+gasto — devolução é risco financeiro, não feature paga. Deliberadamente separado do código
+da Amanda (`gestorDisputasFornecedorDados.ts`), que continua intocado.
+
+- **Tabela** `seller_ml_devolucoes_detectadas` (`add-seller-ml-devolucoes-detectadas.sql`):
+  `org_id`, `seller_id`, `ml_claim_id` (unique), `ml_resource`, `ml_resource_id`,
+  `ml_reason_id`, `ml_rules_engine_triage text[]`, `criterio`
+  (`'repentant'|'sem_evidencia'`), `pedido_id`/`ledger_id` (nullable — pode não resolver
+  pedido, ex. Olist quebrado), `notificado_em`. RLS ligada, sem policy (deny-all) — acesso
+  só via RPC.
+- **RPCs** (`SECURITY DEFINER`, `grant execute to service_role`, nunca `authenticated`):
+  `fn_ml_devolucao_detectada_claim_ids_existentes` (batch lookup de claims já conhecidos),
+  `fn_ml_devolucao_detectada_registrar` (insert atômico `ON CONFLICT (ml_claim_id) DO
+  NOTHING`, retorna `ja_existia`/`devolucao_id` — evita notificação duplicada em corrida de
+  webhooks), `fn_ml_devolucao_detectada_marcar_notificado`.
+- **Índice** novo `idx_pedidos_seller_marketplace_numero` — lookup usado por mais de um
+  pipeline (reconciliação de cancelamento, disputa fornecedor, e esta detecção).
+- **Critério de classificação** (`web/lib/mlDevolucaoDeteccao.ts`): `rules_engine_triage`
+  (de `mlBuscarMotivoReclamacao`) contém `"repentant"` OU zero evidências anexadas
+  (`mlBuscarEvidenciasReclamacao`). Pode precisar calibração depois de ver volume real em
+  produção — não há staging pra validar antes.
+- **Gatilho**: `web/app/api/webhooks/mercadolivre/route.ts`, tópico `"claims"` — chama
+  `detectarDevolucaoMlPorMlUserId` em paralelo com `reprocessarAmandaPorMlUserId`, sem
+  nenhum gate de add-on/saldo/teto.
+- **Resolução claim→pedido/fornecedor**: `web/lib/mercadoLivreClaimResolucao.ts` (novo,
+  independente — não reaproveita nem altera `gestorDisputasFornecedorDados.ts`).
+- **Notificações**: `devolucao_ml_provavel_seller` (seller, via
+  `notifySellerPedidoAtencao.ts`, agora aceita `pedido_id: string | null`) e
+  `devolucao_ml_provavel_admin` (admin, `web/lib/notifyAdminsDevolucaoMl.ts`) — registrados
+  em `NOTIFICATION_TIPOS_POR_CONTEXTO` (`notificationContextFilter.ts`) e em severidade/
+  ícone/link no `NotificationBell.tsx`.
+- **V1 só notifica** — nenhuma mutação em `financial_ledger`/`pedidos.status`. Confirmação
+  de devolução continua 100% manual via `/admin/devolucoes`.
+- **Fora de escopo**: devolução via Olist/Bling (problema separado — Olist do Vinz está
+  quebrado desde set/2026, `"Plano não tem acesso a API"`); cron de rede de segurança pro
+  caso do webhook falhar pontualmente (a própria rotina já rebusca todos os claims abertos
+  a cada chamada, não só o do payload, então a lacuna residual é pequena).
+
+## Liberação automática de saldo em devolução — 48h (2026-10-29)
+
+Decisão do Sr Stark: a liberação de dinheiro bloqueado numa devolução (`EM_DEVOLUCAO` →
+`DEVOLVIDO` em `financial_ledger`) deixa de ser só manual. O fornecedor ganha ação direta no
+portal dele pra confirmar recebimento "tudo certo" (libera na hora) ou contestar (defeito/
+produto errado, com foto — trava a liberação automática, cai pro admin decidir manual como já
+era antes). Se o fornecedor não fizer nada em **48h** contadas a partir do momento que o admin
+registra `EM_DEVOLUCAO`, o sistema libera o valor pro seller sozinho. O gatilho é só
+`em_devolucao_desde` (controlado por nós) — não existe confirmação do ML de que a devolução
+chegou fisicamente no fornecedor.
+
+- **Colunas novas em `financial_ledger`** (`add-financial-ledger-devolucao-prazo-fornecedor.sql`):
+  `em_devolucao_desde`, `fornecedor_confirmou_recebimento_em`, `fornecedor_contestou_em`,
+  `fornecedor_contestacao_texto`, `fornecedor_contestacao_foto_path`.
+- **RPCs** (`SECURITY DEFINER`, `grant execute to service_role`, atômicas via `for update`
+  dentro da própria função — substitui o padrão insert-depois-rollback em nível de app usado
+  no PATCH do admin):
+  - `fn_devolucao_fornecedor_confirmar(p_ledger_id, p_fornecedor_id)` — fornecedor confirma,
+    libera na hora.
+  - `fn_devolucao_fornecedor_contestar(p_ledger_id, p_fornecedor_id, p_texto, p_foto_path)` —
+    registra contestação, **não muda status**, trava a liberação automática.
+  - `fn_devolucao_liberar_automatico(p_ledger_id)` — chamada pelo cron, reconfere status/prazo/
+    contestação de novo antes de mexer em dinheiro (defesa contra corrida com uma contestação
+    de última hora).
+- **Cron** `dropcore-devolucao-liberacao-automatica` (hora em hora) →
+  `/api/cron/devolucao-liberacao-automatica` → `web/lib/devolucaoLiberacaoAutomatica.ts` —
+  seleciona `EM_DEVOLUCAO` com `em_devolucao_desde` > 48h atrás e sem contestação, libera e
+  notifica seller + fornecedor. Lock advisory `913020`.
+- **Tela do fornecedor** `/fornecedor/devolucoes` (não está no menu principal, só acessível via
+  link da notificação — mesmo padrão de `/fornecedor/disputas`) — lista `EM_DEVOLUCAO` do
+  fornecedor logado com prazo visível, botões "Chegou tudo certo" / "Chegou com defeito/outra
+  coisa" (texto + foto opcional, reaproveita o bucket `disputas-evidencias` já existente, path
+  novo `fornecedor-contestacao/{ledger_id}/evidencia.ext`).
+- **Rotas**: `GET /api/fornecedor/devolucoes`, `POST /api/fornecedor/devolucoes/[id]/confirmar`,
+  `POST /api/fornecedor/devolucoes/[id]/contestar` (`FormData`, mesma validação de tipo/tamanho
+  do upload de evidência da Amanda).
+- **PATCH do admin** (`/api/org/financial/ledger/[id]`) passou a gravar `em_devolucao_desde` ao
+  marcar `EM_DEVOLUCAO` e a notificar o fornecedor (`notifyFornecedorDevolucao.ts`).
+- **Notificações novas**: `devolucao_registrada_fornecedor`, `devolucao_liberada_automatico_seller`,
+  `devolucao_liberada_automatico_fornecedor` — registradas em `notificationContextFilter.ts` e
+  `NotificationBell.tsx`.
+- **Fora de escopo**: nenhuma mudança no fluxo manual do admin (continua podendo agir a
+  qualquer momento, inclusive depois de uma contestação); decisão do admin sobre contestação
+  continua manual, sem prazo.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

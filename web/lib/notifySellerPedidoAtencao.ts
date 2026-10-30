@@ -18,12 +18,16 @@ const TITULOS = {
   produto_nao_vinculado: "Produto fora do catálogo do fornecedor",
   anuncio_sem_sku: "Anúncio sem SKU vinculado",
   anuncio_sem_sku_urgente: "Urgente: anúncio sem SKU perto do prazo",
+  devolucao_ml_provavel_seller: "Possível devolução no Mercado Livre",
+  devolucao_liberada_automatico_seller: "Devolução liberada automaticamente",
 } as const;
 
 export async function notifySellerPedidoAtencao(params: {
   org_id: string;
   seller_id: string;
-  pedido_id: string;
+  // Nulo quando a reclamação do ML não casou com nenhum pedido interno (ex: integração ERP
+  // quebrada, pedido nunca sincronizado) — mesmo assim o seller precisa ser avisado.
+  pedido_id: string | null;
   tipo:
     | "pedido_novo"
     | "pedido_bloqueado"
@@ -35,7 +39,9 @@ export async function notifySellerPedidoAtencao(params: {
     | "pedido_cancelado_erp"
     | "produto_nao_vinculado"
     | "anuncio_sem_sku"
-    | "anuncio_sem_sku_urgente";
+    | "anuncio_sem_sku_urgente"
+    | "devolucao_ml_provavel_seller"
+    | "devolucao_liberada_automatico_seller";
   motivo: string;
 }): Promise<void> {
   const { data: sellerRow } = await supabaseAdmin

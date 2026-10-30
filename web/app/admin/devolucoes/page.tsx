@@ -28,7 +28,43 @@ type LedgerItem = {
   ciclo_repasse: string | null;
   pedido_id: string | null;
   debito_ja_registrado?: boolean;
+  em_devolucao_desde?: string | null;
+  fornecedor_contestou_em?: string | null;
+  fornecedor_contestacao_texto?: string | null;
+  fornecedor_contestacao_foto_url?: string | null;
 };
+
+const PRAZO_FORNECEDOR_HORAS = 48;
+
+function formatPrazoCurto(s: string) {
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+/** Mostra o prazo de 48h do fornecedor (ou a contestação, se já contestou) — só faz sentido
+ * pra linha EM_DEVOLUCAO; nas demais não renderiza nada. */
+function DevolucaoPrazoInfo({ r }: { r: LedgerItem }) {
+  if (r.status !== "EM_DEVOLUCAO") return null;
+  if (r.fornecedor_contestou_em) {
+    return (
+      <div className="mt-1 max-w-[220px] text-[11px] text-[var(--danger)]">
+        <p className="font-semibold">Fornecedor contestou:</p>
+        <p className="line-clamp-2">{r.fornecedor_contestacao_texto ?? "—"}</p>
+        {r.fornecedor_contestacao_foto_url ? (
+          <a href={r.fornecedor_contestacao_foto_url} target="_blank" rel="noopener noreferrer" className="underline">
+            Ver foto ↗
+          </a>
+        ) : null}
+      </div>
+    );
+  }
+  if (r.em_devolucao_desde) {
+    const prazoFinal = new Date(new Date(r.em_devolucao_desde).getTime() + PRAZO_FORNECEDOR_HORAS * 60 * 60 * 1000);
+    return <p className="mt-1 text-[11px] text-[var(--muted)]">Prazo fornecedor: {formatPrazoCurto(prazoFinal.toISOString())}</p>;
+  }
+  return null;
+}
 
 type DebitoPendenteItem = {
   id: string;
@@ -345,6 +381,7 @@ export default function DevolucoesPage() {
                       <td className="px-4 py-3 text-right font-medium">{formatMoney(r.valor_total)}</td>
                       <td className="px-4 py-3">
                         <StatusBadge status={r.status} />
+                        <DevolucaoPrazoInfo r={r} />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-2">
@@ -390,6 +427,7 @@ export default function DevolucoesPage() {
                     <span className="text-xs text-[var(--muted)]">{formatDate(r.data_evento)}</span>
                     <StatusBadge status={r.status} />
                   </div>
+                  <DevolucaoPrazoInfo r={r} />
                   <div className="mt-2 flex flex-col gap-1.5">
                     {r.status === "BLOQUEADO" && (
                       <button

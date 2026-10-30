@@ -44,6 +44,11 @@ const PEDIDO_TIPO_SEVERIDADE: Record<string, "danger" | "warning" | "success"> =
   sla_atraso_admin: "danger",
   pedido_precisa_resolucao_admin: "warning",
   anuncios_sem_sku_catalogo: "warning",
+  devolucao_ml_provavel_seller: "warning",
+  devolucao_ml_provavel_admin: "danger",
+  devolucao_registrada_fornecedor: "warning",
+  devolucao_liberada_automatico_seller: "success",
+  devolucao_liberada_automatico_fornecedor: "warning",
 };
 
 const PEDIDO_TIPO_ICON: Record<string, string> = {
@@ -58,6 +63,11 @@ const PEDIDO_TIPO_ICON: Record<string, string> = {
   sla_atraso_admin: "⏰",
   pedido_precisa_resolucao_admin: "🏷️",
   anuncios_sem_sku_catalogo: "🏷️",
+  devolucao_ml_provavel_seller: "↩️",
+  devolucao_ml_provavel_admin: "↩️",
+  devolucao_registrada_fornecedor: "↩️",
+  devolucao_liberada_automatico_seller: "💰",
+  devolucao_liberada_automatico_fornecedor: "⏰",
 };
 
 function pedidoDestino(context: NotificationPortalContext, pedidoId: string): string {
@@ -468,6 +478,24 @@ export function NotificationBell({
                                 Ver pedidos →
                               </a>
                             )}
+                            {n.tipo === "devolucao_ml_provavel_admin" && (
+                              <a
+                                href="/admin/devolucoes"
+                                onClick={(e) => e.stopPropagation()}
+                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline"
+                              >
+                                Ver devoluções →
+                              </a>
+                            )}
+                            {(n.tipo === "devolucao_registrada_fornecedor" || n.tipo === "devolucao_liberada_automatico_fornecedor") && (
+                              <a
+                                href="/fornecedor/devolucoes"
+                                onClick={(e) => e.stopPropagation()}
+                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline"
+                              >
+                                Ver devoluções →
+                              </a>
+                            )}
                             {n.tipo === "repasse_recebido" && (
                               <a
                                 href="/fornecedor/dashboard?repasse=1"
@@ -483,7 +511,9 @@ export function NotificationBell({
                               n.tipo === "erro_saldo" ||
                               n.tipo === "produto_nao_vinculado" ||
                               n.tipo === "anuncio_sem_sku" ||
-                              n.tipo === "anuncio_sem_sku_urgente") &&
+                              n.tipo === "anuncio_sem_sku_urgente" ||
+                              n.tipo === "devolucao_ml_provavel_seller" ||
+                              n.tipo === "devolucao_liberada_automatico_seller") &&
                               n.metadata?.pedido_id && (
                                 <a
                                   href={pedidoDestino(context, n.metadata.pedido_id)}

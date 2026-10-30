@@ -11,6 +11,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { logAdminAction } from "@/lib/adminAuditLog";
+import { notifyFornecedorDevolucao } from "@/lib/notifyFornecedorDevolucao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -79,7 +80,7 @@ export async function PATCH(
     // criarem dois lançamentos de devolução duplicando o crédito ao seller.
     const { data: claimedRows, error: updateErr } = await supabaseAdmin
       .from("financial_ledger")
-      .update({ status })
+      .update(status === "EM_DEVOLUCAO" ? { status, em_devolucao_desde: new Date().toISOString() } : { status })
       .eq("id", id)
       .eq("org_id", org_id)
       .eq("status", current)
@@ -92,6 +93,13 @@ export async function PATCH(
       return NextResponse.json(
         { error: "O status já foi alterado por outra operação. Recarregue e confira o estado atual." },
         { status: 409 }
+      );
+    }
+
+    if (status === "EM_DEVOLUCAO" && row.fornecedor_id) {
+      // Best-effort — não bloqueia a resposta se a notificação falhar.
+      notifyFornecedorDevolucao({ org_id, fornecedor_id: row.fornecedor_id, ledger_id: id }).catch((e) =>
+        console.error("[ledger PATCH] erro ao notificar fornecedor da devolução:", e)
       );
     }
 

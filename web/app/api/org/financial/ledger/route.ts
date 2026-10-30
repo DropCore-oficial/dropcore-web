@@ -12,11 +12,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_STATUSES = ["BLOQUEADO", "ENTREGUE", "AGUARDANDO_REPASSE", "EM_DEVOLUCAO"];
+const CONTESTACAO_BUCKET = "disputas-evidencias";
+const SIGNED_URL_EXPIRA_SEGUNDOS = 60 * 10;
 
 async function loadLedgerItems(orgId: string, statuses: string[]) {
   const { data: rows, error } = await supabaseAdmin
     .from("financial_ledger")
-    .select("id, seller_id, fornecedor_id, tipo, valor_total, status, data_evento, ciclo_repasse, pedido_id")
+    .select(
+      "id, seller_id, fornecedor_id, tipo, valor_total, status, data_evento, ciclo_repasse, pedido_id, em_devolucao_desde, fornecedor_contestou_em, fornecedor_contestacao_texto, fornecedor_contestacao_foto_path"
+    )
     .eq("org_id", orgId)
     .in("tipo", ["BLOQUEIO", "VENDA"])
     .in("status", statuses.length ? statuses : DEFAULT_STATUSES)
@@ -46,6 +50,18 @@ async function loadLedgerItems(orgId: string, statuses: string[]) {
   const fornMap = new Map((fornRes.data || []).map((f) => [f.id, f.nome]));
   const debitosSet = new Set((debitosRes.data || []).map((d) => d.ledger_id));
 
+  const fotoUrls = new Map<string, string>();
+  await Promise.all(
+    list
+      .filter((r) => r.fornecedor_contestacao_foto_path)
+      .map(async (r) => {
+        const { data } = await supabaseAdmin.storage
+          .from(CONTESTACAO_BUCKET)
+          .createSignedUrl(r.fornecedor_contestacao_foto_path as string, SIGNED_URL_EXPIRA_SEGUNDOS);
+        if (data?.signedUrl) fotoUrls.set(r.id, data.signedUrl);
+      })
+  );
+
   return list.map((r) => ({
     id: r.id,
     seller_id: r.seller_id,
@@ -59,6 +75,10 @@ async function loadLedgerItems(orgId: string, statuses: string[]) {
     ciclo_repasse: r.ciclo_repasse,
     pedido_id: r.pedido_id ?? null,
     debito_ja_registrado: debitosSet.has(r.id),
+    em_devolucao_desde: r.em_devolucao_desde ?? null,
+    fornecedor_contestou_em: r.fornecedor_contestou_em ?? null,
+    fornecedor_contestacao_texto: r.fornecedor_contestacao_texto ?? null,
+    fornecedor_contestacao_foto_url: fotoUrls.get(r.id) ?? null,
   }));
 }
 
