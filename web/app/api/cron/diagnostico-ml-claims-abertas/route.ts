@@ -70,3 +70,7 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ ok: true, seller_id: sellerId, seller_nome: seller?.nome ?? null, total: reclamacoes.length, reclamacoes: resultado });
 }
+
+export async function POST(req: Request) {
+  return GET(req);
+}
