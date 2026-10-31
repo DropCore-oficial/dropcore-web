@@ -11,7 +11,21 @@ import {
   mlBuscarReclamacoesAbertas,
   mlBuscarMotivoReclamacao,
   mlBuscarEvidenciasReclamacao,
+  mlBuscarOrderDetalheBruto,
+  mlBuscarShipmentDetalheBruto,
 } from "@/lib/mercadoLivreApiClient";
+
+const ORDER_CHAVES = ["id", "status", "status_detail", "date_created", "date_closed", "date_last_updated", "tags", "shipping"];
+const SHIPMENT_CHAVES = ["id", "status", "substatus", "logistic_type", "date_created", "date_first_printed", "status_history", "shipping_option", "tracking_number", "source_site_id"];
+
+function recorteSeguro(obj: Record<string, unknown> | null, chaves: string[]): Record<string, unknown> | null {
+  if (!obj) return null;
+  const out: Record<string, unknown> = {};
+  for (const k of chaves) {
+    if (k in obj) out[k] = obj[k];
+  }
+  return out;
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +55,20 @@ export async function GET(req: Request) {
   const ctx = await getValidMercadoLivreAccessToken(sellerId);
   if (!ctx) {
     return NextResponse.json({ error: "Seller sem token ML válido." }, { status: 400 });
+  }
+
+  // Diagnóstico direto de 1 pedido (sem depender de claim nenhuma) — pra checar devolução
+  // que já saiu do estado "opened" ou que nunca passou pelo fluxo de reclamação formal.
+  const orderId = searchParams.get("order_id");
+  if (orderId) {
+    const orderBruto = await mlBuscarOrderDetalheBruto(orderId, ctx);
+    const order = recorteSeguro(orderBruto, ORDER_CHAVES);
+    const shippingId = (orderBruto?.shipping as { id?: number | string } | undefined)?.id;
+    let shipment: Record<string, unknown> | null = null;
+    if (shippingId != null) {
+      shipment = recorteSeguro(await mlBuscarShipmentDetalheBruto(String(shippingId), ctx), SHIPMENT_CHAVES);
+    }
+    return NextResponse.json({ ok: true, seller_id: sellerId, seller_nome: seller?.nome ?? null, order_id: orderId, order, shipment });
   }
 
   const reclamacoes = await mlBuscarReclamacoesAbertas(ctx);
