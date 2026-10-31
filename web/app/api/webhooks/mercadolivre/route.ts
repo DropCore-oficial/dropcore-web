@@ -31,7 +31,7 @@ import { montarResultadoReputacao } from "@/lib/ai/gestorReputacaoAtendimentoDad
 import { MODELO_GESTORES_IA } from "@/lib/ai/gestorRequestBuilders";
 import { gastoHojeReais, tetoHojeReais } from "@/lib/ai/gestorTiagoChatOrcamentoDia";
 import { reconciliarCancelamentoPedidoMl } from "@/lib/cancelamentoMlReconciliacao";
-import { detectarDevolucaoMlPorMlUserId } from "@/lib/mlDevolucaoDeteccao";
+import { detectarDevolucaoMlPorMlUserId, reavaliarDevolucoesAbertasPorMlUserId } from "@/lib/mlDevolucaoDeteccao";
 import { logCalibracaoDevolucaoMlPorMlUserId } from "@/lib/mlDevolucaoCalibracaoLog";
 
 export const runtime = "nodejs";
@@ -167,6 +167,9 @@ export async function POST(req: Request) {
   // relação com devolução).
   if (appConfere && topic === "claims" && mlUserId) {
     after(() => detectarDevolucaoMlPorMlUserId(mlUserId));
+    // Destrava sozinho devolução travada automaticamente se a reclamação já fechou sem
+    // ninguém ter mexido (ver reavaliarDevolucoesAbertasPorMlUserId).
+    after(() => reavaliarDevolucoesAbertasPorMlUserId(mlUserId));
     // Calibração temporária (2026-10-30) — ver mlDevolucaoCalibracaoLog.ts. Remover depois
     // de confirmar o sinal de entrega da devolução com um caso real.
     after(() => logCalibracaoDevolucaoMlPorMlUserId(mlUserId));

@@ -97,6 +97,7 @@ export default function FornecedorDashboardPage() {
   const [fornecedor, setFornecedor] = useState<FornecedorData | null>(null);
   const [repasseItems, setRepasseItems] = useState<RepasseItem[]>([]);
   const [repasseFuturos, setRepasseFuturos] = useState<RepasseFuturo[]>([]);
+  const [valorRetidoDevolucao, setValorRetidoDevolucao] = useState(0);
   const [totalAReceber, setTotalAReceber] = useState(0);
   const [stats, setStats] = useState<{
     pedidos_aguardando_postagem: number;
@@ -189,10 +190,12 @@ export default function FornecedorDashboardPage() {
           setRepasseItems(repJson.items ?? []);
           setTotalAReceber(repJson.total_a_receber ?? 0);
           setRepasseFuturos(repJson.futuros ?? []);
+          setValorRetidoDevolucao(repJson.valor_retido_devolucao ?? 0);
         } else {
           setRepasseItems([]);
           setRepasseFuturos([]);
           setTotalAReceber(0);
+          setValorRetidoDevolucao(0);
         }
 
         if (statsJson.desempenho) setDesempenho(statsJson.desempenho);
@@ -478,7 +481,7 @@ export default function FornecedorDashboardPage() {
         )}
 
         {/* 1b. Repasses futuros — alerta no início */}
-        {repasseFuturos.length > 0 && (
+        {(repasseFuturos.length > 0 || valorRetidoDevolucao > 0) && (
           <AmberPremiumCallout
             title="Repasses futuros"
             className="rounded-2xl shadow-sm overflow-hidden items-start px-4 py-4 sm:px-5"
@@ -495,13 +498,20 @@ export default function FornecedorDashboardPage() {
               </button>
             }
           >
-            <p className="text-sm font-bold text-[var(--foreground)] tabular-nums">
-              {BRL.format(totalRepasseFuturo)} previstos
-            </p>
+            {repasseFuturos.length > 0 && (
+              <p className="text-sm font-bold text-[var(--foreground)] tabular-nums">
+                {BRL.format(totalRepasseFuturo)} previstos
+              </p>
+            )}
             {proxRepasseFuturo && (
               <p className="text-[11px] text-[var(--muted)] mt-1">
                 Próximo: {formatDate(proxRepasseFuturo.ciclo_repasse)} · {proxRepasseFuturo.pedidos} pedido
                 {proxRepasseFuturo.pedidos !== 1 ? "s" : ""}
+              </p>
+            )}
+            {valorRetidoDevolucao > 0 && (
+              <p className="text-[11px] text-[var(--danger)] mt-1">
+                + {BRL.format(valorRetidoDevolucao)} retido por devolução em análise (não entra nessa previsão)
               </p>
             )}
           </AmberPremiumCallout>

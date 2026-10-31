@@ -16,9 +16,17 @@ export type FornecedorRepasseList = {
   items: FornecedorRepasseItem[];
   total_a_receber: number;
   futuros: FornecedorRepasseFuturo[];
+  /** Valor que está preso em devolução ativa (EM_DEVOLUCAO) — não entra em `futuros` (só
+   * ENTREGUE/AGUARDANDO_REPASSE contam pra repasse), fica separado pra não ficar invisível. */
+  valor_retido_devolucao: number;
 };
 
-type LedgerPreviewRow = { ciclo_repasse: string | null; valor_fornecedor: number | null; pedido_id: string | null };
+type LedgerPreviewRow = {
+  ciclo_repasse: string | null;
+  valor_fornecedor: number | null;
+  pedido_id: string | null;
+  status: string;
+};
 
 /** Repasses do fornecedor (financial_repasse_fornecedor) + preview de futuros vindo do ledger. */
 export async function loadFornecedorRepasseList(
@@ -53,6 +61,7 @@ export async function loadFornecedorRepasseList(
     .reduce((s, i) => s + i.valor_total, 0);
 
   let futuros: FornecedorRepasseFuturo[] = [];
+  let valor_retido_devolucao = 0;
   if (opts.includePreview) {
     const hoje = new Date();
     const y = hoje.getFullYear();
@@ -60,14 +69,16 @@ export async function loadFornecedorRepasseList(
     const d = String(hoje.getDate()).padStart(2, "0");
     const hojeStr = `${y}-${m}-${d}`;
 
+    // EM_DEVOLUCAO entra aqui também (antes só ENTREGUE/AGUARDANDO_REPASSE) pra separar o
+    // valor retido por devolução do resto — nunca contado em `futuros` (achado 2026-10-30:
+    // esse valor sumia do cálculo sem explicação nenhuma pro fornecedor).
     const { data: prevRowsRaw, error: prevErr } = await supabaseAdmin
       .from("financial_ledger")
-      .select("ciclo_repasse, valor_fornecedor, pedido_id")
+      .select("ciclo_repasse, valor_fornecedor, pedido_id, status")
       .eq("org_id", orgId)
       .eq("fornecedor_id", fornecedorId)
       .in("tipo", ["BLOQUEIO", "VENDA"])
-      .in("status", ["ENTREGUE", "AGUARDANDO_REPASSE"])
-      .gte("ciclo_repasse", hojeStr)
+      .in("status", ["ENTREGUE", "AGUARDANDO_REPASSE", "EM_DEVOLUCAO"])
       .order("ciclo_repasse", { ascending: true })
       .limit(500);
 
@@ -75,7 +86,13 @@ export async function loadFornecedorRepasseList(
 
     // Pedido de teste nunca entra na previsão "a receber" do fornecedor — dinheiro
     // fictício não pode parecer dinheiro real esperado.
-    const prevRows = await semPedidosDeTeste((prevRowsRaw ?? []) as LedgerPreviewRow[]);
+    const prevRowsAll = await semPedidosDeTeste((prevRowsRaw ?? []) as LedgerPreviewRow[]);
+
+    valor_retido_devolucao = prevRowsAll
+      .filter((r) => r.status === "EM_DEVOLUCAO")
+      .reduce((s, r) => s + Number(r.valor_fornecedor ?? 0), 0);
+
+    const prevRows = prevRowsAll.filter((r) => r.status !== "EM_DEVOLUCAO" && r.ciclo_repasse && r.ciclo_repasse >= hojeStr);
 
     const byCycle: Record<string, { valor: number; pedidos: number }> = {};
     for (const r of prevRows) {
@@ -97,5 +114,5 @@ export async function loadFornecedorRepasseList(
       .slice(0, 8);
   }
 
-  return { items, total_a_receber, futuros };
+  return { items, total_a_receber, futuros, valor_retido_devolucao };
 }

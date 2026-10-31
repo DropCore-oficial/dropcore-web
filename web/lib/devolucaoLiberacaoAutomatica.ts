@@ -17,6 +17,13 @@ import { notifyFornecedorDevolucaoLiberadaAutomatico } from "@/lib/notifyFornece
 const PRAZO_HORAS = 48;
 const MAX_POR_RUN = 200;
 
+// Pausado 2026-10-30: confirmado que a devolução física demora 10+ dias pra chegar no
+// fornecedor (achado real, Galileus/Djulios) — um prazo de 48h ancorado em quando o sistema
+// trava o dinheiro (detecção automática) dispara a liberação antes do fornecedor sequer ter
+// o produto em mãos. Fica desligado até calibrar um sinal real de entrega (log em
+// mlDevolucaoCalibracaoLog.ts, aguardando caso real pra confirmar o campo certo da API do ML).
+const LIBERACAO_AUTOMATICA_HABILITADA = false;
+
 type LedgerElegivel = {
   id: string;
   org_id: string;
@@ -28,7 +35,10 @@ type LedgerElegivel = {
 export async function processarDevolucaoLiberacaoAutomaticaCron(): Promise<{
   avaliados: number;
   liberados: number;
+  pausado?: boolean;
 }> {
+  if (!LIBERACAO_AUTOMATICA_HABILITADA) return { avaliados: 0, liberados: 0, pausado: true };
+
   const limite = new Date(Date.now() - PRAZO_HORAS * 60 * 60 * 1000).toISOString();
 
   const { data: elegiveis, error } = await supabaseAdmin

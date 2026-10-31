@@ -45,7 +45,9 @@ const STATUS_FILTER = [
   "enviado",
   "aguardando_repasse",
   "entregue",
+  "em_devolucao",
   "devolvido",
+  "devolucao_sem_fornecedor",
   "cancelado",
   "erro_saldo",
 ] as const;
@@ -74,6 +76,7 @@ export async function GET(req: Request) {
 
     let data: PedidoRow[] | null = [];
     let pedidosCount = 0;
+    let totalDevolucao = 0;
 
     if (!somenteReservas) {
       const from = (page - 1) * pageSize;
@@ -99,9 +102,10 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
       }
 
-      const rows = (rpcRows ?? []) as (PedidoRow & { total_count: number })[];
-      data = rows.map(({ total_count: _tc, ...p }) => p);
+      const rows = (rpcRows ?? []) as (PedidoRow & { total_count: number; total_count_devolucao: number })[];
+      data = rows.map(({ total_count: _tc, total_count_devolucao: _tcd, ...p }) => p);
       pedidosCount = rows[0]?.total_count ?? 0;
+      totalDevolucao = rows[0]?.total_count_devolucao ?? 0;
     }
 
     const pedidoIds = (data ?? []).map((p) => p.id);
@@ -320,7 +324,7 @@ export async function GET(req: Request) {
       total = pedidosCount + (incluirReservas ? reservaItems.length : 0);
     }
 
-    return NextResponse.json({ items: merged, total, page, limit: pageSize });
+    return NextResponse.json({ items: merged, total, page, limit: pageSize, total_devolucao: totalDevolucao });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

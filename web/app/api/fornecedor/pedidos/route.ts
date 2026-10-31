@@ -90,7 +90,11 @@ export async function GET(req: Request) {
     const from = (page - 1) * limit;
 
     const statusValido =
-      status && ["enviado", "aguardando_repasse", "entregue", "devolvido", "cancelado", "erro_saldo", "pendente_estoque", "bloqueado"].includes(status)
+      status &&
+      [
+        "enviado", "aguardando_repasse", "entregue", "em_devolucao", "devolvido",
+        "devolucao_sem_fornecedor", "cancelado", "erro_saldo", "pendente_estoque", "bloqueado",
+      ].includes(status)
         ? status
         : null;
 
@@ -110,9 +114,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
     }
 
-    const rows = (rpcRows ?? []) as (PedidoRow & { total_count: number })[];
-    const data: PedidoRow[] = rows.map(({ total_count: _tc, ...p }) => p);
+    const rows = (rpcRows ?? []) as (PedidoRow & { total_count: number; total_count_devolucao: number })[];
+    const data: PedidoRow[] = rows.map(({ total_count: _tc, total_count_devolucao: _tcd, ...p }) => p);
     const total = rows[0]?.total_count ?? 0;
+    const totalDevolucao = rows[0]?.total_count_devolucao ?? 0;
 
     const sellerIds = [...new Set((data ?? []).map((p) => p.seller_id))];
     const sellersMap = new Map<string, string>();
@@ -280,6 +285,7 @@ export async function GET(req: Request) {
       page,
       limit,
       expedicao_padrao: expedicaoPadrao,
+      total_devolucao: totalDevolucao,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";

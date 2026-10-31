@@ -83,6 +83,7 @@ type ProData = {
   margem_media_pct: number;
   receita_pago: number;
   receita_pendente: number;
+  retido_devolucao?: number;
   top_sellers: { id: string; nome: string; total: number; pedidos: number }[];
   top_fornecedores: { id: string; nome: string; total: number; dropcore: number; pedidos: number }[];
   vendas_por_dia: { dia: string; total: number; dropcore: number; count: number }[];
@@ -1048,6 +1049,14 @@ export default function DashboardPage() {
                   <p className="text-base font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{BRL.format(proData.receita_pendente)}</p>
                 </div>
               </div>
+              {(proData.retido_devolucao ?? 0) > 0 && (
+                <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 bg-rose-50 dark:bg-rose-950/20">
+                  <p className="text-[11px] text-rose-700 dark:text-rose-400 mb-0.5">
+                    Retido por devolução (comissão DropCore) — já incluso no &quot;Pendente&quot; acima, não entra no próximo repasse
+                  </p>
+                  <p className="text-base font-bold text-rose-700 dark:text-rose-400 tabular-nums">{BRL.format(proData.retido_devolucao ?? 0)}</p>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-neutral-100 dark:divide-neutral-800 overflow-hidden">
                 <div className="px-4 py-4">
                   <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-2 font-medium">Top sellers</p>

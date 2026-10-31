@@ -62,7 +62,9 @@ const STATUS_PILL: Record<string, string> = {
   enviado: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
   aguardando_repasse: "bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
   entregue: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
+  em_devolucao: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
   devolvido: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  devolucao_sem_fornecedor: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
   erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   cancelado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   produto_nao_vinculado: cn(INFO_PREMIUM_TEXT_PRIMARY, "bg-neutral-100 dark:bg-neutral-800/40"),
@@ -72,13 +74,15 @@ const STATUS_LABEL: Record<string, string> = {
   enviado: "Enviado (bloqueado)",
   aguardando_repasse: "Aguard. repasse",
   entregue: "Entregue",
+  em_devolucao: "Em devolução",
   devolvido: "Devolvido",
+  devolucao_sem_fornecedor: "Devolução — fornecedor não confirmado",
   erro_saldo: "Erro (saldo insuf.)",
   cancelado: "Cancelado",
   produto_nao_vinculado: "Fora do catálogo",
   anuncio_sem_sku: "Anúncio sem SKU",
 };
-const STATUS_RESOLVIVEIS = ["produto_nao_vinculado", "anuncio_sem_sku"];
+const STATUS_RESOLVIVEIS = ["produto_nao_vinculado", "anuncio_sem_sku", "devolucao_sem_fornecedor"];
 
 /** Números de página com reticências pra não estourar a barra quando há muitas páginas.
  * Mesmo padrão de web/app/seller/pedidos/page.tsx. */
@@ -399,6 +403,7 @@ export default function PedidosPage() {
               <option value="enviado">Enviado (bloqueado)</option>
               <option value="aguardando_repasse">Aguardando repasse</option>
               <option value="entregue">Entregue</option>
+              <option value="em_devolucao">Em devolução</option>
               <option value="devolvido">Devolvido</option>
               <option value="cancelado">Cancelado</option>
               <option value="erro_saldo">Erro saldo</option>

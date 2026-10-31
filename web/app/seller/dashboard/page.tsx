@@ -63,6 +63,7 @@ type SellerData = {
   status: string;
   saldo_atual: number;
   saldo_bloqueado: number;
+  saldo_bloqueado_devolucao: number;
   saldo_disponivel: number;
   data_entrada: string | null;
   email: string | null;
@@ -1354,6 +1355,11 @@ export default function SellerDashboardPage() {
               <div className="w-full min-w-0 rounded-xl border border-[var(--card-border)]/60 bg-[var(--card)] px-3.5 py-3.5 min-h-[5.25rem]">
                 <p className="text-[11px] font-semibold text-[var(--muted)]">Bloqueado</p>
                 <p className="mt-1 text-xl font-bold text-[var(--foreground)] tabular-nums">{BRL.format(seller?.saldo_bloqueado ?? 0)}</p>
+                {(seller?.saldo_bloqueado_devolucao ?? 0) > 0 && (
+                  <p className="mt-0.5 text-[10px] text-[var(--danger)]">
+                    {BRL.format(seller?.saldo_bloqueado_devolucao ?? 0)} em disputa de devolução
+                  </p>
+                )}
               </div>
               <button
                 type="button"

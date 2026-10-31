@@ -35,6 +35,9 @@ export type DashboardProPayload = {
   margem_media_pct: number;
   receita_pago: number;
   receita_pendente: number;
+  /** Fatia de `receita_pendente` que está presa numa devolução ativa (EM_DEVOLUCAO) — não
+   * vai virar repasse no próximo ciclo, diferente do resto do "pendente". */
+  retido_devolucao: number;
   top_sellers: Array<{ id: string; nome: string; total: number; pedidos: number }>;
   top_fornecedores: Array<{ id: string; nome: string; total: number; dropcore: number; pedidos: number }>;
   vendas_por_dia: Array<{ dia: string; total: number; dropcore: number; count: number }>;
@@ -162,6 +165,7 @@ export async function fetchOrgDashboardPro30d(orgId: string): Promise<DashboardP
     margem_media_pct: num(d.margem_media_pct),
     receita_pago: num(d.receita_pago),
     receita_pendente: num(d.receita_pendente),
+    retido_devolucao: num(d.retido_devolucao),
     top_sellers: Array.isArray(d.top_sellers) ? (d.top_sellers as DashboardProPayload["top_sellers"]) : [],
     top_fornecedores: Array.isArray(d.top_fornecedores)
       ? (d.top_fornecedores as DashboardProPayload["top_fornecedores"])

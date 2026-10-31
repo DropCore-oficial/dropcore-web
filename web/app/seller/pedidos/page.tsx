@@ -122,7 +122,9 @@ const statusLabel: Record<string, string> = {
   enviado: "Aguardando postagem",
   aguardando_repasse: "Postado",
   entregue: "Entregue",
+  em_devolucao: "Em devolução",
   devolvido: "Devolvido",
+  devolucao_sem_fornecedor: "Devolução — fornecedor não confirmado",
   cancelado: "Cancelado",
   erro_saldo: "Erro de saldo",
   aguardando_pagamento: "Aguardando pagamento",
@@ -139,7 +141,9 @@ const STATUS_PILL: Record<string, string> = {
   enviado: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
   aguardando_repasse: "bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
   entregue: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
+  em_devolucao: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
   devolvido: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  devolucao_sem_fornecedor: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
   erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   aguardando_pagamento: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
   cancelado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
@@ -169,6 +173,7 @@ export default function SellerPedidosPage() {
   const [error, setError] = useState<string | null>(null);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
+  const [totalDevolucao, setTotalDevolucao] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalPedidos, setTotalPedidos] = useState(0);
@@ -310,6 +315,7 @@ export default function SellerPedidosPage() {
       const json = await res.json();
       setPedidos(json.items ?? []);
       setTotalPedidos(typeof json.total === "number" ? json.total : (json.items ?? []).length);
+      setTotalDevolucao(typeof json.total_devolucao === "number" ? json.total_devolucao : 0);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
@@ -399,6 +405,26 @@ export default function SellerPedidosPage() {
           </AmberPremiumCallout>
         ) : null}
 
+        {totalDevolucao > 0 && (
+          <div className="mb-3">
+            <button
+              type="button"
+              onClick={() => {
+                setPage(1);
+                setStatusFilter(statusFilter === "em_devolucao" ? "" : "em_devolucao");
+              }}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
+                statusFilter === "em_devolucao"
+                  ? "bg-rose-600 text-white font-semibold shadow-sm hover:bg-rose-700"
+                  : "bg-rose-100 text-rose-800 hover:bg-rose-200 dark:bg-rose-950/40 dark:text-rose-300"
+              )}
+            >
+              Devolução ({totalDevolucao})
+            </button>
+          </div>
+        )}
+
         <div className="mb-4 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
             <div className="relative flex-1 sm:flex-none sm:shrink-0">
@@ -432,6 +458,8 @@ export default function SellerPedidosPage() {
                 <option value="etiqueta_buffer_ml">Etiqueta em buffer (ML)</option>
                 <option value="aguardando_repasse">Postados</option>
                 <option value="entregue">Entregues</option>
+                <option value="em_devolucao">Em devolução</option>
+                <option value="devolvido">Devolvidos</option>
                 <option value="erro_saldo">Erro de saldo</option>
                 <option value="aguardando_pagamento">Aguardando pagamento</option>
               </select>
@@ -643,7 +671,7 @@ export default function SellerPedidosPage() {
                     <p className={cn(AMBER_PREMIUM_TEXT_PRIMARY, "mt-3 text-sm")}>{p.motivo_bloqueio}</p>
                   ) : null}
 
-                  {(p.status === "produto_nao_vinculado" || p.status === "anuncio_sem_sku") && (
+                  {(p.status === "produto_nao_vinculado" || p.status === "anuncio_sem_sku" || p.status === "devolucao_sem_fornecedor") && (
                     <div className="mt-3">
                       {adminChamadoIds.has(p.id) ? (
                         <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--muted)]/10 px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)]">

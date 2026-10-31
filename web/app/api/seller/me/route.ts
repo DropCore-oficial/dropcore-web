@@ -40,7 +40,7 @@ export async function GET(req: Request) {
     const { data: seller, error: sellerErr } = await supabaseAdmin
       .from("sellers")
       .select(
-        "id, org_id, nome, documento, plano, status, saldo_atual, saldo_bloqueado, data_entrada, email, telefone, gestores_ia_addon_ativo"
+        "id, org_id, nome, documento, plano, status, saldo_atual, saldo_bloqueado, saldo_bloqueado_devolucao, data_entrada, email, telefone, gestores_ia_addon_ativo"
       )
       .eq("user_id", user_id)
       .maybeSingle();
@@ -329,6 +329,7 @@ export async function GET(req: Request) {
         status: seller.status,
         saldo_atual: Number(seller.saldo_atual ?? 0),
         saldo_bloqueado: Number(seller.saldo_bloqueado ?? 0),
+        saldo_bloqueado_devolucao: Number(seller.saldo_bloqueado_devolucao ?? 0),
         saldo_disponivel: saldoDisponivel,
         data_entrada: seller.data_entrada,
         email: seller.email,

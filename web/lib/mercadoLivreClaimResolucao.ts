@@ -55,11 +55,15 @@ export async function resolverPedidoEFornecedorPorReclamacao(
     mlBuscarPedidoItemPrincipal(reclamacao.resourceId, ctx).catch(() => null),
   ]);
   const pedido = pedidoRes.data;
-  // pedidos.fornecedor_id só existe pra seller com pedido ML de verdade sincronizado
-  // (não é o caso hoje — ingestão direta do ML ainda não existe). Fallback: descobre o
-  // fornecedor pelo vínculo SKU↔ML que já existe, sem precisar de pedido nenhum.
-  const fornecedorId =
-    pedido?.fornecedor_id ?? (itemPedido ? await buscarFornecedorViaSkuMap(sellerId, itemPedido.itemId) : null);
+  // Achado real 2026-10-30 (Galileus/Djulios): `pedidos.fornecedor_id` é carimbado com o
+  // fornecedor "oficialmente conectado" do seller na ingestão, mesmo quando o SKU vendido é
+  // de OUTRO fornecedor (ex: Galileus conectado ao Consenso, mas vende produto Djulios) — o
+  // catálogo real (`seller_mercadolivre_sku_map` → `skus`) é a fonte de verdade de quem
+  // fabricou/despachou o item, por isso tem prioridade sobre o campo do pedido, que pode
+  // estar errado. `pedido?.fornecedor_id` só entra como último recurso, se nem o catálogo
+  // resolver (daí a devolução fica "sem fornecedor confirmado", ver mlDevolucaoDeteccao.ts).
+  const fornecedorViaSku = itemPedido ? await buscarFornecedorViaSkuMap(sellerId, itemPedido.itemId) : null;
+  const fornecedorId = fornecedorViaSku ?? pedido?.fornecedor_id ?? null;
 
   return { pedido: pedido ?? null, itemPedido, fornecedorId };
 }

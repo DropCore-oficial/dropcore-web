@@ -289,6 +289,39 @@ export default function DevolucoesPage() {
     });
   }
 
+  async function manterVenda(ledgerId: string) {
+    setConfirmacao(null);
+    setUpdatingId(ledgerId);
+    setMessage(null);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch(`/api/org/financial/ledger/${ledgerId}/manter-venda`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setMessage({ type: "ok", text: json.mensagem || "Devolução revertida." });
+        load();
+      } else {
+        setMessage({ type: "err", text: json?.error || "Erro ao reverter." });
+      }
+    } catch (e) {
+      setMessage({ type: "err", text: e instanceof Error ? e.message : "Erro" });
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  function askManterVenda(r: LedgerItem) {
+    setConfirmacao({
+      titulo: "Devolução não procede?",
+      mensagem: `${r.seller_nome} — ${r.fornecedor_nome}, ${formatMoney(r.valor_total)}. Reverte a devolução — a venda volta pro fluxo normal de repasse pro fornecedor, nada volta pro saldo do seller. Use só quando o fornecedor tinha razão.`,
+      onConfirmar: () => void manterVenda(r.id),
+    });
+  }
+
   function askFornecedorConferiu(r: LedgerItem) {
     setConfirmacao({
       titulo: "Fornecedor conferiu a devolução?",
@@ -402,9 +435,14 @@ export default function DevolucoesPage() {
                             </button>
                           )}
                           {r.status === "EM_DEVOLUCAO" && (
-                            <button type="button" onClick={() => askFornecedorConferiu(r)} disabled={algumaAcaoEmAndamento} className={btnPrimaryCompactClass}>
-                              {updatingId === r.id ? "..." : "Fornecedor conferiu"}
-                            </button>
+                            <>
+                              <button type="button" onClick={() => askFornecedorConferiu(r)} disabled={algumaAcaoEmAndamento} className={btnPrimaryCompactClass}>
+                                {updatingId === r.id ? "..." : "Fornecedor conferiu"}
+                              </button>
+                              <button type="button" onClick={() => askManterVenda(r)} disabled={algumaAcaoEmAndamento} className={btnSecondaryCompactClass}>
+                                {updatingId === r.id ? "..." : "Devolução não procede"}
+                              </button>
+                            </>
                           )}
                           {r.status === "DEVOLVIDO" && <span className="text-xs text-[var(--muted)]">Concluído</span>}
                         </div>
@@ -445,9 +483,14 @@ export default function DevolucoesPage() {
                       </button>
                     )}
                     {r.status === "EM_DEVOLUCAO" && (
-                      <button type="button" onClick={() => askFornecedorConferiu(r)} disabled={algumaAcaoEmAndamento} className={cn(btnPrimaryCompactClass, "w-full")}>
-                        {updatingId === r.id ? "..." : "Fornecedor conferiu"}
-                      </button>
+                      <>
+                        <button type="button" onClick={() => askFornecedorConferiu(r)} disabled={algumaAcaoEmAndamento} className={cn(btnPrimaryCompactClass, "w-full")}>
+                          {updatingId === r.id ? "..." : "Fornecedor conferiu"}
+                        </button>
+                        <button type="button" onClick={() => askManterVenda(r)} disabled={algumaAcaoEmAndamento} className={cn(btnSecondaryCompactClass, "w-full")}>
+                          {updatingId === r.id ? "..." : "Devolução não procede"}
+                        </button>
+                      </>
                     )}
                     {r.status === "DEVOLVIDO" && <span className="text-xs text-[var(--muted)]">Concluído</span>}
                   </div>

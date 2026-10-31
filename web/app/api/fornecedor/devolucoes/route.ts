@@ -26,19 +26,45 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   }
 
-  const { data: rows, error } = await supabaseAdmin
-    .from("financial_ledger")
-    .select("id, valor_total, data_evento, em_devolucao_desde, fornecedor_contestou_em, fornecedor_contestacao_texto")
-    .eq("fornecedor_id", ctx.fornecedor_id)
-    .eq("status", "EM_DEVOLUCAO")
-    .order("em_devolucao_desde", { ascending: true })
-    .limit(100);
+  // Duas fontes: devolução registrada manual pelo admin usa `financial_ledger.fornecedor_id`
+  // direto; devolução detectada via ML usa o `fornecedor_id` resolvido pelo catálogo em
+  // `seller_ml_devolucoes_detectadas` (pode divergir do ledger — achado real 2026-10-30:
+  // seller vende produto de um fornecedor diferente do "oficialmente conectado").
+  const [ledgerDireto, deteccoes] = await Promise.all([
+    supabaseAdmin
+      .from("financial_ledger")
+      .select("id, valor_total, data_evento, em_devolucao_desde, fornecedor_contestou_em, fornecedor_contestacao_texto")
+      .eq("fornecedor_id", ctx.fornecedor_id)
+      .eq("status", "EM_DEVOLUCAO")
+      .limit(100),
+    supabaseAdmin
+      .from("seller_ml_devolucoes_detectadas")
+      .select("ledger_id")
+      .eq("fornecedor_id", ctx.fornecedor_id)
+      .not("ledger_id", "is", null),
+  ]);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (ledgerDireto.error) {
+    return NextResponse.json({ error: ledgerDireto.error.message }, { status: 500 });
   }
 
-  const devolucoes = ((rows ?? []) as LedgerRow[]).map((r) => {
+  const ledgerIdsViaDeteccao = [...new Set((deteccoes.data ?? []).map((d) => d.ledger_id as string))];
+  const idsJaTemos = new Set((ledgerDireto.data ?? []).map((r) => r.id));
+  const idsFaltando = ledgerIdsViaDeteccao.filter((id) => !idsJaTemos.has(id));
+
+  const { data: ledgerViaDeteccao } = idsFaltando.length
+    ? await supabaseAdmin
+        .from("financial_ledger")
+        .select("id, valor_total, data_evento, em_devolucao_desde, fornecedor_contestou_em, fornecedor_contestacao_texto")
+        .in("id", idsFaltando)
+        .eq("status", "EM_DEVOLUCAO")
+    : { data: [] as LedgerRow[] };
+
+  const rows = [...(ledgerDireto.data ?? []), ...(ledgerViaDeteccao ?? [])].sort((a, b) =>
+    (a.em_devolucao_desde ?? "").localeCompare(b.em_devolucao_desde ?? "")
+  );
+
+  const devolucoes = (rows as LedgerRow[]).map((r) => {
     const prazoFinal = r.em_devolucao_desde
       ? new Date(new Date(r.em_devolucao_desde).getTime() + PRAZO_HORAS * 60 * 60 * 1000).toISOString()
       : null;

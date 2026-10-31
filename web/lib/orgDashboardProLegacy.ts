@@ -89,6 +89,11 @@ async function dashboardProLegacy(org_id: string): Promise<DashboardProPayload> 
   const ledgerPendente = ledger.filter((l) => l.status !== "PAGO" && l.status !== "CANCELADO" && l.status !== "DEVOLVIDO");
   const receitaPago = ledgerPago.reduce((s, l) => s + Number(l.valor_dropcore || 0), 0);
   const receitaPendente = ledgerPendente.reduce((s, l) => s + Number(l.valor_dropcore || 0), 0);
+  // Fatia do "pendente" presa numa devolução ativa — espelha o terceiro agregado de
+  // fn_org_dashboard_pro_30d, pro fallback nunca ficar inconsistente com a RPC.
+  const retidoDevolucao = ledger
+    .filter((l) => l.status === "EM_DEVOLUCAO")
+    .reduce((s, l) => s + Number(l.valor_dropcore || 0), 0);
 
   return {
     periodo: "30d" as const,
@@ -100,6 +105,7 @@ async function dashboardProLegacy(org_id: string): Promise<DashboardProPayload> 
     margem_media_pct: Math.round(margemMedia * 100) / 100,
     receita_pago: receitaPago,
     receita_pendente: receitaPendente,
+    retido_devolucao: retidoDevolucao,
     top_sellers: topSellers,
     top_fornecedores: topFornecedores,
     vendas_por_dia: vendasPorDia,

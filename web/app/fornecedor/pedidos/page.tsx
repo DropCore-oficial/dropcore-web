@@ -31,7 +31,9 @@ const STATUS_PILL: Record<string, string> = {
   enviado: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
   aguardando_repasse: "bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
   entregue: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
+  em_devolucao: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
   devolvido: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  devolucao_sem_fornecedor: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
   erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   cancelado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
 };
@@ -142,7 +144,9 @@ const statusLabel: Record<string, string> = {
   enviado: "Aguardando postagem",
   aguardando_repasse: "Postado",
   entregue: "Entregue",
+  em_devolucao: "Em devolução",
   devolvido: "Devolvido",
+  devolucao_sem_fornecedor: "Devolução — fornecedor não confirmado",
   cancelado: "Cancelado",
   erro_saldo: "Erro saldo",
 };
@@ -154,6 +158,7 @@ export default function FornecedorPedidosPage() {
   const [error, setError] = useState<string | null>(null);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
+  const [totalDevolucao, setTotalDevolucao] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [imprimindoLote, setImprimindoLote] = useState(false);
   const [marcandoLote, setMarcandoLote] = useState(false);
@@ -203,6 +208,7 @@ export default function FornecedorPedidosPage() {
       const json = await res.json();
       setPedidos(json.items ?? []);
       setTotalPedidos(typeof json.total === "number" ? json.total : (json.items ?? []).length);
+      setTotalDevolucao(typeof json.total_devolucao === "number" ? json.total_devolucao : 0);
       if (typeof json.expedicao_padrao === "string" || json.expedicao_padrao === null) {
         setExpedicaoPadrao(json.expedicao_padrao);
       }
@@ -545,6 +551,26 @@ export default function FornecedorPedidosPage() {
           </AmberPremiumCallout>
         )}
 
+        {totalDevolucao > 0 && (
+          <div>
+            <button
+              type="button"
+              onClick={() => {
+                setPage(1);
+                setStatusFilter(statusFilter === "em_devolucao" ? "" : "em_devolucao");
+              }}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
+                statusFilter === "em_devolucao"
+                  ? "bg-rose-600 text-white font-semibold shadow-sm hover:bg-rose-700"
+                  : "bg-rose-100 text-rose-800 hover:bg-rose-200 dark:bg-rose-950/40 dark:text-rose-300"
+              )}
+            >
+              Devolução ({totalDevolucao})
+            </button>
+          </div>
+        )}
+
         <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               {pedidos.length > 0 && (
@@ -652,6 +678,7 @@ export default function FornecedorPedidosPage() {
                   <option value="enviado">Aguardando postagem</option>
                   <option value="aguardando_repasse">Postados</option>
                   <option value="entregue">Entregues</option>
+                  <option value="em_devolucao">Em devolução</option>
                   <option value="devolvido">Devolvidos</option>
                   <option value="cancelado">Cancelados</option>
                 </select>

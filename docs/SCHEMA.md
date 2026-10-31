@@ -1976,6 +1976,74 @@ chegou fisicamente no fornecedor.
   qualquer momento, inclusive depois de uma contestação); decisão do admin sobre contestação
   continua manual, sem prazo.
 
+## Devolução ML — fase 2: trava automática, atribuição certa, visibilidade (2026-10-30)
+
+Testando a fase 1 com dado real do Galileus, achamos 3 problemas que mudaram o desenho:
+`pedidos.fornecedor_id` sempre carimbado com o fornecedor "oficialmente conectado" do seller
+mesmo quando o SKU é de outro fornecedor (Galileus conectado ao Consenso, mas vende produto
+Djulios — confirmado 20/20 pedidos com SKU `DJU...` gravados com `fornecedor_id` errado); a
+devolução física demora 10+ dias pra chegar no fornecedor, então nenhum prazo curto pode
+ancorar em "quando travamos o dinheiro"; e `pedidos.status` nunca era escrito como
+`'devolvido'` em lugar nenhum do código, diferente do padrão já usado pra cancelamento.
+
+- **Atribuição de fornecedor corrigida**: `resolverPedidoEFornecedorPorReclamacao`
+  (`mercadoLivreClaimResolucao.ts`) agora tenta o catálogo real
+  (`seller_mercadolivre_sku_map`→`skus`) **antes** de `pedido.fornecedor_id` (antes era o
+  contrário, e como sempre tem pedido, o catálogo nunca era consultado). `fornecedor_id`
+  resolvido passa a ser persistido em `seller_ml_devolucoes_detectadas.fornecedor_id` (fase 1
+  descartava com `void fornecedorId`). Quando não dá pra resolver nem pelo catálogo nem pelo
+  pedido, `pedidos.status = 'devolucao_sem_fornecedor'` (mesmo padrão visual de "produto fora
+  do catálogo": mostra o problema, não esconde nem escolhe errado, botão "Chamar Admin").
+- **RPCs de confirmar/contestar do fornecedor** (`fn_devolucao_fornecedor_confirmar`/
+  `_contestar`) agora aceitam como dono tanto `financial_ledger.fornecedor_id` quanto o
+  `fornecedor_id` resolvido em `seller_ml_devolucoes_detectadas` — sem isso, o fornecedor
+  certo (Djulios) via a devolução na tela dele mas a RPC rejeitava por não bater com o
+  `fornecedor_id` (errado) do ledger.
+- **Trava automática, sem clique do admin**: `fn_devolucao_auto_travar(p_ledger_id)` —
+  chamada direto por `mlDevolucaoDeteccao.ts` quando o pedido resolvido tem `ledger_id`
+  (nem todo pedido tem: "produto fora do catálogo" nunca gera saldo). Grava
+  `financial_ledger.em_devolucao_status_anterior` (de onde veio) + `pedidos.status =
+  'em_devolucao'`. Nova coluna `em_devolucao_status_anterior` existe só pra isso — reverter
+  sem ter que adivinhar o estado de origem.
+- **Destrava sozinho**: `fn_devolucao_auto_destravar(p_ledger_id)` — chamada por
+  `reavaliarDevolucoesAbertasPorMlUserId` (roda junto com a detecção a cada webhook de
+  "claims" desse seller), usando `mlReclamacaoAindaAberta` (já existia, testado) pra ver se a
+  reclamação fechou sem o fornecedor ter confirmado/contestado nada — se fechou, reverte pro
+  status anterior.
+- **"Devolução não procede"**: `fn_devolucao_admin_manter_venda(p_ledger_id)` + rota
+  `POST /api/org/financial/ledger/[id]/manter-venda` + botão em `/admin/devolucoes` — caminho
+  que faltava (só existia "devolve pro seller"); dinheiro volta pro fluxo normal de repasse
+  pro fornecedor.
+- **Liberação automática por tempo (48h) pausada**: `LIBERACAO_AUTOMATICA_HABILITADA = false`
+  em `devolucaoLiberacaoAutomatica.ts` — confirmado que devolução física demora 10+ dias,
+  então qualquer prazo curto ancorado na trava (agora automática) dispararia antes da entrega
+  real. Fica assim até calibrar um sinal real de entrega (log em `mlDevolucaoCalibracaoLog.ts`).
+- **Visibilidade de valor retido** nas 3 pontas, tudo opcional/aditivo (ninguém que já lê os
+  campos antigos quebra):
+  - Seller: `fn_seller_saldo_from_ledger` ganha 4ª coluna `saldo_bloqueado_devolucao`;
+    `sellers.saldo_bloqueado_devolucao` (coluna nova, sincronizada pela trigger
+    `fn_sync_seller_saldo_from_ledger`); exposto em `/api/seller/me` e no card "Bloqueado" do
+    dashboard.
+  - Fornecedor: `fornecedorRepasseList.ts` passa a incluir `EM_DEVOLUCAO` na query de preview
+    (antes só ENTREGUE/AGUARDANDO_REPASSE) e separa `valor_retido_devolucao`, mostrado no
+    card "Repasses futuros".
+  - Admin: `fn_org_dashboard_pro_30d` ganha `retido_devolucao` (3º agregado, mesmo filtro de
+    janela/e_teste dos outros dois) — **replicado também no fallback TypeScript**
+    `orgDashboardProLegacy.ts` (achado: esse fallback existe e duplicaria o bug se só o SQL
+    fosse corrigido). Nova seção no dashboard admin, abaixo do grid PAGO/pendente existente
+    (não mexe nele).
+- **Selo "Em devolução"/"Devolvido" no card do pedido**: `pedidos.status` passa a ser escrito
+  de verdade (`em_devolucao`/`devolvido`/`devolucao_sem_fornecedor`, novos valores na
+  constraint) nas transições de ledger — antes nenhum código escrevia isso, diferente do
+  padrão já usado em `fn_pedido_cancelar_estorno` pra `'cancelado'`. Refletido em
+  `statusLabel`/`STATUS_PILL` nas 3 telas de Pedidos (seller/fornecedor/admin).
+- **Filtro "Devolução (N)"**: `fn_seller_pedidos_lista`/`fn_fornecedor_pedidos_lista` ganham
+  `total_count_devolucao` (contagem independente do filtro ativo, via `count(*) filter`) —
+  chip novo nas telas de Pedidos, alterna o filtro pra `em_devolucao`.
+- **Fora de escopo**: causa raiz da atribuição errada no pipeline de criação do pedido em si
+  (`submitSellerErpPedido.ts`/sync Olist) — sistêmico, afeta todo o financeiro do Galileus,
+  não só devolução, mudança grande demais pra essa entrega.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
