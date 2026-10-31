@@ -71,6 +71,13 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, seller_id: sellerId, seller_nome: seller?.nome ?? null, order_id: orderId, order, shipment });
   }
 
+  const shipmentId = searchParams.get("shipment_id");
+  if (shipmentId) {
+    const shipmentBruto = await mlBuscarShipmentDetalheBruto(shipmentId, ctx);
+    const shipment = recorteSeguro(shipmentBruto, SHIPMENT_CHAVES);
+    return NextResponse.json({ ok: true, seller_id: sellerId, seller_nome: seller?.nome ?? null, shipment_id: shipmentId, shipment, order_id_bruto: shipmentBruto?.order_id ?? null });
+  }
+
   const reclamacoes = await mlBuscarReclamacoesAbertas(ctx);
 
   const resultado = await Promise.all(
