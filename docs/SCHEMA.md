@@ -2044,6 +2044,49 @@ ancorar em "quando travamos o dinheiro"; e `pedidos.status` nunca era escrito co
   (`submitSellerErpPedido.ts`/sync Olist) — sistêmico, afeta todo o financeiro do Galileus,
   não só devolução, mudança grande demais pra essa entrega.
 
+## Devolução sem claim — calibração + rastreabilidade do repasse pro fornecedor (2026-10-31)
+
+Investigando uma devolução real da Vinz Collection (comprador devolveu direto na logística,
+"me arrependi da compra", sem abrir reclamação formal), confirmamos um buraco estrutural: a
+detecção inteira (fase 1/2) só escuta `claims` do ML — nunca veria esse caso. Travamos esse
+ledger manualmente (`fn_devolucao_auto_travar`, já existia) e, em paralelo, discutindo o que
+acontece quando a devolução só é percebida depois do repasse já ter saído, achamos que a
+rastreabilidade pro fornecedor (por que recebeu menos) também tinha buraco.
+
+- **Calibração "sem claim"**: cron novo `dropcore-calibracao-devolucao-sem-claim` (1x/dia,
+  `add-calibracao-devolucao-sem-claim-cron.sql`, lock advisory 913021) roda
+  `processarCalibracaoDevolucaoSemClaim` (`devolucaoSemClaimCalibracao.ts`) — snapshot
+  (order + shipment, mesmo allowlist seguro da calibração de claim) de todo pedido
+  entregue/em devolução sem repasse ainda (janela 60 dias), gravado em
+  `ml_devolucao_calibracao_log` (tabela já existente). Só observa, não trava dinheiro, não
+  notifica, não decide nada — objetivo é achar o campo real que sinaliza "devolução sem
+  claim resolvida" quando a devolução real da Vinz se resolver (prevista entre 2 e 5/11), pra
+  só então desenhar a regra de detecção de verdade.
+- **Achado de segurança (recorrente)**: `GRANT EXECUTE ... TO postgres` sozinho não revoga
+  `anon`/`authenticated` — toda função `SECURITY DEFINER` nasce aberta por default do
+  Supabase, mesmo quando só recebe grant explícito pra outro role. Corrigido nos 2 locks
+  novos (913021); os ~10 locks de cron já existentes (`dropcore_try_ml_pedidos_reconciliacao_lock`
+  e similares) têm o mesmo problema — não corrigidos ainda (risco baixo: só dá pra
+  travar/destravar o advisory lock do cron, não expõe dado), registrado como pendência.
+- **`financial_debito_descontar.pedido_id` corrigido**: a coluna existia desde
+  `financial-module-v2.sql` mas o único insert (`/api/org/financial/devolucao-pos-repasse`)
+  nunca a preenchia — débito ficava sem referência ao pedido que causou ele. Agora grava.
+- **Notificação no momento certo**: `notifyFornecedorDebitoDevolucao.ts` — dois avisos que
+  não existiam: quando o débito é **registrado** (ciclo futuro, ainda vai descontar) e quando
+  é **efetivamente descontado** no fechamento do `repasse-semanal` (resumo por fornecedor,
+  um pedido por linha, nunca um valor solto sem explicação).
+- **Extrato por ciclo pro fornecedor**: `fn_fornecedor_repasse_detalhe(p_org_id,
+  p_fornecedor_id, p_ciclo_repasse)` — RPC nova (`add-fornecedor-repasse-detalhe-rpc.sql`),
+  retorna vendas (`PAGO`) + débitos de devolução (`descontado=true`) daquele ciclo, cada um
+  com o pedido original. Exposta via `GET /api/fornecedor/repasse-detalhe`. UI: cada linha de
+  "Repasses" no dashboard do fornecedor agora expande (clique) mostrando pedido a pedido —
+  débito em destaque vermelho, vendas normais embaixo. Resolve "por que recebi menos essa
+  semana" sem precisar abrir chamado.
+- **Fora de escopo (ainda)**: criação automática do débito pós-repasse continua manual
+  (admin digita `ledger_id` em `/devolucao-pos-repasse`) — quando a detecção automática
+  (claim + sem-claim) confirmar devolução de ledger já `PAGO`, deveria criar o débito sozinha;
+  não construído ainda, fica pro próximo passo depois de calibrar o sinal real.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

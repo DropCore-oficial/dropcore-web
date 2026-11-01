@@ -12,6 +12,7 @@ import { requireAdmin } from "@/lib/apiOrgAuth";
 import { cadastroMinimoCompleto } from "@/lib/fornecedorCadastro";
 import { semPedidosDeTeste } from "@/lib/pedidoTesteFilter";
 import { proximoCicloRepasse } from "@/lib/cicloRepasse";
+import { notifyFornecedorDebitoDevolucaoDescontado } from "@/lib/notifyFornecedorDebitoDevolucao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -340,6 +341,33 @@ export async function POST(req: Request) {
         .from("financial_debito_descontar")
         .update({ ciclo_a_descontar: proximoCiclo })
         .in("id", debitosAdiadosIds);
+    }
+
+    // Avisa o fornecedor no momento exato em que o desconto sai do repasse dele — sem isso
+    // ele só percebe o valor menor sozinho, sem saber de qual pedido veio.
+    if (debitosAplicadosIds.length > 0) {
+      const debitosAplicados = debitosOrdenados.filter((d) => debitosAplicadosIds.includes(d.id));
+      const pedidoIdsAplicados = debitosAplicados.map((d) => d.pedido_id).filter((id): id is string => Boolean(id));
+      const { data: pedidosAplicados } = pedidoIdsAplicados.length
+        ? await supabaseAdmin.from("pedidos").select("id, marketplace_numero").in("id", pedidoIdsAplicados)
+        : { data: [] as Array<{ id: string; marketplace_numero: string | null }> };
+      const marketplaceNumeroPorPedido = new Map((pedidosAplicados ?? []).map((p) => [p.id, p.marketplace_numero]));
+
+      const porFornecedorDebito: Record<string, Array<{ pedido_id: string | null; marketplace_numero: string | null; valor_fornecedor: number }>> = {};
+      for (const d of debitosAplicados) {
+        if (!d.fornecedor_id) continue;
+        if (!porFornecedorDebito[d.fornecedor_id]) porFornecedorDebito[d.fornecedor_id] = [];
+        porFornecedorDebito[d.fornecedor_id].push({
+          pedido_id: d.pedido_id ?? null,
+          marketplace_numero: d.pedido_id ? marketplaceNumeroPorPedido.get(d.pedido_id) ?? null : null,
+          valor_fornecedor: Number(d.valor_fornecedor),
+        });
+      }
+      await Promise.all(
+        Object.entries(porFornecedorDebito).map(([fornecedorId, itens]) =>
+          notifyFornecedorDebitoDevolucaoDescontado({ org_id, fornecedor_id: fornecedorId, ciclo_repasse, itens })
+        )
+      );
     }
 
     // 6) Recalcular totais

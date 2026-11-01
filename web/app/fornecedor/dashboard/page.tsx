@@ -120,6 +120,11 @@ export default function FornecedorDashboardPage() {
   const [pixRestanteSec, setPixRestanteSec] = useState<number | null>(null);
   const [pixCopiado, setPixCopiado] = useState(false);
   const [repasseAberto, setRepasseAberto] = useState(false);
+  const [cicloDetalheAberto, setCicloDetalheAberto] = useState<string | null>(null);
+  const [cicloDetalheLoading, setCicloDetalheLoading] = useState(false);
+  const [cicloDetalhePorCiclo, setCicloDetalhePorCiclo] = useState<
+    Record<string, Array<{ tipo: "venda" | "devolucao"; pedido_id: string | null; marketplace_numero: string | null; valor_fornecedor: number; motivo: string }>>
+  >({});
   const [tooltipHover, setTooltipHover] = useState<{ dia: string; valor: number; count: number } | null>(null);
   const repasseRef = useRef<HTMLDivElement>(null);
   const [chartMode, setChartMode] = useState<"hoje" | "dias">("dias");
@@ -209,6 +214,31 @@ export default function FornecedorDashboardPage() {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
       if (!opts?.silent) setLoading(false);
+    }
+  }
+
+  async function toggleCicloDetalhe(cicloRepasse: string) {
+    if (cicloDetalheAberto === cicloRepasse) {
+      setCicloDetalheAberto(null);
+      return;
+    }
+    setCicloDetalheAberto(cicloRepasse);
+    if (cicloDetalhePorCiclo[cicloRepasse]) return;
+
+    setCicloDetalheLoading(true);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch(`/api/fornecedor/repasse-detalhe?ciclo_repasse=${encodeURIComponent(cicloRepasse)}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: "no-store",
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setCicloDetalhePorCiclo((prev) => ({ ...prev, [cicloRepasse]: json.itens ?? [] }));
+      }
+    } finally {
+      setCicloDetalheLoading(false);
     }
   }
 
@@ -965,25 +995,69 @@ export default function FornecedorDashboardPage() {
                 <div className="rounded-lg border border-[var(--card-border)] overflow-hidden">
                   {repasseItems.map((r) => {
                     const st = statusLabel[r.status] ?? { label: r.status, cor: "text-[var(--muted)] bg-neutral-100 dark:bg-neutral-800" };
+                    const detalheAberto = cicloDetalheAberto === r.ciclo_repasse;
+                    const itensDetalhe = cicloDetalhePorCiclo[r.ciclo_repasse];
+                    const debitos = (itensDetalhe ?? []).filter((i) => i.tipo === "devolucao");
                     return (
-                      <div
-                        key={r.id}
-                        className="flex items-center gap-4 px-4 py-3 border-b border-[var(--card-border)] last:border-0 hover:bg-[var(--background)] transition-colors"
-                      >
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400">
-                          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                      <div key={r.id} className="border-b border-[var(--card-border)] last:border-0">
+                        <button
+                          type="button"
+                          onClick={() => void toggleCicloDetalhe(r.ciclo_repasse)}
+                          className="w-full flex items-center gap-4 px-4 py-3 hover:bg-[var(--card)]/60 transition-colors text-left"
+                        >
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400">
+                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-[var(--foreground)]">Ciclo {formatDate(r.ciclo_repasse)}</p>
+                            <span className={`mt-1 inline-flex w-24 items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium ${st.cor}`}>
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                              {st.label}
+                            </span>
+                            {r.pago_em && <p className="text-xs text-[var(--muted)] mt-1">Pago em {formatDate(r.pago_em)}</p>}
+                          </div>
+                          <p className="text-base font-bold tabular-nums text-emerald-600 dark:text-emerald-400 shrink-0">{BRL.format(r.valor_total)}</p>
+                          <svg className={`w-4 h-4 text-[var(--muted)] shrink-0 transition-transform ${detalheAberto ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="m6 9 6 6 6-6" />
                           </svg>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[var(--foreground)]">Ciclo {formatDate(r.ciclo_repasse)}</p>
-                          <span className={`mt-1 inline-flex w-24 items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium ${st.cor}`}>
-                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                            {st.label}
-                          </span>
-                          {r.pago_em && <p className="text-xs text-[var(--muted)] mt-1">Pago em {formatDate(r.pago_em)}</p>}
-                        </div>
-                        <p className="text-base font-bold tabular-nums text-emerald-600 dark:text-emerald-400 shrink-0">{BRL.format(r.valor_total)}</p>
+                        </button>
+                        {detalheAberto && (
+                          <div className="px-4 pb-4 pl-[4.5rem]">
+                            {cicloDetalheLoading && !itensDetalhe ? (
+                              <p className="text-xs text-[var(--muted)]">Carregando pedidos desse ciclo...</p>
+                            ) : !itensDetalhe || itensDetalhe.length === 0 ? (
+                              <p className="text-xs text-[var(--muted)]">Nenhum detalhe disponível pra esse ciclo.</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {debitos.length > 0 && (
+                                  <div className="rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/20 p-2.5">
+                                    <p className="text-[11px] font-semibold text-rose-700 dark:text-rose-300 mb-1.5">
+                                      {debitos.length} devolução{debitos.length !== 1 ? "ões" : ""} descontada{debitos.length !== 1 ? "s" : ""} desse repasse
+                                    </p>
+                                    <div className="space-y-1">
+                                      {debitos.map((i, idx) => (
+                                        <div key={`${i.pedido_id ?? idx}`} className="flex items-center justify-between gap-3 text-xs">
+                                          <span className="text-[var(--foreground)]">Pedido #{i.marketplace_numero ?? "—"}</span>
+                                          <span className="font-semibold text-rose-600 dark:text-rose-400 tabular-nums">{BRL.format(i.valor_fornecedor)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="space-y-1">
+                                  {itensDetalhe.filter((i) => i.tipo === "venda").map((i, idx) => (
+                                    <div key={`${i.pedido_id ?? idx}`} className="flex items-center justify-between gap-3 text-xs">
+                                      <span className="text-[var(--muted)]">Pedido #{i.marketplace_numero ?? "—"}</span>
+                                      <span className="tabular-nums text-[var(--foreground)]">{BRL.format(i.valor_fornecedor)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}

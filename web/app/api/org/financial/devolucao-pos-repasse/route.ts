@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { proximoCicloRepasse } from "@/lib/cicloRepasse";
+import { notifyFornecedorDebitoDevolucaoRegistrado } from "@/lib/notifyFornecedorDebitoDevolucao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,6 +84,7 @@ export async function POST(req: Request) {
       .insert({
         org_id,
         fornecedor_id: row.fornecedor_id,
+        pedido_id: row.pedido_id ?? null,
         ledger_id,
         valor_fornecedor: row.valor_fornecedor,
         valor_dropcore: row.valor_dropcore,
@@ -125,6 +127,20 @@ export async function POST(req: Request) {
           { status: 500 }
         );
       }
+    }
+
+    if (row.fornecedor_id) {
+      const { data: pedidoRow } = row.pedido_id
+        ? await supabaseAdmin.from("pedidos").select("marketplace_numero").eq("id", row.pedido_id).maybeSingle()
+        : { data: null };
+      await notifyFornecedorDebitoDevolucaoRegistrado({
+        org_id,
+        fornecedor_id: row.fornecedor_id,
+        pedido_id: row.pedido_id ?? null,
+        marketplace_numero: pedidoRow?.marketplace_numero ?? null,
+        valor_fornecedor: Number(row.valor_fornecedor),
+        ciclo_a_descontar,
+      });
     }
 
     return NextResponse.json({
