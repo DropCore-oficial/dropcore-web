@@ -1598,6 +1598,40 @@ export async function mlBuscarPrevisaoLiberacaoEtiqueta(
  * de tamanho de coluna/linha no Postgres pra guardar o base64, não é limite do ML. */
 const MAX_ETIQUETA_PDF_BYTES_ML = Math.floor(1.35 * 1024 * 1024);
 
+/** Garante que uma etiqueta ML (bytes crus) está no formato final: só 1 página (sem a
+ * "lista de coleta" do ML) e já fisicamente rotacionada, sem depender da flag `/Rotate`.
+ * Mesma transformação usada dentro de `mlBuscarEtiquetaPdf` — extraída pra também corrigir
+ * na hora de imprimir etiqueta que já ficou cacheada em `pedidos.etiqueta_pdf_base64`/`_url`
+ * ANTES dessa correção existir (achado 2026-11-02: teste real de impressão ainda saiu
+ * cortado, porque o PDF salvo no banco era de antes do deploy do fix — essa função é
+ * chamada também em `etiquetas-combinadas/route.ts` pra normalizar na hora de imprimir,
+ * sem precisar de backfill). Idempotente: PDF já normalizado (1 página, rotation 0) volta
+ * sem mudança nenhuma. */
+export async function normalizarEtiquetaMlPdf(bytes: Uint8Array): Promise<Uint8Array> {
+  try {
+    const doc = await PDFDocument.load(bytes);
+    const paginaOriginal = doc.getPages()[0];
+    if (!paginaOriginal) return bytes;
+    if (doc.getPageCount() === 1 && paginaOriginal.getRotation().angle === 0) return bytes;
+
+    const { width, height } = paginaOriginal.getSize();
+    const soEtiqueta = await PDFDocument.create();
+    const paginaEmbutida = await soEtiqueta.embedPage(paginaOriginal);
+    const novaPagina = soEtiqueta.addPage([height, width]);
+    novaPagina.drawPage(paginaEmbutida, {
+      x: 0,
+      y: width,
+      width,
+      height,
+      rotate: degrees(-90),
+    });
+    return await soEtiqueta.save();
+  } catch (e: unknown) {
+    console.error("[normalizarEtiquetaMlPdf] falhou, usando PDF original:", e);
+    return bytes;
+  }
+}
+
 export type MlEtiquetaPdfResultado = {
   pdfBase64: string | null;
   /** Motivo real devolvido pelo ML quando `pdfBase64` é null (ex.: `NOT_PRINTABLE_STATUS`,
@@ -1658,26 +1692,7 @@ export async function mlBuscarEtiquetaPdf(
     // confirmado com print real do fornecedor testando pedido da Vinz). Correção: desenha o
     // conteúdo já fisicamente rotacionado numa página nova com largura/altura trocadas, em
     // vez de só marcar a flag — remove a ambiguidade pra qualquer motor de impressão.
-    let pdfFinal: ArrayBuffer | Uint8Array = buf;
-    try {
-      const doc = await PDFDocument.load(buf);
-      const [paginaOriginal] = doc.getPages();
-      const { width, height } = paginaOriginal.getSize();
-
-      const soEtiqueta = await PDFDocument.create();
-      const paginaEmbutida = await soEtiqueta.embedPage(paginaOriginal);
-      const novaPagina = soEtiqueta.addPage([height, width]);
-      novaPagina.drawPage(paginaEmbutida, {
-        x: 0,
-        y: width,
-        width,
-        height,
-        rotate: degrees(-90),
-      });
-      pdfFinal = await soEtiqueta.save();
-    } catch (e: unknown) {
-      console.error("[mlBuscarEtiquetaPdf] corte/rotação de página falhou, usando PDF original:", e);
-    }
+    const pdfFinal = await normalizarEtiquetaMlPdf(new Uint8Array(buf));
 
     if (pdfFinal.byteLength > MAX_ETIQUETA_PDF_BYTES_ML) {
       return { pdfBase64: null, erro: "PDF maior que o limite de armazenamento." };

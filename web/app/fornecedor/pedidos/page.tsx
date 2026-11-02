@@ -9,7 +9,7 @@ import {
   DANGER_PREMIUM_SURFACE,
   DANGER_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/semanticPremium";
-import { IconClipboard, IconBox, IconArrowRight, IconDevolucao, IconCheck, IconX } from "@/components/seller/Icons";
+import { IconClipboard, IconBox, IconArrowRight, IconDevolucao, IconCheck, IconX, IconClock, IconAjuste } from "@/components/seller/Icons";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { PedidoCardSkeleton } from "@/components/ui/Skeleton";
 import { ModalOverlay } from "@/components/ui/ModalOverlay";
@@ -22,12 +22,14 @@ import { cn } from "@/lib/utils";
  * "Devolução" junta em_devolucao + devolvido + devolucao_sem_fornecedor). `null` = sem
  * filtro (Todos). Consolida o que antes era /fornecedor/devolucoes numa aba só aqui. */
 const ABAS = [
-  { key: "todos", label: "Todos", statuses: null as string[] | null, Icon: IconClipboard },
-  { key: "pra_enviar", label: "Pra enviar", statuses: ["pendente_estoque", "bloqueado", "enviado", "erro_saldo"], Icon: IconBox },
-  { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight },
-  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao },
-  { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck },
-  { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX },
+  { key: "todos", label: "Todos", statuses: null as string[] | null, Icon: IconClipboard, bufferMl: null as "somente" | "excluir" | null },
+  { key: "buffer", label: "Buffer", statuses: ["enviado"], Icon: IconClock, bufferMl: "somente" as "somente" | "excluir" | null },
+  { key: "erro", label: "Erro", statuses: ["erro_saldo"], Icon: IconAjuste, bufferMl: null as "somente" | "excluir" | null },
+  { key: "pra_enviar", label: "Pra enviar", statuses: ["pendente_estoque", "bloqueado", "enviado"], Icon: IconBox, bufferMl: "excluir" as "somente" | "excluir" | null },
+  { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight, bufferMl: null as "somente" | "excluir" | null },
+  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao, bufferMl: null as "somente" | "excluir" | null },
+  { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck, bufferMl: null as "somente" | "excluir" | null },
+  { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX, bufferMl: null as "somente" | "excluir" | null },
 ] as const;
 type AbaKey = (typeof ABAS)[number]["key"];
 
@@ -192,7 +194,7 @@ export default function FornecedorPedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [abaAtiva, setAbaAtiva] = useState<AbaKey>(() => abaFromStatusParam(searchParams.get("status")));
   const [abaContagens, setAbaContagens] = useState<Record<AbaKey, number>>({
-    todos: 0, pra_enviar: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0,
+    todos: 0, buffer: 0, erro: 0, pra_enviar: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0,
   });
   const [devolucoesPendentes, setDevolucoesPendentes] = useState<Devolucao[]>([]);
   const [confirmandoDevolucaoId, setConfirmandoDevolucaoId] = useState<string | null>(null);
@@ -256,9 +258,11 @@ export default function FornecedorPedidosPage() {
         router.replace("/fornecedor/login");
         return;
       }
-      const statuses = ABAS.find((a) => a.key === abaAtiva)?.statuses ?? null;
+      const abaDef = ABAS.find((a) => a.key === abaAtiva);
+      const statuses = abaDef?.statuses ?? null;
       const params = new URLSearchParams();
       if (statuses) params.set("status", statuses.join(","));
+      if (abaDef?.bufferMl) params.set("buffer_ml", abaDef.bufferMl);
       if (buscaSellerAplicada) params.set("seller_nome", buscaSellerAplicada);
       const { desde, ate } = periodoParaIntervalo(periodo);
       if (desde) params.set("desde", desde);
@@ -282,6 +286,8 @@ export default function FornecedorPedidosPage() {
       if (json.abas) {
         setAbaContagens({
           todos: json.abas.todos ?? 0,
+          buffer: json.abas.buffer ?? 0,
+          erro: json.abas.erro ?? 0,
           pra_enviar: json.abas.pra_enviar ?? 0,
           enviados: json.abas.enviados ?? 0,
           devolucao: json.abas.devolucao ?? 0,

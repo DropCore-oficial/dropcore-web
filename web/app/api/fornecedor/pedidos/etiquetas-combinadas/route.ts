@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { PDFDocument } from "pdf-lib";
 import { calcularPrazoDespachoPedido } from "@/lib/pedidoSlaDespacho";
 import { gerarPaginaInfoPedido, type ItemInfoEtiqueta } from "@/lib/etiquetaInfoPagePdf";
+import { normalizarEtiquetaMlPdf } from "@/lib/mercadoLivreApiClient";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -204,7 +205,7 @@ export async function POST(req: Request) {
         }
         packsJaIncluidos.add(packId);
       }
-      const bytes = await bytesFromPedido(
+      let bytes = await bytesFromPedido(
         row.etiqueta_pdf_url as string | null | undefined,
         row.etiqueta_pdf_base64 as string | null | undefined
       );
@@ -215,6 +216,12 @@ export async function POST(req: Request) {
         if (!hasMeta) semEtiqueta.push(id);
         else falhaDownload.push(id);
         continue;
+      }
+      // Etiqueta ML cacheada antes da correção de rotação (2026-11-02) ainda está salva
+      // no formato antigo (só flag /Rotate, sem geometria física) — normaliza na hora de
+      // imprimir em vez de depender de backfill; já normalizada, a função não mexe em nada.
+      if (row.canal_venda === "mercado_livre") {
+        bytes = await normalizarEtiquetaMlPdf(bytes);
       }
       buffers.push({ id, bytes });
       incluidos.push(id);

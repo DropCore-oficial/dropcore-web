@@ -56,6 +56,22 @@ const ABAS_STATUS: Record<string, string[]> = {
 };
 const TODOS_STATUS_VALIDOS = Object.values(ABAS_STATUS).flat();
 
+/** "Em buffer" = enviado, veio do ML, sem etiqueta liberada ainda — mesma condição usada em
+ * fornecedor/seller (lá via SQL na RPC; aqui via filtro encadeado porque essa rota não é
+ * RPC, é `.from()` de antes da regra 9). Cuidado com NULL: `canal_venda.neq.mercado_livre`
+ * sozinho não pega linha com canal_venda nulo (semântica de 3 valores do SQL) — por isso o
+ * `canal_venda.is.null` explícito no "excluir". */
+function aplicarFiltroBuffer<T>(q: T, bufferMl: "somente" | "excluir" | null): T {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = q as any;
+  if (bufferMl === "somente") {
+    query = query.eq("canal_venda", "mercado_livre").is("etiqueta_pdf_url", null).is("etiqueta_pdf_base64", null);
+  } else if (bufferMl === "excluir") {
+    query = query.or("canal_venda.is.null,canal_venda.neq.mercado_livre,etiqueta_pdf_url.not.is.null,etiqueta_pdf_base64.not.is.null");
+  }
+  return query;
+}
+
 /** Resolve ids de seller/fornecedor cujo nome bate com a busca — pra incluir no OR do
  * filtro principal (busca por produto/pedido já é direto na tabela pedidos). */
 async function resolverIdsPorNome(orgId: string, busca: string): Promise<{ sellerIds: string[]; fornecedorIds: string[] }> {
@@ -77,6 +93,8 @@ export async function GET(req: Request) {
     const statusArray = statusParam
       ? statusParam.split(",").map((s) => s.trim()).filter((s) => TODOS_STATUS_VALIDOS.includes(s))
       : null;
+    const bufferMlParam = searchParams.get("buffer_ml")?.trim();
+    const bufferMl = bufferMlParam === "somente" || bufferMlParam === "excluir" ? bufferMlParam : null;
     const busca = searchParams.get("busca")?.trim() || null;
     const desde = searchParams.get("desde")?.trim() || null;
     const desdeValido = desde && !Number.isNaN(new Date(desde).getTime()) ? desde : null;
@@ -107,7 +125,7 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, seller_id, fornecedor_id, sku_id, nome_produto, marketplace_numero, preco_venda, valor_fornecedor, valor_dropcore, valor_total, status, cancelado_motivo, ledger_id, criado_em, e_teste",
+        "id, seller_id, fornecedor_id, sku_id, nome_produto, marketplace_numero, preco_venda, valor_fornecedor, valor_dropcore, valor_total, status, cancelado_motivo, ledger_id, criado_em, e_teste, canal_venda, etiqueta_pdf_url, etiqueta_pdf_base64",
         { count: "exact" }
       )
       .eq("org_id", org_id)
@@ -115,6 +133,7 @@ export async function GET(req: Request) {
       .range(from, to);
     query = aplicarFiltrosComuns(query);
     if (statusArray && statusArray.length > 0) query = query.in("status", statusArray);
+    query = aplicarFiltroBuffer(query, bufferMl);
 
     const { data, error, count } = await query;
     if (error) {
@@ -127,16 +146,18 @@ export async function GET(req: Request) {
 
     // Contagem por aba — sempre respeitando busca/período (não o status, cada aba é seu
     // próprio balde) + o total geral.
-    const contarGrupo = (statuses: string[] | null) => {
+    const contarGrupo = (statuses: string[] | null, bufferFiltro: "somente" | "excluir" | null = null) => {
       let q = supabaseAdmin.from("pedidos").select("id", { count: "exact", head: true }).eq("org_id", org_id);
       q = aplicarFiltrosComuns(q);
       if (statuses) q = q.in("status", statuses);
+      q = aplicarFiltroBuffer(q, bufferFiltro);
       return q;
     };
-    const [cTodos, cPendencias, cPraEnviar, cEnviados, cDevolucao, cConcluidos, cCancelados] = await Promise.all([
+    const [cTodos, cPendencias, cPraEnviar, cBuffer, cEnviados, cDevolucao, cConcluidos, cCancelados] = await Promise.all([
       contarGrupo(null),
       contarGrupo(ABAS_STATUS.pendencias),
-      contarGrupo(ABAS_STATUS.pra_enviar),
+      contarGrupo(ABAS_STATUS.pra_enviar, "excluir"),
+      contarGrupo(ABAS_STATUS.pra_enviar, "somente"),
       contarGrupo(ABAS_STATUS.enviados),
       contarGrupo(ABAS_STATUS.devolucao),
       contarGrupo(ABAS_STATUS.concluidos),
@@ -146,6 +167,7 @@ export async function GET(req: Request) {
       todos: cTodos.count ?? 0,
       pendencias: cPendencias.count ?? 0,
       pra_enviar: cPraEnviar.count ?? 0,
+      buffer: cBuffer.count ?? 0,
       enviados: cEnviados.count ?? 0,
       devolucao: cDevolucao.count ?? 0,
       concluidos: cConcluidos.count ?? 0,

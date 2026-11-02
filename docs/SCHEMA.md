@@ -2193,6 +2193,60 @@ fornecedor, repasse-fornecedor, sino de notificação) foram atualizados pra
   `/api/org/financial/ledger` continua limitado a `.limit(100)` sem paginação própria
   (limitação pré-existente da tela antiga, não introduzida agora).
 
+## Aba "Buffer" separada de "Pra enviar" (fornecedor + seller, 2026-11-02)
+
+Achado do Sr Stark testando impressão real: a aba "Pra enviar" misturava pedido com
+etiqueta pronta (disponível de verdade) com pedido `enviado` ainda preso no buffer
+automático do próprio ML (sem etiqueta liberada ainda) — o buffer empurrava os pedidos
+prontos pra baixo da lista, difícil de achar o que realmente dava pra despachar.
+
+- **`fn_fornecedor_pedidos_lista`** e **`fn_seller_pedidos_lista`**: ganharam `p_buffer_ml`
+  (`'somente' | 'excluir' | null`) — DROP+CREATE (novo parâmetro + novas colunas
+  `total_count_buffer`, mais `total_count_pra_enviar` recalculado excluindo buffer). Condição
+  de buffer: `status = 'enviado' and canal_venda = 'mercado_livre' and etiqueta_pdf_url is
+  null and etiqueta_pdf_base64 is null` (mesma lógica de `emBufferMl()` no front, agora
+  também no banco pra contagem certa por aba).
+- **Abas**: nova aba "Buffer" (ícone de relógio) inserida **antes** de "Pra enviar" nas duas
+  telas. "Pra enviar" passa a mandar `buffer_ml=excluir`; "Buffer" manda `buffer_ml=somente`.
+  No seller, "Pra enviar" é só `enviado` (pendências já tinham aba própria), então o buffer
+  sai inteiro dali.
+- **Rotas**: `GET /api/fornecedor/pedidos` e `GET /api/seller/pedidos` ganham o query param
+  `buffer_ml` (`somente`/`excluir`), repassado direto pra RPC; resposta `abas` ganha campo
+  `buffer`.
+
+## Aba "Erro" separada de "Pra enviar" (só fornecedor, 2026-11-02)
+
+Mesmo achado, seguida: `erro_saldo` (seller sem saldo — pedido nem chega a ter etiqueta,
+problema completamente diferente de buffer do ML) também não é "pronto pra enviar". No
+seller já tinha aba própria ("Pendências"); só o fornecedor misturava. `erro_saldo` é
+`pedidos.status` real (não sintético como buffer), então filtra pelo mecanismo normal de
+`p_status` — só precisou de mais uma coluna de contagem.
+
+- **`fn_fornecedor_pedidos_lista`**: `total_count_pra_enviar` agora só soma
+  `pendente_estoque`+`bloqueado`+`enviado sem buffer` — `erro_saldo` sai pra
+  `total_count_erro` (coluna nova). DROP+CREATE de novo (muda RETURNS TABLE).
+- **Aba nova "Erro"** (ícone de engrenagem) entre "Buffer" e "Pra enviar". "Pra enviar"
+  perde `erro_saldo` do array de `statuses` no front.
+
+## Aba "Buffer" separada de "Pra enviar" (admin, 2026-11-02)
+
+Mesmo achado aplicado em `/admin/pedidos` — pedido confirmado explicitamente pelo Sr Stark
+("quero, vamos deixar organizado né"). `erro_saldo` já estava corretamente isolado na aba
+"Pendências" existente do admin, então essa rodada só cobre o buffer do ML.
+
+- **`web/app/api/org/pedidos/route.ts`** é rota grandfathered (`.from()` direto, anterior à
+  regra 9) — não ganhou RPC nova, a condição de buffer é aplicada via filtro encadeado do
+  query builder (`aplicarFiltroBuffer()`), não SQL puro. Cuidado já tratado: `canal_venda.neq
+  .mercado_livre` sozinho não pega linha com `canal_venda` nulo (semântica de 3 valores),
+  então o modo `'excluir'` usa `.or("canal_venda.is.null,canal_venda.neq.mercado_livre,
+  etiqueta_pdf_url.not.is.null,etiqueta_pdf_base64.not.is.null")`.
+- SELECT principal ganhou `canal_venda, etiqueta_pdf_url, etiqueta_pdf_base64`. `contarGrupo`
+  ganhou segundo parâmetro `bufferFiltro` pra separar a contagem de `pra_enviar` (`'excluir'`)
+  da nova `buffer` (`'somente'`).
+- **Aba nova "Buffer"** (ícone de relógio) entre "Pendências" e "Pra enviar" em
+  `/admin/pedidos`; "Pra enviar" manda `buffer_ml=excluir`. Resposta `abas` ganha campo
+  `buffer`.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

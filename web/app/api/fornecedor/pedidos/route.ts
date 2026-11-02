@@ -108,9 +108,14 @@ export async function GET(req: Request) {
     const ateParam = searchParams.get("ate")?.trim() || null;
     const ateValido = ateParam && !Number.isNaN(new Date(ateParam).getTime()) ? ateParam : null;
 
+    // 'somente' = só os em buffer do ML (sem etiqueta ainda); 'excluir' = pra_enviar sem
+    // misturar buffer; null = sem filtro (ex: aba Todos).
+    const bufferMlParam = searchParams.get("buffer_ml")?.trim();
+    const bufferMl = bufferMlParam === "somente" || bufferMlParam === "excluir" ? bufferMlParam : null;
+
     // RPC (regra 9): além de ler, ordena priorizando pedido com etiqueta recém-liberada e
     // ainda não impressa — expressão de ordenação (CASE) que o PostgREST não faz direto.
-    // Ver fn_fornecedor_pedidos_lista em web/scripts/add-fornecedor-pedidos-periodo-customizado.sql.
+    // Ver fn_fornecedor_pedidos_lista em web/scripts/add-fornecedor-pedidos-aba-buffer-ml.sql.
     const { data: rpcRows, error: rpcErr } = await supabaseAdmin.rpc("fn_fornecedor_pedidos_lista", {
       p_org_id: ctx.org_id,
       p_fornecedor_id: ctx.fornecedor_id,
@@ -120,6 +125,7 @@ export async function GET(req: Request) {
       p_seller_nome: sellerNomeParam,
       p_desde: desdeValido,
       p_ate: ateValido,
+      p_buffer_ml: bufferMl,
     });
 
     if (rpcErr) {
@@ -131,6 +137,8 @@ export async function GET(req: Request) {
       total_count: number;
       total_count_geral: number;
       total_count_pra_enviar: number;
+      total_count_buffer: number;
+      total_count_erro: number;
       total_count_enviados: number;
       total_count_devolucao: number;
       total_count_entregue: number;
@@ -142,6 +150,8 @@ export async function GET(req: Request) {
         total_count: _tc,
         total_count_geral: _tcg,
         total_count_pra_enviar: _tcp,
+        total_count_buffer: _tcb,
+        total_count_erro: _tcer,
         total_count_enviados: _tce,
         total_count_devolucao: _tcd,
         total_count_entregue: _tcen,
@@ -153,6 +163,8 @@ export async function GET(req: Request) {
     const abas = {
       todos: rows[0]?.total_count_geral ?? 0,
       pra_enviar: rows[0]?.total_count_pra_enviar ?? 0,
+      buffer: rows[0]?.total_count_buffer ?? 0,
+      erro: rows[0]?.total_count_erro ?? 0,
       enviados: rows[0]?.total_count_enviados ?? 0,
       devolucao: rows[0]?.total_count_devolucao ?? 0,
       concluidos: rows[0]?.total_count_entregue ?? 0,

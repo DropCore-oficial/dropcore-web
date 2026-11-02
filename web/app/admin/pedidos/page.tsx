@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { PlanLimitsBadge, PLAN_LIMITS_REFRESH_EVENT } from "@/components/PlanLimitsBadge";
-import { IconClipboard, IconAjuste, IconBox, IconArrowRight, IconDevolucao, IconCheck, IconX } from "@/components/seller/Icons";
+import { IconClipboard, IconAjuste, IconBox, IconArrowRight, IconDevolucao, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { PeriodoPersonalizadoModal } from "@/components/fornecedor/PeriodoPersonalizadoModal";
@@ -20,13 +20,14 @@ import { cn } from "@/lib/utils";
 
 /** Grupo de abas da tela — mesmo tratamento de fornecedor/seller. */
 const ABAS = [
-  { key: "todos", label: "Todos", statuses: null as string[] | null, Icon: IconClipboard },
-  { key: "pendencias", label: "Pendências", statuses: ["produto_nao_vinculado", "anuncio_sem_sku", "erro_saldo", "pendente_estoque"], Icon: IconAjuste },
-  { key: "pra_enviar", label: "Pra enviar", statuses: ["enviado"], Icon: IconBox },
-  { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight },
-  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao },
-  { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck },
-  { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX },
+  { key: "todos", label: "Todos", statuses: null as string[] | null, Icon: IconClipboard, bufferMl: null as "somente" | "excluir" | null },
+  { key: "pendencias", label: "Pendências", statuses: ["produto_nao_vinculado", "anuncio_sem_sku", "erro_saldo", "pendente_estoque"], Icon: IconAjuste, bufferMl: null as "somente" | "excluir" | null },
+  { key: "buffer", label: "Buffer", statuses: ["enviado"], Icon: IconClock, bufferMl: "somente" as "somente" | "excluir" | null },
+  { key: "pra_enviar", label: "Pra enviar", statuses: ["enviado"], Icon: IconBox, bufferMl: "excluir" as "somente" | "excluir" | null },
+  { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight, bufferMl: null as "somente" | "excluir" | null },
+  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao, bufferMl: null as "somente" | "excluir" | null },
+  { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck, bufferMl: null as "somente" | "excluir" | null },
+  { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX, bufferMl: null as "somente" | "excluir" | null },
 ] as const;
 type AbaKey = (typeof ABAS)[number]["key"];
 
@@ -203,7 +204,7 @@ export default function PedidosPage() {
   const [precoVenda, setPrecoVenda] = useState("");
   const [abaAtiva, setAbaAtiva] = useState<AbaKey>(() => abaFromStatusParam(searchParams.get("status")));
   const [abaContagens, setAbaContagens] = useState<Record<AbaKey, number>>({
-    todos: 0, pendencias: 0, pra_enviar: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0,
+    todos: 0, pendencias: 0, pra_enviar: 0, buffer: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0,
   });
   const [buscaInput, setBuscaInput] = useState("");
   const [buscaAplicada, setBuscaAplicada] = useState("");
@@ -280,10 +281,12 @@ export default function PedidosPage() {
         return;
       }
       const token = session.access_token;
-      const statuses = ABAS.find((a) => a.key === abaAtiva)?.statuses ?? null;
+      const abaDef = ABAS.find((a) => a.key === abaAtiva);
+      const statuses = abaDef?.statuses ?? null;
       const { desde, ate } = periodoParaIntervalo(periodo);
       const params = new URLSearchParams({ page: String(page), limit: String(pageSize) });
       if (statuses) params.set("status", statuses.join(","));
+      if (abaDef?.bufferMl) params.set("buffer_ml", abaDef.bufferMl);
       if (buscaAplicada) params.set("busca", buscaAplicada);
       if (desde) params.set("desde", desde);
       if (ate) params.set("ate", ate);
@@ -308,6 +311,7 @@ export default function PedidosPage() {
           todos: pedJson.abas.todos ?? 0,
           pendencias: pedJson.abas.pendencias ?? 0,
           pra_enviar: pedJson.abas.pra_enviar ?? 0,
+          buffer: pedJson.abas.buffer ?? 0,
           enviados: pedJson.abas.enviados ?? 0,
           devolucao: pedJson.abas.devolucao ?? 0,
           concluidos: pedJson.abas.concluidos ?? 0,

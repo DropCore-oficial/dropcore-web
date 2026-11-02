@@ -36,7 +36,7 @@ import {
   SELLER_SALDO_CRITICO_TITLE,
 } from "@/lib/dangerSellerSaldoCriticoUi";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
-import { IconClipboard, IconAjuste, IconBox, IconArrowRight, IconDevolucao, IconCheck, IconX } from "@/components/seller/Icons";
+import { IconClipboard, IconAjuste, IconBox, IconArrowRight, IconDevolucao, IconCheck, IconX, IconClock } from "@/components/seller/Icons";
 import { PeriodoPersonalizadoModal } from "@/components/fornecedor/PeriodoPersonalizadoModal";
 import { cn } from "@/lib/utils";
 
@@ -50,13 +50,14 @@ const btnSecondaryCompactClass =
  * (que a API soma à parte, não vem de `pedidos.status`). O filtro sintético antigo
  * "etiqueta_buffer_ml" não virou aba — a info continua no banner do próprio card. */
 const ABAS = [
-  { key: "todos", label: "Todos", statuses: null as string[] | null, Icon: IconClipboard },
-  { key: "pendencias", label: "Pendências", statuses: ["bloqueado", "produto_nao_vinculado", "anuncio_sem_sku", "pendente_estoque", "erro_saldo"], Icon: IconAjuste },
-  { key: "pra_enviar", label: "Pra enviar", statuses: ["enviado"], Icon: IconBox },
-  { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight },
-  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao },
-  { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck },
-  { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX },
+  { key: "todos", label: "Todos", statuses: null as string[] | null, Icon: IconClipboard, bufferMl: null as "somente" | "excluir" | null },
+  { key: "pendencias", label: "Pendências", statuses: ["bloqueado", "produto_nao_vinculado", "anuncio_sem_sku", "pendente_estoque", "erro_saldo"], Icon: IconAjuste, bufferMl: null as "somente" | "excluir" | null },
+  { key: "buffer", label: "Buffer", statuses: ["enviado"], Icon: IconClock, bufferMl: "somente" as "somente" | "excluir" | null },
+  { key: "pra_enviar", label: "Pra enviar", statuses: ["enviado"], Icon: IconBox, bufferMl: "excluir" as "somente" | "excluir" | null },
+  { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight, bufferMl: null as "somente" | "excluir" | null },
+  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao, bufferMl: null as "somente" | "excluir" | null },
+  { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck, bufferMl: null as "somente" | "excluir" | null },
+  { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX, bufferMl: null as "somente" | "excluir" | null },
 ] as const;
 type AbaKey = (typeof ABAS)[number]["key"];
 
@@ -209,7 +210,7 @@ export default function SellerPedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [abaAtiva, setAbaAtiva] = useState<AbaKey>(() => abaFromStatusParam(searchParams.get("status")));
   const [abaContagens, setAbaContagens] = useState<Record<AbaKey, number>>({
-    todos: 0, pendencias: 0, pra_enviar: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0,
+    todos: 0, pendencias: 0, pra_enviar: 0, buffer: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0,
   });
   const [buscaProdutoInput, setBuscaFornecedorInput] = useState("");
   const [buscaProdutoAplicada, setBuscaFornecedorAplicada] = useState("");
@@ -361,9 +362,11 @@ export default function SellerPedidosPage() {
         router.replace("/seller/login");
         return;
       }
-      const statuses = ABAS.find((a) => a.key === abaAtiva)?.statuses ?? null;
+      const abaDef = ABAS.find((a) => a.key === abaAtiva);
+      const statuses = abaDef?.statuses ?? null;
       const params = new URLSearchParams();
       if (statuses) params.set("status", statuses.join(","));
+      if (abaDef?.bufferMl) params.set("buffer_ml", abaDef.bufferMl);
       if (buscaProdutoAplicada) params.set("produto", buscaProdutoAplicada);
       const { desde, ate } = periodoParaIntervalo(periodo);
       if (desde) params.set("desde", desde);
@@ -389,6 +392,7 @@ export default function SellerPedidosPage() {
           todos: json.abas.todos ?? 0,
           pendencias: json.abas.pendencias ?? 0,
           pra_enviar: json.abas.pra_enviar ?? 0,
+          buffer: json.abas.buffer ?? 0,
           enviados: json.abas.enviados ?? 0,
           devolucao: json.abas.devolucao ?? 0,
           concluidos: json.abas.concluidos ?? 0,
