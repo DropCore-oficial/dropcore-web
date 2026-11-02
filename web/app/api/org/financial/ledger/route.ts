@@ -33,8 +33,9 @@ async function loadLedgerItems(orgId: string, statuses: string[]) {
   const sellerIds = [...new Set(list.map((r) => r.seller_id).filter(Boolean))] as string[];
   const fornecedorIds = [...new Set(list.map((r) => r.fornecedor_id).filter(Boolean))] as string[];
   const ledgerIds = list.map((r) => r.id);
+  const pedidoIds = [...new Set(list.map((r) => r.pedido_id).filter(Boolean))] as string[];
 
-  const [sellersRes, fornRes, debitosRes] = await Promise.all([
+  const [sellersRes, fornRes, debitosRes, pedidosRes] = await Promise.all([
     sellerIds.length
       ? supabaseAdmin.from("sellers").select("id, nome").in("id", sellerIds)
       : Promise.resolve({ data: [] }),
@@ -44,11 +45,18 @@ async function loadLedgerItems(orgId: string, statuses: string[]) {
     ledgerIds.length
       ? supabaseAdmin.from("financial_debito_descontar").select("ledger_id").in("ledger_id", ledgerIds)
       : Promise.resolve({ data: [] }),
+    // Admin não tinha como saber QUAL pedido gerou cada linha de devolução/débito na tela —
+    // só o id interno, nunca o número do pedido (achado 2026-11-02, mesma lacuna que já
+    // tinha sido fechada pro fornecedor em fn_fornecedor_repasse_detalhe).
+    pedidoIds.length
+      ? supabaseAdmin.from("pedidos").select("id, marketplace_numero").in("id", pedidoIds)
+      : Promise.resolve({ data: [] }),
   ]);
 
   const sellerMap = new Map((sellersRes.data || []).map((s) => [s.id, s.nome]));
   const fornMap = new Map((fornRes.data || []).map((f) => [f.id, f.nome]));
   const debitosSet = new Set((debitosRes.data || []).map((d) => d.ledger_id));
+  const pedidoMap = new Map((pedidosRes.data || []).map((p) => [p.id, p.marketplace_numero]));
 
   const fotoUrls = new Map<string, string>();
   await Promise.all(
@@ -74,6 +82,7 @@ async function loadLedgerItems(orgId: string, statuses: string[]) {
     data_evento: r.data_evento,
     ciclo_repasse: r.ciclo_repasse,
     pedido_id: r.pedido_id ?? null,
+    marketplace_numero: r.pedido_id ? (pedidoMap.get(r.pedido_id) ?? null) : null,
     debito_ja_registrado: debitosSet.has(r.id),
     em_devolucao_desde: r.em_devolucao_desde ?? null,
     fornecedor_contestou_em: r.fornecedor_contestou_em ?? null,

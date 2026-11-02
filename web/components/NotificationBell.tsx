@@ -480,7 +480,7 @@ export function NotificationBell({
                             )}
                             {n.tipo === "devolucao_ml_provavel_admin" && (
                               <a
-                                href="/admin/devolucoes"
+                                href="/admin/pedidos?status=devolucao"
                                 onClick={(e) => e.stopPropagation()}
                                 className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline"
                               >

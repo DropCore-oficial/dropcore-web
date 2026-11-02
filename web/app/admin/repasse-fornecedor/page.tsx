@@ -418,7 +418,7 @@ export default function RepasseFornecedorPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => router.push("/admin/devolucoes")}
+                        onClick={() => router.push("/admin/pedidos?status=devolucao")}
                         className="rounded-xl border border-[var(--card-border)] px-3 py-2 text-xs text-[var(--foreground)] hover:border-[var(--muted)]"
                       >
                         Bloqueios e devoluções

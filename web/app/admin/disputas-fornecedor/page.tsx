@@ -134,10 +134,10 @@ function DecidirBloco({ caso, onDecidido }: { caso: Caso; onDecidido: () => void
       {decisao === "reverter_repasse" ? (
         <p className="text-xs text-[var(--muted)]">
           Isso só registra a decisão. Pra executar de verdade, use{" "}
-          <a href="/admin/devolucoes" className="font-semibold text-emerald-700 hover:underline dark:text-emerald-400">
-            /admin/devolucoes
+          <a href="/admin/pedidos?status=devolucao" className="font-semibold text-emerald-700 hover:underline dark:text-emerald-400">
+            /admin/pedidos
           </a>{" "}
-          no registro do ledger correspondente a esse pedido.
+          no pedido correspondente.
         </p>
       ) : null}
       {erro ? <p className="text-xs text-[var(--danger)]">{erro}</p> : null}

@@ -594,7 +594,7 @@ export default function DashboardPage() {
     { title: "Repasse ao fornecedor", desc: "Fechar ciclo semanal e repassar valores", rota: "/admin/repasse-fornecedor", icon: "repasse", badge: stats?.repasses_pendentes ? `${stats.repasses_pendentes} pendentes` : null, badgeTone: "amber" },
     { title: "Empresas", desc: "Fornecedores e catálogo de SKUs", rota: "/admin/empresas", icon: "empresas", badge: null, badgeTone: null },
     { title: "Alterações em análise", desc: "Aprovar edições de produto", rota: "/admin/alteracoes-produtos", icon: "alteracoes", badge: (stats?.alteracoes_pendentes ?? 0) > 0 ? `${stats?.alteracoes_pendentes ?? 0} pendentes` : null, badgeTone: "violet" },
-    { title: "Bloqueios e devoluções", desc: "Registrar e gerenciar devoluções", rota: "/admin/devolucoes", icon: "devolucoes", badge: null, badgeTone: null },
+    { title: "Bloqueios e devoluções", desc: "Registrar e gerenciar devoluções", rota: "/admin/pedidos?status=devolucao", icon: "devolucoes", badge: null, badgeTone: null },
     { title: "A pagar fornecedores", desc: "Valores gerados ao fechar repasse", rota: "/admin/a-pagar-fornecedores", icon: "pagar", badge: null, badgeTone: null },
     { title: "Depósitos PIX", desc: "Aprovar depósitos dos sellers", rota: "/admin/depositos-pix", icon: "pix", badge: stats?.depositos_pix_pendentes ? `${stats.depositos_pix_pendentes} aguardando` : null, badgeTone: "sky" },
     { title: "Mensalidades", desc: "Gerar e marcar mensalidades", rota: "/admin/mensalidades", icon: "mensalidades", badge: null, badgeTone: null },

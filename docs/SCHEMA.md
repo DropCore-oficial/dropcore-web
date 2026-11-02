@@ -2107,9 +2107,11 @@ período (presets + calendário personalizado).
   filtro de busca/período também está ativo) — regra 4 do CLAUDE.md (1 RPC por tela).
 - **Fornecedor** ganhou `ledger_id` na RPC (não tinha) — o card do pedido em devolução agora
   mostra os botões "Chegou tudo certo"/"Chegou com defeito" direto ali (componente
-  `FornecedorDevolucaoAcoes.tsx`), puxando o `ledger_id` certo. `/fornecedor/devolucoes` virou
-  um redirect pra `/fornecedor/pedidos?status=devolucao` — não existe mais como página própria
-  (links antigos, inclusive notificação, continuam funcionando).
+  `FornecedorDevolucaoAcoes.tsx`), puxando o `ledger_id` certo. `/fornecedor/devolucoes`
+  (a página) foi **removida** (2026-11-02: inicialmente virou redirect, depois confirmado
+  que não sobrava link interno nenhum pra ela — mesmo achado do caso admin — e removida de
+  vez, sem redirect). As rotas de API (`/api/fornecedor/devolucoes/...`) continuam existindo
+  normalmente, só a tela própria que sumiu.
 - **Seller**: o filtro sintético antigo "etiqueta_buffer_ml" (não é `pedidos.status` real, é
   `enviado` + sem etiqueta + canal ML) saiu do seletor — a aba "Pra enviar" agora cobre todo
   `enviado` junto; a info de buffer continua visível no banner do próprio card, só não é mais
@@ -2136,6 +2138,60 @@ período (presets + calendário personalizado).
   `comprador_nome`/`comprador_cidade`/`comprador_uf` com o destinatário real. Só vale pra
   pedido novo a partir de agora — não retroage nos já existentes. Endereço completo/CEP
   continua de fora da tela de propósito (só vai impresso na etiqueta, não solto na UI).
+  Backfill rodado uma vez via `/api/cron/backfill-destinatario-ml`: 1082 de 1083 pedidos ML
+  antigos atualizados (1 falha permanente — seller sem integração ML ativa mais).
+
+## Auditoria de devolução no admin (2026-11-02)
+
+A pedido do Sr Stark ("tudo sobre as devoluções"), conferida a tela `/admin/devolucoes` +
+`/admin/pedidos` de ponta a ponta. Achado: admin não tinha como saber **qual pedido** gerou
+cada linha de devolução/débito — só o `pedido_id` interno (uuid), nunca o número do pedido,
+em nenhuma das 3 listas da tela (em análise, pós-repasse pago, débitos pendentes). Mesma
+lacuna que já tinha sido fechada pro fornecedor em `fn_fornecedor_repasse_detalhe`.
+
+- `fn_org_debitos_fornecedor_pendentes_list`: ganhou `marketplace_numero` (join com
+  `pedidos`) — DROP+CREATE (muda RETURNS TABLE).
+- `GET /api/org/financial/ledger`: ganhou `marketplace_numero` resolvido via `.from()` direto
+  (arquivo já é `.from()` de antes de 2026-10-07, não retroage pra RPC — regra 9).
+- `/admin/devolucoes/page.tsx`: coluna "Pedido" nas 3 listas (desktop + mobile) — **essa
+  tela foi consolidada em `/admin/pedidos` logo em seguida, ver seção abaixo**; o trabalho
+  de expor `marketplace_numero` continua válido, só mudou de lugar.
+- Resto já estava certo: badge/filtro de `em_devolucao`/`devolvido`/`devolucao_sem_fornecedor`
+  em `/admin/pedidos` (da Fase 2), fluxo de confirmar/contestar/manter-venda/registrar-débito
+  todos funcionando.
+
+## Consolidação de /admin/devolucoes em /admin/pedidos (2026-11-02)
+
+Mesmo padrão aplicado a fornecedor/seller mais cedo: "não faz sentido ter página separada,
+quero simples igual fornecedor/seller". `/admin/devolucoes` ("Bloqueios e devoluções", mais
+ampla que só devolução — cobria `BLOQUEADO`/`ENTREGUE`/`AGUARDANDO_REPASSE`/`EM_DEVOLUCAO`/
+`PAGO` do `financial_ledger`) foi **removida** (não virou redirect, diferente do caso do
+fornecedor — conferido que não sobrava link interno nenhum pra ela, nem notificação com URL
+antiga gravada; o link do sino é montado na hora a partir do `tipo`, não fica preso ao
+código antigo). Todos os pontos que linkavam pra lá (menu admin, dashboard, disputas-
+fornecedor, repasse-fornecedor, sino de notificação) foram atualizados pra
+`/admin/pedidos?status=devolucao` direto.
+
+- **`GET /api/org/pedidos`**: ganhou abas (`p_status` virou lista separada por vírgula,
+  mesmo grupo de fornecedor/seller: pendências/pra_enviar/enviados/devolução/concluídos/
+  cancelados), busca (`busca` — nome_produto/marketplace_numero direto na tabela +
+  seller/fornecedor resolvidos por nome antes via `.ilike` e combinados num `.or()`) e
+  período (`desde`/`ate`). Contagem por aba via N queries `count:exact,head:true` em
+  paralelo (arquivo é `.from()` de antes de 2026-10-07 — não virou RPC, regra 9 não
+  retroage; manter o padrão já estabelecido no arquivo). Bug real corrigido de
+  passagem: o filtro de status antigo nem aceitava `em_devolucao` na allowlist — selecionar
+  "Em devolução" no dropdown antigo não filtrava nada, silenciosamente.
+- **Ações de bloqueio/devolução movidas pro card** (`AcoesLedgerPedido` em
+  `/admin/pedidos/page.tsx`): em vez de reconstruir a lógica, a tela busca
+  `/api/org/financial/ledger?include_pago=1` + `/api/org/financial/debitos-pendentes` (as
+  MESMAS rotas que a antiga `/admin/devolucoes` já usava, sem alteração) e casa por
+  `pedido_id` num `Map`, client-side. "Confirmar envio" (`p.status==='enviado'`) já existia
+  na tela e foi mantido; "Registrar devolução"/"Fornecedor conferiu"/"Devolução não
+  procede"/"Registrar débito" são novos aqui, mesmos handlers/mensagens de confirmação da
+  tela antiga, só renderizados condicionalmente conforme o `status` do ledger casado.
+- **Fora de escopo**: não criou RPC nova pra `/api/org/pedidos` (arquivo grandfathered);
+  `/api/org/financial/ledger` continua limitado a `.limit(100)` sem paginação própria
+  (limitação pré-existente da tela antiga, não introduzida agora).
 
 ## Pendências conhecidas
 

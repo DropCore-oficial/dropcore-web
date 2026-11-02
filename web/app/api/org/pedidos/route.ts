@@ -44,38 +44,113 @@ function toNum(v: unknown): number {
   return parseFloat(String(v ?? "0").replace(",", "."));
 }
 
+/** Grupo de abas da tela (mesma lógica de fornecedor/seller) — cada chave cobre vários
+ * status reais de uma vez. */
+const ABAS_STATUS: Record<string, string[]> = {
+  pendencias: ["produto_nao_vinculado", "anuncio_sem_sku", "erro_saldo", "pendente_estoque"],
+  pra_enviar: ["enviado"],
+  enviados: ["aguardando_repasse"],
+  devolucao: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"],
+  concluidos: ["entregue"],
+  cancelados: ["cancelado"],
+};
+const TODOS_STATUS_VALIDOS = Object.values(ABAS_STATUS).flat();
+
+/** Resolve ids de seller/fornecedor cujo nome bate com a busca — pra incluir no OR do
+ * filtro principal (busca por produto/pedido já é direto na tabela pedidos). */
+async function resolverIdsPorNome(orgId: string, busca: string): Promise<{ sellerIds: string[]; fornecedorIds: string[] }> {
+  const [sellersRes, fornRes] = await Promise.all([
+    supabaseAdmin.from("sellers").select("id").eq("org_id", orgId).ilike("nome", `%${busca}%`),
+    supabaseAdmin.from("fornecedores").select("id").eq("org_id", orgId).ilike("nome", `%${busca}%`),
+  ]);
+  return {
+    sellerIds: (sellersRes.data ?? []).map((s) => s.id),
+    fornecedorIds: (fornRes.data ?? []).map((f) => f.id),
+  };
+}
+
 export async function GET(req: Request) {
   try {
     const { org_id } = await requireAdmin(req);
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status")?.trim();
+    const statusParam = searchParams.get("status")?.trim();
+    const statusArray = statusParam
+      ? statusParam.split(",").map((s) => s.trim()).filter((s) => TODOS_STATUS_VALIDOS.includes(s))
+      : null;
+    const busca = searchParams.get("busca")?.trim() || null;
+    const desde = searchParams.get("desde")?.trim() || null;
+    const desdeValido = desde && !Number.isNaN(new Date(desde).getTime()) ? desde : null;
+    const ate = searchParams.get("ate")?.trim() || null;
+    const ateValido = ate && !Number.isNaN(new Date(ate).getTime()) ? ate : null;
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
     const pageSize = Math.min(300, Math.max(1, parseInt(searchParams.get("limit") || "20", 10) || 20));
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
+    let idsPorNome: { sellerIds: string[]; fornecedorIds: string[] } | null = null;
+    if (busca) idsPorNome = await resolverIdsPorNome(org_id, busca);
+
+    function aplicarFiltrosComuns<T>(q: T): T {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let query = q as any;
+      if (desdeValido) query = query.gte("criado_em", desdeValido);
+      if (ateValido) query = query.lte("criado_em", ateValido);
+      if (busca) {
+        const ors = [`nome_produto.ilike.%${busca}%`, `marketplace_numero.ilike.%${busca}%`];
+        if (idsPorNome?.sellerIds.length) ors.push(`seller_id.in.(${idsPorNome.sellerIds.join(",")})`);
+        if (idsPorNome?.fornecedorIds.length) ors.push(`fornecedor_id.in.(${idsPorNome.fornecedorIds.join(",")})`);
+        query = query.or(ors.join(","));
+      }
+      return query;
+    }
+
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, seller_id, fornecedor_id, sku_id, nome_produto, preco_venda, valor_fornecedor, valor_dropcore, valor_total, status, cancelado_motivo, ledger_id, criado_em, e_teste",
+        "id, seller_id, fornecedor_id, sku_id, nome_produto, marketplace_numero, preco_venda, valor_fornecedor, valor_dropcore, valor_total, status, cancelado_motivo, ledger_id, criado_em, e_teste",
         { count: "exact" }
       )
       .eq("org_id", org_id)
       .order("criado_em", { ascending: false })
       .range(from, to);
-
-    if (status && ["enviado", "aguardando_repasse", "entregue", "devolvido", "cancelado", "erro_saldo"].includes(status)) {
-      query = query.eq("status", status);
-    }
+    query = aplicarFiltrosComuns(query);
+    if (statusArray && statusArray.length > 0) query = query.in("status", statusArray);
 
     const { data, error, count } = await query;
     if (error) {
       if (error.message?.includes("does not exist") || error.code === "42P01") {
-        return NextResponse.json({ org_id, pedidos: [], total: 0, page, limit: pageSize, sellers: [], fornecedores: [] });
+        return NextResponse.json({ org_id, pedidos: [], total: 0, page, limit: pageSize, sellers: [], fornecedores: [], abas: {} });
       }
       console.error("[pedidos GET]", error.message);
       return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
     }
+
+    // Contagem por aba — sempre respeitando busca/período (não o status, cada aba é seu
+    // próprio balde) + o total geral.
+    const contarGrupo = (statuses: string[] | null) => {
+      let q = supabaseAdmin.from("pedidos").select("id", { count: "exact", head: true }).eq("org_id", org_id);
+      q = aplicarFiltrosComuns(q);
+      if (statuses) q = q.in("status", statuses);
+      return q;
+    };
+    const [cTodos, cPendencias, cPraEnviar, cEnviados, cDevolucao, cConcluidos, cCancelados] = await Promise.all([
+      contarGrupo(null),
+      contarGrupo(ABAS_STATUS.pendencias),
+      contarGrupo(ABAS_STATUS.pra_enviar),
+      contarGrupo(ABAS_STATUS.enviados),
+      contarGrupo(ABAS_STATUS.devolucao),
+      contarGrupo(ABAS_STATUS.concluidos),
+      contarGrupo(ABAS_STATUS.cancelados),
+    ]);
+    const abas = {
+      todos: cTodos.count ?? 0,
+      pendencias: cPendencias.count ?? 0,
+      pra_enviar: cPraEnviar.count ?? 0,
+      enviados: cEnviados.count ?? 0,
+      devolucao: cDevolucao.count ?? 0,
+      concluidos: cConcluidos.count ?? 0,
+      cancelados: cCancelados.count ?? 0,
+    };
 
     // Enriquecer com nomes de seller e fornecedor
     const sellerIds = [...new Set((data ?? []).map((p) => p.seller_id))];
@@ -110,6 +185,7 @@ export async function GET(req: Request) {
       limit: pageSize,
       sellers: sellersOrgRes.data ?? [],
       fornecedores: (fornecedoresOrgRes.data ?? []).filter((f) => f.id && f.nome),
+      abas,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";

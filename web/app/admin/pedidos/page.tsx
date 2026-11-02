@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { PlanLimitsBadge, PLAN_LIMITS_REFRESH_EVENT } from "@/components/PlanLimitsBadge";
-import { IconClipboard } from "@/components/seller/Icons";
+import { IconClipboard, IconAjuste, IconBox, IconArrowRight, IconDevolucao, IconCheck, IconX } from "@/components/seller/Icons";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
+import { PeriodoPersonalizadoModal } from "@/components/fornecedor/PeriodoPersonalizadoModal";
 import {
   SUCCESS_PREMIUM_SURFACE,
   SUCCESS_PREMIUM_TEXT_PRIMARY,
@@ -16,6 +17,62 @@ import {
 } from "@/lib/semanticPremium";
 import { AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
+
+/** Grupo de abas da tela — mesmo tratamento de fornecedor/seller. */
+const ABAS = [
+  { key: "todos", label: "Todos", statuses: null as string[] | null, Icon: IconClipboard },
+  { key: "pendencias", label: "Pendências", statuses: ["produto_nao_vinculado", "anuncio_sem_sku", "erro_saldo", "pendente_estoque"], Icon: IconAjuste },
+  { key: "pra_enviar", label: "Pra enviar", statuses: ["enviado"], Icon: IconBox },
+  { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight },
+  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao },
+  { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck },
+  { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX },
+] as const;
+type AbaKey = (typeof ABAS)[number]["key"];
+
+function abaFromStatusParam(raw: string | null): AbaKey {
+  if (!raw) return "todos";
+  const exata = ABAS.find((a) => a.key === raw);
+  if (exata) return exata.key;
+  const porStatus = ABAS.find((a) => (a.statuses as readonly string[] | null)?.includes(raw));
+  return porStatus?.key ?? "todos";
+}
+
+/** Linha do ledger financeiro, buscada à parte (mesma API que a antiga /admin/devolucoes
+ * usava) e casada por pedido_id — pra mostrar as ações de bloqueio/devolução direto no
+ * card do pedido, sem precisar de uma página separada. */
+type LedgerItem = {
+  id: string;
+  seller_nome: string;
+  fornecedor_nome: string;
+  valor_total: number;
+  status: string;
+  pedido_id: string | null;
+  debito_ja_registrado?: boolean;
+  em_devolucao_desde?: string | null;
+  fornecedor_contestou_em?: string | null;
+  fornecedor_contestacao_texto?: string | null;
+  fornecedor_contestacao_foto_url?: string | null;
+};
+type DebitoPendenteItem = {
+  id: string;
+  fornecedor_nome: string | null;
+  valor_fornecedor: number;
+  ciclo_a_descontar: string;
+  pedido_id: string | null;
+};
+const PRAZO_FORNECEDOR_HORAS = 48;
+function formatPrazoCurto(s: string) {
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+function formatDateCiclo(s: string) {
+  if (!s) return "—";
+  const d = new Date(`${s}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
 
 type Seller = { id: string; nome: string; documento: string | null };
 type Fornecedor = { id: string; nome: string };
@@ -41,6 +98,8 @@ type Pedido = {
   criado_em: string;
   seller_nome?: string;
   fornecedor_nome?: string;
+  marketplace_numero?: string | null;
+  ledger_id?: string | null;
   /** Pedido fictício (conta de teste) — nunca conta em soma real, só sinalizado aqui. */
   e_teste?: boolean;
 };
@@ -55,6 +114,8 @@ const btnSecondaryCompactClass =
   "rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10";
 const btnPrimaryCompactClass =
   "rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60";
+const btnDangerCompactClass =
+  "rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400";
 
 // Status = informação, não ação: sem borda (borda é a assinatura visual de botão nesta
 // tela), fundo suave + bolinha (bg-current) na cor do texto em vez de pílula com contorno.
@@ -69,6 +130,7 @@ const STATUS_PILL: Record<string, string> = {
   cancelado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   produto_nao_vinculado: cn(INFO_PREMIUM_TEXT_PRIMARY, "bg-neutral-100 dark:bg-neutral-800/40"),
   anuncio_sem_sku: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
+  pendente_estoque: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
 };
 const STATUS_LABEL: Record<string, string> = {
   enviado: "Enviado (bloqueado)",
@@ -81,6 +143,7 @@ const STATUS_LABEL: Record<string, string> = {
   cancelado: "Cancelado",
   produto_nao_vinculado: "Fora do catálogo",
   anuncio_sem_sku: "Anúncio sem SKU",
+  pendente_estoque: "Aguardando estoque",
 };
 const STATUS_RESOLVIVEIS = ["produto_nao_vinculado", "anuncio_sem_sku", "devolucao_sem_fornecedor"];
 
@@ -120,6 +183,7 @@ function formatDate(s: string) {
 
 export default function PedidosPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
@@ -137,7 +201,16 @@ export default function PedidosPage() {
   const [valorFornecedor, setValorFornecedor] = useState("");
   const [valorDropcore, setValorDropcore] = useState("");
   const [precoVenda, setPrecoVenda] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [abaAtiva, setAbaAtiva] = useState<AbaKey>(() => abaFromStatusParam(searchParams.get("status")));
+  const [abaContagens, setAbaContagens] = useState<Record<AbaKey, number>>({
+    todos: 0, pendencias: 0, pra_enviar: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0,
+  });
+  const [buscaInput, setBuscaInput] = useState("");
+  const [buscaAplicada, setBuscaAplicada] = useState("");
+  const [periodo, setPeriodo] = useState<"todos" | "hoje" | "7d" | "30d" | "custom">("todos");
+  const [customDe, setCustomDe] = useState("");
+  const [customAte, setCustomAte] = useState("");
+  const [modalPeriodoAberto, setModalPeriodoAberto] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [totalPedidos, setTotalPedidos] = useState(0);
@@ -150,6 +223,53 @@ export default function PedidosPage() {
   const [resolverSaving, setResolverSaving] = useState(false);
   const [resolverError, setResolverError] = useState<string | null>(null);
 
+  // Ledger (bloqueio/devolução) + débitos pendentes — buscados à parte e casados por
+  // pedido_id, pra mostrar as ações de devolução direto no card (sem /admin/devolucoes).
+  const [ledgerPorPedido, setLedgerPorPedido] = useState<Map<string, LedgerItem>>(new Map());
+  const [debitoPorPedido, setDebitoPorPedido] = useState<Map<string, DebitoPendenteItem>>(new Map());
+  const [updatingLedgerId, setUpdatingLedgerId] = useState<string | null>(null);
+  const [confirmacao, setConfirmacao] = useState<{ titulo: string; mensagem: string; onConfirmar: () => void } | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setBuscaAplicada(buscaInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [buscaInput]);
+
+  function periodoParaIntervalo(p: typeof periodo): { desde: string | null; ate: string | null } {
+    if (p === "todos") return { desde: null, ate: null };
+    if (p === "custom") {
+      const desde = customDe ? new Date(`${customDe}T00:00:00`).toISOString() : null;
+      const ate = customAte ? new Date(`${customAte}T23:59:59.999`).toISOString() : null;
+      return { desde, ate };
+    }
+    const agora = new Date();
+    if (p === "hoje") {
+      const inicioHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+      return { desde: inicioHoje.toISOString(), ate: null };
+    }
+    const dias = p === "7d" ? 7 : 30;
+    return { desde: new Date(agora.getTime() - dias * 24 * 60 * 60 * 1000).toISOString(), ate: null };
+  }
+
+  async function loadLedgerEDebitos(token: string) {
+    const [resLedger, resDebitos] = await Promise.all([
+      fetch("/api/org/financial/ledger?include_pago=1", { headers: { Authorization: `Bearer ${token}` } }),
+      fetch("/api/org/financial/debitos-pendentes", { headers: { Authorization: `Bearer ${token}` } }),
+    ]);
+    const [jsonLedger, jsonDebitos] = await Promise.all([resLedger.json(), resDebitos.json()]);
+    const ledgerMap = new Map<string, LedgerItem>();
+    if (resLedger.ok) {
+      const itemsLedger: LedgerItem[] = [...(jsonLedger.items ?? []), ...(jsonLedger.items_pago ?? [])];
+      for (const it of itemsLedger) if (it.pedido_id) ledgerMap.set(it.pedido_id, it);
+    }
+    const debitoMap = new Map<string, DebitoPendenteItem>();
+    if (resDebitos.ok) {
+      for (const d of (jsonDebitos.items ?? []) as DebitoPendenteItem[]) if (d.pedido_id) debitoMap.set(d.pedido_id, d);
+    }
+    setLedgerPorPedido(ledgerMap);
+    setDebitoPorPedido(debitoMap);
+  }
+
   async function load() {
     setLoading(true);
     setError(null);
@@ -160,14 +280,17 @@ export default function PedidosPage() {
         return;
       }
       const token = session.access_token;
-      const params = new URLSearchParams({
-        status: statusFilter,
-        page: String(page),
-        limit: String(pageSize),
-      });
-      const pedRes = await fetch(`/api/org/pedidos?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const statuses = ABAS.find((a) => a.key === abaAtiva)?.statuses ?? null;
+      const { desde, ate } = periodoParaIntervalo(periodo);
+      const params = new URLSearchParams({ page: String(page), limit: String(pageSize) });
+      if (statuses) params.set("status", statuses.join(","));
+      if (buscaAplicada) params.set("busca", buscaAplicada);
+      if (desde) params.set("desde", desde);
+      if (ate) params.set("ate", ate);
+      const [pedRes] = await Promise.all([
+        fetch(`/api/org/pedidos?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }),
+        loadLedgerEDebitos(token),
+      ]);
       const pedJson = await pedRes.json();
       if (!pedRes.ok) {
         setLoading(false);
@@ -180,6 +303,17 @@ export default function PedidosPage() {
       setFornecedores(
         Array.isArray(pedJson.fornecedores) ? pedJson.fornecedores.filter((f: Fornecedor) => f.id && f.nome) : []
       );
+      if (pedJson.abas) {
+        setAbaContagens({
+          todos: pedJson.abas.todos ?? 0,
+          pendencias: pedJson.abas.pendencias ?? 0,
+          pra_enviar: pedJson.abas.pra_enviar ?? 0,
+          enviados: pedJson.abas.enviados ?? 0,
+          devolucao: pedJson.abas.devolucao ?? 0,
+          concluidos: pedJson.abas.concluidos ?? 0,
+          cancelados: pedJson.abas.cancelados ?? 0,
+        });
+      }
     } catch {
       setError("Erro ao carregar.");
     } finally {
@@ -187,10 +321,124 @@ export default function PedidosPage() {
     }
   }
 
+  async function patchLedgerStatus(ledgerId: string, status: string) {
+    setConfirmacao(null);
+    setUpdatingLedgerId(ledgerId);
+    setError(null);
+    setSuccess(null);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch(`/api/org/financial/ledger/${ledgerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ status }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setSuccess(json.mensagem || "Status atualizado.");
+        load();
+      } else {
+        setError(json?.error || "Erro ao atualizar.");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro");
+    } finally {
+      setUpdatingLedgerId(null);
+    }
+  }
+
+  async function manterVenda(ledgerId: string) {
+    setConfirmacao(null);
+    setUpdatingLedgerId(ledgerId);
+    setError(null);
+    setSuccess(null);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch(`/api/org/financial/ledger/${ledgerId}/manter-venda`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setSuccess(json.mensagem || "Devolução revertida.");
+        load();
+      } else {
+        setError(json?.error || "Erro ao reverter.");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro");
+    } finally {
+      setUpdatingLedgerId(null);
+    }
+  }
+
+  async function registrarDebitoPosRepasse(ledgerId: string) {
+    setConfirmacao(null);
+    setUpdatingLedgerId(ledgerId);
+    setError(null);
+    setSuccess(null);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/org/financial/devolucao-pos-repasse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ ledger_id: ledgerId }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setSuccess(json.mensagem || "Débito registrado. Será descontado no próximo repasse.");
+        load();
+      } else {
+        setError(json?.error || "Erro ao registrar.");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro");
+    } finally {
+      setUpdatingLedgerId(null);
+    }
+  }
+
+  function askRegistrarDevolucao(l: LedgerItem) {
+    setConfirmacao({
+      titulo: "Registrar devolução?",
+      mensagem: `${l.seller_nome} — ${l.fornecedor_nome}, ${formatMoney(l.valor_total)}. Marca que o item está voltando pro fornecedor — use só depois de confirmar isso com o fornecedor.`,
+      onConfirmar: () => void patchLedgerStatus(l.id, "EM_DEVOLUCAO"),
+    });
+  }
+  function askFornecedorConferiu(l: LedgerItem) {
+    setConfirmacao({
+      titulo: "Fornecedor conferiu a devolução?",
+      mensagem: `${l.seller_nome} — ${l.fornecedor_nome}, ${formatMoney(l.valor_total)}. Libera o valor de volta pro saldo do seller. Só confirme depois do fornecedor confirmar que recebeu o item de volta.`,
+      onConfirmar: () => void patchLedgerStatus(l.id, "DEVOLVIDO"),
+    });
+  }
+  function askManterVenda(l: LedgerItem) {
+    setConfirmacao({
+      titulo: "Devolução não procede?",
+      mensagem: `${l.seller_nome} — ${l.fornecedor_nome}, ${formatMoney(l.valor_total)}. Reverte a devolução — a venda volta pro fluxo normal de repasse pro fornecedor, nada volta pro saldo do seller. Use só quando o fornecedor tinha razão.`,
+      onConfirmar: () => void manterVenda(l.id),
+    });
+  }
+  function askRegistrarDebito(l: LedgerItem) {
+    setConfirmacao({
+      titulo: "Registrar débito pro próximo repasse?",
+      mensagem: `${l.fornecedor_nome} vai ter ${formatMoney(l.valor_total)} descontado do próximo repasse por causa de uma devolução depois do pagamento já feito.`,
+      onConfirmar: () => void registrarDebitoPosRepasse(l.id),
+    });
+  }
+
   useEffect(() => {
+    if (periodo === "custom" && !customDe && !customAte) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, page, pageSize]);
+  }, [abaAtiva, page, pageSize, buscaAplicada, periodo, customDe, customAte]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [buscaAplicada, periodo, customDe, customAte]);
 
   async function loadSkus(fornId: string) {
     if (!fornId || !orgId) { setSkus([]); setSkuId(""); return; }
@@ -369,6 +617,64 @@ export default function PedidosPage() {
   }
 
 
+  /** Ações de bloqueio/devolução direto no card — reaproveita o ledger casado por
+   * pedido_id (antes só existia em /admin/devolucoes). */
+  function AcoesLedgerPedido({ p, full }: { p: Pedido; full?: boolean }) {
+    const l = p.ledger_id ? ledgerPorPedido.get(p.id) : undefined;
+    const debito = debitoPorPedido.get(p.id);
+    if (!l) return null;
+    const busy = updatingLedgerId === l.id;
+    const cls = full ? "mt-2 w-full" : "";
+
+    if (["BLOQUEADO", "ENTREGUE", "AGUARDANDO_REPASSE"].includes(l.status)) {
+      return (
+        <button type="button" onClick={() => askRegistrarDevolucao(l)} disabled={busy} className={cn(btnDangerCompactClass, cls)}>
+          {busy ? "..." : "Registrar devolução"}
+        </button>
+      );
+    }
+    if (l.status === "EM_DEVOLUCAO") {
+      return (
+        <div className={cn("flex flex-col gap-1.5", full ? "mt-2" : "")}>
+          {l.fornecedor_contestou_em ? (
+            <div className="max-w-[260px] text-[11px] text-[var(--danger)]">
+              <p className="font-semibold">Fornecedor contestou:</p>
+              <p className="line-clamp-2">{l.fornecedor_contestacao_texto ?? "—"}</p>
+              {l.fornecedor_contestacao_foto_url ? (
+                <a href={l.fornecedor_contestacao_foto_url} target="_blank" rel="noopener noreferrer" className="underline">
+                  Ver foto ↗
+                </a>
+              ) : null}
+            </div>
+          ) : l.em_devolucao_desde ? (
+            <p className="text-[11px] text-[var(--muted)]">
+              Prazo fornecedor: {formatPrazoCurto(new Date(new Date(l.em_devolucao_desde).getTime() + PRAZO_FORNECEDOR_HORAS * 60 * 60 * 1000).toISOString())}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap gap-1.5">
+            <button type="button" onClick={() => askFornecedorConferiu(l)} disabled={busy} className={cn(btnPrimaryCompactClass, full && "flex-1")}>
+              {busy ? "..." : "Fornecedor conferiu"}
+            </button>
+            <button type="button" onClick={() => askManterVenda(l)} disabled={busy} className={cn(btnSecondaryCompactClass, full && "flex-1")}>
+              {busy ? "..." : "Devolução não procede"}
+            </button>
+          </div>
+        </div>
+      );
+    }
+    if (l.status === "PAGO") {
+      if (debito || l.debito_ja_registrado) {
+        return <span className={cn("text-xs text-[var(--muted)]", full ? "mt-2 block" : "")}>✓ Débito registrado{debito ? ` (ciclo ${formatDateCiclo(debito.ciclo_a_descontar)})` : ""}</span>;
+      }
+      return (
+        <button type="button" onClick={() => askRegistrarDebito(l)} disabled={busy} className={cn(btnDangerCompactClass, cls)}>
+          {busy ? "..." : "Registrar débito (devolução pós-repasse)"}
+        </button>
+      );
+    }
+    return null;
+  }
+
   if (loading) {
     return (
       <div className="dropcore-shell-6xl pt-6 pb-10 md:pb-12">
@@ -391,30 +697,6 @@ export default function PedidosPage() {
         }
         right={
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-max sm:flex-nowrap sm:justify-end">
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setPage(1);
-                setStatusFilter(e.target.value);
-              }}
-              className="min-h-[1.875rem] flex-1 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] sm:w-36 sm:flex-none"
-            >
-              <option value="">Todos</option>
-              <option value="enviado">Enviado (bloqueado)</option>
-              <option value="aguardando_repasse">Aguardando repasse</option>
-              <option value="entregue">Entregue</option>
-              <option value="em_devolucao">Em devolução</option>
-              <option value="devolvido">Devolvido</option>
-              <option value="cancelado">Cancelado</option>
-              <option value="erro_saldo">Erro saldo</option>
-            </select>
-            <button
-              type="button"
-              onClick={() => router.push("/admin/devolucoes")}
-              className={cn(btnSecondaryCompactClass, "flex-1 sm:flex-none")}
-            >
-              Bloqueios e devoluções
-            </button>
             <button
               type="button"
               onClick={() => setShowForm(true)}
@@ -439,6 +721,109 @@ export default function PedidosPage() {
           {success}
         </div>
       )}
+
+      <div className="flex items-center gap-5 overflow-x-auto border-b border-[var(--card-border)] px-1">
+        {ABAS.map((aba) => {
+          const ativo = abaAtiva === aba.key;
+          return (
+            <button
+              key={aba.key}
+              type="button"
+              onClick={() => {
+                setPage(1);
+                setAbaAtiva(aba.key);
+              }}
+              className={cn(
+                "-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 pb-2.5 pt-1 text-sm font-medium transition-colors",
+                ativo
+                  ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                  : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+              )}
+            >
+              <aba.Icon className="h-4 w-4 shrink-0" />
+              {aba.label} ({abaContagens[aba.key]})
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1 sm:max-w-xs">
+          <svg className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            type="text"
+            value={buscaInput}
+            onChange={(e) => setBuscaInput(e.target.value)}
+            placeholder="Buscar por seller, fornecedor, produto ou pedido..."
+            aria-label="Buscar pedidos"
+            className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] py-1.5 pl-8 pr-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+          />
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-1">
+          {([
+            { key: "todos", label: "Tudo" },
+            { key: "hoje", label: "Hoje" },
+            { key: "7d", label: "7 dias" },
+            { key: "30d", label: "30 dias" },
+          ] as const).map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setPeriodo(opt.key)}
+              className={cn(
+                "rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
+                periodo === opt.key
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setModalPeriodoAberto((v) => !v)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
+                periodo === "custom"
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+              )}
+            >
+              <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect width="18" height="18" x="3" y="4" rx="2" />
+                <path d="M3 10h18M8 2v4M16 2v4" />
+              </svg>
+              {periodo === "custom" && customDe
+                ? `${customDe.split("-").slice(1).reverse().join("/")}${customAte && customAte !== customDe ? ` - ${customAte.split("-").slice(1).reverse().join("/")}` : ""}`
+                : "Personalizado"}
+              <svg className={cn("h-3 w-3 shrink-0 opacity-70 transition-transform", modalPeriodoAberto && "rotate-180")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            {modalPeriodoAberto ? (
+              <PeriodoPersonalizadoModal
+                deInicial={customDe}
+                ateInicial={customAte}
+                onFechar={() => setModalPeriodoAberto(false)}
+                onAplicar={(de, ate) => {
+                  setCustomDe(de);
+                  setCustomAte(ate);
+                  setPeriodo("custom");
+                  setModalPeriodoAberto(false);
+                }}
+              />
+            ) : null}
+          </div>
+          <button type="button" onClick={() => void load()} disabled={loading} className={btnSecondaryCompactClass}>
+            {loading ? "..." : "Atualizar"}
+          </button>
+        </div>
+      </div>
 
       {showForm && (
         <div
@@ -636,6 +1021,34 @@ export default function PedidosPage() {
         </div>
       )}
 
+      {confirmacao && (
+        <div
+          className={cn(MODAL_OVERLAY_CLASS, "animate-fade-in-up")}
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setConfirmacao(null)}
+        >
+          <div
+            className={cn(MODAL_PANEL_CLASS, "animate-fade-in-up animate-fade-in-up-delay-1")}
+            style={{ maxWidth: "28rem" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={cn(MODAL_PANEL_BODY_CLASS, "p-5")}>
+              <p className="font-semibold text-[var(--foreground)]">{confirmacao.titulo}</p>
+              <p className="mt-1.5 text-sm text-[var(--muted)]">{confirmacao.mensagem}</p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button type="button" onClick={() => setConfirmacao(null)} className={btnSecondaryCompactClass}>
+                  Cancelar
+                </button>
+                <button type="button" onClick={confirmacao.onConfirmar} className={btnPrimaryCompactClass}>
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <section className="overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
       {pedidos.length === 0 ? (
         <div className="py-16 text-center">
@@ -681,6 +1094,9 @@ export default function PedidosPage() {
                       <span className={p.nome_produto ? "text-[var(--foreground)]" : "text-[var(--muted)]"}>
                         {p.nome_produto ?? "—"}
                       </span>
+                      {p.marketplace_numero ? (
+                        <p className="font-mono text-[10px] text-[var(--muted)]">{p.marketplace_numero}</p>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3 text-right font-medium">{formatMoney(p.valor_total)}</td>
                     <td className="px-4 py-3">
@@ -717,6 +1133,7 @@ export default function PedidosPage() {
                             Resolver
                           </button>
                         )}
+                        <AcoesLedgerPedido p={p} />
                       </div>
                     </td>
                   </tr>
@@ -736,6 +1153,7 @@ export default function PedidosPage() {
                 <p className="mt-0.5 text-xs text-[var(--muted)] truncate">
                   {p.fornecedor_nome ?? "—"}
                   {p.nome_produto ? ` · ${p.nome_produto}` : ""}
+                  {p.marketplace_numero ? ` · Pedido ${p.marketplace_numero}` : ""}
                   {p.e_teste ? " · teste" : ""}
                 </p>
                 <div className="mt-2 flex items-center justify-between gap-2">
@@ -767,6 +1185,7 @@ export default function PedidosPage() {
                     Resolver
                   </button>
                 )}
+                <AcoesLedgerPedido p={p} full />
               </div>
             ))}
           </div>
