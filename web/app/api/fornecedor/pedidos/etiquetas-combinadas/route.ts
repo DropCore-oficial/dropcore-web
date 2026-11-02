@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument } from "pdf-lib";
 import { calcularPrazoDespachoPedido } from "@/lib/pedidoSlaDespacho";
-import { gerarPaginaInfoPedido, type ItemInfoEtiqueta } from "@/lib/etiquetaInfoPagePdf";
+import { gerarPaginaInfoPedido, desenharInfoPedidoNaEtiqueta, type ItemInfoEtiqueta } from "@/lib/etiquetaInfoPagePdf";
 import { normalizarEtiquetaMlPdf } from "@/lib/mercadoLivreApiClient";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -245,32 +245,47 @@ export async function POST(req: Request) {
     for (const { id, bytes: buf } of buffers) {
       try {
         const doc = await PDFDocument.load(buf);
-        const primeiraPagina = doc.getPages()[0];
-
-        // Página de info (produto/SKU/cor/tamanho) ANTES da etiqueta — mesmo tamanho
-        // físico dela, pra sair junto no mesmo rolo/impressora.
         const row = byId.get(id)!;
         const packId = (row.marketplace_pack_id as string | null)?.trim() || null;
-        try {
-          const { width, height } = primeiraPagina.getSize();
-          const infoBytes = await gerarPaginaInfoPedido({
-            width,
-            height,
-            marketplace_numero: (row.marketplace_numero as string | null) ?? null,
-            seller_nome: sellerNomeMap.get(row.seller_id as string) ?? "—",
-            valor_fornecedor: Number(row.valor_fornecedor ?? 0),
-            criado_em: row.criado_em as string,
-            itens: itensDoPacote(id, packId),
-          });
-          const infoDoc = await PDFDocument.load(infoBytes);
-          const infoCopiada = await merged.copyPages(infoDoc, infoDoc.getPageIndices());
-          for (const p of infoCopiada) merged.addPage(p);
-        } catch (e) {
-          console.error("[etiquetas-combinadas] falha ao gerar página de info, seguindo só com a etiqueta:", e);
-        }
+        const infoParams = {
+          marketplace_numero: (row.marketplace_numero as string | null) ?? null,
+          seller_nome: sellerNomeMap.get(row.seller_id as string) ?? "—",
+          valor_fornecedor: Number(row.valor_fornecedor ?? 0),
+          criado_em: row.criado_em as string,
+          itens: itensDoPacote(id, packId),
+        };
 
         const copied = await merged.copyPages(doc, doc.getPageIndices());
         for (const page of copied) merged.addPage(page);
+
+        // Mercado Livre normalizado tem sempre 1 página só (ver `normalizarEtiquetaMlPdf`) —
+        // desenha a info direto na metade de baixo dela, pra sair 1 etiqueta física só, não
+        // 2 (achado 2026-11-02: página de info separada fazia a impressora cortar em 2).
+        // Outros canais (etiqueta anexada manual) mantêm página própria antes, por segurança.
+        if (row.canal_venda === "mercado_livre" && copied.length === 1) {
+          const etiquetaPage = copied[0];
+          const { width, height } = etiquetaPage.getSize();
+          try {
+            await desenharInfoPedidoNaEtiqueta(merged, etiquetaPage, width, height, infoParams);
+          } catch (e) {
+            console.error("[etiquetas-combinadas] falha ao desenhar info na etiqueta ML:", e);
+          }
+        } else {
+          try {
+            const primeiraPagina = doc.getPages()[0];
+            const { width, height } = primeiraPagina.getSize();
+            const infoBytes = await gerarPaginaInfoPedido({ width, height, ...infoParams });
+            const infoDoc = await PDFDocument.load(infoBytes);
+            const infoCopiada = await merged.copyPages(infoDoc, infoDoc.getPageIndices());
+            // Insere antes da(s) página(s) da etiqueta que já foram adicionadas.
+            const etiquetaIndex = merged.getPageCount() - copied.length;
+            for (let i = 0; i < infoCopiada.length; i++) {
+              merged.insertPage(etiquetaIndex + i, infoCopiada[i]);
+            }
+          } catch (e) {
+            console.error("[etiquetas-combinadas] falha ao gerar página de info, seguindo só com a etiqueta:", e);
+          }
+        }
       } catch (e) {
         console.error("[etiquetas-combinadas] PDF inválido ou corrompido", e);
       }
