@@ -57,6 +57,8 @@ export const NOTIFICATION_TIPOS_POR_CONTEXTO: Record<NotificationPortalContext, 
     "pedido_sla_atrasado",
     "devolucao_registrada_fornecedor",
     "devolucao_liberada_automatico_fornecedor",
+    "debito_devolucao_pos_repasse_registrado",
+    "debito_devolucao_pos_repasse_descontado",
   ],
 };
 

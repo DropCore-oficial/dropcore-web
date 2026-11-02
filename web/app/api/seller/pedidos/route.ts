@@ -52,14 +52,14 @@ const STATUS_FILTER = [
   "erro_saldo",
 ] as const;
 
+/** Mesmo grupo computado na RPC (total_count_pendencias) — usado aqui só pra decidir se a
+ * reserva "aguardando pagamento" deve entrar junto (ela não tem fornecedor_id/não vem da
+ * RPC, mas pertence ao mesmo balde visual "precisa de atenção"). */
+const STATUS_PENDENCIAS = ["bloqueado", "produto_nao_vinculado", "anuncio_sem_sku", "pendente_estoque", "erro_saldo"];
+
 /** Status sintético (não existe em `pedidos.status`) — pedido Olist "Em aberto"
  * (aguardando pagamento), montado a partir de `estoque_reservas`, sem valor nem ação. */
 const STATUS_AGUARDANDO_PAGAMENTO = "aguardando_pagamento";
-
-/** Filtro sintético — não é um `pedidos.status` real, é a mesma condição computada em
- * `tem_etiqueta`/`emBufferMl` (ver web/app/seller/pedidos/page.tsx): "enviado" do ML sem
- * etiqueta ainda (buffer automático de transportadora do próprio Mercado Livre). */
-const STATUS_ETIQUETA_BUFFER_ML = "etiqueta_buffer_ml";
 
 export async function GET(req: Request) {
   try {
@@ -69,32 +69,41 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status")?.trim();
+    // Aceita vários status de uma vez, separados por vírgula (grupo de abas da tela).
+    const statusParam = searchParams.get("status")?.trim();
+    const statusArray = statusParam
+      ? statusParam.split(",").map((s) => s.trim()).filter((s) => (STATUS_FILTER as readonly string[]).includes(s))
+      : null;
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
     const pageSize = Math.min(300, Math.max(1, parseInt(searchParams.get("limit") || "10", 10) || 10));
-    const somenteReservas = status === STATUS_AGUARDANDO_PAGAMENTO;
+
+    // Busca por nome do produto + período — opcionais, combinam com a aba ativa. (Busca por
+    // fornecedor não fazia sentido aqui: hoje cada seller só tem 1 fornecedor conectado.)
+    const produtoParam = searchParams.get("produto")?.trim() || null;
+    const desdeParam = searchParams.get("desde")?.trim() || null;
+    const desdeValido = desdeParam && !Number.isNaN(new Date(desdeParam).getTime()) ? desdeParam : null;
+    const ateParam = searchParams.get("ate")?.trim() || null;
+    const ateValido = ateParam && !Number.isNaN(new Date(ateParam).getTime()) ? ateParam : null;
 
     let data: PedidoRow[] | null = [];
     let pedidosCount = 0;
-    let totalDevolucao = 0;
+    let abas = { todos: 0, pendencias: 0, pra_enviar: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0 };
 
-    if (!somenteReservas) {
+    {
       const from = (page - 1) * pageSize;
-      const pStatus = status === STATUS_ETIQUETA_BUFFER_ML
-        ? STATUS_ETIQUETA_BUFFER_ML
-        : status && (STATUS_FILTER as readonly string[]).includes(status)
-          ? status
-          : null;
 
       // RPC (regra 9): além de ler, ordena priorizando pedido com etiqueta recém-liberada e
       // ainda não impressa — expressão de ordenação (CASE) que o PostgREST não faz direto.
-      // Ver fn_seller_pedidos_lista em web/scripts/add-etiqueta-liberada-prioridade.sql.
+      // Ver fn_seller_pedidos_lista em web/scripts/add-seller-pedidos-lista-abas.sql.
       const { data: rpcRows, error: rpcErr } = await supabaseAdmin.rpc("fn_seller_pedidos_lista", {
         p_org_id: seller.org_id,
         p_seller_id: seller.id,
-        p_status: pStatus,
+        p_status: statusArray && statusArray.length > 0 ? statusArray : null,
         p_limit: pageSize,
         p_offset: from,
+        p_produto: produtoParam,
+        p_desde: desdeValido,
+        p_ate: ateValido,
       });
 
       if (rpcErr) {
@@ -102,10 +111,40 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
       }
 
-      const rows = (rpcRows ?? []) as (PedidoRow & { total_count: number; total_count_devolucao: number })[];
-      data = rows.map(({ total_count: _tc, total_count_devolucao: _tcd, ...p }) => p);
+      type Contadores = {
+        total_count: number;
+        total_count_geral: number;
+        total_count_pendencias: number;
+        total_count_pra_enviar: number;
+        total_count_enviados: number;
+        total_count_devolucao: number;
+        total_count_entregue: number;
+        total_count_cancelado: number;
+      };
+      const rows = (rpcRows ?? []) as (PedidoRow & Contadores)[];
+      data = rows.map(
+        ({
+          total_count: _tc,
+          total_count_geral: _tcg,
+          total_count_pendencias: _tcp,
+          total_count_pra_enviar: _tcpe,
+          total_count_enviados: _tce,
+          total_count_devolucao: _tcd,
+          total_count_entregue: _tcen,
+          total_count_cancelado: _tcc,
+          ...p
+        }) => p
+      );
       pedidosCount = rows[0]?.total_count ?? 0;
-      totalDevolucao = rows[0]?.total_count_devolucao ?? 0;
+      abas = {
+        todos: rows[0]?.total_count_geral ?? 0,
+        pendencias: rows[0]?.total_count_pendencias ?? 0,
+        pra_enviar: rows[0]?.total_count_pra_enviar ?? 0,
+        enviados: rows[0]?.total_count_enviados ?? 0,
+        devolucao: rows[0]?.total_count_devolucao ?? 0,
+        concluidos: rows[0]?.total_count_entregue ?? 0,
+        cancelados: rows[0]?.total_count_cancelado ?? 0,
+      };
     }
 
     const pedidoIds = (data ?? []).map((p) => p.id);
@@ -219,21 +258,23 @@ export async function GET(req: Request) {
     }
 
     // Pedidos Olist "Em aberto" (aguardando pagamento) — reserva estoque mas ainda não
-    // vira `pedidos`/`financial_ledger`. Só entra na lista quando o filtro é "Todos" ou
-    // o próprio filtro "Aguardando pagamento".
-    const incluirReservas = !status || somenteReservas;
+    // vira `pedidos`/`financial_ledger`. Entra na aba "Todos" e na aba "Pendências"
+    // (a busca por produto não filtra reserva — RPC só olha `pedidos.nome_produto`).
+    const incluirReservas = !statusArray || statusArray.some((s) => STATUS_PENDENCIAS.includes(s));
     let reservaItems: typeof items = [];
 
     if (incluirReservas) {
-      const { data: reservas, error: reservasErr } = await supabaseAdmin
+      let reservasQuery = supabaseAdmin
         .from("estoque_reservas")
         .select(
           "referencia_externa, quantidade, comprador_nome, marketplace_numero, canal_venda, criado_em, skus(sku, nome_produto, cor, tamanho)"
         )
         .eq("org_id", seller.org_id)
         .eq("seller_id", seller.id)
-        .eq("status", "ativa")
-        .order("criado_em", { ascending: false });
+        .eq("status", "ativa");
+      if (desdeValido) reservasQuery = reservasQuery.gte("criado_em", desdeValido);
+      if (ateValido) reservasQuery = reservasQuery.lte("criado_em", ateValido);
+      const { data: reservas, error: reservasErr } = await reservasQuery.order("criado_em", { ascending: false });
 
       if (reservasErr) {
         console.error("[seller/pedidos GET] reservas:", reservasErr.message);
@@ -306,25 +347,19 @@ export async function GET(req: Request) {
     const byDateDesc = (a: { criado_em: string }, b: { criado_em: string }) =>
       new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime();
 
-    let merged: typeof items;
-    let total: number;
+    // `pedidos` já vem paginado do banco (`.range()`). Reservas não têm página própria —
+    // como a lista costuma ser pequena, elas só entram inteiras na página 1 (mais recentes
+    // primeiro), sem tentar intercalar duas fontes paginadas separadamente.
+    const merged = page === 1 ? [...reservaItems, ...items].sort(byDateDesc) : items;
+    const total = pedidosCount + reservaItems.length;
 
-    if (somenteReservas) {
-      // Só reservas ("Em aberto") — lista tende a ser pequena, pagina o array já
-      // buscado inteiro em vez de fazer `.range()` no Supabase pra isso.
-      const sorted = [...reservaItems].sort(byDateDesc);
-      total = sorted.length;
-      const from = (page - 1) * pageSize;
-      merged = sorted.slice(from, from + pageSize);
-    } else {
-      // `pedidos` já vem paginado do banco (`.range()`). Reservas não têm página própria
-      // — como a lista costuma ser pequena, elas só entram inteiras na página 1 (mais
-      // recentes primeiro), sem tentar intercalar duas fontes paginadas separadamente.
-      merged = page === 1 ? [...reservaItems, ...items].sort(byDateDesc) : items;
-      total = pedidosCount + (incluirReservas ? reservaItems.length : 0);
+    // Reserva engorda a mesma aba visual "Pendências" (e "Todos") — soma depois da RPC,
+    // que não sabe nada sobre `estoque_reservas`.
+    if (reservaItems.length > 0) {
+      abas = { ...abas, todos: abas.todos + reservaItems.length, pendencias: abas.pendencias + reservaItems.length };
     }
 
-    return NextResponse.json({ items: merged, total, page, limit: pageSize, total_devolucao: totalDevolucao });
+    return NextResponse.json({ items: merged, total, page, limit: pageSize, abas });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

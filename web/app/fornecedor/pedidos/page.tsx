@@ -9,12 +9,44 @@ import {
   DANGER_PREMIUM_SURFACE,
   DANGER_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/semanticPremium";
-import { IconClipboard } from "@/components/seller/Icons";
+import { IconClipboard, IconBox, IconArrowRight, IconDevolucao, IconCheck, IconX } from "@/components/seller/Icons";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { PedidoCardSkeleton } from "@/components/ui/Skeleton";
 import { ModalOverlay } from "@/components/ui/ModalOverlay";
 import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
+import { FornecedorDevolucaoAcoes } from "@/components/fornecedor/FornecedorDevolucaoAcoes";
+import { PeriodoPersonalizadoModal } from "@/components/fornecedor/PeriodoPersonalizadoModal";
 import { cn } from "@/lib/utils";
+
+/** Grupo de abas da tela — cada uma pode cobrir vários status reais de uma vez (ex:
+ * "Devolução" junta em_devolucao + devolvido + devolucao_sem_fornecedor). `null` = sem
+ * filtro (Todos). Consolida o que antes era /fornecedor/devolucoes numa aba só aqui. */
+const ABAS = [
+  { key: "todos", label: "Todos", statuses: null as string[] | null, Icon: IconClipboard },
+  { key: "pra_enviar", label: "Pra enviar", statuses: ["pendente_estoque", "bloqueado", "enviado", "erro_saldo"], Icon: IconBox },
+  { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight },
+  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao },
+  { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck },
+  { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX },
+] as const;
+type AbaKey = (typeof ABAS)[number]["key"];
+
+function abaFromStatusParam(raw: string | null): AbaKey {
+  if (!raw) return "todos";
+  const exata = ABAS.find((a) => a.key === raw);
+  if (exata) return exata.key;
+  const porStatus = ABAS.find((a) => (a.statuses as readonly string[] | null)?.includes(raw));
+  return porStatus?.key ?? "todos";
+}
+
+type Devolucao = {
+  id: string;
+  valor_total: number;
+  data_evento: string;
+  prazo_final: string | null;
+  contestado: boolean;
+  fornecedor_contestacao_texto: string | null;
+};
 
 // Padrão compacto de toolbar/badge — mesmo teste de web/app/admin/pedidos/page.tsx
 // (ver skill dropcore-layout, seções "Botão de ação compacto" e "Badge de status").
@@ -85,6 +117,7 @@ type Pedido = {
   etiqueta_liberada_em?: string | null;
   canal_venda?: string | null;
   etiqueta_ml_previsao?: string | null;
+  ledger_id?: string | null;
   /** Vários order_id do ML podem ser o mesmo pacote/etiqueta — este card representa todos
    * esses ids (ver pedidos.marketplace_pack_id em docs/SCHEMA.md). Sem pack, é só `[id]`. */
   pack_pedido_ids: string[];
@@ -157,8 +190,41 @@ export default function FornecedorPedidosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
-  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
-  const [totalDevolucao, setTotalDevolucao] = useState(0);
+  const [abaAtiva, setAbaAtiva] = useState<AbaKey>(() => abaFromStatusParam(searchParams.get("status")));
+  const [abaContagens, setAbaContagens] = useState<Record<AbaKey, number>>({
+    todos: 0, pra_enviar: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0,
+  });
+  const [devolucoesPendentes, setDevolucoesPendentes] = useState<Devolucao[]>([]);
+  const [confirmandoDevolucaoId, setConfirmandoDevolucaoId] = useState<string | null>(null);
+  const [mensagemDevolucao, setMensagemDevolucao] = useState<string | null>(null);
+  const [buscaSellerInput, setBuscaSellerInput] = useState("");
+  const [buscaSellerAplicada, setBuscaSellerAplicada] = useState("");
+  const [periodo, setPeriodo] = useState<"todos" | "hoje" | "7d" | "30d" | "custom">("todos");
+  const [customDe, setCustomDe] = useState("");
+  const [customAte, setCustomAte] = useState("");
+  const [modalPeriodoAberto, setModalPeriodoAberto] = useState(false);
+
+  // Debounce da busca por seller — só dispara o fetch 400ms depois de parar de digitar.
+  useEffect(() => {
+    const t = setTimeout(() => setBuscaSellerAplicada(buscaSellerInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [buscaSellerInput]);
+
+  function periodoParaIntervalo(p: typeof periodo): { desde: string | null; ate: string | null } {
+    if (p === "todos") return { desde: null, ate: null };
+    if (p === "custom") {
+      const desde = customDe ? new Date(`${customDe}T00:00:00`).toISOString() : null;
+      const ate = customAte ? new Date(`${customAte}T23:59:59.999`).toISOString() : null;
+      return { desde, ate };
+    }
+    const agora = new Date();
+    if (p === "hoje") {
+      const inicioHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+      return { desde: inicioHoje.toISOString(), ate: null };
+    }
+    const dias = p === "7d" ? 7 : 30;
+    return { desde: new Date(agora.getTime() - dias * 24 * 60 * 60 * 1000).toISOString(), ate: null };
+  }
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [imprimindoLote, setImprimindoLote] = useState(false);
   const [marcandoLote, setMarcandoLote] = useState(false);
@@ -190,8 +256,13 @@ export default function FornecedorPedidosPage() {
         router.replace("/fornecedor/login");
         return;
       }
+      const statuses = ABAS.find((a) => a.key === abaAtiva)?.statuses ?? null;
       const params = new URLSearchParams();
-      if (statusFilter) params.set("status", statusFilter);
+      if (statuses) params.set("status", statuses.join(","));
+      if (buscaSellerAplicada) params.set("seller_nome", buscaSellerAplicada);
+      const { desde, ate } = periodoParaIntervalo(periodo);
+      if (desde) params.set("desde", desde);
+      if (ate) params.set("ate", ate);
       // Com destaque (link de notificação), busca uma janela maior em vez de só a
       // página atual — o pedido notificado pode não estar entre os `pageSize` mais
       // recentes.
@@ -208,7 +279,16 @@ export default function FornecedorPedidosPage() {
       const json = await res.json();
       setPedidos(json.items ?? []);
       setTotalPedidos(typeof json.total === "number" ? json.total : (json.items ?? []).length);
-      setTotalDevolucao(typeof json.total_devolucao === "number" ? json.total_devolucao : 0);
+      if (json.abas) {
+        setAbaContagens({
+          todos: json.abas.todos ?? 0,
+          pra_enviar: json.abas.pra_enviar ?? 0,
+          enviados: json.abas.enviados ?? 0,
+          devolucao: json.abas.devolucao ?? 0,
+          concluidos: json.abas.concluidos ?? 0,
+          cancelados: json.abas.cancelados ?? 0,
+        });
+      }
       if (typeof json.expedicao_padrao === "string" || json.expedicao_padrao === null) {
         setExpedicaoPadrao(json.expedicao_padrao);
       }
@@ -223,10 +303,43 @@ export default function FornecedorPedidosPage() {
     }
   }
 
+  async function loadDevolucoesPendentes() {
+    const { data: { session } } = await supabaseBrowser.auth.getSession();
+    if (!session?.access_token) return;
+    const res = await fetch("/api/fornecedor/devolucoes", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      cache: "no-store",
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok) setDevolucoesPendentes(json.devolucoes ?? []);
+  }
+
+  async function confirmarDevolucao(ledgerId: string) {
+    setConfirmandoDevolucaoId(null);
+    const { data: { session } } = await supabaseBrowser.auth.getSession();
+    if (!session?.access_token) return;
+    const res = await fetch(`/api/fornecedor/devolucoes/${ledgerId}/confirmar`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const json = await res.json().catch(() => ({}));
+    setMensagemDevolucao(res.ok ? (json.mensagem ?? "Confirmado.") : (json.error ?? "Erro ao confirmar."));
+    await Promise.all([load({ preserveSelection: true }), loadDevolucoesPendentes()]);
+  }
+
   useEffect(() => {
+    // No período customizado, só busca quando pelo menos uma das duas datas está preenchida
+    // — evita disparar fetch a cada tecla antes do usuário terminar de escolher.
+    if (periodo === "custom" && !customDe && !customAte) return;
     load();
+    if (abaAtiva === "devolucao") void loadDevolucoesPendentes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, page, pageSize]);
+  }, [abaAtiva, page, pageSize, buscaSellerAplicada, periodo, customDe, customAte]);
+
+  // Busca/período mudou — volta pra página 1 (resultado antigo pode não ter mais tantas páginas).
+  useEffect(() => {
+    setPage(1);
+  }, [buscaSellerAplicada, periodo, customDe, customAte]);
 
   useEffect(() => {
     if (destaqueId && pedidos.length > 0 && !loading) {
@@ -551,25 +664,111 @@ export default function FornecedorPedidosPage() {
           </AmberPremiumCallout>
         )}
 
-        {totalDevolucao > 0 && (
-          <div>
-            <button
-              type="button"
-              onClick={() => {
-                setPage(1);
-                setStatusFilter(statusFilter === "em_devolucao" ? "" : "em_devolucao");
-              }}
-              className={cn(
-                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
-                statusFilter === "em_devolucao"
-                  ? "bg-rose-600 text-white font-semibold shadow-sm hover:bg-rose-700"
-                  : "bg-rose-100 text-rose-800 hover:bg-rose-200 dark:bg-rose-950/40 dark:text-rose-300"
-              )}
-            >
-              Devolução ({totalDevolucao})
-            </button>
+        {mensagemDevolucao && (
+          <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
+            {mensagemDevolucao}
           </div>
         )}
+
+        <div className="flex items-center gap-5 overflow-x-auto border-b border-[var(--card-border)] px-1">
+          {ABAS.map((aba) => {
+            const ativo = abaAtiva === aba.key;
+            return (
+              <button
+                key={aba.key}
+                type="button"
+                onClick={() => {
+                  setPage(1);
+                  setAbaAtiva(aba.key);
+                }}
+                className={cn(
+                  "-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 pb-2.5 pt-1 text-sm font-medium transition-colors",
+                  ativo
+                    ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                    : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+                )}
+              >
+                <aba.Icon className="h-4 w-4 shrink-0" />
+                {aba.label} ({abaContagens[aba.key]})
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative flex-1 sm:max-w-xs">
+            <svg className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              type="text"
+              value={buscaSellerInput}
+              onChange={(e) => setBuscaSellerInput(e.target.value)}
+              placeholder="Buscar por seller..."
+              aria-label="Buscar por seller"
+              className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] py-1.5 pl-8 pr-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+            />
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-1">
+            {([
+              { key: "todos", label: "Tudo" },
+              { key: "hoje", label: "Hoje" },
+              { key: "7d", label: "7 dias" },
+              { key: "30d", label: "30 dias" },
+            ] as const).map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setPeriodo(opt.key)}
+                className={cn(
+                  "rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
+                  periodo === opt.key
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setModalPeriodoAberto((v) => !v)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
+                  periodo === "custom"
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                )}
+              >
+                <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <rect width="18" height="18" x="3" y="4" rx="2" />
+                  <path d="M3 10h18M8 2v4M16 2v4" />
+                </svg>
+                {periodo === "custom" && customDe
+                  ? `${customDe.split("-").slice(1).reverse().join("/")}${customAte && customAte !== customDe ? ` - ${customAte.split("-").slice(1).reverse().join("/")}` : ""}`
+                  : "Personalizado"}
+                <svg className={cn("h-3 w-3 shrink-0 opacity-70 transition-transform", modalPeriodoAberto && "rotate-180")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+              {modalPeriodoAberto ? (
+                <PeriodoPersonalizadoModal
+                  deInicial={customDe}
+                  ateInicial={customAte}
+                  onFechar={() => setModalPeriodoAberto(false)}
+                  onAplicar={(de, ate) => {
+                    setCustomDe(de);
+                    setCustomAte(ate);
+                    setPeriodo("custom");
+                    setModalPeriodoAberto(false);
+                  }}
+                />
+              ) : null}
+            </div>
+          </div>
+        </div>
 
         <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -649,45 +848,12 @@ export default function FornecedorPedidosPage() {
               </button>
               </div>
               )}
-              <div className="order-1 flex items-center gap-2 sm:order-none sm:contents">
-              <div className="relative flex-1 sm:ml-auto sm:flex-none sm:shrink-0">
-                <div
-                  aria-hidden
-                  className="pointer-events-none flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)]"
-                >
-                  <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
-                  </svg>
-                  Filtro
-                  <svg className="h-3.5 w-3.5 shrink-0 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </div>
-                <select
-                  aria-label="Filtrar por status"
-                  value={statusFilter}
-                  onChange={(e) => {
-                    setPage(1);
-                    setStatusFilter(e.target.value);
-                  }}
-                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                >
-                  <option value="">Todos</option>
-                  <option value="pendente_estoque">Aguardando estoque</option>
-                  <option value="bloqueado">Bloqueado</option>
-                  <option value="enviado">Aguardando postagem</option>
-                  <option value="aguardando_repasse">Postados</option>
-                  <option value="entregue">Entregues</option>
-                  <option value="em_devolucao">Em devolução</option>
-                  <option value="devolvido">Devolvidos</option>
-                  <option value="cancelado">Cancelados</option>
-                </select>
-              </div>
+              <div className="order-1 flex items-center gap-2 sm:order-none sm:ml-auto sm:contents">
               <button
                 type="button"
                 onClick={() => void load()}
                 disabled={loading}
-                className={cn(btnSecondaryCompactClass, "flex-1 sm:flex-none sm:shrink-0")}
+                className={cn(btnSecondaryCompactClass, "flex-1 sm:ml-auto sm:flex-none sm:shrink-0")}
               >
                 {loading ? "Carregando..." : "Atualizar Pedidos"}
               </button>
@@ -833,6 +999,21 @@ export default function FornecedorPedidosPage() {
                   {p.status === "bloqueado" && p.motivo_bloqueio ? (
                     <p className={cn("mt-3 text-sm", DANGER_PREMIUM_TEXT_PRIMARY)}>{p.motivo_bloqueio}</p>
                   ) : null}
+
+                  {p.status === "em_devolucao" && p.ledger_id && (() => {
+                    const devolucao = devolucoesPendentes.find((d) => d.id === p.ledger_id);
+                    if (!devolucao) return null;
+                    return (
+                      <FornecedorDevolucaoAcoes
+                        ledgerId={devolucao.id}
+                        contestado={devolucao.contestado}
+                        contestacaoTexto={devolucao.fornecedor_contestacao_texto}
+                        prazoFinal={devolucao.prazo_final}
+                        onAtualizar={() => void Promise.all([load({ preserveSelection: true }), loadDevolucoesPendentes()])}
+                        pedirConfirmacao={setConfirmandoDevolucaoId}
+                      />
+                    );
+                  })()}
 
                   {p.status === "cancelado" && p.cancelado_motivo === "ml_sem_sync" && (
                     <div
@@ -1101,6 +1282,34 @@ export default function FornecedorPedidosPage() {
               <button
                 type="button"
                 onClick={confirmacao.onConfirmar}
+                className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      ) : null}
+
+      {confirmandoDevolucaoId ? (
+        <ModalOverlay onBackdropClick={() => setConfirmandoDevolucaoId(null)}>
+          <div className={cn(MODAL_PANEL_BODY_CLASS, "p-5")}>
+            <p className="font-semibold text-[var(--foreground)]">Confirmar recebimento?</p>
+            <p className="mt-1.5 text-sm text-[var(--muted)]">
+              Isso libera o valor pro saldo do seller na hora. Só confirme depois de ter recebido a mercadoria de
+              volta e conferido que está tudo certo.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmandoDevolucaoId(null)}
+                className="rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmarDevolucao(confirmandoDevolucaoId)}
                 className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
               >
                 Confirmar

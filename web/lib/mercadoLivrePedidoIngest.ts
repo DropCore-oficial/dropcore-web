@@ -7,7 +7,7 @@
  * /api/seller/olist e /api/seller/mercadolivre/oauth — aqui é a segunda camada de defesa).
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getValidMercadoLivreAccessToken } from "@/lib/mercadoLivreApiClient";
+import { getValidMercadoLivreAccessToken, mlBuscarShipmentDetalheBruto } from "@/lib/mercadoLivreApiClient";
 import { submitSellerErpPedido, insertPedidoPlaceholder } from "@/lib/erp/submitSellerErpPedido";
 import { calcularPrazoDespachoPedido } from "@/lib/pedidoSlaDespacho";
 import { notifySellerAnuncioSemSku } from "@/lib/notifySellerAnuncioSemSku";
@@ -27,7 +27,34 @@ type MlOrderDetalhe = {
    * pedidos.marketplace_pack_id em docs/SCHEMA.md) — não muda nada no processamento
    * deste pedido em si. */
   pack_id?: number | string | null;
+  shipping?: { id?: number | string | null } | null;
 };
+
+/** `buyer.nickname` é o "usuário" do comprador na plataforma, quase sempre mascarado por
+ * privacidade (ex: "FEFACGDHB58097") — não serve pra identificar quem vai receber o pacote.
+ * O nome/cidade/UF de entrega de verdade vem de `shipment.receiver_address` (mesmo dado que
+ * já sai impresso na etiqueta oficial do ML). Busca best-effort: se falhar, segue só com o
+ * nickname mesmo — nunca bloqueia a ingestão do pedido por causa disso. */
+async function buscarDestinatarioReal(
+  shippingId: string | number | null | undefined,
+  ctx: Parameters<typeof mlBuscarShipmentDetalheBruto>[1]
+): Promise<{ nome: string | null; cidade: string | null; uf: string | null }> {
+  if (shippingId == null) return { nome: null, cidade: null, uf: null };
+  try {
+    const shipment = await mlBuscarShipmentDetalheBruto(String(shippingId), ctx);
+    const endereco = shipment?.receiver_address as
+      | { receiver_name?: string | null; city?: { name?: string | null } | null; state?: { id?: string | null; name?: string | null } | null }
+      | undefined;
+    return {
+      nome: endereco?.receiver_name?.trim() || null,
+      cidade: endereco?.city?.name?.trim() || null,
+      uf: endereco?.state?.id?.trim() || endereco?.state?.name?.trim() || null,
+    };
+  } catch (e) {
+    console.warn("[mercadoLivrePedidoIngest] falha ao buscar destinatário real do shipment:", e);
+    return { nome: null, cidade: null, uf: null };
+  }
+}
 
 export type IngerirPedidoMlResultado =
   | {
@@ -95,6 +122,9 @@ export async function ingerirPedidoMercadoLivrePorSeller(params: {
     };
   }
 
+  const destinatario = await buscarDestinatarioReal(orderRes.order.shipping?.id, ctx);
+  const compradorNome = destinatario.nome || orderRes.order.buyer?.nickname || null;
+
   // Pedido feito ANTES do seller conectar essa conta ML ao DropCore não é dele — é
   // histórico de quem usava esse token antes (ou backlog de notificação atrasada do
   // próprio ML). Achado real 2026-09-26: conta reconectada pra teste vazou quase um mês
@@ -145,7 +175,9 @@ export async function ingerirPedidoMercadoLivrePorSeller(params: {
       meta: {
         nome_produto: nomeProduto,
         marketplace_numero: params.orderId,
-        comprador_nome: orderRes.order.buyer?.nickname ?? null,
+        comprador_nome: compradorNome,
+        comprador_cidade: destinatario.cidade,
+        comprador_uf: destinatario.uf,
         canal_venda: "mercado_livre",
         preco_venda: Number(orderRes.order.total_amount ?? orderRes.order.paid_amount ?? 0) || null,
         marketplace_pack_id: orderRes.order.pack_id != null ? String(orderRes.order.pack_id) : null,
@@ -196,7 +228,9 @@ export async function ingerirPedidoMercadoLivrePorSeller(params: {
     items,
     meta: {
       marketplace_numero: params.orderId,
-      comprador_nome: orderRes.order.buyer?.nickname ?? null,
+      comprador_nome: compradorNome,
+      comprador_cidade: destinatario.cidade,
+      comprador_uf: destinatario.uf,
       canal_venda: "mercado_livre",
       preco_venda: Number(orderRes.order.total_amount ?? orderRes.order.paid_amount ?? 0) || null,
       marketplace_pack_id: orderRes.order.pack_id != null ? String(orderRes.order.pack_id) : null,

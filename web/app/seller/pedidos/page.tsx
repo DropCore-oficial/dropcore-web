@@ -36,12 +36,37 @@ import {
   SELLER_SALDO_CRITICO_TITLE,
 } from "@/lib/dangerSellerSaldoCriticoUi";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
+import { IconClipboard, IconAjuste, IconBox, IconArrowRight, IconDevolucao, IconCheck, IconX } from "@/components/seller/Icons";
+import { PeriodoPersonalizadoModal } from "@/components/fornecedor/PeriodoPersonalizadoModal";
 import { cn } from "@/lib/utils";
 
 // Padrão compacto de toolbar — mesmo teste de web/app/fornecedor/pedidos/page.tsx
 // (ver skill dropcore-layout, seção "Botão de ação compacto").
 const btnSecondaryCompactClass =
   "rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/10";
+
+/** Grupo de abas da tela — mesmo tratamento de web/app/fornecedor/pedidos/page.tsx. "Pendências"
+ * junta os status que precisam de ação do seller + a reserva sintética "aguardando pagamento"
+ * (que a API soma à parte, não vem de `pedidos.status`). O filtro sintético antigo
+ * "etiqueta_buffer_ml" não virou aba — a info continua no banner do próprio card. */
+const ABAS = [
+  { key: "todos", label: "Todos", statuses: null as string[] | null, Icon: IconClipboard },
+  { key: "pendencias", label: "Pendências", statuses: ["bloqueado", "produto_nao_vinculado", "anuncio_sem_sku", "pendente_estoque", "erro_saldo"], Icon: IconAjuste },
+  { key: "pra_enviar", label: "Pra enviar", statuses: ["enviado"], Icon: IconBox },
+  { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight },
+  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao },
+  { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck },
+  { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX },
+] as const;
+type AbaKey = (typeof ABAS)[number]["key"];
+
+function abaFromStatusParam(raw: string | null): AbaKey {
+  if (!raw) return "todos";
+  const exata = ABAS.find((a) => a.key === raw);
+  if (exata) return exata.key;
+  const porStatus = ABAS.find((a) => (a.statuses as readonly string[] | null)?.includes(raw));
+  return porStatus?.key ?? (raw === "aguardando_pagamento" ? "pendencias" : "todos");
+}
 
 /** Números de página com reticências pra não estourar a barra quando há muitas páginas. */
 function getPageNumbers(current: number, total: number): (number | "...")[] {
@@ -93,6 +118,16 @@ function formatDate(s: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/** O label "Ref. Olist" ficava fixo pra todo pedido, mesmo vindo direto do ML ou do Bling —
+ * `referencia_externa` carrega o prefixo de origem real (`ml:`, `olist:`, `bling:`, ver
+ * mercadoLivrePedidoIngest.ts/sellerOlistPedidoImport.ts/sellerBlingPedidoImport.ts). */
+function referenciaExternaLabel(ref: string | null): string {
+  if (ref?.startsWith("ml:")) return "Ref. ML";
+  if (ref?.startsWith("bling:")) return "Ref. Bling";
+  if (ref?.startsWith("olist:")) return "Ref. Olist";
+  return "Ref. externa";
 }
 
 /**
@@ -172,8 +207,37 @@ export default function SellerPedidosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
-  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
-  const [totalDevolucao, setTotalDevolucao] = useState(0);
+  const [abaAtiva, setAbaAtiva] = useState<AbaKey>(() => abaFromStatusParam(searchParams.get("status")));
+  const [abaContagens, setAbaContagens] = useState<Record<AbaKey, number>>({
+    todos: 0, pendencias: 0, pra_enviar: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0,
+  });
+  const [buscaProdutoInput, setBuscaFornecedorInput] = useState("");
+  const [buscaProdutoAplicada, setBuscaFornecedorAplicada] = useState("");
+  const [periodo, setPeriodo] = useState<"todos" | "hoje" | "7d" | "30d" | "custom">("todos");
+  const [customDe, setCustomDe] = useState("");
+  const [customAte, setCustomAte] = useState("");
+  const [modalPeriodoAberto, setModalPeriodoAberto] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setBuscaFornecedorAplicada(buscaProdutoInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [buscaProdutoInput]);
+
+  function periodoParaIntervalo(p: typeof periodo): { desde: string | null; ate: string | null } {
+    if (p === "todos") return { desde: null, ate: null };
+    if (p === "custom") {
+      const desde = customDe ? new Date(`${customDe}T00:00:00`).toISOString() : null;
+      const ate = customAte ? new Date(`${customAte}T23:59:59.999`).toISOString() : null;
+      return { desde, ate };
+    }
+    const agora = new Date();
+    if (p === "hoje") {
+      const inicioHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+      return { desde: inicioHoje.toISOString(), ate: null };
+    }
+    const dias = p === "7d" ? 7 : 30;
+    return { desde: new Date(agora.getTime() - dias * 24 * 60 * 60 * 1000).toISOString(), ate: null };
+  }
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalPedidos, setTotalPedidos] = useState(0);
@@ -297,8 +361,13 @@ export default function SellerPedidosPage() {
         router.replace("/seller/login");
         return;
       }
+      const statuses = ABAS.find((a) => a.key === abaAtiva)?.statuses ?? null;
       const params = new URLSearchParams();
-      if (statusFilter) params.set("status", statusFilter);
+      if (statuses) params.set("status", statuses.join(","));
+      if (buscaProdutoAplicada) params.set("produto", buscaProdutoAplicada);
+      const { desde, ate } = periodoParaIntervalo(periodo);
+      if (desde) params.set("desde", desde);
+      if (ate) params.set("ate", ate);
       // Com destaque (link de notificação), busca uma janela maior em vez de só a
       // página atual — o pedido notificado pode não estar entre os `pageSize` mais
       // recentes (mesmo padrão de web/app/fornecedor/pedidos/page.tsx).
@@ -315,7 +384,17 @@ export default function SellerPedidosPage() {
       const json = await res.json();
       setPedidos(json.items ?? []);
       setTotalPedidos(typeof json.total === "number" ? json.total : (json.items ?? []).length);
-      setTotalDevolucao(typeof json.total_devolucao === "number" ? json.total_devolucao : 0);
+      if (json.abas) {
+        setAbaContagens({
+          todos: json.abas.todos ?? 0,
+          pendencias: json.abas.pendencias ?? 0,
+          pra_enviar: json.abas.pra_enviar ?? 0,
+          enviados: json.abas.enviados ?? 0,
+          devolucao: json.abas.devolucao ?? 0,
+          concluidos: json.abas.concluidos ?? 0,
+          cancelados: json.abas.cancelados ?? 0,
+        });
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
@@ -324,9 +403,14 @@ export default function SellerPedidosPage() {
   }
 
   useEffect(() => {
+    if (periodo === "custom" && !customDe && !customAte) return;
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, page, pageSize]);
+  }, [abaAtiva, page, pageSize, buscaProdutoAplicada, periodo, customDe, customAte]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [buscaProdutoAplicada, periodo, customDe, customAte]);
 
   // Só usado pra decidir o destino do botão "Resolver" no card de pedido bloqueado
   // por teto do plano Start (produto específico vs. /seller/plano).
@@ -405,72 +489,110 @@ export default function SellerPedidosPage() {
           </AmberPremiumCallout>
         ) : null}
 
-        {totalDevolucao > 0 && (
-          <div className="mb-3">
-            <button
-              type="button"
-              onClick={() => {
-                setPage(1);
-                setStatusFilter(statusFilter === "em_devolucao" ? "" : "em_devolucao");
-              }}
-              className={cn(
-                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
-                statusFilter === "em_devolucao"
-                  ? "bg-rose-600 text-white font-semibold shadow-sm hover:bg-rose-700"
-                  : "bg-rose-100 text-rose-800 hover:bg-rose-200 dark:bg-rose-950/40 dark:text-rose-300"
-              )}
-            >
-              Devolução ({totalDevolucao})
-            </button>
-          </div>
-        )}
-
-        <div className="mb-4 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-            <div className="relative flex-1 sm:flex-none sm:shrink-0">
-              <div
-                aria-hidden
-                className="pointer-events-none flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)]"
+        <div className="mb-3 flex items-center gap-5 overflow-x-auto border-b border-[var(--card-border)] px-1">
+          {ABAS.map((aba) => {
+            const ativo = abaAtiva === aba.key;
+            return (
+              <button
+                key={aba.key}
+                type="button"
+                onClick={() => {
+                  setPage(1);
+                  setAbaAtiva(aba.key);
+                }}
+                className={cn(
+                  "-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 pb-2.5 pt-1 text-sm font-medium transition-colors",
+                  ativo
+                    ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                    : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+                )}
               >
-                <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+                <aba.Icon className="h-4 w-4 shrink-0" />
+                {aba.label} ({abaContagens[aba.key]})
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative flex-1 sm:max-w-xs">
+            <svg className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              type="text"
+              value={buscaProdutoInput}
+              onChange={(e) => setBuscaFornecedorInput(e.target.value)}
+              placeholder="Buscar por produto..."
+              aria-label="Buscar por produto"
+              className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] py-1.5 pl-8 pr-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+            />
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-1">
+            {([
+              { key: "todos", label: "Tudo" },
+              { key: "hoje", label: "Hoje" },
+              { key: "7d", label: "7 dias" },
+              { key: "30d", label: "30 dias" },
+            ] as const).map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setPeriodo(opt.key)}
+                className={cn(
+                  "rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
+                  periodo === opt.key
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setModalPeriodoAberto((v) => !v)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
+                  periodo === "custom"
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                )}
+              >
+                <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <rect width="18" height="18" x="3" y="4" rx="2" />
+                  <path d="M3 10h18M8 2v4M16 2v4" />
                 </svg>
-                {statusFilter ? statusLabel[statusFilter] ?? statusFilter : "Todos"}
-                <svg className="h-3.5 w-3.5 shrink-0 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {periodo === "custom" && customDe
+                  ? `${customDe.split("-").slice(1).reverse().join("/")}${customAte && customAte !== customDe ? ` - ${customAte.split("-").slice(1).reverse().join("/")}` : ""}`
+                  : "Personalizado"}
+                <svg className={cn("h-3 w-3 shrink-0 opacity-70 transition-transform", modalPeriodoAberto && "rotate-180")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="m6 9 6 6 6-6" />
                 </svg>
-              </div>
-              <select
-                aria-label="Filtrar por status"
-                value={statusFilter}
-                onChange={(e) => {
-                  setPage(1);
-                  setStatusFilter(e.target.value);
-                }}
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              >
-                <option value="">Todos</option>
-                <option value="pendente_estoque">Aguardando estoque</option>
-                <option value="bloqueado">Bloqueado</option>
-                <option value="produto_nao_vinculado">Fora do catálogo</option>
-                <option value="anuncio_sem_sku">Anúncio sem SKU</option>
-                <option value="enviado">Aguardando postagem</option>
-                <option value="etiqueta_buffer_ml">Etiqueta em buffer (ML)</option>
-                <option value="aguardando_repasse">Postados</option>
-                <option value="entregue">Entregues</option>
-                <option value="em_devolucao">Em devolução</option>
-                <option value="devolvido">Devolvidos</option>
-                <option value="erro_saldo">Erro de saldo</option>
-                <option value="aguardando_pagamento">Aguardando pagamento</option>
-              </select>
+              </button>
+              {modalPeriodoAberto ? (
+                <PeriodoPersonalizadoModal
+                  deInicial={customDe}
+                  ateInicial={customAte}
+                  onFechar={() => setModalPeriodoAberto(false)}
+                  onAplicar={(de, ate) => {
+                    setCustomDe(de);
+                    setCustomAte(ate);
+                    setPeriodo("custom");
+                    setModalPeriodoAberto(false);
+                  }}
+                />
+              ) : null}
             </div>
             <button
               type="button"
               onClick={() => void load()}
               disabled={loading}
-              className={cn(btnSecondaryCompactClass, "flex-1 sm:flex-none sm:shrink-0")}
+              className={cn(btnSecondaryCompactClass)}
             >
-              {loading ? "Carregando..." : "Atualizar Pedidos"}
+              {loading ? "Carregando..." : "Atualizar"}
             </button>
           </div>
         </div>
@@ -559,7 +681,7 @@ export default function SellerPedidosPage() {
                       </div>
                     ) : null}
                     <div>
-                      <dt className="text-neutral-500">Ref. Olist</dt>
+                      <dt className="text-neutral-500">{referenciaExternaLabel(p.referencia_externa)}</dt>
                       <dd className="font-mono text-xs sm:text-sm">{p.referencia_externa ?? "—"}</dd>
                     </div>
                     {p.tracking_codigo ? (

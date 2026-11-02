@@ -2087,6 +2087,56 @@ rastreabilidade pro fornecedor (por que recebeu menos) também tinha buraco.
   (claim + sem-claim) confirmar devolução de ledger já `PAGO`, deveria criar o débito sozinha;
   não construído ainda, fica pro próximo passo depois de calibrar o sinal real.
 
+## Telas de Pedidos (fornecedor + seller) — abas, busca e período (2026-11-01)
+
+A pedido direto do Sr Stark, consolidou a navegação de `/fornecedor/pedidos` e
+`/seller/pedidos` (dropdown de status único + chip solto "Devolução (N)") numa barra de abas
+no topo (ícone + label + contador, sublinhado verde no item ativo — formato copiado de um
+print do próprio seletor de métricas do Mercado Livre), mais busca por texto e filtro de
+período (presets + calendário personalizado).
+
+- **`fn_fornecedor_pedidos_lista`** e **`fn_seller_pedidos_lista`**: `p_status` virou
+  `text[]` (antes `text`) — cada aba pode cobrir vários status reais de uma vez (ex:
+  "Devolução" = `em_devolucao`+`devolvido`+`devolucao_sem_fornecedor`). As duas ganharam
+  `p_desde`/`p_ate` (período) + busca por texto: fornecedor usa `p_seller_nome` (busca por
+  seller, já que atende vários); seller usa `p_produto` (busca em `pedidos.nome_produto` —
+  `p_fornecedor_nome` foi cogitado e descartado, hoje cada seller só tem 1 fornecedor
+  conectado, filtrar por ele não muda a lista em nada). Contagem de
+  cada aba agora vem tudo numa RPC só (`total_count_geral`, `total_count_pra_enviar` etc.,
+  calculados numa CTE `base` antes do filtro de `p_status`, pra não ficar errado quando o
+  filtro de busca/período também está ativo) — regra 4 do CLAUDE.md (1 RPC por tela).
+- **Fornecedor** ganhou `ledger_id` na RPC (não tinha) — o card do pedido em devolução agora
+  mostra os botões "Chegou tudo certo"/"Chegou com defeito" direto ali (componente
+  `FornecedorDevolucaoAcoes.tsx`), puxando o `ledger_id` certo. `/fornecedor/devolucoes` virou
+  um redirect pra `/fornecedor/pedidos?status=devolucao` — não existe mais como página própria
+  (links antigos, inclusive notificação, continuam funcionando).
+- **Seller**: o filtro sintético antigo "etiqueta_buffer_ml" (não é `pedidos.status` real, é
+  `enviado` + sem etiqueta + canal ML) saiu do seletor — a aba "Pra enviar" agora cobre todo
+  `enviado` junto; a info de buffer continua visível no banner do próprio card, só não é mais
+  um filtro isolado. A reserva sintética "aguardando pagamento" (`estoque_reservas`, não é
+  `pedidos.status` real) entra nas abas "Todos" e "Pendências" — a API soma a contagem dela
+  por cima do que a RPC devolve (RPC não sabe nada sobre `estoque_reservas`). Busca do seller
+  é por `p_produto` (`pedidos.nome_produto` — busca por fornecedor foi cogitada e descartada,
+  hoje cada seller só tem 1 fornecedor conectado, não filtraria nada).
+- **`PeriodoPersonalizadoModal.tsx`** (`components/fornecedor/`, reaproveitado também no
+  seller): popover de calendário ancorado no botão "Personalizado" (não modal central) — clica
+  no dia inicial, depois no final; replica o formato do seletor de data do Mercado Livre
+  (mês/ano no meio, setas `‹ ›` nas pontas, DOM/SEG/TER/QUA/QUI/SEX/SÁB).
+- **Achado de segurança (recorrente)**: as duas RPCs novas nasceram abertas pra
+  `anon`/`authenticated` (mesmo bug de sempre — `GRANT ... TO service_role` sozinho não
+  revoga os outros roles). Fechadas no mesmo commit com `revoke all ... from public, anon,
+  authenticated` explícito.
+- **Destinatário real do pedido ML** (`mercadoLivrePedidoIngest.ts`): `comprador_nome`
+  gravava só `buyer.nickname` (usuário do comprador na plataforma, quase sempre mascarado tipo
+  "FEFACGDHB58097" por privacidade do ML — não é o nome de quem recebe o pacote). A UpSeller
+  mostra nome real porque usa outro campo da API: `shipment.receiver_address.receiver_name`
+  (+ `city`/`state`), o destinatário de entrega de verdade — mesmo dado que já sai impresso na
+  etiqueta oficial. Ingestão agora busca o shipment (`mlBuscarShipmentDetalheBruto`, 1 chamada
+  extra best-effort — se falhar, cai pro nickname mesmo, nunca bloqueia o pedido) e preenche
+  `comprador_nome`/`comprador_cidade`/`comprador_uf` com o destinatário real. Só vale pra
+  pedido novo a partir de agora — não retroage nos já existentes. Endereço completo/CEP
+  continua de fora da tela de propósito (só vai impresso na etiqueta, não solto na UI).
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

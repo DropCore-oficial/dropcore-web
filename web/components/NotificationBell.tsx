@@ -487,9 +487,12 @@ export function NotificationBell({
                                 Ver devoluções →
                               </a>
                             )}
-                            {(n.tipo === "devolucao_registrada_fornecedor" || n.tipo === "devolucao_liberada_automatico_fornecedor") && (
+                            {(n.tipo === "devolucao_registrada_fornecedor" ||
+                              n.tipo === "devolucao_liberada_automatico_fornecedor" ||
+                              n.tipo === "debito_devolucao_pos_repasse_registrado" ||
+                              n.tipo === "debito_devolucao_pos_repasse_descontado") && (
                               <a
-                                href="/fornecedor/devolucoes"
+                                href="/fornecedor/pedidos?status=devolucao"
                                 onClick={(e) => e.stopPropagation()}
                                 className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline"
                               >

@@ -39,7 +39,13 @@ type PedidoRow = {
   tracking_codigo?: string | null;
   canal_venda?: string | null;
   e_teste?: boolean;
+  ledger_id?: string | null;
 };
+
+const STATUS_VALIDOS = [
+  "enviado", "aguardando_repasse", "entregue", "em_devolucao", "devolvido",
+  "devolucao_sem_fornecedor", "cancelado", "erro_saldo", "pendente_estoque", "bloqueado",
+];
 
 type PedidoItemRow = {
   sku: string;
@@ -84,29 +90,36 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status")?.trim();
+    // Aceita vários status de uma vez, separados por vírgula (ex: "em_devolucao,devolvido"
+    // pra aba "Devolução") — grupo de abas da tela, não 1 status exato só.
+    const statusParam = searchParams.get("status")?.trim();
+    const statusArray = statusParam
+      ? statusParam.split(",").map((s) => s.trim()).filter((s) => STATUS_VALIDOS.includes(s))
+      : null;
     const limit = Math.min(300, Math.max(1, parseInt(searchParams.get("limit") || "10", 10) || 10));
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
     const from = (page - 1) * limit;
 
-    const statusValido =
-      status &&
-      [
-        "enviado", "aguardando_repasse", "entregue", "em_devolucao", "devolvido",
-        "devolucao_sem_fornecedor", "cancelado", "erro_saldo", "pendente_estoque", "bloqueado",
-      ].includes(status)
-        ? status
-        : null;
+    // Busca por nome do seller + período (presets ou De/Até customizado) — opcionais,
+    // combinam com a aba de status ativa.
+    const sellerNomeParam = searchParams.get("seller_nome")?.trim() || null;
+    const desdeParam = searchParams.get("desde")?.trim() || null;
+    const desdeValido = desdeParam && !Number.isNaN(new Date(desdeParam).getTime()) ? desdeParam : null;
+    const ateParam = searchParams.get("ate")?.trim() || null;
+    const ateValido = ateParam && !Number.isNaN(new Date(ateParam).getTime()) ? ateParam : null;
 
     // RPC (regra 9): além de ler, ordena priorizando pedido com etiqueta recém-liberada e
     // ainda não impressa — expressão de ordenação (CASE) que o PostgREST não faz direto.
-    // Ver fn_fornecedor_pedidos_lista em web/scripts/add-etiqueta-liberada-prioridade.sql.
+    // Ver fn_fornecedor_pedidos_lista em web/scripts/add-fornecedor-pedidos-periodo-customizado.sql.
     const { data: rpcRows, error: rpcErr } = await supabaseAdmin.rpc("fn_fornecedor_pedidos_lista", {
       p_org_id: ctx.org_id,
       p_fornecedor_id: ctx.fornecedor_id,
-      p_status: statusValido,
+      p_status: statusArray && statusArray.length > 0 ? statusArray : null,
       p_limit: limit,
       p_offset: from,
+      p_seller_nome: sellerNomeParam,
+      p_desde: desdeValido,
+      p_ate: ateValido,
     });
 
     if (rpcErr) {
@@ -114,10 +127,37 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Erro ao buscar pedidos." }, { status: 500 });
     }
 
-    const rows = (rpcRows ?? []) as (PedidoRow & { total_count: number; total_count_devolucao: number })[];
-    const data: PedidoRow[] = rows.map(({ total_count: _tc, total_count_devolucao: _tcd, ...p }) => p);
+    type Contadores = {
+      total_count: number;
+      total_count_geral: number;
+      total_count_pra_enviar: number;
+      total_count_enviados: number;
+      total_count_devolucao: number;
+      total_count_entregue: number;
+      total_count_cancelado: number;
+    };
+    const rows = (rpcRows ?? []) as (PedidoRow & Contadores)[];
+    const data: PedidoRow[] = rows.map(
+      ({
+        total_count: _tc,
+        total_count_geral: _tcg,
+        total_count_pra_enviar: _tcp,
+        total_count_enviados: _tce,
+        total_count_devolucao: _tcd,
+        total_count_entregue: _tcen,
+        total_count_cancelado: _tcc,
+        ...p
+      }) => p
+    );
     const total = rows[0]?.total_count ?? 0;
-    const totalDevolucao = rows[0]?.total_count_devolucao ?? 0;
+    const abas = {
+      todos: rows[0]?.total_count_geral ?? 0,
+      pra_enviar: rows[0]?.total_count_pra_enviar ?? 0,
+      enviados: rows[0]?.total_count_enviados ?? 0,
+      devolucao: rows[0]?.total_count_devolucao ?? 0,
+      concluidos: rows[0]?.total_count_entregue ?? 0,
+      cancelados: rows[0]?.total_count_cancelado ?? 0,
+    };
 
     const sellerIds = [...new Set((data ?? []).map((p) => p.seller_id))];
     const sellersMap = new Map<string, string>();
@@ -285,7 +325,7 @@ export async function GET(req: Request) {
       page,
       limit,
       expedicao_padrao: expedicaoPadrao,
-      total_devolucao: totalDevolucao,
+      abas,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
