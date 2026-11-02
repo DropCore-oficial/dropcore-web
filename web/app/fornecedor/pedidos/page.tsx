@@ -958,10 +958,6 @@ export default function FornecedorPedidosPage() {
                         <dd>{p.linha_despacho}</dd>
                       </div>
                     ) : null}
-                    <div>
-                      <dt className="text-neutral-500">Como despachar</dt>
-                      <dd>{p.metodo_envio ?? "—"}</dd>
-                    </div>
                     {p.tracking_codigo ? (
                       <div>
                         <dt className="text-neutral-500">Rastreio</dt>
@@ -976,8 +972,12 @@ export default function FornecedorPedidosPage() {
                     ) : null}
                     {[p.comprador_nome, p.comprador_cidade, p.comprador_uf].some(Boolean) ? (
                       <div className="col-span-2">
-                        <dt className="text-neutral-500">Destino</dt>
-                        <dd>{[p.comprador_cidade, p.comprador_uf].filter(Boolean).join(" / ") || "—"}</dd>
+                        <dt className="text-neutral-500">Cliente / Destino</dt>
+                        <dd>
+                          {[p.comprador_nome, [p.comprador_cidade, p.comprador_uf].filter(Boolean).join(" / ")]
+                            .filter(Boolean)
+                            .join(" · ") || "—"}
+                        </dd>
                       </div>
                     ) : null}
                   </dl>

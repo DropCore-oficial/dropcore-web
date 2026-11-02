@@ -690,10 +690,6 @@ export default function SellerPedidosPage() {
                         <dd className="font-mono text-xs">{p.tracking_codigo}</dd>
                       </div>
                     ) : null}
-                    <div>
-                      <dt className="text-neutral-500">Envio</dt>
-                      <dd>{p.metodo_envio ?? "—"}</dd>
-                    </div>
                     <div className="col-span-2">
                       <dt className="text-neutral-500">Cliente / entrega</dt>
                       <dd>{comprador || "—"}</dd>
