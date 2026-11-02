@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument } from "pdf-lib";
 import { calcularPrazoDespachoPedido } from "@/lib/pedidoSlaDespacho";
+import { gerarPaginaInfoPedido, type ItemInfoEtiqueta } from "@/lib/etiquetaInfoPagePdf";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -108,7 +109,9 @@ export async function POST(req: Request) {
 
     const { data: rows, error: qErr } = await supabaseAdmin
       .from("pedidos")
-      .select("id, etiqueta_pdf_url, etiqueta_pdf_base64, marketplace_pack_id, canal_venda")
+      .select(
+        "id, seller_id, nome_produto, marketplace_numero, marketplace_pack_id, valor_fornecedor, criado_em, canal_venda, etiqueta_pdf_url, etiqueta_pdf_base64"
+      )
       .eq("org_id", ctx.org_id)
       .eq("fornecedor_id", ctx.fornecedor_id)
       .in("id", ids);
@@ -127,7 +130,60 @@ export async function POST(req: Request) {
       );
     }
 
-    const buffers: Uint8Array[] = [];
+    // Produto/SKU/cor/tamanho pra imprimir junto da etiqueta (achado 2026-11-02: formato
+    // da UpSeller mostra isso, o fornecedor não devia precisar voltar na tela). Busca de
+    // TODOS os pedidos do pacote (não só os `ids` selecionados), pra pacote de >1 produto
+    // mostrar tudo que vai dentro, igual a lista de separação já faz na tela.
+    const packIds = [...new Set((rows ?? []).map((r) => r.marketplace_pack_id).filter(Boolean))] as string[];
+    const { data: irmaosDoPackRaw } = packIds.length
+      ? await supabaseAdmin
+          .from("pedidos")
+          .select("id, marketplace_pack_id")
+          .eq("org_id", ctx.org_id)
+          .eq("fornecedor_id", ctx.fornecedor_id)
+          .in("marketplace_pack_id", packIds)
+      : { data: [] as Array<{ id: string; marketplace_pack_id: string | null }> };
+    const pedidoIdsParaItens = [...new Set([...ids, ...(irmaosDoPackRaw ?? []).map((r) => r.id)])];
+
+    const [sellersRes, itensRes] = await Promise.all([
+      supabaseAdmin.from("sellers").select("id, nome").in("id", [...new Set((rows ?? []).map((r) => r.seller_id))]),
+      supabaseAdmin
+        .from("pedido_itens")
+        .select("pedido_id, quantidade, skus(sku, nome_produto, cor, tamanho)")
+        .in("pedido_id", pedidoIdsParaItens),
+    ]);
+    const sellerNomeMap = new Map((sellersRes.data ?? []).map((s) => [s.id, s.nome as string]));
+    const itensPorPedido = new Map<string, ItemInfoEtiqueta[]>();
+    for (const row of itensRes.data ?? []) {
+      const pid = row.pedido_id as string;
+      const skusJoined = row.skus as unknown;
+      const sku = (Array.isArray(skusJoined) ? skusJoined[0] : skusJoined) as
+        | { sku?: string; nome_produto?: string | null; cor?: string | null; tamanho?: string | null }
+        | null;
+      const lista = itensPorPedido.get(pid) ?? [];
+      lista.push({
+        sku: sku?.sku ?? null,
+        nome_produto: sku?.nome_produto ?? null,
+        cor: sku?.cor ?? null,
+        tamanho: sku?.tamanho ?? null,
+        quantidade: Number(row.quantidade ?? 1),
+      });
+      itensPorPedido.set(pid, lista);
+    }
+    const packIdPorPedido = new Map((irmaosDoPackRaw ?? []).map((r) => [r.id as string, r.marketplace_pack_id as string | null]));
+
+    /** Itens do pedido + de todo irmão do mesmo pacote (pacote de N produtos = N pedidos
+     * separados do ML compartilhando 1 etiqueta física). */
+    function itensDoPacote(pedidoId: string, packId: string | null): ItemInfoEtiqueta[] {
+      if (!packId) return itensPorPedido.get(pedidoId) ?? [];
+      const todos: ItemInfoEtiqueta[] = [];
+      for (const [pid, pkid] of packIdPorPedido.entries()) {
+        if (pkid === packId) todos.push(...(itensPorPedido.get(pid) ?? []));
+      }
+      return todos.length > 0 ? todos : itensPorPedido.get(pedidoId) ?? [];
+    }
+
+    const buffers: Array<{ id: string; bytes: Uint8Array }> = [];
     const incluidos: string[] = [];
     const semEtiqueta: string[] = [];
     const falhaDownload: string[] = [];
@@ -160,7 +216,7 @@ export async function POST(req: Request) {
         else falhaDownload.push(id);
         continue;
       }
-      buffers.push(bytes);
+      buffers.push({ id, bytes });
       incluidos.push(id);
     }
 
@@ -179,9 +235,33 @@ export async function POST(req: Request) {
     }
 
     const merged = await PDFDocument.create();
-    for (const buf of buffers) {
+    for (const { id, bytes: buf } of buffers) {
       try {
         const doc = await PDFDocument.load(buf);
+        const primeiraPagina = doc.getPages()[0];
+
+        // Página de info (produto/SKU/cor/tamanho) ANTES da etiqueta — mesmo tamanho
+        // físico dela, pra sair junto no mesmo rolo/impressora.
+        const row = byId.get(id)!;
+        const packId = (row.marketplace_pack_id as string | null)?.trim() || null;
+        try {
+          const { width, height } = primeiraPagina.getSize();
+          const infoBytes = await gerarPaginaInfoPedido({
+            width,
+            height,
+            marketplace_numero: (row.marketplace_numero as string | null) ?? null,
+            seller_nome: sellerNomeMap.get(row.seller_id as string) ?? "—",
+            valor_fornecedor: Number(row.valor_fornecedor ?? 0),
+            criado_em: row.criado_em as string,
+            itens: itensDoPacote(id, packId),
+          });
+          const infoDoc = await PDFDocument.load(infoBytes);
+          const infoCopiada = await merged.copyPages(infoDoc, infoDoc.getPageIndices());
+          for (const p of infoCopiada) merged.addPage(p);
+        } catch (e) {
+          console.error("[etiquetas-combinadas] falha ao gerar página de info, seguindo só com a etiqueta:", e);
+        }
+
         const copied = await merged.copyPages(doc, doc.getPageIndices());
         for (const page of copied) merged.addPage(page);
       } catch (e) {

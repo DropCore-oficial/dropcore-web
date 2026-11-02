@@ -1650,13 +1650,30 @@ export async function mlBuscarEtiquetaPdf(
     // 90° pra bater com a orientação que sai na impressora térmica do fornecedor (comparado
     // ao formato da UpSeller — achado 2026-10-27, confirmado com o Sr Stark que o problema
     // era só a rotação, não a página extra em si nem a nota fiscal).
+    //
+    // Achado 2026-11-02: só marcar `/Rotate` (setRotation) deixa o MediaBox da página com o
+    // tamanho original (retrato), sem o conteúdo girado fisicamente. Isso funciona na
+    // pré-visualização e em "ajustar à área de impressão", mas ao imprimir em "4x6" com
+    // escala 100% o Chrome corta a etiqueta pela metade (perde o código de barras inteiro —
+    // confirmado com print real do fornecedor testando pedido da Vinz). Correção: desenha o
+    // conteúdo já fisicamente rotacionado numa página nova com largura/altura trocadas, em
+    // vez de só marcar a flag — remove a ambiguidade pra qualquer motor de impressão.
     let pdfFinal: ArrayBuffer | Uint8Array = buf;
     try {
       const doc = await PDFDocument.load(buf);
+      const [paginaOriginal] = doc.getPages();
+      const { width, height } = paginaOriginal.getSize();
+
       const soEtiqueta = await PDFDocument.create();
-      const [pagina1] = await soEtiqueta.copyPages(doc, [0]);
-      pagina1.setRotation(degrees(90));
-      soEtiqueta.addPage(pagina1);
+      const paginaEmbutida = await soEtiqueta.embedPage(paginaOriginal);
+      const novaPagina = soEtiqueta.addPage([height, width]);
+      novaPagina.drawPage(paginaEmbutida, {
+        x: 0,
+        y: width,
+        width,
+        height,
+        rotate: degrees(-90),
+      });
       pdfFinal = await soEtiqueta.save();
     } catch (e: unknown) {
       console.error("[mlBuscarEtiquetaPdf] corte/rotação de página falhou, usando PDF original:", e);
