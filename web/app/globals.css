@@ -6,6 +6,9 @@ html {
   overscroll-behavior-x: none;
   -webkit-text-size-adjust: 100%;
   --app-version-banner-offset: 0px;
+  /* Reserva sempre o espaço da barra de rolagem vertical — sem isso, trocar de aba (altura da
+     página muda) faz a barra aparecer/sumir e o conteúdo "pular" horizontalmente 2026-11-03. */
+  scrollbar-gutter: stable;
 }
 
 /* Faixa “nova versão”: barras fixas no topo descem junto com a altura medida */
@@ -63,6 +66,16 @@ html[data-version-banner] .min-h-screen.app-bg {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   max-width: 100%;
+}
+/* Faixa de abas (ex: Pedidos) — já tem affordance visual própria (rótulo cortado na borda),
+   não precisa da barra de rolagem nativa aparente; scroll continua funcionando normal. Não
+   usar em tabela larga — lá a barra visível é affordance obrigatória (ver skill de layout). */
+.dropcore-tabs-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.dropcore-tabs-scroll::-webkit-scrollbar {
+  display: none;
 }
 /* Padding lateral respeitando notch / barra home */
 .dropcore-safe-x {

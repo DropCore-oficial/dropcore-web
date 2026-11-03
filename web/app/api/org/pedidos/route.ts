@@ -72,17 +72,17 @@ function aplicarFiltroBuffer<T>(q: T, bufferMl: "somente" | "excluir" | null): T
   return query;
 }
 
-/** "Etiqueta já emitida" = mesma condição de tem_etiqueta_oficial calculada em
- * fornecedor/seller — pedido "enviado" com etiqueta já emitida entra na aba "Para
- * retirar" em vez de "Pra enviar" (aguardando postagem/retirada, não falta mais nada do
- * fornecedor gerar). */
-function aplicarFiltroEtiquetaEmitida<T>(q: T, etiquetaEmitida: "somente" | "excluir" | null): T {
+/** "Etiqueta já impressa" (etiqueta_impressa_em preenchido) — não confundir com "etiqueta
+ * existe" (etiqueta_pdf_url/base64): pedido pode ter o PDF disponível e ainda não ter sido
+ * impresso pelo fornecedor (achado ao vivo 2026-11-03 — caía errado em "Para retirar" antes
+ * de realmente ter sido impresso). Só entra em "Para retirar" quem já imprimiu de verdade. */
+function aplicarFiltroEtiquetaImpressa<T>(q: T, etiquetaImpressa: "somente" | "excluir" | null): T {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = q as any;
-  if (etiquetaEmitida === "somente") {
-    query = query.or("etiqueta_pdf_url.not.is.null,etiqueta_pdf_base64.not.is.null");
-  } else if (etiquetaEmitida === "excluir") {
-    query = query.is("etiqueta_pdf_url", null).is("etiqueta_pdf_base64", null);
+  if (etiquetaImpressa === "somente") {
+    query = query.not("etiqueta_impressa_em", "is", null);
+  } else if (etiquetaImpressa === "excluir") {
+    query = query.is("etiqueta_impressa_em", null);
   }
   return query;
 }
@@ -110,8 +110,8 @@ export async function GET(req: Request) {
       : null;
     const bufferMlParam = searchParams.get("buffer_ml")?.trim();
     const bufferMl = bufferMlParam === "somente" || bufferMlParam === "excluir" ? bufferMlParam : null;
-    const etiquetaEmitidaParam = searchParams.get("etiqueta_emitida")?.trim();
-    const etiquetaEmitida = etiquetaEmitidaParam === "somente" || etiquetaEmitidaParam === "excluir" ? etiquetaEmitidaParam : null;
+    const etiquetaImpressaParam = searchParams.get("etiqueta_impressa")?.trim();
+    const etiquetaImpressa = etiquetaImpressaParam === "somente" || etiquetaImpressaParam === "excluir" ? etiquetaImpressaParam : null;
     const busca = searchParams.get("busca")?.trim() || null;
     const desde = searchParams.get("desde")?.trim() || null;
     const desdeValido = desde && !Number.isNaN(new Date(desde).getTime()) ? desde : null;
@@ -151,7 +151,7 @@ export async function GET(req: Request) {
     query = aplicarFiltrosComuns(query);
     if (statusArray && statusArray.length > 0) query = query.in("status", statusArray);
     query = aplicarFiltroBuffer(query, bufferMl);
-    query = aplicarFiltroEtiquetaEmitida(query, etiquetaEmitida);
+    query = aplicarFiltroEtiquetaImpressa(query, etiquetaImpressa);
 
     const { data, error, count } = await query;
     if (error) {
@@ -173,7 +173,7 @@ export async function GET(req: Request) {
       q = aplicarFiltrosComuns(q);
       if (statuses) q = q.in("status", statuses);
       q = aplicarFiltroBuffer(q, bufferFiltro);
-      q = aplicarFiltroEtiquetaEmitida(q, etiquetaFiltro);
+      q = aplicarFiltroEtiquetaImpressa(q, etiquetaFiltro);
       return q;
     };
     const [cTodos, cPendencias, cPraEnviar, cBuffer, cRetirada, cEnviados, cDevolucao, cConcluidos, cCancelados] = await Promise.all([

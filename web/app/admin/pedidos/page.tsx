@@ -20,15 +20,15 @@ import { cn } from "@/lib/utils";
 
 /** Grupo de abas da tela — mesmo tratamento de fornecedor/seller. */
 const ABAS = [
-  { key: "todos", label: "Todos", statuses: null as string[] | null, Icon: IconClipboard, bufferMl: null as "somente" | "excluir" | null, etiquetaEmitida: null as "somente" | "excluir" | null },
-  { key: "pendencias", label: "Pendências", statuses: ["produto_nao_vinculado", "anuncio_sem_sku", "erro_saldo", "pendente_estoque"], Icon: IconAjuste, bufferMl: null as "somente" | "excluir" | null, etiquetaEmitida: null as "somente" | "excluir" | null },
-  { key: "buffer", label: "Buffer", statuses: ["enviado"], Icon: IconClock, bufferMl: "somente" as "somente" | "excluir" | null, etiquetaEmitida: null as "somente" | "excluir" | null },
-  { key: "pra_enviar", label: "Pra enviar", statuses: ["enviado"], Icon: IconBox, bufferMl: "excluir" as "somente" | "excluir" | null, etiquetaEmitida: "excluir" as "somente" | "excluir" | null },
-  { key: "retirada", label: "Para retirar", statuses: ["enviado"], Icon: IconPackage, bufferMl: null as "somente" | "excluir" | null, etiquetaEmitida: "somente" as "somente" | "excluir" | null },
-  { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight, bufferMl: null as "somente" | "excluir" | null, etiquetaEmitida: null as "somente" | "excluir" | null },
-  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao, bufferMl: null as "somente" | "excluir" | null, etiquetaEmitida: null as "somente" | "excluir" | null },
-  { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck, bufferMl: null as "somente" | "excluir" | null, etiquetaEmitida: null as "somente" | "excluir" | null },
-  { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX, bufferMl: null as "somente" | "excluir" | null, etiquetaEmitida: null as "somente" | "excluir" | null },
+  { key: "todos", label: "Todos", statuses: null as string[] | null, Icon: IconClipboard, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "pendencias", label: "Pendências", statuses: ["produto_nao_vinculado", "anuncio_sem_sku", "erro_saldo", "pendente_estoque"], Icon: IconAjuste, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "buffer", label: "Buffer", statuses: ["enviado"], Icon: IconClock, bufferMl: "somente" as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "pra_enviar", label: "Pra enviar", statuses: ["enviado"], Icon: IconBox, bufferMl: "excluir" as "somente" | "excluir" | null, etiquetaImpressa: "excluir" as "somente" | "excluir" | null },
+  { key: "retirada", label: "Para retirar", statuses: ["enviado"], Icon: IconPackage, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: "somente" as "somente" | "excluir" | null },
+  { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
 ] as const;
 type AbaKey = (typeof ABAS)[number]["key"];
 
@@ -288,7 +288,7 @@ export default function PedidosPage() {
       const params = new URLSearchParams({ page: String(page), limit: String(pageSize) });
       if (statuses) params.set("status", statuses.join(","));
       if (abaDef?.bufferMl) params.set("buffer_ml", abaDef.bufferMl);
-      if (abaDef?.etiquetaEmitida) params.set("etiqueta_emitida", abaDef.etiquetaEmitida);
+      if (abaDef?.etiquetaImpressa) params.set("etiqueta_impressa", abaDef.etiquetaImpressa);
       if (buscaAplicada) params.set("busca", buscaAplicada);
       if (desde) params.set("desde", desde);
       if (ate) params.set("ate", ate);
@@ -729,7 +729,7 @@ export default function PedidosPage() {
         </div>
       )}
 
-      <div className="flex items-center gap-5 overflow-x-auto border-b border-[var(--card-border)] px-1">
+      <div className="dropcore-tabs-scroll flex items-center gap-5 overflow-x-auto border-b border-[var(--card-border)] px-1">
         {ABAS.map((aba) => {
           const ativo = abaAtiva === aba.key;
           return (

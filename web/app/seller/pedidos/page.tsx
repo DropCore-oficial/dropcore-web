@@ -50,15 +50,15 @@ const btnSecondaryCompactClass =
  * (que a API soma à parte, não vem de `pedidos.status`). O filtro sintético antigo
  * "etiqueta_buffer_ml" não virou aba — a info continua no banner do próprio card. */
 const ABAS = [
-  { key: "todos", label: "Todos", statuses: null as string[] | null, Icon: IconClipboard, bufferMl: null as "somente" | "excluir" | null, etiquetaEmitida: null as "somente" | "excluir" | null },
-  { key: "pendencias", label: "Pendências", statuses: ["bloqueado", "produto_nao_vinculado", "anuncio_sem_sku", "pendente_estoque", "erro_saldo"], Icon: IconAjuste, bufferMl: null as "somente" | "excluir" | null, etiquetaEmitida: null as "somente" | "excluir" | null },
-  { key: "buffer", label: "Buffer", statuses: ["enviado"], Icon: IconClock, bufferMl: "somente" as "somente" | "excluir" | null, etiquetaEmitida: null as "somente" | "excluir" | null },
-  { key: "pra_enviar", label: "Pra enviar", statuses: ["enviado"], Icon: IconBox, bufferMl: "excluir" as "somente" | "excluir" | null, etiquetaEmitida: "excluir" as "somente" | "excluir" | null },
-  { key: "retirada", label: "Para retirar", statuses: ["enviado"], Icon: IconPackage, bufferMl: null as "somente" | "excluir" | null, etiquetaEmitida: "somente" as "somente" | "excluir" | null },
-  { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight, bufferMl: null as "somente" | "excluir" | null, etiquetaEmitida: null as "somente" | "excluir" | null },
-  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao, bufferMl: null as "somente" | "excluir" | null, etiquetaEmitida: null as "somente" | "excluir" | null },
-  { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck, bufferMl: null as "somente" | "excluir" | null, etiquetaEmitida: null as "somente" | "excluir" | null },
-  { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX, bufferMl: null as "somente" | "excluir" | null, etiquetaEmitida: null as "somente" | "excluir" | null },
+  { key: "todos", label: "Todos", statuses: null as string[] | null, Icon: IconClipboard, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "pendencias", label: "Pendências", statuses: ["bloqueado", "produto_nao_vinculado", "anuncio_sem_sku", "pendente_estoque", "erro_saldo"], Icon: IconAjuste, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "buffer", label: "Buffer", statuses: ["enviado"], Icon: IconClock, bufferMl: "somente" as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "pra_enviar", label: "Pra enviar", statuses: ["enviado"], Icon: IconBox, bufferMl: "excluir" as "somente" | "excluir" | null, etiquetaImpressa: "excluir" as "somente" | "excluir" | null },
+  { key: "retirada", label: "Para retirar", statuses: ["enviado"], Icon: IconPackage, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: "somente" as "somente" | "excluir" | null },
+  { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
 ] as const;
 type AbaKey = (typeof ABAS)[number]["key"];
 
@@ -368,7 +368,7 @@ export default function SellerPedidosPage() {
       const params = new URLSearchParams();
       if (statuses) params.set("status", statuses.join(","));
       if (abaDef?.bufferMl) params.set("buffer_ml", abaDef.bufferMl);
-      if (abaDef?.etiquetaEmitida) params.set("etiqueta_emitida", abaDef.etiquetaEmitida);
+      if (abaDef?.etiquetaImpressa) params.set("etiqueta_impressa", abaDef.etiquetaImpressa);
       if (buscaProdutoAplicada) params.set("produto", buscaProdutoAplicada);
       const { desde, ate } = periodoParaIntervalo(periodo);
       if (desde) params.set("desde", desde);
@@ -496,7 +496,7 @@ export default function SellerPedidosPage() {
           </AmberPremiumCallout>
         ) : null}
 
-        <div className="mb-3 flex items-center gap-5 overflow-x-auto border-b border-[var(--card-border)] px-1">
+        <div className="dropcore-tabs-scroll mb-3 flex items-center gap-5 overflow-x-auto border-b border-[var(--card-border)] px-1">
           {ABAS.map((aba) => {
             const ativo = abaAtiva === aba.key;
             return (

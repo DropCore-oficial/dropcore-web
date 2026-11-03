@@ -113,10 +113,12 @@ export async function GET(req: Request) {
     const bufferMlParam = searchParams.get("buffer_ml")?.trim();
     const bufferMl = bufferMlParam === "somente" || bufferMlParam === "excluir" ? bufferMlParam : null;
 
-    // 'somente' = só etiqueta já emitida, aguardando postagem/retirada (aba "Para
-    // retirar"); 'excluir' = pra_enviar sem misturar quem já tem etiqueta; null = sem filtro.
-    const etiquetaEmitidaParam = searchParams.get("etiqueta_emitida")?.trim();
-    const etiquetaEmitida = etiquetaEmitidaParam === "somente" || etiquetaEmitidaParam === "excluir" ? etiquetaEmitidaParam : null;
+    // 'somente' = só etiqueta já impressa pelo fornecedor (aba "Para retirar" — não basta
+    // existir, tem que ter sido realmente impressa, achado ao vivo 2026-11-03: pedido com
+    // PDF disponível mas nunca impresso caía errado em "Para retirar"); 'excluir' =
+    // pra_enviar sem misturar quem já imprimiu; null = sem filtro.
+    const etiquetaImpressaParam = searchParams.get("etiqueta_impressa")?.trim();
+    const etiquetaImpressa = etiquetaImpressaParam === "somente" || etiquetaImpressaParam === "excluir" ? etiquetaImpressaParam : null;
 
     // RPC (regra 9): além de ler, ordena priorizando pedido com etiqueta recém-liberada e
     // ainda não impressa — expressão de ordenação (CASE) que o PostgREST não faz direto.
@@ -131,7 +133,7 @@ export async function GET(req: Request) {
       p_desde: desdeValido,
       p_ate: ateValido,
       p_buffer_ml: bufferMl,
-      p_etiqueta_emitida: etiquetaEmitida,
+      p_etiqueta_impressa: etiquetaImpressa,
     });
 
     if (rpcErr) {
