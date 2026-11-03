@@ -54,7 +54,7 @@ type LedgerItem = {
   em_devolucao_desde?: string | null;
   fornecedor_contestou_em?: string | null;
   fornecedor_contestacao_texto?: string | null;
-  fornecedor_contestacao_foto_url?: string | null;
+  fornecedor_contestacao_evidencias_urls?: string[];
 };
 type DebitoPendenteItem = {
   id: string;
@@ -647,10 +647,14 @@ export default function PedidosPage() {
             <div className="max-w-[260px] text-[11px] text-[var(--danger)]">
               <p className="font-semibold">Fornecedor contestou:</p>
               <p className="line-clamp-2">{l.fornecedor_contestacao_texto ?? "—"}</p>
-              {l.fornecedor_contestacao_foto_url ? (
-                <a href={l.fornecedor_contestacao_foto_url} target="_blank" rel="noopener noreferrer" className="underline">
-                  Ver foto ↗
-                </a>
+              {l.fornecedor_contestacao_evidencias_urls?.length ? (
+                <div className="mt-1 flex flex-wrap gap-x-2">
+                  {l.fornecedor_contestacao_evidencias_urls.map((url, i) => (
+                    <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="underline">
+                      Ver evidência {i + 1} ↗
+                    </a>
+                  ))}
+                </div>
               ) : null}
             </div>
           ) : l.em_devolucao_desde ? (

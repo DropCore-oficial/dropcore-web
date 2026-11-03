@@ -19,7 +19,7 @@ async function loadLedgerItems(orgId: string, statuses: string[]) {
   const { data: rows, error } = await supabaseAdmin
     .from("financial_ledger")
     .select(
-      "id, seller_id, fornecedor_id, tipo, valor_total, status, data_evento, ciclo_repasse, pedido_id, em_devolucao_desde, fornecedor_contestou_em, fornecedor_contestacao_texto, fornecedor_contestacao_foto_path"
+      "id, seller_id, fornecedor_id, tipo, valor_total, status, data_evento, ciclo_repasse, pedido_id, em_devolucao_desde, fornecedor_contestou_em, fornecedor_contestacao_texto, fornecedor_contestacao_evidencias_paths"
     )
     .eq("org_id", orgId)
     .in("tipo", ["BLOQUEIO", "VENDA"])
@@ -58,15 +58,22 @@ async function loadLedgerItems(orgId: string, statuses: string[]) {
   const debitosSet = new Set((debitosRes.data || []).map((d) => d.ledger_id));
   const pedidoMap = new Map((pedidosRes.data || []).map((p) => [p.id, p.marketplace_numero]));
 
-  const fotoUrls = new Map<string, string>();
+  const evidenciaUrls = new Map<string, string[]>();
   await Promise.all(
     list
-      .filter((r) => r.fornecedor_contestacao_foto_path)
+      .filter((r) => Array.isArray(r.fornecedor_contestacao_evidencias_paths) && r.fornecedor_contestacao_evidencias_paths.length)
       .map(async (r) => {
-        const { data } = await supabaseAdmin.storage
-          .from(CONTESTACAO_BUCKET)
-          .createSignedUrl(r.fornecedor_contestacao_foto_path as string, SIGNED_URL_EXPIRA_SEGUNDOS);
-        if (data?.signedUrl) fotoUrls.set(r.id, data.signedUrl);
+        const paths = r.fornecedor_contestacao_evidencias_paths as string[];
+        const urls = await Promise.all(
+          paths.map(async (path) => {
+            const { data } = await supabaseAdmin.storage.from(CONTESTACAO_BUCKET).createSignedUrl(path, SIGNED_URL_EXPIRA_SEGUNDOS);
+            return data?.signedUrl ?? null;
+          })
+        );
+        evidenciaUrls.set(
+          r.id,
+          urls.filter((u): u is string => Boolean(u))
+        );
       })
   );
 
@@ -87,7 +94,7 @@ async function loadLedgerItems(orgId: string, statuses: string[]) {
     em_devolucao_desde: r.em_devolucao_desde ?? null,
     fornecedor_contestou_em: r.fornecedor_contestou_em ?? null,
     fornecedor_contestacao_texto: r.fornecedor_contestacao_texto ?? null,
-    fornecedor_contestacao_foto_url: fotoUrls.get(r.id) ?? null,
+    fornecedor_contestacao_evidencias_urls: evidenciaUrls.get(r.id) ?? [],
   }));
 }
 

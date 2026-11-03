@@ -1,8 +1,8 @@
 /**
  * POST /api/fornecedor/devolucoes/[id]/contestar — fornecedor contesta a devolução (defeito,
- * produto errado, não recebeu nada). Recebe texto obrigatório + foto opcional (FormData,
- * mesmo padrão de validação/upload de .../gestores-ia/disputas/[id]/enviar-foto). Trava a
- * liberação automática de 48h — o caso cai pro admin decidir manual.
+ * produto errado, não recebeu nada). Recebe texto obrigatório + várias evidências opcionais
+ * (foto ou vídeo, FormData, campo "evidencias" repetido). Trava a liberação automática de
+ * 48h — o caso cai pro admin decidir manual.
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -13,8 +13,21 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const BUCKET = "disputas-evidencias";
-const TIPOS_PERMITIDOS = ["image/jpeg", "image/png", "image/webp"];
-const TAMANHO_MAXIMO = 5 * 1024 * 1024;
+const TIPOS_IMAGEM = ["image/jpeg", "image/png", "image/webp"];
+const TIPOS_VIDEO = ["video/mp4", "video/quicktime", "video/webm"];
+const TIPOS_PERMITIDOS = [...TIPOS_IMAGEM, ...TIPOS_VIDEO];
+const TAMANHO_MAXIMO_IMAGEM = 5 * 1024 * 1024;
+const TAMANHO_MAXIMO_VIDEO = 50 * 1024 * 1024;
+const MAX_EVIDENCIAS = 6;
+
+const EXTENSAO_POR_TIPO: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "video/mp4": "mp4",
+  "video/quicktime": "mov",
+  "video/webm": "webm",
+};
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await getFornecedorContextFromBearer(req);
@@ -30,24 +43,35 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Explique o que aconteceu." }, { status: 400 });
   }
 
-  let fotoPath: string | null = null;
-  const file = formData?.get("foto");
-  if (file instanceof File && file.size > 0) {
+  const arquivos = (formData?.getAll("evidencias") ?? []).filter(
+    (f): f is File => f instanceof File && f.size > 0
+  );
+  if (arquivos.length > MAX_EVIDENCIAS) {
+    return NextResponse.json({ error: `Envie no máximo ${MAX_EVIDENCIAS} evidências.` }, { status: 400 });
+  }
+
+  const evidenciasPaths: string[] = [];
+  for (let i = 0; i < arquivos.length; i++) {
+    const file = arquivos[i];
     if (!TIPOS_PERMITIDOS.includes(file.type)) {
-      return NextResponse.json({ error: "Tipo de imagem inválido. Use JPEG, PNG ou WebP." }, { status: 400 });
+      return NextResponse.json({ error: "Tipo de arquivo inválido. Use JPEG, PNG, WebP, MP4, MOV ou WebM." }, { status: 400 });
     }
-    if (file.size > TAMANHO_MAXIMO) {
-      return NextResponse.json({ error: "Imagem deve ter no máximo 5 MB." }, { status: 400 });
+    const tamanhoMaximo = TIPOS_VIDEO.includes(file.type) ? TAMANHO_MAXIMO_VIDEO : TAMANHO_MAXIMO_IMAGEM;
+    if (file.size > tamanhoMaximo) {
+      return NextResponse.json(
+        { error: `Arquivo muito grande (máx. ${Math.round(tamanhoMaximo / (1024 * 1024))} MB).` },
+        { status: 400 }
+      );
     }
-    const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-    const path = `fornecedor-contestacao/${id}/evidencia.${ext}`;
+    const ext = EXTENSAO_POR_TIPO[file.type];
+    const path = `fornecedor-contestacao/${id}/evidencia-${i + 1}-${Date.now()}.${ext}`;
     const { error: uploadErr } = await supabaseAdmin.storage
       .from(BUCKET)
       .upload(path, file, { contentType: file.type, upsert: true });
     if (uploadErr) {
       return NextResponse.json({ error: uploadErr.message }, { status: 500 });
     }
-    fotoPath = path;
+    evidenciasPaths.push(path);
   }
 
   const { data, error } = await supabaseAdmin
@@ -55,7 +79,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       p_ledger_id: id,
       p_fornecedor_id: ctx.fornecedor_id,
       p_texto: texto,
-      p_foto_path: fotoPath,
+      p_evidencias_paths: evidenciasPaths.length ? evidenciasPaths : null,
     })
     .single();
 

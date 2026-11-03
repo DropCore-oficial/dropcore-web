@@ -2003,13 +2003,16 @@ chegou fisicamente no fornecedor.
 
 - **Colunas novas em `financial_ledger`** (`add-financial-ledger-devolucao-prazo-fornecedor.sql`):
   `em_devolucao_desde`, `fornecedor_confirmou_recebimento_em`, `fornecedor_contestou_em`,
-  `fornecedor_contestacao_texto`, `fornecedor_contestacao_foto_path`.
+  `fornecedor_contestacao_texto`, `fornecedor_contestacao_evidencias_paths` (`text[]` — trocou
+  de `fornecedor_contestacao_foto_path` (1 string) pra array em
+  `add-devolucao-contestacao-multiplas-evidencias.sql`, 2026-11-03: fornecedor pode mandar
+  várias fotos e vídeo, não só 1 foto).
 - **RPCs** (`SECURITY DEFINER`, `grant execute to service_role`, atômicas via `for update`
   dentro da própria função — substitui o padrão insert-depois-rollback em nível de app usado
   no PATCH do admin):
   - `fn_devolucao_fornecedor_confirmar(p_ledger_id, p_fornecedor_id)` — fornecedor confirma,
     libera na hora.
-  - `fn_devolucao_fornecedor_contestar(p_ledger_id, p_fornecedor_id, p_texto, p_foto_path)` —
+  - `fn_devolucao_fornecedor_contestar(p_ledger_id, p_fornecedor_id, p_texto, p_evidencias_paths text[])` —
     registra contestação, **não muda status**, trava a liberação automática.
   - `fn_devolucao_liberar_automatico(p_ledger_id)` — chamada pelo cron, reconfere status/prazo/
     contestação de novo antes de mexer em dinheiro (defesa contra corrida com uma contestação

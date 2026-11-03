@@ -42,7 +42,7 @@ export function FornecedorDevolucaoAcoes({
 }) {
   const [contestando, setContestando] = useState(false);
   const [texto, setTexto] = useState("");
-  const [foto, setFoto] = useState<File | null>(null);
+  const [evidencias, setEvidencias] = useState<File[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -58,7 +58,7 @@ export function FornecedorDevolucaoAcoes({
     }
     const formData = new FormData();
     formData.append("texto", texto.trim());
-    if (foto) formData.append("foto", foto);
+    for (const arquivo of evidencias) formData.append("evidencias", arquivo);
 
     const res = await fetch(`/api/fornecedor/devolucoes/${ledgerId}/contestar`, {
       method: "POST",
@@ -101,10 +101,20 @@ export function FornecedorDevolucaoAcoes({
           />
           <input
             type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(e) => setFoto(e.target.files?.[0] ?? null)}
+            multiple
+            accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+            onChange={(e) => setEvidencias(Array.from(e.target.files ?? []))}
             className="block w-full text-xs text-[var(--muted)] file:mr-2 file:rounded-md file:border-0 file:bg-[var(--background)] file:px-2.5 file:py-1.5 file:text-xs file:font-medium file:text-[var(--foreground)]"
           />
+          {evidencias.length > 0 ? (
+            <ul className="space-y-0.5 text-[11px] text-[var(--muted)]">
+              {evidencias.map((arquivo, i) => (
+                <li key={`${arquivo.name}-${i}`} className="truncate">
+                  {arquivo.type.startsWith("video/") ? "🎥" : "🖼️"} {arquivo.name}
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {erro ? <p className="text-xs text-[var(--danger)]">{erro}</p> : null}
           <div className="flex gap-2">
             <button
