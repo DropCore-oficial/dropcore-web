@@ -1,13 +1,13 @@
 /** Alinhado ao fallback de `app/api/org/mensalidades/gerar/route.ts` e seed `financial_planos` (linhas Starter / Pro). */
 export const VALOR_DEFAULT_MENSALIDADE_SELLER = 97.9;
 /** Seed `financial_planos` (`Pro`); usado só quando a tabela não responde ou falta linha Pro. */
-export const VALOR_DEFAULT_MENSALIDADE_SELLER_PRO = 147.9;
+export const VALOR_DEFAULT_MENSALIDADE_SELLER_PRO = 197.9;
 
 type AdminClient = typeof import("@/lib/supabaseAdmin").supabaseAdmin;
 
 /**
  * Lê `financial_planos.valor_seller` por plano (chaves típicas: Starter, Pro, default — normalizadas em minúsculas).
- * Em falha ou tabela vazia, devolve defaults da tabela financeira (seller: R$ 97,90 starter · R$ 147,90 pro).
+ * Em falha ou tabela vazia, devolve defaults da tabela financeira (seller: R$ 97,90 starter · R$ 197,90 pro).
  */
 export async function fetchMensalidadeSellerPorPlano(admin: AdminClient): Promise<{ starter: number; pro: number }> {
   const { data: planos, error } = await admin.from("financial_planos").select("plano, valor_seller");

@@ -3,10 +3,9 @@
  * Não credita saldo do seller — apenas atualiza `sellers.plano` para Pro após confirmação do MP.
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { VALOR_DEFAULT_MENSALIDADE_SELLER_PRO } from "@/lib/sellerPlanoPrecos";
 
 export const SELLER_DEPOSITO_REF_UPGRADE_PRO = "UPGRADE_PRO";
-
-const VALOR_DEFAULT_SELLER_PRO = 147.9;
 
 /**
  * A mensalidade do ciclo atual (se já tiver sido gerada, ainda não paga) fica com o valor
@@ -22,7 +21,7 @@ async function recalcularMensalidadeCicloAtualParaPro(sellerId: string): Promise
       .select("valor_seller")
       .eq("plano", "Pro")
       .maybeSingle();
-    const valorPro = planoPro ? Number(planoPro.valor_seller) : VALOR_DEFAULT_SELLER_PRO;
+    const valorPro = planoPro ? Number(planoPro.valor_seller) : VALOR_DEFAULT_MENSALIDADE_SELLER_PRO;
 
     await supabaseAdmin
       .from("financial_mensalidades")
@@ -56,7 +55,7 @@ export async function processarUpgradeProAprovado(extRef: string): Promise<boole
     .eq("id", rowId)
     .eq("referencia", SELLER_DEPOSITO_REF_UPGRADE_PRO)
     .eq("status", "pendente")
-    .select("id, org_id, seller_id, valor")
+    .select("id, org_id, seller_id, valor, upgrade_termos_versao")
     .maybeSingle();
 
   if (claimErr || !dep) return false;
@@ -94,7 +93,13 @@ export async function processarUpgradeProAprovado(extRef: string): Promise<boole
     return false;
   }
 
-  const { error: upSellerErr } = await supabaseAdmin.from("sellers").update({ plano: "Pro" }).eq("id", sellerRow.id);
+  // Vira Pro via RPC (regra 9 do CLAUDE.md): se o seller estava em compromisso
+  // semestral/anual, grava junto o aceite leve de que as parcelas restantes passam a valer
+  // o preço do Pro, sem carência nova — plano_ciclo/carência permanecem intocados.
+  const { error: upSellerErr } = await supabaseAdmin.rpc("fn_seller_plano_upgrade_pro_set", {
+    p_seller_id: sellerRow.id,
+    p_termos_versao: (dep as { upgrade_termos_versao?: string | null }).upgrade_termos_versao ?? null,
+  });
 
   if (upSellerErr) {
     console.error("[upgradeProPixProcessor] atualizar plano (reserva já marcada aprovado, exige correção manual):", upSellerErr.message);

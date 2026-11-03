@@ -93,14 +93,17 @@ const items: { href: string; label: string; match: (p: string) => boolean }[] = 
 
 /**
  * Barra inferior fixa no mobile para admins (espelha `FornecedorNav` / `SellerNav`).
- * z-[100] para ficar acima do indicador de dev do Next (canto inferior esquerdo em dev).
+ * z-40, igual aos outros dois menus (2026-11-02) — estava em z-[100] "pra ficar acima do
+ * indicador de dev do Next", mas isso também deixava a barra acima de todo modal do admin
+ * em z-50 (padrão do sistema), cobrindo o rodapé do modal no mobile. Troca intencional:
+ * prioriza modal correto em produção sobre o indicador de dev (só aparece em `next dev`).
  */
 export function AdminMobileBottomNav() {
   const pathname = usePathname() ?? "";
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-[100] border-t border-[var(--card-border)] bg-[var(--background)] pb-[env(safe-area-inset-bottom)] md:hidden backdrop-blur-xl shadow-[var(--shadow-chrome-up)] text-[var(--foreground)]"
+      className="fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] pb-[env(safe-area-inset-bottom)] md:hidden backdrop-blur-xl shadow-[var(--shadow-chrome-up)] text-[var(--foreground)]"
       aria-label="Navegação admin"
     >
       <div className="mx-auto grid min-h-[56px] max-w-3xl grid-cols-4 items-stretch">

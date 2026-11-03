@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /** Campos que o seller edita no cadastro comercial; dados bancários ficam só no painel da organização, se forem usados. */
 export const SELLER_AUTH_SELECT =
-  "id, org_id, nome, documento, plano, email, telefone, cep, endereco, nome_responsavel, cpf_responsavel, data_nascimento, status";
+  "id, org_id, nome, documento, plano, plano_ciclo, email, telefone, cep, endereco, nome_responsavel, cpf_responsavel, data_nascimento, status";
 
 export type SellerAuthRow = {
   id: string;
@@ -11,6 +11,7 @@ export type SellerAuthRow = {
   nome: string | null;
   documento: string | null;
   plano?: string | null;
+  plano_ciclo?: string | null;
   email: string | null;
   telefone: string | null;
   cep: string | null;

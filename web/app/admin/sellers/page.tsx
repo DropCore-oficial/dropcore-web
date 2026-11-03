@@ -167,7 +167,7 @@ export default function AdminSellersPage() {
       <AdminPageHeader
         eyebrow="Operação"
         title="Sellers"
-        subtitle="Cadastre sellers só com nome interno; CNPJ, contato, endereço e plano (Start ou Pro) o seller escolhe no painel (Cadastro), após o convite. Toque num seller para ver detalhes, convite e extrato."
+        subtitle="Cadastre sellers só com nome interno; CNPJ, contato e endereço o seller preenche no painel (Cadastro), após o convite. Plano, ciclo (mensal/semestral/anual) e desconto são definidos pelo admin em cada seller. Toque num seller para ver detalhes, convite e extrato."
       />
 
       {error && <div className="mb-4 p-3 bg-[var(--danger)]/8 text-[var(--danger)] rounded-[var(--radius)]">{error}</div>}
@@ -323,7 +323,7 @@ export default function AdminSellersPage() {
             <h3 id="modal-new-seller-title" className="mb-3 shrink-0 text-lg">Novo Seller</h3>
             <div className="overflow-y-auto flex-1 mb-4">
               <p className="text-[12px] text-[var(--muted)] mb-3 leading-relaxed">
-                Crie só com identificação interna (nome). O seller preenche CNPJ ou CPF, e-mail, endereço e escolhe o plano (Start ou Pro) no painel após aceitar o convite.
+                Crie só com identificação interna (nome). O seller preenche CNPJ ou CPF, e-mail e endereço no painel após aceitar o convite. Defina plano, ciclo e desconto depois, na tela de detalhe deste seller.
               </p>
               <div className="mb-3">
                 <label className="block text-xs text-[var(--muted)] mb-1">Nome ou razão provisória *</label>

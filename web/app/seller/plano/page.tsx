@@ -31,8 +31,15 @@ type SellerMe = {
   nome: string;
   documento: string | null;
   plano: string | null;
+  plano_ciclo?: string | null;
+  plano_ciclo_carencia_fim?: string | null;
+  plano_ciclo_valor_travado?: number | null;
+  plano_ciclo_compromisso_fim?: string | null;
   gestores_ia_addon_ativo?: boolean;
 };
+
+/** Versão do texto de aceite leve no upgrade em ciclo semestral/anual — mudar se o texto mudar. */
+const UPGRADE_CICLO_TERMOS_VERSAO = "upgrade-ciclo-v1";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -81,6 +88,7 @@ export default function SellerPlanoPage() {
   const [upgradeExpiraEm, setUpgradeExpiraEm] = useState<string | null>(null);
   const [upgradeRestSec, setUpgradeRestSec] = useState<number | null>(null);
   const [upgradeCopiado, setUpgradeCopiado] = useState(false);
+  const [aceiteUpgradeCiclo, setAceiteUpgradeCiclo] = useState(false);
 
   const [modalAddon, setModalAddon] = useState(false);
   const [addonLoading, setAddonLoading] = useState(false);
@@ -222,6 +230,7 @@ export default function SellerPlanoPage() {
     setUpgradeExpiraEm(null);
     setUpgradeRestSec(null);
     setUpgradeCopiado(false);
+    setAceiteUpgradeCiclo(false);
   }
 
   async function gerarPixUpgrade() {
@@ -238,7 +247,10 @@ export default function SellerPlanoPage() {
       }
       const res = await fetch("/api/seller/plano/upgrade-pro-pix", {
         method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(
+          cicloAtual !== "mensal" ? { termos_versao: UPGRADE_CICLO_TERMOS_VERSAO } : {}
+        ),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Não foi possível gerar o PIX.");
@@ -260,6 +272,7 @@ export default function SellerPlanoPage() {
     setUpgradeQr(null);
     setUpgradeCopia(null);
     setUpgradeExpiraEm(null);
+    setAceiteUpgradeCiclo(false);
   }
 
   function fecharModalAddon() {
@@ -317,6 +330,12 @@ export default function SellerPlanoPage() {
 
   const planoNc = String(seller?.plano ?? "").trim().toLowerCase();
   const isPro = planoNc === "pro";
+
+  const cicloAtual = String(seller?.plano_ciclo ?? "mensal").trim().toLowerCase();
+  const carenciaFim = seller?.plano_ciclo_carencia_fim ?? null;
+  const hojeIso = new Date().toISOString().slice(0, 10);
+  const emCarencia = cicloAtual !== "mensal" && !!carenciaFim && carenciaFim >= hojeIso;
+  const cicloLabel = cicloAtual === "semestral" ? "Semestral" : cicloAtual === "anual" ? "Anual" : "Mensal";
   const isStarter = planoNc === "starter";
   const planoDefinido = planoSellerDefinido(seller?.plano);
   const docOk = !cadastroDadosPendente;
@@ -385,6 +404,19 @@ export default function SellerPlanoPage() {
                   >
                     {nomeExibicaoPlanoSeller(seller?.plano)}
                   </span>
+                  {" "}· Ciclo: <span className="font-medium">{cicloLabel}</span>
+                  {emCarencia && carenciaFim && (
+                    <> · em carência (grátis) até {new Date(`${carenciaFim}T00:00:00`).toLocaleDateString("pt-BR")}</>
+                  )}
+                  {seller?.plano_ciclo_valor_travado != null &&
+                    seller?.plano_ciclo_compromisso_fim &&
+                    seller.plano_ciclo_compromisso_fim >= hojeIso && (
+                      <>
+                        {" "}
+                        · preço travado em {BRL.format(Number(seller.plano_ciclo_valor_travado))} até{" "}
+                        {new Date(`${seller.plano_ciclo_compromisso_fim}T00:00:00`).toLocaleDateString("pt-BR")}
+                      </>
+                    )}
                 </span>
               )}
             </>
@@ -429,8 +461,9 @@ export default function SellerPlanoPage() {
             {isStarter && <p className="mt-5 text-center text-xs text-[var(--muted)]">Plano atual — upgrade no cartão ao lado.</p>}
           </section>
 
-          {/* Pro — mesmo cartão + faixa e selo discretos (sem gradiente pesado) */}
-          <section className="relative flex flex-col overflow-visible rounded-2xl border border-[var(--card-border)] border-t-4 border-t-emerald-500 bg-[var(--card)] p-4 shadow-sm sm:p-5 dark:border-t-emerald-500/90">
+          {/* Pro — mesmo cartão + faixa e selo discretos (sem gradiente pesado); cantos de cima
+              retos (sem radius) pra combinar com a borda grossa do topo (arredondado + borda reta cortava o canto) */}
+          <section className="relative flex flex-col overflow-visible rounded-b-2xl rounded-t-none border border-[var(--card-border)] border-t-4 border-t-emerald-500 bg-[var(--card)] p-4 shadow-sm sm:p-5 dark:border-t-emerald-500/90">
             <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[var(--card-border)] pb-2">
               <h2 className="text-sm font-semibold text-[var(--foreground)]">
                 <span translate="no" lang="en">
@@ -567,6 +600,20 @@ export default function SellerPlanoPage() {
                   <p className="text-sm text-[var(--muted)]">
                     Valor único: <strong className="text-[var(--foreground)]">{BRL.format(diffUpgrade)}</strong> (diferença Pro − Start na referência atual).
                   </p>
+                  {cicloAtual !== "mensal" && (
+                    <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] p-3 text-xs leading-relaxed text-[var(--foreground)]">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={aceiteUpgradeCiclo}
+                        onChange={(e) => setAceiteUpgradeCiclo(e.target.checked)}
+                      />
+                      <span>
+                        Entendo que as parcelas restantes do meu compromisso {cicloLabel.toLowerCase()} passam a valer o
+                        preço do Pro a partir de agora, sem ganhar carência nova.
+                      </span>
+                    </label>
+                  )}
                   {upgradeErro && (
                     <p className={cn("rounded-xl px-3 py-2 text-xs", DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY)}>{upgradeErro}</p>
                   )}
@@ -581,7 +628,7 @@ export default function SellerPlanoPage() {
                     <button
                       type="button"
                       onClick={() => void gerarPixUpgrade()}
-                      disabled={upgradeLoading || !podeUpgradePix}
+                      disabled={upgradeLoading || !podeUpgradePix || (cicloAtual !== "mensal" && !aceiteUpgradeCiclo)}
                       className="flex-1 rounded-md bg-emerald-600 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {upgradeLoading ? "Gerando…" : "Gerar PIX"}

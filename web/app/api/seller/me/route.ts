@@ -40,7 +40,7 @@ export async function GET(req: Request) {
     const { data: seller, error: sellerErr } = await supabaseAdmin
       .from("sellers")
       .select(
-        "id, org_id, nome, documento, plano, status, saldo_atual, saldo_bloqueado, saldo_bloqueado_devolucao, data_entrada, email, telefone, gestores_ia_addon_ativo"
+        "id, org_id, nome, documento, plano, plano_ciclo, plano_ciclo_carencia_fim, plano_ciclo_valor_travado, plano_ciclo_compromisso_fim, status, saldo_atual, saldo_bloqueado, saldo_bloqueado_devolucao, data_entrada, email, telefone, gestores_ia_addon_ativo"
       )
       .eq("user_id", user_id)
       .maybeSingle();
@@ -325,6 +325,10 @@ export async function GET(req: Request) {
         nome: seller.nome,
         documento: seller.documento ? String(seller.documento).replace(/\d(?=\d{4})/g, "*") : null,
         plano: seller.plano,
+        plano_ciclo: (seller as { plano_ciclo?: string | null }).plano_ciclo ?? "mensal",
+        plano_ciclo_carencia_fim: (seller as { plano_ciclo_carencia_fim?: string | null }).plano_ciclo_carencia_fim ?? null,
+        plano_ciclo_valor_travado: (seller as { plano_ciclo_valor_travado?: number | null }).plano_ciclo_valor_travado ?? null,
+        plano_ciclo_compromisso_fim: (seller as { plano_ciclo_compromisso_fim?: string | null }).plano_ciclo_compromisso_fim ?? null,
         gestores_ia_addon_ativo: seller.gestores_ia_addon_ativo === true,
         status: seller.status,
         saldo_atual: Number(seller.saldo_atual ?? 0),

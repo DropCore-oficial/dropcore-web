@@ -573,6 +573,65 @@ R$0 — `mensalidade_valor_travado = 0` nos dois. Sem essa mudança, qualquer se
 travado e add-on ativo pagaria base travada + R$600/700 do add-on em cima, mesmo quando o
 valor travado já deveria ser o preço final combinado.
 
+## `sellers.plano_ciclo`/`plano_ciclo_carencia_fim`/`plano_desconto_tipo`/`plano_desconto_valor` — ciclo de compromisso + desconto do plano principal (2026-11-02)
+
+`web/scripts/add-seller-plano-ciclo-desconto.sql`. Plano Start/Pro ganha ciclo de
+compromisso (`plano_ciclo`: `mensal` | `semestral` | `anual`, default `mensal`) + desconto
+manual, definidos só pelo **admin** em `/admin/sellers` (botão "Plano, ciclo e desconto" na
+tela de detalhe do seller) — não há escolha self-service de ciclo/desconto pelo seller, só
+de plano no onboarding (`PATCH /api/seller/plano`, inalterado).
+
+Ciclo **não muda o valor da parcela** — só define a carência (dias sem cobrança) antes da
+1ª mensalidade, mesmo racional do contrato anual do pacote Gestores de IA avulso
+(`GESTORES_IA_AVULSO_CONTRATO_ANUAL_CARENCIA_DIAS`): semestral = 30 dias, anual = 60 dias
+(`SELLER_PLANO_CICLO_CARENCIA_DIAS` em `web/lib/sellerPlanoCicloDesconto.ts`).
+`plano_ciclo_carencia_fim` é a data resolvida (`data_entrada + dias`), calculada uma vez
+pela RPC `fn_seller_plano_ciclo_desconto_set` — `gerarMensalidadesCicloOrg.ts` pula a
+geração de mensalidade enquanto `hoje <= plano_ciclo_carencia_fim` (seller em ciclo
+`mensal`, que é o padrão/legado, nunca é afetado: `carencia_fim` fica sempre `null`).
+
+`plano_desconto_tipo` (`valor` | `percentual`) + `plano_desconto_valor` são ortogonais ao
+ciclo — desconto manual do admin sobre `financial_planos.valor_seller`, mesmo cálculo do
+pacote Gestores de IA avulso (`calcularValorMensalSellerPlano`, arredonda a 2 casas).
+`mensalidade_valor_travado` (grandfathering, acima) continua tendo prioridade quando
+preenchido — ignora ciclo e desconto, é o total final travado.
+
+**Upgrade Start→Pro no meio de um ciclo semestral/anual não reinicia a carência** — a RPC
+`fn_seller_plano_upgrade_pro_set` só muda `plano` para `Pro`; `plano_ciclo`/
+`plano_ciclo_carencia_fim` ficam intocados de propósito, as parcelas restantes do
+compromisso passam a cobrar o valor do Pro a partir do próximo ciclo
+(`recalcularMensalidadeCicloAtualParaPro`, já existia). Pra isso, o seller em ciclo
+semestral/anual precisa confirmar um aceite leve (`plano_ciclo_upgrade_termos_versao`/
+`_aceite_em`) antes do upgrade — checkbox em `/seller/plano`, igual padrão de
+`credito_termos_versao`/`credito_aceite_em` em `seller_depositos_pix`. O texto aceito
+trafega em `seller_depositos_pix.upgrade_termos_versao` (coluna nova, mesma tabela do PIX
+de upgrade) até a confirmação do pagamento, quando `upgradeProPixProcessor.ts` grava o
+aceite junto com a troca de plano.
+
+**Contrato jurídico fica fora do DropCore** (decisão do Sr Stark, 2026-11-02): o aceite em
+tela é só rastro interno de que o seller confirmou a consequência do upgrade — o contrato
+formal (PDF/assinatura) é feito por fora, sem integração no sistema.
+
+**Preço travado durante o compromisso (`web/scripts/add-seller-plano-ciclo-valor-travado.sql`,
+corretivo do script acima, 2026-11-02):** colunas `plano_ciclo_valor_travado` (numeric) e
+`plano_ciclo_compromisso_fim` (date). Decisão do Sr Stark: quem assina semestral/anual não
+pode ser pego de surpresa por reajuste de `financial_planos` no meio do compromisso — a RPC
+`fn_seller_plano_ciclo_desconto_set` agora também calcula e grava o valor final (tabela +
+desconto) no momento em que o admin define/edita o ciclo, travado até
+`plano_ciclo_carencia_fim + 6 meses` (semestral) ou `+ 12 meses` (anual)
+(`SELLER_PLANO_CICLO_COMPROMISSO_MESES` em `web/lib/sellerPlanoCicloDesconto.ts`, só
+referência/documentação — o cálculo real roda em SQL). `gerarMensalidadesCicloOrg.ts` usa
+esse valor travado em vez do cálculo ao vivo (tabela + desconto) enquanto
+`plano_ciclo_compromisso_fim >= hoje`; depois disso volta a acompanhar `financial_planos`
+normalmente, como antes. Precedência final: `mensalidade_valor_travado` (grandfathering
+legado, sempre vence) > `plano_ciclo_valor_travado` (dentro do compromisso) > tabela ao vivo
++ desconto. Ciclo mensal nunca grava essas duas colunas (ficam `null`).
+
+Ambas as RPCs são `SECURITY DEFINER`, só `grant execute` pra `service_role` (regra 9 do
+CLAUDE.md) — chamadas por `POST /api/org/sellers/[id]/plano-ciclo` (admin) e por
+`upgradeProPixProcessor.ts` (confirmação de PIX), nunca `.from("sellers").update(...)`
+direto nesses dois fluxos.
+
 ## `seller_ai_chat_sessions`/`seller_ai_chat_mensagens` — chat com o Tiago Silva (Gestor Mestre, 2026-09-30)
 
 `web/scripts/create-seller-ai-chat-tiago.sql`. Chat síncrono (Messages API, não Batch) onde o Tiago Silva orquestra os outros gestores via

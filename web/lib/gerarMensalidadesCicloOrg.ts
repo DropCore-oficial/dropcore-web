@@ -2,6 +2,11 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { clampMensalidadeDiaVencimento, hojeYmdSaoPaulo, vencimentoEmNoCiclo } from "@/lib/mensalidadeDiaVencimento";
 import { isPortalTrialAtivo } from "@/lib/portalTrial";
 import { valorAddonGestoresIaPorPlano } from "@/lib/gestoresIaAddonPrecos";
+import {
+  calcularValorMensalSellerPlano,
+  isSellerPlanoDescontoTipo,
+  type SellerPlanoDescontoTipo,
+} from "@/lib/sellerPlanoCicloDesconto";
 
 const VALOR_DEFAULT_SELLER = 97.9;
 const VALOR_DEFAULT_FORNECEDOR = 97.9;
@@ -36,7 +41,9 @@ export async function gerarMensalidadesParaOrgCiclo(orgId: string, cicloYYYY_MM:
     supabaseAdmin.from("financial_planos").select("plano, valor_seller, valor_fornecedor"),
     supabaseAdmin
       .from("sellers")
-      .select("id, nome, plano, mensalidade_dia_vencimento, trial_valido_ate, mensalidade_valor_travado, gestores_ia_addon_ativo")
+      .select(
+        "id, nome, plano, mensalidade_dia_vencimento, trial_valido_ate, mensalidade_valor_travado, gestores_ia_addon_ativo, plano_ciclo, plano_ciclo_carencia_fim, plano_desconto_tipo, plano_desconto_valor, plano_ciclo_valor_travado, plano_ciclo_compromisso_fim"
+      )
       .eq("org_id", orgId)
       .ilike("status", "ativo"),
     supabaseAdmin.from("fornecedores").select("id, nome, mensalidade_dia_vencimento, trial_valido_ate").eq("org_id", orgId).ilike("status", "ativo"),
@@ -79,6 +86,11 @@ export async function gerarMensalidadesParaOrgCiclo(orgId: string, cicloYYYY_MM:
     if (inadSellerIds.has(s.id)) continue;
     if (jaTemCicloSeller.has(s.id) && !MUTAVEL.has(statusCicloSeller.get(s.id) ?? "")) continue;
     if (isPortalTrialAtivo((s as { trial_valido_ate?: string | null }).trial_valido_ate)) continue;
+    // Carência do ciclo semestral/anual (admin define em /admin/sellers) — nenhum seller em
+    // ciclo "mensal" (padrão/legado) é afetado, carencia_fim fica sempre null pra eles.
+    const planoCiclo = (s as { plano_ciclo?: string | null }).plano_ciclo ?? "mensal";
+    const carenciaFim = (s as { plano_ciclo_carencia_fim?: string | null }).plano_ciclo_carencia_fim ?? null;
+    if (planoCiclo !== "mensal" && carenciaFim && carenciaFim >= hoje) continue;
     const p = (s.plano?.trim() || "").toLowerCase();
     const planoKey = p === "pro" ? "Pro" : p === "starter" ? "Starter" : "default";
     const pc = planosMap.get(planoKey) ?? planosMap.get("default");
@@ -88,10 +100,26 @@ export async function gerarMensalidadesParaOrgCiclo(orgId: string, cicloYYYY_MM:
     // valor de tabela do plano, nunca em cima de um valor travado.
     const valorTravado = (s as { mensalidade_valor_travado?: number | string | null }).mensalidade_valor_travado;
     const addonAtivo = (s as { gestores_ia_addon_ativo?: boolean | null }).gestores_ia_addon_ativo === true;
-    const valor =
-      valorTravado != null
-        ? Number(valorTravado)
-        : (pc ? Number(pc.valor_seller) : VALOR_DEFAULT_SELLER) + (addonAtivo ? valorAddonGestoresIaPorPlano(p) : 0);
+    const addonValor = addonAtivo ? valorAddonGestoresIaPorPlano(p) : 0;
+    const descontoTipoRaw = (s as { plano_desconto_tipo?: string | null }).plano_desconto_tipo ?? null;
+    const descontoTipo: SellerPlanoDescontoTipo | null = isSellerPlanoDescontoTipo(descontoTipoRaw) ? descontoTipoRaw : null;
+    const descontoValor = (s as { plano_desconto_valor?: number | string | null }).plano_desconto_valor;
+    const valorBase = pc ? Number(pc.valor_seller) : VALOR_DEFAULT_SELLER;
+    const valorComDesconto = calcularValorMensalSellerPlano(
+      valorBase,
+      descontoTipo,
+      descontoValor != null ? Number(descontoValor) : null
+    );
+    // Durante o compromisso semestral/anual (plano_ciclo_compromisso_fim no futuro), o valor
+    // fica travado no que foi calculado quando o admin definiu o ciclo/desconto
+    // (plano_ciclo_valor_travado) — reajuste de financial_planos no meio do compromisso não
+    // pega o seller de surpresa. Some o add-on igual ao caminho normal (não é o total final
+    // tipo mensalidade_valor_travado, é só a trava do preço de tabela+desconto).
+    const compromissoFim = (s as { plano_ciclo_compromisso_fim?: string | null }).plano_ciclo_compromisso_fim ?? null;
+    const valorTravadoCiclo = (s as { plano_ciclo_valor_travado?: number | string | null }).plano_ciclo_valor_travado;
+    const dentroDoCompromisso = planoCiclo !== "mensal" && !!compromissoFim && compromissoFim >= hoje && valorTravadoCiclo != null;
+    const valorPlanoFinal = dentroDoCompromisso ? Number(valorTravadoCiclo) : valorComDesconto;
+    const valor = valorTravado != null ? Number(valorTravado) : valorPlanoFinal + addonValor;
     const diaRaw = (s as { mensalidade_dia_vencimento?: number | null }).mensalidade_dia_vencimento;
     const dia = diaRaw == null ? 10 : clampMensalidadeDiaVencimento(Number(diaRaw));
     const vencimento_em = vencimentoEmNoCiclo(primeiroDia, dia);

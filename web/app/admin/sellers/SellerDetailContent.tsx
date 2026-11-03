@@ -11,6 +11,18 @@ import { sellerCadastroPendente } from "@/lib/sellerDocumento";
 import { AMBER_PREMIUM_TEXT_SOFT } from "@/lib/amberPremium";
 import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
+import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
+import { AbaPilula } from "@/components/seller/GestorAvulsoAbaPilula";
+import {
+  calcularValorMensalSellerPlano,
+  SELLER_PLANO_CICLO_CARENCIA_DIAS,
+  type SellerPlanoCiclo,
+  type SellerPlanoDescontoTipo,
+} from "@/lib/sellerPlanoCicloDesconto";
+import { VALOR_DEFAULT_MENSALIDADE_SELLER, VALOR_DEFAULT_MENSALIDADE_SELLER_PRO } from "@/lib/sellerPlanoPrecos";
+
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const hojeIso = new Date().toISOString().slice(0, 10);
 
 type Seller = {
   id: string;
@@ -38,6 +50,12 @@ type Seller = {
   fornecedor_vinculado_em?: string | null;
   fornecedor_desvinculo_liberado?: boolean;
   mensalidade_dia_vencimento?: number | null;
+  plano_ciclo?: string | null;
+  plano_ciclo_carencia_fim?: string | null;
+  plano_desconto_tipo?: string | null;
+  plano_desconto_valor?: number | null;
+  plano_ciclo_valor_travado?: number | null;
+  plano_ciclo_compromisso_fim?: string | null;
 };
 
 type SellerComMov = Seller & {
@@ -65,13 +83,17 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<SellerComMov | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [modal, setModal] = useState<"credit" | "edit" | null>(null);
+  const [modal, setModal] = useState<"credit" | "edit" | "planoCiclo" | null>(null);
+  const [planoCicloPlanoSel, setPlanoCicloPlanoSel] = useState<"starter" | "pro">("starter");
+  const [planoCicloSel, setPlanoCicloSel] = useState<SellerPlanoCiclo>("mensal");
+  const [planoCicloDescontoTipoSel, setPlanoCicloDescontoTipoSel] = useState<"cheio" | SellerPlanoDescontoTipo>("cheio");
+  const [planoCicloDescontoValorInput, setPlanoCicloDescontoValorInput] = useState("");
+  const [planoCicloSending, setPlanoCicloSending] = useState(false);
   const [creditValor, setCreditValor] = useState("");
   const [creditSending, setCreditSending] = useState(false);
   const [pixChave, setPixChave] = useState("");
   const [editNome, setEditNome] = useState("");
   const [editDocumento, setEditDocumento] = useState("");
-  const [editPlano, setEditPlano] = useState("");
   const [editStatus, setEditStatus] = useState("");
   const [editSending, setEditSending] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -211,7 +233,6 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
       const patchBody: Record<string, unknown> = {
         nome: editNome.trim(),
         documento: editDocumento.trim() || null,
-        plano: editPlano.trim() || null,
         status: editStatus || "ativo",
       };
       const diaTrim = editMensalidadeDiaStr.trim();
@@ -246,6 +267,57 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
       setError(e instanceof Error ? e.message : "Erro ao salvar");
     } finally {
       setEditSending(false);
+    }
+  }
+
+  const planoCicloValorCheio = planoCicloPlanoSel === "pro" ? VALOR_DEFAULT_MENSALIDADE_SELLER_PRO : VALOR_DEFAULT_MENSALIDADE_SELLER;
+  const planoCicloDescontoPreview =
+    planoCicloDescontoTipoSel === "cheio"
+      ? planoCicloValorCheio
+      : calcularValorMensalSellerPlano(
+          planoCicloValorCheio,
+          planoCicloDescontoTipoSel,
+          Number(planoCicloDescontoValorInput.replace(",", ".")) || null
+        );
+
+  async function salvarPlanoCiclo() {
+    setPlanoCicloSending(true);
+    setError(null);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) return;
+      let descontoValor: number | null = null;
+      if (planoCicloDescontoTipoSel !== "cheio") {
+        descontoValor = Number(planoCicloDescontoValorInput.replace(",", "."));
+        if (!Number.isFinite(descontoValor) || descontoValor <= 0) {
+          setError("Informe um valor de desconto maior que zero.");
+          setPlanoCicloSending(false);
+          return;
+        }
+        if (planoCicloDescontoTipoSel === "percentual" && descontoValor > 100) {
+          setError("Desconto percentual não pode passar de 100%.");
+          setPlanoCicloSending(false);
+          return;
+        }
+      }
+      const res = await fetch(`/api/org/sellers/${sellerId}/plano-ciclo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          plano: planoCicloPlanoSel,
+          ciclo: planoCicloSel,
+          desconto_tipo: planoCicloDescontoTipoSel === "cheio" ? null : planoCicloDescontoTipoSel,
+          desconto_valor: descontoValor,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Erro");
+      if (detail && json?.seller) setDetail({ ...detail, ...json.seller });
+      setModal(null);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao salvar");
+    } finally {
+      setPlanoCicloSending(false);
     }
   }
 
@@ -384,6 +456,39 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
                 </span>{" "}
                 de cada mês (novas linhas geradas pelo admin ou pelo cron).
               </div>
+              <div className="text-[13px] mt-1 text-[var(--muted)]">
+                Ciclo:{" "}
+                <span className="font-medium text-[var(--foreground)]">
+                  {detail.plano_ciclo === "semestral" ? "Semestral" : detail.plano_ciclo === "anual" ? "Anual" : "Mensal"}
+                </span>
+                {detail.plano_ciclo_carencia_fim && (
+                  <>
+                    {" "}
+                    ·{" "}
+                    {detail.plano_ciclo_carencia_fim >= hojeIso
+                      ? `em carência até ${formatDate(detail.plano_ciclo_carencia_fim)}`
+                      : `carência terminou em ${formatDate(detail.plano_ciclo_carencia_fim)}`}
+                  </>
+                )}
+                {detail.plano_desconto_tipo && (
+                  <>
+                    {" "}
+                    · Desconto:{" "}
+                    {detail.plano_desconto_tipo === "percentual"
+                      ? `${detail.plano_desconto_valor ?? 0}%`
+                      : BRL.format(Number(detail.plano_desconto_valor ?? 0))}
+                  </>
+                )}
+                {detail.plano_ciclo_valor_travado != null && detail.plano_ciclo_compromisso_fim && (
+                  <>
+                    {" "}
+                    · Preço travado em {BRL.format(Number(detail.plano_ciclo_valor_travado))}
+                    {detail.plano_ciclo_compromisso_fim >= hojeIso
+                      ? ` até ${formatDate(detail.plano_ciclo_compromisso_fim)} (reajuste de tabela não pega durante o compromisso)`
+                      : ` — compromisso terminou em ${formatDate(detail.plano_ciclo_compromisso_fim)}, já acompanha a tabela`}
+                  </>
+                )}
+              </div>
               <div className="mt-4 flex gap-4">
                 <div>
                   <span className="text-xs text-[var(--muted)]">Saldo disponível</span>
@@ -402,9 +507,29 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
                   variant="secondary"
                   onClick={() => {
                     setError(null);
+                    const planoLc = String(detail.plano ?? "").trim().toLowerCase();
+                    setPlanoCicloPlanoSel(planoLc === "pro" ? "pro" : "starter");
+                    const cicloAtual = detail.plano_ciclo;
+                    setPlanoCicloSel(cicloAtual === "semestral" || cicloAtual === "anual" ? cicloAtual : "mensal");
+                    setPlanoCicloDescontoTipoSel(
+                      detail.plano_desconto_tipo === "valor" || detail.plano_desconto_tipo === "percentual"
+                        ? detail.plano_desconto_tipo
+                        : "cheio"
+                    );
+                    setPlanoCicloDescontoValorInput(
+                      detail.plano_desconto_valor != null ? String(detail.plano_desconto_valor) : ""
+                    );
+                    setModal("planoCiclo");
+                  }}
+                >
+                  Plano, ciclo e desconto
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setError(null);
                     setEditNome(detail.nome);
                     setEditDocumento(detail.documento ?? "");
-                    setEditPlano(detail.plano ?? "");
                     setEditStatus(detail.status);
                     setEditFornecedorId(detail.fornecedor_id ?? "");
                     setEditFornecedorLiberado(Boolean(detail.fornecedor_desvinculo_liberado));
@@ -737,14 +862,6 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
                   Vazio = padrão legado (dia 10 ao gerar ciclos). Com valor, cada mês civil vence nesse dia. Linhas já criadas não mudam sozinhas — gere de novo o mês no admin se precisar alinhar.
                 </p>
               </div>
-              <div className="mb-3">
-                <label className="block text-xs text-[var(--muted)] mb-1">Plano</label>
-                <select value={editPlano} onChange={(e) => setEditPlano(e.target.value)} className="w-full u-input">
-                  <option value="">—</option>
-                  <option value="Starter">Start</option>
-                  <option value="Pro">Pro</option>
-                </select>
-              </div>
               <div className="mb-4">
                 <label className="block text-xs text-[var(--muted)] mb-1">Status</label>
                 <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)} className="w-full u-input">
@@ -757,6 +874,151 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
               <div className="flex gap-2">
                 <Button type="button" variant="success" onClick={editSeller} disabled={editSending}>
                   {editSending ? "Salvando..." : "Salvar"}
+                </Button>
+                <Button variant="secondary" onClick={() => { setModal(null); setError(null); }}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+        {modal === "planoCiclo" && (
+          <div className={MODAL_OVERLAY_CLASS} role="dialog" aria-modal="true">
+            <div className={cn(MODAL_PANEL_CLASS, "max-w-[640px]")}>
+              <div className="shrink-0 p-5 pb-0">
+                <h3 className="mb-1 text-lg">Plano, ciclo e desconto</h3>
+                <p className="text-[12px] leading-relaxed text-[var(--muted)]">
+                  Ciclo não muda o valor da parcela — só define a carência (meses grátis) antes da 1ª cobrança.
+                  Desconto é manual, aplicado sobre o valor de tabela do plano escolhido. No Semestral/Anual, o valor
+                  calculado agora fica travado até o fim do compromisso — reajuste de tabela nesse meio tempo não
+                  pega esse seller.
+                </p>
+              </div>
+              <div className={cn(MODAL_PANEL_BODY_CLASS, "space-y-4 p-5 pt-4")}>
+              <div>
+                <label className="mb-1.5 block text-xs text-[var(--muted)]">Plano</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["starter", "pro"] as const).map((valor) => {
+                    const selecionado = planoCicloPlanoSel === valor;
+                    return (
+                      <button
+                        key={valor}
+                        type="button"
+                        onClick={() => setPlanoCicloPlanoSel(valor)}
+                        className={cn(
+                          "rounded-xl border p-3 text-left transition-colors",
+                          selecionado
+                            ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20"
+                            : "border-[var(--card-border)] bg-[var(--card)] hover:border-emerald-300 dark:hover:border-emerald-700"
+                        )}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2",
+                              selecionado ? "border-emerald-600 bg-emerald-600" : "border-[var(--card-border)]"
+                            )}
+                            aria-hidden
+                          >
+                            {selecionado && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                          </span>
+                          <span className="text-sm font-semibold text-[var(--foreground)]">
+                            {valor === "pro" ? "Pro" : "Start"}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs text-[var(--muted)]">Ciclo de compromisso</label>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {(
+                    [
+                      ["mensal", "Mensal", "Sem compromisso"],
+                      ["semestral", "Semestral", `6 parcelas, ${SELLER_PLANO_CICLO_CARENCIA_DIAS.semestral} dias grátis`],
+                      ["anual", "Anual", `12 parcelas, ${SELLER_PLANO_CICLO_CARENCIA_DIAS.anual} dias grátis`],
+                    ] as const
+                  ).map(([valor, titulo, subtitulo]) => {
+                    const selecionado = planoCicloSel === valor;
+                    return (
+                      <button
+                        key={valor}
+                        type="button"
+                        onClick={() => setPlanoCicloSel(valor)}
+                        className={cn(
+                          "rounded-xl border p-3 text-left transition-colors",
+                          selecionado
+                            ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20"
+                            : "border-[var(--card-border)] bg-[var(--card)] hover:border-emerald-300 dark:hover:border-emerald-700"
+                        )}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2",
+                              selecionado ? "border-emerald-600 bg-emerald-600" : "border-[var(--card-border)]"
+                            )}
+                            aria-hidden
+                          >
+                            {selecionado && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                          </span>
+                          <span className="text-sm font-semibold text-[var(--foreground)]">{titulo}</span>
+                        </span>
+                        <p className="mt-1 pl-6 text-xs text-[var(--muted)]">{subtitulo}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-1.5 block text-xs text-[var(--muted)]">Desconto na mensalidade</p>
+                <div className="flex flex-wrap gap-1 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-1">
+                  {(
+                    [
+                      ["cheio", "Preço cheio"],
+                      ["valor", "Valor fixo em R$"],
+                      ["percentual", "Percentual (%)"],
+                    ] as const
+                  ).map(([valor, label]) => (
+                    <AbaPilula
+                      key={valor}
+                      ativo={planoCicloDescontoTipoSel === valor}
+                      onClick={() => setPlanoCicloDescontoTipoSel(valor)}
+                      icon={null}
+                    >
+                      {label}
+                    </AbaPilula>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-stretch gap-2">
+                <div className="flex-1 rounded-xl border border-[var(--card-border)] bg-[var(--muted)]/10 px-3 py-2.5">
+                  <p className="text-[11px] text-[var(--muted)]">Valor da mensalidade com essa configuração</p>
+                  <p className="text-base font-bold text-[var(--foreground)]">{BRL.format(planoCicloDescontoPreview)}</p>
+                </div>
+                {planoCicloDescontoTipoSel !== "cheio" && (
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={planoCicloDescontoValorInput}
+                    onChange={(e) => setPlanoCicloDescontoValorInput(e.target.value)}
+                    placeholder={planoCicloDescontoTipoSel === "valor" ? "20" : "15"}
+                    className="w-24 shrink-0 u-input"
+                  />
+                )}
+              </div>
+
+              {error && <div className="text-[13px] text-[var(--danger)]">{error}</div>}
+              </div>
+
+              <div className="flex shrink-0 gap-2 border-t border-[var(--card-border)] p-5 pt-4">
+                <Button type="button" variant="success" onClick={salvarPlanoCiclo} disabled={planoCicloSending}>
+                  {planoCicloSending ? "Salvando..." : "Salvar"}
                 </Button>
                 <Button variant="secondary" onClick={() => { setModal(null); setError(null); }}>
                   Cancelar

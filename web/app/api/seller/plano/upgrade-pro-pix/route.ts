@@ -42,6 +42,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Plano atual não permite este upgrade. Escolha Start ou Pro no onboarding primeiro." }, { status: 400 });
     }
 
+    // Seller em compromisso semestral/anual (definido pelo admin) precisa confirmar que já
+    // sabe: as parcelas restantes do compromisso passam a valer o preço do Pro, sem ganhar
+    // carência nova — aceite leve, mesmo padrão de credito_termos_versao/credito_aceite_em.
+    const cicloAtual = String(seller.plano_ciclo ?? "mensal").trim().toLowerCase();
+    const termosVersaoRaw = (await req.json().catch(() => null)) as { termos_versao?: unknown } | null;
+    const termosVersao = termosVersaoRaw?.termos_versao != null ? String(termosVersaoRaw.termos_versao).trim() : "";
+    if (cicloAtual !== "mensal" && !termosVersao) {
+      return NextResponse.json(
+        {
+          error:
+            "Confirme que entendeu: as parcelas restantes do seu compromisso passam a valer o preço do Pro, sem ganhar carência nova.",
+        },
+        { status: 400 }
+      );
+    }
+
     const { data: pendente } = await supabaseAdmin
       .from("seller_depositos_pix")
       .select("id")
@@ -79,6 +95,7 @@ export async function POST(req: Request) {
         chave_pix: null,
         status: "pendente",
         referencia: SELLER_DEPOSITO_REF_UPGRADE_PRO,
+        upgrade_termos_versao: termosVersao || null,
       })
       .select("id, valor, criado_em")
       .single();
