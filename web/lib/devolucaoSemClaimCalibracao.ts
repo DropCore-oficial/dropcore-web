@@ -6,8 +6,15 @@
  * shipment, mesmo allowlist seguro da calibração de claim) de todo pedido entregue que
  * ainda não foi repassado, e grava em `ml_devolucao_calibracao_log`. Quando uma devolução
  * sem claim se resolver de novo, o log mostra o campo real que mudou — daí sim dá pra
- * escrever a regra de detecção de verdade. Não trava dinheiro, não notifica, não decide
- * nada.
+ * escrever a regra de detecção de verdade. Não trava dinheiro, não decide nada.
+ *
+ * Achado real 2026-11-03 (mesmo pedido Vinz Collection, ledger já EM_DEVOLUCAO): o
+ * `shipment.status_history.date_returned` nunca veio preenchido mesmo com a transportadora
+ * confirmando a entrega física de volta — não serve de sinal pra esse tipo de devolução
+ * (xd_drop_off sem claim). Quem mudou foi `order.status` (de "paid" para "cancelled"),
+ * coincidindo com a entrega. Ainda é 1 caso só — por isso só avisa o admin (ver
+ * notifyAdminsDevolucaoMlOrderCancelada), não libera dinheiro nem destrava o pedido
+ * sozinho. Confirmação continua manual até esse padrão se repetir em mais casos reais.
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
@@ -16,6 +23,7 @@ import {
   mlBuscarShipmentDetalheBruto,
   type MercadoLivreAuthContext,
 } from "@/lib/mercadoLivreApiClient";
+import { notifyAdminsDevolucaoMlOrderCancelada } from "@/lib/notifyAdminsDevolucaoMlOrderCancelada";
 
 const JANELA_DIAS = 60;
 const RELOG_HORAS = 20;
@@ -56,7 +64,7 @@ export async function processarCalibracaoDevolucaoSemClaim(): Promise<{ candidat
 
   const { data: ledgers, error: ledgersErr } = await supabaseAdmin
     .from("financial_ledger")
-    .select("id, pedido_id, seller_id, status")
+    .select("id, org_id, pedido_id, seller_id, status")
     .in("status", ["AGUARDANDO_REPASSE", "ENTREGUE", "EM_DEVOLUCAO"])
     .gte("criado_em", desde)
     .not("pedido_id", "is", null)
@@ -67,6 +75,11 @@ export async function processarCalibracaoDevolucaoSemClaim(): Promise<{ candidat
   }
   if (!ledgers || ledgers.length === 0) return { candidatos: 0, logados: 0 };
 
+  const ledgerPorPedido = new Map<string, { id: string; org_id: string; status: string }>();
+  for (const l of ledgers) {
+    ledgerPorPedido.set(l.pedido_id as string, { id: l.id as string, org_id: l.org_id as string, status: l.status as string });
+  }
+
   const pedidoIds = ledgers.map((l) => l.pedido_id as string);
   const { data: pedidos, error: pedidosErr } = await supabaseAdmin
     .from("pedidos")
@@ -76,6 +89,10 @@ export async function processarCalibracaoDevolucaoSemClaim(): Promise<{ candidat
     console.error("[calibracao-sem-claim] erro ao buscar pedidos:", pedidosErr?.message);
     return { candidatos: 0, logados: 0 };
   }
+
+  const sellerIdsUnicos = [...new Set(pedidos.map((p) => p.seller_id as string))];
+  const { data: sellersRows } = await supabaseAdmin.from("sellers").select("id, nome").in("id", sellerIdsUnicos);
+  const nomePorSeller = new Map((sellersRows ?? []).map((s) => [s.id as string, s.nome as string | null]));
 
   const refIds = pedidos.map((p) => `sem-claim:${p.marketplace_numero}`);
   const recente = new Date(Date.now() - RELOG_HORAS * 60 * 60 * 1000).toISOString();
@@ -112,6 +129,17 @@ export async function processarCalibracaoDevolucaoSemClaim(): Promise<{ candidat
         await registrar(sellerId, refId, "shipment", String(shippingId), shipment);
       }
       logados++;
+
+      const ledger = ledgerPorPedido.get(pedido.id as string);
+      if (ledger?.status === "EM_DEVOLUCAO" && orderBruto?.status === "cancelled") {
+        await notifyAdminsDevolucaoMlOrderCancelada({
+          org_id: ledger.org_id,
+          seller_id: sellerId,
+          seller_nome: nomePorSeller.get(sellerId) ?? null,
+          pedido_id: pedido.id as string,
+          ledger_id: ledger.id,
+        });
+      }
     } catch (e) {
       console.error(`[calibracao-sem-claim] erro no pedido ${pedido.id}:`, e);
     }
