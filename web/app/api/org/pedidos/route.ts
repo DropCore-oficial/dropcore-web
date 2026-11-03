@@ -72,6 +72,21 @@ function aplicarFiltroBuffer<T>(q: T, bufferMl: "somente" | "excluir" | null): T
   return query;
 }
 
+/** "Etiqueta já emitida" = mesma condição de tem_etiqueta_oficial calculada em
+ * fornecedor/seller — pedido "enviado" com etiqueta já emitida entra na aba "Para
+ * retirar" em vez de "Pra enviar" (aguardando postagem/retirada, não falta mais nada do
+ * fornecedor gerar). */
+function aplicarFiltroEtiquetaEmitida<T>(q: T, etiquetaEmitida: "somente" | "excluir" | null): T {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = q as any;
+  if (etiquetaEmitida === "somente") {
+    query = query.or("etiqueta_pdf_url.not.is.null,etiqueta_pdf_base64.not.is.null");
+  } else if (etiquetaEmitida === "excluir") {
+    query = query.is("etiqueta_pdf_url", null).is("etiqueta_pdf_base64", null);
+  }
+  return query;
+}
+
 /** Resolve ids de seller/fornecedor cujo nome bate com a busca — pra incluir no OR do
  * filtro principal (busca por produto/pedido já é direto na tabela pedidos). */
 async function resolverIdsPorNome(orgId: string, busca: string): Promise<{ sellerIds: string[]; fornecedorIds: string[] }> {
@@ -95,6 +110,8 @@ export async function GET(req: Request) {
       : null;
     const bufferMlParam = searchParams.get("buffer_ml")?.trim();
     const bufferMl = bufferMlParam === "somente" || bufferMlParam === "excluir" ? bufferMlParam : null;
+    const etiquetaEmitidaParam = searchParams.get("etiqueta_emitida")?.trim();
+    const etiquetaEmitida = etiquetaEmitidaParam === "somente" || etiquetaEmitidaParam === "excluir" ? etiquetaEmitidaParam : null;
     const busca = searchParams.get("busca")?.trim() || null;
     const desde = searchParams.get("desde")?.trim() || null;
     const desdeValido = desde && !Number.isNaN(new Date(desde).getTime()) ? desde : null;
@@ -134,6 +151,7 @@ export async function GET(req: Request) {
     query = aplicarFiltrosComuns(query);
     if (statusArray && statusArray.length > 0) query = query.in("status", statusArray);
     query = aplicarFiltroBuffer(query, bufferMl);
+    query = aplicarFiltroEtiquetaEmitida(query, etiquetaEmitida);
 
     const { data, error, count } = await query;
     if (error) {
@@ -146,18 +164,24 @@ export async function GET(req: Request) {
 
     // Contagem por aba — sempre respeitando busca/período (não o status, cada aba é seu
     // próprio balde) + o total geral.
-    const contarGrupo = (statuses: string[] | null, bufferFiltro: "somente" | "excluir" | null = null) => {
+    const contarGrupo = (
+      statuses: string[] | null,
+      bufferFiltro: "somente" | "excluir" | null = null,
+      etiquetaFiltro: "somente" | "excluir" | null = null
+    ) => {
       let q = supabaseAdmin.from("pedidos").select("id", { count: "exact", head: true }).eq("org_id", org_id);
       q = aplicarFiltrosComuns(q);
       if (statuses) q = q.in("status", statuses);
       q = aplicarFiltroBuffer(q, bufferFiltro);
+      q = aplicarFiltroEtiquetaEmitida(q, etiquetaFiltro);
       return q;
     };
-    const [cTodos, cPendencias, cPraEnviar, cBuffer, cEnviados, cDevolucao, cConcluidos, cCancelados] = await Promise.all([
+    const [cTodos, cPendencias, cPraEnviar, cBuffer, cRetirada, cEnviados, cDevolucao, cConcluidos, cCancelados] = await Promise.all([
       contarGrupo(null),
       contarGrupo(ABAS_STATUS.pendencias),
-      contarGrupo(ABAS_STATUS.pra_enviar, "excluir"),
+      contarGrupo(ABAS_STATUS.pra_enviar, "excluir", "excluir"),
       contarGrupo(ABAS_STATUS.pra_enviar, "somente"),
+      contarGrupo(ABAS_STATUS.pra_enviar, null, "somente"),
       contarGrupo(ABAS_STATUS.enviados),
       contarGrupo(ABAS_STATUS.devolucao),
       contarGrupo(ABAS_STATUS.concluidos),
@@ -168,6 +192,7 @@ export async function GET(req: Request) {
       pendencias: cPendencias.count ?? 0,
       pra_enviar: cPraEnviar.count ?? 0,
       buffer: cBuffer.count ?? 0,
+      retirada: cRetirada.count ?? 0,
       enviados: cEnviados.count ?? 0,
       devolucao: cDevolucao.count ?? 0,
       concluidos: cConcluidos.count ?? 0,

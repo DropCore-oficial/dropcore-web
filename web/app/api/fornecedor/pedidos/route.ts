@@ -113,9 +113,14 @@ export async function GET(req: Request) {
     const bufferMlParam = searchParams.get("buffer_ml")?.trim();
     const bufferMl = bufferMlParam === "somente" || bufferMlParam === "excluir" ? bufferMlParam : null;
 
+    // 'somente' = só etiqueta já emitida, aguardando postagem/retirada (aba "Para
+    // retirar"); 'excluir' = pra_enviar sem misturar quem já tem etiqueta; null = sem filtro.
+    const etiquetaEmitidaParam = searchParams.get("etiqueta_emitida")?.trim();
+    const etiquetaEmitida = etiquetaEmitidaParam === "somente" || etiquetaEmitidaParam === "excluir" ? etiquetaEmitidaParam : null;
+
     // RPC (regra 9): além de ler, ordena priorizando pedido com etiqueta recém-liberada e
     // ainda não impressa — expressão de ordenação (CASE) que o PostgREST não faz direto.
-    // Ver fn_fornecedor_pedidos_lista em web/scripts/add-fornecedor-pedidos-aba-buffer-ml.sql.
+    // Ver fn_fornecedor_pedidos_lista em web/scripts/add-fornecedor-pedidos-aba-retirada.sql.
     const { data: rpcRows, error: rpcErr } = await supabaseAdmin.rpc("fn_fornecedor_pedidos_lista", {
       p_org_id: ctx.org_id,
       p_fornecedor_id: ctx.fornecedor_id,
@@ -126,6 +131,7 @@ export async function GET(req: Request) {
       p_desde: desdeValido,
       p_ate: ateValido,
       p_buffer_ml: bufferMl,
+      p_etiqueta_emitida: etiquetaEmitida,
     });
 
     if (rpcErr) {
@@ -138,6 +144,7 @@ export async function GET(req: Request) {
       total_count_geral: number;
       total_count_pra_enviar: number;
       total_count_buffer: number;
+      total_count_retirada: number;
       total_count_erro: number;
       total_count_enviados: number;
       total_count_devolucao: number;
@@ -151,6 +158,7 @@ export async function GET(req: Request) {
         total_count_geral: _tcg,
         total_count_pra_enviar: _tcp,
         total_count_buffer: _tcb,
+        total_count_retirada: _tcr,
         total_count_erro: _tcer,
         total_count_enviados: _tce,
         total_count_devolucao: _tcd,
@@ -164,6 +172,7 @@ export async function GET(req: Request) {
       todos: rows[0]?.total_count_geral ?? 0,
       pra_enviar: rows[0]?.total_count_pra_enviar ?? 0,
       buffer: rows[0]?.total_count_buffer ?? 0,
+      retirada: rows[0]?.total_count_retirada ?? 0,
       erro: rows[0]?.total_count_erro ?? 0,
       enviados: rows[0]?.total_count_enviados ?? 0,
       devolucao: rows[0]?.total_count_devolucao ?? 0,

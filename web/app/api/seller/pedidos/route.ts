@@ -90,16 +90,21 @@ export async function GET(req: Request) {
     const bufferMlParam = searchParams.get("buffer_ml")?.trim();
     const bufferMl = bufferMlParam === "somente" || bufferMlParam === "excluir" ? bufferMlParam : null;
 
+    // 'somente' = só etiqueta já emitida, aguardando postagem/retirada (aba "Para
+    // retirar"); 'excluir' = pra_enviar sem misturar quem já tem etiqueta; null = sem filtro.
+    const etiquetaEmitidaParam = searchParams.get("etiqueta_emitida")?.trim();
+    const etiquetaEmitida = etiquetaEmitidaParam === "somente" || etiquetaEmitidaParam === "excluir" ? etiquetaEmitidaParam : null;
+
     let data: PedidoRow[] | null = [];
     let pedidosCount = 0;
-    let abas = { todos: 0, pendencias: 0, pra_enviar: 0, buffer: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0 };
+    let abas = { todos: 0, pendencias: 0, pra_enviar: 0, buffer: 0, retirada: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0 };
 
     {
       const from = (page - 1) * pageSize;
 
       // RPC (regra 9): além de ler, ordena priorizando pedido com etiqueta recém-liberada e
       // ainda não impressa — expressão de ordenação (CASE) que o PostgREST não faz direto.
-      // Ver fn_seller_pedidos_lista em web/scripts/add-seller-pedidos-aba-buffer-ml.sql.
+      // Ver fn_seller_pedidos_lista em web/scripts/add-seller-pedidos-aba-retirada.sql.
       const { data: rpcRows, error: rpcErr } = await supabaseAdmin.rpc("fn_seller_pedidos_lista", {
         p_org_id: seller.org_id,
         p_seller_id: seller.id,
@@ -110,6 +115,7 @@ export async function GET(req: Request) {
         p_desde: desdeValido,
         p_ate: ateValido,
         p_buffer_ml: bufferMl,
+        p_etiqueta_emitida: etiquetaEmitida,
       });
 
       if (rpcErr) {
@@ -123,6 +129,7 @@ export async function GET(req: Request) {
         total_count_pendencias: number;
         total_count_pra_enviar: number;
         total_count_buffer: number;
+        total_count_retirada: number;
         total_count_enviados: number;
         total_count_devolucao: number;
         total_count_entregue: number;
@@ -136,6 +143,7 @@ export async function GET(req: Request) {
           total_count_pendencias: _tcp,
           total_count_pra_enviar: _tcpe,
           total_count_buffer: _tcb,
+          total_count_retirada: _tcr,
           total_count_enviados: _tce,
           total_count_devolucao: _tcd,
           total_count_entregue: _tcen,
@@ -149,6 +157,7 @@ export async function GET(req: Request) {
         pendencias: rows[0]?.total_count_pendencias ?? 0,
         pra_enviar: rows[0]?.total_count_pra_enviar ?? 0,
         buffer: rows[0]?.total_count_buffer ?? 0,
+        retirada: rows[0]?.total_count_retirada ?? 0,
         enviados: rows[0]?.total_count_enviados ?? 0,
         devolucao: rows[0]?.total_count_devolucao ?? 0,
         concluidos: rows[0]?.total_count_entregue ?? 0,
