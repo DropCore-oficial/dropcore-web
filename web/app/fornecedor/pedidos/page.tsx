@@ -16,6 +16,7 @@ import { ModalOverlay } from "@/components/ui/ModalOverlay";
 import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { FornecedorDevolucaoAcoes } from "@/components/fornecedor/FornecedorDevolucaoAcoes";
 import { PeriodoPersonalizadoModal } from "@/components/fornecedor/PeriodoPersonalizadoModal";
+import { useDragScroll } from "@/lib/useDragScroll";
 import { cn } from "@/lib/utils";
 
 /** Grupo de abas da tela — cada uma pode cobrir vários status reais de uma vez (ex:
@@ -239,6 +240,7 @@ export default function FornecedorPedidosPage() {
   const destaqueId = searchParams.get("destaque");
   const pedidoCardRefs = useRef<Record<string, HTMLElement | null>>({});
   const printMenuRef = useRef<HTMLDetailsElement>(null);
+  const abasDrag = useDragScroll<HTMLDivElement>();
 
   useEffect(() => {
     function onPointerDown(e: MouseEvent) {
@@ -679,7 +681,12 @@ export default function FornecedorPedidosPage() {
           </div>
         )}
 
-        <div className="dropcore-tabs-scroll flex items-center gap-5 overflow-x-auto border-b border-[var(--card-border)] px-1">
+        <div
+          ref={abasDrag.ref}
+          onPointerDown={abasDrag.onPointerDown}
+          onClickCapture={abasDrag.onClickCapture}
+          className="dropcore-tabs-scroll flex items-center gap-5 overflow-x-auto border-b border-[var(--card-border)] px-1"
+        >
           {ABAS.map((aba) => {
             const ativo = abaAtiva === aba.key;
             return (
@@ -698,7 +705,10 @@ export default function FornecedorPedidosPage() {
                 )}
               >
                 <aba.Icon className="h-4 w-4 shrink-0" />
-                {aba.label} ({abaContagens[aba.key]})
+                {aba.label}{" "}
+                <span className="whitespace-nowrap">
+                  (<span className="inline-block min-w-[2ch] text-right tabular-nums">{abaContagens[aba.key]}</span>)
+                </span>
               </button>
             );
           })}

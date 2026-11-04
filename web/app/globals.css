@@ -73,6 +73,20 @@ html[data-version-banner] .min-h-screen.app-bg {
 .dropcore-tabs-scroll {
   scrollbar-width: none;
   -ms-overflow-style: none;
+  /* Sobrescreve o `contain` de `.overflow-x-auto` — aqui não é tabela, é faixa de filtro: nada
+     de bounce elástico nas pontas ("dançar"), só o scroll lateral mesmo, parado nas bordas. */
+  overscroll-behavior-x: none;
+  /* Sem isso, segurar o botão do mouse e arrastar pra rolar a faixa vira seleção de texto do
+     navegador (destaque azul) em vez de só rolar — parecia as abas "saindo do lugar" 2026-11-03. */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  /* Trava o gesto (trackpad/touch) só no eixo horizontal — sem isso, um arrasto não 100%
+     reto também rola a PÁGINA pra cima/baixo junto, mesmo a faixa sendo só horizontal. */
+  touch-action: pan-x;
+}
+.dropcore-tabs-scroll:active {
+  cursor: grabbing;
 }
 .dropcore-tabs-scroll::-webkit-scrollbar {
   display: none;

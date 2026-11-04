@@ -8,6 +8,7 @@ import { IconClipboard, IconAjuste, IconBox, IconArrowRight, IconDevolucao, Icon
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { PeriodoPersonalizadoModal } from "@/components/fornecedor/PeriodoPersonalizadoModal";
+import { useDragScroll } from "@/lib/useDragScroll";
 import {
   SUCCESS_PREMIUM_SURFACE,
   SUCCESS_PREMIUM_TEXT_PRIMARY,
@@ -195,6 +196,7 @@ export default function PedidosPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const abasDrag = useDragScroll<HTMLDivElement>();
   const [sellerId, setSellerId] = useState("");
   const [fornecedorId, setFornecedorId] = useState("");
   const [skuId, setSkuId] = useState("");
@@ -733,7 +735,12 @@ export default function PedidosPage() {
         </div>
       )}
 
-      <div className="dropcore-tabs-scroll flex items-center gap-5 overflow-x-auto border-b border-[var(--card-border)] px-1">
+      <div
+        ref={abasDrag.ref}
+        onPointerDown={abasDrag.onPointerDown}
+        onClickCapture={abasDrag.onClickCapture}
+        className="dropcore-tabs-scroll flex items-center gap-5 overflow-x-auto border-b border-[var(--card-border)] px-1"
+      >
         {ABAS.map((aba) => {
           const ativo = abaAtiva === aba.key;
           return (
@@ -752,7 +759,10 @@ export default function PedidosPage() {
               )}
             >
               <aba.Icon className="h-4 w-4 shrink-0" />
-              {aba.label} ({abaContagens[aba.key]})
+              {aba.label}{" "}
+              <span className="whitespace-nowrap">
+                (<span className="inline-block min-w-[2ch] text-right tabular-nums">{abaContagens[aba.key]}</span>)
+              </span>
             </button>
           );
         })}

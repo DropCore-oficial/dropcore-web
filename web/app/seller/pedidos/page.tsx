@@ -38,6 +38,7 @@ import {
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { IconClipboard, IconAjuste, IconBox, IconArrowRight, IconDevolucao, IconCheck, IconX, IconClock, IconPackage } from "@/components/seller/Icons";
 import { PeriodoPersonalizadoModal } from "@/components/fornecedor/PeriodoPersonalizadoModal";
+import { useDragScroll } from "@/lib/useDragScroll";
 import { cn } from "@/lib/utils";
 
 // Padrão compacto de toolbar — mesmo teste de web/app/fornecedor/pedidos/page.tsx
@@ -219,6 +220,7 @@ export default function SellerPedidosPage() {
   const [customDe, setCustomDe] = useState("");
   const [customAte, setCustomAte] = useState("");
   const [modalPeriodoAberto, setModalPeriodoAberto] = useState(false);
+  const abasDrag = useDragScroll<HTMLDivElement>();
 
   useEffect(() => {
     const t = setTimeout(() => setBuscaFornecedorAplicada(buscaProdutoInput.trim()), 400);
@@ -496,7 +498,12 @@ export default function SellerPedidosPage() {
           </AmberPremiumCallout>
         ) : null}
 
-        <div className="dropcore-tabs-scroll mb-3 flex items-center gap-5 overflow-x-auto border-b border-[var(--card-border)] px-1">
+        <div
+          ref={abasDrag.ref}
+          onPointerDown={abasDrag.onPointerDown}
+          onClickCapture={abasDrag.onClickCapture}
+          className="dropcore-tabs-scroll mb-3 flex items-center gap-5 overflow-x-auto border-b border-[var(--card-border)] px-1"
+        >
           {ABAS.map((aba) => {
             const ativo = abaAtiva === aba.key;
             return (
@@ -515,7 +522,10 @@ export default function SellerPedidosPage() {
                 )}
               >
                 <aba.Icon className="h-4 w-4 shrink-0" />
-                {aba.label} ({abaContagens[aba.key]})
+                {aba.label}{" "}
+                <span className="whitespace-nowrap">
+                  (<span className="inline-block min-w-[2ch] text-right tabular-nums">{abaContagens[aba.key]}</span>)
+                </span>
               </button>
             );
           })}
