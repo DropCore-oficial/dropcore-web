@@ -2309,6 +2309,44 @@ Mesmo achado aplicado em `/admin/pedidos` — pedido confirmado explicitamente p
   `/admin/pedidos`; "Pra enviar" manda `buffer_ml=excluir`. Resposta `abas` ganha campo
   `buffer`.
 
+## `fn_fornecedor_pedidos_lista` — contador por pacote + contador nunca depende da listagem (2026-11-04)
+
+`web/scripts/fix-fornecedor-pedidos-contadores-pacote-e-aba-vazia.sql`. Dois bugs reais
+achados ao vivo na tela `/fornecedor/pedidos`:
+
+- **Contadores de todas as abas zeravam junto quando a aba ativa não tinha nenhum pedido.**
+  Antes, os `total_count_*` só "pegavam carona" nas linhas que sobreviviam ao filtro da aba
+  ativa + `LIMIT`/`OFFSET` (`CROSS JOIN` de `contagens` com `base` já filtrado) — se a aba
+  clicada batia 0 linhas de verdade (ex.: "Pra enviar" com só 1 pedido naquele momento), o
+  `CROSS JOIN` inteiro virava 0 linhas e **todos** os contadores (inclusive de abas sem
+  relação nenhuma com o filtro clicado) caíam no fallback `?? 0` do `route.ts`. A lista
+  ficava vazia junto, e como o selo "Etiqueta liberada" só existe dentro do `.map()` sobre os
+  pedidos carregados, ele também sumia — sintoma, não um 3º bug. Corrigido separando
+  `contagens`/`filtrado_total` (agregados sem `GROUP BY`, sempre 1 linha) de `paginado`
+  (pode ter 0 linhas), ligados por `LEFT JOIN` — contador nunca mais depende de ter pedido
+  na página atual.
+- **Badge "Para retirar" mostrava um número maior que a quantidade de cards renderizados**
+  (e o mesmo valia, estruturalmente, pra qualquer outra aba). Causa: o contador contava
+  LINHA de `pedidos` (1 `order_id` = 1 linha), mas `route.ts:299-332` agrupa pedidos do
+  mesmo `marketplace_pack_id` (comprador que leva >1 item no mesmo checkout do ML) num
+  único card — ver seção "`pedidos.marketplace_pack_id`" acima. Corrigido contando por
+  PACOTE (`coalesce(marketplace_pack_id, id::text)`, 1 linha representante por pacote via
+  `DISTINCT ON`) em todos os `total_count_*` de aba. `total_count` (usado pra paginação e
+  pro "Total X pedidos" do rodapé) continua contando linha crua de propósito — o `LIMIT`/
+  `OFFSET` ainda opera em linha, o agrupamento em card só acontece depois, no `route.ts`.
+
+`web/app/api/fornecedor/pedidos/route.ts` ajustado para ler os contadores sempre de
+`rows[0]` (agora garantido existir, mesmo com a aba vazia — nesse caso vem com `id = null`)
+e filtrar essa linha "sem pedido" antes de montar a listagem (`rows.filter(r => r.id !=
+null)`).
+
+**Mesmo bug confirmado e corrigido em `fn_seller_pedidos_lista`/`/api/seller/pedidos`**
+(CTE irmã, mesmo desenho — `web/scripts/fix-seller-pedidos-contadores-pacote-e-aba-
+vazia.sql`, mesmo ajuste em `route.ts`). As duas migrations foram aplicadas em produção em
+2026-11-04. Validado com `fn_seller_pedidos_lista` chamada com org/seller inexistente: antes
+teria devolvido 0 linhas (sem contador nenhum); agora devolve 1 linha com `id = null` e todos
+os `total_count_*` em 0 — confirma que o `LEFT JOIN` nunca mais perde o contador.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

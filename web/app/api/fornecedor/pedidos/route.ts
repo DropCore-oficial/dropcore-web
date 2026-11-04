@@ -154,7 +154,12 @@ export async function GET(req: Request) {
       total_count_cancelado: number;
     };
     const rows = (rpcRows ?? []) as (PedidoRow & Contadores)[];
-    const data: PedidoRow[] = rows.map(
+    // RPC agora separa contador de listagem (fix-fornecedor-pedidos-contadores-pacote-e-aba-
+    // vazia.sql): a 1ª linha sempre traz os contadores, mesmo quando a aba ativa não tem
+    // nenhum pedido — nesse caso ela vem com id=null e precisa ser descartada da listagem.
+    const contadores = rows[0] as (Partial<PedidoRow> & Contadores) | undefined;
+    const pedidoRows = rows.filter((r) => r.id != null);
+    const data: PedidoRow[] = pedidoRows.map(
       ({
         total_count: _tc,
         total_count_geral: _tcg,
@@ -169,17 +174,17 @@ export async function GET(req: Request) {
         ...p
       }) => p
     );
-    const total = rows[0]?.total_count ?? 0;
+    const total = contadores?.total_count ?? 0;
     const abas = {
-      todos: rows[0]?.total_count_geral ?? 0,
-      pra_enviar: rows[0]?.total_count_pra_enviar ?? 0,
-      buffer: rows[0]?.total_count_buffer ?? 0,
-      retirada: rows[0]?.total_count_retirada ?? 0,
-      erro: rows[0]?.total_count_erro ?? 0,
-      enviados: rows[0]?.total_count_enviados ?? 0,
-      devolucao: rows[0]?.total_count_devolucao ?? 0,
-      concluidos: rows[0]?.total_count_entregue ?? 0,
-      cancelados: rows[0]?.total_count_cancelado ?? 0,
+      todos: contadores?.total_count_geral ?? 0,
+      pra_enviar: contadores?.total_count_pra_enviar ?? 0,
+      buffer: contadores?.total_count_buffer ?? 0,
+      retirada: contadores?.total_count_retirada ?? 0,
+      erro: contadores?.total_count_erro ?? 0,
+      enviados: contadores?.total_count_enviados ?? 0,
+      devolucao: contadores?.total_count_devolucao ?? 0,
+      concluidos: contadores?.total_count_entregue ?? 0,
+      cancelados: contadores?.total_count_cancelado ?? 0,
     };
 
     const sellerIds = [...new Set((data ?? []).map((p) => p.seller_id))];
