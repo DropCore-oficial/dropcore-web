@@ -145,6 +145,7 @@ export async function GET(req: Request) {
       total_count: number;
       total_count_geral: number;
       total_count_pra_enviar: number;
+      total_count_sem_estoque: number;
       total_count_buffer: number;
       total_count_retirada: number;
       total_count_erro: number;
@@ -164,6 +165,7 @@ export async function GET(req: Request) {
         total_count: _tc,
         total_count_geral: _tcg,
         total_count_pra_enviar: _tcp,
+        total_count_sem_estoque: _tcse,
         total_count_buffer: _tcb,
         total_count_retirada: _tcr,
         total_count_erro: _tcer,
@@ -178,6 +180,7 @@ export async function GET(req: Request) {
     const abas = {
       todos: contadores?.total_count_geral ?? 0,
       pra_enviar: contadores?.total_count_pra_enviar ?? 0,
+      sem_estoque: contadores?.total_count_sem_estoque ?? 0,
       buffer: contadores?.total_count_buffer ?? 0,
       retirada: contadores?.total_count_retirada ?? 0,
       erro: contadores?.total_count_erro ?? 0,

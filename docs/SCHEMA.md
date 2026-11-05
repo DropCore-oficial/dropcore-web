@@ -2347,6 +2347,36 @@ vazia.sql`, mesmo ajuste em `route.ts`). As duas migrations foram aplicadas em p
 teria devolvido 0 linhas (sem contador nenhum); agora devolve 1 linha com `id = null` e todos
 os `total_count_*` em 0 — confirma que o `LEFT JOIN` nunca mais perde o contador.
 
+## `fn_fornecedor_pedidos_lista` — aba "Sem estoque" separada de "Pra enviar" (2026-11-05)
+
+`web/scripts/add-fornecedor-pedidos-aba-sem-estoque.sql`. Pedido com `status =
+'pendente_estoque'` (SKU com `estoque_atual = 0`) estava dentro da aba "Pra enviar" junto
+com pedido que já tem etiqueta liberada — mas não tem nada "pra enviar" nesse caso, o
+fornecedor primeiro precisa reabastecer o SKU. Corrigido: `pendente_estoque` sai do filtro
+`pra_enviar_status` (que agora só conta `bloqueado`) e ganha contador próprio
+`total_count_sem_estoque`; `web/app/fornecedor/pedidos/page.tsx` ganhou a aba `sem_estoque`
+(`statuses: ["pendente_estoque"]`) entre "Erro" e "Pra enviar"; `route.ts` repassa
+`total_count_sem_estoque` em `abas.sem_estoque`.
+
+## `fn_fornecedor_pedidos_lista` — contador por pacote com status misto (2026-11-05)
+
+`web/scripts/fix-fornecedor-pedidos-contador-pacote-status-misto.sql`. Bug achado ao vivo
+testando a aba "Sem estoque" acima: badge mostrava "Sem estoque (0)" com 1 card na lista.
+Causa: pacote com >1 item (mesmo `marketplace_pack_id`) pode ter status diferente entre as
+linhas — ex. pedido `2000015847033449` do fornecedor Djulios com uma linha já
+`aguardando_repasse` (postada) e outra `pendente_estoque` (SKU zerado). A versão de
+2026-11-04 contava o badge pegando só a linha MAIS RECENTE de cada pacote como
+representante (`distinct on pack_key order by criado_em desc`) — o pacote inteiro "virava"
+1 status só pro contador, mesmo tendo pendência real em outro status. Mesma classe de bug
+provavelmente já afetava qualquer outro badge com pacote de status misto, não só "Sem
+estoque". Corrigido trocando `distinct on` por `bool_or` agrupado por `pack_key` — o pacote
+conta em TODO badge onde tiver pelo menos 1 linha daquele status. Um mesmo pacote pode
+contar em >1 badge ao mesmo tempo agora, de propósito: a listagem (`filtrado`) já filtra por
+linha crua, não por pacote deduplicado, então ele já aparecia (como cards diferentes) em
+mais de uma aba antes dessa correção — só o contador que ficava errado. Validado ao vivo:
+`total_count_sem_estoque` do pedido acima foi de 0 para 1, outros contadores (geral,
+pra_enviar, enviados) continuaram iguais.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
