@@ -855,7 +855,7 @@ export function SellerNav({
           </SellerNavRailItem>
         ) : null}
         <div className="my-1 h-px w-6 shrink-0 bg-[var(--card-border)]" aria-hidden />
-        <SellerNavRailItem href="/seller/integracoes-erp" label="ERP" isActive={active === "integracoes"}>
+        <SellerNavRailItem href="/seller/integracoes-marketplace" label="Integrações" isActive={active === "integracoes"}>
           <IconPlug active={active === "integracoes"} />
         </SellerNavRailItem>
         <SellerNavRailItem href="/seller/plano" label="Plano" isActive={active === "plano"}>
@@ -926,7 +926,7 @@ export function SellerNav({
               </Link>
             ) : null}
             <Link
-              href="/seller/integracoes-erp"
+              href="/seller/integracoes-marketplace"
               role="menuitem"
               className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
                 active === "integracoes"
@@ -936,7 +936,7 @@ export function SellerNav({
               onClick={() => setMobileMaisOpen(false)}
             >
               <IconPlug active={active === "integracoes"} />
-              ERP
+              Integrações
             </Link>
             <Link
               href="/seller/plano"

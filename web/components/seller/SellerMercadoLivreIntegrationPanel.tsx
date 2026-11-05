@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { cn } from "@/lib/utils";
-import { DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY } from "@/lib/semanticPremium";
+import { DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { HelpBubble } from "@/components/HelpBubble";
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -14,6 +14,11 @@ type MercadoLivreStatus = {
   access_token_expires_at: string | null;
   updated_at: string | null;
 };
+
+// Mesmo texto usado nos 3 gestores que de fato consomem esse dado hoje (Andrey/Anúncio,
+// Amanda/SAC, Ulisses/ADS) — ver web/app/seller/gestores-ia-avulso/integracoes/page.tsx,
+// referência visual deste card.
+const BENEFICIOS = ["Diagnóstico de anúncios", "Reputação e atendimento", "Margem em tempo real"];
 
 async function getAccessToken(): Promise<string | null> {
   const {
@@ -118,94 +123,92 @@ export function SellerMercadoLivreIntegrationPanel() {
   }
 
   return (
-    <section className="relative rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm transition-shadow hover:shadow-md sm:p-6">
+    <div className="flex w-full flex-col rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-5 shadow-sm">
       {loading ? (
-        <div
-          className="absolute inset-0 z-10 space-y-4 rounded-2xl bg-[var(--card)] p-5 sm:p-6"
-          role="status"
-          aria-live="polite"
-        >
-          <Skeleton className="h-7 w-32 rounded-full" />
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-4 w-2/3" />
-        </div>
-      ) : null}
-
-      {error ? (
-        <div className={cn("mb-4 rounded-2xl p-4 text-sm", DANGER_PREMIUM_SURFACE_TRANSPARENT, DANGER_PREMIUM_TEXT_BODY)}>
-          {error}
-        </div>
-      ) : null}
-
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <p className="font-medium text-[var(--foreground)]">Conta Mercado Livre</p>
-          <HelpBubble
-            ariaLabel="Como funciona a conexão com o Mercado Livre"
-            open={helpOpen}
-            onOpen={() => setHelpOpen(true)}
-            onClose={() => setHelpOpen(false)}
-          >
-            <p>
-              Conecta a conta do Mercado Livre pra alimentar os gestores de IA com dado real do seu
-              anúncio. É só leitura — o DropCore nunca publica nem altera nada sozinho na sua conta.
-            </p>
-          </HelpBubble>
-          {connected ? (
-            <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-              Conectado
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-[var(--muted)]/15 px-2 py-1 text-[11px] font-medium text-[var(--muted)]">
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-              Não conectado
-            </span>
-          )}
-        </div>
-      </div>
-
-      {connected ? (
-        <div className="rounded-xl border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-3 text-sm">
-          {status?.ml_user_id ? (
-            <p className="text-[var(--foreground)]">
-              Conta ML: <span className="font-mono text-xs">{status.ml_user_id}</span>
-            </p>
-          ) : null}
-          {status?.access_token_expires_at ? (
-            <p className="mt-1 text-xs text-[var(--muted)]">
-              Acesso válido até {new Date(status.access_token_expires_at).toLocaleString("pt-BR")} — renova sozinho.
-            </p>
-          ) : null}
-          <p className="mt-2 text-xs text-[var(--muted)]">
-            Desconectar interrompe o dado real do Mercado Livre nos gestores de IA (ADS, Anúncio, SAC) até
-            reconectar — útil se precisar trocar pra outra conta ML.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <a
-              href="/api/seller/mercadolivre/connect"
-              className="inline-flex rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
-            >
-              Reconectar
-            </a>
-            <button
-              type="button"
-              onClick={() => void desconectar()}
-              disabled={disconnecting}
-              className="inline-flex rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
-            >
-              {disconnecting ? "Desconectando..." : "Desconectar"}
-            </button>
-          </div>
-        </div>
+        <Skeleton className="h-32 w-full" />
       ) : (
-        <a
-          href="/api/seller/mercadolivre/connect"
-          className="inline-flex rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
-        >
-          Conectar Mercado Livre
-        </a>
+        <>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brand/marketplaces/mercado-livre.png" alt="Mercado Livre" className="h-8 w-8 rounded-lg" />
+              <div className="flex items-center gap-1">
+                <p className="font-semibold text-[var(--foreground)]">Mercado Livre</p>
+                <HelpBubble
+                  ariaLabel="Como funciona a conexão com o Mercado Livre"
+                  open={helpOpen}
+                  onOpen={() => setHelpOpen(true)}
+                  onClose={() => setHelpOpen(false)}
+                >
+                  <p>
+                    Conecta a conta do Mercado Livre pra alimentar os gestores de IA com dado real do seu
+                    anúncio. É só leitura — o DropCore nunca publica nem altera nada sozinho na sua conta.
+                  </p>
+                </HelpBubble>
+              </div>
+            </div>
+            {connected ? (
+              <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                Conectado
+              </span>
+            ) : null}
+          </div>
+
+          <ul className="mt-3 space-y-1.5 text-sm text-[var(--foreground)]">
+            {BENEFICIOS.map((item) => (
+              <li key={item} className="flex items-center gap-2">
+                <svg className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.78-9.72a.75.75 0 0 0-1.06-1.06L9 10.94 7.28 9.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.06 0l4.25-4.25Z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                {item}
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-auto pt-4">
+            {connected ? (
+              <>
+                {status?.ml_user_id ? <p className="text-xs text-[var(--muted)]">Conta #{status.ml_user_id}</p> : null}
+                {status?.access_token_expires_at ? (
+                  <p className="mt-0.5 text-xs text-[var(--muted)]">
+                    Acesso válido até {new Date(status.access_token_expires_at).toLocaleString("pt-BR")} — renova
+                    sozinho.
+                  </p>
+                ) : null}
+                <div className="mt-3 flex gap-2">
+                  <a
+                    href="/api/seller/mercadolivre/connect"
+                    className="inline-flex flex-1 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                  >
+                    Reconectar
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => void desconectar()}
+                    disabled={disconnecting}
+                    className="inline-flex flex-1 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 disabled:opacity-60"
+                  >
+                    {disconnecting ? "Desconectando..." : "Desconectar"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <a
+                href="/api/seller/mercadolivre/connect"
+                className="flex w-full items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700"
+              >
+                Conectar
+              </a>
+            )}
+          </div>
+        </>
       )}
-    </section>
+      {error ? <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "mt-3 text-center text-xs")}>{error}</p> : null}
+    </div>
   );
 }
