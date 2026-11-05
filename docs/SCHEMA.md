@@ -52,6 +52,45 @@ corrigiu esses lançamentos uma única vez (recalculando a partir de
 `atualizado_em`, que é o momento da postagem) e já foi aplicado em produção
 em 2026-07-13. Não precisa rodar de novo.
 
+## Pedido `erro_saldo` — retry automático e expiração em 48h
+
+Quando `executeBlockSale`/`blockSale` retorna `SALDO_INSUFICIENTE` (saldo do
+seller não cobre `valor_fornecedor`/`valor_dropcore`), o pedido é marcado
+`pedidos.status = "erro_saldo"` (pontos de entrada em
+`web/lib/erp/submitSellerErpPedido.ts`, `web/app/api/org/pedidos/route.ts` e
+`web/app/api/erp/pedidos/route.ts`) e um evento `erro_saldo` é gravado em
+`pedido_eventos`. **O estoque já debitado não é revertido nesse momento** — é
+tratado como venda confirmada aguardando resolução financeira, diferente do
+status `bloqueado`/`pendente_estoque` (estoque ainda não debitado) — esse não
+tem TTL/expiração própria no `pedidos`: fica em retry indefinido a cada 15min
+via `web/lib/pedidosBloqueadosRetry.ts`/`pedidosPendenteEstoqueRetry.ts`
+(cron `web/app/api/cron/pedidos-bloqueados-retry/route.ts`). O único TTL de
+72h real (`web/lib/order/estoqueReservaExpira.ts`, `RESERVA_TTL_MS`) atua
+sobre a tabela separada `estoque_reservas` (reserva de pedido Olist "em
+aberto"), expirando a reserva da SKU — não cancela a linha em `pedidos`.
+
+- **Retry pontual:** sempre que o saldo do seller pode ter mudado (recarga
+  manual em `web/app/api/org/sellers/[id]/add-credit/route.ts`, ou depósito PIX
+  aprovado em `web/lib/depositoPixProcessor.ts`), o sistema chama
+  `runPedidosErroSaldoRetry({ seller_id })` na hora, sem esperar o cron.
+- **Cron catch-all:** `web/app/api/cron/pedidos-erro-saldo-retry/route.ts`,
+  agendado via `pg_cron` a cada 1 minuto
+  (`web/scripts/add-pedidos-erro-saldo-retry-cron.sql`, `'* * * * *'`), com
+  lock advisory Postgres (`dropcore_try_pedidos_erro_saldo_retry_lock`, id
+  `913012`) pra não sobrepor execuções. Processa até 200 pedidos por rodada
+  (`MAX_PEDIDOS_PER_RUN`) com concorrência 3 (`RETRY_CONCURRENCY`), ambos em
+  `web/lib/pedidosErroSaldoRetry.ts`.
+- **Expiração (TTL 48h):** `ERRO_SALDO_TTL_MS = 48 * 60 * 60 * 1000` em
+  `web/lib/pedidosErroSaldoRetry.ts`. Pedido `erro_saldo` com `criado_em` mais
+  antigo que 48h é cancelado automaticamente em `expirarPedidoErroSaldo`
+  (mesmo arquivo): reverte o estoque de verdade (só agora, via
+  `reverterEstoquePedido`), muda `pedidos.status` para `"cancelado"`, grava
+  evento `pedido_cancelado_erro_saldo_expirado` e notifica seller
+  (`erro_saldo_expirado`) e fornecedor (motivo "bloqueado"/seller não
+  recarregou a tempo). 48h é mais curto que o TTL de 72h da reserva em aberto
+  porque aqui já é venda confirmada com estoque debitado — não pode ficar
+  preso indefinidamente.
+
 ## RLS — tabelas corrigidas em 2026-07-08
 
 Estavam com RLS desligada (expostas por completo a `anon`/`authenticated` via API).

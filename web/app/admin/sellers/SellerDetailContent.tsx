@@ -169,8 +169,6 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
     })();
   }, [sellerId, orgId]);
 
-  const MINIMO_CREDITO = 500;
-
   async function addCredit() {
     if (!sellerId || !creditValor.trim()) {
       setError("Valor é obrigatório.");
@@ -181,11 +179,7 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
       setError("Valor inválido.");
       return;
     }
-    if (valor < MINIMO_CREDITO) {
-      setError(`Valor mínimo para adicionar crédito é R$ ${MINIMO_CREDITO},00.`);
-      return;
-    }
-    
+
     setCreditSending(true);
     setError(null);
     try {
@@ -743,19 +737,15 @@ export function SellerDetailContent({ sellerId }: { sellerId: string }) {
         )}
         {modal === "credit" && (() => {
           const valorNum = parseFloat(creditValor.replace(",", "."));
-          const valorValido = Number.isFinite(valorNum) && valorNum >= MINIMO_CREDITO;
-          const mostraErroMinimo = creditValor.trim() !== "" && (!Number.isFinite(valorNum) || valorNum < MINIMO_CREDITO);
+          const valorValido = Number.isFinite(valorNum) && valorNum > 0;
           return (
           <div style={modalOverlay}>
             <div style={modalBox}>
               <h3 className="mb-3 text-lg">Adicionar crédito</h3>
-              <p className="text-xs text-[var(--muted)] mb-3">Valor mínimo: R$ 500,00. Pagamento apenas via PIX.</p>
+              <p className="text-xs text-[var(--muted)] mb-3">Admin pode lançar qualquer valor. Pagamento apenas via PIX.</p>
               <div className="mb-2">
                 <label className="block text-xs text-[var(--muted)] mb-1">Valor (R$)</label>
                 <input type="text" value={creditValor} onChange={(e) => setCreditValor(e.target.value)} placeholder="Ex: 500" className="w-full u-input box-border" />
-                {mostraErroMinimo && (
-                  <p className="text-xs text-[var(--danger)] mt-1.5">Valor mínimo permitido: R$ 500,00</p>
-                )}
               </div>
               {valorValido && (
                 <div className="mb-4 p-3 bg-[var(--surface-subtle)] rounded-[var(--radius-sm)] border border-[var(--card-border)]">

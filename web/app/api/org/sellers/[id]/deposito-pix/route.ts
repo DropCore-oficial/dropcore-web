@@ -10,8 +10,6 @@ import { parseValorMonetarioPtBr } from "@/lib/parseValorMonetarioPtBr";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MINIMO_CREDITO = 500;
-
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -28,9 +26,6 @@ export async function POST(
 
     if (!Number.isFinite(valor) || valor <= 0) {
       return NextResponse.json({ error: "Valor deve ser um número positivo." }, { status: 400 });
-    }
-    if (valor < MINIMO_CREDITO) {
-      return NextResponse.json({ error: `Valor mínimo é R$ ${MINIMO_CREDITO},00.` }, { status: 400 });
     }
 
     const { data: seller, error: fetchErr } = await supabaseAdmin
