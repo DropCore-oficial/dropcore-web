@@ -1,5 +1,6 @@
 import { mapWithConcurrency } from "@/lib/mapWithConcurrency";
 import { tryPromotePendenteEstoquePedido } from "@/lib/erp/submitSellerErpPedido";
+import { expirarPedidoSemEstoque, separarPedidosExpirados } from "@/lib/order/pedidoSemEstoqueExpira";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const RETRY_CONCURRENCY = 3;
@@ -11,9 +12,16 @@ export type PedidosPendenteEstoqueRetrySummary = {
   movidos_erro_saldo: number;
   ainda_pendentes: number;
   falhas: number;
+  expirados: number;
 };
 
-type PedidoPendenteEstoqueRow = { id: string; org_id: string; seller_id: string };
+type PedidoPendenteEstoqueRow = {
+  id: string;
+  org_id: string;
+  seller_id: string;
+  fornecedor_id: string | null;
+  criado_em: string;
+};
 
 type SellerRow = {
   id: string;
@@ -33,7 +41,7 @@ type SellerRow = {
 export async function runPedidosPendenteEstoqueRetry(): Promise<PedidosPendenteEstoqueRetrySummary> {
   const { data: rows, error } = await supabaseAdmin
     .from("pedidos")
-    .select("id, org_id, seller_id")
+    .select("id, org_id, seller_id, fornecedor_id, criado_em")
     .eq("status", "pendente_estoque")
     .order("criado_em", { ascending: true })
     .limit(MAX_PEDIDOS_PER_RUN)
@@ -41,10 +49,11 @@ export async function runPedidosPendenteEstoqueRetry(): Promise<PedidosPendenteE
 
   if (error) {
     console.error("[pedidosPendenteEstoqueRetry] listar:", error.message);
-    return { avaliados: 0, promovidos: 0, movidos_erro_saldo: 0, ainda_pendentes: 0, falhas: 0 };
+    return { avaliados: 0, promovidos: 0, movidos_erro_saldo: 0, ainda_pendentes: 0, falhas: 0, expirados: 0 };
   }
 
-  const pedidos = rows ?? [];
+  const { ativos, expirados } = separarPedidosExpirados(rows ?? []);
+  const pedidos = ativos;
   let promovidos = 0;
   let movidosErroSaldo = 0;
   let aindaPendentes = 0;
@@ -97,11 +106,19 @@ export async function runPedidosPendenteEstoqueRetry(): Promise<PedidosPendenteE
     console.error("[pedidosPendenteEstoqueRetry] falhou:", pedido.id, result.error_message);
   });
 
+  let expiradosCount = 0;
+  await mapWithConcurrency(expirados, RETRY_CONCURRENCY, async (pedido) => {
+    const ok = await expirarPedidoSemEstoque(pedido, "pendente_estoque");
+    if (ok) expiradosCount += 1;
+    else falhas += 1;
+  });
+
   return {
     avaliados: pedidos.length,
     promovidos,
     movidos_erro_saldo: movidosErroSaldo,
     ainda_pendentes: aindaPendentes,
     falhas,
+    expirados: expiradosCount,
   };
 }

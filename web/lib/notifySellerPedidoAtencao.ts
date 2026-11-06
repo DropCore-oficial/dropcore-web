@@ -12,6 +12,7 @@ const TITULOS = {
   pedido_pendente_estoque: "Pedido aguardando estoque",
   erro_saldo: "Erro de saldo",
   erro_saldo_expirado: "Pedido cancelado por saldo",
+  pedido_sem_estoque_expirado: "Pedido cancelado por falta de estoque",
   etiqueta_pendente_manual: "Etiqueta não chegou automaticamente",
   pedido_cancelado_ml: "Pedido cancelado pelo Mercado Livre",
   pedido_cancelado_erp: "Pedido cancelado",
@@ -34,6 +35,7 @@ export async function notifySellerPedidoAtencao(params: {
     | "pedido_pendente_estoque"
     | "erro_saldo"
     | "erro_saldo_expirado"
+    | "pedido_sem_estoque_expirado"
     | "etiqueta_pendente_manual"
     | "pedido_cancelado_ml"
     | "pedido_cancelado_erp"

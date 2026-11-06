@@ -61,13 +61,29 @@ seller não cobre `valor_fornecedor`/`valor_dropcore`), o pedido é marcado
 `web/app/api/erp/pedidos/route.ts`) e um evento `erro_saldo` é gravado em
 `pedido_eventos`. **O estoque já debitado não é revertido nesse momento** — é
 tratado como venda confirmada aguardando resolução financeira, diferente do
-status `bloqueado`/`pendente_estoque` (estoque ainda não debitado) — esse não
-tem TTL/expiração própria no `pedidos`: fica em retry indefinido a cada 15min
-via `web/lib/pedidosBloqueadosRetry.ts`/`pedidosPendenteEstoqueRetry.ts`
-(cron `web/app/api/cron/pedidos-bloqueados-retry/route.ts`). O único TTL de
-72h real (`web/lib/order/estoqueReservaExpira.ts`, `RESERVA_TTL_MS`) atua
-sobre a tabela separada `estoque_reservas` (reserva de pedido Olist "em
-aberto"), expirando a reserva da SKU — não cancela a linha em `pedidos`.
+status `bloqueado`/`pendente_estoque` (estoque ainda não debitado).
+
+### `bloqueado`/`pendente_estoque` — TTL de 72h (adicionado 2026-11-06)
+
+Até 2026-11-06 esses dois status não tinham expiração própria: ficavam em
+retry indefinido a cada 15min via
+`web/lib/pedidosBloqueadosRetry.ts`/`pedidosPendenteEstoqueRetry.ts` (cron
+`web/app/api/cron/pedidos-bloqueados-retry/route.ts`), sem nunca cancelar
+sozinhos. Corrigido com `SEM_ESTOQUE_TTL_MS = 72h` em
+`web/lib/order/pedidoSemEstoqueExpira.ts` (`separarPedidosExpirados` +
+`expirarPedidoSemEstoque`), chamado pelos dois arquivos de retry acima no
+mesmo cron de 15min. Prazo de 72h escolhido por consistência com o TTL já
+existente de `estoque_reservas` (`web/lib/order/estoqueReservaExpira.ts`,
+`RESERVA_TTL_MS` — esse é um mecanismo **separado**, sobre a tabela
+`estoque_reservas`/reserva Olist "em aberto", não toca `pedidos.status`).
+
+Como o estoque nunca foi debitado nesses dois status, expirar é só cancelar:
+`pedidos.status = "cancelado"`, evento
+`pedido_cancelado_sem_estoque_expirado` em `pedido_eventos`, notificação
+`pedido_sem_estoque_expirado` pro seller
+(`web/lib/notifySellerPedidoAtencao.ts`) e `motivo: "bloqueado"` pro
+fornecedor (`notifyFornecedorPedidoParaPostar`) — sem reversão de estoque
+(diferente de `erro_saldo`, que debita e precisa reverter).
 
 - **Retry pontual:** sempre que o saldo do seller pode ter mudado (recarga
   manual em `web/app/api/org/sellers/[id]/add-credit/route.ts`, ou depósito PIX
