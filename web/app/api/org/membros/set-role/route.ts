@@ -69,6 +69,8 @@ export async function POST(req: Request) {
         .from("org_members")
         .select("user_id")
         .eq("org_id", orgId)
+        .is("fornecedor_id", null)
+        .is("seller_id", null)
         .in("role_base", ["owner", "admin"])
         .neq("user_id", actorId);
 

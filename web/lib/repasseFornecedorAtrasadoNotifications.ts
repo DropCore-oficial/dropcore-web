@@ -46,6 +46,8 @@ export async function syncRepasseFornecedorAtrasadoNotifications(orgId: string):
     .from("org_members")
     .select("user_id")
     .eq("org_id", orgId)
+    .is("fornecedor_id", null)
+    .is("seller_id", null)
     .in("role_base", ["owner", "admin"]);
   const adminUserIds = (adminsOrg ?? []).map((a) => a.user_id as string).filter(Boolean);
   if (adminUserIds.length === 0) return;

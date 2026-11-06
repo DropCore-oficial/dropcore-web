@@ -98,6 +98,8 @@ export async function processarMensalidadePaga(
     .from("org_members")
     .select("user_id")
     .eq("org_id", row.org_id)
+    .is("fornecedor_id", null)
+    .is("seller_id", null)
     .in("role_base", ["owner", "admin"]);
   const tipoLabel = row.tipo === "seller" ? "Seller" : "Fornecedor";
   const msg = `${tipoLabel} ${nomeEntidade} pagou a mensalidade de ${valorBRL}.`;

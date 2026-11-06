@@ -20,6 +20,8 @@ export async function notifyAdminsPedidoCancelado(params: {
     .from("org_members")
     .select("user_id")
     .eq("org_id", params.org_id)
+    .is("fornecedor_id", null)
+    .is("seller_id", null)
     .in("role_base", ["owner", "admin"]);
 
   const valorBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(

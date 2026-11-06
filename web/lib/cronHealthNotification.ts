@@ -21,6 +21,8 @@ export async function notificarProblemasCron(sb: SupabaseClient, problemas: Prob
   const { data: admins } = await sb
     .from("org_members")
     .select("user_id")
+    .is("fornecedor_id", null)
+    .is("seller_id", null)
     .in("role_base", ["owner", "admin"]);
 
   const userIds = [...new Set((admins ?? []).map((a) => a.user_id).filter(Boolean))];

@@ -140,6 +140,8 @@ export async function processarDepositoAprovado(extRef: string, mpPaymentId?: st
     .from("org_members")
     .select("user_id")
     .eq("org_id", deposito.org_id)
+    .is("fornecedor_id", null)
+    .is("seller_id", null)
     .in("role_base", ["owner", "admin"]);
   if (admins?.length) {
     const mensagemAdmin = `Recarga de ${valorBRL} de ${sellerNome} foi aprovada (créditos na plataforma).`;
