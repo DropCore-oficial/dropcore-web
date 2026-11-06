@@ -67,12 +67,25 @@ export async function POST(req: Request) {
 
     const { data: assin, error: assinErr } = await supabaseAdmin
       .from("calculadora_assinantes")
-      .select("id, ativo")
+      .select("id, ativo, inclui_gestores_ia")
       .eq("user_id", userId)
       .maybeSingle();
 
     if (assinErr) {
       return NextResponse.json({ error: assinErr.message }, { status: 500 });
+    }
+
+    // Quem tem o pacote combinado (Calculadora + Gestores de IA, ~R$797,90/mês) não pode
+    // renovar pelo preço da Calculadora pura (R$14,99/mês) — achado 2026-11-06: o valor certo
+    // e o desconto por assinante já existem em /api/gestores-ia-avulso/planos, essa rota só
+    // atende quem é assinante só-da-Calculadora.
+    if (assin?.inclui_gestores_ia === true) {
+      return NextResponse.json(
+        {
+          error: "Esta conta é assinante do pacote Gestores de IA; renove pelo /seller/gestores-ia-avulso.",
+        },
+        { status: 400 },
+      );
     }
 
     let assinanteId = assin?.id as string | undefined;

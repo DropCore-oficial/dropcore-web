@@ -76,6 +76,7 @@ export async function GET(req: Request) {
           valido_ate: null,
           uso_bloqueado: true,
           motivo: "sem_assinatura",
+          inclui_gestores_ia: false,
           email,
         },
         { headers: { "Cache-Control": "no-store, max-age=0" } },
@@ -89,6 +90,9 @@ export async function GET(req: Request) {
           valido_ate: assin.valido_ate,
           uso_bloqueado: true,
           motivo: "assinatura_desativada",
+          // Precisa ir junto mesmo bloqueado — senão a tela de renovação não tem como saber
+          // que é assinante do combo e cobra o valor errado (achado 2026-11-06).
+          inclui_gestores_ia: assin.inclui_gestores_ia === true,
           email,
         },
         { headers: { "Cache-Control": "no-store, max-age=0" } },
@@ -105,6 +109,7 @@ export async function GET(req: Request) {
           valido_ate: assin.valido_ate,
           uso_bloqueado: true,
           motivo: "assinatura_expirada",
+          inclui_gestores_ia: assin.inclui_gestores_ia === true,
           email,
         },
         { headers: { "Cache-Control": "no-store, max-age=0" } },

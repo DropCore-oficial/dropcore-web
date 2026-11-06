@@ -261,6 +261,9 @@ export default function SellerCalculadoraPage() {
       setCalcAccess("calc_only_locked");
       setCalcValidoAte(typeof body.valido_ate === "string" ? body.valido_ate : null);
       setBloqueioMotivo(parseCalculadoraBloqueioMotivo(body) ?? motivoPadrao);
+      // Precisa saber isso mesmo bloqueado — senão a tela cobra o preço da Calculadora pura
+      // (R$14,99) de quem é assinante do combo Gestores de IA (~R$797,90) — achado 2026-11-06.
+      setTemGestoresIa(body.inclui_gestores_ia === true);
     };
 
     if (isCalculadoraAssinaturaExpiradaLegacy403(res.status, j)) {
@@ -312,6 +315,28 @@ export default function SellerCalculadoraPage() {
   useEffect(() => {
     if (calcAccess !== "calc_only_locked") return;
     let cancelled = false;
+    // Assinante do combo (Calculadora + Gestores de IA) tem rota de preço própria, com
+    // desconto por assinante já aplicado — a rota de renovação da Calculadora pura nem olha
+    // isso (achado 2026-11-06).
+    if (temGestoresIa) {
+      (async () => {
+        const { data: { session } } = await supabaseBrowser.auth.getSession();
+        if (!session?.access_token || cancelled) return;
+        const j = await fetch("/api/gestores-ia-avulso/planos", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+          .then((r) => r.json())
+          .catch(() => ({}));
+        if (cancelled) return;
+        setRenoMeta({
+          valor: typeof j.mensal === "number" ? j.mensal : null,
+          configurado: typeof j.mensal === "number",
+        });
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
     fetch("/api/calculadora/renovacao-pix")
       .then((r) => r.json())
       .then((j: { valor?: number | null; configurado?: boolean }) => {
@@ -327,7 +352,7 @@ export default function SellerCalculadoraPage() {
     return () => {
       cancelled = true;
     };
-  }, [calcAccess]);
+  }, [calcAccess, temGestoresIa]);
 
   useEffect(() => {
     if (calcAccess === "calc_only") {
@@ -358,11 +383,12 @@ export default function SellerCalculadoraPage() {
 
   useEffect(() => {
     if (!renoPixData || calcAccess !== "calc_only_locked") return;
+    const syncUrl = temGestoresIa ? "/api/gestores-ia-avulso/planos/sync" : "/api/calculadora/renovacao-pix/sync";
     const id = setInterval(async () => {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) return;
       try {
-        await fetch("/api/calculadora/renovacao-pix/sync", {
+        await fetch(syncUrl, {
           method: "POST",
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
@@ -372,7 +398,7 @@ export default function SellerCalculadoraPage() {
       }
     }, 5000);
     return () => clearInterval(id);
-  }, [renoPixData, calcAccess, refreshCalcAccess]);
+  }, [renoPixData, calcAccess, temGestoresIa, refreshCalcAccess]);
 
   const gerarPixRenovacao = useCallback(async () => {
     setRenoPixLoading(true);
@@ -380,10 +406,16 @@ export default function SellerCalculadoraPage() {
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) return;
-      const res = await fetch("/api/calculadora/renovacao-pix", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
+      // Assinante do combo paga pela rota de Gestores de IA (valor certo, com desconto por
+      // assinante); a rota de renovação da Calculadora pura é só pra quem não tem o combo —
+      // achado 2026-11-06, cobrava 14,99 de quem devia pagar ~797,90.
+      const res = await fetch(
+        temGestoresIa ? "/api/gestores-ia-avulso/planos" : "/api/calculadora/renovacao-pix",
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        },
+      );
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(typeof j?.error === "string" ? j.error : "Erro ao gerar PIX.");
@@ -399,7 +431,7 @@ export default function SellerCalculadoraPage() {
     } finally {
       setRenoPixLoading(false);
     }
-  }, []);
+  }, [temGestoresIa]);
 
   /** Migra preset antigo “só Clássico” / “só Premium” → comparativo Clássico + Premium */
   useEffect(() => {
@@ -1157,7 +1189,7 @@ export default function SellerCalculadoraPage() {
   const calcOnlyLite = calcAccess === "calc_only" || calcAccess === "calc_only_locked";
   const usoBloqueadoCalc = calcAccess === "calc_only_locked";
   const podeRenovarPix = usoBloqueadoCalc;
-  const tituloBloqueioCalc = "Renovar acesso da calculadora";
+  const tituloBloqueioCalc = temGestoresIa ? "Renovar acesso dos Gestores de IA" : "Renovar acesso da calculadora";
   const textoBloqueioCalc =
     bloqueioMotivo === "sem_assinatura"
       ? "Contrate o plano com PIX para liberar a calculadora. A confirmação é automática em poucos segundos."
@@ -2333,9 +2365,15 @@ export default function SellerCalculadoraPage() {
                     DANGER_PREMIUM_TEXT_SOFT,
                   )}
                 >
-                  O valor da renovação ainda não está configurado no servidor (variável{" "}
-                  <span className="font-mono text-[11px]">CALCULADORA_RENOVACAO_VALOR</span>). Peça à equipe técnica para
-                  configurar antes de gerar o PIX.
+                  {temGestoresIa ? (
+                    "Não foi possível calcular o valor da sua parcela do pacote Gestores de IA. Peça à equipe técnica para verificar antes de gerar o PIX."
+                  ) : (
+                    <>
+                      O valor da renovação ainda não está configurado no servidor (variável{" "}
+                      <span className="font-mono text-[11px]">CALCULADORA_RENOVACAO_VALOR</span>). Peça à equipe técnica
+                      para configurar antes de gerar o PIX.
+                    </>
+                  )}
                 </p>
               ) : null}
               {podeRenovarPix && renoMeta?.configurado && typeof renoMeta.valor === "number" && !renoPixData ? (

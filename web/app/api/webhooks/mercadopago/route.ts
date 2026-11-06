@@ -53,7 +53,7 @@ async function processarPorExtRef(extRef: string, mpPaymentId?: string | null): 
     return;
   }
 
-  if (extRef.startsWith("crcalc") || extRef.startsWith("calc-renew::")) {
+  if (extRef.startsWith("crcalc") || extRef.startsWith("cranual") || extRef.startsWith("calc-renew::")) {
     await processarCalculadoraRenovacaoPaga(extRef, mpPaymentId ?? null);
     return;
   }

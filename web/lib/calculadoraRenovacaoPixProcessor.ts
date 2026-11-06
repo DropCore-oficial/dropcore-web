@@ -123,11 +123,19 @@ export async function processarCalculadoraRenovacaoPaga(
 
   const { data: row, error: fetchErr } = await supabaseAdmin
     .from("calculadora_assinantes")
-    .select("id, user_id, valido_ate, ativo")
+    .select("id, user_id, valido_ate, ativo, inclui_gestores_ia")
     .eq("user_id", parsed.userId)
     .maybeSingle();
 
   if (fetchErr) return false;
+
+  // Defesa em profundidade: se a conta virou assinante do combo depois que esse PIX (preço da
+  // Calculadora pura) foi gerado, não deixa reativar os Gestores de IA pelo valor errado —
+  // achado 2026-11-06. A renovação certa do combo passa por processarGestoresIaAvulsoPlanoPago.
+  if (row?.inclui_gestores_ia === true) {
+    console.warn("[calculadoraRenovacao] bloqueado: assinante tem inclui_gestores_ia=true, usar fluxo do combo.");
+    return false;
+  }
 
   const { data: planoRow } = row
     ? await supabaseAdmin
