@@ -50,13 +50,15 @@ function tempoRelativo(iso: string): string {
 
 /** "Seller" é chave técnica fixa pro personagem que representa o dono(a) da conta — o nome
  * exibido de verdade (sellers.nome_responsavel) é resolvido em runtime, ver `nomeExibicao`
- * dentro do componente. Laura segue fora do escritório (Design & Criativo, pipeline ainda não
- * construído). Tiago Silva (Gestor Mestre) ENTROU em 2026-10-07 — chat dele já está construído
- * e no ar desde 2026-10-03 — senta na mesa comum junto dos outros gestores de IA, não ganha
- * sala isolada (ocupa o lugar que estava reservado/vazio ao lado do Ads). */
-type NomeGestor = "Estoque" | "Anuncio" | "Sac" | "Ads" | "Gestor" | "Seller";
+ * dentro do componente. Tiago Silva (Gestor Mestre) ENTROU em 2026-10-07 — chat dele já está
+ * construído e no ar desde 2026-10-03 — senta na mesa comum junto dos outros gestores de IA,
+ * não ganha sala isolada (ocupa o lugar que estava reservado/vazio ao lado do Ads). Design
+ * (Laura) ENTROU em 2026-10-27 — diagnóstico + geração de imagem já construídos e deployados
+ * (ver `GESTORES_PERFIS` em `web/lib/ai/gestorPerfis.ts`, `ativo: true`) — ocupa o último
+ * lugar vago da mesa comum (ao lado do Ads, de frente pro Gestor). */
+type NomeGestor = "Estoque" | "Anuncio" | "Sac" | "Ads" | "Design" | "Gestor" | "Seller";
 
-const NOMES_GESTOR: NomeGestor[] = ["Estoque", "Anuncio", "Sac", "Ads", "Gestor", "Seller"];
+const NOMES_GESTOR: NomeGestor[] = ["Estoque", "Anuncio", "Sac", "Ads", "Design", "Gestor", "Seller"];
 
 const SUIT_NEUTRAL = "#374151";
 const SUIT_LIDER = "#022c22";
@@ -76,7 +78,7 @@ type GestorConfig = {
 };
 
 /** Posições validadas no protótipo — mesa larga compartilhada (3 de um lado se encarando
- * 1 do outro + 2 lugares vagos pra crescer) pros 4 gestores de IA, sala executiva isolada
+ * 3 do outro, todos os 6 lugares ocupados) pros gestores de IA + Gestor Mestre, sala executiva isolada
  * pro Seller (dono da conta) com mesa própria. Sem balcão de recepção, sem sala de jogos. */
 const GESTORES: Record<NomeGestor, GestorConfig> = {
   Estoque: {
@@ -126,6 +128,25 @@ const GESTORES: Record<NomeGestor, GestorConfig> = {
     shirtColor: 0xffffff,
     hairColor: 0x4a2c11,
     genero: "m",
+  },
+  Design: {
+    funcao: "Design & Criativo",
+    icone: "🎨",
+    corDot: EMERALD_SCALE[700],
+    // Ocupa o lugar que era só a cadeira vazia `cadeiraVagaLaura` (x=4 na mesa comum, lado
+    // norte, de frente pro Ads) — removida do cenário estático agora que tem gestor de
+    // verdade sentando (ver `GESTORES_PERFIS.design.ativo` em `gestorPerfis.ts`).
+    deskPos: [4, 0, 7.75],
+    deskRot: Math.PI,
+    // Fileira sul da mesa de reunião, no lugar que o Seller nunca ocupa de verdade (ele
+    // tem `meetingPos` definido mas é filtrado de toda animação de reunião — ver
+    // `NOMES_GESTOR.filter((nome) => nome !== "Seller")` abaixo), entre Estoque (-8.8) e
+    // Anuncio (-6.2), mesmo espaçamento de 1.3 já validado.
+    meetingPos: [-7.5, 0, -5.1],
+    meetingRot: Math.PI,
+    shirtColor: 0xd8c7f0,
+    hairColor: 0x5c3a21,
+    genero: "f",
   },
   Gestor: {
     funcao: "Gestor Mestre",
@@ -764,6 +785,7 @@ function statusPorNome(
   if (nome === "Anuncio") return statusAnuncio;
   if (nome === "Sac") return statusSac;
   if (nome === "Ads") return statusAds;
+  if (nome === "Design") return "Analisa a foto só quando o Anúncio não acha nenhuma outra causa — roda sozinha.";
   if (nome === "Seller") return "Acompanha o desempenho da própria loja.";
   return "Em breve — painel ainda não construído.";
 }
@@ -801,6 +823,7 @@ export function SellerGestoresIaEscritorio3D({
     Anuncio: "Anúncio",
     Sac: "SAC",
     Ads: "ADS",
+    Design: "Design",
     Gestor: "Gestor",
     Seller: nomeResponsavel?.trim() || "Você",
   };
@@ -959,7 +982,7 @@ export function SellerGestoresIaEscritorio3D({
     office.add(criarDivisoriaVidro(mats, -11, -6.5, 0, 5.2));
     office.add(criarDivisoriaVidro(mats, -4, -6.5, 0, 5.2));
 
-    // Mesa larga compartilhada (3 de um lado, 1 do outro + 2 lugares vagos pra crescer)
+    // Mesa larga compartilhada (3 de um lado, 3 do outro, todos os 6 lugares ocupados)
     const teamTable = new THREE.Group();
     teamTable.position.set(4, 0, 6);
     office.add(teamTable);
@@ -982,12 +1005,6 @@ export function SellerGestoresIaEscritorio3D({
       teamTable.add(criarMonitorGrande(mats, sx, "A"));
       teamTable.add(criarMonitorGrande(mats, sx, "B"));
     });
-
-    // Lugar vago onde a Laura sentava (Design & Criativo saiu do escritório, não construída)
-    const cadeiraVagaLaura = criarCadeira(mats);
-    cadeiraVagaLaura.position.set(4, 0, 7.75);
-    cadeiraVagaLaura.rotation.y = Math.PI;
-    office.add(cadeiraVagaLaura);
 
     // Sala de conferência — mesa branca + quadro
     const confTable = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.12, 2.4), mats.woodMedio);
@@ -1506,7 +1523,7 @@ export function SellerGestoresIaEscritorio3D({
             </span>
             <div>
               <p className="text-[10px] font-bold leading-tight text-white">ESCRITÓRIO 3D</p>
-              <p className="text-[8px] leading-tight text-neutral-400">4 gestores de IA · DropCore</p>
+              <p className="text-[8px] leading-tight text-neutral-400">5 gestores de IA · DropCore</p>
             </div>
           </div>
 

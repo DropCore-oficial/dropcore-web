@@ -211,6 +211,7 @@ const DESCRICAO_GESTOR: Record<string, string> = {
   anuncio: "Analisa seus anúncios e aponta o que pode estar travando visitas e vendas.",
   sac: "Acompanha perguntas e reclamações, sugere resposta pronta pra você enviar.",
   ads: "Confere margem e preço de cada SKU, sinaliza o que tá fora do saudável.",
+  design: "Analisa a foto só quando o Anúncio não acha nenhuma outra causa — roda sozinha.",
   gestor: "Converse sobre o que a equipe já analisou.",
 };
 

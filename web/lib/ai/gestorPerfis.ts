@@ -27,7 +27,7 @@ export const GESTORES_PERFIS: GestorPerfil[] = [
   { slug: "anuncio", nome: "Anúncio", funcao: "Anúncios & SEO", gestorId: "anuncios_seo", ativo: true, gratisNoPro: false },
   { slug: "sac", nome: "SAC", funcao: "Reputação & Atendimento", gestorId: "reputacao", ativo: true, gratisNoPro: false },
   { slug: "ads", nome: "ADS", funcao: "Ads, Preço & Promoção", gestorId: "ads", ativo: true, gratisNoPro: true },
-  { slug: "design", nome: "Design", funcao: "Design & Criativo", gestorId: null, ativo: false, gratisNoPro: false },
+  { slug: "design", nome: "Design", funcao: "Design & Criativo", gestorId: null, ativo: true, gratisNoPro: false },
   { slug: "gestor", nome: "Gestor", funcao: "Gestor Mestre", gestorId: null, ativo: true, gratisNoPro: false },
 ];
 
