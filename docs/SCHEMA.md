@@ -2516,6 +2516,15 @@ nenhum SKU era marcado de verdade. Renomeado pra `fn_fornecedor_sku_ml_marcar_se
 (47 chars). **Lição**: nome de função nova tem que ficar < 63 chars, conferir antes de criar.
 (`web/scripts/fix-fn-fornecedor-sku-marcar-sem-correspondencia-nome-truncado.sql`).
 
+**Confirmação positiva por hover (2026-11-07)**: o ícone de aviso só cobria o caso
+"problema" — não dava pra distinguir SKU "estável porque tá tudo certo" de "nunca foi
+checado pelo sync". `fn_fornecedor_sku_estoque_mercadolivre_set` agora é chamada também no
+caminho "sem mudança de valor" (antes só rodava se o estoque realmente mudasse), carimbando
+`ml_sync_status='ok'` + `ml_sync_at=now()` mesmo sem alterar `estoque_atual` — mais
+escritas no banco a cada ciclo do cron (até 500/rodada), troca aceita pelo Sr Stark.
+`/fornecedor/produtos` mostra isso como `title` (hover nativo) no próprio número de
+estoque: "Sincronizado com Mercado Livre em dd/mm/aaaa hh:mm:ss".
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

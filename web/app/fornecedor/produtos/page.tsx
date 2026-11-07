@@ -101,7 +101,19 @@ type Produto = {
    * correspondente lá (ver web/lib/fornecedorMercadoLivreSyncEstoque.ts) — estoque desse
    * SKU não está sendo sincronizado automaticamente. */
   ml_sync_status?: string | null;
+  /** Timestamp da última vez que o sync do Mercado Livre confirmou este SKU (achou e
+   * conferiu o saldo, mudando ou não o valor) — vira o texto do hover no estoque. */
+  ml_sync_at?: string | null;
 };
+
+/** Hover no número de estoque confirmando quando o Mercado Livre validou esse SKU pela
+ * última vez — sem isso não dava pra distinguir "estável porque tá tudo certo" de "nunca
+ * foi checado" (pedido do Sr Stark 2026-11-07). Só pro caso 'ok': o 'sem_sku_no_ml' já tem
+ * o próprio aviso em `AvisoSemCorrespondenciaMl`, não duplica tooltip. */
+function tituloEstoqueMl(produto: Produto): string | undefined {
+  if (produto.ml_sync_status !== "ok" || !produto.ml_sync_at) return undefined;
+  return `Sincronizado com Mercado Livre em ${new Date(produto.ml_sync_at).toLocaleString("pt-BR")}`;
+}
 
 /** Aviso inline (não é badge de status cheio — é um ícone pontual dentro de uma célula
  * densa de tabela) pro SKU que o fornecedor conectou o Mercado Livre mas que não tem
@@ -1407,7 +1419,10 @@ export default function FornecedorProdutosPage() {
                                           >
                                             <span className="font-bold text-[var(--foreground)]">{(p.tamanho ?? "—").toUpperCase()}</span>
                                             <span className="min-w-0 whitespace-nowrap font-mono text-[11px] font-normal leading-snug text-[var(--muted)]">{p.sku}</span>
-                                            <span className={`flex items-center justify-end text-right text-xs font-bold tabular-nums ${(p.estoque_atual ?? 0) <= 0 ? "text-[var(--danger)]" : "text-[var(--foreground)]"}`}>
+                                            <span
+                                              className={`flex items-center justify-end text-right text-xs font-bold tabular-nums ${(p.estoque_atual ?? 0) <= 0 ? "text-[var(--danger)]" : "text-[var(--foreground)]"}`}
+                                              title={tituloEstoqueMl(p)}
+                                            >
                                               {p.estoque_atual != null ? p.estoque_atual : "—"}
                                               <AvisoSemCorrespondenciaMl produto={p} />
                                             </span>
@@ -1504,7 +1519,10 @@ export default function FornecedorProdutosPage() {
                                     </span>
                                     <span>
                                       Estoque{" "}
-                                      <span className={`tabular-nums font-medium ${(row.estoque_atual ?? 0) <= 0 ? "text-[var(--danger)]" : "text-[var(--foreground)]"}`}>
+                                      <span
+                                        className={`tabular-nums font-medium ${(row.estoque_atual ?? 0) <= 0 ? "text-[var(--danger)]" : "text-[var(--foreground)]"}`}
+                                        title={tituloEstoqueMl(row)}
+                                      >
                                         {row.estoque_atual != null ? row.estoque_atual : "—"}
                                         <AvisoSemCorrespondenciaMl produto={row} />
                                       </span>
@@ -1606,7 +1624,7 @@ export default function FornecedorProdutosPage() {
                                       : "—"}
                                   </td>
                                   <td className="px-2 py-1.5 align-top text-right text-xs tabular-nums text-[var(--foreground)] lg:px-3">
-                                    <span className="inline-flex items-center justify-end">
+                                    <span className="inline-flex items-center justify-end" title={tituloEstoqueMl(row)}>
                                       {row.estoque_atual != null ? row.estoque_atual : "—"}
                                       <AvisoSemCorrespondenciaMl produto={row} />
                                     </span>

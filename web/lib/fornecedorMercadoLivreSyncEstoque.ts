@@ -158,15 +158,16 @@ export async function pullFornecedorEstoqueFromMercadoLivre(opts: {
     const atual = (row as { estoque_atual?: number | null }).estoque_atual ?? null;
     if (atual === saldo) {
       summary.unchanged += 1;
-      // Achou de novo depois de ter ficado marcado "sem correspondência" — limpa o aviso.
-      if (syncStatusAtual === "sem_sku_no_ml") {
-        await supabaseAdmin.rpc("fn_fornecedor_sku_estoque_mercadolivre_set", {
-          p_sku_id: skuId,
-          p_org_id: opts.orgId,
-          p_fornecedor_id: opts.fornecedorId,
-          p_novo_estoque: saldo,
-        });
-      }
+      // Carimba 'ok' + ml_sync_at mesmo sem mudar o valor — é o que permite mostrar "última
+      // confirmação" no hover do estoque na tela de Produtos (pedido do Sr Stark
+      // 2026-11-07: sem isso não dava pra saber se um SKU "parado" era porque tava tudo
+      // certo ou porque nunca foi checado). Também limpa um 'sem_sku_no_ml' anterior.
+      await supabaseAdmin.rpc("fn_fornecedor_sku_estoque_mercadolivre_set", {
+        p_sku_id: skuId,
+        p_org_id: opts.orgId,
+        p_fornecedor_id: opts.fornecedorId,
+        p_novo_estoque: saldo,
+      });
       continue;
     }
 
