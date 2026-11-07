@@ -1,0 +1,131 @@
+/**
+ * OAuth2 do Mercado Livre — app PRÓPRIO do fluxo FORNECEDOR, client_id/secret separados do
+ * app do seller (`mercadoLivreOAuth.ts`) e do avulso (`mercadoLivreOAuthAvulso.ts`), mesmo
+ * precedente de isolamento/segurança: vazamento ou abuso de um não afeta o outro, rate
+ * limit separado, redirect_uri própria.
+ */
+import { CANONICAL_SITE_ORIGIN } from "@/lib/siteUrl";
+
+const ML_AUTH_URL = "https://auth.mercadolivre.com.br/authorization";
+const ML_TOKEN_URL = "https://api.mercadolibre.com/oauth/token";
+
+/** Cookie httpOnly que guarda o `state` gerado em /connect, pra validar no POST /oauth e
+ * fechar o CSRF do authorization_code (mesmo padrão de MERCADOLIVRE_OAUTH_STATE_COOKIE). */
+export const MERCADOLIVRE_FORNECEDOR_OAUTH_STATE_COOKIE = "fornecedor_ml_oauth_state";
+export const MERCADOLIVRE_FORNECEDOR_OAUTH_STATE_MAX_AGE_SECONDS = 1200;
+
+export type MercadoLivreOAuthTokenResponse = {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+  token_type?: string;
+  scope?: string;
+  user_id?: number;
+};
+
+export function getMercadoLivreFornecedorRedirectUri(): string {
+  const raw = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
+  const origin = raw?.startsWith("http") ? raw : CANONICAL_SITE_ORIGIN;
+  return `${origin}/fornecedor/integracoes-marketplace`;
+}
+
+function getMercadoLivreFornecedorAppCredentials() {
+  const clientId = process.env.MERCADOLIVRE_FORNECEDOR_CLIENT_ID?.trim() ?? "";
+  const clientSecret = process.env.MERCADOLIVRE_FORNECEDOR_CLIENT_SECRET?.trim() ?? "";
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      "MERCADOLIVRE_FORNECEDOR_CLIENT_ID ou MERCADOLIVRE_FORNECEDOR_CLIENT_SECRET não configurado no servidor.",
+    );
+  }
+  return { clientId, clientSecret };
+}
+
+/** state é só o anti-CSRF do round-trip (comparado ao cookie
+ * `MERCADOLIVRE_FORNECEDOR_OAUTH_STATE_COOKIE` no POST /oauth) — quem é o fornecedor vem
+ * do Bearer token, não do state. */
+export function buildMercadoLivreFornecedorAuthorizationUrl(state: string): string {
+  const { clientId } = getMercadoLivreFornecedorAppCredentials();
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: clientId,
+    redirect_uri: getMercadoLivreFornecedorRedirectUri(),
+    state,
+  });
+  return `${ML_AUTH_URL}?${params.toString()}`;
+}
+
+function parseMercadoLivreTokenError(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const record = body as Record<string, unknown>;
+  const message = record.message;
+  if (typeof message === "string" && message.trim()) return message.trim();
+  const error = record.error;
+  if (typeof error === "string" && error.trim()) return error.trim();
+  return null;
+}
+
+export async function exchangeMercadoLivreFornecedorAuthorizationCode(
+  code: string,
+): Promise<MercadoLivreOAuthTokenResponse> {
+  const { clientId, clientSecret } = getMercadoLivreFornecedorAppCredentials();
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    client_id: clientId,
+    client_secret: clientSecret,
+    code: code.trim(),
+    redirect_uri: getMercadoLivreFornecedorRedirectUri(),
+  });
+
+  const res = await fetch(ML_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body,
+    cache: "no-store",
+  });
+
+  const json = (await res.json().catch(() => ({}))) as MercadoLivreOAuthTokenResponse &
+    Record<string, unknown>;
+  if (!res.ok) {
+    const detail = parseMercadoLivreTokenError(json);
+    throw new Error(detail ?? "Não foi possível trocar o código de autorização do Mercado Livre por tokens.");
+  }
+  if (typeof json.access_token !== "string" || !json.access_token.trim()) {
+    throw new Error("Resposta do Mercado Livre sem access_token.");
+  }
+  return json;
+}
+
+export function computeMercadoLivreFornecedorAccessTokenExpiresAt(expiresIn?: number): string | null {
+  if (typeof expiresIn !== "number" || !Number.isFinite(expiresIn) || expiresIn <= 0) return null;
+  return new Date(Date.now() + expiresIn * 1000).toISOString();
+}
+
+export async function refreshMercadoLivreFornecedorAccessToken(
+  refreshToken: string,
+): Promise<MercadoLivreOAuthTokenResponse> {
+  const { clientId, clientSecret } = getMercadoLivreFornecedorAppCredentials();
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    client_id: clientId,
+    client_secret: clientSecret,
+    refresh_token: refreshToken.trim(),
+  });
+
+  const res = await fetch(ML_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body,
+    cache: "no-store",
+  });
+
+  const json = (await res.json().catch(() => ({}))) as MercadoLivreOAuthTokenResponse &
+    Record<string, unknown>;
+  if (!res.ok) {
+    const detail = parseMercadoLivreTokenError(json);
+    throw new Error(detail ?? "Não foi possível renovar o token do Mercado Livre.");
+  }
+  if (typeof json.access_token !== "string" || !json.access_token.trim()) {
+    throw new Error("Resposta do Mercado Livre sem access_token ao renovar.");
+  }
+  return json;
+}

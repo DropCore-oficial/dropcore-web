@@ -169,7 +169,7 @@ Sempre que criar tabela, alterar RLS, criar função ou query, seguir:
 - **Sellers:** `sellers`, `seller_invites`, `seller_credit_lots`, `seller_movimentacoes`,
   `seller_depositos_pix`, `seller_bling_integrations`, `seller_olist_integrations`.
 - **Fornecedores:** `fornecedores`, `fornecedor_invites`, `fornecedor_olist_integrations`,
-  `fornecedor_produto_rascunhos`.
+  `fornecedor_mercadolivre_integrations`, `fornecedor_produto_rascunhos`.
 - **Catálogo/estoque:** `skus`, `produto_tabela_medidas`, `sku_alteracoes_pendentes`,
   `estoque_reservas`.
 - **Pedidos:** `pedidos`, `pedido_itens`, `pedido_eventos`.

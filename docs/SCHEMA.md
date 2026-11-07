@@ -2432,6 +2432,61 @@ mais de uma aba antes dessa correção — só o contador que ficava errado. Val
 `total_count_sem_estoque` do pedido acima foi de 0 para 1, outros contadores (geral,
 pra_enviar, enviados) continuaram iguais.
 
+## `fornecedor_mercadolivre_integrations` — fornecedor conecta o próprio Mercado Livre, substitui Olist como fonte de estoque (2026-11-06)
+
+`web/scripts/create-fornecedor-mercadolivre-integrations.sql`. Até aqui o fornecedor só
+sincronizava `skus.estoque_atual` via Olist/Tiny (webhook + cron pull), e só o Djulios
+usava isso, parado desde 2026-06-30. Problema de fundo: o fornecedor pode ter vendas FORA
+do DropCore (direto no próprio Mercado Livre, ou em qualquer canal que ele reporte lá) que
+corroem o estoque físico sem o DropCore nunca saber — risco real de overselling pros
+sellers.
+
+Troca: o fornecedor conecta a própria conta Mercado Livre (OAuth, mesmo padrão de
+`seller_mercadolivre_integrations` mas tabela própria `fornecedor_mercadolivre_integrations`,
+app ML separado — `MERCADOLIVRE_FORNECEDOR_CLIENT_ID`/`_SECRET`, mesmo precedente de
+isolamento de `mercadoLivreOAuthAvulso.ts`). Um cron (`dropcore-fornecedor-mercadolivre-sync-estoque`,
+a cada 5 min no piloto) lê os anúncios ativos/pausados do fornecedor no ML, extrai o
+atributo `SELLER_SKU` de cada anúncio/variação (mesma lógica de
+`mercadoLivreSkuSync.ts#extrairSkusDoItem`, sem tabela de mapeamento própria — lido em
+tempo real a cada sync, único consumidor hoje é a escrita de estoque) e o `available_quantity`
+correspondente, e substitui `skus.estoque_atual` pelo valor lido — sync completo do saldo,
+não é baixa por venda (reflete reposição pra cima e venda pra baixo).
+
+**Agregação quando o mesmo SKU aparece em >1 anúncio**: usa o MENOR valor (`Math.min`), não
+soma nem usa o maior. Decisão fechada com o Sr Stark 2026-11-06: anúncios do mesmo produto
+costumam ficar espelhados (ferramentas tipo Upseller sincronizam o mesmo número em todos);
+se 1 anúncio ficar dessincronizado mostrando valor alto por engano, MAX inflaria estoque
+fictício (overselling de verdade); MIN erra sempre pro lado seguro (subestima, nunca
+superestima).
+
+Escrita final em `skus` via RPC `fn_fornecedor_sku_estoque_mercadolivre_set` (regra 9 —
+tabela/rota nova, SECURITY DEFINER, só `service_role`). As outras 4 RPCs
+(`fn_fornecedor_mercadolivre_integracao_upsert/get/delete`,
+`fn_fornecedor_mercadolivre_integracoes_conectadas_lista`) cobrem o CRUD da tabela de
+integração. Propagação pros sellers reusa `syncOlistEstoqueFornecedorSkus`
+(`web/lib/sellerOlistSyncEstoqueOnChange.ts`, genérica apesar do nome — já empurra pro ML
+dos sellers também, `skipFornecedorPush: true` porque a mudança já veio do ML do
+fornecedor).
+
+Guard de exclusividade: conectar o ML é bloqueado (HTTP 409) se o fornecedor já tem Olist
+ativa — evita dois crons escrevendo `estoque_atual` ao mesmo tempo com fontes divergentes.
+
+Menu do fornecedor: aba "ERP" (`/fornecedor/integracoes-erp`) virou "Integrações"
+(`/fornecedor/integracoes-marketplace`), mesmo padrão aplicado ao seller em 2026-11-04
+(commit `fcd617b`) — `web/app/fornecedor/integracoes-erp/layout.tsx` novo faz `redirect()`,
+`page.tsx` da Olist continua intacto por baixo, só saiu do `FornecedorNav`.
+
+**Webhook em tempo real (2026-11-07)**: além do cron de 5 em 5 min, o fornecedor pode
+assinar o tópico "Orders" no app ML próprio (`DropCore Fornecedor`,
+`MERCADOLIVRE_FORNECEDOR_CLIENT_ID`) apontando pra
+`web/app/api/webhooks/mercadolivre-fornecedor/route.ts` — toda notificação `orders_v2`
+dispara de novo o MESMO `pullFornecedorEstoqueFromMercadoLivre` do cron, na hora em vez de
+esperar até 5 min (não precisa interpretar o `resource` da notificação, `available_quantity`
+do anúncio já reflete a venda). Sem debounce de propósito — é código determinístico, sem
+custo de IA, rajada de vendas só gera pulls redundantes baratos. RPC nova pra resolver o
+dono da notificação sem `.from()` direto (regra 9): `fn_fornecedor_mercadolivre_integracao_por_ml_user_id`
+(`web/scripts/add-fn-fornecedor-mercadolivre-integracao-por-ml-user-id.sql`).
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

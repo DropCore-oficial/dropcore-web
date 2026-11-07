@@ -132,9 +132,9 @@ export function FornecedorNav({
                 <IconTruck active={active === "pedidos"} />
                 Pedidos
               </Link>
-              <Link href="/fornecedor/integracoes-erp" className={linkClass("integracoes")}>
+              <Link href="/fornecedor/integracoes-marketplace" className={linkClass("integracoes")}>
                 <IconPlug active={active === "integracoes"} />
-                ERP
+                Integrações
               </Link>
               <Link href="/fornecedor/cadastro" className={linkClass("cadastro")}>
                 <IconCadastro active={active === "cadastro"} />
@@ -160,7 +160,7 @@ export function FornecedorNav({
             aria-label="Mais opções do fornecedor"
           >
             <Link
-              href="/fornecedor/integracoes-erp"
+              href="/fornecedor/integracoes-marketplace"
               role="menuitem"
               className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
                 active === "integracoes"
@@ -170,7 +170,7 @@ export function FornecedorNav({
               onClick={() => setMobileMaisOpen(false)}
             >
               <IconPlug active={active === "integracoes"} />
-              ERP
+              Integrações
             </Link>
             <Link
               href="/fornecedor/cadastro"
