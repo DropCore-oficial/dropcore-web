@@ -2497,6 +2497,16 @@ mostra badge "Sincronizado" / "Sincronizado com ressalva" / "Erro no último syn
 horário + contagem de SKUs atualizados/sem correspondência no ML/erros
 (`web/scripts/add-fornecedor-mercadolivre-ultimo-sync.sql`).
 
+**Indicador por SKU (2026-11-07)**: o resumo acima é agregado (quantos, não quais) —
+insuficiente pra saber qual SKU específico corrigir. 2 colunas novas em `skus`
+(`ml_sync_status`, `ml_sync_at`) + RPC nova `fn_fornecedor_sku_estoque_mercadolivre_marcar_sem_correspondencia`
+(a RPC de escrita `fn_fornecedor_sku_estoque_mercadolivre_set` também passou a carimbar
+`ml_sync_status='ok'`). Só 2 estados: `'ok'` e `'sem_sku_no_ml'` — erro de escrita (raro)
+fica só no resumo agregado, sem RPC própria pra esse caso. Escreve só quando o estado muda
+(evita 1 UPDATE por SKU a cada 5 min pros que já estão estáveis). `/fornecedor/produtos`
+mostra um ícone de aviso âmbar ao lado do estoque do SKU marcado `sem_sku_no_ml`
+(`web/scripts/add-skus-ml-sync-status.sql`).
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

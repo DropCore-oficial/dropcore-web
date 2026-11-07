@@ -34,7 +34,7 @@ const SKU_FIELDS = `
   dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao,
   marca, data_lancamento,
   ncm, origem, cest, peso_liquido_kg, peso_bruto_kg, criado_em,
-  expedicao_override_linha, detalhes_produto_json
+  expedicao_override_linha, detalhes_produto_json, ml_sync_status
 `;
 
 /** Campos de `skus` que podem vir em `dados_propostos` (alteração pendente) — exibe o valor enviado na lista. */

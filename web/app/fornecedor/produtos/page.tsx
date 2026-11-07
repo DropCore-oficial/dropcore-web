@@ -97,7 +97,33 @@ type Produto = {
   /** Despacho deste SKU quando difere do CD padrão do fornecedor (texto livre). */
   expedicao_override_linha?: string | null;
   detalhes_produto_json?: Record<string, unknown> | null;
+  /** 'sem_sku_no_ml' = fornecedor conectou o Mercado Livre mas esse SKU não tem anúncio
+   * correspondente lá (ver web/lib/fornecedorMercadoLivreSyncEstoque.ts) — estoque desse
+   * SKU não está sendo sincronizado automaticamente. */
+  ml_sync_status?: string | null;
 };
+
+/** Aviso inline (não é badge de status cheio — é um ícone pontual dentro de uma célula
+ * densa de tabela) pro SKU que o fornecedor conectou o Mercado Livre mas que não tem
+ * anúncio correspondente lá, então o estoque dele não sincroniza sozinho. */
+function AvisoSemCorrespondenciaMl({ produto }: { produto: Produto }) {
+  if (produto.ml_sync_status !== "sem_sku_no_ml") return null;
+  return (
+    <span
+      className="ml-1 inline-flex shrink-0 text-[#b45309] dark:text-[#F7C348]"
+      title="Sem anúncio correspondente no Mercado Livre conectado — esse SKU não sincroniza estoque sozinho."
+      aria-label="Sem anúncio correspondente no Mercado Livre conectado"
+    >
+      <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+        <path
+          fillRule="evenodd"
+          d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.63-1.516 2.63H3.72c-1.347 0-2.189-1.463-1.515-2.63L8.485 2.495ZM10 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6Zm0 8a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+          clipRule="evenodd"
+        />
+      </svg>
+    </span>
+  );
+}
 
 /** Agrupa SKUs por produto (paiKey: XXX001000 = pai, XXX001001+ = filhos; XXX = iniciais do fornecedor) */
 function paiKey(sku: string): string {
@@ -1381,8 +1407,9 @@ export default function FornecedorProdutosPage() {
                                           >
                                             <span className="font-bold text-[var(--foreground)]">{(p.tamanho ?? "—").toUpperCase()}</span>
                                             <span className="min-w-0 whitespace-nowrap font-mono text-[11px] font-normal leading-snug text-[var(--muted)]">{p.sku}</span>
-                                            <span className={`text-right text-xs font-bold tabular-nums ${(p.estoque_atual ?? 0) <= 0 ? "text-[var(--danger)]" : "text-[var(--foreground)]"}`}>
+                                            <span className={`flex items-center justify-end text-right text-xs font-bold tabular-nums ${(p.estoque_atual ?? 0) <= 0 ? "text-[var(--danger)]" : "text-[var(--foreground)]"}`}>
                                               {p.estoque_atual != null ? p.estoque_atual : "—"}
+                                              <AvisoSemCorrespondenciaMl produto={p} />
                                             </span>
                                           </div>
                                         ))}
@@ -1479,6 +1506,7 @@ export default function FornecedorProdutosPage() {
                                       Estoque{" "}
                                       <span className={`tabular-nums font-medium ${(row.estoque_atual ?? 0) <= 0 ? "text-[var(--danger)]" : "text-[var(--foreground)]"}`}>
                                         {row.estoque_atual != null ? row.estoque_atual : "—"}
+                                        <AvisoSemCorrespondenciaMl produto={row} />
                                       </span>
                                     </span>
                                     {lf ? (
@@ -1578,7 +1606,10 @@ export default function FornecedorProdutosPage() {
                                       : "—"}
                                   </td>
                                   <td className="px-2 py-1.5 align-top text-right text-xs tabular-nums text-[var(--foreground)] lg:px-3">
-                                    {row.estoque_atual != null ? row.estoque_atual : "—"}
+                                    <span className="inline-flex items-center justify-end">
+                                      {row.estoque_atual != null ? row.estoque_atual : "—"}
+                                      <AvisoSemCorrespondenciaMl produto={row} />
+                                    </span>
                                   </td>
                                   <td className="min-w-0 px-2 py-1.5 align-top lg:px-3">
                                     {lf ? (

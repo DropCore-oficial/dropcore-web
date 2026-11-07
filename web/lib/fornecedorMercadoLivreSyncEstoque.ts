@@ -123,7 +123,7 @@ export async function pullFornecedorEstoqueFromMercadoLivre(opts: {
 
   const { data: rows, error } = await supabaseAdmin
     .from("skus")
-    .select("id, sku, estoque_atual")
+    .select("id, sku, estoque_atual, ml_sync_status")
     .eq("org_id", opts.orgId)
     .eq("fornecedor_id", opts.fornecedorId)
     .eq("status", "ativo")
@@ -137,20 +137,41 @@ export async function pullFornecedorEstoqueFromMercadoLivre(opts: {
   const changedSkuCodes: string[] = [];
   for (const row of rows ?? []) {
     const sku = String((row as { sku?: string }).sku ?? "").trim().toUpperCase();
+    const skuId = (row as { id: string }).id;
+    const syncStatusAtual = (row as { ml_sync_status?: string | null }).ml_sync_status ?? null;
     const saldo = mapaSaldo.get(sku);
+
     if (saldo == null) {
       summary.missing_ml += 1;
+      // Só escreve quando muda de estado — evita 1 UPDATE por SKU a cada 5 min pros que já
+      // estão (e continuam) sem correspondência.
+      if (syncStatusAtual !== "sem_sku_no_ml") {
+        await supabaseAdmin.rpc("fn_fornecedor_sku_estoque_mercadolivre_marcar_sem_correspondencia", {
+          p_sku_id: skuId,
+          p_org_id: opts.orgId,
+          p_fornecedor_id: opts.fornecedorId,
+        });
+      }
       continue;
     }
 
     const atual = (row as { estoque_atual?: number | null }).estoque_atual ?? null;
     if (atual === saldo) {
       summary.unchanged += 1;
+      // Achou de novo depois de ter ficado marcado "sem correspondência" — limpa o aviso.
+      if (syncStatusAtual === "sem_sku_no_ml") {
+        await supabaseAdmin.rpc("fn_fornecedor_sku_estoque_mercadolivre_set", {
+          p_sku_id: skuId,
+          p_org_id: opts.orgId,
+          p_fornecedor_id: opts.fornecedorId,
+          p_novo_estoque: saldo,
+        });
+      }
       continue;
     }
 
     const { error: rpcErr } = await supabaseAdmin.rpc("fn_fornecedor_sku_estoque_mercadolivre_set", {
-      p_sku_id: (row as { id: string }).id,
+      p_sku_id: skuId,
       p_org_id: opts.orgId,
       p_fornecedor_id: opts.fornecedorId,
       p_novo_estoque: saldo,
