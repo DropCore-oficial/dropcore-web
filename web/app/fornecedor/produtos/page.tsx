@@ -104,15 +104,24 @@ type Produto = {
   /** Timestamp da última vez que o sync do Mercado Livre confirmou este SKU (achou e
    * conferiu o saldo, mudando ou não o valor) — vira o texto do hover no estoque. */
   ml_sync_at?: string | null;
+  /** Só preenchido quando a última rodada realmente mudou o valor — limpo (null) no ciclo
+   * seguinte se o estoque ficar estável de novo, pra "Atualizado de X para Y" não ficar
+   * mostrando uma transição velha pra sempre. */
+  ml_estoque_anterior?: number | null;
 };
 
 /** Hover no número de estoque confirmando quando o Mercado Livre validou esse SKU pela
  * última vez — sem isso não dava pra distinguir "estável porque tá tudo certo" de "nunca
- * foi checado" (pedido do Sr Stark 2026-11-07). Só pro caso 'ok': o 'sem_sku_no_ml' já tem
- * o próprio aviso em `AvisoSemCorrespondenciaMl`, não duplica tooltip. */
+ * foi checado" (pedido do Sr Stark 2026-11-07). Mostra a transição (de/para) só enquanto
+ * for recente; depois volta a mostrar só a confirmação simples. Só pro caso 'ok': o
+ * 'sem_sku_no_ml' já tem o próprio aviso em `AvisoSemCorrespondenciaMl`, não duplica tooltip. */
 function tituloEstoqueMl(produto: Produto): string | undefined {
   if (produto.ml_sync_status !== "ok" || !produto.ml_sync_at) return undefined;
-  return `Sincronizado com Mercado Livre em ${new Date(produto.ml_sync_at).toLocaleString("pt-BR")}`;
+  const data = new Date(produto.ml_sync_at).toLocaleString("pt-BR");
+  if (produto.ml_estoque_anterior != null && produto.ml_estoque_anterior !== produto.estoque_atual) {
+    return `Atualizado de ${produto.ml_estoque_anterior} para ${produto.estoque_atual} no Mercado Livre em ${data}`;
+  }
+  return `Sincronizado com Mercado Livre em ${data}`;
 }
 
 /** Aviso inline (não é badge de status cheio — é um ícone pontual dentro de uma célula

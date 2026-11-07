@@ -171,11 +171,15 @@ export async function pullFornecedorEstoqueFromMercadoLivre(opts: {
       continue;
     }
 
+    // p_estoque_anterior fica registrado só até o próximo ciclo "sem mudança" limpar
+    // (ver branch unchanged acima, que chama sem esse parâmetro — default null) — é o que
+    // faz o hover mostrar "Atualizado de X para Y" só enquanto for recente.
     const { error: rpcErr } = await supabaseAdmin.rpc("fn_fornecedor_sku_estoque_mercadolivre_set", {
       p_sku_id: skuId,
       p_org_id: opts.orgId,
       p_fornecedor_id: opts.fornecedorId,
       p_novo_estoque: saldo,
+      p_estoque_anterior: atual,
     });
 
     if (rpcErr) {

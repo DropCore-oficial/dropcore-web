@@ -2525,6 +2525,15 @@ escritas no banco a cada ciclo do cron (até 500/rodada), troca aceita pelo Sr S
 `/fornecedor/produtos` mostra isso como `title` (hover nativo) no próprio número de
 estoque: "Sincronizado com Mercado Livre em dd/mm/aaaa hh:mm:ss".
 
+**Transição de/para no hover (2026-11-07)**: coluna nova `ml_estoque_anterior` em `skus` —
+`fn_fornecedor_sku_estoque_mercadolivre_set` ganhou o parâmetro `p_estoque_anterior`
+(default null). Só é passado no caminho "mudou de valor" (com o valor antigo); o caminho
+"sem mudança" chama sem esse parâmetro, limpando pra null no ciclo seguinte. Hover mostra
+"Atualizado de 11 para 10 no Mercado Livre em ..." só enquanto a mudança for recente (1
+ciclo do cron), depois volta pra "Sincronizado em ..." simples — não fica mostrando
+transição velha pra sempre.
+(`web/scripts/add-skus-ml-estoque-anterior.sql`).
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
