@@ -24,6 +24,28 @@ import { syncOlistEstoqueFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnCh
 
 const MAX_SKUS_PER_RUN = 500;
 
+/** Persiste o resultado da rodada (ok/parcial/erro + contadores) na própria linha de
+ * integração, pro fornecedor ver em `/fornecedor/integracoes-marketplace` se deu erro em
+ * vez de só confiar que funcionou. Best-effort: falha ao gravar o estado não derruba o
+ * sync em si (o estoque já foi atualizado, perder só o resumo não é motivo pra erro). */
+async function persistSyncState(
+  fornecedorId: string,
+  status: PullFornecedorEstoqueMercadoLivreResult["status"],
+  error: string | null,
+  summary: FornecedorMercadoLivreEstoqueSyncSummary,
+): Promise<void> {
+  try {
+    await supabaseAdmin.rpc("fn_fornecedor_mercadolivre_integracao_sync_state_set", {
+      p_fornecedor_id: fornecedorId,
+      p_status: status,
+      p_error: error,
+      p_summary: summary,
+    });
+  } catch (e) {
+    console.error("[fornecedor-mercadolivre-sync] erro ao persistir estado do sync:", e);
+  }
+}
+
 export type FornecedorMercadoLivreEstoqueSyncSummary = {
   itens_escaneados: number;
   skus_candidatos: number;
@@ -83,7 +105,9 @@ export async function pullFornecedorEstoqueFromMercadoLivre(opts: {
     const ids = await mlBuscarTodosItensAtivosEPausados(ctx);
     itens = await mlBuscarItensDetalheComAtributosVariacao(ids, ctx);
   } catch {
-    return { ...summary, status: "erro", error: "Falha ao listar anúncios no Mercado Livre." };
+    const erro = "Falha ao listar anúncios no Mercado Livre.";
+    await persistSyncState(opts.fornecedorId, "erro", erro, summary);
+    return { ...summary, status: "erro", error: erro };
   }
   summary.itens_escaneados = itens.length;
 
@@ -106,6 +130,7 @@ export async function pullFornecedorEstoqueFromMercadoLivre(opts: {
     .limit(MAX_SKUS_PER_RUN);
 
   if (error) {
+    await persistSyncState(opts.fornecedorId, "erro", error.message, summary);
     return { ...summary, status: "erro", error: error.message };
   }
 
@@ -152,16 +177,16 @@ export async function pullFornecedorEstoqueFromMercadoLivre(opts: {
   const status: PullFornecedorEstoqueMercadoLivreResult["status"] =
     summary.errors > 0 && summary.updated === 0 ? "erro" : summary.errors > 0 ? "parcial" : "ok";
 
-  return {
-    ...summary,
-    status,
-    error:
-      status === "erro"
-        ? "Falha ao sincronizar estoque com o Mercado Livre."
-        : status === "parcial"
-          ? `${summary.errors} SKU(s) com erro ao gravar.`
-          : null,
-  };
+  const resultError =
+    status === "erro"
+      ? "Falha ao sincronizar estoque com o Mercado Livre."
+      : status === "parcial"
+        ? `${summary.errors} SKU(s) com erro ao gravar.`
+        : null;
+
+  await persistSyncState(opts.fornecedorId, status, resultError, summary);
+
+  return { ...summary, status, error: resultError };
 }
 
 /** Cron: pull de estoque para todos os fornecedores com Mercado Livre conectado. */

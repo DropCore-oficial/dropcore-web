@@ -2487,6 +2487,16 @@ custo de IA, rajada de vendas só gera pulls redundantes baratos. RPC nova pra r
 dono da notificação sem `.from()` direto (regra 9): `fn_fornecedor_mercadolivre_integracao_por_ml_user_id`
 (`web/scripts/add-fn-fornecedor-mercadolivre-integracao-por-ml-user-id.sql`).
 
+**Visibilidade do resultado do sync (2026-11-07)**: cron e webhook gravavam um resumo
+(`updated`/`missing_ml`/`errors`) que se perdia — não dava pro fornecedor ver se deu erro.
+4 colunas novas em `fornecedor_mercadolivre_integrations` (`ml_last_sync_at/status/error/summary`)
++ RPC `fn_fornecedor_mercadolivre_integracao_sync_state_set` (regra 9), chamada no fim de
+`pullFornecedorEstoqueFromMercadoLivre` (todo ponto de saída, sucesso ou erro — best-effort,
+falha ao gravar o resumo não derruba o sync em si). `/fornecedor/integracoes-marketplace`
+mostra badge "Sincronizado" / "Sincronizado com ressalva" / "Erro no último sync" +
+horário + contagem de SKUs atualizados/sem correspondência no ML/erros
+(`web/scripts/add-fornecedor-mercadolivre-ultimo-sync.sql`).
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

@@ -7,15 +7,61 @@ import { cn } from "@/lib/utils";
 import { DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { HelpBubble } from "@/components/HelpBubble";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+
+type SyncSummary = {
+  updated?: number;
+  missing_ml?: number;
+  errors?: number;
+};
 
 type MercadoLivreStatus = {
   connected: boolean;
   ml_user_id: string | null;
   access_token_expires_at: string | null;
   updated_at: string | null;
+  last_sync_at: string | null;
+  last_sync_status: "ok" | "parcial" | "erro" | null;
+  last_sync_error: string | null;
+  last_sync_summary: SyncSummary | null;
 };
 
 const BENEFICIOS = ["Estoque sempre atualizado", "Evita overselling nos seus sellers", "Sem token manual pra copiar e colar"];
+
+/** Badge de status do último sync — mesmo formato de "Badge de status" da skill de layout
+ * (sem borda, bolinha + rounded-md + font-medium), exceto "parcial" que reaproveita o token
+ * de pílula âmbar oficial (`AMBER_PREMIUM_SHELL`, com borda — é o padrão documentado pra
+ * chip âmbar, diferente do badge verde/vermelho que não leva borda). */
+function SyncStatusBadge({ status }: { status: "ok" | "parcial" | "erro" }) {
+  if (status === "ok") {
+    return (
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+        Sincronizado
+      </span>
+    );
+  }
+  if (status === "parcial") {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
+          AMBER_PREMIUM_SHELL,
+          AMBER_PREMIUM_TEXT_PRIMARY,
+        )}
+      >
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+        Sincronizado com ressalva
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-red-100 px-2 py-1 text-[11px] font-medium text-red-800 dark:bg-red-950/40 dark:text-red-300">
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+      Erro no último sync
+    </span>
+  );
+}
 
 async function getAccessToken(): Promise<string | null> {
   const {
@@ -173,6 +219,30 @@ export function FornecedorMercadoLivreIntegrationPanel() {
                     Acesso válido até {new Date(status.access_token_expires_at).toLocaleString("pt-BR")} — renova
                     sozinho.
                   </p>
+                ) : null}
+                {status?.last_sync_status ? (
+                  <div className="mt-2 flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <SyncStatusBadge status={status.last_sync_status} />
+                      {status.last_sync_at ? (
+                        <span className="text-xs text-[var(--muted)]">
+                          Último sync: {new Date(status.last_sync_at).toLocaleString("pt-BR")}
+                        </span>
+                      ) : null}
+                    </div>
+                    {status.last_sync_status !== "ok" && status.last_sync_error ? (
+                      <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "text-xs")}>{status.last_sync_error}</p>
+                    ) : null}
+                    {status.last_sync_summary ? (
+                      <p className="text-xs text-[var(--muted)]">
+                        {status.last_sync_summary.updated ?? 0} SKU(s) atualizado(s)
+                        {status.last_sync_summary.missing_ml
+                          ? ` · ${status.last_sync_summary.missing_ml} sem SKU correspondente no ML`
+                          : ""}
+                        {status.last_sync_summary.errors ? ` · ${status.last_sync_summary.errors} erro(s)` : ""}
+                      </p>
+                    ) : null}
+                  </div>
                 ) : null}
                 <div className="mt-3 flex gap-2">
                   <a

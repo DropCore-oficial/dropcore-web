@@ -14,6 +14,10 @@ type IntegracaoRow = {
   ml_user_id: string | null;
   ml_access_token_expires_at: string | null;
   updated_at: string | null;
+  ml_last_sync_at: string | null;
+  ml_last_sync_status: "ok" | "parcial" | "erro" | null;
+  ml_last_sync_error: string | null;
+  ml_last_sync_summary: Record<string, unknown> | null;
 };
 
 export async function GET(req: Request) {
@@ -38,6 +42,10 @@ export async function GET(req: Request) {
     ml_user_id: row?.ml_user_id ?? null,
     access_token_expires_at: row?.ml_access_token_expires_at ?? null,
     updated_at: row?.updated_at ?? null,
+    last_sync_at: row?.ml_last_sync_at ?? null,
+    last_sync_status: row?.ml_last_sync_status ?? null,
+    last_sync_error: row?.ml_last_sync_error ?? null,
+    last_sync_summary: row?.ml_last_sync_summary ?? null,
   });
 }
 
