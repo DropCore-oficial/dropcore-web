@@ -2507,6 +2507,15 @@ fica só no resumo agregado, sem RPC própria pra esse caso. Escreve só quando 
 mostra um ícone de aviso âmbar ao lado do estoque do SKU marcado `sem_sku_no_ml`
 (`web/scripts/add-skus-ml-sync-status.sql`).
 
+**Bug real encontrado e corrigido no mesmo dia**: `fn_fornecedor_sku_estoque_mercadolivre_marcar_sem_correspondencia`
+tinha 65 caracteres — acima do limite de 63 do Postgres (NAMEDATALEN-1), que trunca nome
+de função longo demais **sem erro**. A função existia de verdade só com o nome cortado; o
+app chamava pelo nome completo via PostgREST (que não re-trunca, busca exata), falhava
+"function not found" em silêncio (retorno não checado) — resumo agregado batia "ok" mas
+nenhum SKU era marcado de verdade. Renomeado pra `fn_fornecedor_sku_ml_marcar_sem_correspondencia`
+(47 chars). **Lição**: nome de função nova tem que ficar < 63 chars, conferir antes de criar.
+(`web/scripts/fix-fn-fornecedor-sku-marcar-sem-correspondencia-nome-truncado.sql`).
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
