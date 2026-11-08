@@ -619,6 +619,17 @@ Start deixou de ter cap de 15 pares produto+cor e ganhou o bloco Desempenho
 (receita/custo/margem) que antes era exclusivo do Pro — a única diferença real entre Start
 e Pro hoje é o Ulisses de graça.
 
+**Correção 2026-11-08:** o cap de 15 pares produto+cor acima é sobre `web/lib/planos.ts`
+(ativação de SKU na org, já neutralizado desde 2026-09-30). Existia um **segundo** teto de
+15, paralelo e esquecido na mudança de setembro, em `web/lib/sellerSkuHabilitado.ts`
+(`MAX_CORES_HABILITADAS_STARTER`) — controlava quantas cores o **seller** podia ligar pra
+venda na API (`seller_skus_habilitados`), e ainda bloqueava sellers Start reais em produção
+(ex.: Djulios) com a mensagem "No plano Start você já tem 15 cores habilitadas...". Removido
+nesse commit: `assertPodeRegistrarHabilitacao` não checa mais teto, `habilitados_max` das
+APIs (`/api/seller/catalogo`, `/api/seller/catalogo/habilitados`) sempre devolve `null`. O
+mecanismo de habilitar/desabilitar SKU por cor continua existindo (é seleção do seller do
+que sincroniza com o marketplace, não um limite).
+
 **`mensalidade_valor_travado` é o TOTAL final (2026-10-01):** quando preenchido,
 `gerarMensalidadesCicloOrg.ts` usa esse valor como a mensalidade inteira do seller — o
 add-on (se `gestores_ia_addon_ativo`) **não** soma em cima. Só soma em cima do preço de

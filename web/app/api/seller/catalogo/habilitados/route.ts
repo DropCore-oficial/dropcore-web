@@ -1,6 +1,6 @@
 /**
- * GET — lista sku_ids habilitados + meta (plano, contagem de **cores** produto+cor no Start).
- * POST — body { sku_id } — adiciona habilitação (Start: até 15 cores distintas; Pro: sem limite prático).
+ * GET — lista sku_ids habilitados + meta (plano, contagem de **cores** produto+cor).
+ * POST — body { sku_id } — adiciona habilitação (sem limite de cores, qualquer plano).
  * DELETE — ?sku_id= — remove habilitação.
  */
 import { NextResponse } from "next/server";
@@ -9,14 +9,11 @@ import { createClient } from "@supabase/supabase-js";
 import {
   assertPodeRegistrarHabilitacao,
   countHabilitadosQueContamNoLimite,
-  isSellerPlanoPro,
 } from "@/lib/sellerSkuHabilitado";
 import { tryPromoteBloqueadoPedido } from "@/lib/erp/submitSellerErpPedido";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const MAX_STARTER = 15;
 
 /**
  * Busca pontual (indexada por sku_id + status) — não varre a tabela de pedidos inteira.
@@ -94,7 +91,7 @@ export async function GET(req: Request) {
           ok: true,
           sku_ids: [] as string[],
           habilitados_count: 0,
-          habilitados_max: isSellerPlanoPro(seller.plano) ? null : MAX_STARTER,
+          habilitados_max: null,
           plano: seller.plano,
           tabela_ok: false,
         });
@@ -109,7 +106,7 @@ export async function GET(req: Request) {
       ok: true,
       sku_ids,
       habilitados_count: count,
-      habilitados_max: isSellerPlanoPro(seller.plano) ? null : MAX_STARTER,
+      habilitados_max: null,
       plano: seller.plano,
       tabela_ok: true,
     });

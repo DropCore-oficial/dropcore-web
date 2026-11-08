@@ -20,8 +20,6 @@ import {
 } from "@/lib/semanticPremium";
 import {
   MSG_SKU_NAO_HABILITADO_PLANO_STARTER,
-  MAX_SKUS_HABILITADOS_STARTER,
-  isSellerPlanoPro,
   paiKeySkuHabilitacao,
 } from "@/lib/sellerSkuHabilitado";
 import { ModalOverlay } from "@/components/ui/ModalOverlay";
@@ -256,11 +254,6 @@ export default function SellerPedidosPage() {
   const [adminChamadoIds, setAdminChamadoIds] = useState<Set<string>>(new Set());
   const [etiquetaModalPedidoId, setEtiquetaModalPedidoId] = useState<string | null>(null);
   const [bloqueioModalPedidoId, setBloqueioModalPedidoId] = useState<string | null>(null);
-  const [planoCapacidade, setPlanoCapacidade] = useState<{
-    plano: string | null;
-    habilitados_count: number;
-    habilitados_max: number | null;
-  } | null>(null);
 
   async function salvarEtiquetaLink(pedidoId: string) {
     const url = (etiquetaLinkInputs[pedidoId] ?? "").trim();
@@ -421,53 +414,12 @@ export default function SellerPedidosPage() {
     setPage(1);
   }, [buscaProdutoAplicada, periodo, customDe, customAte]);
 
-  // Só usado pra decidir o destino do botão "Resolver" no card de pedido bloqueado
-  // por teto do plano Start (produto específico vs. /seller/plano).
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabaseBrowser.auth.getSession();
-        if (!session?.access_token) return;
-        const res = await fetch("/api/seller/catalogo/habilitados", {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-          cache: "no-store",
-        });
-        const json = await res.json().catch(() => ({}));
-        if (!cancelled && res.ok) {
-          setPlanoCapacidade({
-            plano: json.plano ?? null,
-            habilitados_count: typeof json.habilitados_count === "number" ? json.habilitados_count : 0,
-            habilitados_max:
-              json.habilitados_max === null || json.habilitados_max === undefined
-                ? null
-                : Number(json.habilitados_max),
-          });
-        }
-      } catch {
-        // silencioso — só afeta o destino do "Resolver", não bloqueia a tela
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  function bloqueioResolverInfo(p: Pedido): { href: string; limiteAtingido: boolean } {
+  function bloqueioResolverInfo(p: Pedido): { href: string } {
     const porTetoPlano = p.motivo_bloqueio === MSG_SKU_NAO_HABILITADO_PLANO_STARTER;
-    const limiteAtingido =
-      porTetoPlano &&
-      planoCapacidade != null &&
-      !isSellerPlanoPro(planoCapacidade.plano) &&
-      planoCapacidade.habilitados_count >= (planoCapacidade.habilitados_max ?? MAX_SKUS_HABILITADOS_STARTER);
     const href = porTetoPlano
-      ? limiteAtingido
-        ? "/seller/plano"
-        : `/seller/produtos?abrir=${encodeURIComponent(paiKeySkuHabilitacao(p.itens[0]?.sku))}`
+      ? `/seller/produtos?abrir=${encodeURIComponent(paiKeySkuHabilitacao(p.itens[0]?.sku))}`
       : "/seller/produtos";
-    return { href, limiteAtingido };
+    return { href };
   }
 
   useEffect(() => {
@@ -1140,7 +1092,7 @@ export default function SellerPedidosPage() {
       {bloqueioModalPedidoId && (() => {
         const p = pedidos.find((x) => x.id === bloqueioModalPedidoId);
         if (!p) return null;
-        const { href, limiteAtingido } = bloqueioResolverInfo(p);
+        const { href } = bloqueioResolverInfo(p);
         return (
           <ModalOverlay onBackdropClick={() => setBloqueioModalPedidoId(null)} panelClassName="max-w-lg">
             <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
@@ -1164,7 +1116,7 @@ export default function SellerPedidosPage() {
                     "inline-flex items-center justify-center rounded-md border border-current px-3 py-2 text-sm font-semibold",
                   )}
                 >
-                  {limiteAtingido ? "Ver planos" : "Ir para o produto"}
+                  Ir para o produto
                 </Link>
               </div>
             </div>

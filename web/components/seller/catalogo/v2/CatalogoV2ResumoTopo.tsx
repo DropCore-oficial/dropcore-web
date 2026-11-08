@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 type Props = {
   totalProdutos: number;
   skusDisponiveis: number;
-  /** No plano Start: quantidade de cores distintas (produto + cor) com venda na API. */
+  /** Quantidade de cores distintas (produto + cor) com venda na API. */
   skusHabilitados: number;
   skusComPendencia: number;
   habilitadosMax: number | null;

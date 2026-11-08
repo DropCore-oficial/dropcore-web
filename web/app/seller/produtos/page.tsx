@@ -96,8 +96,6 @@ export default function SellerProdutosPage() {
     return row.local_resumido ? `${row.nome_publico} · ${row.local_resumido}` : row.nome_publico;
   }, [fornecedorLigadoId, fornecedoresLista]);
 
-  const planoSellerPro = useMemo(() => String(catalogMeta.plano ?? "").trim().toLowerCase() === "pro", [catalogMeta.plano]);
-
   const habilitarVendaApiBloqueioLigar = useMemo(() => {
     if (!fornecedorLigadoId?.trim() || catalogMeta.sem_armazem_ligado) {
       return "Vincule um fornecedor em «Fornecedores» antes de ligar SKUs na API.";
@@ -670,8 +668,7 @@ export default function SellerProdutosPage() {
               <p className="mt-2 max-w-2xl text-[13px] leading-relaxed">
                 Você pode ligar <strong>Venda na API</strong> aqui mesmo com badge “Com pendência”. Enquanto o{" "}
                 <strong>fornecedor</strong> não completar nome, fotos, custo, estoque, medidas, NCM e descrição (mín. 20 caracteres)
-                no cadastro do armazém, o aviso continua — o seller não edita isso nesta tela. No plano Start: até{" "}
-                <strong>15 cores</strong> (produto + cor) com venda na API; numerações da mesma cor não gastam o limite.
+                no cadastro do armazém, o aviso continua — o seller não edita isso nesta tela.
               </p>
             </details>
           </div>
@@ -717,12 +714,6 @@ export default function SellerProdutosPage() {
                 (nomeArmazemLigado ?? (fornecedorLigadoId ? "—" : "Nenhum armazém vinculado"))
               )}
             </p>
-            {!planoSellerPro && catalogMeta.tabela_ok && (
-              <p className="text-[12px] text-[var(--muted)]">
-                Plano Start: até {catalogMeta.habilitados_max ?? 15} cores na API ·{" "}
-                <span className="tabular-nums font-medium text-[var(--foreground)]">{catalogMeta.habilitados_count}</span> no limite
-              </p>
-            )}
           </div>
         </div>
 

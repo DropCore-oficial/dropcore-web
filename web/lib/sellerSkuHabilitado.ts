@@ -1,7 +1,8 @@
 /**
- * Plano Start: até 15 combinações **produto (grupo) + cor** com ao menos uma variação
- * em `seller_skus_habilitados`. Numerações da mesma cor não aumentam o contador.
- * Plano Pro: sem esse teto. SKUs com prefixo PREFIXO_SKU_SISTEMA não entram no limite.
+ * Seller escolhe quais combinações **produto (grupo) + cor** ficam com venda na API em
+ * `seller_skus_habilitados`. Numerações da mesma cor contam como uma só combinação.
+ * Sem teto por plano desde 2026-09-30 (Start e Pro iguais aqui — ver docs/SCHEMA.md).
+ * SKUs com prefixo PREFIXO_SKU_SISTEMA não entram nessa contagem.
  */
 import { PREFIXO_SKU_SISTEMA } from "@/lib/planos";
 import {
@@ -10,21 +11,16 @@ import {
 } from "@/lib/sellerSkuReadiness";
 
 export const MSG_SKU_NAO_HABILITADO_PLANO_STARTER =
-  "Esta variação não está habilitada no seu plano; ative a cor no catálogo (até 15 produto+cor no Start). Ou faça upgrade para Pro.";
+  "Esta variação não está habilitada; ative a cor no catálogo.";
 
 export const MSG_STARTER_PEDIDO_SEM_SKU =
   "No plano Start é obrigatório vincular o pedido a variações do catálogo habilitado. Ou faça upgrade para o plano Pro.";
-
-const MAX_CORES_HABILITADAS_STARTER = 15;
-
-/** Legado / APIs: mesmo valor numérico do teto Start. */
-export const MAX_SKUS_HABILITADOS_STARTER = MAX_CORES_HABILITADAS_STARTER;
 
 export function isSellerPlanoPro(plano: string | null | undefined): boolean {
   return String(plano ?? "").trim().toLowerCase() === "pro";
 }
 
-/** Se false, o SKU não conta no limite e não exige linha em seller_skus_habilitados para vender (plano Start). */
+/** Se false, o SKU não entra na contagem e não exige linha em seller_skus_habilitados para vender (plano Start). */
 export function skuContaLimiteHabilitacaoSeller(codigoSku: string | null | undefined): boolean {
   const s = String(codigoSku ?? "").trim().toUpperCase();
   return !s.startsWith(PREFIXO_SKU_SISTEMA.toUpperCase());
@@ -37,8 +33,9 @@ export function paiKeySkuHabilitacao(sku: string | null | undefined): string {
 }
 
 /**
- * Identificador único para o teto Start: um produto (grupo) + uma cor.
- * Só aplica quando o SKU entra no limite (`skuContaLimiteHabilitacaoSeller`).
+ * Identificador único de combinação produto (grupo) + cor, usado pra contar quantas
+ * cores o seller já ligou na API. Só aplica quando o SKU entra na contagem
+ * (`skuContaLimiteHabilitacaoSeller`).
  */
 export function corHabilitacaoKey(sku: string | null | undefined, cor: string | null | undefined): string | null {
   if (!skuContaLimiteHabilitacaoSeller(sku)) return null;
@@ -214,42 +211,6 @@ export async function assertPodeRegistrarHabilitacao(
       ok: false,
       error: "Este SKU de sistema não precisa ser habilitado na lista; já pode ser usado nas vendas no plano Start.",
       status: 400,
-    };
-  }
-
-  if (isSellerPlanoPro(params.sellerPlano)) return { ok: true };
-
-  const novaChave = corHabilitacaoKey(skuRow.sku, skuRow.cor);
-  if (!novaChave) {
-    return { ok: true };
-  }
-
-  const { data: habData, error: habErr } = await supabase
-    .from("seller_skus_habilitados")
-    .select("sku_id, skus(sku, cor)")
-    .eq("seller_id", params.sellerId);
-
-  if (habErr) {
-    const msg = String(habErr.message ?? "");
-    if (msg.includes("does not exist") || habErr.code === "42P01") {
-      return {
-        ok: false,
-        error: "Tabela seller_skus_habilitados inexistente. Execute o script create-seller-skus-habilitados.sql no Supabase.",
-        status: 503,
-      };
-    }
-    return { ok: false, error: msg };
-  }
-
-  const chavesExistentes = collectCorKeysFromHabilitadosRows((habData ?? []) as HabilitadoJoinRow[]);
-  if (chavesExistentes.has(novaChave)) {
-    return { ok: true };
-  }
-  if (chavesExistentes.size >= MAX_CORES_HABILITADAS_STARTER) {
-    return {
-      ok: false,
-      error: `No plano Start você já tem ${MAX_CORES_HABILITADAS_STARTER} cores habilitadas (produto + cor). Desligue uma cor no catálogo ou faça upgrade para Pro.`,
-      status: 403,
     };
   }
 

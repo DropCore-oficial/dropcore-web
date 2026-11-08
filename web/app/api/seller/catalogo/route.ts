@@ -9,7 +9,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createClient } from "@supabase/supabase-js";
-import { countHabilitadosQueContamNoLimite, isSellerPlanoPro } from "@/lib/sellerSkuHabilitado";
+import { countHabilitadosQueContamNoLimite } from "@/lib/sellerSkuHabilitado";
 import { pipelineDetalhesCatalogoEspelho, type SkuCatalogoDetalhesRow } from "@/lib/catalogoSkusDetalhesEspelho";
 import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
 import { loadSellerFornecedoresList, loadSellerFornecedorVinculoMeta } from "@/lib/sellerFornecedoresList";
@@ -91,7 +91,7 @@ export async function GET(req: Request) {
         sem_armazem_ligado: true,
         seller_plano: sellerPlano,
         habilitados_count,
-        habilitados_max: isSellerPlanoPro(sellerPlano) ? null : 15,
+        habilitados_max: null,
         habilitados_tabela_ok,
         ...(fornecedoresMeta && {
           fornecedores: fornecedoresMeta.fornecedores,
@@ -152,7 +152,7 @@ export async function GET(req: Request) {
       sem_armazem_ligado: false,
       seller_plano: sellerPlano,
       habilitados_count,
-      habilitados_max: isSellerPlanoPro(sellerPlano) ? null : 15,
+      habilitados_max: null,
       habilitados_tabela_ok,
       ...(fornecedoresMeta && {
         fornecedores: fornecedoresMeta.fornecedores,
