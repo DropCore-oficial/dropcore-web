@@ -12,6 +12,7 @@ import {
 } from "@/lib/sellerOlistSyncEstoque";
 import { grupoKeyFromSkuString } from "@/lib/sellerOlistSyncPrecosOnCustoChange";
 import { syncMercadoLivreEstoqueSkusSeller } from "@/lib/sellerMercadoLivreSyncEstoque";
+import { pushEstoqueToFornecedorMercadoLivre } from "@/lib/fornecedorMercadoLivreSyncEstoquePush";
 
 export type SyncOlistEstoqueOutboundOpts = {
   orgId: string;
@@ -145,17 +146,28 @@ async function loadSkusGrupoFornecedorForOlistSync(opts: {
 /** Após venda ou reposição — empurra saldo DropCore para Olist do armazém e de todos os sellers. */
 export async function syncOlistEstoqueFornecedorSkus(
   opts: SyncOlistEstoqueOutboundOpts & { skuCodes: string[] },
-): Promise<{ sellers: number; ok: number; fornecedorOk: number }> {
+): Promise<{ sellers: number; ok: number; fornecedorOk: number; fornecedorMlOk: number }> {
   const skuCodes = opts.skuCodes.map((s) => s.trim().toUpperCase()).filter(Boolean);
-  if (skuCodes.length === 0) return { sellers: 0, ok: 0, fornecedorOk: 0 };
+  if (skuCodes.length === 0) return { sellers: 0, ok: 0, fornecedorOk: 0, fornecedorMlOk: 0 };
 
   let fornecedorOk = 0;
+  let fornecedorMlOk = 0;
   if (!opts.skipFornecedorPush) {
     fornecedorOk = await pushEstoqueToFornecedorOlist({
       orgId: opts.orgId,
       fornecedorId: opts.fornecedorId,
       skuCodes,
     });
+    try {
+      const mlResult = await pushEstoqueToFornecedorMercadoLivre({
+        orgId: opts.orgId,
+        fornecedorId: opts.fornecedorId,
+        skuCodes,
+      });
+      fornecedorMlOk = mlResult.itens_atualizados;
+    } catch (e: unknown) {
+      console.error("[syncOlistEstoqueFornecedorSkus] pushEstoqueToFornecedorMercadoLivre", opts.fornecedorId, e);
+    }
   }
 
   const { data: sellers, error } = await supabaseAdmin
@@ -166,7 +178,7 @@ export async function syncOlistEstoqueFornecedorSkus(
 
   if (error) {
     console.error("[syncOlistEstoqueFornecedorSkus] sellers:", error.message);
-    return { sellers: 0, ok: 0, fornecedorOk };
+    return { sellers: 0, ok: 0, fornecedorOk, fornecedorMlOk };
   }
 
   let okTotal = 0;
@@ -206,16 +218,17 @@ export async function syncOlistEstoqueFornecedorSkus(
     }
   }
 
-  return { sellers: synced, ok: okTotal, fornecedorOk };
+  return { sellers: synced, ok: okTotal, fornecedorOk, fornecedorMlOk };
 }
 
 export async function syncOlistEstoqueFornecedorGrupo(
   opts: SyncOlistEstoqueOutboundOpts & { grupoKey: string },
-): Promise<{ sellers: number; ok: number; fornecedorOk: number }> {
+): Promise<{ sellers: number; ok: number; fornecedorOk: number; fornecedorMlOk: number }> {
   const grupoKey = opts.grupoKey.trim().toUpperCase();
-  if (!grupoKey) return { sellers: 0, ok: 0, fornecedorOk: 0 };
+  if (!grupoKey) return { sellers: 0, ok: 0, fornecedorOk: 0, fornecedorMlOk: 0 };
 
   let fornecedorOk = 0;
+  let fornecedorMlOk = 0;
   if (!opts.skipFornecedorPush) {
     const loaded = await loadSkusGrupoFornecedorForOlistSync({
       orgId: opts.orgId,
@@ -229,6 +242,17 @@ export async function syncOlistEstoqueFornecedorGrupo(
         skuCodes: loaded.skuCodes,
         saldoOverrides: loaded.saldoOverrides,
       });
+      try {
+        const mlResult = await pushEstoqueToFornecedorMercadoLivre({
+          orgId: opts.orgId,
+          fornecedorId: opts.fornecedorId,
+          skuCodes: loaded.skuCodes,
+          saldoOverrides: loaded.saldoOverrides,
+        });
+        fornecedorMlOk = mlResult.itens_atualizados;
+      } catch (e: unknown) {
+        console.error("[syncOlistEstoqueFornecedorGrupo] pushEstoqueToFornecedorMercadoLivre", opts.fornecedorId, e);
+      }
     }
   }
 
@@ -240,7 +264,7 @@ export async function syncOlistEstoqueFornecedorGrupo(
 
   if (error) {
     console.error("[syncOlistEstoqueFornecedorGrupo] sellers:", error.message);
-    return { sellers: 0, ok: 0, fornecedorOk };
+    return { sellers: 0, ok: 0, fornecedorOk, fornecedorMlOk };
   }
 
   let okTotal = 0;
@@ -291,7 +315,7 @@ export async function syncOlistEstoqueFornecedorGrupo(
     }
   }
 
-  return { sellers: synced, ok: okTotal, fornecedorOk };
+  return { sellers: synced, ok: okTotal, fornecedorOk, fornecedorMlOk };
 }
 
 export { grupoKeyFromSkuString };

@@ -63,19 +63,36 @@ export type PullFornecedorEstoqueMercadoLivreResult = FornecedorMercadoLivreEsto
 
 /** Extrai SELLER_SKU + available_quantity de um item — nível item e por variação. Mesma
  * lógica de extração de SKU de `mercadoLivreSkuSync.ts` (`extrairSkusDoItem`), com o saldo
- * lido junto na mesma passada (não precisa de 2ª chamada à API). */
-function extrairSkusEEstoqueDoItem(item: MercadoLivreItemDetail): Array<{ sku: string; saldo: number }> {
-  const encontrados: Array<{ sku: string; saldo: number }> = [];
+ * lido junto na mesma passada (não precisa de 2ª chamada à API). Também devolve
+ * item_id/variation_id — usado pra popular `fornecedor_mercadolivre_sku_map`, que permite
+ * empurrar baixa pontual pro anúncio quando o seller vende (ver
+ * pushEstoqueToFornecedorMercadoLivre em fornecedorMercadoLivreSyncEstoquePush.ts). */
+function extrairSkusEEstoqueDoItem(
+  item: MercadoLivreItemDetail
+): Array<{ sku: string; saldo: number; mlItemId: string; mlVariationId: number }> {
+  const encontrados: Array<{ sku: string; saldo: number; mlItemId: string; mlVariationId: number }> = [];
 
   const topSku = (item.attributes ?? []).find((a) => a.id === "SELLER_SKU")?.value_name;
-  if (topSku) encontrados.push({ sku: topSku.trim().toUpperCase(), saldo: Math.max(0, Math.floor(item.available_quantity ?? 0)) });
+  if (topSku) {
+    encontrados.push({
+      sku: topSku.trim().toUpperCase(),
+      saldo: Math.max(0, Math.floor(item.available_quantity ?? 0)),
+      mlItemId: item.id,
+      mlVariationId: 0,
+    });
+  }
 
   for (const v of item.variations ?? []) {
     const vSku =
       (v.attributes ?? []).find((a) => a.id === "SELLER_SKU")?.value_name ??
       (v.attribute_combinations ?? []).find((a) => a.id === "SELLER_SKU")?.value_name;
     if (vSku) {
-      encontrados.push({ sku: vSku.trim().toUpperCase(), saldo: Math.max(0, Math.floor(v.available_quantity ?? 0)) });
+      encontrados.push({
+        sku: vSku.trim().toUpperCase(),
+        saldo: Math.max(0, Math.floor(v.available_quantity ?? 0)),
+        mlItemId: item.id,
+        mlVariationId: v.id,
+      });
     }
   }
   return encontrados;
@@ -111,15 +128,29 @@ export async function pullFornecedorEstoqueFromMercadoLivre(opts: {
   }
   summary.itens_escaneados = itens.length;
 
-  // Map<sku, saldo> usando MIN quando o mesmo sku aparece em >1 item/variação.
+  // Map<sku, saldo> usando MIN quando o mesmo sku aparece em >1 item/variação. Em paralelo,
+  // guarda cada (sku, item_id, variation_id) encontrado pra repopular o mapa de anúncios —
+  // é o que permite empurrar baixa pontual pro ML quando o seller vende (ver
+  // fn_fornecedor_mercadolivre_sku_map_replace_all).
   const mapaSaldo = new Map<string, number>();
+  const mapaAnuncios: Array<{ sku: string; ml_item_id: string; ml_variation_id: number }> = [];
   for (const item of itens) {
-    for (const { sku, saldo } of extrairSkusEEstoqueDoItem(item)) {
+    for (const { sku, saldo, mlItemId, mlVariationId } of extrairSkusEEstoqueDoItem(item)) {
       const atual = mapaSaldo.get(sku);
       mapaSaldo.set(sku, atual == null ? saldo : Math.min(atual, saldo));
+      mapaAnuncios.push({ sku, ml_item_id: mlItemId, ml_variation_id: mlVariationId });
     }
   }
   summary.skus_candidatos = mapaSaldo.size;
+
+  try {
+    await supabaseAdmin.rpc("fn_fornecedor_mercadolivre_sku_map_replace_all", {
+      p_fornecedor_id: opts.fornecedorId,
+      p_rows: mapaAnuncios,
+    });
+  } catch (e) {
+    console.error("[fornecedor-mercadolivre-sync] erro ao repopular sku_map:", e);
+  }
 
   const { data: rows, error } = await supabaseAdmin
     .from("skus")

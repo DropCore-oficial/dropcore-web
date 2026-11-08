@@ -2534,6 +2534,49 @@ ciclo do cron), depois volta pra "Sincronizado em ..." simples — não fica mos
 transição velha pra sempre.
 (`web/scripts/add-skus-ml-estoque-anterior.sql`).
 
+**`fornecedor_mercadolivre_sku_map` — push de estoque de volta pro ML do fornecedor na venda do seller (2026-11-08)**
+
+Gap encontrado: tudo acima é só LEITURA (ML do fornecedor → DropCore). Quando o seller
+vendia um SKU no DropCore, a baixa era empurrada pro ML do seller
+(`sellerMercadoLivreSyncEstoque.ts`) e pra Olist do fornecedor, mas nunca pro próprio
+anúncio ML do fornecedor — se ele vende o mesmo SKU direto lá também, ficava uma janela
+real de overselling até o próximo pull (até 5min, ou o próprio webhook do fornecedor).
+
+Faltava o vínculo persistido `item_id (ML) ↔ sku` do lado do fornecedor pra poder escrever
+de forma pontual — o pull só resolvia isso em memória a cada rodada e descartava.
+
+Tabela nova `fornecedor_mercadolivre_sku_map` (mesma forma de `seller_mercadolivre_sku_map`:
+unique `(fornecedor_id, ml_item_id, ml_variation_id)`, não por sku — mesmo sku pode estar em
+>1 anúncio republicado). Populada por **replace completo** a cada rodada do pull
+(`fn_fornecedor_mercadolivre_sku_map_replace_all`, chamada de dentro de
+`pullFornecedorEstoqueFromMercadoLivre` — o pull já teria que re-escanear 100% dos anúncios
+de qualquer forma pra calcular o saldo, então não é custo extra de API, só passou a guardar
+o que antes descartava). RPC de leitura `fn_fornecedor_mercadolivre_sku_map_get` usada pelo
+push. RLS deny-all + grant só `service_role` (regra 9).
+
+Push em `web/lib/fornecedorMercadoLivreSyncEstoquePush.ts`
+(`pushEstoqueToFornecedorMercadoLivre`) — espelha `sellerMercadoLivreSyncEstoque.ts`: lê o
+mapa, calcula saldo com `estoqueDisponivelParaVenda` (mesma função usada pro Olist/ML do
+seller), agrupa por `item_id` (mesmo sku em N anúncios → N PUTs com o MESMO saldo final, é o
+mesmo estoque físico) e chama `mlAtualizarEstoque` **sequencial** com pausa de 220ms entre
+chamadas (não dispara tudo de uma vez pro ML, erro em 1 anúncio não trava os demais). Sem
+resync-on-miss (diferente do seller): o mapa já é refeito a cada 5min/webhook pelo próprio
+pull, então SKU sem entrada é tratado como "sem correspondência agora" e se autocorrige no
+próximo ciclo — não vale a pena reescanear o catálogo inteiro dentro do caminho de venda só
+por isso.
+
+Plugado em `syncOlistEstoqueFornecedorSkus`/`syncOlistEstoqueFornecedorGrupo`
+(`web/lib/sellerOlistSyncEstoqueOnChange.ts`), mesmo ponto que já empurra pro Olist do
+fornecedor e pro ML do seller, gated pelo mesmo `skipFornecedorPush` (evita push-back
+imediato quando a mudança já veio do próprio pull do ML do fornecedor).
+
+**Falha de push fica só em log (`console.error`), sem fila de retry** — diferente do push
+pro ML do seller, que tem `ml_sync_falhas`/`ml_sync_log` com `seller_id NOT NULL` (não dava
+pra reusar sem alterar constraint de produção). Risco aceito: se o push falhar, o próximo
+pull (até 5min) pode reverter `estoque_atual` pro valor antigo do ML até uma próxima venda
+tentar de novo — mesma janela de staleness que já existia antes dessa feature, não é
+regressão.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
