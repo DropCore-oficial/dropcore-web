@@ -8,11 +8,6 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { executeBlockSale } from "@/lib/blockSale";
 import { isInadimplente } from "@/lib/inadimplencia";
-import {
-  assertSellerPodeVenderSkus,
-  isSellerPlanoPro,
-  MSG_STARTER_PEDIDO_SEM_SKU,
-} from "@/lib/sellerSkuHabilitado";
 import { createOrderCore } from "@/lib/order/createOrderCore";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
 import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
@@ -32,7 +27,6 @@ const CORE_BLOCKING_ERRORS = new Set([
   "FORNECEDOR_INADIMPLENTE",
   "SKU_NOT_FOUND",
   "SKU_INACTIVE",
-  "SKU_NOT_ENABLED_STARTER",
   "ESTOQUE_INSUFICIENTE",
   "CUSTO_INVALIDO",
   "LIMITE_PLANO_EXCEDIDO",
@@ -458,14 +452,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const sellerPlano = (sellerRow as { plano?: string | null }).plano;
-    if (!isSellerPlanoPro(sellerPlano)) {
-      if (!sku_id) {
-        return NextResponse.json(
-          { error: MSG_STARTER_PEDIDO_SEM_SKU, code: "STARTER_SKU_OBRIGATORIO" },
-          { status: 400 }
-        );
-      }
+    if (sku_id) {
       const { data: skuCheck, error: skuErr } = await supabaseAdmin
         .from("skus")
         .select("id, sku, org_id, fornecedor_id, status")
@@ -480,17 +467,6 @@ export async function POST(req: Request) {
       }
       if (String(skuCheck.status ?? "").toLowerCase() !== "ativo") {
         return NextResponse.json({ error: "SKU inativo — não pode ser usado no pedido." }, { status: 400 });
-      }
-      const vendaOk = await assertSellerPodeVenderSkus(supabaseAdmin, {
-        sellerId: seller_id,
-        sellerPlano,
-        skus: [{ id: skuCheck.id, sku: String(skuCheck.sku ?? "") }],
-      });
-      if (!vendaOk.ok) {
-        return NextResponse.json(
-          { error: vendaOk.error, code: "SKU_NAO_HABILITADO_PLANO" },
-          { status: 403 }
-        );
       }
     }
 

@@ -20,7 +20,6 @@ import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
 import { resolveLedgerIdForPedido } from "@/lib/resolveLedgerForPedido";
 import { fireErpEstoqueWebhook } from "@/lib/erpEstoqueOutbound";
 import { proximoCicloRepasse } from "@/lib/cicloRepasse";
-import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
 import { resolveTaxaDropcoreUnit } from "@/lib/order/resolveTaxaDropcore";
 import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
@@ -455,18 +454,6 @@ export async function POST(req: Request) {
     const valor_total = valor_fornecedor + valor_dropcore;
     if (valor_total <= 0) {
       return NextResponse.json({ error: "Valor total do pedido deve ser positivo." }, { status: 400 });
-    }
-
-    const vendaSkuCheck = await assertSellerPodeVenderSkus(supabaseAdmin, {
-      sellerId: seller.id,
-      sellerPlano: sellerRow.plano,
-      skus: skuRows.map((r) => ({ id: r.id, sku: r.sku })),
-    });
-    if (!vendaSkuCheck.ok) {
-      return NextResponse.json(
-        { error: vendaSkuCheck.error, code: "SKU_NAO_HABILITADO_PLANO" },
-        { status: 403 }
-      );
     }
 
     // Limite plano Starter

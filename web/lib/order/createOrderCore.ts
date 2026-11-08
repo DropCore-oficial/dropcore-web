@@ -1,6 +1,5 @@
 import { isInadimplente } from "@/lib/inadimplencia";
 import { resolveTaxaDropcoreUnit } from "@/lib/order/resolveTaxaDropcore";
-import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { skuBaseSemSufixoMarketplace } from "@/lib/skuMarketplaceSuffix";
 
@@ -100,7 +99,6 @@ export const CREATE_ORDER_CORE_ERROR = {
   FORNECEDOR_INADIMPLENTE: "FORNECEDOR_INADIMPLENTE",
   SKU_NOT_FOUND: "SKU_NOT_FOUND",
   SKU_INACTIVE: "SKU_INACTIVE",
-  SKU_NOT_ENABLED_STARTER: "SKU_NOT_ENABLED_STARTER",
   ESTOQUE_INSUFICIENTE: "ESTOQUE_INSUFICIENTE",
   CUSTO_INVALIDO: "CUSTO_INVALIDO",
   LIMITE_PLANO_EXCEDIDO: "LIMITE_PLANO_EXCEDIDO",
@@ -703,30 +701,6 @@ export async function createOrderCore(
     validacoesPassadas.push("custos_ok");
     validacoesPassadas.push("valores_calculados");
     validacoesPassadas.push("regra_custo_dropcore_ok");
-
-    const skusParaVenda =
-      contextoResolvido.skus_resolvidos?.map((r) => ({
-        id: r.sku_id,
-        sku: String(r.sku ?? ""),
-      })) ?? [];
-    const vendaSkuCheck = await assertSellerPodeVenderSkus(supabaseAdmin, {
-      sellerId: seller.id,
-      sellerPlano: seller.plano,
-      skus: skusParaVenda,
-    });
-    if (!vendaSkuCheck.ok) {
-      const msg = vendaSkuCheck.error;
-      const infra =
-        msg.includes("incompleta") ||
-        msg.includes("inexistente") ||
-        msg.includes("Tabela seller_skus_habilitados");
-      return failWithObs(
-        infra ? CREATE_ORDER_CORE_ERROR.INTERNAL_ERROR : CREATE_ORDER_CORE_ERROR.SKU_NOT_ENABLED_STARTER,
-        msg,
-        infra ? 500 : 403
-      );
-    }
-    validacoesPassadas.push("sku_habilitado_starter_ok");
 
     const { data: orgRow, error: orgErr } = await supabaseAdmin
       .from("orgs")

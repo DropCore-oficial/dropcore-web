@@ -263,7 +263,7 @@ confere `batches.retrieve(batch_id).processing_status === 'ended'`, busca result
 
 Código (`web/lib/ai/`):
 - `gestorPrompts.ts` — `PROMPT_RISCO_RUPTURA_FULFILLMENT` (reformulado do "Estoque & Fulfillment" original do briefing: seller não repõe estoque, então a ação nunca é "compre mais", sempre algo que ele controla — pausar/despriorizar anúncio, redirecionar ads) + `SCHEMA_RISCO_RUPTURA_FULFILLMENT` (JSON Schema do output estruturado).
-- `gestorRupturaFulfillmentDados.ts` — busca real: `skus.estoque_atual`/`estoque_minimo` (via `seller_skus_habilitados`) cruzado com venda dos últimos 30 dias de `pedido_itens` (fonte de verdade de item vendido — não `pedidos.sku_id`, que é campo legado de single-item), excluindo pedido `cancelado`.
+- `gestorRupturaFulfillmentDados.ts` — busca real: `skus.estoque_atual`/`estoque_minimo` (todo SKU ativo do fornecedor vinculado ao seller, ver seção "Fim do toggle `seller_skus_habilitados`" abaixo) cruzado com venda dos últimos 30 dias de `pedido_itens` (fonte de verdade de item vendido — não `pedidos.sku_id`, que é campo legado de single-item), excluindo pedido `cancelado`.
 - `gestorBatchSubmit.ts` / `gestorBatchResultado.ts` — dois jobs separados porque a Anthropic Batch API é assíncrona (até 24h): um monta e submete o batch (1 request por seller `Pro`/`Elite` elegível, `isPro()` de `@/lib/planos`), outro confere `processing_status === "ended"` e grava resultado real em `seller_ai_runs` (ou erro).
 - Rotas: `/api/cron/gestores-ia-submeter` e `/api/cron/gestores-ia-resultado`, mesmo padrão de auth (`CRON_SECRET`) dos outros crons.
 - **`@anthropic-ai/sdk` instalado** (`^0.117.1`) — usado direto, **não** via Vercel AI Gateway/pacote `ai`: a Batch API não é exposta pelo Gateway (que só cobre chamada síncrona/streaming), então essa parte específica precisa do SDK oficial da Anthropic com a chave configurada direto.
@@ -629,6 +629,34 @@ nesse commit: `assertPodeRegistrarHabilitacao` não checa mais teto, `habilitado
 APIs (`/api/seller/catalogo`, `/api/seller/catalogo/habilitados`) sempre devolve `null`. O
 mecanismo de habilitar/desabilitar SKU por cor continua existindo (é seleção do seller do
 que sincroniza com o marketplace, não um limite).
+
+**Fim do toggle `seller_skus_habilitados` (2026-11-08, mesmo dia, correção seguinte):**
+decisão do Sr Stark — tirar de vez a exigência de habilitar SKU manualmente pra vender,
+não só o teto. Toda a trava foi removida:
+- `web/lib/sellerSkuHabilitado.ts` **apagado** (`assertSellerPodeVenderSkus`,
+  `assertPodeRegistrarHabilitacao`, `isSellerPlanoPro` como gate). `web/app/api/seller/
+  catalogo/habilitados/route.ts` **apagado** (POST/DELETE de habilitação não existem mais).
+- Pedido não bloqueia mais por "SKU não habilitado" em nenhum dos 5 pontos que checavam
+  isso: `createOrderCore.ts`, `/api/org/pedidos`, `/api/org/financial/block-sale`,
+  `/api/erp/pedidos`, `submitSellerErpPedido.ts` (2 pontos, criação + reprocessamento de
+  bloqueado). Motivo: quando o pedido chega, a venda **já aconteceu** no Mercado Livre —
+  essa trave nunca impediu venda nenhuma, só prendia o pedido dentro do DropCore depois do
+  dinheiro já estar em jogo.
+- As 3 fontes de dado que liam `seller_skus_habilitados` pra saber "o que o seller vende"
+  passaram a ler direto `skus` (status `ativo`, filtrado por `org_id`+`fornecedor_id` do
+  seller) — todo SKU ativo do fornecedor conta, sem precisar de opt-in:
+  `gestorAnunciosSeoDados.buscarSkusSemAnuncio`, `gestorRupturaFulfillmentDados.
+  buscarDadosRupturaFulfillment`, `sellerCatalogOlistLoad.loadCatalogSkusForOlistExport`
+  (e `/api/seller/catalogo` passou a computar `habilitados_count` como contagem de cores
+  distintas entre os SKUs ativos, não mais via join na tabela).
+- UI: `CatalogoV2VariacaoRow.tsx` perdeu o switch "Venda na API" (virou pílula estática
+  "Ativo"/"—"); `SellerListaGrupoArmazem.tsx` perdeu os itens de menu "Habilitar válidas" /
+  "Desabilitar todas"; `seller/produtos/page.tsx` perdeu todo o fluxo de toggle (POST/DELETE,
+  estado de loading, hint "sem estoque pra ligar").
+- `paiKeySkuHabilitacao` virou `paiKeyDoSku` em `web/lib/skuPaiKey.ts` (só a função de
+  agrupar SKU por "pai" sobrou — usada pelo deep-link `/seller/pedidos` → `/seller/produtos`).
+- A tabela `seller_skus_habilitados` foi dropada (`web/scripts/drop-seller-skus-habilitados.sql`,
+  1.013 linhas, sem FK de nenhuma outra tabela apontando pra ela — confirmado antes de rodar).
 
 **`mensalidade_valor_travado` é o TOTAL final (2026-10-01):** quando preenchido,
 `gerarMensalidadesCicloOrg.ts` usa esse valor como a mensalidade inteira do seller — o

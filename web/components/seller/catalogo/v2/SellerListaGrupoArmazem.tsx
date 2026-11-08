@@ -18,11 +18,7 @@ import {
   type GrupoCatalogoV2,
   type LinhaCatalogoV2,
 } from "./aggregates";
-import {
-  CatalogoV2CorGrupoApiToggle,
-  CatalogoV2VariacaoApiToggle,
-  HintSemEstoqueLigarBanner,
-} from "./CatalogoV2VariacaoRow";
+import { CatalogoV2CorGrupoApiToggle, CatalogoV2VariacaoApiToggle } from "./CatalogoV2VariacaoRow";
 import { catalogoV2UrlImagem } from "./catalogoV2Imagem";
 import { CatalogoV2FotoPreview } from "./CatalogoV2FotoPreview";
 import { sellerGrupoToProdutoResumoListaGrupoProps } from "./mapSellerGrupoToProdutoResumoLista";
@@ -36,16 +32,10 @@ const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" 
 const BULK_MENU_WIDTH_PX = 216;
 
 function ProdutoAcoesMenu({
-  bulkLoading,
-  onEnableValidas,
-  onDisableAll,
   onExportOlist,
   exportandoOlist = false,
   exportOlistDisabled = false,
 }: {
-  bulkLoading: boolean;
-  onEnableValidas: () => void;
-  onDisableAll: () => void;
   onExportOlist?: () => void;
   exportandoOlist?: boolean;
   exportOlistDisabled?: boolean;
@@ -105,46 +95,19 @@ function ProdutoAcoesMenu({
             onClick={(e) => e.stopPropagation()}
           >
             {onExportOlist ? (
-              <>
-                <button
-                  type="button"
-                  role="menuitem"
-                  disabled={exportOlistDisabled || exportandoOlist}
-                  onClick={() => {
-                    onExportOlist();
-                    setOpen(false);
-                  }}
-                  className="flex w-full whitespace-nowrap px-3.5 py-2.5 text-left text-[13px] text-[var(--foreground)] hover:bg-[var(--muted)]/12 disabled:opacity-50"
-                >
-                  {exportandoOlist ? "Exportando…" : "Exportar para Olist"}
-                </button>
-                <div className="my-1 border-t border-[var(--card-border)]" role="separator" />
-              </>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={exportOlistDisabled || exportandoOlist}
+                onClick={() => {
+                  onExportOlist();
+                  setOpen(false);
+                }}
+                className="flex w-full whitespace-nowrap px-3.5 py-2.5 text-left text-[13px] text-[var(--foreground)] hover:bg-[var(--muted)]/12 disabled:opacity-50"
+              >
+                {exportandoOlist ? "Exportando…" : "Exportar para Olist"}
+              </button>
             ) : null}
-            <button
-              type="button"
-              role="menuitem"
-              disabled={bulkLoading}
-              onClick={() => {
-                onEnableValidas();
-                setOpen(false);
-              }}
-              className="flex w-full whitespace-nowrap px-3.5 py-2.5 text-left text-[13px] text-[var(--foreground)] hover:bg-[var(--muted)]/12 disabled:opacity-50"
-            >
-              Habilitar válidas
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              disabled={bulkLoading}
-              onClick={() => {
-                onDisableAll();
-                setOpen(false);
-              }}
-              className="flex w-full whitespace-nowrap px-3.5 py-2.5 text-left text-[13px] text-[var(--foreground)] hover:bg-[var(--muted)]/12 disabled:opacity-50"
-            >
-              Desabilitar todas
-            </button>
           </div>,
           document.body
         )
@@ -303,17 +266,6 @@ type Props = {
   setModoListaVariantes: (m: "agrupado-cor" | "sku") => void;
   mostrarFotosVariantes: boolean;
   setMostrarFotosVariantes: (v: boolean | ((p: boolean) => boolean)) => void;
-  bulkLoading: boolean;
-  onBulkEnableValidas: () => void;
-  onBulkDisableAll: () => void;
-  toggleLoadingId: string | null;
-  onToggleOne: (item: SellerCatalogoItem, ativar: boolean) => void;
-  /** `${paiKey}:${corKey}` enquanto API da cor inteira está em curso */
-  bulkCorLoadingKey: string | null;
-  /** Liga/desliga todas as numerações da cor na API (uma ação em lote). */
-  onToggleCorGrupo: (paiKey: string, corKey: string, items: SellerCatalogoItem[]) => void;
-  /** Mensagem quando não dá para ligar na API (ex.: sem armazém gravado). */
-  habilitarVendaApiBloqueioLigar: string | null;
   exportandoOlist?: boolean;
   onExportOlist?: () => void;
   exportOlistDisabled?: boolean;
@@ -328,49 +280,11 @@ export function SellerListaGrupoArmazem({
   setModoListaVariantes,
   mostrarFotosVariantes,
   setMostrarFotosVariantes,
-  bulkLoading,
-  onBulkEnableValidas,
-  onBulkDisableAll,
-  toggleLoadingId,
-  onToggleOne,
-  bulkCorLoadingKey,
-  onToggleCorGrupo,
-  habilitarVendaApiBloqueioLigar,
   exportandoOlist = false,
   onExportOlist,
   exportOlistDisabled = false,
   fornecedorLigadoId = null,
 }: Props) {
-  const [hintSemEstoqueCorKey, setHintSemEstoqueCorKey] = useState<string | null>(null);
-  const [hintSemEstoqueSkuId, setHintSemEstoqueSkuId] = useState<string | null>(null);
-  const hintSemEstoqueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const avisarSemEstoqueCor = useCallback((corKey: string) => {
-    if (hintSemEstoqueTimerRef.current) clearTimeout(hintSemEstoqueTimerRef.current);
-    setHintSemEstoqueSkuId(null);
-    setHintSemEstoqueCorKey(corKey);
-    hintSemEstoqueTimerRef.current = setTimeout(() => {
-      setHintSemEstoqueCorKey(null);
-      hintSemEstoqueTimerRef.current = null;
-    }, 5500);
-  }, []);
-
-  const avisarSemEstoqueSku = useCallback((skuId: string) => {
-    if (hintSemEstoqueTimerRef.current) clearTimeout(hintSemEstoqueTimerRef.current);
-    setHintSemEstoqueCorKey(null);
-    setHintSemEstoqueSkuId(skuId);
-    hintSemEstoqueTimerRef.current = setTimeout(() => {
-      setHintSemEstoqueSkuId(null);
-      hintSemEstoqueTimerRef.current = null;
-    }, 5500);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (hintSemEstoqueTimerRef.current) clearTimeout(hintSemEstoqueTimerRef.current);
-    };
-  }, []);
-
   const representante = grupo.pai ?? grupo.filhos[0];
   const linhas = linhasGrupo(grupo.pai, grupo.filhos).filter((it) => !isSemente(it) && !isGrupoOculto(it.sku));
   const todosParaLink = linhasGrupo(grupo.pai, grupo.filhos);
@@ -512,9 +426,6 @@ export function SellerListaGrupoArmazem({
               </div>
               <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
                 <ProdutoAcoesMenu
-                  bulkLoading={bulkLoading}
-                  onEnableValidas={onBulkEnableValidas}
-                  onDisableAll={onBulkDisableAll}
                   onExportOlist={onExportOlist}
                   exportandoOlist={exportandoOlist}
                   exportOlistDisabled={exportOlistDisabled}
@@ -613,10 +524,6 @@ export function SellerListaGrupoArmazem({
                                   .map((p) => linhaPorId.get(p.id))
                                   .filter((x): x is LinhaCatalogoV2 => x != null)
                               }
-                              busy={bulkCorLoadingKey === `${grupo.paiKey}:${gc.key}`}
-                              onToggleGrupo={() => onToggleCorGrupo(grupo.paiKey, gc.key, gc.itens)}
-                              bloqueioLigarMotivo={habilitarVendaApiBloqueioLigar}
-                              onSemEstoqueAoLigar={() => avisarSemEstoqueCor(gc.key)}
                             />
                             {lfCor ? (
                               <a
@@ -630,7 +537,6 @@ export function SellerListaGrupoArmazem({
                             ) : null}
                           </div>
                         </div>
-                        {hintSemEstoqueCorKey === gc.key ? <HintSemEstoqueLigarBanner /> : null}
                         <div className="flex min-w-0 flex-row items-center justify-between gap-2 rounded-lg bg-[var(--muted)]/8 px-3 py-2 text-xs leading-snug sm:text-sm">
                           <span className="min-w-0 pr-1 text-[var(--foreground)]">
                             <span className="font-normal">Preço </span>
@@ -719,17 +625,8 @@ export function SellerListaGrupoArmazem({
                             <span className="mx-1 text-[var(--muted)]">·</span>
                             <span className="font-normal text-[var(--muted)]">{row.tamanho || "—"}</span>
                           </p>
-                          {ltMob ? (
-                            <CatalogoV2VariacaoApiToggle
-                              linha={ltMob}
-                              onToggleOne={onToggleOne}
-                              busy={toggleLoadingId === row.id}
-                              bloqueioLigarMotivo={habilitarVendaApiBloqueioLigar}
-                              onSemEstoqueAoLigar={() => avisarSemEstoqueSku(row.id)}
-                            />
-                          ) : null}
+                          {ltMob ? <CatalogoV2VariacaoApiToggle linha={ltMob} /> : null}
                         </div>
-                        {hintSemEstoqueSkuId === row.id ? <HintSemEstoqueLigarBanner /> : null}
                       </div>
                       <div className="flex min-w-0 items-start gap-2.5">
                         <CatalogoV2FotoPreview
@@ -801,17 +698,8 @@ export function SellerListaGrupoArmazem({
                         <tr key={row.id} className="hover:bg-[var(--muted)]/8">
                           <td className="px-1 py-1.5 align-top text-center lg:px-2" onClick={(e) => e.stopPropagation()}>
                             {ltDesk ? (
-                              <div className="mx-auto flex w-full max-w-[13.5rem] flex-col items-stretch gap-1.5 py-0.5">
-                                <div className="flex justify-center">
-                                  <CatalogoV2VariacaoApiToggle
-                                    linha={ltDesk}
-                                    onToggleOne={onToggleOne}
-                                    busy={toggleLoadingId === row.id}
-                                    bloqueioLigarMotivo={habilitarVendaApiBloqueioLigar}
-                                    onSemEstoqueAoLigar={() => avisarSemEstoqueSku(row.id)}
-                                  />
-                                </div>
-                                {hintSemEstoqueSkuId === row.id ? <HintSemEstoqueLigarBanner /> : null}
+                              <div className="flex justify-center">
+                                <CatalogoV2VariacaoApiToggle linha={ltDesk} />
                               </div>
                             ) : (
                               <span className="text-[var(--muted)]">—</span>

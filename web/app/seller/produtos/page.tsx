@@ -16,14 +16,11 @@ import {
   isGrupoOcultoSellerCatalogo as isGrupoOculto,
   type SellerCatalogoItem,
 } from "@/components/seller/SellerCatalogoGrupoUi";
-import { paiKeySkuHabilitacao, skuContaLimiteHabilitacaoSeller } from "@/lib/sellerSkuHabilitado";
-import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
-import { corGrupoTemEstoqueParaHabilitar, skuProntoParaVender, skuReadinessLabelsFalha } from "@/lib/sellerSkuReadiness";
+import { skuProntoParaVender, skuReadinessLabelsFalha } from "@/lib/sellerSkuReadiness";
 import { toTitleCase } from "@/lib/formatText";
 import { CatalogoV2ResumoTopo } from "@/components/seller/catalogo/v2/CatalogoV2ResumoTopo";
 import { SellerListaGrupoArmazem } from "@/components/seller/catalogo/v2/SellerListaGrupoArmazem";
 import { SellerOlistEstoqueGradeCallout } from "@/components/seller/SellerOlistEstoqueGradeCallout";
-import { linhasGrupo, type GrupoCatalogoV2 } from "@/components/seller/catalogo/v2/aggregates";
 import {
   AMBER_PREMIUM_SHELL,
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
@@ -34,10 +31,6 @@ import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanti
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { ProdutoRowSkeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
-
-function isAtivoItem(item: SellerCatalogoItem): boolean {
-  return str(item.status).toLowerCase() === "ativo";
-}
 
 /** Números de página com reticências pra não estourar a barra quando há muitas páginas
  * (mesmo padrão de web/app/seller/pedidos/page.tsx). */
@@ -71,13 +64,8 @@ export default function SellerProdutosPage() {
     plano: string | null;
     habilitados_count: number;
     habilitados_max: number | null;
-    tabela_ok: boolean;
     sem_armazem_ligado: boolean;
-  }>({ plano: null, habilitados_count: 0, habilitados_max: null, tabela_ok: true, sem_armazem_ligado: false });
-  const [toggleLoadingId, setToggleLoadingId] = useState<string | null>(null);
-  /** Habilitação em lote por cor (agrupado por cor): `${paiKey}:${corKey}` */
-  const [bulkCorKey, setBulkCorKey] = useState<string | null>(null);
-  const [bulkPaiKey, setBulkPaiKey] = useState<string | null>(null);
+  }>({ plano: null, habilitados_count: 0, habilitados_max: null, sem_armazem_ligado: false });
   const [fornecedorLigadoId, setFornecedorLigadoId] = useState<string | null>(null);
   const [fornecedoresLista, setFornecedoresLista] = useState<FornecedorSellerListaRow[] | null>(null);
   const [modalErpSkuAberto, setModalErpSkuAberto] = useState(false);
@@ -96,16 +84,6 @@ export default function SellerProdutosPage() {
     return row.local_resumido ? `${row.nome_publico} · ${row.local_resumido}` : row.nome_publico;
   }, [fornecedorLigadoId, fornecedoresLista]);
 
-  const habilitarVendaApiBloqueioLigar = useMemo(() => {
-    if (!fornecedorLigadoId?.trim() || catalogMeta.sem_armazem_ligado) {
-      return "Vincule um fornecedor em «Fornecedores» antes de ligar SKUs na API.";
-    }
-    if (!catalogMeta.tabela_ok) {
-      return "Cadastro de habilitações indisponível no servidor (tabela seller_skus_habilitados). Fale com o suporte DropCore.";
-    }
-    return null;
-  }, [fornecedorLigadoId, catalogMeta.tabela_ok, catalogMeta.sem_armazem_ligado]);
-
   function toggleExpandido(key: string) {
     setExpandido((prev) => {
       const next = new Set(prev);
@@ -114,198 +92,6 @@ export default function SellerProdutosPage() {
       return next;
     });
   }
-
-  const postHabilitar = useCallback(
-    async (accessToken: string, skuId: string): Promise<{ ok: boolean; habilitados_count?: number; error?: string }> => {
-      const res = await fetch("/api/seller/catalogo/habilitados", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ sku_id: skuId }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) return { ok: false, error: json.error || "Erro ao habilitar" };
-      const cnt = typeof json.habilitados_count === "number" ? json.habilitados_count : undefined;
-      return { ok: true, habilitados_count: cnt };
-    },
-    [],
-  );
-
-  const deleteHabilitar = useCallback(async (accessToken: string, skuId: string): Promise<{ ok: boolean; habilitados_count?: number; error?: string }> => {
-    const res = await fetch(`/api/seller/catalogo/habilitados?sku_id=${encodeURIComponent(skuId)}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: json.error || "Erro ao desabilitar" };
-    const cnt = typeof json.habilitados_count === "number" ? json.habilitados_count : undefined;
-    return { ok: true, habilitados_count: cnt };
-  }, []);
-
-  const setSkuHabilitado = useCallback(
-    async (item: SellerCatalogoItem, ativar: boolean) => {
-      if (!item.id) return;
-      if (ativar) {
-        const pai = paiKeySkuHabilitacao(item.sku);
-        const corK = (item.cor ?? "").trim().toLowerCase();
-        const mesmaCor = items.filter(
-          (it) =>
-            isAtivoItem(it) &&
-            paiKeySkuHabilitacao(it.sku) === pai &&
-            (it.cor ?? "").trim().toLowerCase() === corK
-        );
-        if (!corGrupoTemEstoqueParaHabilitar(mesmaCor)) return;
-      }
-      setToggleLoadingId(item.id);
-      try {
-        const {
-          data: { session },
-        } = await supabaseBrowser.auth.getSession();
-        if (!session?.access_token) {
-          router.replace("/seller/login");
-          return;
-        }
-        const r = ativar ? await postHabilitar(session.access_token, item.id) : await deleteHabilitar(session.access_token, item.id);
-        if (!r.ok) throw new Error(r.error || "Erro ao atualizar habilitação");
-        setItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, habilitado_venda: ativar } : row)));
-        if (typeof r.habilitados_count === "number") {
-          setCatalogMeta((m) => ({ ...m, habilitados_count: r.habilitados_count! }));
-        }
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Erro ao atualizar habilitação");
-      } finally {
-        setToggleLoadingId(null);
-      }
-    },
-    [router, postHabilitar, deleteHabilitar, items],
-  );
-
-  const toggleHabilitacaoPorCor = useCallback(
-    async (paiKey: string, corKey: string, items: SellerCatalogoItem[]) => {
-      const loadingKey = `${paiKey}:${corKey}`;
-      setBulkCorKey(loadingKey);
-      setError(null);
-      try {
-        const {
-          data: { session },
-        } = await supabaseBrowser.auth.getSession();
-        if (!session?.access_token) {
-          router.replace("/seller/login");
-          return;
-        }
-        const elegiveis = items.filter((it) => skuContaLimiteHabilitacaoSeller(it.sku) && isAtivoItem(it));
-        const todosHabilitadosNaCor =
-          elegiveis.length > 0 && elegiveis.every((it) => it.habilitado_venda === true);
-
-        if (todosHabilitadosNaCor) {
-          const targets = items.filter((it) => it.habilitado_venda === true);
-          for (const it of targets) {
-            if (!it.id) continue;
-            const r = await deleteHabilitar(session.access_token, it.id);
-            if (!r.ok) throw new Error(r.error || "Erro ao desabilitar na API");
-            setItems((prev) => prev.map((row) => (row.id === it.id ? { ...row, habilitado_venda: false } : row)));
-            if (typeof r.habilitados_count === "number") {
-              setCatalogMeta((m) => ({ ...m, habilitados_count: r.habilitados_count! }));
-            }
-          }
-        } else {
-          if (!corGrupoTemEstoqueParaHabilitar(elegiveis)) return;
-          const targets = elegiveis.filter((it) => !it.habilitado_venda);
-          if (targets.length === 0) {
-            setError("Nenhum SKU ativo desta cor para ligar na API. Confira se o armazém está gravado.");
-            return;
-          }
-          for (const it of targets) {
-            if (!it.id) continue;
-            const r = await postHabilitar(session.access_token, it.id);
-            if (!r.ok) throw new Error(r.error || "Erro ao habilitar na API");
-            setItems((prev) => prev.map((row) => (row.id === it.id ? { ...row, habilitado_venda: true } : row)));
-            if (typeof r.habilitados_count === "number") {
-              setCatalogMeta((m) => ({ ...m, habilitados_count: r.habilitados_count! }));
-            }
-          }
-        }
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : "Erro ao atualizar habilitação");
-      } finally {
-        setBulkCorKey(null);
-      }
-    },
-    [router, postHabilitar, deleteHabilitar],
-  );
-
-  const bulkEnableValidas = useCallback(
-    async (grupo: GrupoCatalogoV2) => {
-      setBulkPaiKey(grupo.paiKey);
-      setError(null);
-      try {
-        const {
-          data: { session },
-        } = await supabaseBrowser.auth.getSession();
-        if (!session?.access_token) {
-          router.replace("/seller/login");
-          return;
-        }
-        const linhas = linhasGrupo(grupo.pai, grupo.filhos);
-        const targets: SellerCatalogoItem[] = [];
-        for (const g of agruparVariantesPorCor(linhas.filter(isAtivoItem))) {
-          if (!corGrupoTemEstoqueParaHabilitar(g.itens)) continue;
-          for (const it of g.itens) {
-            if (skuContaLimiteHabilitacaoSeller(it.sku) && !it.habilitado_venda) {
-              targets.push(it);
-            }
-          }
-        }
-        for (const it of targets) {
-          const r = await postHabilitar(session.access_token, it.id);
-          if (!r.ok) throw new Error(r.error || "Erro ao habilitar em lote");
-          setItems((prev) => prev.map((row) => (row.id === it.id ? { ...row, habilitado_venda: true } : row)));
-          if (typeof r.habilitados_count === "number") {
-            setCatalogMeta((m) => ({ ...m, habilitados_count: r.habilitados_count! }));
-          }
-        }
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : "Erro ao habilitar em lote");
-      } finally {
-        setBulkPaiKey(null);
-      }
-    },
-    [router, postHabilitar, items],
-  );
-
-  const bulkDisableAll = useCallback(
-    async (grupo: GrupoCatalogoV2) => {
-      setBulkPaiKey(grupo.paiKey);
-      setError(null);
-      try {
-        const {
-          data: { session },
-        } = await supabaseBrowser.auth.getSession();
-        if (!session?.access_token) {
-          router.replace("/seller/login");
-          return;
-        }
-        const targets = linhasGrupo(grupo.pai, grupo.filhos).filter(
-          (it) => skuContaLimiteHabilitacaoSeller(it.sku) && it.habilitado_venda === true,
-        );
-        for (const it of targets) {
-          const r = await deleteHabilitar(session.access_token, it.id);
-          if (!r.ok) throw new Error(r.error || "Erro ao desabilitar em lote");
-          setItems((prev) => prev.map((row) => (row.id === it.id ? { ...row, habilitado_venda: false } : row)));
-          if (typeof r.habilitados_count === "number") {
-            setCatalogMeta((m) => ({ ...m, habilitados_count: r.habilitados_count! }));
-          }
-        }
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : "Erro ao desabilitar em lote");
-      } finally {
-        setBulkPaiKey(null);
-      }
-    },
-    [router, deleteHabilitar],
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -333,7 +119,6 @@ export default function SellerProdutosPage() {
           plano: jsonCat.seller_plano ?? null,
           habilitados_count: typeof jsonCat.habilitados_count === "number" ? jsonCat.habilitados_count : 0,
           habilitados_max: jsonCat.habilitados_max === null || jsonCat.habilitados_max === undefined ? null : Number(jsonCat.habilitados_max),
-          tabela_ok: jsonCat.habilitados_tabela_ok !== false,
           sem_armazem_ligado: typeof jsonCat.sem_armazem_ligado === "boolean" ? jsonCat.sem_armazem_ligado : !fidNorm,
         });
         if (jsonCat.fornecedores) {
@@ -748,14 +533,6 @@ export default function SellerProdutosPage() {
             </section>
           )}
 
-        {!loading && !catalogMeta.tabela_ok && (
-          <div className={cn(AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_PRIMARY, "mt-6 rounded-2xl px-5 py-4 text-sm md:px-6")}>
-            A lista de SKUs habilitados para venda ainda não está disponível na base (migração pendente). Execute o script{" "}
-            <code className="rounded border border-[var(--card-border)] bg-[var(--card)] px-1.5 py-0.5 font-mono text-xs">web/scripts/create-seller-skus-habilitados.sql</code> no
-            Supabase para ativar a lista de SKUs habilitados e a integração ERP alinhada ao catálogo.
-          </div>
-        )}
-
         <div className="mt-4 min-w-0 overflow-visible rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
           <div className="border-b border-[var(--card-border)] bg-[var(--card)] px-4 py-4 sm:px-5 sm:py-4">
             <h2 className="flex items-center gap-1.5 text-[15px] font-semibold tracking-tight text-[var(--foreground)] sm:text-sm">
@@ -820,14 +597,6 @@ export default function SellerProdutosPage() {
                     setModoListaVariantes={setModoListaVariantes}
                     mostrarFotosVariantes={mostrarFotosVariantes}
                     setMostrarFotosVariantes={setMostrarFotosVariantes}
-                    bulkLoading={bulkPaiKey === grupo.paiKey}
-                    onBulkEnableValidas={() => void bulkEnableValidas(grupo)}
-                    onBulkDisableAll={() => void bulkDisableAll(grupo)}
-                    toggleLoadingId={toggleLoadingId}
-                    onToggleOne={(item, ativar) => void setSkuHabilitado(item, ativar)}
-                    bulkCorLoadingKey={bulkCorKey}
-                    onToggleCorGrupo={(paiKey, corKey, items) => void toggleHabilitacaoPorCor(paiKey, corKey, items)}
-                    habilitarVendaApiBloqueioLigar={habilitarVendaApiBloqueioLigar}
                     exportandoOlist={exportandoOlistGrupo === grupo.paiKey}
                     onExportOlist={() => void baixarCsvOlistGrupo(grupo.paiKey)}
                     exportOlistDisabled={catalogMeta.sem_armazem_ligado}

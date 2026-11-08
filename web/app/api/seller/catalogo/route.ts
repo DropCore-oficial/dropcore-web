@@ -9,7 +9,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createClient } from "@supabase/supabase-js";
-import { countHabilitadosQueContamNoLimite } from "@/lib/sellerSkuHabilitado";
+import { paiKeyDoSku } from "@/lib/skuPaiKey";
 import { pipelineDetalhesCatalogoEspelho, type SkuCatalogoDetalhesRow } from "@/lib/catalogoSkusDetalhesEspelho";
 import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
 import { loadSellerFornecedoresList, loadSellerFornecedorVinculoMeta } from "@/lib/sellerFornecedoresList";
@@ -59,27 +59,6 @@ export async function GET(req: Request) {
         )
       : null;
 
-    let habilitadoSet = new Set<string>();
-    /** Plano Start: quantidade de cores distintas (grupo SKU + cor) com ao menos uma variação habilitada. */
-    let habilitados_count = 0;
-    let habilitados_tabela_ok = true;
-    const { data: habRows, error: habErr } = await supabaseAdmin
-      .from("seller_skus_habilitados")
-      .select("sku_id")
-      .eq("seller_id", (seller as { id: string }).id);
-    if (habErr) {
-      const m = String(habErr.message ?? "");
-      if (m.includes("does not exist") || habErr.code === "42P01") {
-        habilitados_tabela_ok = false;
-      } else {
-        throw habErr;
-      }
-    } else {
-      habilitadoSet = new Set((habRows ?? []).map((r: { sku_id: string }) => r.sku_id));
-      const cnt = await countHabilitadosQueContamNoLimite(supabaseAdmin, (seller as { id: string }).id);
-      habilitados_count = cnt.count;
-    }
-
     const sellerPlano = (seller as { plano?: string | null }).plano ?? null;
 
     if (!fornecedorId) {
@@ -90,9 +69,9 @@ export async function GET(req: Request) {
         fornecedor_id: null,
         sem_armazem_ligado: true,
         seller_plano: sellerPlano,
-        habilitados_count,
+        habilitados_count: 0,
         habilitados_max: null,
-        habilitados_tabela_ok,
+        habilitados_tabela_ok: true,
         ...(fornecedoresMeta && {
           fornecedores: fornecedoresMeta.fornecedores,
           vinculo: fornecedoresMeta.vinculo,
@@ -135,13 +114,18 @@ export async function GET(req: Request) {
           custo_dropcore?: unknown;
           custo_base?: unknown;
         };
-        const id = String((row as { id?: string }).id ?? "");
         return {
           ...rest,
           custo_total: custoTotal,
-          habilitado_venda: habilitadoSet.has(id),
+          habilitado_venda: true,
         };
       });
+
+    /** Cores distintas (grupo SKU + cor) entre os SKUs ativos — todo SKU ativo já vende na
+     * API, sem toggle manual (removido 2026-11-08, ver docs/SCHEMA.md). */
+    const habilitados_count = new Set(
+      items.map((it) => `${paiKeyDoSku(String((it as { sku?: string }).sku ?? ""))}::${String((it as { cor?: string }).cor ?? "").trim().toUpperCase()}`),
+    ).size;
 
     const fornecedoresMeta = fornecedoresListaPromise ? await fornecedoresListaPromise : null;
 
@@ -153,7 +137,7 @@ export async function GET(req: Request) {
       seller_plano: sellerPlano,
       habilitados_count,
       habilitados_max: null,
-      habilitados_tabela_ok,
+      habilitados_tabela_ok: true,
       ...(fornecedoresMeta && {
         fornecedores: fornecedoresMeta.fornecedores,
         vinculo: fornecedoresMeta.vinculo,

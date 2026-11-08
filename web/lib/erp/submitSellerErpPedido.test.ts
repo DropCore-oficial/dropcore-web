@@ -27,11 +27,6 @@ vi.mock("@/lib/inadimplencia", () => ({
   isInadimplente: (...args: unknown[]) => isInadimplenteMock(...args),
 }));
 
-const assertSellerPodeVenderSkusMock = vi.fn();
-vi.mock("@/lib/sellerSkuHabilitado", () => ({
-  assertSellerPodeVenderSkus: (...args: unknown[]) => assertSellerPodeVenderSkusMock(...args),
-}));
-
 const debitarEstoquePedidoMock = vi.fn();
 const reverterEstoquePedidoMock = vi.fn();
 vi.mock("@/lib/order/estoquePedido", () => ({
@@ -81,8 +76,6 @@ const SELLER_ID = "seller-1";
 const FORNECEDOR_ID = "forn-1";
 const SKU_ID = "sku-1";
 
-const MOTIVO_SKU_NAO_HABILITADO = "Esta variação não está habilitada no seu plano; ative a cor no catálogo.";
-
 const pedidoRow = {
   id: PEDIDO_ID,
   org_id: ORG_ID,
@@ -92,7 +85,7 @@ const pedidoRow = {
   referencia_externa: "olist:123",
   tracking_codigo: null,
   metodo_envio: null,
-  motivo_bloqueio: MOTIVO_SKU_NAO_HABILITADO,
+  motivo_bloqueio: "Saldo insuficiente.",
   motivo_bloqueio_responsavel: "seller",
 };
 
@@ -144,7 +137,6 @@ function mockFromDefault(estoqueAtual: number) {
 beforeEach(() => {
   fromMock.mockReset();
   isInadimplenteMock.mockReset().mockResolvedValue(false);
-  assertSellerPodeVenderSkusMock.mockReset();
   debitarEstoquePedidoMock.mockReset();
   reverterEstoquePedidoMock.mockReset();
   executeBlockSaleMock.mockReset();
@@ -156,25 +148,8 @@ beforeEach(() => {
 });
 
 describe("tryPromoteBloqueadoPedido", () => {
-  it("continua bloqueado quando o motivo original ainda se aplica", async () => {
-    mockFromDefault(10);
-    assertSellerPodeVenderSkusMock.mockResolvedValue({ ok: false, error: MOTIVO_SKU_NAO_HABILITADO });
-
-    const result = await tryPromoteBloqueadoPedido({ org_id: ORG_ID, pedido_id: PEDIDO_ID });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok && "outcome" in result) {
-      expect(result.outcome).toBe("ainda_bloqueado");
-    } else {
-      throw new Error(`resultado inesperado: ${JSON.stringify(result)}`);
-    }
-    expect(debitarEstoquePedidoMock).not.toHaveBeenCalled();
-    expect(executeBlockSaleMock).not.toHaveBeenCalled();
-  });
-
   it("promove pra pendente_estoque quando o bloqueio caiu mas o estoque não é suficiente", async () => {
     mockFromDefault(1); // quantidade pedida é 2
-    assertSellerPodeVenderSkusMock.mockResolvedValue({ ok: true });
 
     const result = await tryPromoteBloqueadoPedido({ org_id: ORG_ID, pedido_id: PEDIDO_ID });
 
@@ -189,7 +164,6 @@ describe("tryPromoteBloqueadoPedido", () => {
 
   it("promove pra enviado quando tudo já está liberado", async () => {
     mockFromDefault(10);
-    assertSellerPodeVenderSkusMock.mockResolvedValue({ ok: true });
     debitarEstoquePedidoMock.mockResolvedValue({ ok: true, debitos: [{ sku_id: SKU_ID, quantidade: 2 }] });
     executeBlockSaleMock.mockResolvedValue({
       ok: true,

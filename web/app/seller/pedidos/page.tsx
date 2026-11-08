@@ -18,10 +18,7 @@ import {
   DANGER_PREMIUM_TEXT_PRIMARY,
   INFO_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/semanticPremium";
-import {
-  MSG_SKU_NAO_HABILITADO_PLANO_STARTER,
-  paiKeySkuHabilitacao,
-} from "@/lib/sellerSkuHabilitado";
+import { paiKeyDoSku } from "@/lib/skuPaiKey";
 import { ModalOverlay } from "@/components/ui/ModalOverlay";
 import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import {
@@ -414,10 +411,14 @@ export default function SellerPedidosPage() {
     setPage(1);
   }, [buscaProdutoAplicada, periodo, customDe, customAte]);
 
+  /** "Esta variação não está habilitada; ative a cor no catálogo." — texto legado de
+   * pedidos bloqueados antes da remoção do teto/gate de habilitação (2026-11-08); o cron
+   * de retry já reprocessa esses pedidos automaticamente, isto só ajuda o link a apontar
+   * direto pro produto certo enquanto esse reprocessamento não roda. */
   function bloqueioResolverInfo(p: Pedido): { href: string } {
-    const porTetoPlano = p.motivo_bloqueio === MSG_SKU_NAO_HABILITADO_PLANO_STARTER;
-    const href = porTetoPlano
-      ? `/seller/produtos?abrir=${encodeURIComponent(paiKeySkuHabilitacao(p.itens[0]?.sku))}`
+    const porSkuNaoHabilitado = (p.motivo_bloqueio ?? "").includes("não está habilitada");
+    const href = porSkuNaoHabilitado
+      ? `/seller/produtos?abrir=${encodeURIComponent(paiKeyDoSku(p.itens[0]?.sku))}`
       : "/seller/produtos";
     return { href };
   }

@@ -30,17 +30,6 @@ export async function loadCatalogSkusForOlistExport(opts: LoadCatalogOlistOpts):
   const scope = opts.scope === "habilitados" ? "habilitados" : "todos";
   const maxRows = opts.maxRows ?? 500;
 
-  const habilitadoSet = new Set<string>();
-  const { data: habRows, error: habErr } = await opts.supabase
-    .from("seller_skus_habilitados")
-    .select("sku_id")
-    .eq("seller_id", opts.sellerId);
-  if (!habErr) {
-    for (const r of habRows ?? []) {
-      habilitadoSet.add(String((r as { sku_id: string }).sku_id));
-    }
-  }
-
   const { data: rows, error } = await opts.supabase
     .from("skus")
     .select(
@@ -99,7 +88,7 @@ export async function loadCatalogSkusForOlistExport(opts: LoadCatalogOlistOpts):
         typeof (row as { largura_cm?: number }).largura_cm === "number" ? (row as { largura_cm: number }).largura_cm : null,
       altura_cm:
         typeof (row as { altura_cm?: number }).altura_cm === "number" ? (row as { altura_cm: number }).altura_cm : null,
-      habilitado_venda: habilitadoSet.has(id),
+      habilitado_venda: true,
     };
   });
 

@@ -715,27 +715,38 @@ export type SkuSemAnuncioSugestao = {
  * preço, pro seller levar em conta quando for publicar manualmente. */
 const MULTIPLICADOR_PRECO_ANCORA_PADRAO = 200;
 
-/** SKU que o seller habilitou pra vender mas ainda não tem vínculo com nenhum anúncio no
- * Mercado Livre (`seller_mercadolivre_sku_map`) — sinal que já existe de graça (join por
- * ausência), sem precisar de chamada nova na API do ML. */
+/** SKU ativo do fornecedor vinculado ao seller que ainda não tem vínculo com nenhum
+ * anúncio no Mercado Livre (`seller_mercadolivre_sku_map`) — sinal que já existe de graça
+ * (join por ausência), sem precisar de chamada nova na API do ML. */
 export async function buscarSkusSemAnuncio(sellerId: string): Promise<SkuSemAnuncioSugestao[]> {
-  const [{ data: habilitadosRaw }, { data: mapeadosRaw }] = await Promise.all([
+  const { data: sellerRow } = await supabaseAdmin
+    .from("sellers")
+    .select("org_id, fornecedor_id")
+    .eq("id", sellerId)
+    .maybeSingle();
+  if (!sellerRow?.fornecedor_id) return [];
+
+  const [{ data: skusRaw }, { data: mapeadosRaw }] = await Promise.all([
     supabaseAdmin
-      .from("seller_skus_habilitados")
-      .select("skus(sku, nome_produto, custo_base, custo_dropcore)")
-      .eq("seller_id", sellerId),
+      .from("skus")
+      .select("sku, nome_produto, custo_base, custo_dropcore")
+      .eq("org_id", sellerRow.org_id)
+      .eq("fornecedor_id", sellerRow.fornecedor_id)
+      .ilike("status", "ativo"),
     supabaseAdmin.from("seller_mercadolivre_sku_map").select("sku").eq("seller_id", sellerId),
   ]);
 
   const skusMapeados = new Set((mapeadosRaw ?? []).map((m) => m.sku as string));
-  const habilitados = (habilitadosRaw ?? []) as unknown as {
-    skus: { sku: string; nome_produto: string | null; custo_base: number | null; custo_dropcore: number | null } | null;
+  const skusAtivos = (skusRaw ?? []) as {
+    sku: string;
+    nome_produto: string | null;
+    custo_base: number | null;
+    custo_dropcore: number | null;
   }[];
 
   const semAnuncio: SkuSemAnuncioSugestao[] = [];
-  for (const h of habilitados) {
-    const sku = h.skus;
-    if (!sku || skusMapeados.has(sku.sku)) continue;
+  for (const sku of skusAtivos) {
+    if (skusMapeados.has(sku.sku)) continue;
     // Fonte única do "custo que o seller paga" (mesma usada em api/seller/produtos).
     const custo = sellerCustoTotalPagoUnitario(sku.custo_base, sku.custo_dropcore) ?? 0;
     if (custo <= 0) continue;

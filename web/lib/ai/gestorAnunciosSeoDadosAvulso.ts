@@ -9,8 +9,8 @@
  * Diferenças deliberadas vs. `gestorAnunciosSeoDados.ts` (hub):
  * - Guia de tamanhos (`tabelaMedidasFaltando`) sempre `false` — o avulso não tem
  *   `produto_tabela_medidas`, não tem como saber se existe guia pra anexar.
- * - Sem `buscarSkusSemAnuncio` — isso lê `skus`/`seller_skus_habilitados` (catálogo de
- *   fornecedor), que não existe pro avulso.
+ * - Sem `buscarSkusSemAnuncio` — isso lê `skus` do catálogo de fornecedor, que não existe
+ *   pro avulso.
  * - Sem comparação com ações aplicadas (`seller_ai_acoes`) — o avulso já tem botão de
  *   aplicar título/descrição/característica (ver app/api/gestores-ia-avulso/anuncio/
  *   aplicar-*), só não tem tabela de auditoria ainda pra comparar visita/venda antes vs.

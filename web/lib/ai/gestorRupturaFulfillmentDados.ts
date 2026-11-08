@@ -1,24 +1,23 @@
 /**
- * Dado real pro gestor "Risco de Ruptura & Fulfillment": estoque dos SKUs habilitados do
- * seller (skus.estoque_atual/estoque_minimo, já sincronizado via Olist/Bling) cruzado com
- * a venda dos últimos 30 dias (pedido_itens, fonte de verdade de item vendido — não
- * pedidos.sku_id, que é campo legado de single-item), dias até ruptura (cálculo puro, não
- * pedido pra IA), pedido pago aguardando estoque, e fornecedor (pra agrupar na tela).
+ * Dado real pro gestor "Risco de Ruptura & Fulfillment": estoque dos SKUs ativos do
+ * fornecedor vinculado ao seller (skus.estoque_atual/estoque_minimo, já sincronizado via
+ * Olist/Bling) cruzado com a venda dos últimos 30 dias (pedido_itens, fonte de verdade de
+ * item vendido — não pedidos.sku_id, que é campo legado de single-item), dias até ruptura
+ * (cálculo puro, não pedido pra IA), pedido pago aguardando estoque, e fornecedor (pra
+ * agrupar na tela).
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { SkuRupturaContexto } from "./gestorPrompts";
 
 const JANELA_VELOCIDADE_DIAS = 30;
 
-type HabilitadoComSku = {
-  sku_id: string;
-  skus: {
-    sku: string;
-    nome_produto: string | null;
-    estoque_atual: number | null;
-    estoque_minimo: number | null;
-    fornecedor_id: string | null;
-  } | null;
+type SkuAtivo = {
+  id: string;
+  sku: string;
+  nome_produto: string | null;
+  estoque_atual: number | null;
+  estoque_minimo: number | null;
+  fornecedor_id: string | null;
 };
 
 type PedidoItemComPedido = {
@@ -37,17 +36,26 @@ export function calcularDiasAteRuptura(estoqueAtual: number, vendas30d: number):
 export async function buscarDadosRupturaFulfillment(
   sellerId: string
 ): Promise<SkuRupturaContexto[]> {
-  const { data: habilitadosRaw, error: habilitadosErr } = await supabaseAdmin
-    .from("seller_skus_habilitados")
-    .select("sku_id, skus(sku, nome_produto, estoque_atual, estoque_minimo, fornecedor_id)")
-    .eq("seller_id", sellerId);
+  const { data: sellerRow, error: sellerErr } = await supabaseAdmin
+    .from("sellers")
+    .select("org_id, fornecedor_id")
+    .eq("id", sellerId)
+    .maybeSingle();
+  if (sellerErr) throw new Error(sellerErr.message);
+  if (!sellerRow?.fornecedor_id) return [];
 
-  if (habilitadosErr) throw new Error(habilitadosErr.message);
+  const { data: skusRaw, error: skusErr } = await supabaseAdmin
+    .from("skus")
+    .select("id, sku, nome_produto, estoque_atual, estoque_minimo, fornecedor_id")
+    .eq("org_id", sellerRow.org_id)
+    .eq("fornecedor_id", sellerRow.fornecedor_id)
+    .ilike("status", "ativo");
+  if (skusErr) throw new Error(skusErr.message);
 
-  const habilitados = (habilitadosRaw ?? []) as unknown as HabilitadoComSku[];
+  const habilitados = (skusRaw ?? []) as SkuAtivo[];
   if (habilitados.length === 0) return [];
 
-  const skuIds = habilitados.map((h) => h.sku_id);
+  const skuIds = habilitados.map((h) => h.id);
   const desde = new Date();
   desde.setDate(desde.getDate() - JANELA_VELOCIDADE_DIAS);
 
@@ -73,7 +81,7 @@ export async function buscarDadosRupturaFulfillment(
         Array.from(
           new Set(
             habilitados
-              .map((h) => h.skus?.fornecedor_id)
+              .map((h) => h.fornecedor_id)
               .filter((id): id is string => !!id)
           )
         )
@@ -100,23 +108,20 @@ export async function buscarDadosRupturaFulfillment(
     ((fornecedoresRes.data ?? []) as { id: string; nome: string }[]).map((f) => [f.id, f.nome])
   );
 
-  return habilitados
-    .filter((h) => h.skus !== null)
-    .map((h) => {
-      const sku = h.skus as NonNullable<HabilitadoComSku["skus"]>;
-      const estoqueAtual = sku.estoque_atual ?? 0;
-      const vendas30d = vendasPorSku.get(h.sku_id) ?? 0;
-      return {
-        sku: sku.sku,
-        nomeProduto: sku.nome_produto ?? sku.sku,
-        estoqueAtual,
-        estoqueMinimo: sku.estoque_minimo ?? 0,
-        vendas30d,
-        diasAteRuptura: calcularDiasAteRuptura(estoqueAtual, vendas30d),
-        pedidosAguardandoEstoque: aguardandoPorSku.get(h.sku_id) ?? 0,
-        fornecedorNome: sku.fornecedor_id ? (fornecedorNomePorId.get(sku.fornecedor_id) ?? null) : null,
-      };
-    });
+  return habilitados.map((sku) => {
+    const estoqueAtual = sku.estoque_atual ?? 0;
+    const vendas30d = vendasPorSku.get(sku.id) ?? 0;
+    return {
+      sku: sku.sku,
+      nomeProduto: sku.nome_produto ?? sku.sku,
+      estoqueAtual,
+      estoqueMinimo: sku.estoque_minimo ?? 0,
+      vendas30d,
+      diasAteRuptura: calcularDiasAteRuptura(estoqueAtual, vendas30d),
+      pedidosAguardandoEstoque: aguardandoPorSku.get(sku.id) ?? 0,
+      fornecedorNome: sku.fornecedor_id ? (fornecedorNomePorId.get(sku.fornecedor_id) ?? null) : null,
+    };
+  });
 }
 
 // --- Risco + ação recomendada — código puro, sem IA -----------------------

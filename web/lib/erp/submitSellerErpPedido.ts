@@ -7,7 +7,6 @@ import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
 import { motivoBloqueioParaPortal, type PedidoBloqueioResponsavel } from "@/lib/pedidoBloqueioResponsavel";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
 import { resolveTaxaDropcoreUnit } from "@/lib/order/resolveTaxaDropcore";
-import { assertSellerPodeVenderSkus } from "@/lib/sellerSkuHabilitado";
 import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { skuBaseSemSufixoMarketplace } from "@/lib/skuMarketplaceSuffix";
@@ -469,17 +468,6 @@ export async function submitSellerErpPedido(
       error_message: "Valor total do pedido deve ser positivo.",
       responsavel: "fornecedor",
     };
-  }
-
-  if (!bloqueio) {
-    const vendaSkuCheck = await assertSellerPodeVenderSkus(supabaseAdmin, {
-      sellerId: seller.id,
-      sellerPlano: seller.plano,
-      skus: skuRows.map((r) => ({ id: r.id, sku: r.sku })),
-    });
-    if (!vendaSkuCheck.ok) {
-      bloqueio = { error_code: "SKU_NAO_HABILITADO_PLANO", error_message: vendaSkuCheck.error, responsavel: "seller" };
-    }
   }
 
   if (bloqueio) {
@@ -1208,16 +1196,6 @@ export async function tryPromoteBloqueadoPedido(params: {
     };
   }
 
-  if (!bloqueio) {
-    const vendaSkuCheck = await assertSellerPodeVenderSkus(supabaseAdmin, {
-      sellerId: pedido.seller_id,
-      sellerPlano: sellerRow.plano,
-      skus: skuRows.map((r) => ({ id: r.id, sku: r.sku })),
-    });
-    if (!vendaSkuCheck.ok) {
-      bloqueio = { error_code: "SKU_NAO_HABILITADO_PLANO", error_message: vendaSkuCheck.error, responsavel: "seller" };
-    }
-  }
 
   if (bloqueio) {
     const motivoMudou =
