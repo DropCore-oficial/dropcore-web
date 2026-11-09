@@ -153,6 +153,7 @@ export async function GET(req: Request) {
       total_count_devolucao: number;
       total_count_entregue: number;
       total_count_cancelado: number;
+      total_count_bloqueado: number;
     };
     const rows = (rpcRows ?? []) as (PedidoRow & Contadores)[];
     // RPC agora separa contador de listagem (fix-fornecedor-pedidos-contadores-pacote-e-aba-
@@ -173,6 +174,7 @@ export async function GET(req: Request) {
         total_count_devolucao: _tcd,
         total_count_entregue: _tcen,
         total_count_cancelado: _tcc,
+        total_count_bloqueado: _tcbl,
         ...p
       }) => p
     );
@@ -180,6 +182,7 @@ export async function GET(req: Request) {
     const abas = {
       todos: contadores?.total_count_geral ?? 0,
       pra_enviar: contadores?.total_count_pra_enviar ?? 0,
+      bloqueado: contadores?.total_count_bloqueado ?? 0,
       sem_estoque: contadores?.total_count_sem_estoque ?? 0,
       buffer: contadores?.total_count_buffer ?? 0,
       retirada: contadores?.total_count_retirada ?? 0,

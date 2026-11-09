@@ -9,7 +9,7 @@ import {
   DANGER_PREMIUM_SURFACE,
   DANGER_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/semanticPremium";
-import { IconClipboard, IconBox, IconArrowRight, IconDevolucao, IconCheck, IconX, IconClock, IconAjuste, IconPackage, IconEstoqueVazio } from "@/components/seller/Icons";
+import { IconClipboard, IconBox, IconArrowRight, IconDevolucao, IconCheck, IconX, IconClock, IconAjuste, IconPackage, IconEstoqueVazio, IconLock } from "@/components/seller/Icons";
 import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { PedidoCardSkeleton } from "@/components/ui/Skeleton";
 import { ModalOverlay } from "@/components/ui/ModalOverlay";
@@ -27,7 +27,8 @@ const ABAS = [
   { key: "buffer", label: "Buffer", statuses: ["enviado"], Icon: IconClock, bufferMl: "somente" as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
   { key: "erro", label: "Erro", statuses: ["erro_saldo"], Icon: IconAjuste, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
   { key: "sem_estoque", label: "Sem estoque", statuses: ["pendente_estoque"], Icon: IconEstoqueVazio, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
-  { key: "pra_enviar", label: "Pra enviar", statuses: ["bloqueado", "enviado"], Icon: IconBox, bufferMl: "excluir" as "somente" | "excluir" | null, etiquetaImpressa: "excluir" as "somente" | "excluir" | null },
+  { key: "bloqueado", label: "Bloqueado", statuses: ["bloqueado"], Icon: IconLock, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "pra_enviar", label: "Pra enviar", statuses: ["enviado"], Icon: IconBox, bufferMl: "excluir" as "somente" | "excluir" | null, etiquetaImpressa: "excluir" as "somente" | "excluir" | null },
   { key: "retirada", label: "Para retirar", statuses: ["enviado"], Icon: IconPackage, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: "somente" as "somente" | "excluir" | null },
   { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
   { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
@@ -197,7 +198,7 @@ export default function FornecedorPedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [abaAtiva, setAbaAtiva] = useState<AbaKey>(() => abaFromStatusParam(searchParams.get("status")));
   const [abaContagens, setAbaContagens] = useState<Record<AbaKey, number>>({
-    todos: 0, buffer: 0, erro: 0, sem_estoque: 0, pra_enviar: 0, retirada: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0,
+    todos: 0, buffer: 0, erro: 0, sem_estoque: 0, bloqueado: 0, pra_enviar: 0, retirada: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0,
   });
   const [devolucoesPendentes, setDevolucoesPendentes] = useState<Devolucao[]>([]);
   const [confirmandoDevolucaoId, setConfirmandoDevolucaoId] = useState<string | null>(null);
@@ -294,6 +295,7 @@ export default function FornecedorPedidosPage() {
           buffer: json.abas.buffer ?? 0,
           erro: json.abas.erro ?? 0,
           sem_estoque: json.abas.sem_estoque ?? 0,
+          bloqueado: json.abas.bloqueado ?? 0,
           pra_enviar: json.abas.pra_enviar ?? 0,
           retirada: json.abas.retirada ?? 0,
           enviados: json.abas.enviados ?? 0,
