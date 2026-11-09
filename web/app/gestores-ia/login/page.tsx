@@ -17,6 +17,7 @@ import {
   isCalculadoraAssinaturaExpiradaLegacy403,
   isCalculadoraSemAcessoLegacy403,
 } from "@/lib/calculadoraAssinaturaExpired";
+import { TurnstileWidget, turnstileAtivo } from "@/components/TurnstileWidget";
 
 /**
  * Login próprio da marca "Gestores de IA" — separado do login da Calculadora avulsa
@@ -32,6 +33,13 @@ export default function GestoresIaLoginPage() {
   const [loading, setLoading] = useState(false);
   const [esqueciSenha, setEsqueciSenha] = useState(false);
   const [resetEnviado, setResetEnviado] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileNonce, setTurnstileNonce] = useState(0);
+
+  function resetTurnstile() {
+    setTurnstileToken(null);
+    setTurnstileNonce((n) => n + 1);
+  }
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -49,10 +57,15 @@ export default function GestoresIaLoginPage() {
       setError("Digite seu e-mail.");
       return;
     }
+    if (turnstileAtivo && !turnstileToken) {
+      setError("Confirme que você não é um robô.");
+      return;
+    }
     setLoading(true);
     try {
       const { error: err } = await supabaseBrowser.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/seller/reset-password`,
+        captchaToken: turnstileToken ?? undefined,
       });
       if (err) throw err;
       setResetEnviado(true);
@@ -60,6 +73,7 @@ export default function GestoresIaLoginPage() {
       setError(e instanceof Error ? e.message : "Erro ao enviar e-mail. Tente novamente.");
     } finally {
       setLoading(false);
+      resetTurnstile();
     }
   }
 
@@ -69,11 +83,16 @@ export default function GestoresIaLoginPage() {
       setError("Preencha e-mail e senha.");
       return;
     }
+    if (turnstileAtivo && !turnstileToken) {
+      setError("Confirme que você não é um robô.");
+      return;
+    }
     setLoading(true);
     try {
       const { data: authData, error: loginErr } = await supabaseBrowser.auth.signInWithPassword({
         email: email.trim(),
         password: senha,
+        options: { captchaToken: turnstileToken ?? undefined },
       });
       if (loginErr) throw new Error("E-mail ou senha incorretos.");
 
@@ -108,6 +127,7 @@ export default function GestoresIaLoginPage() {
       setError(e instanceof Error ? e.message : "Erro ao fazer login.");
     } finally {
       setLoading(false);
+      resetTurnstile();
     }
   }
 
@@ -123,6 +143,10 @@ export default function GestoresIaLoginPage() {
 
         {error ? <div className={authAlertErrorClass}>{error}</div> : null}
 
+        {!resetEnviado ? (
+          <TurnstileWidget key={turnstileNonce} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken(null)} />
+        ) : null}
+
         {resetEnviado ? (
           <div className={authAlertSuccessClass}>
             E-mail enviado! Verifique sua caixa de entrada e o spam. Clique no link para redefinir a senha.
@@ -131,7 +155,7 @@ export default function GestoresIaLoginPage() {
           <Button
             type="button"
             onClick={solicitarReset}
-            disabled={loading}
+            disabled={loading || (turnstileAtivo && !turnstileToken)}
             variant="primary"
             size="lg"
             className={authPrimaryButtonClass}
@@ -142,7 +166,7 @@ export default function GestoresIaLoginPage() {
           <Button
             type="button"
             onClick={entrar}
-            disabled={loading}
+            disabled={loading || (turnstileAtivo && !turnstileToken)}
             variant="primary"
             size="lg"
             className={authPrimaryButtonClass}

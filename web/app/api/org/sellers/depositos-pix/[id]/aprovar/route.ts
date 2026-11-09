@@ -19,6 +19,7 @@ import { requireAdmin } from "@/lib/apiOrgAuth";
 import { logAdminAction } from "@/lib/adminAuditLog";
 import { processarDepositoAprovado } from "@/lib/depositoPixProcessor";
 import { pagamentoAprovadoPorBusca } from "@/lib/depositoPixMercadoPagoSync";
+import { notifyAdminsDepositoPixForcado } from "@/lib/notifyAdminsDepositoPixForcado";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,7 +89,27 @@ export async function POST(
       detalhes: { seller_id: deposito.seller_id, valor: Number(deposito.valor), forced: force },
     });
 
-    const { data: updated } = await supabaseAdmin.from("sellers").select("saldo_atual").eq("id", deposito.seller_id).single();
+    const { data: updated } = await supabaseAdmin
+      .from("sellers")
+      .select("saldo_atual, nome")
+      .eq("id", deposito.seller_id)
+      .single();
+
+    if (force) {
+      try {
+        await notifyAdminsDepositoPixForcado({
+          org_id,
+          deposito_id: id,
+          seller_id: deposito.seller_id,
+          seller_nome: updated?.nome ?? null,
+          valor: Number(deposito.valor),
+          forcado_por_user_id: user_id,
+        });
+      } catch (e: unknown) {
+        console.error("[deposito-pix aprovar] falha ao notificar force:", e);
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       saldo_atual: updated?.saldo_atual != null ? Number(updated.saldo_atual) : undefined,
