@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui";
 import { AMBER_PREMIUM_LINK } from "@/lib/amberPremium";
 import { cn } from "@/lib/utils";
+import { TurnstileWidget, turnstileAtivo } from "@/components/TurnstileWidget";
 
 type OrgMeJson = {
   role_base?: string | null;
@@ -99,6 +100,13 @@ export default function LoginPage() {
   const [avisoFornecedor, setAvisoFornecedor] = useState(false);
   /** Conta seller não usa este login */
   const [avisoSeller, setAvisoSeller] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileNonce, setTurnstileNonce] = useState(0);
+
+  function resetTurnstile() {
+    setTurnstileToken(null);
+    setTurnstileNonce((n) => n + 1);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -139,12 +147,19 @@ export default function LoginPage() {
     setErro(null);
     setAvisoFornecedor(false);
     setAvisoSeller(false);
+
+    if (turnstileAtivo && !turnstileToken) {
+      setErro("Confirme que você não é um robô.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const { data, error } = await supabaseBrowser.auth.signInWithPassword({
         email,
         password: senha,
+        options: { captchaToken: turnstileToken ?? undefined },
       });
 
       if (error) throw new Error("E-mail ou senha incorretos.");
@@ -206,6 +221,7 @@ export default function LoginPage() {
       setErro(err instanceof Error ? err.message : "Erro ao logar");
     } finally {
       setLoading(false);
+      resetTurnstile();
     }
   }
 
@@ -223,11 +239,13 @@ export default function LoginPage() {
         {avisoSeller ? <AvisoPortaErrada portal="seller" /> : null}
         {erro ? <div className={authAlertErrorClass}>{erro}</div> : null}
 
+        <TurnstileWidget key={turnstileNonce} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken(null)} />
+
         <Button
           type="submit"
           variant="primary"
           size="lg"
-          disabled={loading}
+          disabled={loading || (turnstileAtivo && !turnstileToken)}
           className={authPrimaryButtonClass}
         >
           {loading ? "Entrando..." : "Entrar"}
