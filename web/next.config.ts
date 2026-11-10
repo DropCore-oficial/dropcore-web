@@ -52,6 +52,20 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // pdfjs-dist precisa ficar FORA do bundle do webpack/turbopack: ele localiza o próprio
+  // worker (`pdf.worker.mjs`) por caminho relativo a partir de `pdf.mjs` em tempo de
+  // execução — empacotado, esse arquivo some do lugar esperado e a análise de PDF (etiqueta
+  // ML com DACE, ver `lib/etiquetaInfoPagePdf.ts`) falha silenciosamente em produção
+  // (achado 2026-11-10: "Setting up fake worker failed", só aparecia no log do servidor, não
+  // reproduzia local). Mantendo como pacote externo, o arquivo real de `node_modules` é
+  // usado em runtime, preservando os dois arquivos lado a lado.
+  serverExternalPackages: ["pdfjs-dist"],
+  // `serverExternalPackages` sozinho não bastou: o tracer estático do Next inclui `pdf.mjs`
+  // mas não `pdf.worker.mjs` (resolvido em runtime, não via import estático) — força a
+  // inclusão explícita pra essa rota não cair no "fake worker failed" de novo.
+  outputFileTracingIncludes: {
+    "/api/fornecedor/pedidos/etiquetas-combinadas": ["./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs"],
+  },
   // Monorepo: lockfile na raiz do repo; tracing deve ancorar em web/
   outputFileTracingRoot: path.join(process.cwd()),
   async headers() {

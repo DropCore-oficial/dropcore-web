@@ -30,6 +30,7 @@
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import type { TextItem } from "pdfjs-dist/types/src/display/api";
+import { createRequire } from "module";
 
 export type ItemInfoEtiqueta = {
   sku: string | null;
@@ -217,6 +218,14 @@ const MARGEM_CORTE_TOPO = 6; // pt — sobra mínima entre o topo do conteúdo r
 async function detectarTopoConteudoReal(bytesOriginal: Uint8Array): Promise<{ min: number; max: number } | null> {
   try {
     const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    // Sem isso, pdfjs tenta achar `pdf.worker.mjs` sozinho via caminho relativo a partir de
+    // `pdf.mjs` — funciona em Node puro, mas falha calado no bundle serverless da Vercel
+    // ("Setting up fake worker failed", só visível no log do servidor, nunca reproduziu
+    // local). Resolve o caminho real via `require.resolve` em vez de depender da detecção
+    // automática do pdfjs.
+    pdfjsLib.GlobalWorkerOptions.workerSrc = createRequire(import.meta.url).resolve(
+      "pdfjs-dist/legacy/build/pdf.worker.mjs"
+    );
     const pdf = await pdfjsLib.getDocument({
       data: bytesOriginal,
       disableFontFace: true,
@@ -352,9 +361,6 @@ export async function desenharInfoPedidoNaEtiqueta(
   const baseConteudo = conteudoReal?.min ?? 0;
   const topoConteudo = conteudoReal?.max ?? height;
   const yInicial = baseConteudo - MARGEM_SEGURANCA_TOPO;
-  // DEBUG TEMPORÁRIO 2026-11-09 — remover depois de confirmar a causa do vão em produção
-  // (local não reproduz, suspeita de diferença de runtime do pdfjs-dist no bundle Vercel).
-  console.error("[etiqueta-debug]", JSON.stringify({ width, height, conteudoReal, baseConteudo, topoConteudo, yInicial }));
 
   let y = yInicial;
   if (params.marketplace_numero) {
@@ -372,7 +378,6 @@ export async function desenharInfoPedidoNaEtiqueta(
   // só em vez de criar uma segunda.
   const yMinFinal = yFinal - MARGEM_MINIMA_RODAPE;
   const yMaxFinal = Math.min(height, topoConteudo + MARGEM_CORTE_TOPO);
-  console.error("[etiqueta-debug]", JSON.stringify({ yFinal, yMinFinal, yMaxFinal, alturaFinal: yMaxFinal - yMinFinal }));
   // Translada o conteúdo pra origem (0,0) em vez de só mover o MediaBox — MediaBox com
   // origem não-zero é válido no spec do PDF, mas impressora térmica/driver de etiqueta
   // (o uso real aqui) às vezes ignora o offset e só respeita largura/altura, fazendo sobrar
