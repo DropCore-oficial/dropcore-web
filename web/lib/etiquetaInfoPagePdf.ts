@@ -15,10 +15,18 @@
  * página do que o rodapé em branco de uma etiqueta comum — um percentual fixo sobrepunha a
  * tabela em cima do texto/QR code nativos do ML. Trocado por detecção dinâmica por PDF (ver
  * `detectarTopoConteudoReal`, via pdfjs-dist): mede onde termina o conteúdo real de CADA
- * etiqueta (texto + imagem) e só desenha abaixo disso, com margem de segurança. Se não sobrar
- * espaço seguro (ex.: DACE ocupando quase a página toda), `desenharInfoPedidoNaEtiqueta`
- * devolve `false` e o chamador cai no fallback de página separada (mesmo usado pra canais
- * que não são Mercado Livre).
+ * etiqueta (texto + imagem) e desenha a tabela sempre ABAIXO disso — nunca por cima, nunca em
+ * página separada (mesmo quando não sobra espaço em branco, a própria página da etiqueta
+ * cresce pra baixo o quanto for preciso, ver `desenharInfoPedidoNaEtiqueta`).
+ *
+ * Bug corrigido no mesmo dia (pedido real do seller Athos, canal ML, com DACE): a primeira
+ * versão de `detectarTopoConteudoReal` projetava os cantos do texto multiplicando a largura
+ * pelos componentes BRUTOS da matriz de transformação (`b * largura`) — como essa matriz já
+ * vem com o tamanho da fonte embutido (não é uma rotação pura), isso aplicava a escala DUAS
+ * vezes e dava um Y absurdo (ex.: -1257 numa página de 841pt), fazendo o código achar que não
+ * sobrava espaço nenhum e cair num fallback de página separada que não devia mais existir.
+ * Corrigido projetando por ÂNGULO de rotação (vetor unitário) em vez da matriz bruta — `width`/
+ * `height` do pdfjs já vêm na magnitude certa, só falta a direção.
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import type { TextItem } from "pdfjs-dist/types/src/display/api";
@@ -118,24 +126,6 @@ function calcularColunasTabela(larguraUtil: number) {
   return { colSku, colDesc, colVar, colQtd };
 }
 
-/** Soma a altura que `desenharTabela` vai ocupar (header + linhas, com quebra de texto),
- * sem desenhar nada — usado pra decidir se sobra espaço seguro antes de desenhar de verdade. */
-function calcularAlturaTabela(font: PDFFont, larguraUtil: number, itens: ItemInfoEtiqueta[]): number {
-  const { colSku, colDesc, colVar } = calcularColunasTabela(larguraUtil);
-  let altura = TABELA_LH + TABELA_PAD_Y * 2 - 2; // header
-
-  for (const item of itens) {
-    const descricao = item.nome_produto?.trim() || "Produto sem nome";
-    const variacao = [item.cor, item.tamanho].filter(Boolean).join(" · ") || "—";
-    const nLinhasSku = Math.max(quebrarLinha(item.sku ?? "—", font, TABELA_SIZE, colSku - TABELA_PAD_X * 2).length, 1);
-    const nLinhasDesc = Math.max(quebrarLinha(descricao, font, TABELA_SIZE, colDesc - TABELA_PAD_X * 2).length, 1);
-    const nLinhasVar = Math.max(quebrarLinha(variacao, font, TABELA_SIZE, colVar - TABELA_PAD_X * 2).length, 1);
-    const nLinhas = Math.max(nLinhasSku, nLinhasDesc, nLinhasVar, 1);
-    altura += nLinhas * TABELA_LH + TABELA_PAD_Y * 2 - 2;
-  }
-  return altura;
-}
-
 /** Desenha a tabela (SKU | Descrição | Variação | Qtd) com grade, igual o formato da
  * UpSeller. Retorna o Y onde a tabela terminou (borda de baixo). */
 function desenharTabela(
@@ -213,14 +203,16 @@ const CORTE_ESQUERDA = 0.2; // remove a margem em branco à esquerda da etiqueta
 const MARGEM_SEGURANCA_TOPO = 14; // pt — buffer abaixo do Y mais baixo de conteúdo real detectado
 const MARGEM_MINIMA_RODAPE = 10; // pt — sobra mínima entre o fim da tabela e a base da folha
 
-/** Varre o conteúdo REAL de cada etiqueta (texto + imagem, incl. rotacionado) via pdfjs-dist
- * e devolve o Y (coordenada PDF, 0 = base da página) mais baixo ocupado por algo nativo do
- * PDF — ou seja, abaixo desse Y a página está garantidamente em branco NESTE pedido
- * específico. Substitui o percentual fixo medido uma única vez em 2026-11-02: etiquetas com
- * DACE (declaração de conteúdo nativa do ML) ocupam bem mais espaço que uma etiqueta comum,
- * e usar sempre o mesmo percentual fazia a tabela do DropCore cair em cima do conteúdo do
- * ML. Devolve `null` se não conseguir ler o PDF (falha de parsing) — chamador deve cair pro
- * fallback de página separada nesse caso, nunca desenhar às cegas. */
+/** Varre o conteúdo REAL de cada etiqueta (texto, imagem e traço/retângulo vetorial — ex.:
+ * borda da caixa do DACE —, incl. rotacionado) via pdfjs-dist e devolve o Y (coordenada PDF,
+ * 0 = base da página) mais baixo ocupado por algo nativo do PDF — ou seja, abaixo desse Y a
+ * página está garantidamente em branco NESTE pedido específico. Substitui o percentual fixo
+ * medido uma única vez em 2026-11-02: etiquetas com DACE (declaração de conteúdo nativa do
+ * ML) ocupam bem mais espaço que uma etiqueta comum, e usar sempre o mesmo percentual fazia
+ * a tabela do DropCore cair em cima do conteúdo do ML. Devolve `null` se não conseguir ler o
+ * PDF (falha de parsing) — quem chama trata como "não sobrou nada medido", e ainda assim
+ * desenha numa área nova abaixo (nunca sobrepõe, só não aproveita espaço que não deu pra
+ * confirmar). */
 async function detectarTopoConteudoReal(bytesOriginal: Uint8Array): Promise<number | null> {
   try {
     const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
@@ -236,17 +228,27 @@ async function detectarTopoConteudoReal(bytesOriginal: Uint8Array): Promise<numb
     for (const item of textContent.items) {
       const textItem = item as TextItem;
       if (!textItem.transform) continue;
-      // transform = [a, b, c, d, e, f]; só b/d/f entram no Y (a/c só afetam X).
-      const [, b, , d, , f] = textItem.transform;
+      // transform = [a, b, c, d, e, f] já vem com o tamanho da fonte embutido em a/b/c/d — e
+      // `width`/`height` do pdfjs já são o tamanho final (em pt de página), não "unidades de
+      // glifo" a escalar de novo. Projetar os cantos locais (w, h) direto pelos componentes
+      // brutos da matriz (`b*lx`) multiplicava a largura pela escala DUAS vezes (achado
+      // 2026-11-09, pedido real do Athos: dava Y=-1257 numa página de 841pt) — tinha que usar
+      // só o ÂNGULO de rotação da matriz (vetor unitário) pra combinar com w/h, que já carregam
+      // a magnitude certa.
+      const [a, b] = textItem.transform;
+      const f = textItem.transform[5];
+      const angle = Math.atan2(b, a);
+      const cosA = Math.cos(angle);
+      const sinA = Math.sin(angle);
       const w = textItem.width || 0;
-      const h = textItem.height || Math.hypot(b, d) || 8;
+      const h = textItem.height || Math.hypot(textItem.transform[1], textItem.transform[3]) || 8;
       for (const [lx, ly] of [
         [0, 0],
         [w, 0],
         [0, h],
         [w, h],
       ]) {
-        const py = b * lx + d * ly + f;
+        const py = f + lx * sinA + ly * cosA;
         if (py < minY) minY = py;
       }
     }
@@ -283,6 +285,24 @@ async function detectarTopoConteudoReal(bytesOriginal: Uint8Array): Promise<numb
           const py = ctm[1] * lx + ctm[3] * ly + ctm[5];
           if (py < minY) minY = py;
         }
+      } else if (fn === OPS.constructPath) {
+        // Traço/retângulo vetorial (ex.: borda da caixa do DACE) — pdfjs já devolve a bounding
+        // box local em `argsArray[i][2]` como [minX, minY, maxX, maxY]. Achado 2026-11-09: sem
+        // isso, a borda da caixa do DACE ficava um pouco abaixo do texto mais baixo detectado
+        // (~12pt no pedido real do Athos), e a margem de segurança não cobria essa diferença —
+        // a linha "Pedido X" saía desenhada em cima da borda.
+        const bbox = opList.argsArray[i]?.[2] as Record<number, number> | undefined;
+        if (bbox) {
+          for (const [lx, ly] of [
+            [bbox[0], bbox[1]],
+            [bbox[2], bbox[1]],
+            [bbox[0], bbox[3]],
+            [bbox[2], bbox[3]],
+          ]) {
+            const py = ctm[1] * lx + ctm[3] * ly + ctm[5];
+            if (py < minY) minY = py;
+          }
+        }
       }
     }
 
@@ -295,15 +315,18 @@ async function detectarTopoConteudoReal(bytesOriginal: Uint8Array): Promise<numb
 
 /** Desenha a etiqueta no formato térmico: corta a margem em branco que o PDF do Mercado
  * Livre devolve (largura passa a bater com etiqueta térmica real) e desenha a tabela de
- * produto embaixo — igual o formato da UpSeller. 1 página só por pedido (evita sair "duas
- * etiquetas" na impressão, achado 2026-11-02).
+ * produto embaixo — igual o formato da UpSeller. SEMPRE 1 página só por pedido (nunca cai
+ * pra página separada — achado 2026-11-02: impressora corta por página, então 2 páginas
+ * viram 2 etiquetas físicas).
  *
  * O limite de onde termina o conteúdo real de CADA etiqueta é medido dinamicamente por
- * pedido (`detectarTopoConteudoReal`), não é mais um percentual fixo — etiquetas com DACE
- * (declaração de conteúdo nativa do ML) ocupam mais espaço que uma etiqueta comum, e variam
- * de pedido pra pedido. Se não sobrar altura segura pra tabela na mesma página (detecção
- * falhou ou o conteúdo nativo já ocupa quase tudo), devolve `false` e quem chamou deve cair
- * no fallback de página separada (`gerarPaginaInfoPedido`) em vez de arriscar sobrepor. */
+ * pedido (`detectarTopoConteudoReal`) e a tabela é desenhada logo ABAIXO dele — nunca por
+ * cima. Quando sobra espaço em branco na página original, usa esse espaço e corta o excesso
+ * (sem desperdício). Quando NÃO sobra (ex.: DACE ocupando quase a página toda), a página da
+ * própria etiqueta cresce pra baixo (MediaBox com Y negativo) só o necessário pra tabela
+ * caber — ainda assim 1 página só, nunca duas. Se a detecção falhar (PDF não deu pra
+ * analisar), assume o pior caso (conteúdo até a base) e já desenha na área nova estendida,
+ * garantindo que nunca sobrepõe algo que não foi possível medir. */
 export async function desenharInfoPedidoNaEtiqueta(
   doc: PDFDocument,
   page: PDFPage,
@@ -321,25 +344,21 @@ export async function desenharInfoPedidoNaEtiqueta(
   const larguraUtil = novaLargura - 20;
 
   const topoConteudoReal = await detectarTopoConteudoReal(bytesOriginal);
-  if (topoConteudoReal == null) return false;
-
-  const yInicial = Math.max(0, topoConteudoReal - MARGEM_SEGURANCA_TOPO);
-  const alturaLinhaPedido = params.marketplace_numero ? 13 : 0;
-  const alturaNecessaria = alturaLinhaPedido + calcularAlturaTabela(font, larguraUtil, params.itens);
-
-  if (yInicial - alturaNecessaria < MARGEM_MINIMA_RODAPE) return false;
+  const yInicial = (topoConteudoReal ?? 0) - MARGEM_SEGURANCA_TOPO;
 
   let y = yInicial;
   if (params.marketplace_numero) {
     page.drawText(`Pedido ${params.marketplace_numero}`, { x: marginX, y, size: 7.5, font: fontBold, color: LINE_COLOR });
-    y -= alturaLinhaPedido;
+    y -= 13;
   }
 
   const yFinal = desenharTabela(page, font, fontBold, marginX, larguraUtil, y, params.itens);
 
-  // Corta o excesso de folha em branco — a largura some à esquerda (etiqueta térmica de
-  // verdade) e a altura termina logo abaixo da tabela, sem sobra embaixo.
-  const yMinFinal = Math.max(0, yFinal - MARGEM_MINIMA_RODAPE);
+  // Corta o excesso de folha em branco à esquerda e embaixo. Quando a tabela coube dentro da
+  // página original, `yMinFinal` fica positivo (crop tradicional, sem desperdício). Quando
+  // não coube, fica negativo — o MediaBox estende a página pra baixo só o suficiente pra
+  // tabela caber, mantendo 1 página só em vez de criar uma segunda.
+  const yMinFinal = yFinal - MARGEM_MINIMA_RODAPE;
   page.setMediaBox(xMin, yMinFinal, novaLargura, height - yMinFinal);
   page.setCropBox(xMin, yMinFinal, novaLargura, height - yMinFinal);
   return true;
