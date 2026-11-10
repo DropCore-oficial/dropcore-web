@@ -352,6 +352,9 @@ export async function desenharInfoPedidoNaEtiqueta(
   const baseConteudo = conteudoReal?.min ?? 0;
   const topoConteudo = conteudoReal?.max ?? height;
   const yInicial = baseConteudo - MARGEM_SEGURANCA_TOPO;
+  // DEBUG TEMPORÁRIO 2026-11-09 — remover depois de confirmar a causa do vão em produção
+  // (local não reproduz, suspeita de diferença de runtime do pdfjs-dist no bundle Vercel).
+  console.error("[etiqueta-debug]", JSON.stringify({ width, height, conteudoReal, baseConteudo, topoConteudo, yInicial }));
 
   let y = yInicial;
   if (params.marketplace_numero) {
@@ -369,6 +372,7 @@ export async function desenharInfoPedidoNaEtiqueta(
   // só em vez de criar uma segunda.
   const yMinFinal = yFinal - MARGEM_MINIMA_RODAPE;
   const yMaxFinal = Math.min(height, topoConteudo + MARGEM_CORTE_TOPO);
+  console.error("[etiqueta-debug]", JSON.stringify({ yFinal, yMinFinal, yMaxFinal, alturaFinal: yMaxFinal - yMinFinal }));
   // Translada o conteúdo pra origem (0,0) em vez de só mover o MediaBox — MediaBox com
   // origem não-zero é válido no spec do PDF, mas impressora térmica/driver de etiqueta
   // (o uso real aqui) às vezes ignora o offset e só respeita largura/altura, fazendo sobrar
