@@ -369,7 +369,12 @@ export async function desenharInfoPedidoNaEtiqueta(
   // só em vez de criar uma segunda.
   const yMinFinal = yFinal - MARGEM_MINIMA_RODAPE;
   const yMaxFinal = Math.min(height, topoConteudo + MARGEM_CORTE_TOPO);
-  page.setMediaBox(xMin, yMinFinal, novaLargura, yMaxFinal - yMinFinal);
-  page.setCropBox(xMin, yMinFinal, novaLargura, yMaxFinal - yMinFinal);
+  // Translada o conteúdo pra origem (0,0) em vez de só mover o MediaBox — MediaBox com
+  // origem não-zero é válido no spec do PDF, mas impressora térmica/driver de etiqueta
+  // (o uso real aqui) às vezes ignora o offset e só respeita largura/altura, fazendo sobrar
+  // espaço em branco em vez de cortar de verdade.
+  page.translateContent(-xMin, -yMinFinal);
+  page.setMediaBox(0, 0, novaLargura, yMaxFinal - yMinFinal);
+  page.setCropBox(0, 0, novaLargura, yMaxFinal - yMinFinal);
   return true;
 }
