@@ -200,20 +200,21 @@ function desenharTabela(
 }
 
 const CORTE_ESQUERDA = 0.2; // remove a margem em branco à esquerda da etiqueta (conteúdo começa em ~26%)
-const MARGEM_SEGURANCA_TOPO = 14; // pt — buffer abaixo do Y mais baixo de conteúdo real detectado
-const MARGEM_MINIMA_RODAPE = 10; // pt — sobra mínima entre o fim da tabela e a base da folha
+const MARGEM_SEGURANCA_TOPO = 6; // pt — buffer entre o conteúdo real mais baixo e a tabela do DropCore
+const MARGEM_MINIMA_RODAPE = 6; // pt — sobra mínima entre o fim da tabela e a base da folha
+const MARGEM_CORTE_TOPO = 6; // pt — sobra mínima entre o topo do conteúdo real e o topo da folha
 
 /** Varre o conteúdo REAL de cada etiqueta (texto, imagem e traço/retângulo vetorial — ex.:
- * borda da caixa do DACE —, incl. rotacionado) via pdfjs-dist e devolve o Y (coordenada PDF,
- * 0 = base da página) mais baixo ocupado por algo nativo do PDF — ou seja, abaixo desse Y a
- * página está garantidamente em branco NESTE pedido específico. Substitui o percentual fixo
- * medido uma única vez em 2026-11-02: etiquetas com DACE (declaração de conteúdo nativa do
- * ML) ocupam bem mais espaço que uma etiqueta comum, e usar sempre o mesmo percentual fazia
- * a tabela do DropCore cair em cima do conteúdo do ML. Devolve `null` se não conseguir ler o
- * PDF (falha de parsing) — quem chama trata como "não sobrou nada medido", e ainda assim
- * desenha numa área nova abaixo (nunca sobrepõe, só não aproveita espaço que não deu pra
- * confirmar). */
-async function detectarTopoConteudoReal(bytesOriginal: Uint8Array): Promise<number | null> {
+ * borda da caixa do DACE —, incl. rotacionado) via pdfjs-dist e devolve a faixa de Y
+ * (coordenada PDF, 0 = base da página) ocupada por algo nativo do PDF — abaixo de `min` e
+ * acima de `max` a página está garantidamente em branco NESTE pedido específico. Substitui o
+ * percentual fixo medido uma única vez em 2026-11-02: etiquetas com DACE (declaração de
+ * conteúdo nativa do ML) ocupam bem mais espaço que uma etiqueta comum, e usar sempre o mesmo
+ * percentual fazia a tabela do DropCore cair em cima do conteúdo do ML. Devolve `null` se não
+ * conseguir ler o PDF (falha de parsing) — quem chama trata como "não sobrou nada medido", e
+ * ainda assim desenha numa área nova abaixo (nunca sobrepõe, só não aproveita espaço que não
+ * deu pra confirmar). */
+async function detectarTopoConteudoReal(bytesOriginal: Uint8Array): Promise<{ min: number; max: number } | null> {
   try {
     const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
     const pdf = await pdfjsLib.getDocument({
@@ -223,6 +224,7 @@ async function detectarTopoConteudoReal(bytesOriginal: Uint8Array): Promise<numb
     const page = await pdf.getPage(1);
 
     let minY = Infinity;
+    let maxY = -Infinity;
 
     const textContent = await page.getTextContent();
     for (const item of textContent.items) {
@@ -250,6 +252,7 @@ async function detectarTopoConteudoReal(bytesOriginal: Uint8Array): Promise<numb
       ]) {
         const py = f + lx * sinA + ly * cosA;
         if (py < minY) minY = py;
+        if (py > maxY) maxY = py;
       }
     }
 
@@ -284,6 +287,7 @@ async function detectarTopoConteudoReal(bytesOriginal: Uint8Array): Promise<numb
         ]) {
           const py = ctm[1] * lx + ctm[3] * ly + ctm[5];
           if (py < minY) minY = py;
+        if (py > maxY) maxY = py;
         }
       } else if (fn === OPS.constructPath) {
         // Traço/retângulo vetorial (ex.: borda da caixa do DACE) — pdfjs já devolve a bounding
@@ -301,12 +305,13 @@ async function detectarTopoConteudoReal(bytesOriginal: Uint8Array): Promise<numb
           ]) {
             const py = ctm[1] * lx + ctm[3] * ly + ctm[5];
             if (py < minY) minY = py;
+        if (py > maxY) maxY = py;
           }
         }
       }
     }
 
-    return Number.isFinite(minY) ? minY : null;
+    return Number.isFinite(minY) && Number.isFinite(maxY) ? { min: minY, max: maxY } : null;
   } catch (e) {
     console.error("[detectarTopoConteudoReal] falha ao analisar PDF, sem detecção dinâmica:", e);
     return null;
@@ -343,8 +348,10 @@ export async function desenharInfoPedidoNaEtiqueta(
   const marginX = xMin + 10;
   const larguraUtil = novaLargura - 20;
 
-  const topoConteudoReal = await detectarTopoConteudoReal(bytesOriginal);
-  const yInicial = (topoConteudoReal ?? 0) - MARGEM_SEGURANCA_TOPO;
+  const conteudoReal = await detectarTopoConteudoReal(bytesOriginal);
+  const baseConteudo = conteudoReal?.min ?? 0;
+  const topoConteudo = conteudoReal?.max ?? height;
+  const yInicial = baseConteudo - MARGEM_SEGURANCA_TOPO;
 
   let y = yInicial;
   if (params.marketplace_numero) {
@@ -354,12 +361,15 @@ export async function desenharInfoPedidoNaEtiqueta(
 
   const yFinal = desenharTabela(page, font, fontBold, marginX, larguraUtil, y, params.itens);
 
-  // Corta o excesso de folha em branco à esquerda e embaixo. Quando a tabela coube dentro da
-  // página original, `yMinFinal` fica positivo (crop tradicional, sem desperdício). Quando
-  // não coube, fica negativo — o MediaBox estende a página pra baixo só o suficiente pra
-  // tabela caber, mantendo 1 página só em vez de criar uma segunda.
+  // Corta o excesso de folha em branco dos 4 lados — esquerda (margem fixa do PDF do ML),
+  // topo e base (logo acima/abaixo do conteúdo real detectado, sem desperdiçar o que já é
+  // naturalmente em branco na etiqueta original). Quando a tabela coube dentro da página
+  // original, `yMinFinal` fica positivo (crop tradicional). Quando não coube, fica negativo —
+  // o MediaBox estende a página pra baixo só o suficiente pra tabela caber, mantendo 1 página
+  // só em vez de criar uma segunda.
   const yMinFinal = yFinal - MARGEM_MINIMA_RODAPE;
-  page.setMediaBox(xMin, yMinFinal, novaLargura, height - yMinFinal);
-  page.setCropBox(xMin, yMinFinal, novaLargura, height - yMinFinal);
+  const yMaxFinal = Math.min(height, topoConteudo + MARGEM_CORTE_TOPO);
+  page.setMediaBox(xMin, yMinFinal, novaLargura, yMaxFinal - yMinFinal);
+  page.setCropBox(xMin, yMinFinal, novaLargura, yMaxFinal - yMinFinal);
   return true;
 }
