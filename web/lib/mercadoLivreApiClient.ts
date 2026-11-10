@@ -406,6 +406,43 @@ export async function mlBuscarReclamacoesAbertas(
   }));
 }
 
+/** Reclamações do seller SEM filtro de status, mais recentes primeiro — achado real
+ * 2026-11-10: `mlBuscarReclamacoesAbertas` (status=opened) não vê devolução que o ML já
+ * FECHOU com decisão a favor do comprador (`resolution.reason === "item_returned"`) mas
+ * ainda tem ação obrigatória pendente pro vendedor (ex.: `return_review_ok`, prazo real) —
+ * caso real do seller Coimbra Company, claim fechada 2 dias antes de eu notar manualmente.
+ * Usada só pela varredura diária de segurança (`varrerDevolucoesMlTodosSellers`), não pelo
+ * caminho de webhook em tempo real (esse continua em `mlBuscarReclamacoesAbertas`, mais
+ * barato pra rodar a cada claim que chega). */
+export async function mlBuscarReclamacoesRecentes(
+  ctx: MercadoLivreAuthContext,
+  limit = 50
+): Promise<MercadoLivreReclamacao[]> {
+  const json = await mlGet<{
+    data?: Array<{
+      id: number;
+      resource: string;
+      resource_id: number | string;
+      status: string;
+      type: string;
+      reason_id: string;
+      date_created: string;
+    }>;
+  }>(
+    `/post-purchase/v1/claims/search?player_role=respondent&player_user_id=${ctx.mlUserId}&limit=${limit}&sort=date_created&sort_type=desc`,
+    ctx.accessToken
+  );
+  return (json?.data ?? []).map((c) => ({
+    id: c.id,
+    resource: c.resource,
+    resourceId: String(c.resource_id),
+    status: c.status,
+    type: c.type,
+    reasonId: c.reason_id,
+    dateCreated: c.date_created,
+  }));
+}
+
 /** Status atual de 1 reclamação específica, direto na API (não a lista de "abertas") —
  * usado pra filtrar caso o ML já tenha fechado a reclamação depois que o caso foi gravado
  * em `seller_ai_disputas_fornecedor` (achado real 2026-10-01: reclamação fechada desde

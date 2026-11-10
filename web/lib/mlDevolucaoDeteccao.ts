@@ -26,9 +26,11 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   getValidMercadoLivreAccessToken,
   mlBuscarReclamacoesAbertas,
+  mlBuscarReclamacoesRecentes,
   mlBuscarMotivoReclamacao,
   mlBuscarEvidenciasReclamacao,
   mlReclamacaoAindaAberta,
+  type MercadoLivreAuthContext,
   type MercadoLivreReclamacao,
 } from "@/lib/mercadoLivreApiClient";
 import { resolverPedidoEFornecedorPorReclamacao } from "@/lib/mercadoLivreClaimResolucao";
@@ -52,6 +54,92 @@ async function classificarReclamacao(
   return null;
 }
 
+/** Corpo por-reclamação compartilhado entre o caminho de webhook (`detectarDevolucaoMl`,
+ * só claims `opened`) e a varredura diária de segurança (`varrerDevolucoesMlTodosSellers`,
+ * qualquer status) — classifica, registra, trava dinheiro e notifica. Chamador já garantiu
+ * que `reclamacao.id` não está em `seller_ml_devolucoes_detectadas` ainda. */
+async function processarReclamacaoDevolucao(
+  reclamacao: MercadoLivreReclamacao,
+  ctx: MercadoLivreAuthContext,
+  sellerId: string,
+  orgId: string,
+  sellerNome: string | null
+): Promise<boolean> {
+  const classificacao = await classificarReclamacao(reclamacao, ctx);
+  if (!classificacao) return false;
+
+  const { pedido, fornecedorId } = await resolverPedidoEFornecedorPorReclamacao(sellerId, reclamacao, ctx);
+
+  const { data: registro } = await supabaseAdmin
+    .rpc("fn_ml_devolucao_detectada_registrar", {
+      p_org_id: orgId,
+      p_seller_id: sellerId,
+      p_ml_claim_id: String(reclamacao.id),
+      p_ml_resource: reclamacao.resource,
+      p_ml_resource_id: reclamacao.resourceId,
+      p_ml_reason_id: reclamacao.reasonId,
+      p_ml_rules_engine_triage: classificacao.rulesEngineTriage,
+      p_criterio: classificacao.criterio,
+      p_pedido_id: pedido?.id ?? null,
+      p_ledger_id: pedido?.ledger_id ?? null,
+      p_fornecedor_id: fornecedorId,
+    })
+    .single();
+
+  const linha = registro as { ja_existia: boolean; devolucao_id: string } | null;
+  if (!linha || linha.ja_existia) return false;
+
+  // Trava automática — só existe dinheiro pra travar quando o pedido tem ledger_id (nem
+  // todo pedido resolvido tem: ex. "produto fora do catálogo" nunca gerou saldo).
+  if (pedido?.ledger_id) {
+    const { data: travaResultado } = await supabaseAdmin
+      .rpc("fn_devolucao_auto_travar", { p_ledger_id: pedido.ledger_id })
+      .single();
+    const travou = (travaResultado as { ok: boolean } | null)?.ok ?? false;
+
+    if (travou && !fornecedorId) {
+      // Travou o dinheiro, mas não dá pra saber de qual fornecedor é o produto (SKU não
+      // mapeado em lugar nenhum) — mesmo padrão visual de "produto fora do catálogo":
+      // mostra o problema no card do pedido em vez de silenciosamente escolher errado.
+      await supabaseAdmin
+        .from("pedidos")
+        .update({
+          status: "devolucao_sem_fornecedor",
+          motivo_bloqueio:
+            "Devolução detectada, mas não foi possível confirmar automaticamente qual fornecedor fabricou/despachou esse item. Peça pro admin resolver.",
+        })
+        .eq("id", pedido.id);
+    }
+  }
+
+  await Promise.all([
+    notifySellerPedidoAtencao({
+      org_id: orgId,
+      seller_id: sellerId,
+      pedido_id: pedido?.id ?? null,
+      tipo: "devolucao_ml_provavel_seller",
+      motivo:
+        classificacao.criterio === "repentant"
+          ? "O Mercado Livre classificou uma reclamação sua como arrependimento de compra (possível devolução)."
+          : "Identificamos uma reclamação sem foto/evidência no Mercado Livre — padrão comum de devolução.",
+    }),
+    notifyAdminsDevolucaoMl({
+      org_id: orgId,
+      seller_id: sellerId,
+      seller_nome: sellerNome,
+      pedido_id: pedido?.id ?? null,
+      ml_claim_id: String(reclamacao.id),
+      criterio: classificacao.criterio,
+    }),
+    fornecedorId && pedido?.ledger_id
+      ? notifyFornecedorDevolucao({ org_id: orgId, fornecedor_id: fornecedorId, ledger_id: pedido.ledger_id })
+      : Promise.resolve(),
+  ]);
+
+  await supabaseAdmin.rpc("fn_ml_devolucao_detectada_marcar_notificado", { p_id: linha.devolucao_id });
+  return true;
+}
+
 export async function detectarDevolucaoMl(sellerId: string, orgId: string, sellerNome: string | null): Promise<void> {
   const ctx = await getValidMercadoLivreAccessToken(sellerId);
   if (!ctx) return;
@@ -67,80 +155,88 @@ export async function detectarDevolucaoMl(sellerId: string, orgId: string, selle
 
   for (const r of reclamacoes) {
     if (jaConhecidos.has(String(r.id))) continue;
-
-    const classificacao = await classificarReclamacao(r, ctx);
-    if (!classificacao) continue;
-
-    const { pedido, fornecedorId } = await resolverPedidoEFornecedorPorReclamacao(sellerId, r, ctx);
-
-    const { data: registro } = await supabaseAdmin
-      .rpc("fn_ml_devolucao_detectada_registrar", {
-        p_org_id: orgId,
-        p_seller_id: sellerId,
-        p_ml_claim_id: String(r.id),
-        p_ml_resource: r.resource,
-        p_ml_resource_id: r.resourceId,
-        p_ml_reason_id: r.reasonId,
-        p_ml_rules_engine_triage: classificacao.rulesEngineTriage,
-        p_criterio: classificacao.criterio,
-        p_pedido_id: pedido?.id ?? null,
-        p_ledger_id: pedido?.ledger_id ?? null,
-        p_fornecedor_id: fornecedorId,
-      })
-      .single();
-
-    const linha = registro as { ja_existia: boolean; devolucao_id: string } | null;
-    if (!linha || linha.ja_existia) continue;
-
-    // Trava automática — só existe dinheiro pra travar quando o pedido tem ledger_id (nem
-    // todo pedido resolvido tem: ex. "produto fora do catálogo" nunca gerou saldo).
-    if (pedido?.ledger_id) {
-      const { data: travaResultado } = await supabaseAdmin
-        .rpc("fn_devolucao_auto_travar", { p_ledger_id: pedido.ledger_id })
-        .single();
-      const travou = (travaResultado as { ok: boolean } | null)?.ok ?? false;
-
-      if (travou && !fornecedorId) {
-        // Travou o dinheiro, mas não dá pra saber de qual fornecedor é o produto (SKU não
-        // mapeado em lugar nenhum) — mesmo padrão visual de "produto fora do catálogo":
-        // mostra o problema no card do pedido em vez de silenciosamente escolher errado.
-        await supabaseAdmin
-          .from("pedidos")
-          .update({
-            status: "devolucao_sem_fornecedor",
-            motivo_bloqueio:
-              "Devolução detectada, mas não foi possível confirmar automaticamente qual fornecedor fabricou/despachou esse item. Peça pro admin resolver.",
-          })
-          .eq("id", pedido.id);
-      }
-    }
-
-    await Promise.all([
-      notifySellerPedidoAtencao({
-        org_id: orgId,
-        seller_id: sellerId,
-        pedido_id: pedido?.id ?? null,
-        tipo: "devolucao_ml_provavel_seller",
-        motivo:
-          classificacao.criterio === "repentant"
-            ? "O Mercado Livre classificou uma reclamação sua como arrependimento de compra (possível devolução)."
-            : "Identificamos uma reclamação sem foto/evidência no Mercado Livre — padrão comum de devolução.",
-      }),
-      notifyAdminsDevolucaoMl({
-        org_id: orgId,
-        seller_id: sellerId,
-        seller_nome: sellerNome,
-        pedido_id: pedido?.id ?? null,
-        ml_claim_id: String(r.id),
-        criterio: classificacao.criterio,
-      }),
-      fornecedorId && pedido?.ledger_id
-        ? notifyFornecedorDevolucao({ org_id: orgId, fornecedor_id: fornecedorId, ledger_id: pedido.ledger_id })
-        : Promise.resolve(),
-    ]);
-
-    await supabaseAdmin.rpc("fn_ml_devolucao_detectada_marcar_notificado", { p_id: linha.devolucao_id });
+    await processarReclamacaoDevolucao(r, ctx, sellerId, orgId, sellerNome);
   }
+}
+
+/** Janela de dias pra trás que a varredura diária considera — `mlBuscarReclamacoesRecentes`
+ * não filtra por data na API, então o corte é feito aqui comparando `dateCreated`. 20 dias
+ * cobre qualquer intervalo realista entre a reclamação abrir/fechar no ML e alguém notar
+ * manualmente, sem reprocessar o histórico inteiro (claims de meses atrás) toda vez. */
+const JANELA_VARREDURA_DIAS = 20;
+
+/** Varredura diária de segurança — achado real 2026-11-10: tanto o webhook quanto
+ * `detectarDevolucaoMl` só enxergam claims com `status=opened`; uma devolução que o ML já
+ * FECHOU com decisão a favor do comprador (`resolution.reason: "item_returned"`) mas ainda
+ * tem ação obrigatória pendente pro vendedor (ex.: `return_review_ok`, com prazo real)
+ * passa batido pros dois — e o webhook pode simplesmente nunca chegar (confirmado: 9
+ * devoluções reais em 2 sellers, nenhuma notificada, 3 já tinham sido pagas pro fornecedor
+ * antes de alguém notar). Essa rotina roda 1x/dia pra TODO seller com integração ML ativa,
+ * sem depender de webhook nenhum, usando `mlBuscarReclamacoesRecentes` (sem filtro de
+ * status) + o mesmo pipeline de classificação/trava/notificação do webhook
+ * (`processarReclamacaoDevolucao`). Não é tempo real — é a rede de segurança pro caso o
+ * tempo real falhar, que é exatamente o que falhou aqui. */
+export async function varrerDevolucoesMlTodosSellers(): Promise<{
+  sellersVarridos: number;
+  reclamacoesNovas: number;
+  erros: number;
+}> {
+  const { data: integracoes, error: integErr } = await supabaseAdmin
+    .from("seller_mercadolivre_integrations")
+    .select("seller_id")
+    .not("ml_user_id", "is", null);
+  if (integErr || !integracoes) {
+    console.error("[varredura-devolucao-ml] erro ao listar integrações:", integErr?.message);
+    return { sellersVarridos: 0, reclamacoesNovas: 0, erros: 1 };
+  }
+
+  const sellerIds = [...new Set(integracoes.map((i) => i.seller_id as string))];
+  const { data: sellersRows } = await supabaseAdmin.from("sellers").select("id, org_id, nome").in("id", sellerIds);
+  const sellerInfo = new Map((sellersRows ?? []).map((s) => [s.id as string, { orgId: s.org_id as string, nome: s.nome as string | null }]));
+
+  const corteDesde = Date.now() - JANELA_VARREDURA_DIAS * 24 * 60 * 60 * 1000;
+
+  let sellersVarridos = 0;
+  let reclamacoesNovas = 0;
+  let erros = 0;
+
+  for (const sellerId of sellerIds) {
+    const info = sellerInfo.get(sellerId);
+    if (!info) continue;
+
+    try {
+      const ctx = await getValidMercadoLivreAccessToken(sellerId);
+      if (!ctx) continue;
+      sellersVarridos++;
+
+      const reclamacoes = (await mlBuscarReclamacoesRecentes(ctx)).filter(
+        (r) => new Date(r.dateCreated).getTime() >= corteDesde
+      );
+      if (reclamacoes.length === 0) continue;
+
+      const claimIds = reclamacoes.map((r) => String(r.id));
+      const { data: existentes } = await supabaseAdmin.rpc("fn_ml_devolucao_detectada_claim_ids_existentes", {
+        p_ml_claim_ids: claimIds,
+      });
+      const jaConhecidos = new Set((existentes ?? []) as string[]);
+
+      for (const r of reclamacoes) {
+        if (jaConhecidos.has(String(r.id))) continue;
+        try {
+          const registrou = await processarReclamacaoDevolucao(r, ctx, sellerId, info.orgId, info.nome);
+          if (registrou) reclamacoesNovas++;
+        } catch (e) {
+          erros++;
+          console.error(`[varredura-devolucao-ml] erro ao processar claim ${r.id} do seller ${sellerId}:`, e);
+        }
+      }
+    } catch (e) {
+      erros++;
+      console.error(`[varredura-devolucao-ml] erro no seller ${sellerId}:`, e);
+    }
+  }
+
+  return { sellersVarridos, reclamacoesNovas, erros };
 }
 
 /** Entry point chamado pelo webhook do ML (tópico "claims") — resolve o seller pelo
