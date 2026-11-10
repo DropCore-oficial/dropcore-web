@@ -1,7 +1,12 @@
 /**
- * Notifica o fornecedor quando o admin registra uma devolução (EM_DEVOLUCAO) — é o aviso de
- * que o prazo de 48h começou: ele precisa confirmar "chegou tudo certo" ou contestar em
- * /fornecedor/devolucoes, senão o sistema libera o valor pro seller sozinho quando vencer.
+ * Notifica o fornecedor quando o admin/sistema registra uma devolução (EM_DEVOLUCAO) — só
+ * avisa que o valor está travado esperando a peça voltar fisicamente. O prazo pra confirmar
+ * de verdade só começa quando o Mercado Livre confirma a entrega física (ver
+ * `notifyFornecedorEntregaDevolucaoConfirmada`), não a partir deste aviso — achado 2026-11-10:
+ * a mensagem antiga prometia "48h ou libera sozinho" contando daqui, mas a liberação
+ * automática ficou desligada meses (desde 2026-10-30) porque devolução física demora 10+
+ * dias pra chegar; usar o sinal real do ML em vez de um timer cego evita prometer prazo
+ * errado de novo.
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -24,9 +29,9 @@ export async function notifyFornecedorDevolucao(params: {
   await supabaseAdmin.from("notifications").insert({
     user_id: memberUserId,
     tipo: "devolucao_registrada_fornecedor",
-    titulo: "Devolução aguardando sua confirmação",
+    titulo: "Devolução a caminho de volta",
     mensagem:
-      "Um pedido está voltando pra você. Confirme o recebimento ou conteste em até 48h — se não responder, o valor é liberado automaticamente pro seller.",
+      "Um pedido está voltando pra você. O valor já está travado. Assim que a peça chegar fisicamente no seu endereço (confirmado pelo rastreio do Mercado Livre), você vai ter um novo aviso com o prazo pra confirmar o recebimento.",
     metadata: { ledger_id: params.ledger_id },
   });
 }

@@ -1,6 +1,7 @@
 /**
- * Notifica o fornecedor quando o prazo de 48h venceu sem ele confirmar nem contestar, e o
- * sistema liberou o valor pro seller sozinho (ver devolucaoLiberacaoAutomatica.ts).
+ * Notifica o fornecedor quando o prazo de 72h (desde a entrega física confirmada pelo ML)
+ * venceu sem ele confirmar nem contestar, e o sistema liberou o valor pro seller sozinho
+ * (ver devolucaoLiberacaoAutomatica.ts).
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -24,7 +25,7 @@ export async function notifyFornecedorDevolucaoLiberadaAutomatico(params: {
     user_id: memberUserId,
     tipo: "devolucao_liberada_automatico_fornecedor",
     titulo: "Prazo de devolução vencido",
-    mensagem: "Você não confirmou nem contestou essa devolução em 48h — o valor foi liberado automaticamente pro seller.",
+    mensagem: "Você não confirmou nem contestou essa devolução em 72h desde que ela chegou no seu endereço — o valor foi liberado automaticamente pro seller.",
     metadata: { ledger_id: params.ledger_id },
   });
 }

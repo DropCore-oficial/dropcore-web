@@ -453,6 +453,21 @@ export async function mlReclamacaoAindaAberta(claimId: string, ctx: MercadoLivre
   return json?.status === "opened";
 }
 
+/** Checa se a peça da devolução já foi entregue fisicamente — `status_history.date_returned`
+ * do shipment original vem sempre nulo (achado 2026-08/2026-11, dois casos reais), mas esse
+ * endpoint dedicado de devolução tem um shipment PRÓPRIO (`type: "return"`) com rastreio real
+ * até o endereço do fornecedor. Testado ao vivo 2026-11-10 (claim 5607673753, seller Coimbra
+ * Company): `shipments[0].status === "delivered"` batendo com a entrega física confirmada —
+ * sinal confiável pra destravar a confirmação de recebimento sem depender só do fornecedor
+ * lembrar de clicar (ver `verificarEntregasFisicasDevolucao.ts`). */
+export async function mlDevolucaoEntregueFisicamente(claimId: string, ctx: MercadoLivreAuthContext): Promise<boolean> {
+  const json = await mlGet<{ shipments?: Array<{ status?: string; type?: string }> }>(
+    `/post-purchase/v2/claims/${claimId}/returns`,
+    ctx.accessToken
+  );
+  return (json?.shipments ?? []).some((s) => s.type === "return" && s.status === "delivered");
+}
+
 /** Payload bruto completo de `/post-purchase/v1/claims/{id}` — usado só pra calibração
  * (ver mlDevolucaoCalibracaoLog.ts): nunca testamos contra um caso real se esse endpoint
  * expõe algum sinal de "devolução entregue no fornecedor" (shipment de volta, resolution,

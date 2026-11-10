@@ -30,6 +30,7 @@ import {
   mlBuscarMotivoReclamacao,
   mlBuscarEvidenciasReclamacao,
   mlReclamacaoAindaAberta,
+  mlDevolucaoEntregueFisicamente,
   type MercadoLivreAuthContext,
   type MercadoLivreReclamacao,
 } from "@/lib/mercadoLivreApiClient";
@@ -37,6 +38,7 @@ import { resolverPedidoEFornecedorPorReclamacao } from "@/lib/mercadoLivreClaimR
 import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
 import { notifyAdminsDevolucaoMl } from "@/lib/notifyAdminsDevolucaoMl";
 import { notifyFornecedorDevolucao } from "@/lib/notifyFornecedorDevolucao";
+import { notifyFornecedorEntregaDevolucaoConfirmada } from "@/lib/notifyFornecedorEntregaDevolucaoConfirmada";
 
 type Criterio = "repentant" | "sem_evidencia";
 
@@ -301,4 +303,85 @@ export async function reavaliarDevolucoesAbertasPorMlUserId(mlUserId: string): P
   } catch (e) {
     console.error("[webhook mercadolivre] erro ao reavaliar devoluções abertas:", e);
   }
+}
+
+const PRAZO_CONFIRMACAO_HORAS = 72;
+
+/** Checa, pra toda devolução travada (`EM_DEVOLUCAO`) ainda sem confirmação/contestação do
+ * fornecedor, se o Mercado Livre já confirmou a entrega física da peça no endereço dele (via
+ * `mlDevolucaoEntregueFisicamente`, testado ao vivo 2026-11-10). Na primeira vez que detecta
+ * entrega, grava o timestamp (`fn_devolucao_marcar_entrega_confirmada_ml`) e dispara o aviso
+ * com prazo real pro fornecedor — é esse timestamp que `devolucaoLiberacaoAutomatica.ts` usa
+ * pra saber quando os 72h de silêncio venceram (não mais a data de entrada em devolução).
+ * Roda junto com `varrerDevolucoesMlTodosSellers` (mesmo cron, mesma cadência). */
+export async function verificarEntregasFisicasDevolucao(): Promise<{
+  verificadas: number;
+  entregasConfirmadas: number;
+  erros: number;
+}> {
+  const { data: pendentes, error } = await supabaseAdmin
+    .from("seller_ml_devolucoes_detectadas")
+    .select("ml_claim_id, seller_id, org_id, ledger_id, fornecedor_id")
+    .not("ledger_id", "is", null);
+  if (error) {
+    console.error("[verificar-entregas-fisicas-devolucao] erro ao listar pendentes:", error.message);
+    return { verificadas: 0, entregasConfirmadas: 0, erros: 1 };
+  }
+  if (!pendentes || pendentes.length === 0) return { verificadas: 0, entregasConfirmadas: 0, erros: 0 };
+
+  const ledgerIds = [...new Set(pendentes.map((p) => p.ledger_id as string))];
+  const { data: ledgers } = await supabaseAdmin
+    .from("financial_ledger")
+    .select("id, status, em_devolucao_entrega_confirmada_ml_em, fornecedor_confirmou_recebimento_em, fornecedor_contestou_em")
+    .in("id", ledgerIds)
+    .eq("status", "EM_DEVOLUCAO")
+    .is("em_devolucao_entrega_confirmada_ml_em", null)
+    .is("fornecedor_confirmou_recebimento_em", null)
+    .is("fornecedor_contestou_em", null);
+
+  const ledgersElegiveis = new Set((ledgers ?? []).map((l) => l.id as string));
+  const alvo = pendentes.filter((p) => ledgersElegiveis.has(p.ledger_id as string));
+  if (alvo.length === 0) return { verificadas: 0, entregasConfirmadas: 0, erros: 0 };
+
+  const ctxCache = new Map<string, MercadoLivreAuthContext | null>();
+  let verificadas = 0;
+  let entregasConfirmadas = 0;
+  let erros = 0;
+
+  for (const row of alvo) {
+    const sellerId = row.seller_id as string;
+    try {
+      let ctx = ctxCache.get(sellerId);
+      if (ctx === undefined) {
+        ctx = await getValidMercadoLivreAccessToken(sellerId);
+        ctxCache.set(sellerId, ctx);
+      }
+      if (!ctx) continue;
+
+      verificadas++;
+      const entregue = await mlDevolucaoEntregueFisicamente(String(row.ml_claim_id), ctx);
+      if (!entregue) continue;
+
+      const { data: marcado } = await supabaseAdmin
+        .rpc("fn_devolucao_marcar_entrega_confirmada_ml", { p_ledger_id: row.ledger_id })
+        .single();
+      const resultado = marcado as { ok: boolean; ja_confirmada: boolean } | null;
+      if (!resultado?.ok || resultado.ja_confirmada) continue;
+
+      entregasConfirmadas++;
+      if (row.fornecedor_id) {
+        await notifyFornecedorEntregaDevolucaoConfirmada({
+          org_id: row.org_id as string,
+          fornecedor_id: row.fornecedor_id as string,
+          ledger_id: row.ledger_id as string,
+          prazoHoras: PRAZO_CONFIRMACAO_HORAS,
+        });
+      }
+    } catch (e) {
+      erros++;
+      console.error(`[verificar-entregas-fisicas-devolucao] erro na claim ${row.ml_claim_id} (seller ${sellerId}):`, e);
+    }
+  }
+
+  return { verificadas, entregasConfirmadas, erros };
 }

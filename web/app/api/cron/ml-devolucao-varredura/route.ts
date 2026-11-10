@@ -1,17 +1,24 @@
 /**
- * GET/POST /api/cron/ml-devolucao-varredura — rede de segurança diária pra devolução do
- * Mercado Livre. Achado real 2026-11-10: a detecção em tempo real (webhook `claims` →
+ * GET/POST /api/cron/ml-devolucao-varredura — rede de segurança pra devolução do Mercado
+ * Livre, 2 passos. Achado real 2026-11-10: a detecção em tempo real (webhook `claims` →
  * `detectarDevolucaoMl`) só enxerga reclamações com `status=opened` — uma devolução que o
  * ML já FECHOU com decisão a favor do comprador (`resolution.reason: "item_returned"`), mas
  * ainda tem ação obrigatória pendente pro vendedor (prazo real tipo `return_review_ok`),
- * passa batido. E o webhook em si pode simplesmente nunca chegar (confirmado: 9 devoluções
- * reais em 2 sellers nunca notificadas, 3 delas já pagas pro fornecedor antes de alguém
- * notar manualmente). Essa rotina varre TODO seller com integração ML ativa 1x/dia, sem
- * depender de webhook nenhum (ver `varrerDevolucoesMlTodosSellers`). Agendamento: Supabase
- * pg_cron diário (web/scripts/add-ml-devolucao-varredura-cron.sql).
+ * passa batido. E o webhook em si pode simplesmente nunca chegar (confirmado: 10 devoluções
+ * reais em 2 sellers nunca notificadas, 4 delas já pagas pro fornecedor antes de alguém
+ * notar manualmente).
+ *
+ * Passo 1 (`varrerDevolucoesMlTodosSellers`): acha devolução nova em qualquer seller com
+ * integração ML ativa, sem depender de webhook.
+ * Passo 2 (`verificarEntregasFisicasDevolucao`): pras devoluções já travadas, confere se o
+ * ML confirmou a entrega física da peça no fornecedor — é esse sinal que destrava a
+ * liberação automática de 72h em `devolucaoLiberacaoAutomatica.ts` (não mais um timer cego).
+ *
+ * Agendamento: Supabase pg_cron a cada 6h (web/scripts/add-ml-devolucao-varredura-cron.sql +
+ * update-ml-devolucao-varredura-cron-6h.sql).
  */
 import { NextResponse } from "next/server";
-import { varrerDevolucoesMlTodosSellers } from "@/lib/mlDevolucaoDeteccao";
+import { varrerDevolucoesMlTodosSellers, verificarEntregasFisicasDevolucao } from "@/lib/mlDevolucaoDeteccao";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -51,8 +58,9 @@ export async function GET(req: Request) {
   }
 
   try {
-    const result = await varrerDevolucoesMlTodosSellers();
-    return NextResponse.json({ ok: true, ...result });
+    const varredura = await varrerDevolucoesMlTodosSellers();
+    const entregas = await verificarEntregasFisicasDevolucao();
+    return NextResponse.json({ ok: true, varredura, entregas });
   } catch (e: unknown) {
     console.error("[cron/ml-devolucao-varredura]", e);
     return NextResponse.json(

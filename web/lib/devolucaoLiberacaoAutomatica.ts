@@ -1,28 +1,30 @@
 /**
  * Libera automaticamente o valor bloqueado numa devolução quando o fornecedor não confirma
- * nem contesta em 48h (contadas a partir de `em_devolucao_desde`, gravado quando o admin
- * registra EM_DEVOLUCAO — ver web/app/api/org/financial/ledger/[id]/route.ts). Decisão Sr
- * Stark 2026-10-29: devolução não pode ficar bloqueada pra sempre esperando um fornecedor
- * omisso — a confirmação positiva do fornecedor continua liberando na hora
+ * nem contesta em 72h — não mais a partir de `em_devolucao_desde` (quando o sistema travou o
+ * dinheiro), e sim a partir de `em_devolucao_entrega_confirmada_ml_em` (quando o Mercado
+ * Livre confirmou que a peça chegou fisicamente no endereço do fornecedor, ver
+ * `verificarEntregasFisicasDevolucao` em mlDevolucaoDeteccao.ts). Decisão Sr Stark
+ * 2026-10-29: devolução não pode ficar bloqueada pra sempre esperando um fornecedor omisso —
+ * a confirmação positiva do fornecedor continua liberando na hora
  * (fn_devolucao_fornecedor_confirmar), isto aqui é só a rede de segurança pro silêncio.
  *
  * A seleção dos elegíveis é leitura em lote de sistema (mesmo padrão de
  * pedidoSlaAtrasoCheck.ts) — a mutação de dinheiro em si vai sempre pela RPC
  * fn_devolucao_liberar_automatico (atômica, reconfere tudo de novo antes de mexer).
+ *
+ * Religado 2026-11-10: ficou pausado desde 2026-10-30 porque o gatilho antigo (48h desde
+ * `em_devolucao_desde`) não tinha relação com a peça ter chegado de volta de verdade —
+ * devolução física demora 10+ dias no mundo real (achado Galileus/Djulios). Agora o gatilho
+ * é o sinal real de entrega do próprio ML (testado ao vivo, claim 5607673753).
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
 import { notifyFornecedorDevolucaoLiberadaAutomatico } from "@/lib/notifyFornecedorDevolucaoLiberadaAutomatico";
 
-const PRAZO_HORAS = 48;
+const PRAZO_HORAS = 72;
 const MAX_POR_RUN = 200;
 
-// Pausado 2026-10-30: confirmado que a devolução física demora 10+ dias pra chegar no
-// fornecedor (achado real, Galileus/Djulios) — um prazo de 48h ancorado em quando o sistema
-// trava o dinheiro (detecção automática) dispara a liberação antes do fornecedor sequer ter
-// o produto em mãos. Fica desligado até calibrar um sinal real de entrega (log em
-// mlDevolucaoCalibracaoLog.ts, aguardando caso real pra confirmar o campo certo da API do ML).
-const LIBERACAO_AUTOMATICA_HABILITADA = false;
+const LIBERACAO_AUTOMATICA_HABILITADA = true;
 
 type LedgerElegivel = {
   id: string;
@@ -45,7 +47,7 @@ export async function processarDevolucaoLiberacaoAutomaticaCron(): Promise<{
     .from("financial_ledger")
     .select("id, org_id, seller_id, fornecedor_id, pedido_id")
     .eq("status", "EM_DEVOLUCAO")
-    .lt("em_devolucao_desde", limite)
+    .lt("em_devolucao_entrega_confirmada_ml_em", limite)
     .is("fornecedor_contestou_em", null)
     .limit(MAX_POR_RUN);
 
@@ -74,7 +76,7 @@ export async function processarDevolucaoLiberacaoAutomaticaCron(): Promise<{
           seller_id: row.seller_id,
           pedido_id: row.pedido_id,
           tipo: "devolucao_liberada_automatico_seller",
-          motivo: "O fornecedor não respondeu em 48h sobre a devolução — o valor foi liberado automaticamente pro seu saldo.",
+          motivo: "O fornecedor não respondeu em 72h desde que a devolução chegou no endereço dele — o valor foi liberado automaticamente pro seu saldo.",
         }),
         row.fornecedor_id
           ? notifyFornecedorDevolucaoLiberadaAutomatico({
