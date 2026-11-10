@@ -261,16 +261,21 @@ export async function POST(req: Request) {
         // Mercado Livre normalizado tem sempre 1 página só (ver `normalizarEtiquetaMlPdf`) —
         // desenha a info direto na metade de baixo dela, pra sair 1 etiqueta física só, não
         // 2 (achado 2026-11-02: página de info separada fazia a impressora cortar em 2).
-        // Outros canais (etiqueta anexada manual) mantêm página própria antes, por segurança.
+        // `desenharInfoPedidoNaEtiqueta` mede o conteúdo real de CADA etiqueta (achado
+        // 2026-11-09: etiquetas com DACE ocupam mais espaço que uma etiqueta comum) e devolve
+        // `false` quando não sobra espaço seguro — nesse caso cai no mesmo fallback de página
+        // separada usado pros canais que não são Mercado Livre.
+        let desenhouNaEtiqueta = false;
         if (row.canal_venda === "mercado_livre" && copied.length === 1) {
           const etiquetaPage = copied[0];
           const { width, height } = etiquetaPage.getSize();
           try {
-            await desenharInfoPedidoNaEtiqueta(merged, etiquetaPage, width, height, infoParams);
+            desenhouNaEtiqueta = await desenharInfoPedidoNaEtiqueta(merged, etiquetaPage, width, height, buf, infoParams);
           } catch (e) {
             console.error("[etiquetas-combinadas] falha ao desenhar info na etiqueta ML:", e);
           }
-        } else {
+        }
+        if (!desenhouNaEtiqueta) {
           try {
             const primeiraPagina = doc.getPages()[0];
             const { width, height } = primeiraPagina.getSize();
