@@ -13,24 +13,36 @@
  * Achado 2026-11-09: pedidos cuja etiqueta ML vem com "DACE" (Declaração de Conteúdo, seção
  * nativa do ML pra certas modalidades de envio) têm conteúdo real ocupando bem mais da
  * página do que o rodapé em branco de uma etiqueta comum — um percentual fixo sobrepunha a
- * tabela em cima do texto/QR code nativos do ML. Trocado por detecção dinâmica por PDF (ver
- * `detectarTopoConteudoReal`, via pdfjs-dist): mede onde termina o conteúdo real de CADA
- * etiqueta (texto + imagem) e desenha a tabela sempre ABAIXO disso — nunca por cima, nunca em
- * página separada (mesmo quando não sobra espaço em branco, a própria página da etiqueta
- * cresce pra baixo o quanto for preciso, ver `desenharInfoPedidoNaEtiqueta`).
+ * tabela em cima do texto/QR code nativos do ML. Trocado por detecção dinâmica: mede onde
+ * termina o conteúdo real de CADA etiqueta (texto + imagem + traço vetorial) e desenha a
+ * tabela sempre ABAIXO disso — nunca por cima, nunca em página separada (mesmo quando não
+ * sobra espaço em branco, a própria página da etiqueta cresce pra baixo o quanto for preciso,
+ * ver `desenharInfoPedidoNaEtiqueta`).
  *
- * Bug corrigido no mesmo dia (pedido real do seller Athos, canal ML, com DACE): a primeira
- * versão de `detectarTopoConteudoReal` projetava os cantos do texto multiplicando a largura
- * pelos componentes BRUTOS da matriz de transformação (`b * largura`) — como essa matriz já
- * vem com o tamanho da fonte embutido (não é uma rotação pura), isso aplicava a escala DUAS
- * vezes e dava um Y absurdo (ex.: -1257 numa página de 841pt), fazendo o código achar que não
- * sobrava espaço nenhum e cair num fallback de página separada que não devia mais existir.
- * Corrigido projetando por ÂNGULO de rotação (vetor unitário) em vez da matriz bruta — `width`/
- * `height` do pdfjs já vêm na magnitude certa, só falta a direção.
+ * Achado 2026-11-10: a primeira versão dessa detecção usava `pdfjs-dist`, mas o worker que
+ * essa lib precisa pra funcionar (`pdf.worker.mjs`) some no bundle serverless da Vercel —
+ * falha calada em produção ("Setting up fake worker failed" / depois "Cannot find module"),
+ * nunca reproduzia local, mesmo depois de 2 tentativas de ajustar o bundling
+ * (`serverExternalPackages`, `outputFileTracingIncludes`, `workerSrc` manual). Trocado por um
+ * interpretador mínimo de content stream (`acharExtensaoConteudoReal`) usando só `pdf-lib`
+ * (já usado em todo o resto deste arquivo) — sem worker, sem dependência nova, sem risco de
+ * bundling. Validado contra o mesmo PDF real (pedido do seller Athos, com DACE): bate exato
+ * com os valores que o pdfjs dava (290.27pt e 810.71pt numa página de 841.89pt).
  */
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
-import type { TextItem } from "pdfjs-dist/types/src/display/api";
-import { createRequire } from "module";
+import {
+  PDFArray,
+  PDFDict,
+  PDFDocument,
+  PDFName,
+  PDFNumber,
+  PDFRawStream,
+  PDFStream,
+  StandardFonts,
+  decodePDFRawStream,
+  rgb,
+  type PDFFont,
+  type PDFPage,
+} from "pdf-lib";
 
 export type ItemInfoEtiqueta = {
   sku: string | null;
@@ -205,124 +217,257 @@ const MARGEM_SEGURANCA_TOPO = 6; // pt — buffer entre o conteúdo real mais ba
 const MARGEM_MINIMA_RODAPE = 6; // pt — sobra mínima entre o fim da tabela e a base da folha
 const MARGEM_CORTE_TOPO = 6; // pt — sobra mínima entre o topo do conteúdo real e o topo da folha
 
-/** Varre o conteúdo REAL de cada etiqueta (texto, imagem e traço/retângulo vetorial — ex.:
- * borda da caixa do DACE —, incl. rotacionado) via pdfjs-dist e devolve a faixa de Y
- * (coordenada PDF, 0 = base da página) ocupada por algo nativo do PDF — abaixo de `min` e
- * acima de `max` a página está garantidamente em branco NESTE pedido específico. Substitui o
- * percentual fixo medido uma única vez em 2026-11-02: etiquetas com DACE (declaração de
- * conteúdo nativa do ML) ocupam bem mais espaço que uma etiqueta comum, e usar sempre o mesmo
- * percentual fazia a tabela do DropCore cair em cima do conteúdo do ML. Devolve `null` se não
- * conseguir ler o PDF (falha de parsing) — quem chama trata como "não sobrou nada medido", e
- * ainda assim desenha numa área nova abaixo (nunca sobrepõe, só não aproveita espaço que não
- * deu pra confirmar). */
-async function detectarTopoConteudoReal(bytesOriginal: Uint8Array): Promise<{ min: number; max: number } | null> {
-  try {
-    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    // Sem isso, pdfjs tenta achar `pdf.worker.mjs` sozinho via caminho relativo a partir de
-    // `pdf.mjs` — funciona em Node puro, mas falha calado no bundle serverless da Vercel
-    // ("Setting up fake worker failed", só visível no log do servidor, nunca reproduziu
-    // local). Resolve o caminho real via `require.resolve` em vez de depender da detecção
-    // automática do pdfjs.
-    pdfjsLib.GlobalWorkerOptions.workerSrc = createRequire(import.meta.url).resolve(
-      "pdfjs-dist/legacy/build/pdf.worker.mjs"
-    );
-    const pdf = await pdfjsLib.getDocument({
-      data: bytesOriginal,
-      disableFontFace: true,
-    }).promise;
-    const page = await pdf.getPage(1);
+type Mat6 = [number, number, number, number, number, number];
+const MAT_IDENTIDADE: Mat6 = [1, 0, 0, 1, 0, 0];
 
-    let minY = Infinity;
-    let maxY = -Infinity;
+function multiplicarMatrizes(m1: Mat6, m2: Mat6): Mat6 {
+  const [a1, b1, c1, d1, e1, f1] = m1;
+  const [a2, b2, c2, d2, e2, f2] = m2;
+  return [
+    a1 * a2 + b1 * c2,
+    a1 * b2 + b1 * d2,
+    c1 * a2 + d1 * c2,
+    c1 * b2 + d1 * d2,
+    e1 * a2 + f1 * c2 + e2,
+    e1 * b2 + f1 * d2 + f2,
+  ];
+}
 
-    const textContent = await page.getTextContent();
-    for (const item of textContent.items) {
-      const textItem = item as TextItem;
-      if (!textItem.transform) continue;
-      // transform = [a, b, c, d, e, f] já vem com o tamanho da fonte embutido em a/b/c/d — e
-      // `width`/`height` do pdfjs já são o tamanho final (em pt de página), não "unidades de
-      // glifo" a escalar de novo. Projetar os cantos locais (w, h) direto pelos componentes
-      // brutos da matriz (`b*lx`) multiplicava a largura pela escala DUAS vezes (achado
-      // 2026-11-09, pedido real do Athos: dava Y=-1257 numa página de 841pt) — tinha que usar
-      // só o ÂNGULO de rotação da matriz (vetor unitário) pra combinar com w/h, que já carregam
-      // a magnitude certa.
-      const [a, b] = textItem.transform;
-      const f = textItem.transform[5];
-      const angle = Math.atan2(b, a);
-      const cosA = Math.cos(angle);
-      const sinA = Math.sin(angle);
-      const w = textItem.width || 0;
-      const h = textItem.height || Math.hypot(textItem.transform[1], textItem.transform[3]) || 8;
-      for (const [lx, ly] of [
-        [0, 0],
-        [w, 0],
-        [0, h],
-        [w, h],
-      ]) {
-        const py = f + lx * sinA + ly * cosA;
-        if (py < minY) minY = py;
-        if (py > maxY) maxY = py;
+function aplicarMatriz(m: Mat6, x: number, y: number): [number, number] {
+  const [a, b, c, d, e, f] = m;
+  return [a * x + c * y + e, b * x + d * y + f];
+}
+
+function decodificarConteudoDe(dict: PDFDict): string {
+  const contents = dict.lookup(PDFName.of("Contents"));
+  const streams: PDFRawStream[] = [];
+  if (contents instanceof PDFArray) {
+    for (let i = 0; i < contents.size(); i++) streams.push(contents.lookup(i, PDFRawStream));
+  } else if (contents instanceof PDFRawStream) {
+    streams.push(contents);
+  }
+  return streams.map((s) => Buffer.from(decodePDFRawStream(s).decode()).toString("latin1")).join("\n");
+}
+
+function matrizDoXObject(dict: PDFDict): Mat6 {
+  const arr = dict.lookupMaybe(PDFName.of("Matrix"), PDFArray);
+  if (!arr || arr.size() !== 6) return MAT_IDENTIDADE;
+  const nums: number[] = [];
+  for (let i = 0; i < 6; i++) nums.push((arr.get(i) as PDFNumber).asNumber());
+  return nums as Mat6;
+}
+
+/** Interpreta o content stream de uma página (e recursivamente seus Form XObjects) rastreando
+ * a CTM/matriz de texto pra achar o Y mínimo e máximo de todo conteúdo real desenhado —
+ * texto (posição de `Td`/`TD`/`Tm`), imagem (`Do` de XObject /Image) e traço/retângulo
+ * vetorial (`re`/`m`/`l`/`c`/`v`/`y`). Substitui o uso de `pdfjs-dist` (achado 2026-11-10:
+ * o worker que o pdfjs precisa pra funcionar some no bundle serverless da Vercel — "Setting
+ * up fake worker failed" / "Cannot find module pdf.worker.mjs", nunca reproduzia local;
+ * depois de 2 tentativas de contornar isso no bundling, built com só `pdf-lib` — já usado
+ * em todo o resto deste arquivo — elimina esse risco de vez). Valores batem exatamente com
+ * os que o pdfjs dava antes no mesmo PDF real (pedido do seller Athos, com DACE): 290.27pt
+ * e 810.71pt numa página de 841.89pt. */
+function acharExtensaoConteudoReal(conteudo: string, resources: PDFDict | undefined, ctmInicial: Mat6, bounds: { min: number; max: number }, profundidade = 0): void {
+  if (profundidade > 6) return;
+  const n = conteudo.length;
+  let i = 0;
+  const operandos: number[] = [];
+  let ultimoNome: string | null = null;
+  const pilhaCtm: Mat6[] = [];
+  let ctm = ctmInicial;
+  let tlm: Mat6 = MAT_IDENTIDADE;
+
+  const ehEspaco = (ch: string) => ch === " " || ch === "\n" || ch === "\r" || ch === "\t" || ch === "\f" || ch === "\0";
+  const ehDelimitador = (ch: string) => "()<>[]{}/%".includes(ch);
+  const registrar = (y: number) => {
+    if (y < bounds.min) bounds.min = y;
+    if (y > bounds.max) bounds.max = y;
+  };
+
+  while (i < n) {
+    const ch = conteudo[i];
+    if (ehEspaco(ch)) {
+      i++;
+      continue;
+    }
+    if (ch === "%") {
+      while (i < n && conteudo[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "(") {
+      let d = 1;
+      i++;
+      while (i < n && d > 0) {
+        if (conteudo[i] === "\\") i += 2;
+        else {
+          if (conteudo[i] === "(") d++;
+          else if (conteudo[i] === ")") d--;
+          i++;
+        }
       }
+      continue;
+    }
+    if (ch === "<" && conteudo[i + 1] === "<") {
+      let d = 1;
+      i += 2;
+      while (i < n && d > 0) {
+        if (conteudo[i] === "<" && conteudo[i + 1] === "<") {
+          d++;
+          i += 2;
+        } else if (conteudo[i] === ">" && conteudo[i + 1] === ">") {
+          d--;
+          i += 2;
+        } else i++;
+      }
+      continue;
+    }
+    if (ch === "<") {
+      i++;
+      while (i < n && conteudo[i] !== ">") i++;
+      i++;
+      continue;
+    }
+    if (ch === "[") {
+      let d = 1;
+      i++;
+      while (i < n && d > 0) {
+        if (conteudo[i] === "[") d++;
+        else if (conteudo[i] === "]") d--;
+        i++;
+      }
+      continue;
+    }
+    if (ch === "/") {
+      i++;
+      const start = i;
+      while (i < n && !ehEspaco(conteudo[i]) && !ehDelimitador(conteudo[i])) i++;
+      ultimoNome = conteudo.slice(start, i);
+      continue;
+    }
+    if (ch === "-" || ch === "+" || ch === "." || (ch >= "0" && ch <= "9")) {
+      const start = i;
+      i++;
+      while (
+        i < n &&
+        (conteudo[i] === "." || conteudo[i] === "-" || conteudo[i] === "+" || (conteudo[i] >= "0" && conteudo[i] <= "9") || conteudo[i] === "e" || conteudo[i] === "E")
+      )
+        i++;
+      const v = parseFloat(conteudo.slice(start, i));
+      if (!Number.isNaN(v)) operandos.push(v);
+      continue;
     }
 
-    const opList = await page.getOperatorList();
-    const OPS = pdfjsLib.OPS;
-    const ctmStack: number[][] = [];
-    let ctm = [1, 0, 0, 1, 0, 0];
-    const IMAGEM_OPS = new Set([OPS.paintImageXObject, OPS.paintImageMaskXObject, OPS.paintInlineImageXObject]);
+    const start = i;
+    while (i < n && !ehEspaco(conteudo[i]) && !ehDelimitador(conteudo[i])) i++;
+    const op = conteudo.slice(start, i);
+    if (op.length === 0) {
+      i++;
+      continue;
+    }
 
-    for (let i = 0; i < opList.fnArray.length; i++) {
-      const fn = opList.fnArray[i];
-      if (fn === OPS.save) {
-        ctmStack.push(ctm);
-      } else if (fn === OPS.restore) {
-        ctm = ctmStack.pop() ?? ctm;
-      } else if (fn === OPS.transform) {
-        const [a2, b2, c2, d2, e2, f2] = opList.argsArray[i] as number[];
-        ctm = [
-          a2 * ctm[0] + b2 * ctm[2],
-          a2 * ctm[1] + b2 * ctm[3],
-          c2 * ctm[0] + d2 * ctm[2],
-          c2 * ctm[1] + d2 * ctm[3],
-          e2 * ctm[0] + f2 * ctm[2] + ctm[4],
-          e2 * ctm[1] + f2 * ctm[3] + ctm[5],
-        ];
-      } else if (IMAGEM_OPS.has(fn)) {
+    switch (op) {
+      case "q":
+        pilhaCtm.push(ctm);
+        break;
+      case "Q":
+        ctm = pilhaCtm.pop() ?? ctm;
+        break;
+      case "cm": {
+        const m = operandos.slice(-6) as Mat6;
+        ctm = multiplicarMatrizes(m, ctm);
+        break;
+      }
+      case "re": {
+        const [x, y, w, h] = operandos.slice(-4);
         for (const [lx, ly] of [
-          [0, 0],
-          [1, 0],
-          [0, 1],
-          [1, 1],
-        ]) {
-          const py = ctm[1] * lx + ctm[3] * ly + ctm[5];
-          if (py < minY) minY = py;
-        if (py > maxY) maxY = py;
+          [x, y],
+          [x + w, y],
+          [x, y + h],
+          [x + w, y + h],
+        ] as [number, number][]) {
+          registrar(aplicarMatriz(ctm, lx, ly)[1]);
         }
-      } else if (fn === OPS.constructPath) {
-        // Traço/retângulo vetorial (ex.: borda da caixa do DACE) — pdfjs já devolve a bounding
-        // box local em `argsArray[i][2]` como [minX, minY, maxX, maxY]. Achado 2026-11-09: sem
-        // isso, a borda da caixa do DACE ficava um pouco abaixo do texto mais baixo detectado
-        // (~12pt no pedido real do Athos), e a margem de segurança não cobria essa diferença —
-        // a linha "Pedido X" saía desenhada em cima da borda.
-        const bbox = opList.argsArray[i]?.[2] as Record<number, number> | undefined;
-        if (bbox) {
-          for (const [lx, ly] of [
-            [bbox[0], bbox[1]],
-            [bbox[2], bbox[1]],
-            [bbox[0], bbox[3]],
-            [bbox[2], bbox[3]],
-          ]) {
-            const py = ctm[1] * lx + ctm[3] * ly + ctm[5];
-            if (py < minY) minY = py;
-        if (py > maxY) maxY = py;
+        break;
+      }
+      case "m":
+      case "l": {
+        const [x, y] = operandos.slice(-2);
+        registrar(aplicarMatriz(ctm, x, y)[1]);
+        break;
+      }
+      case "c": {
+        const [, , , , x3, y3] = operandos.slice(-6);
+        registrar(aplicarMatriz(ctm, x3, y3)[1]);
+        break;
+      }
+      case "v":
+      case "y": {
+        const [, , x3, y3] = operandos.slice(-4);
+        registrar(aplicarMatriz(ctm, x3, y3)[1]);
+        break;
+      }
+      case "BT":
+        tlm = MAT_IDENTIDADE;
+        break;
+      case "Td":
+      case "TD": {
+        const [tx, ty] = operandos.slice(-2);
+        tlm = multiplicarMatrizes([1, 0, 0, 1, tx, ty], tlm);
+        registrar(aplicarMatriz(multiplicarMatrizes(tlm, ctm), 0, 0)[1]);
+        break;
+      }
+      case "Tm": {
+        tlm = operandos.slice(-6) as Mat6;
+        registrar(aplicarMatriz(multiplicarMatrizes(tlm, ctm), 0, 0)[1]);
+        break;
+      }
+      case "Do": {
+        if (ultimoNome && resources) {
+          const xobjDict = resources.lookupMaybe(PDFName.of("XObject"), PDFDict);
+          const xobjRaw = xobjDict?.lookupMaybe(PDFName.of(ultimoNome), PDFStream);
+          const xobj = xobjRaw instanceof PDFRawStream ? xobjRaw : undefined;
+          if (xobj) {
+            const subtype = xobj.dict.lookup(PDFName.of("Subtype"));
+            const ehImagem = subtype instanceof PDFName && subtype.asString() === "/Image";
+            if (ehImagem) {
+              for (const [lx, ly] of [
+                [0, 0],
+                [1, 0],
+                [0, 1],
+                [1, 1],
+              ] as [number, number][]) {
+                registrar(aplicarMatriz(ctm, lx, ly)[1]);
+              }
+            } else {
+              const matrizForm = matrizDoXObject(xobj.dict);
+              const recursosInternos = xobj.dict.lookupMaybe(PDFName.of("Resources"), PDFDict) ?? resources;
+              const conteudoInterno = Buffer.from(decodePDFRawStream(xobj).decode()).toString("latin1");
+              acharExtensaoConteudoReal(conteudoInterno, recursosInternos, multiplicarMatrizes(matrizForm, ctm), bounds, profundidade + 1);
+            }
           }
         }
+        break;
       }
+      default:
+        break;
     }
+    operandos.length = 0;
+  }
+}
 
-    return Number.isFinite(minY) && Number.isFinite(maxY) ? { min: minY, max: maxY } : null;
+/** Mede a faixa de Y (coordenada PDF, 0 = base da página) ocupada por todo conteúdo real da
+ * página — abaixo de `min` e acima de `max` a página está garantidamente em branco. Devolve
+ * `null` se a página não tiver `Contents` nenhum (nunca deveria acontecer numa etiqueta de
+ * verdade) — quem chama trata como "não sobrou nada medido" e desenha numa área nova abaixo,
+ * nunca sobrepondo. */
+function detectarExtensaoConteudoReal(page: PDFPage): { min: number; max: number } | null {
+  try {
+    const bounds = { min: Infinity, max: -Infinity };
+    const conteudo = decodificarConteudoDe(page.node);
+    acharExtensaoConteudoReal(conteudo, page.node.Resources(), MAT_IDENTIDADE, bounds);
+    return Number.isFinite(bounds.min) && Number.isFinite(bounds.max) ? bounds : null;
   } catch (e) {
-    console.error("[detectarTopoConteudoReal] falha ao analisar PDF, sem detecção dinâmica:", e);
+    console.error("[detectarExtensaoConteudoReal] falha ao analisar PDF, sem detecção dinâmica:", e);
     return null;
   }
 }
@@ -334,7 +479,7 @@ async function detectarTopoConteudoReal(bytesOriginal: Uint8Array): Promise<{ mi
  * viram 2 etiquetas físicas).
  *
  * O limite de onde termina o conteúdo real de CADA etiqueta é medido dinamicamente por
- * pedido (`detectarTopoConteudoReal`) e a tabela é desenhada logo ABAIXO dele — nunca por
+ * pedido (`detectarExtensaoConteudoReal`) e a tabela é desenhada logo ABAIXO dele — nunca por
  * cima. Quando sobra espaço em branco na página original, usa esse espaço e corta o excesso
  * (sem desperdício). Quando NÃO sobra (ex.: DACE ocupando quase a página toda), a página da
  * própria etiqueta cresce pra baixo (MediaBox com Y negativo) só o necessário pra tabela
@@ -346,7 +491,6 @@ export async function desenharInfoPedidoNaEtiqueta(
   page: PDFPage,
   width: number,
   height: number,
-  bytesOriginal: Uint8Array,
   params: InfoPedidoParams
 ): Promise<boolean> {
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -357,7 +501,7 @@ export async function desenharInfoPedidoNaEtiqueta(
   const marginX = xMin + 10;
   const larguraUtil = novaLargura - 20;
 
-  const conteudoReal = await detectarTopoConteudoReal(bytesOriginal);
+  const conteudoReal = detectarExtensaoConteudoReal(page);
   const baseConteudo = conteudoReal?.min ?? 0;
   const topoConteudo = conteudoReal?.max ?? height;
   const yInicial = baseConteudo - MARGEM_SEGURANCA_TOPO;

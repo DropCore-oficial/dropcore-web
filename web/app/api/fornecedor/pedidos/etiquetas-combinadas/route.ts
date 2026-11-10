@@ -270,7 +270,7 @@ export async function POST(req: Request) {
           const etiquetaPage = copied[0];
           const { width, height } = etiquetaPage.getSize();
           try {
-            desenhouNaEtiqueta = await desenharInfoPedidoNaEtiqueta(merged, etiquetaPage, width, height, buf, infoParams);
+            desenhouNaEtiqueta = await desenharInfoPedidoNaEtiqueta(merged, etiquetaPage, width, height, infoParams);
           } catch (e) {
             console.error("[etiquetas-combinadas] falha ao desenhar info na etiqueta ML:", e);
           }
