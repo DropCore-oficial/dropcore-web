@@ -49,6 +49,7 @@ type Devolucao = {
   id: string;
   valor_total: number;
   data_evento: string;
+  entrega_confirmada_em: string | null;
   prazo_final: string | null;
   contestado: boolean;
   fornecedor_contestacao_texto: string | null;
@@ -595,6 +596,25 @@ export default function FornecedorPedidosPage() {
     );
   }
 
+  // Dentro da aba Devolução, pedido com prazo rodando (entrega já confirmada pelo ML) vem
+  // antes dos que ainda estão "aguardando" (sem prazo nenhum correndo ainda) — senão o
+  // fornecedor precisa procurar no meio da lista pra achar o que realmente é urgente.
+  // Ordenado pelo prazo mais próximo de vencer primeiro; o resto mantém a ordem do servidor.
+  const pedidosExibidos =
+    abaAtiva === "devolucao"
+      ? [...pedidos].sort((a, b) => {
+          const da = a.ledger_id ? devolucoesPendentes.find((d) => d.id === a.ledger_id) : undefined;
+          const db = b.ledger_id ? devolucoesPendentes.find((d) => d.id === b.ledger_id) : undefined;
+          const prioridadeA = da?.entrega_confirmada_em ? 0 : 1;
+          const prioridadeB = db?.entrega_confirmada_em ? 0 : 1;
+          if (prioridadeA !== prioridadeB) return prioridadeA - prioridadeB;
+          if (prioridadeA === 0) {
+            return (da!.prazo_final ?? "").localeCompare(db!.prazo_final ?? "");
+          }
+          return 0;
+        })
+      : pedidos;
+
   return (
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
       <style>{`
@@ -896,7 +916,7 @@ export default function FornecedorPedidosPage() {
           <>
             {/* Cards em todas as larguras — padrão de web/app/seller/pedidos/page.tsx (article + dt/dd) */}
             <div className="space-y-3">
-              {pedidos.map((p) => (
+              {pedidosExibidos.map((p) => (
                 <article
                   key={p.id}
                   ref={(el) => { pedidoCardRefs.current[p.id] = el; }}
@@ -1032,6 +1052,7 @@ export default function FornecedorPedidosPage() {
                         contestado={devolucao.contestado}
                         contestacaoTexto={devolucao.fornecedor_contestacao_texto}
                         prazoFinal={devolucao.prazo_final}
+                        entregaConfirmadaEm={devolucao.entrega_confirmada_em}
                         onAtualizar={() => void Promise.all([load({ preserveSelection: true }), loadDevolucoesPendentes()])}
                         pedirConfirmacao={setConfirmandoDevolucaoId}
                       />

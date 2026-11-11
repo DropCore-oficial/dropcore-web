@@ -19,7 +19,7 @@ async function loadLedgerItems(orgId: string, statuses: string[]) {
   const { data: rows, error } = await supabaseAdmin
     .from("financial_ledger")
     .select(
-      "id, seller_id, fornecedor_id, tipo, valor_total, status, data_evento, ciclo_repasse, pedido_id, em_devolucao_desde, fornecedor_contestou_em, fornecedor_contestacao_texto, fornecedor_contestacao_evidencias_paths"
+      "id, seller_id, fornecedor_id, tipo, valor_total, status, data_evento, ciclo_repasse, pedido_id, em_devolucao_desde, em_devolucao_entrega_confirmada_ml_em, fornecedor_contestou_em, fornecedor_contestacao_texto, fornecedor_contestacao_evidencias_paths"
     )
     .eq("org_id", orgId)
     .in("tipo", ["BLOQUEIO", "VENDA"])
@@ -92,6 +92,7 @@ async function loadLedgerItems(orgId: string, statuses: string[]) {
     marketplace_numero: r.pedido_id ? (pedidoMap.get(r.pedido_id) ?? null) : null,
     debito_ja_registrado: debitosSet.has(r.id),
     em_devolucao_desde: r.em_devolucao_desde ?? null,
+    em_devolucao_entrega_confirmada_ml_em: r.em_devolucao_entrega_confirmada_ml_em ?? null,
     fornecedor_contestou_em: r.fornecedor_contestou_em ?? null,
     fornecedor_contestacao_texto: r.fornecedor_contestacao_texto ?? null,
     fornecedor_contestacao_evidencias_urls: evidenciaUrls.get(r.id) ?? [],

@@ -114,7 +114,7 @@ export async function GET(req: Request) {
     // conta antiga somava só essas 200 linhas mais recentes em JS).
     const { data: extrato } = await supabaseAdmin
       .from("financial_ledger")
-      .select("id, tipo, fornecedor_id, valor_total, status, data_evento, referencia, pedido_id")
+      .select("id, tipo, fornecedor_id, valor_total, status, data_evento, referencia, pedido_id, em_devolucao_entrega_confirmada_ml_em")
       .eq("org_id", seller.org_id)
       .eq("seller_id", seller.id)
       .order("data_evento", { ascending: false })
@@ -196,6 +196,7 @@ export async function GET(req: Request) {
       custo: e.pedido_id ? (pedidoDetalhes[e.pedido_id]?.custo ?? null) : null,
       canal_venda: e.pedido_id ? (pedidoDetalhes[e.pedido_id]?.canal_venda ?? null) : null,
       fornecedor_nome: e.fornecedor_id ? (fornNomes[e.fornecedor_id] ?? "—") : null,
+      em_devolucao_entrega_confirmada_ml_em: e.em_devolucao_entrega_confirmada_ml_em ?? null,
     }));
 
     /**

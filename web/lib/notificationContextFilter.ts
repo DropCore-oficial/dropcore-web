@@ -42,6 +42,7 @@ export const NOTIFICATION_TIPOS_POR_CONTEXTO: Record<NotificationPortalContext, 
     "anuncios_sem_sku_catalogo",
     "devolucao_ml_provavel_seller",
     "devolucao_liberada_automatico_seller",
+    "devolucao_confirmada_fornecedor_seller",
   ],
   fornecedor: [
     "mensalidade_paga_fornecedor",

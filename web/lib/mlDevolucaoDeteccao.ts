@@ -31,6 +31,8 @@ import {
   mlBuscarEvidenciasReclamacao,
   mlReclamacaoAindaAberta,
   mlDevolucaoEntregueFisicamente,
+  mlBuscarOrderDetalheBruto,
+  mlBuscarShipmentDetalheBruto,
   type MercadoLivreAuthContext,
   type MercadoLivreReclamacao,
 } from "@/lib/mercadoLivreApiClient";
@@ -42,10 +44,59 @@ import { notifyFornecedorEntregaDevolucaoConfirmada } from "@/lib/notifyForneced
 
 type Criterio = "repentant" | "sem_evidencia";
 
+/** Claims com `type === "cancel_purchase"` são cancelamento/pacote-não-entregue (problema de
+ * transporte — o comprador nunca recebeu o produto) — não existe peça física nenhuma
+ * voltando pro fornecedor, então NUNCA é devolução de verdade, não importa evidência ou
+ * classificação do ML. Achado real 2026-11-10: sem esse filtro, qualquer cancelamento sem
+ * foto virava "possível devolução" (falso positivo, notificava seller/admin à toa, nunca
+ * resolvia ledger_id porque não tem pedido físico pra casar). */
+const TYPES_NUNCA_DEVOLUCAO = new Set(["cancel_purchase"]);
+
+/** `reason_id` começando com "PNR" é sempre problema de ENTREGA (transportadora não
+ * conseguiu entregar, endereço errado, etc.) — mesma família de "cancel_purchase", nunca
+ * produto-com-defeito/arrependimento. Validado em 13 claims reais 2026-11-10: as 10
+ * `cancel_purchase` E as 2 `mediations` sem resolução eram todas PNR; a única devolução de
+ * verdade do lote era `PDD9939`. Devolução de produto usa prefixo `PDD`. */
+function reasonIdNuncaDevolucao(reasonId: string): boolean {
+  return reasonId.startsWith("PNR");
+}
+
+/** Pedido do Sr Stark 2026-11-10: só vale a pena chamar de "devolução" se o cliente
+ * realmente RECEBEU o produto antes — senão não tem peça nenhuma física pra voltar, é só
+ * confirmar com o shipment de verdade em vez de confiar só em type/reasonId. Se não der pra
+ * confirmar (shipment não encontrado, API falhou), devolve `false` de propósito — mais vale
+ * não registrar ainda (a varredura periódica tenta de novo depois) do que registrar uma
+ * devolução errada sem entrega confirmada. */
+async function clienteRecebeuProduto(reclamacao: MercadoLivreReclamacao, ctx: MercadoLivreAuthContext): Promise<boolean> {
+  try {
+    let shipmentId: string | null = null;
+    if (reclamacao.resource === "shipment") {
+      shipmentId = reclamacao.resourceId;
+    } else if (reclamacao.resource === "order") {
+      const order = await mlBuscarOrderDetalheBruto(reclamacao.resourceId, ctx);
+      const shippingId = (order as { shipping?: { id?: number | string } } | null)?.shipping?.id;
+      if (shippingId != null) shipmentId = String(shippingId);
+    }
+    if (!shipmentId) return false;
+
+    const shipment = await mlBuscarShipmentDetalheBruto(shipmentId, ctx);
+    const status = (shipment as { status?: string } | null)?.status;
+    const dateDelivered = (shipment as { status_history?: { date_delivered?: string | null } } | null)?.status_history
+      ?.date_delivered;
+    return status === "delivered" || Boolean(dateDelivered);
+  } catch {
+    return false;
+  }
+}
+
 async function classificarReclamacao(
   reclamacao: MercadoLivreReclamacao,
   ctx: { accessToken: string; mlUserId: string }
 ): Promise<{ criterio: Criterio; rulesEngineTriage: string[] } | null> {
+  if (TYPES_NUNCA_DEVOLUCAO.has(reclamacao.type)) return null;
+  if (reasonIdNuncaDevolucao(reclamacao.reasonId)) return null;
+  if (!(await clienteRecebeuProduto(reclamacao, ctx))) return null;
+
   const [motivo, evidencias] = await Promise.all([
     mlBuscarMotivoReclamacao(reclamacao.reasonId, ctx).catch(() => null),
     mlBuscarEvidenciasReclamacao(reclamacao.id, ctx).catch(() => []),

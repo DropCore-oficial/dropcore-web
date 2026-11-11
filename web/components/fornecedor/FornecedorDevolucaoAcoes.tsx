@@ -30,6 +30,7 @@ export function FornecedorDevolucaoAcoes({
   contestado,
   contestacaoTexto,
   prazoFinal,
+  entregaConfirmadaEm,
   onAtualizar,
   pedirConfirmacao,
 }: {
@@ -37,6 +38,11 @@ export function FornecedorDevolucaoAcoes({
   contestado: boolean;
   contestacaoTexto: string | null;
   prazoFinal: string | null;
+  /** Quando o Mercado Livre confirmou (via rastreio real) que a peça chegou fisicamente no
+   * endereço do fornecedor — é só a partir daqui que `prazoFinal` (72h) é real. Enquanto
+   * `null`, ainda não dá pra saber se/quando a peça volta — não existe prazo nenhum rodando
+   * ainda, mesmo que o pedido já esteja travado há dias. */
+  entregaConfirmadaEm: string | null;
   onAtualizar: () => void;
   pedirConfirmacao: (ledgerId: string) => void;
 }) {
@@ -77,10 +83,24 @@ export function FornecedorDevolucaoAcoes({
   return (
     <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50/60 p-3 dark:border-rose-900/60 dark:bg-rose-950/20">
       {!contestado ? (
-        <p className="text-xs font-medium text-rose-800 dark:text-rose-300">
-          Confirme o recebimento ou conteste em até 48h — prazo: {formatPrazo(prazoFinal)}. Sem resposta, o valor é
-          liberado automaticamente pro seller.
-        </p>
+        <>
+          {entregaConfirmadaEm ? (
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+              Entrega confirmada pelo Mercado Livre
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-amber-100 px-2 py-1 text-[11px] font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+              Aguardando a peça chegar no seu endereço
+            </span>
+          )}
+          <p className="mt-2 text-xs font-medium text-rose-800 dark:text-rose-300">
+            {entregaConfirmadaEm
+              ? `Confirme o recebimento ou conteste em até 72h — prazo: ${formatPrazo(prazoFinal)}. Sem resposta, o valor é liberado automaticamente pro seller.`
+              : "Você já pode confirmar ou contestar a qualquer momento — o prazo de 72h só começa a contar quando o rastreio do Mercado Livre confirmar que a peça chegou no seu endereço."}
+          </p>
+        </>
       ) : (
         <p className="text-xs font-medium text-rose-800 dark:text-rose-300">Aguardando decisão do admin.</p>
       )}

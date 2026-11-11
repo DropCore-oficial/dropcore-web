@@ -124,6 +124,7 @@ type LedgerEntry = {
   custo: number | null;
   canal_venda: string | null;
   fornecedor_nome: string | null;
+  em_devolucao_entrega_confirmada_ml_em: string | null;
 };
 
 type Deposito = {
@@ -1357,7 +1358,7 @@ export default function SellerDashboardPage() {
                 <p className="mt-1 text-xl font-bold text-[var(--foreground)] tabular-nums">{BRL.format(seller?.saldo_bloqueado ?? 0)}</p>
                 {(seller?.saldo_bloqueado_devolucao ?? 0) > 0 && (
                   <p className="mt-0.5 text-[10px] text-[var(--danger)]">
-                    {BRL.format(seller?.saldo_bloqueado_devolucao ?? 0)} em disputa de devolução
+                    {BRL.format(seller?.saldo_bloqueado_devolucao ?? 0)} bloqueado em devolução
                   </p>
                 )}
               </div>
@@ -1923,6 +1924,20 @@ export default function SellerDashboardPage() {
                                   <p className="text-xs text-[var(--muted)] mt-0.5">
                                     {formatDateTime(e.data_evento)}{e.fornecedor_nome ? ` · ${e.fornecedor_nome}` : ""}
                                   </p>
+                                  {e.status === "EM_DEVOLUCAO" && (
+                                    <p
+                                      className={`mt-1 inline-flex items-center gap-1 text-[11px] font-medium ${
+                                        e.em_devolucao_entrega_confirmada_ml_em
+                                          ? "text-emerald-700 dark:text-emerald-400"
+                                          : "text-amber-700 dark:text-amber-400"
+                                      }`}
+                                    >
+                                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                                      {e.em_devolucao_entrega_confirmada_ml_em
+                                        ? "Peça já chegou no fornecedor"
+                                        : "Peça ainda a caminho do fornecedor"}
+                                    </p>
+                                  )}
                                   {e.preco_venda != null && e.custo != null && e.preco_venda > 0 && (
                                     <p className="text-[11px] text-[var(--muted)] mt-1">
                                       Venda {BRL.format(e.preco_venda)} · Margem{" "}

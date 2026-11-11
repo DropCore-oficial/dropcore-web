@@ -21,6 +21,7 @@ const TITULOS = {
   anuncio_sem_sku_urgente: "Urgente: anúncio sem SKU perto do prazo",
   devolucao_ml_provavel_seller: "Possível devolução no Mercado Livre",
   devolucao_liberada_automatico_seller: "Devolução liberada automaticamente",
+  devolucao_confirmada_fornecedor_seller: "Devolução confirmada pelo fornecedor",
 } as const;
 
 export async function notifySellerPedidoAtencao(params: {
@@ -43,7 +44,8 @@ export async function notifySellerPedidoAtencao(params: {
     | "anuncio_sem_sku"
     | "anuncio_sem_sku_urgente"
     | "devolucao_ml_provavel_seller"
-    | "devolucao_liberada_automatico_seller";
+    | "devolucao_liberada_automatico_seller"
+    | "devolucao_confirmada_fornecedor_seller";
   motivo: string;
 }): Promise<void> {
   const { data: sellerRow } = await supabaseAdmin

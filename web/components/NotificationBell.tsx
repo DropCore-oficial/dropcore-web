@@ -49,6 +49,7 @@ const PEDIDO_TIPO_SEVERIDADE: Record<string, "danger" | "warning" | "success"> =
   devolucao_registrada_fornecedor: "warning",
   devolucao_liberada_automatico_seller: "success",
   devolucao_liberada_automatico_fornecedor: "warning",
+  devolucao_confirmada_fornecedor_seller: "success",
 };
 
 const PEDIDO_TIPO_ICON: Record<string, string> = {
@@ -68,6 +69,7 @@ const PEDIDO_TIPO_ICON: Record<string, string> = {
   devolucao_registrada_fornecedor: "↩️",
   devolucao_liberada_automatico_seller: "💰",
   devolucao_liberada_automatico_fornecedor: "⏰",
+  devolucao_confirmada_fornecedor_seller: "💰",
 };
 
 function pedidoDestino(context: NotificationPortalContext, pedidoId: string): string {
@@ -516,7 +518,8 @@ export function NotificationBell({
                               n.tipo === "anuncio_sem_sku" ||
                               n.tipo === "anuncio_sem_sku_urgente" ||
                               n.tipo === "devolucao_ml_provavel_seller" ||
-                              n.tipo === "devolucao_liberada_automatico_seller") &&
+                              n.tipo === "devolucao_liberada_automatico_seller" ||
+                              n.tipo === "devolucao_confirmada_fornecedor_seller") &&
                               n.metadata?.pedido_id && (
                                 <a
                                   href={pedidoDestino(context, n.metadata.pedido_id)}

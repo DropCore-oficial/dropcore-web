@@ -53,6 +53,7 @@ type LedgerItem = {
   pedido_id: string | null;
   debito_ja_registrado?: boolean;
   em_devolucao_desde?: string | null;
+  em_devolucao_entrega_confirmada_ml_em?: string | null;
   fornecedor_contestou_em?: string | null;
   fornecedor_contestacao_texto?: string | null;
   fornecedor_contestacao_evidencias_urls?: string[];
@@ -64,7 +65,7 @@ type DebitoPendenteItem = {
   ciclo_a_descontar: string;
   pedido_id: string | null;
 };
-const PRAZO_FORNECEDOR_HORAS = 48;
+const PRAZO_FORNECEDOR_HORAS = 72;
 function formatPrazoCurto(s: string) {
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) return "—";
@@ -659,11 +660,23 @@ export default function PedidosPage() {
                 </div>
               ) : null}
             </div>
-          ) : l.em_devolucao_desde ? (
+          ) : l.em_devolucao_entrega_confirmada_ml_em ? (
             <p className="text-[11px] text-[var(--muted)]">
-              Prazo fornecedor: {formatPrazoCurto(new Date(new Date(l.em_devolucao_desde).getTime() + PRAZO_FORNECEDOR_HORAS * 60 * 60 * 1000).toISOString())}
+              <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                Entrega confirmada pelo ML
+              </span>{" "}
+              — prazo fornecedor:{" "}
+              {formatPrazoCurto(
+                new Date(new Date(l.em_devolucao_entrega_confirmada_ml_em).getTime() + PRAZO_FORNECEDOR_HORAS * 60 * 60 * 1000).toISOString()
+              )}
             </p>
-          ) : null}
+          ) : (
+            <p className="inline-flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+              Aguardando confirmação de entrega do ML
+            </p>
+          )}
           <div className="flex flex-wrap gap-1.5">
             <button type="button" onClick={() => askFornecedorConferiu(l)} disabled={busy} className={cn(btnPrimaryCompactClass, full && "flex-1")}>
               {busy ? "..." : "Fornecedor conferiu"}
@@ -695,6 +708,25 @@ export default function PedidosPage() {
       </div>
     );
   }
+
+  // Dentro da aba Devolução, pedido com prazo rodando (entrega já confirmada pelo ML) vem
+  // antes dos que ainda estão "aguardando" — mesmo critério usado em
+  // web/app/fornecedor/pedidos/page.tsx, pro admin não precisar procurar no meio da lista
+  // pra achar o que realmente está com relógio correndo.
+  const pedidosExibidos =
+    abaAtiva === "devolucao"
+      ? [...pedidos].sort((a, b) => {
+          const la = ledgerPorPedido.get(a.id);
+          const lb = ledgerPorPedido.get(b.id);
+          const prioridadeA = la?.em_devolucao_entrega_confirmada_ml_em ? 0 : 1;
+          const prioridadeB = lb?.em_devolucao_entrega_confirmada_ml_em ? 0 : 1;
+          if (prioridadeA !== prioridadeB) return prioridadeA - prioridadeB;
+          if (prioridadeA === 0) {
+            return (la!.em_devolucao_entrega_confirmada_ml_em ?? "").localeCompare(lb!.em_devolucao_entrega_confirmada_ml_em ?? "");
+          }
+          return 0;
+        })
+      : pedidos;
 
   return (
     <div className="dropcore-shell-6xl space-y-5 pt-6 pb-10 md:pb-12">
@@ -1096,7 +1128,7 @@ export default function PedidosPage() {
                 </tr>
               </thead>
               <tbody>
-                {pedidos.map((p) => (
+                {pedidosExibidos.map((p) => (
                   <tr key={p.id} className="border-b border-[var(--card-border)]/60 transition-colors hover:bg-[var(--muted)]/8">
                     <td className="px-4 py-3 text-[var(--muted)]">{formatDate(p.criado_em)}</td>
                     <td className="px-4 py-3">{p.seller_nome ?? "—"}</td>
@@ -1165,7 +1197,7 @@ export default function PedidosPage() {
 
           {/* Mobile: cards empilhados (tabela de 7 colunas não cabe em ~390px) */}
           <div className="sm:hidden divide-y divide-[var(--card-border)]/60">
-            {pedidos.map((p) => (
+            {pedidosExibidos.map((p) => (
               <div key={p.id} className="px-4 py-3">
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-sm font-medium text-[var(--foreground)] truncate">{p.seller_nome ?? "—"}</span>

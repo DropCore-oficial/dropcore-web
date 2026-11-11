@@ -1,6 +1,10 @@
 /**
  * GET /api/fornecedor/devolucoes — devoluções (financial_ledger EM_DEVOLUCAO) aguardando
- * confirmação desse fornecedor, com o prazo de 48h calculado a partir de `em_devolucao_desde`.
+ * confirmação desse fornecedor. Prazo de 72h só começa a contar quando o Mercado Livre
+ * confirma a entrega física da peça (`em_devolucao_entrega_confirmada_ml_em`, gravado por
+ * `fn_devolucao_marcar_entrega_confirmada_ml` em lib/mlDevolucaoDeteccao.ts) — achado
+ * 2026-11-10: contar a partir de `em_devolucao_desde` (quando o sistema travou o dinheiro)
+ * não tem relação com a peça ter chegado de verdade (demora 10+ dias no mundo real).
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -9,13 +13,14 @@ import { getFornecedorContextFromBearer } from "@/lib/fornecedorAuth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const PRAZO_HORAS = 48;
+const PRAZO_HORAS = 72;
 
 type LedgerRow = {
   id: string;
   valor_total: number;
   data_evento: string;
   em_devolucao_desde: string | null;
+  em_devolucao_entrega_confirmada_ml_em: string | null;
   fornecedor_contestou_em: string | null;
   fornecedor_contestacao_texto: string | null;
 };
@@ -33,7 +38,9 @@ export async function GET(req: Request) {
   const [ledgerDireto, deteccoes] = await Promise.all([
     supabaseAdmin
       .from("financial_ledger")
-      .select("id, valor_total, data_evento, em_devolucao_desde, fornecedor_contestou_em, fornecedor_contestacao_texto")
+      .select(
+        "id, valor_total, data_evento, em_devolucao_desde, em_devolucao_entrega_confirmada_ml_em, fornecedor_contestou_em, fornecedor_contestacao_texto"
+      )
       .eq("fornecedor_id", ctx.fornecedor_id)
       .eq("status", "EM_DEVOLUCAO")
       .limit(100),
@@ -55,7 +62,9 @@ export async function GET(req: Request) {
   const { data: ledgerViaDeteccao } = idsFaltando.length
     ? await supabaseAdmin
         .from("financial_ledger")
-        .select("id, valor_total, data_evento, em_devolucao_desde, fornecedor_contestou_em, fornecedor_contestacao_texto")
+        .select(
+        "id, valor_total, data_evento, em_devolucao_desde, em_devolucao_entrega_confirmada_ml_em, fornecedor_contestou_em, fornecedor_contestacao_texto"
+      )
         .in("id", idsFaltando)
         .eq("status", "EM_DEVOLUCAO")
     : { data: [] as LedgerRow[] };
@@ -65,13 +74,15 @@ export async function GET(req: Request) {
   );
 
   const devolucoes = (rows as LedgerRow[]).map((r) => {
-    const prazoFinal = r.em_devolucao_desde
-      ? new Date(new Date(r.em_devolucao_desde).getTime() + PRAZO_HORAS * 60 * 60 * 1000).toISOString()
+    const entregaConfirmadaEm = r.em_devolucao_entrega_confirmada_ml_em;
+    const prazoFinal = entregaConfirmadaEm
+      ? new Date(new Date(entregaConfirmadaEm).getTime() + PRAZO_HORAS * 60 * 60 * 1000).toISOString()
       : null;
     return {
       id: r.id,
       valor_total: Number(r.valor_total),
       data_evento: r.data_evento,
+      entrega_confirmada_em: entregaConfirmadaEm,
       prazo_final: prazoFinal,
       contestado: Boolean(r.fornecedor_contestou_em),
       fornecedor_contestacao_texto: r.fornecedor_contestacao_texto,
