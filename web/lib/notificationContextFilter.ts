@@ -21,6 +21,7 @@ export const NOTIFICATION_TIPOS_POR_CONTEXTO: Record<NotificationPortalContext, 
     "sla_atraso_admin",
     "pedido_precisa_resolucao_admin",
     "devolucao_ml_provavel_admin",
+    "contador_pedidos_divergente_admin",
   ],
   seller: [
     "deposito_aprovado",
