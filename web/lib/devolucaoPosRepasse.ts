@@ -102,6 +102,13 @@ export async function registrarDevolucaoPosRepasse(
     }
   }
 
+  // Pedido fica "entregue" pra sempre sem isso — o débito é o fim de linha dessa devolução
+  // (não tem trava de 72h nem confirmação de fornecedor nesse caminho, já foi pago), então o
+  // status final é "devolvido" direto, igual ao que a liberação automática normal usa.
+  if (row.pedido_id) {
+    await supabaseAdmin.from("pedidos").update({ status: "devolvido" }).eq("id", row.pedido_id);
+  }
+
   if (row.fornecedor_id) {
     const { data: pedidoRow } = row.pedido_id
       ? await supabaseAdmin.from("pedidos").select("marketplace_numero").eq("id", row.pedido_id).maybeSingle()
