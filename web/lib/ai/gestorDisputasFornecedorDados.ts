@@ -72,12 +72,19 @@ export async function detectarDisputasFornecedor(
     const evidencias = await mlBuscarEvidenciasReclamacao(r.id, ctx);
     if (evidencias.length === 0) continue;
 
+    // Claim pode referenciar o pack_id do pedido, não o order_id (achado 2026-11-11,
+    // ver mercadoLivreClaimResolucao.ts) — casa por marketplace_numero OU marketplace_pack_id.
+    const resourceIdSeguro = /^\d+$/.test(r.resourceId) ? r.resourceId : null;
     const [pedidoRes, itemPedido] = await Promise.all([
       supabaseAdmin
         .from("pedidos")
         .select("id, fornecedor_id, ledger_id")
         .eq("seller_id", sellerId)
-        .eq("marketplace_numero", r.resourceId)
+        .or(
+          resourceIdSeguro
+            ? `marketplace_numero.eq.${resourceIdSeguro},marketplace_pack_id.eq.${resourceIdSeguro}`
+            : `marketplace_numero.eq.${r.resourceId}`
+        )
         .maybeSingle<PedidoVinculo>(),
       // Busca o item_id direto do pedido no ML (não depende do vínculo pedidos↔marketplace_numero
       // acima) — é o que alimenta o link "Ver anúncio" mesmo quando não achamos o pedido interno.

@@ -31,7 +31,7 @@ export async function GET(req: Request) {
 
     const { data: seller, error: sellerErr } = await supabaseAdmin
       .from("sellers")
-      .select("id, org_id")
+      .select("id, org_id, fornecedor_id")
       .eq("user_id", userData.user.id)
       .maybeSingle();
 
@@ -45,15 +45,9 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: true, produtos: [] });
     }
 
-    // Garantir que o fornecedor pertence à mesma org
-    const { data: forn } = await supabaseAdmin
-      .from("fornecedores")
-      .select("id")
-      .eq("id", fornecedorId)
-      .eq("org_id", seller.org_id)
-      .maybeSingle();
-
-    if (!forn) {
+    // Seller só pode ver produtos do fornecedor vinculado ao próprio perfil — nunca de
+    // outro fornecedor da org (ex.: id arbitrário vindo do client).
+    if (!seller.fornecedor_id || fornecedorId !== seller.fornecedor_id) {
       return NextResponse.json({ error: "Fornecedor não encontrado." }, { status: 404 });
     }
 

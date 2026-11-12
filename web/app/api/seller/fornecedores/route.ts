@@ -49,7 +49,14 @@ export async function GET(req: Request) {
       fornecedorDesvinculoLiberado
     );
 
-    return NextResponse.json({ ok: true, fornecedores, fornecedor_conectado_id, vinculo });
+    // Regra de negócio: o seller só pode ver/operar com o fornecedor vinculado ao perfil
+    // dele — não a lista inteira de fornecedores da org (isso é exclusivo da vitrine de
+    // troca de fornecedor, que usa /api/seller/catalogo?include_fornecedores=1).
+    const fornecedoresVisiveis = fornecedor_conectado_id
+      ? fornecedores.filter((f) => f.id === fornecedor_conectado_id)
+      : [];
+
+    return NextResponse.json({ ok: true, fornecedores: fornecedoresVisiveis, fornecedor_conectado_id, vinculo });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

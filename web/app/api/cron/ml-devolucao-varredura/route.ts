@@ -9,8 +9,13 @@
  * notar manualmente).
  *
  * Passo 1 (`varrerDevolucoesMlTodosSellers`): acha devolução nova em qualquer seller com
- * integração ML ativa, sem depender de webhook.
- * Passo 2 (`verificarEntregasFisicasDevolucao`): pras devoluções já travadas, confere se o
+ * integração ML ativa, sem depender de webhook — mas só enxerga claim que aparece em
+ * `/post-purchase/v1/claims/search`.
+ * Passo 2 (`varrerPedidosEntreguesPorMediacao`): ponto cego real do passo 1 (achado
+ * 2026-11-11) — devolução simples ("direito de arrependimento") pode nunca aparecer nessa
+ * busca. Parte dos nossos pedidos "entregue" e confere o status real de cada um direto na
+ * API do pedido, achando a mediation mesmo quando a busca de claims não acha.
+ * Passo 3 (`verificarEntregasFisicasDevolucao`): pras devoluções já travadas, confere se o
  * ML confirmou a entrega física da peça no fornecedor — é esse sinal que destrava a
  * liberação automática de 72h em `devolucaoLiberacaoAutomatica.ts` (não mais um timer cego).
  *
@@ -18,7 +23,11 @@
  * update-ml-devolucao-varredura-cron-6h.sql).
  */
 import { NextResponse } from "next/server";
-import { varrerDevolucoesMlTodosSellers, verificarEntregasFisicasDevolucao } from "@/lib/mlDevolucaoDeteccao";
+import {
+  varrerDevolucoesMlTodosSellers,
+  varrerPedidosEntreguesPorMediacao,
+  verificarEntregasFisicasDevolucao,
+} from "@/lib/mlDevolucaoDeteccao";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -59,8 +68,9 @@ export async function GET(req: Request) {
 
   try {
     const varredura = await varrerDevolucoesMlTodosSellers();
+    const varreduraPorPedido = await varrerPedidosEntreguesPorMediacao();
     const entregas = await verificarEntregasFisicasDevolucao();
-    return NextResponse.json({ ok: true, varredura, entregas });
+    return NextResponse.json({ ok: true, varredura, varreduraPorPedido, entregas });
   } catch (e: unknown) {
     console.error("[cron/ml-devolucao-varredura]", e);
     return NextResponse.json(

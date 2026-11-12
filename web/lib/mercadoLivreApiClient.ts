@@ -479,6 +479,39 @@ export async function mlBuscarReclamacaoDetalheBruto(
   return mlGet<Record<string, unknown>>(`/post-purchase/v1/claims/${claimId}`, ctx.accessToken);
 }
 
+/** Claim individual já no formato `MercadoLivreReclamacao` — achado real 2026-11-11: devolução
+ * simples ("direito de arrependimento") pode não aparecer em `/post-purchase/v1/claims/search`
+ * (nem com `status=opened` nem sem filtro nenhum), mas o `GET /orders/{id}` do pedido sempre
+ * lista o id dela em `mediations[]` quando `status: "cancelled"` + `cancel_detail.group:
+ * "mediations"` — e buscando por id direto aqui, a claim vem completa normalmente (testado ao
+ * vivo: mesma claim sumida da busca, `GET /post-purchase/v1/claims/{id}` devolveu tudo:
+ * `type: "returns"`, `reason_id: "PDD9939"`, `resource`/`resource_id` certos). Usado pela
+ * varredura que parte do pedido (`varrerPedidosEntreguesPorMediacao`), não da lista de claims. */
+export async function mlBuscarClaimDetalhe(
+  claimId: string,
+  ctx: MercadoLivreAuthContext
+): Promise<MercadoLivreReclamacao | null> {
+  const json = await mlGet<{
+    id: number;
+    resource: string;
+    resource_id: number | string;
+    status: string;
+    type: string;
+    reason_id: string;
+    date_created: string;
+  }>(`/post-purchase/v1/claims/${claimId}`, ctx.accessToken);
+  if (!json) return null;
+  return {
+    id: json.id,
+    resource: json.resource,
+    resourceId: String(json.resource_id),
+    status: json.status,
+    type: json.type,
+    reasonId: json.reason_id,
+    dateCreated: json.date_created,
+  };
+}
+
 /** Payload bruto completo de `/shipments/{id}` — mesma calibração acima, pro caso do
  * `resource` do claim ser "shipment" (ou pra inspecionar o shipment original do pedido). */
 export async function mlBuscarShipmentDetalheBruto(

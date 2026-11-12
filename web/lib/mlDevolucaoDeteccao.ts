@@ -33,10 +33,12 @@ import {
   mlDevolucaoEntregueFisicamente,
   mlBuscarOrderDetalheBruto,
   mlBuscarShipmentDetalheBruto,
+  mlBuscarClaimDetalhe,
   type MercadoLivreAuthContext,
   type MercadoLivreReclamacao,
 } from "@/lib/mercadoLivreApiClient";
 import { resolverPedidoEFornecedorPorReclamacao } from "@/lib/mercadoLivreClaimResolucao";
+import { registrarDevolucaoPosRepasse } from "@/lib/devolucaoPosRepasse";
 import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
 import { notifyAdminsDevolucaoMl } from "@/lib/notifyAdminsDevolucaoMl";
 import { notifyFornecedorDevolucao } from "@/lib/notifyFornecedorDevolucao";
@@ -144,6 +146,7 @@ async function processarReclamacaoDevolucao(
 
   // Trava automática — só existe dinheiro pra travar quando o pedido tem ledger_id (nem
   // todo pedido resolvido tem: ex. "produto fora do catálogo" nunca gerou saldo).
+  let devolucaoPosRepasseRegistrada = false;
   if (pedido?.ledger_id) {
     const { data: travaResultado } = await supabaseAdmin
       .rpc("fn_devolucao_auto_travar", { p_ledger_id: pedido.ledger_id })
@@ -162,6 +165,30 @@ async function processarReclamacaoDevolucao(
             "Devolução detectada, mas não foi possível confirmar automaticamente qual fornecedor fabricou/despachou esse item. Peça pro admin resolver.",
         })
         .eq("id", pedido.id);
+    }
+
+    // `fn_devolucao_auto_travar` recusa travar um ledger que já está `PAGO` (não tem mais o
+    // que bloquear, o repasse já saiu) — achado real 2026-11-11: sem esse fallback, a
+    // devolução ficava só notificada (com um aviso de "48h pra confirmar" sem sentido, já que
+    // nada estava travado), sem nenhum rastro financeiro. Mesmo efeito da ação manual que o
+    // admin já tinha em /admin/pedidos: vira débito a descontar do próximo repasse.
+    if (!travou && fornecedorId) {
+      const { data: ledgerAtual } = await supabaseAdmin
+        .from("financial_ledger")
+        .select("status")
+        .eq("id", pedido.ledger_id)
+        .maybeSingle();
+      if (ledgerAtual?.status === "PAGO") {
+        const resultado = await registrarDevolucaoPosRepasse(orgId, pedido.ledger_id);
+        if (resultado.ok) {
+          devolucaoPosRepasseRegistrada = true;
+        } else {
+          console.error(
+            `[mlDevolucaoDeteccao] falha ao registrar devolução pós-repasse (ledger ${pedido.ledger_id}):`,
+            resultado.error
+          );
+        }
+      }
     }
   }
 
@@ -184,7 +211,11 @@ async function processarReclamacaoDevolucao(
       ml_claim_id: String(reclamacao.id),
       criterio: classificacao.criterio,
     }),
-    fornecedorId && pedido?.ledger_id
+    // Se já virou débito pós-repasse, `registrarDevolucaoPosRepasse` já notificou o fornecedor
+    // com a mensagem certa (desconto no próximo ciclo) — mandar também o aviso genérico de
+    // "48h pra confirmar" aqui seria contraditório, já que não existe nada travado pra
+    // confirmar nesse caso.
+    fornecedorId && pedido?.ledger_id && !devolucaoPosRepasseRegistrada
       ? notifyFornecedorDevolucao({ org_id: orgId, fornecedor_id: fornecedorId, ledger_id: pedido.ledger_id })
       : Promise.resolve(),
   ]);
@@ -290,6 +321,101 @@ export async function varrerDevolucoesMlTodosSellers(): Promise<{
   }
 
   return { sellersVarridos, reclamacoesNovas, erros };
+}
+
+/** Janela pra trás (por `pedidos.atualizado_em`) que essa varredura considera ao listar
+ * pedidos "entregue" pra checar — mesma lógica de `JANELA_VARREDURA_DIAS`, só que mais larga
+ * porque aqui não há webhook nenhum alimentando isso, é 100% dependente dessa varredura. */
+const JANELA_VARREDURA_PEDIDOS_DIAS = 45;
+
+/** Ponto cego real da varredura por claim (`varrerDevolucoesMlTodosSellers`): devolução simples
+ * ("direito de arrependimento", sem disputa formal) pode nunca aparecer em
+ * `/post-purchase/v1/claims/search` — nem com `status=opened`, nem sem filtro de status (achado
+ * ao vivo 2026-11-11, seller Vinz Collection: 3 claims reais e fechadas, zero retornadas pela
+ * busca com limit=200). O sinal que NUNCA falha é o próprio `status` do pedido, direto em
+ * `GET /orders/{id}`: vira `"cancelled"` com `cancel_detail.group === "mediations"` e sempre
+ * lista o(s) id(s) da claim em `mediations[]`. Essa varredura parte dos NOSSOS pedidos
+ * "entregue" (não de uma lista de claim do ML) — pra cada um, confere o status real; se achar
+ * mediation ainda não conhecida, busca a claim individual por id (`mlBuscarClaimDetalhe`, que
+ * funciona mesmo pra claim sumida da busca) e processa pelo MESMO pipeline de sempre
+ * (classificação, trava de ledger, notificação) — zero duplicação de lógica. */
+export async function varrerPedidosEntreguesPorMediacao(): Promise<{
+  pedidosVerificados: number;
+  reclamacoesNovas: number;
+  erros: number;
+}> {
+  const corteDesde = new Date(Date.now() - JANELA_VARREDURA_PEDIDOS_DIAS * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: pedidos, error } = await supabaseAdmin
+    .from("pedidos")
+    .select("id, marketplace_numero, seller_id")
+    .eq("status", "entregue")
+    .not("marketplace_numero", "is", null)
+    .gte("atualizado_em", corteDesde);
+  if (error || !pedidos) {
+    console.error("[varredura-pedidos-mediacao] erro ao listar pedidos:", error?.message);
+    return { pedidosVerificados: 0, reclamacoesNovas: 0, erros: 1 };
+  }
+  if (pedidos.length === 0) return { pedidosVerificados: 0, reclamacoesNovas: 0, erros: 0 };
+
+  const sellerIds = [...new Set(pedidos.map((p) => p.seller_id as string))];
+  const { data: sellersRows } = await supabaseAdmin.from("sellers").select("id, org_id, nome").in("id", sellerIds);
+  const sellerInfo = new Map(
+    (sellersRows ?? []).map((s) => [s.id as string, { orgId: s.org_id as string, nome: s.nome as string | null }])
+  );
+
+  const ctxCache = new Map<string, MercadoLivreAuthContext | null>();
+  let pedidosVerificados = 0;
+  let reclamacoesNovas = 0;
+  let erros = 0;
+
+  for (const pedido of pedidos) {
+    const sellerId = pedido.seller_id as string;
+    const info = sellerInfo.get(sellerId);
+    if (!info) continue;
+
+    try {
+      let ctx = ctxCache.get(sellerId);
+      if (ctx === undefined) {
+        ctx = await getValidMercadoLivreAccessToken(sellerId);
+        ctxCache.set(sellerId, ctx);
+      }
+      if (!ctx) continue;
+
+      pedidosVerificados++;
+      const order = await mlBuscarOrderDetalheBruto(String(pedido.marketplace_numero), ctx);
+      const orderInfo = order as
+        | { status?: string; cancel_detail?: { group?: string }; mediations?: Array<{ id: number }> }
+        | null;
+      if (orderInfo?.status !== "cancelled" || orderInfo.cancel_detail?.group !== "mediations") continue;
+
+      const mediationIds = (orderInfo.mediations ?? []).map((m) => String(m.id));
+      if (mediationIds.length === 0) continue;
+
+      const { data: existentes } = await supabaseAdmin.rpc("fn_ml_devolucao_detectada_claim_ids_existentes", {
+        p_ml_claim_ids: mediationIds,
+      });
+      const jaConhecidos = new Set((existentes ?? []) as string[]);
+
+      for (const claimId of mediationIds) {
+        if (jaConhecidos.has(claimId)) continue;
+        try {
+          const claim = await mlBuscarClaimDetalhe(claimId, ctx);
+          if (!claim) continue;
+          const registrou = await processarReclamacaoDevolucao(claim, ctx, sellerId, info.orgId, info.nome);
+          if (registrou) reclamacoesNovas++;
+        } catch (e) {
+          erros++;
+          console.error(`[varredura-pedidos-mediacao] erro ao processar mediation ${claimId} do pedido ${pedido.id}:`, e);
+        }
+      }
+    } catch (e) {
+      erros++;
+      console.error(`[varredura-pedidos-mediacao] erro no pedido ${pedido.id}:`, e);
+    }
+  }
+
+  return { pedidosVerificados, reclamacoesNovas, erros };
 }
 
 /** Entry point chamado pelo webhook do ML (tópico "claims") — resolve o seller pelo

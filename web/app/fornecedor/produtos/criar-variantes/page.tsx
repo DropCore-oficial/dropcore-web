@@ -2025,15 +2025,11 @@ export default function CriarVariantesPage() {
         if (tabelaMedidasPayload) patchPai.tabela_medidas = tabelaMedidasPayload;
 
         const reqs: Promise<Response>[] = [];
-        if (skuDestinoDetalhes?.id) {
-          reqs.push(
-            fetch(`/api/fornecedor/produtos/${skuDestinoDetalhes.id}`, {
-              method: "PATCH",
-              headers,
-              body: JSON.stringify(patchPai),
-            })
-          );
-        }
+        /** Custo final de cada filho (depois do patch desta tela) — usado pra sincronizar o
+         * preço do SKU "pai" (sufixo 000), que não tem campo próprio de custo neste formulário
+         * (ele não tem cor/tamanho). Sem isso o pai ficava com custo permanentemente
+         * desatualizado, sem nenhum jeito de corrigir (achado real em DJU004000, 2026-11-11). */
+        const custosFinaisFilhos: number[] = [];
 
         for (const combo of combinacoes) {
           const corNorm = combo.cor ? toTitleCase(combo.cor) : "";
@@ -2062,6 +2058,10 @@ export default function CriarVariantesPage() {
           if (estoqueAtual != null && estoqueAtual !== valorRealEdicao(row, "estoque_atual")) patchVariante.estoque_atual = estoqueAtual;
           if (custoAtual != null && custoAtual !== valorRealEdicao(row, "custo_base")) patchVariante.custo_base = custoAtual;
           if (imgCor !== (valorRealEdicao(row, "imagem_url") ?? null)) patchVariante.imagem_url = imgCor;
+
+          const custoFinalCombo = custoAtual ?? valorRealEdicao(row, "custo_base");
+          if (custoFinalCombo != null && Number.isFinite(custoFinalCombo)) custosFinaisFilhos.push(custoFinalCombo);
+
           if (Object.keys(patchVariante).length === 0) continue;
 
           reqs.push(
@@ -2069,6 +2069,24 @@ export default function CriarVariantesPage() {
               method: "PATCH",
               headers,
               body: JSON.stringify(patchVariante),
+            })
+          );
+        }
+
+        // Sincroniza o custo do pai com os filhos: todos no mesmo valor -> usa esse valor;
+        // divergentes -> null (mesma convenção da criação multivariante). Sem filho com custo
+        // (produto sem variante ainda cadastrada), não mexe no custo do pai.
+        if (custosFinaisFilhos.length > 0) {
+          const minF = Math.min(...custosFinaisFilhos);
+          const maxF = Math.max(...custosFinaisFilhos);
+          patchPai.custo_base = maxF - minF < 0.015 ? minF : null;
+        }
+        if (skuDestinoDetalhes?.id) {
+          reqs.push(
+            fetch(`/api/fornecedor/produtos/${skuDestinoDetalhes.id}`, {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify(patchPai),
             })
           );
         }

@@ -35,20 +35,30 @@ export async function buscarFornecedorViaSkuMap(sellerId: string, mlItemId: stri
   return skuRow?.fornecedor_id ?? null;
 }
 
-/** Casa uma reclamação do ML com o pedido interno (via `pedidos.marketplace_numero`) e
- * resolve o fornecedor por trás dela — direto pelo pedido quando existe, ou por fallback
- * via vínculo SKU↔ML quando não há pedido ML sincronizado. */
+/** Casa uma reclamação do ML com o pedido interno (via `pedidos.marketplace_numero` OU
+ * `pedidos.marketplace_pack_id`) e resolve o fornecedor por trás dela — direto pelo pedido
+ * quando existe, ou por fallback via vínculo SKU↔ML quando não há pedido ML sincronizado.
+ * Achado real 2026-11-11 (Vinz/Djulios, pedido #2000019197573640): a tela de Vendas/Central
+ * de Devoluções do ML mostra e referencia o `pack_id` do pedido, não o `order_id` — uma
+ * claim com `resource: "order"` pode vir com `resource_id` = pack_id. Casar só por
+ * `marketplace_numero` (o order_id) faz a claim nunca encontrar o pedido já sincronizado. */
 export async function resolverPedidoEFornecedorPorReclamacao(
   sellerId: string,
   reclamacao: MercadoLivreReclamacao,
   ctx: MercadoLivreAuthContext
 ): Promise<{ pedido: PedidoVinculoReclamacao | null; itemPedido: MercadoLivrePedidoItemML | null; fornecedorId: string | null }> {
+  const resourceId = reclamacao.resourceId;
+  const resourceIdSeguro = /^\d+$/.test(resourceId) ? resourceId : null;
   const [pedidoRes, itemPedido] = await Promise.all([
     supabaseAdmin
       .from("pedidos")
       .select("id, fornecedor_id, ledger_id")
       .eq("seller_id", sellerId)
-      .eq("marketplace_numero", reclamacao.resourceId)
+      .or(
+        resourceIdSeguro
+          ? `marketplace_numero.eq.${resourceIdSeguro},marketplace_pack_id.eq.${resourceIdSeguro}`
+          : `marketplace_numero.eq.${resourceId}`
+      )
       .maybeSingle<PedidoVinculoReclamacao>(),
     // Busca o item_id direto do pedido no ML (não depende do vínculo pedidos↔marketplace_numero
     // acima) — é o que alimenta o link "Ver anúncio" mesmo quando não achamos o pedido interno.

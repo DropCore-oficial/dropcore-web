@@ -473,9 +473,10 @@ export default function SellerCalculadoraPage() {
           : !fidCatNorm);
       setSemArmazemCatalogo(resCat.ok ? semArm : null);
       /** Mesmo critério que a página Produtos (GET catálogo); fallback ao GET fornecedores se o catálogo falhar. */
-      setFornecedorConectadoId(resCat.ok ? fidCatNorm : fidFornNorm);
-      /** Não pré-selecionar pelo vínculo: o seller escolhe o armazém; «ligado ao perfil» = armazém gravado em Produtos. */
-      setSelectedFornecedorId("");
+      const fidConectado = resCat.ok ? fidCatNorm : fidFornNorm;
+      setFornecedorConectadoId(fidConectado);
+      /** A API só devolve o fornecedor vinculado ao seller — pré-seleciona direto, não há outro pra escolher. */
+      setSelectedFornecedorId(fidConectado ?? "");
       /** Sem armazém gravado, não manter fornecedor/produto da sessão (ex.: cache ou estado antigo). */
       if (resCat.ok && semArm) {
         setSelectedProdutoId("");
@@ -519,17 +520,23 @@ export default function SellerCalculadoraPage() {
     const variaveis: Opc[] = [];
 
     for (const rows of byPai.values()) {
-      const minC = Math.min(...rows.map((r) => r.custo));
-      const maxC = Math.max(...rows.map((r) => r.custo));
+      // SKU "pai" (sufixo 000) é só o registro agregador do grupo quando existem filhos
+      // reais (variantes) no mesmo prefixo — nome/custo dele pode ficar desatualizado sem
+      // refletir nos filhos (ex.: DJU004000 ficou "Manga Longa" após os filhos virarem
+      // "Manga Curta", 2026-11-11), então não é exibido como opção própria quando há
+      // filho; só é considerado produto selecionável quando está sozinho (sem variantes).
+      const filhos = rows.filter((r) => !String(r.sku).endsWith("000"));
+      const relevantes = filhos.length > 0 ? filhos : rows;
+
+      const minC = Math.min(...relevantes.map((r) => r.custo));
+      const maxC = Math.max(...relevantes.map((r) => r.custo));
       const uniform = maxC - minC < eps;
-      const rep =
-        rows.find((r) => String(r.sku).endsWith("000")) ??
-        [...rows].sort((a, b) => String(a.sku).localeCompare(String(b.sku)))[0]!;
+      const rep = [...relevantes].sort((a, b) => String(a.sku).localeCompare(String(b.sku)))[0]!;
       const nome = String(rep.nome_produto ?? "").trim() || mascararSkuListagem(rep.sku);
       if (uniform) {
         unicos.push({ id: rep.id, custo: rep.custo, label: `${nome} — ${BRL.format(rep.custo)}` });
       } else {
-        for (const p of [...rows].sort((a, b) => String(a.sku).localeCompare(String(b.sku)))) {
+        for (const p of [...relevantes].sort((a, b) => String(a.sku).localeCompare(String(b.sku)))) {
           variaveis.push({
             id: p.id,
             custo: p.custo,
