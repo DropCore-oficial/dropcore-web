@@ -14,7 +14,6 @@ import {
   DANGER_PREMIUM_TEXT_BODY,
 } from "@/lib/semanticPremium";
 import { SellerOlistIntegracaoChecklist } from "@/components/seller/SellerOlistIntegracaoChecklist";
-import { SellerBlingIntegrationPanel } from "@/components/seller/SellerBlingIntegrationPanel";
 import { OlistModoOperacaoPainel } from "@/components/olist/OlistModoOperacaoPainel";
 import { OLIST_CRON_PEDIDOS_MIN, OLIST_CRON_PRECOS_MIN, isOlistSyncStale, formatOlistTempoDesde } from "@/lib/olistModoOperacaoUi";
 import { cn } from "@/lib/utils";
@@ -471,40 +470,11 @@ type IntegracoesPageProps = {
   onRegenerarWebhookIngest: () => void;
 };
 
-type ErpProvider = "olist" | "bling";
-
 /** Sync costuma repetir a mesma mensagem por pedido — agrupa por texto igual + contador em vez de listar tudo cru. */
 function agruparMensagensComContagem(msgs: string[]): { msg: string; count: number }[] {
   const contagem = new Map<string, number>();
   for (const m of msgs) contagem.set(m, (contagem.get(m) ?? 0) + 1);
   return Array.from(contagem.entries()).map(([msg, count]) => ({ msg, count }));
-}
-
-/** Pills "Olist / Tiny" / "Bling" — embutido no header do card ativo (Conta Olist/Tiny ou Bling). */
-function ErpTabSwitcher(props: { active: ErpProvider; onChange: (erp: ErpProvider) => void }) {
-  const pill = (erp: ErpProvider, label: string) => (
-    <button
-      key={erp}
-      type="button"
-      role="tab"
-      aria-selected={props.active === erp}
-      onClick={() => props.onChange(erp)}
-      className={cn(
-        "rounded-full px-3.5 py-1.5 text-[11px] font-medium transition",
-        props.active === erp
-          ? "bg-emerald-600 text-white shadow-sm"
-          : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
-      )}
-    >
-      {label}
-    </button>
-  );
-  return (
-    <div role="tablist" aria-label="Escolha o ERP" className="inline-flex flex-wrap gap-1.5">
-      {pill("olist", "Olist / Tiny")}
-      {pill("bling", "Bling")}
-    </div>
-  );
 }
 
 /** Lista de mensagens (erro/aviso) agrupadas, com rótulo de seção — usada dentro do toggle "Ver problemas". */
@@ -557,9 +527,6 @@ function ProblemasDisclosure(props: {
 }
 
 function IntegracoesErpPageView(props: IntegracoesPageProps) {
-  const [activeErp, setActiveErp] = useState<ErpProvider>(() =>
-    typeof window !== "undefined" && window.location.search.includes("code=") ? "bling" : "olist",
-  );
   const [openHelp, setOpenHelp] = useState<string | null>(null);
   const help = (key: string) => ({
     open: openHelp === key,
@@ -573,10 +540,10 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
       <div className="dropcore-shell-6xl space-y-5 py-5 md:space-y-6 md:py-7">
         <SellerPageHeader
           surface="hero"
-          title="ERP (Olist/Bling)"
+          title="ERP (Olist/Tiny)"
           subtitle={
             <>
-              Conecte a Olist/Tiny ou o Bling pra{" "}
+              Conecte a Olist/Tiny pra{" "}
               <span className="font-medium text-[var(--foreground)]">
                 sincronizar pedidos, preços e estoque automaticamente
               </span>{" "}
@@ -590,8 +557,6 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
         />
 
 
-        {activeErp === "olist" ? (
-        <>
         {!props.olistConnected ? (
           <AmberPremiumCallout title="Primeira vez na Olist/Tiny?" className="rounded-2xl px-3 py-3.5 sm:px-5">
             <p className="text-pretty leading-relaxed">
@@ -631,7 +596,6 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
           ) : null}
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                <ErpTabSwitcher active={activeErp} onChange={setActiveErp} />
                 <HelpBubble ariaLabel="Como funciona a integração Olist/Tiny" {...help("conta")}>
                   <p>
                     Gere o <strong className="text-[var(--foreground)]">token API</strong> na Olist/Tiny e cole abaixo. O
@@ -947,10 +911,6 @@ function IntegracoesErpPageView(props: IntegracoesPageProps) {
               </div>
             )}
         </section>
-        </>
-        ) : (
-          <SellerBlingIntegrationPanel switcher={<ErpTabSwitcher active={activeErp} onChange={setActiveErp} />} />
-        )}
       </div>
     </div>
   );

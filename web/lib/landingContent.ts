@@ -23,15 +23,14 @@ export const LANDING_CTA_HERO_LABEL = "Comece a vender agora";
 export const LANDING_CTA_FINAL_LABEL = "Quero começar a vender";
 export const LANDING_CTA_FINAL_MESSAGE = "Olá! Terminei de ver a DropCore e quero começar a vender.";
 
-/** "Parceiros", não "Integra com" — Olist e Bling têm integração operacional real (sync de
+/** "Parceiros", não "Integra com" — Olist tem integração operacional real (sync de
  * estoque/pedido). Mercado Pago saiu daqui: é só a conta de pagamento usada pro PIX, não uma
- * integração operacional como as outras duas, misturar os três dava a entender uma paridade
+ * integração operacional como a outra, misturar os dois dava a entender uma paridade
  * que não existe. Logos oficiais em `public/brand/partners/`. */
 export const LANDING_INTEGRATIONS_BAR = {
   label: "Parceiros do DropCore",
   items: [
     { name: "Olist", logo: "/brand/partners/olist.svg" },
-    { name: "Bling", logo: "/brand/partners/bling.svg" },
   ],
 } as const;
 
@@ -150,7 +149,7 @@ export const LANDING_FAQ = [
   },
   {
     q: "Há integração com ERP?",
-    a: "Sim. Olist/Tiny e Bling com fluxo operacional organizado.",
+    a: "Sim. Olist/Tiny com fluxo operacional organizado.",
   },
   {
     q: "Posso trocar de fornecedor depois?",

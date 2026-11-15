@@ -8,19 +8,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * ser aplicado) até alguém notar manualmente — é exatamente o que esta lista evita.
  */
 export const CRONS_ESPERADOS = [
-  "dropcore-bling-sync",
   "dropcore-cleanup-net-http-response",
   "dropcore-creditos-expiracao",
   "dropcore-estoque-reserva-expira",
-  "dropcore-etiqueta-olist-retry",
-  "dropcore-fornecedor-olist-sync-estoque",
   "dropcore-fornecedor-troca-janela-expira",
   "dropcore-gestores-ia-sync-sku-ml",
   "dropcore-inadimplencia",
   "dropcore-mensalidades-mes",
   "dropcore-mensalidades-mp-sync",
-  "dropcore-olist-sync",
-  "dropcore-olist-sync-precos",
   "dropcore-pedidos-bloqueados-retry",
   "dropcore-pedidos-erro-saldo-retry",
   "dropcore-pedidos-postado-auto-retry",

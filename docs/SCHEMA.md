@@ -24,6 +24,31 @@ um mandar `POST` sem login.
 `service_role`. Nunca confiar que "não dei grant pra anon" seja suficiente — sempre revogar
 explícito.
 
+## Bling removido por completo, Olist com sync automático pausado — 2026-11-15
+
+Causa raiz do alerta de Disk IO Budget do Supabase: `dropcore-olist-sync` e
+`dropcore-fornecedor-olist-sync-estoque` rodavam **a cada minuto**, 24/7, desde
+sempre — mesmo com o ERP (Olist/Bling) tirado do menu do seller em 2026-11-04 (nav
+escondida, código/cron deixados de propósito pra reativar rápido). Bling nunca
+teve nenhuma conexão real (`seller_bling_integrations`/`bling_webhook_logs` com 0
+linhas sempre) — decisão 2026-11-15: remover de vez, não só pausar.
+
+Removido (`web/scripts/remove-bling-integration-completa.sql`):
+- Tabelas `seller_bling_integrations`, `bling_webhook_logs` (DROP, 0 linhas, sem FK
+  de nenhuma outra tabela apontando pra elas).
+- Funções `dropcore_try_bling_sync_lock`/`dropcore_release_bling_sync_lock`.
+- Cron `dropcore-bling-sync`.
+- 16 arquivos de código exclusivos de Bling (rotas, lib, componentes) + menções em
+  `lib/cronHealthCheck.ts`, `lib/landingContent.ts`, `components/legal/content.tsx`
+  (termos de uso) e as 2 páginas de ERP (seller/admin).
+
+Olist (diferente de Bling): código, tabelas (`seller_olist_integrations` com 3
+linhas, `fornecedor_olist_integrations` com 1) e rotas de reconexão continuam
+intactos — só os 4 crons de sync automático foram desligados
+(`cron.unschedule`, reversível com um novo `cron.schedule` se precisar reativar):
+`dropcore-olist-sync`, `dropcore-fornecedor-olist-sync-estoque`,
+`dropcore-olist-sync-precos`, `dropcore-etiqueta-olist-retry`.
+
 ## Índices de FK faltando (pedido/troca/devolução) — 2026-11-15
 
 Varredura de performance via Supabase Advisor achou `financial_troca_pendente`
