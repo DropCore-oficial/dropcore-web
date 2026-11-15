@@ -24,6 +24,23 @@ um mandar `POST` sem login.
 `service_role`. Nunca confiar que "não dei grant pra anon" seja suficiente — sempre revogar
 explícito.
 
+## Índices de FK faltando (pedido/troca/devolução) — 2026-11-15
+
+Varredura de performance via Supabase Advisor achou `financial_troca_pendente`
+(4 FKs: `org_id`, `pedido_original_id`, `pedido_reposicao_id`, `seller_id`) e
+`seller_ml_devolucoes_detectadas` (`fornecedor_id`, `ledger_id`, `pedido_id`)
+sem índice de cobertura nessas colunas de FK — qualquer `DELETE`/`UPDATE` na
+tabela pai (cancelar pedido, apagar seller) varria a tabela filha inteira.
+Corrigido em `web/scripts/add-indices-fk-troca-devolucao-pedido.sql`. A policy
+`service_role_only` de `financial_troca_pendente` também reavaliava
+`auth.role()` por linha — trocada por `(select auth.role())` no mesmo script.
+
+Ainda pendentes (fora do escopo "pedido" deste lote, fazer depois): índice em
+`org_members(user_id, org_id)` (hoje zero index scan apesar de rodar dentro de
+toda checagem de permissão do sistema), mais 19 FKs sem índice em outras
+tabelas, e policies RLS reavaliando `auth.uid()` por linha em `orgs`,
+`org_members`, `notifications` e `repasses_fornecedor`.
+
 ## Ciclo de repasse ao fornecedor (`fn_ciclo_repasse`) — corrigido em 2026-07-13
 
 Regra de negócio: tudo vendido/postado de segunda a sábado é pago na
