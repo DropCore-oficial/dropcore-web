@@ -50,6 +50,11 @@ const PEDIDO_TIPO_SEVERIDADE: Record<string, "danger" | "warning" | "success"> =
   devolucao_liberada_automatico_seller: "success",
   devolucao_liberada_automatico_fornecedor: "warning",
   devolucao_confirmada_fornecedor_seller: "success",
+  devolucao_contestada_fornecedor_admin: "danger",
+  devolucao_contestada_fornecedor_seller: "warning",
+  devolucao_nao_procede_seller: "warning",
+  devolucao_nao_procede_fornecedor: "success",
+  contador_pedidos_divergente_admin: "warning",
 };
 
 const PEDIDO_TIPO_ICON: Record<string, string> = {
@@ -70,6 +75,11 @@ const PEDIDO_TIPO_ICON: Record<string, string> = {
   devolucao_liberada_automatico_seller: "💰",
   devolucao_liberada_automatico_fornecedor: "⏰",
   devolucao_confirmada_fornecedor_seller: "💰",
+  devolucao_contestada_fornecedor_admin: "⚖️",
+  devolucao_contestada_fornecedor_seller: "⚖️",
+  devolucao_nao_procede_seller: "⚖️",
+  devolucao_nao_procede_fornecedor: "💰",
+  contador_pedidos_divergente_admin: "🔢",
 };
 
 function pedidoDestino(context: NotificationPortalContext, pedidoId: string): string {
@@ -480,7 +490,9 @@ export function NotificationBell({
                                 Ver pedidos →
                               </a>
                             )}
-                            {n.tipo === "devolucao_ml_provavel_admin" && (
+                            {(n.tipo === "devolucao_ml_provavel_admin" ||
+                              n.tipo === "devolucao_contestada_fornecedor_admin" ||
+                              n.tipo === "contador_pedidos_divergente_admin") && (
                               <a
                                 href="/admin/pedidos?status=devolucao"
                                 onClick={(e) => e.stopPropagation()}
@@ -492,7 +504,8 @@ export function NotificationBell({
                             {(n.tipo === "devolucao_registrada_fornecedor" ||
                               n.tipo === "devolucao_liberada_automatico_fornecedor" ||
                               n.tipo === "debito_devolucao_pos_repasse_registrado" ||
-                              n.tipo === "debito_devolucao_pos_repasse_descontado") && (
+                              n.tipo === "debito_devolucao_pos_repasse_descontado" ||
+                              n.tipo === "devolucao_nao_procede_fornecedor") && (
                               <a
                                 href="/fornecedor/pedidos?status=devolucao"
                                 onClick={(e) => e.stopPropagation()}
@@ -519,7 +532,9 @@ export function NotificationBell({
                               n.tipo === "anuncio_sem_sku_urgente" ||
                               n.tipo === "devolucao_ml_provavel_seller" ||
                               n.tipo === "devolucao_liberada_automatico_seller" ||
-                              n.tipo === "devolucao_confirmada_fornecedor_seller") &&
+                              n.tipo === "devolucao_confirmada_fornecedor_seller" ||
+                              n.tipo === "devolucao_contestada_fornecedor_seller" ||
+                              n.tipo === "devolucao_nao_procede_seller") &&
                               n.metadata?.pedido_id && (
                                 <a
                                   href={pedidoDestino(context, n.metadata.pedido_id)}

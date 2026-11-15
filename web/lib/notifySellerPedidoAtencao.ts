@@ -5,6 +5,12 @@
  * tela de Pedidos e vendo o badge.
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { notifyUserEmail } from "@/lib/notifyEmail";
+
+/** Tipos que, além do sino, também mandam e-mail — achado real 2026-11-11: fornecedor
+ * contestar devolução é caso raro e financeiro, o seller precisa saber mesmo sem abrir o
+ * painel. Os demais tipos continuam só sino, igual sempre foi. */
+const TIPOS_TAMBEM_EMAIL = new Set(["devolucao_contestada_fornecedor_seller", "devolucao_nao_procede_seller"]);
 
 const TITULOS = {
   pedido_novo: "Novo pedido recebido",
@@ -22,6 +28,8 @@ const TITULOS = {
   devolucao_ml_provavel_seller: "Possível devolução no Mercado Livre",
   devolucao_liberada_automatico_seller: "Devolução liberada automaticamente",
   devolucao_confirmada_fornecedor_seller: "Devolução confirmada pelo fornecedor",
+  devolucao_contestada_fornecedor_seller: "Fornecedor contestou sua devolução",
+  devolucao_nao_procede_seller: "Devolução não procede — venda mantida",
 } as const;
 
 export async function notifySellerPedidoAtencao(params: {
@@ -45,7 +53,9 @@ export async function notifySellerPedidoAtencao(params: {
     | "anuncio_sem_sku_urgente"
     | "devolucao_ml_provavel_seller"
     | "devolucao_liberada_automatico_seller"
-    | "devolucao_confirmada_fornecedor_seller";
+    | "devolucao_confirmada_fornecedor_seller"
+    | "devolucao_contestada_fornecedor_seller"
+    | "devolucao_nao_procede_seller";
   motivo: string;
 }): Promise<void> {
   const { data: sellerRow } = await supabaseAdmin
@@ -66,4 +76,15 @@ export async function notifySellerPedidoAtencao(params: {
     mensagem: params.motivo,
     metadata: { pedido_id: params.pedido_id },
   });
+
+  if (TIPOS_TAMBEM_EMAIL.has(params.tipo)) {
+    await notifyUserEmail({
+      userId,
+      subject: titulo,
+      titulo,
+      mensagem: params.motivo,
+      ctaUrl: "https://www.dropcore.com.br/seller/pedidos",
+      ctaLabel: "Ver pedido",
+    });
+  }
 }

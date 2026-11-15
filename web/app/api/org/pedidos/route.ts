@@ -44,7 +44,7 @@ const ABAS_STATUS: Record<string, string[]> = {
   pendencias: ["produto_nao_vinculado", "anuncio_sem_sku", "erro_saldo", "pendente_estoque"],
   pra_enviar: ["enviado"],
   enviados: ["aguardando_repasse"],
-  devolucao: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"],
+  devolucao: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor", "devolucao_nao_procede", "troca_em_andamento", "troca_concluida"],
   concluidos: ["entregue"],
   cancelados: ["cancelado"],
 };
@@ -136,7 +136,7 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("pedidos")
       .select(
-        "id, seller_id, fornecedor_id, sku_id, nome_produto, marketplace_numero, preco_venda, valor_fornecedor, valor_dropcore, valor_total, status, cancelado_motivo, ledger_id, criado_em, e_teste, canal_venda, etiqueta_pdf_url, etiqueta_pdf_base64",
+        "id, seller_id, fornecedor_id, sku_id, nome_produto, marketplace_numero, preco_venda, valor_fornecedor, valor_dropcore, valor_total, status, cancelado_motivo, ledger_id, criado_em, e_teste, canal_venda, etiqueta_pdf_url, etiqueta_pdf_base64, pedido_origem_troca_id, pedido_reposicao_id",
         { count: "exact" }
       )
       .eq("org_id", org_id)
@@ -212,10 +212,20 @@ export async function GET(req: Request) {
     const sellersMap = new Map((sellersRes.data ?? []).map((s) => [s.id, s.nome]));
     const fornMap = new Map((fornRes.data ?? []).map((f) => [f.id, f.nome]));
 
+    // Pedido de reposição de troca referenciado pelo original — busca só o marketplace_numero
+    // pra mostrar o link direto no card, sem o admin precisar procurar em Concluídos
+    // (achado real 2026-11-15: pedido ficava "perdido" no meio de 150 concluídos).
+    const reposicaoIds = [...new Set((data ?? []).map((p) => p.pedido_reposicao_id).filter(Boolean))] as string[];
+    const { data: reposicaoRows } = reposicaoIds.length
+      ? await supabaseAdmin.from("pedidos").select("id, marketplace_numero").in("id", reposicaoIds)
+      : { data: [] as Array<{ id: string; marketplace_numero: string | null }> };
+    const reposicaoMap = new Map((reposicaoRows ?? []).map((r) => [r.id, r.marketplace_numero]));
+
     const enriched = (data ?? []).map((p) => ({
       ...p,
       seller_nome: sellersMap.get(p.seller_id) ?? "—",
       fornecedor_nome: fornMap.get(p.fornecedor_id) ?? "—",
+      pedido_reposicao_marketplace_numero: p.pedido_reposicao_id ? reposicaoMap.get(p.pedido_reposicao_id) ?? null : null,
     }));
 
     return NextResponse.json({

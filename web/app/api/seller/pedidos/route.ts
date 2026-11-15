@@ -30,6 +30,8 @@ type PedidoRow = {
   cancelado_motivo?: string | null;
   marketplace_numero?: string | null;
   marketplace_pack_id?: string | null;
+  pedido_origem_troca_id?: string | null;
+  pedido_reposicao_id?: string | null;
   comprador_nome?: string | null;
   comprador_cidade?: string | null;
   comprador_uf?: string | null;
@@ -48,6 +50,9 @@ const STATUS_FILTER = [
   "em_devolucao",
   "devolvido",
   "devolucao_sem_fornecedor",
+  "devolucao_nao_procede",
+  "troca_em_andamento",
+  "troca_concluida",
   "cancelado",
   "erro_saldo",
 ] as const;
@@ -225,7 +230,12 @@ export async function GET(req: Request) {
     // order_id/pedidos separados que são, na prática, 1 pacote/1 etiqueta só (confirmado
     // ao vivo 2026-09-23 — ver docs/SCHEMA.md). Agrupa nessa página antes de tudo (inclusive
     // antes da busca de previsão de etiqueta, pra não repetir a mesma chamada por irmão).
-    const porPack = new Map<string, typeof itemsSemAgrupar>();
+    // Chave de agrupamento é pack + status (não só pack): itens do mesmo pacote com
+    // desfechos diferentes (ex.: 1 "devolucao_nao_procede" + 1 "devolvido") não podem virar
+    // 1 card só com 1 badge só — isso escondia o status de um dos dois atrás do outro. Itens
+    // com o mesmo pack E mesmo status continuam fundindo normal (ex.: 2 itens "enviado" do
+    // mesmo pacote = 1 etiqueta só).
+    const porPackEStatus = new Map<string, typeof itemsSemAgrupar>();
     const items: typeof itemsSemAgrupar = [];
     for (const p of itemsSemAgrupar) {
       const packId = (p as { marketplace_pack_id?: string | null }).marketplace_pack_id;
@@ -233,9 +243,10 @@ export async function GET(req: Request) {
         items.push(p);
         continue;
       }
-      const grupo = porPack.get(packId);
+      const chave = `${packId}::${p.status}`;
+      const grupo = porPackEStatus.get(chave);
       if (!grupo) {
-        porPack.set(packId, [p]);
+        porPackEStatus.set(chave, [p]);
         items.push(p);
         continue;
       }
@@ -377,13 +388,29 @@ export async function GET(req: Request) {
     const merged = page === 1 ? [...reservaItems, ...items].sort(byDateDesc) : items;
     const total = pedidosCount + reservaItems.length;
 
+    // Pedido de reposição de troca referenciado pelo original — busca só o marketplace_numero
+    // pra mostrar o link direto no card de "Troca concluída" (achado real 2026-11-15: pedido
+    // ficava "perdido" no meio de muitos concluídos).
+    const reposicaoIds = [...new Set(merged.map((it) => (it as { pedido_reposicao_id?: string | null }).pedido_reposicao_id).filter(Boolean))] as string[];
+    const { data: reposicaoRows } = reposicaoIds.length
+      ? await supabaseAdmin.from("pedidos").select("id, marketplace_numero").in("id", reposicaoIds)
+      : { data: [] as Array<{ id: string; marketplace_numero: string | null }> };
+    const reposicaoMap = new Map((reposicaoRows ?? []).map((r) => [r.id, r.marketplace_numero]));
+    const mergedComReposicao = merged.map((it) => {
+      const reposicaoId = (it as { pedido_reposicao_id?: string | null }).pedido_reposicao_id;
+      return {
+        ...it,
+        pedido_reposicao_marketplace_numero: reposicaoId ? reposicaoMap.get(reposicaoId) ?? null : null,
+      };
+    });
+
     // Reserva engorda a mesma aba visual "Pendências" (e "Todos") — soma depois da RPC,
     // que não sabe nada sobre `estoque_reservas`.
     if (reservaItems.length > 0) {
       abas = { ...abas, todos: abas.todos + reservaItems.length, pendencias: abas.pendencias + reservaItems.length };
     }
 
-    return NextResponse.json({ items: merged, total, page, limit: pageSize, abas });
+    return NextResponse.json({ items: mergedComReposicao, total, page, limit: pageSize, abas });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

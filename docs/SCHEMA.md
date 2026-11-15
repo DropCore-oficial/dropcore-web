@@ -2616,6 +2616,51 @@ pull (até 5min) pode reverter `estoque_atual` pro valor antigo do ML até uma p
 tentar de novo — mesma janela de staleness que já existia antes dessa feature, não é
 regressão.
 
+## Troca (exchange) do Mercado Livre — `financial_troca_pendente` (2026-11-14)
+
+Achado real: cliente pediu troca de tamanho, o ML enviou reposição grátis (`applied_coverage:
+true`) e cancelou+reembolsou o pedido original direto pro comprador — sem o DropCore saber. O
+pedido original ficava `entregue` pra sempre, e se a reposição virasse pedido novo no ML
+(normalmente vira), o seller era cobrado de novo — dobrado.
+
+**Diferencial real da claim de troca** (confirmado ao vivo na API do ML): `resolution.reason
+=== 'item_changed'` — não é `type` nem `stage` (esses só indicam "virou mediação formal"). A
+claim pode estar `status: closed` (já julgada pelo mediador) com ação ainda pendente do
+fornecedor — detecção não pode filtrar só `status=opened`.
+
+**Sinal de entrega física do retorno**: o mesmo já usado pra devolução normal —
+`GET /post-purchase/v2/claims/{id}/returns` → `shipments[].status === 'delivered'`
+(`mlDevolucaoEntregueFisicamente`, `web/lib/mercadoLivreApiClient.ts`). Nenhuma lógica nova de
+rastreio foi necessária.
+
+**Decisão de produto**: nunca creditar o seller antes do fornecedor confirmar que a peça
+devolvida chegou certa — mesmo com o ledger original já `PAGO` (dinheiro já saiu num repasse
+passado). Por isso a tabela `financial_troca_pendente` fica "aguardando" até (a) ML confirmar
+entrega física E (b) fornecedor confirmar — **nunca libera por prazo fixo** (mesmo erro já
+corrigido uma vez pra devolução normal, ver comentário em `web/lib/notifyFornecedorDevolucao.ts`).
+
+**Schema**:
+- `pedidos.status` ganha `troca_em_andamento` (aguardando) e `troca_concluida` (resolvida) —
+  ficam pra sempre na aba Devolução, mesmo padrão de `devolucao_nao_procede`.
+- `pedidos.pedido_origem_troca_id` — no pedido de REPOSIÇÃO, aponta pro pedido ORIGINAL.
+- `financial_troca_pendente` (`web/scripts/add-troca-ml-pendente.sql`): `ledger_original_id`
+  (único), `pedido_original_id`, `pedido_reposicao_id`, `ml_claim_id`, `seller_id`,
+  `fornecedor_id`, valores, `entrega_confirmada_em`, `status` (`aguardando_entrega` →
+  `aguardando_confirmacao_fornecedor` → `confirmado`/`contestado`). RLS só `service_role`.
+- RPCs: `fn_troca_pendente_criar`, `fn_troca_pendente_marcar_entrega_confirmada` (cron),
+  `fn_troca_pendente_fornecedor_confirmar` (só aqui nasce o crédito do seller + débito do
+  fornecedor via `financial_debito_descontar`, ciclo calculado com `fn_ciclo_repasse`),
+  `fn_troca_pendente_fornecedor_contestar`.
+- `fn_fornecedor_pedidos_lista`/`fn_seller_pedidos_lista`: `tem_devolucao` (contador de aba)
+  passou a incluir os 2 status novos; SELECT final expõe `pedido_origem_troca_id`.
+
+**Pendente** (ainda não construído, só o caminho manual via RPC acima): cron de detecção
+automática (hoje `mlDevolucaoDeteccao.ts` só olha claims `status=opened` e nunca verifica
+`resolution.reason`); endpoints `/api/fornecedor/troca-pendente/[id]/confirmar` e
+`/contestar`; badge "Troca em andamento"/"Troca concluída"/"Reposição de troca" nas 3 telas
+(admin/fornecedor/seller); revisão da contestação pelo admin (reaproveitar o modal "Revisar
+contestação" já existente pra devolução normal).
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

@@ -27,7 +27,7 @@ const ABAS = [
   { key: "pra_enviar", label: "Pra enviar", statuses: ["enviado"], Icon: IconBox, bufferMl: "excluir" as "somente" | "excluir" | null, etiquetaImpressa: "excluir" as "somente" | "excluir" | null },
   { key: "retirada", label: "Para retirar", statuses: ["enviado"], Icon: IconPackage, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: "somente" as "somente" | "excluir" | null },
   { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
-  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor", "devolucao_nao_procede", "troca_em_andamento", "troca_concluida"], Icon: IconDevolucao, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
   { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
   { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
 ] as const;
@@ -106,6 +106,11 @@ type Pedido = {
   ledger_id?: string | null;
   /** Pedido fictício (conta de teste) — nunca conta em soma real, só sinalizado aqui. */
   e_teste?: boolean;
+  /** Preenchido só no pedido de REPOSIÇÃO de uma troca — aponta pro pedido original. */
+  pedido_origem_troca_id?: string | null;
+  /** Preenchido só no pedido ORIGINAL de uma troca — aponta pra reposição. */
+  pedido_reposicao_id?: string | null;
+  pedido_reposicao_marketplace_numero?: string | null;
 };
 
 const inputClass =
@@ -127,14 +132,17 @@ const STATUS_PILL: Record<string, string> = {
   enviado: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
   aguardando_repasse: "bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
   entregue: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
-  em_devolucao: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  em_devolucao: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   devolvido: "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300",
-  devolucao_sem_fornecedor: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  devolucao_sem_fornecedor: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+  devolucao_nao_procede: "bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-300",
+  troca_em_andamento: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300",
+  troca_concluida: "bg-cyan-100 text-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300",
   erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   cancelado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   produto_nao_vinculado: cn(INFO_PREMIUM_TEXT_PRIMARY, "bg-neutral-100 dark:bg-neutral-800/40"),
   anuncio_sem_sku: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
-  pendente_estoque: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  pendente_estoque: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
 };
 const STATUS_LABEL: Record<string, string> = {
   enviado: "Enviado (bloqueado)",
@@ -143,6 +151,9 @@ const STATUS_LABEL: Record<string, string> = {
   em_devolucao: "Em devolução",
   devolvido: "Devolvido",
   devolucao_sem_fornecedor: "Devolução — fornecedor não confirmado",
+  devolucao_nao_procede: "Devolução não procede",
+  troca_em_andamento: "Troca — aguardando confirmação",
+  troca_concluida: "Troca concluída",
   erro_saldo: "Erro (saldo insuf.)",
   cancelado: "Cancelado",
   produto_nao_vinculado: "Fora do catálogo",
@@ -210,12 +221,13 @@ export default function PedidosPage() {
   const [abaContagens, setAbaContagens] = useState<Record<AbaKey, number>>({
     todos: 0, pendencias: 0, pra_enviar: 0, buffer: 0, retirada: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0,
   });
-  const [buscaInput, setBuscaInput] = useState("");
-  const [buscaAplicada, setBuscaAplicada] = useState("");
+  const [buscaInput, setBuscaInput] = useState(() => searchParams.get("busca") ?? "");
+  const [buscaAplicada, setBuscaAplicada] = useState(() => searchParams.get("busca") ?? "");
   const [periodo, setPeriodo] = useState<"todos" | "hoje" | "7d" | "30d" | "custom">("todos");
   const [customDe, setCustomDe] = useState("");
   const [customAte, setCustomAte] = useState("");
   const [modalPeriodoAberto, setModalPeriodoAberto] = useState(false);
+  const [soContestadas, setSoContestadas] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [totalPedidos, setTotalPedidos] = useState(0);
@@ -234,6 +246,7 @@ export default function PedidosPage() {
   const [debitoPorPedido, setDebitoPorPedido] = useState<Map<string, DebitoPendenteItem>>(new Map());
   const [updatingLedgerId, setUpdatingLedgerId] = useState<string | null>(null);
   const [confirmacao, setConfirmacao] = useState<{ titulo: string; mensagem: string; onConfirmar: () => void } | null>(null);
+  const [revisarContestacao, setRevisarContestacao] = useState<{ p: Pedido; l: LedgerItem } | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setBuscaAplicada(buscaInput.trim()), 400);
@@ -647,19 +660,10 @@ export default function PedidosPage() {
       return (
         <div className={cn("flex flex-col gap-1.5", full ? "mt-2" : "")}>
           {l.fornecedor_contestou_em ? (
-            <div className="max-w-[260px] text-[11px] text-[var(--danger)]">
-              <p className="font-semibold">Fornecedor contestou:</p>
-              <p className="line-clamp-2">{l.fornecedor_contestacao_texto ?? "—"}</p>
-              {l.fornecedor_contestacao_evidencias_urls?.length ? (
-                <div className="mt-1 flex flex-wrap gap-x-2">
-                  {l.fornecedor_contestacao_evidencias_urls.map((url, i) => (
-                    <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="underline">
-                      Ver evidência {i + 1} ↗
-                    </a>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+            <p className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-[var(--danger)]">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+              Fornecedor contestou
+            </p>
           ) : l.em_devolucao_entrega_confirmada_ml_em ? (
             <p className="text-[11px] text-[var(--muted)]">
               <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
@@ -678,12 +682,25 @@ export default function PedidosPage() {
             </p>
           )}
           <div className="flex flex-wrap gap-1.5">
-            <button type="button" onClick={() => askFornecedorConferiu(l)} disabled={busy} className={cn(btnPrimaryCompactClass, full && "flex-1")}>
-              {busy ? "..." : "Fornecedor conferiu"}
-            </button>
-            <button type="button" onClick={() => askManterVenda(l)} disabled={busy} className={cn(btnSecondaryCompactClass, full && "flex-1")}>
-              {busy ? "..." : "Devolução não procede"}
-            </button>
+            {l.fornecedor_contestou_em ? (
+              <button
+                type="button"
+                onClick={() => setRevisarContestacao({ p, l })}
+                disabled={busy}
+                className={cn(btnPrimaryCompactClass, "whitespace-nowrap", full && "flex-1")}
+              >
+                {busy ? "..." : "Revisar contestação"}
+              </button>
+            ) : (
+              <>
+                <button type="button" onClick={() => askFornecedorConferiu(l)} disabled={busy} className={cn(btnPrimaryCompactClass, full && "flex-1")}>
+                  {busy ? "..." : "Fornecedor conferiu"}
+                </button>
+                <button type="button" onClick={() => askManterVenda(l)} disabled={busy} className={cn(btnSecondaryCompactClass, full && "flex-1")}>
+                  {busy ? "..." : "Devolução não procede"}
+                </button>
+              </>
+            )}
           </div>
         </div>
       );
@@ -713,19 +730,30 @@ export default function PedidosPage() {
   // antes dos que ainda estão "aguardando" — mesmo critério usado em
   // web/app/fornecedor/pedidos/page.tsx, pro admin não precisar procurar no meio da lista
   // pra achar o que realmente está com relógio correndo.
+  const contestadasPendentesCount = pedidos.filter((p) => {
+    const l = ledgerPorPedido.get(p.id);
+    return Boolean(l?.fornecedor_contestou_em) && l?.status === "EM_DEVOLUCAO";
+  }).length;
+
   const pedidosExibidos =
     abaAtiva === "devolucao"
-      ? [...pedidos].sort((a, b) => {
-          const la = ledgerPorPedido.get(a.id);
-          const lb = ledgerPorPedido.get(b.id);
-          const prioridadeA = la?.em_devolucao_entrega_confirmada_ml_em ? 0 : 1;
-          const prioridadeB = lb?.em_devolucao_entrega_confirmada_ml_em ? 0 : 1;
-          if (prioridadeA !== prioridadeB) return prioridadeA - prioridadeB;
-          if (prioridadeA === 0) {
-            return (la!.em_devolucao_entrega_confirmada_ml_em ?? "").localeCompare(lb!.em_devolucao_entrega_confirmada_ml_em ?? "");
-          }
-          return 0;
-        })
+      ? [...pedidos]
+          .filter((p) => {
+            if (!soContestadas) return true;
+            const l = ledgerPorPedido.get(p.id);
+            return Boolean(l?.fornecedor_contestou_em) && l?.status === "EM_DEVOLUCAO";
+          })
+          .sort((a, b) => {
+            const la = ledgerPorPedido.get(a.id);
+            const lb = ledgerPorPedido.get(b.id);
+            const prioridadeA = la?.em_devolucao_entrega_confirmada_ml_em ? 0 : 1;
+            const prioridadeB = lb?.em_devolucao_entrega_confirmada_ml_em ? 0 : 1;
+            if (prioridadeA !== prioridadeB) return prioridadeA - prioridadeB;
+            if (prioridadeA === 0) {
+              return (la!.em_devolucao_entrega_confirmada_ml_em ?? "").localeCompare(lb!.em_devolucao_entrega_confirmada_ml_em ?? "");
+            }
+            return 0;
+          })
       : pedidos;
 
   return (
@@ -827,7 +855,7 @@ export default function PedidosPage() {
               type="button"
               onClick={() => setPeriodo(opt.key)}
               className={cn(
-                "rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
+                "rounded-full px-2.5 py-1.5 text-[11px] font-medium transition-colors",
                 periodo === opt.key
                   ? "bg-emerald-600 text-white shadow-sm"
                   : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
@@ -841,7 +869,7 @@ export default function PedidosPage() {
               type="button"
               onClick={() => setModalPeriodoAberto((v) => !v)}
               className={cn(
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
+                "flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-medium transition-colors",
                 periodo === "custom"
                   ? "bg-emerald-600 text-white shadow-sm"
                   : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
@@ -872,6 +900,20 @@ export default function PedidosPage() {
               />
             ) : null}
           </div>
+          {abaAtiva === "devolucao" && (
+            <button
+              type="button"
+              onClick={() => setSoContestadas((v) => !v)}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors",
+                soContestadas
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+              )}
+            >
+              Contestadas{contestadasPendentesCount > 0 ? ` (${contestadasPendentesCount})` : ""}
+            </button>
+          )}
           <button type="button" onClick={() => void load()} disabled={loading} className={btnSecondaryCompactClass}>
             {loading ? "..." : "Atualizar"}
           </button>
@@ -1102,6 +1144,121 @@ export default function PedidosPage() {
         </div>
       )}
 
+      {revisarContestacao && (
+        <div
+          className={cn(MODAL_OVERLAY_CLASS, "animate-fade-in-up")}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-revisar-contestacao-title"
+          onClick={() => setRevisarContestacao(null)}
+        >
+          <div
+            className={cn(MODAL_PANEL_CLASS, "animate-fade-in-up animate-fade-in-up-delay-1")}
+            style={{ maxWidth: "32rem" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex shrink-0 items-center justify-between border-b border-[var(--card-border)] px-5 pb-4 pt-5">
+              <h2 id="modal-revisar-contestacao-title" className="text-base font-semibold text-[var(--foreground)]">
+                Revisar contestação
+              </h2>
+              <button
+                type="button"
+                onClick={() => setRevisarContestacao(null)}
+                aria-label="Fechar"
+                className="-m-1 rounded p-1 text-xl leading-none text-neutral-400 transition-colors hover:text-neutral-900 dark:hover:text-neutral-200"
+              >
+                ×
+              </button>
+            </div>
+            <div className={cn(MODAL_PANEL_BODY_CLASS, "px-5 pb-5 pt-4")}>
+              <div className="flex flex-col gap-4">
+                <dl className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <dt className="text-xs text-neutral-500">Produto</dt>
+                    <dd className="font-medium text-[var(--foreground)]">{revisarContestacao.p.nome_produto ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-neutral-500">Pedido</dt>
+                    <dd className="font-medium text-[var(--foreground)]">{revisarContestacao.p.marketplace_numero ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-neutral-500">Seller</dt>
+                    <dd className="font-medium text-[var(--foreground)]">{revisarContestacao.l.seller_nome}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-neutral-500">Fornecedor</dt>
+                    <dd className="font-medium text-[var(--foreground)]">{revisarContestacao.l.fornecedor_nome}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-neutral-500">Valor</dt>
+                    <dd className="font-medium text-[var(--foreground)]">{formatMoney(revisarContestacao.l.valor_total)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-neutral-500">Contestado em</dt>
+                    <dd className="font-medium text-[var(--foreground)]">
+                      {revisarContestacao.l.fornecedor_contestou_em ? formatDate(revisarContestacao.l.fornecedor_contestou_em) : "—"}
+                    </dd>
+                  </div>
+                </dl>
+
+                <div className={cn(DANGER_PREMIUM_SURFACE, "rounded-xl p-3")}>
+                  <p className={cn("text-xs font-semibold", DANGER_PREMIUM_TEXT_PRIMARY)}>Motivo da contestação do fornecedor</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-[var(--foreground)]">
+                    {revisarContestacao.l.fornecedor_contestacao_texto ?? "—"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold text-[var(--muted)]">Evidências anexadas</p>
+                  {revisarContestacao.l.fornecedor_contestacao_evidencias_urls?.length ? (
+                    <div className="mt-1.5 flex flex-wrap gap-2">
+                      {revisarContestacao.l.fornecedor_contestacao_evidencias_urls.map((url, i) => (
+                        <a key={url} href={url} target="_blank" rel="noopener noreferrer" className={btnSecondaryCompactClass}>
+                          Ver evidência {i + 1} ↗
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1.5 text-sm text-[var(--muted)]">Fornecedor não anexou nenhuma evidência — só o texto acima.</p>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2 border-t border-[var(--card-border)] pt-4 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const l = revisarContestacao.l;
+                      setRevisarContestacao(null);
+                      askFornecedorConferiu(l);
+                    }}
+                    className={cn(btnPrimaryCompactClass, "flex-1")}
+                  >
+                    Liberar pro seller
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const l = revisarContestacao.l;
+                      setRevisarContestacao(null);
+                      askManterVenda(l);
+                    }}
+                    className={cn(btnSecondaryCompactClass, "flex-1")}
+                  >
+                    Manter venda (fornecedor recebe)
+                  </button>
+                </div>
+                <p className="text-[11px] text-[var(--muted)]">
+                  <span className="font-medium text-[var(--foreground)]">Liberar pro seller</span> devolve o valor pro saldo
+                  do seller — o fornecedor não recebe por esse pedido.{" "}
+                  <span className="font-medium text-[var(--foreground)]">Manter venda</span> mantém o pedido no fluxo normal
+                  — o fornecedor recebe no próximo repasse.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <section className="overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm">
       {pedidos.length === 0 ? (
         <div className="py-16 text-center">
@@ -1149,6 +1306,17 @@ export default function PedidosPage() {
                       </span>
                       {p.marketplace_numero ? (
                         <p className="font-mono text-[10px] text-[var(--muted)]">{p.marketplace_numero}</p>
+                      ) : null}
+                      {p.pedido_origem_troca_id ? (
+                        <p className="mt-0.5 text-[10px] font-medium text-cyan-700 dark:text-cyan-400">↩ Reposição de troca</p>
+                      ) : null}
+                      {p.pedido_reposicao_id && p.pedido_reposicao_marketplace_numero ? (
+                        <a
+                          href={`/admin/pedidos?status=entregue&busca=${encodeURIComponent(p.pedido_reposicao_marketplace_numero)}`}
+                          className="mt-0.5 block text-[10px] font-medium text-cyan-700 underline hover:no-underline dark:text-cyan-400"
+                        >
+                          ↪ Reposição enviada: {p.pedido_reposicao_marketplace_numero}
+                        </a>
                       ) : null}
                     </td>
                     <td className="px-4 py-3 text-right font-medium">{formatMoney(p.valor_total)}</td>
@@ -1209,6 +1377,17 @@ export default function PedidosPage() {
                   {p.marketplace_numero ? ` · Pedido ${p.marketplace_numero}` : ""}
                   {p.e_teste ? " · teste" : ""}
                 </p>
+                {p.pedido_origem_troca_id ? (
+                  <p className="mt-0.5 text-[11px] font-medium text-cyan-700 dark:text-cyan-400">↩ Reposição de troca</p>
+                ) : null}
+                {p.pedido_reposicao_id && p.pedido_reposicao_marketplace_numero ? (
+                  <a
+                    href={`/admin/pedidos?status=entregue&busca=${encodeURIComponent(p.pedido_reposicao_marketplace_numero)}`}
+                    className="mt-0.5 block text-[11px] font-medium text-cyan-700 underline hover:no-underline dark:text-cyan-400"
+                  >
+                    ↪ Reposição enviada: {p.pedido_reposicao_marketplace_numero}
+                  </a>
+                ) : null}
                 <div className="mt-2 flex items-center justify-between gap-2">
                   <span className="text-xs text-[var(--muted)]">{formatDate(p.criado_em)}</span>
                   <span

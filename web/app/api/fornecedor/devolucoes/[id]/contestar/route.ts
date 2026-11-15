@@ -7,6 +7,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getFornecedorContextFromBearer } from "@/lib/fornecedorAuth";
+import { notifyAdminDevolucaoContestada } from "@/lib/notifyAdminDevolucaoContestada";
+import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -90,6 +92,47 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const resultado = data as { ok: boolean; motivo: string | null } | null;
   if (!resultado?.ok) {
     return NextResponse.json({ error: resultado?.motivo ?? "Não foi possível registrar a contestação." }, { status: 400 });
+  }
+
+  // Avisa admin + seller — sem isso a contestação ficava só gravada no banco, sem ninguém
+  // saber que precisa decidir (achado real 2026-11-11: um caso ficou 8 dias parado).
+  const { data: ledgerRow } = await supabaseAdmin
+    .from("financial_ledger")
+    .select("org_id, seller_id, pedido_id, pedidos(marketplace_numero)")
+    .eq("id", id)
+    .maybeSingle<{
+      org_id: string;
+      seller_id: string | null;
+      pedido_id: string | null;
+      pedidos: { marketplace_numero: string | null } | null;
+    }>();
+
+  if (ledgerRow) {
+    const { data: fornecedorRow } = await supabaseAdmin
+      .from("fornecedores")
+      .select("nome")
+      .eq("id", ctx.fornecedor_id)
+      .maybeSingle();
+
+    await Promise.all([
+      notifyAdminDevolucaoContestada({
+        org_id: ledgerRow.org_id,
+        ledger_id: id,
+        pedido_id: ledgerRow.pedido_id,
+        marketplace_numero: ledgerRow.pedidos?.marketplace_numero ?? null,
+        fornecedor_nome: fornecedorRow?.nome ?? null,
+      }),
+      ledgerRow.seller_id
+        ? notifySellerPedidoAtencao({
+            org_id: ledgerRow.org_id,
+            seller_id: ledgerRow.seller_id,
+            pedido_id: ledgerRow.pedido_id,
+            tipo: "devolucao_contestada_fornecedor_seller",
+            motivo:
+              "O fornecedor contestou a devolução desse pedido — o admin vai revisar as evidências e decidir.",
+          })
+        : Promise.resolve(),
+    ]);
   }
 
   return NextResponse.json({ ok: true, mensagem: "Contestação registrada. O admin vai revisar o caso." });

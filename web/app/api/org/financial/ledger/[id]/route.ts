@@ -12,12 +12,17 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { logAdminAction } from "@/lib/adminAuditLog";
 import { notifyFornecedorDevolucao } from "@/lib/notifyFornecedorDevolucao";
+import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ALLOWED_NEXT = new Set(["ENTREGUE", "AGUARDANDO_REPASSE", "EM_DEVOLUCAO", "DEVOLVIDO"]);
 const PODE_IR_PARA_EM_DEVOLUCAO = new Set(["BLOQUEADO", "ENTREGUE", "AGUARDANDO_REPASSE"]);
+
+function formatMoney(n: number): string {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
+}
 
 export async function PATCH(
   req: Request,
@@ -101,6 +106,20 @@ export async function PATCH(
       notifyFornecedorDevolucao({ org_id, fornecedor_id: row.fornecedor_id, ledger_id: id }).catch((e) =>
         console.error("[ledger PATCH] erro ao notificar fornecedor da devolução:", e)
       );
+    }
+
+    // Admin confirmando "Fornecedor conferiu" no lugar do fluxo de autoatendimento do
+    // fornecedor — mesmo desfecho financeiro, então precisa do mesmo aviso pro seller.
+    // Achado real 2026-11-14: só o caminho onde o PRÓPRIO fornecedor confirma notificava
+    // o seller; esse (admin decidindo pelo ledger) não notificava ninguém.
+    if (status === "DEVOLVIDO" && row.seller_id) {
+      notifySellerPedidoAtencao({
+        org_id,
+        seller_id: row.seller_id,
+        pedido_id: row.pedido_id,
+        tipo: "devolucao_confirmada_fornecedor_seller",
+        motivo: `O fornecedor confirmou o recebimento da devolução — ${formatMoney(Number(row.valor_total))} voltaram pro seu saldo disponível.`,
+      }).catch((e) => console.error("[ledger PATCH] erro ao notificar seller da devolução confirmada:", e));
     }
 
     // Ao confirmar DEVOLVIDO: cria lançamento DEVOLUCAO para devolver o valor ao saldo do seller

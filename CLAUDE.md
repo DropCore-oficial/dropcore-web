@@ -128,9 +128,14 @@ Sempre que criar tabela, alterar RLS, criar função ou query, seguir:
    - NUNCA `SELECT *` — só as colunas necessárias.
    - Paginação sempre (LIMIT/cursor) em listas.
 
-5. **Índices**
-   - Criar índice nas colunas usadas em WHERE, JOIN e ORDER BY. Conferir com
-     `EXPLAIN ANALYZE`.
+5. **Índices — "RPC índice", sempre, não é opcional**
+   - Toda RPC (nova ou que for tocada) tem que ter índice de banco por trás de toda coluna
+     usada em WHERE, JOIN e ORDER BY — conferir de verdade com `EXPLAIN ANALYZE` (Index Scan,
+     não Seq Scan), nunca só supor que está indexado. O objetivo é a tela nunca precisar
+     carregar/filtrar a página inteira pra achar um resultado — é isso que mantém a RPC rápida
+     conforme o volume de linhas cresce. Decisão 2026-11-14: isso vale pra toda RPC do
+     sistema, não só as novas — ao tocar numa RPC existente por outro motivo, aproveitar e
+     auditar o índice dela também.
 
 ## Migrations
 - Alteração de banco vira arquivo SQL em `web/scripts/`, nome descritivo do que faz

@@ -8,9 +8,15 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/apiOrgAuth";
 import { logAdminAction } from "@/lib/adminAuditLog";
+import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
+import { notifyFornecedorDevolucaoNaoProcede } from "@/lib/notifyFornecedorDevolucaoNaoProcede";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function formatMoney(n: number): string {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
+}
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,7 +25,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const { data: row, error: fetchErr } = await supabaseAdmin
       .from("financial_ledger")
-      .select("id, status")
+      .select("id, status, seller_id, fornecedor_id, pedido_id, valor_total, valor_fornecedor")
       .eq("id", id)
       .eq("org_id", org_id)
       .single();
@@ -45,6 +51,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       targetId: id,
       detalhes: { status_anterior: row.status },
     });
+
+    // Avisa os dois lados — sem isso ninguém sabia que essa decisão tinha acontecido
+    // (achado real 2026-11-14: nem seller nem fornecedor eram notificados aqui).
+    if (row.seller_id) {
+      notifySellerPedidoAtencao({
+        org_id,
+        seller_id: row.seller_id,
+        pedido_id: row.pedido_id,
+        tipo: "devolucao_nao_procede_seller",
+        motivo: `O admin decidiu que a devolução não procede — a venda foi mantida e os ${formatMoney(Number(row.valor_total))} não voltam pro seu saldo.`,
+      }).catch((e) => console.error("[ledger/manter-venda] erro ao notificar seller:", e));
+    }
+    if (row.fornecedor_id) {
+      notifyFornecedorDevolucaoNaoProcede({
+        org_id,
+        fornecedor_id: row.fornecedor_id,
+        ledger_id: id,
+        pedido_id: row.pedido_id,
+        valor_fornecedor: Number(row.valor_fornecedor),
+      }).catch((e) => console.error("[ledger/manter-venda] erro ao notificar fornecedor:", e));
+    }
 
     return NextResponse.json({ ok: true, mensagem: "Devolução revertida. Venda segue o fluxo normal de repasse." });
   } catch (e: unknown) {

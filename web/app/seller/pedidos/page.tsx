@@ -52,7 +52,7 @@ const ABAS = [
   { key: "pra_enviar", label: "Pra enviar", statuses: ["enviado"], Icon: IconBox, bufferMl: "excluir" as "somente" | "excluir" | null, etiquetaImpressa: "excluir" as "somente" | "excluir" | null },
   { key: "retirada", label: "Para retirar", statuses: ["enviado"], Icon: IconPackage, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: "somente" as "somente" | "excluir" | null },
   { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
-  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor", "devolucao_nao_procede", "troca_em_andamento", "troca_concluida"], Icon: IconDevolucao, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
   { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
   { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
 ] as const;
@@ -104,6 +104,25 @@ type Pedido = {
   is_reserva?: boolean;
   canal_venda?: string | null;
   etiqueta_ml_previsao?: string | null;
+  /** Pacote original do ML — pode ser compartilhado por 2+ cards quando os status
+   * divergem (card não funde, mas ainda é visualmente agrupado). */
+  marketplace_pack_id?: string | null;
+  /** Preenchido só no pedido de REPOSIÇÃO de uma troca — aponta pro pedido original. */
+  pedido_origem_troca_id?: string | null;
+  /** Preenchido só no pedido ORIGINAL de uma troca — aponta pra reposição. */
+  pedido_reposicao_id?: string | null;
+  pedido_reposicao_marketplace_numero?: string | null;
+};
+
+/** Devolução em aberto desse seller — só pra mostrar se o fornecedor já contestou (achado
+ * real 2026-11-15: seller não tinha visibilidade nenhuma disso, mesmo admin/fornecedor já
+ * vendo o motivo da contestação). */
+type Devolucao = {
+  id: string;
+  pedido_id: string | null;
+  contestado: boolean;
+  fornecedor_contestacao_texto: string | null;
+  entrega_confirmada_em: string | null;
 };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -158,6 +177,9 @@ const statusLabel: Record<string, string> = {
   em_devolucao: "Em devolução",
   devolvido: "Devolvido",
   devolucao_sem_fornecedor: "Devolução — fornecedor não confirmado",
+  devolucao_nao_procede: "Devolução negada (venda mantida)",
+  troca_em_andamento: "Troca — aguardando confirmação",
+  troca_concluida: "Troca concluída",
   cancelado: "Cancelado",
   erro_saldo: "Erro de saldo",
   aguardando_pagamento: "Aguardando pagamento",
@@ -168,15 +190,18 @@ const statusLabel: Record<string, string> = {
 // pílula com contorno (mesmo padrão de web/app/fornecedor/pedidos/page.tsx).
 const STATUS_PILL: Record<string, string> = {
   bloqueado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
-  pendente_estoque: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  pendente_estoque: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   produto_nao_vinculado: cn(INFO_PREMIUM_TEXT_PRIMARY, "bg-neutral-100 dark:bg-neutral-800/40"),
   anuncio_sem_sku: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
   enviado: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
   aguardando_repasse: "bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
   entregue: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
-  em_devolucao: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  em_devolucao: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   devolvido: "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300",
-  devolucao_sem_fornecedor: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  devolucao_sem_fornecedor: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+  devolucao_nao_procede: "bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-300",
+  troca_em_andamento: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300",
+  troca_concluida: "bg-cyan-100 text-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300",
   erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   aguardando_pagamento: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
   cancelado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
@@ -205,6 +230,7 @@ export default function SellerPedidosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [devolucoesPendentes, setDevolucoesPendentes] = useState<Devolucao[]>([]);
   const [abaAtiva, setAbaAtiva] = useState<AbaKey>(() => abaFromStatusParam(searchParams.get("status")));
   const [abaContagens, setAbaContagens] = useState<Record<AbaKey, number>>({
     todos: 0, pendencias: 0, pra_enviar: 0, buffer: 0, retirada: 0, enviados: 0, devolucao: 0, concluidos: 0, cancelados: 0,
@@ -401,9 +427,21 @@ export default function SellerPedidosPage() {
     }
   }
 
+  async function loadDevolucoesPendentes() {
+    const { data: { session } } = await supabaseBrowser.auth.getSession();
+    if (!session?.access_token) return;
+    const res = await fetch("/api/seller/devolucoes", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      cache: "no-store",
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok) setDevolucoesPendentes(json.devolucoes ?? []);
+  }
+
   useEffect(() => {
     if (periodo === "custom" && !customDe && !customAte) return;
     void load();
+    if (abaAtiva === "devolucao") void loadDevolucoesPendentes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [abaAtiva, page, pageSize, buscaProdutoAplicada, periodo, customDe, customAte]);
 
@@ -430,173 +468,14 @@ export default function SellerPedidosPage() {
     }
   }, [destaqueId, pedidos, loading]);
 
-  return (
-    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pb-5">
-      <SellerNav active="pedidos" wide />
-      <main className="dropcore-shell-6xl mx-auto px-4 pt-20 pb-5 sm:px-6 sm:pt-24 md:pb-7">
-        <SellerPageHeader
-          surface="hero"
-          title="Seus pedidos"
-          subtitle={
-            <>
-              Pedidos importados da Olist e do ERP.{" "}
-              <span className="font-medium text-[var(--foreground)]">O extrato financeiro continua no Dashboard.</span>
-            </>
-          }
-        />
-
-        {error ? (
-          <AmberPremiumCallout className="mb-4" title="Erro">
-            {error}
-          </AmberPremiumCallout>
-        ) : null}
-
-        <div
-          ref={abasDrag.ref}
-          onPointerDown={abasDrag.onPointerDown}
-          onClickCapture={abasDrag.onClickCapture}
-          className="dropcore-tabs-scroll mb-3 flex items-center gap-5 overflow-x-auto border-b border-[var(--card-border)] px-1"
-        >
-          {ABAS.map((aba) => {
-            const ativo = abaAtiva === aba.key;
-            return (
-              <button
-                key={aba.key}
-                type="button"
-                onClick={() => {
-                  setPage(1);
-                  setAbaAtiva(aba.key);
-                }}
-                className={cn(
-                  "-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 pb-2.5 pt-1 text-sm font-medium transition-colors",
-                  ativo
-                    ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
-                    : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-                )}
-              >
-                <aba.Icon className="h-4 w-4 shrink-0" />
-                {aba.label}{" "}
-                <span className="whitespace-nowrap">
-                  (<span className="inline-block min-w-[2ch] text-right tabular-nums">{abaContagens[aba.key]}</span>)
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-xs">
-            <svg className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
-            <input
-              type="text"
-              value={buscaProdutoInput}
-              onChange={(e) => setBuscaFornecedorInput(e.target.value)}
-              placeholder="Buscar por produto..."
-              aria-label="Buscar por produto"
-              className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] py-1.5 pl-8 pr-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-            />
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-1">
-            {([
-              { key: "todos", label: "Tudo" },
-              { key: "hoje", label: "Hoje" },
-              { key: "7d", label: "7 dias" },
-              { key: "30d", label: "30 dias" },
-            ] as const).map((opt) => (
-              <button
-                key={opt.key}
-                type="button"
-                onClick={() => setPeriodo(opt.key)}
-                className={cn(
-                  "rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
-                  periodo === opt.key
-                    ? "bg-emerald-600 text-white shadow-sm"
-                    : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setModalPeriodoAberto((v) => !v)}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
-                  periodo === "custom"
-                    ? "bg-emerald-600 text-white shadow-sm"
-                    : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
-                )}
-              >
-                <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <rect width="18" height="18" x="3" y="4" rx="2" />
-                  <path d="M3 10h18M8 2v4M16 2v4" />
-                </svg>
-                {periodo === "custom" && customDe
-                  ? `${customDe.split("-").slice(1).reverse().join("/")}${customAte && customAte !== customDe ? ` - ${customAte.split("-").slice(1).reverse().join("/")}` : ""}`
-                  : "Personalizado"}
-                <svg className={cn("h-3 w-3 shrink-0 opacity-70 transition-transform", modalPeriodoAberto && "rotate-180")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
-              {modalPeriodoAberto ? (
-                <PeriodoPersonalizadoModal
-                  deInicial={customDe}
-                  ateInicial={customAte}
-                  onFechar={() => setModalPeriodoAberto(false)}
-                  onAplicar={(de, ate) => {
-                    setCustomDe(de);
-                    setCustomAte(ate);
-                    setPeriodo("custom");
-                    setModalPeriodoAberto(false);
-                  }}
-                />
-              ) : null}
-            </div>
-            <button
-              type="button"
-              onClick={() => void load()}
-              disabled={loading}
-              className={cn(btnSecondaryCompactClass)}
-            >
-              {loading ? "Carregando..." : "Atualizar"}
-            </button>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <PedidoCardSkeleton key={i} fields={4} />
-            ))}
-          </div>
-        ) : pedidos.length === 0 ? (
-          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-8 text-center">
-            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Nenhum pedido encontrado</p>
-            <p className="mt-2 text-sm text-neutral-500">
-              Após sincronizar a Olist em Integrações ERP, os pedidos aparecem aqui.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {pedidos.map((p) => {
+  function renderConteudoPedido(p: Pedido) {
               const comprador = [p.comprador_nome, p.comprador_cidade, p.comprador_uf].filter(Boolean).join(" · ");
               // Etiqueta em buffer do próprio ML (não é "aguardando postagem" real — ver
               // caixa abaixo) merece badge própria, senão parece que está parado sem motivo.
               const etiquetaEmBufferMl = p.status === "enviado" && !p.tem_etiqueta && p.canal_venda === "mercado_livre";
 
-              return (
-                <article
-                  key={p.id}
-                  ref={(el) => { pedidoRefs.current[p.id] = el; }}
-                  className={cn(
-                    "rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 sm:p-5 transition-shadow",
-                    destaqueId === p.id ? "ring-2 ring-emerald-500 ring-offset-2 ring-offset-[var(--background)]" : ""
-                  )}
-                >
+    return (
+      <>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-medium text-[var(--foreground)]">{tituloPedido(p)}</p>
@@ -654,6 +533,20 @@ export default function SellerPedidosPage() {
                       <dt className="text-neutral-500">{referenciaExternaLabel(p.referencia_externa)}</dt>
                       <dd className="font-mono text-xs sm:text-sm">{p.referencia_externa ?? "—"}</dd>
                     </div>
+                    {p.pedido_origem_troca_id ? (
+                      <div className="col-span-2">
+                        <dd className="text-xs font-medium text-cyan-700 dark:text-cyan-400">↩ Reposição de troca</dd>
+                      </div>
+                    ) : null}
+                    {p.pedido_reposicao_id ? (
+                      <div className="col-span-2">
+                        <dd className="text-xs font-medium">
+                          <a href={`/seller/pedidos?destaque=${p.pedido_reposicao_id}`} className="text-cyan-700 underline hover:no-underline dark:text-cyan-400">
+                            ↪ Reposição enviada{p.pedido_reposicao_marketplace_numero ? `: ${p.pedido_reposicao_marketplace_numero}` : ""}
+                          </a>
+                        </dd>
+                      </div>
+                    ) : null}
                     {p.tracking_codigo ? (
                       <div>
                         <dt className="text-neutral-500">Rastreio</dt>
@@ -813,6 +706,20 @@ export default function SellerPedidosPage() {
                     </button>
                   ) : null}
 
+                  {p.status === "em_devolucao" && (() => {
+                    const devolucao = devolucoesPendentes.find((d) => d.pedido_id === p.id);
+                    if (!devolucao?.contestado) return null;
+                    return (
+                      <div className={cn(DANGER_PREMIUM_SURFACE_TRANSPARENT, "mt-3 rounded-xl px-3 py-2.5")}>
+                        <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "text-sm font-semibold")}>Fornecedor contestou a devolução</p>
+                        {devolucao.fornecedor_contestacao_texto ? (
+                          <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">{devolucao.fornecedor_contestacao_texto}</p>
+                        ) : null}
+                        <p className="mt-1 text-xs text-neutral-500">O admin vai revisar e decidir — sem ação necessária da sua parte.</p>
+                      </div>
+                    );
+                  })()}
+
                   {p.status === "cancelado" && p.cancelado_motivo === "ml_sem_sync" ? (
                     <div className={cn(DANGER_PREMIUM_SURFACE_TRANSPARENT, "mt-3 flex items-start gap-3 rounded-xl px-3 py-2.5")}>
                       <span
@@ -886,9 +793,209 @@ export default function SellerPedidosPage() {
                       um pedido de verdade aqui automaticamente, sem precisar fazer nada.
                     </p>
                   ) : null}
+      </>
+    );
+  }
+
+  // Itens do mesmo pacote ML com status diferentes não fundem num card só (ver backend,
+  // app/api/seller/pedidos/route.ts) — mas ainda vieram da mesma caixa/comprador, então
+  // agrupa visualmente aqui: só junta pedidos ADJACENTES na lista que compartilham o mesmo
+  // marketplace_pack_id (a ordenação por data já deixa os irmãos um do lado do outro).
+  const gruposPedidos: Pedido[][] = [];
+  for (const p of pedidos) {
+    const ultimoGrupo = gruposPedidos[gruposPedidos.length - 1];
+    const ultimoPack = ultimoGrupo?.[0]?.marketplace_pack_id;
+    if (ultimoGrupo && p.marketplace_pack_id && p.marketplace_pack_id === ultimoPack) {
+      ultimoGrupo.push(p);
+    } else {
+      gruposPedidos.push([p]);
+    }
+  }
+
+  return (
+    <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pb-5">
+      <SellerNav active="pedidos" wide />
+      <main className="dropcore-shell-6xl mx-auto px-4 pt-20 pb-5 sm:px-6 sm:pt-24 md:pb-7">
+        <SellerPageHeader
+          surface="hero"
+          title="Seus pedidos"
+          subtitle={
+            <>
+              Pedidos importados da Olist e do ERP.{" "}
+              <span className="font-medium text-[var(--foreground)]">O extrato financeiro continua no Dashboard.</span>
+            </>
+          }
+        />
+
+        {error ? (
+          <AmberPremiumCallout className="mb-4" title="Erro">
+            {error}
+          </AmberPremiumCallout>
+        ) : null}
+
+        <div
+          ref={abasDrag.ref}
+          onPointerDown={abasDrag.onPointerDown}
+          onClickCapture={abasDrag.onClickCapture}
+          className="dropcore-tabs-scroll mb-3 flex items-center gap-5 overflow-x-auto border-b border-[var(--card-border)] px-1"
+        >
+          {ABAS.map((aba) => {
+            const ativo = abaAtiva === aba.key;
+            return (
+              <button
+                key={aba.key}
+                type="button"
+                onClick={() => {
+                  setPage(1);
+                  setAbaAtiva(aba.key);
+                }}
+                className={cn(
+                  "-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 pb-2.5 pt-1 text-sm font-medium transition-colors",
+                  ativo
+                    ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                    : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+                )}
+              >
+                <aba.Icon className="h-4 w-4 shrink-0" />
+                {aba.label}{" "}
+                <span className="whitespace-nowrap">
+                  (<span className="inline-block min-w-[2ch] text-right tabular-nums">{abaContagens[aba.key]}</span>)
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative flex-1 sm:max-w-xs">
+            <svg className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              type="text"
+              value={buscaProdutoInput}
+              onChange={(e) => setBuscaFornecedorInput(e.target.value)}
+              placeholder="Buscar por produto..."
+              aria-label="Buscar por produto"
+              className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] py-1.5 pl-8 pr-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+            />
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-1">
+            {([
+              { key: "todos", label: "Tudo" },
+              { key: "hoje", label: "Hoje" },
+              { key: "7d", label: "7 dias" },
+              { key: "30d", label: "30 dias" },
+            ] as const).map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setPeriodo(opt.key)}
+                className={cn(
+                  "rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
+                  periodo === opt.key
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setModalPeriodoAberto((v) => !v)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
+                  periodo === "custom"
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                )}
+              >
+                <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <rect width="18" height="18" x="3" y="4" rx="2" />
+                  <path d="M3 10h18M8 2v4M16 2v4" />
+                </svg>
+                {periodo === "custom" && customDe
+                  ? `${customDe.split("-").slice(1).reverse().join("/")}${customAte && customAte !== customDe ? ` - ${customAte.split("-").slice(1).reverse().join("/")}` : ""}`
+                  : "Personalizado"}
+                <svg className={cn("h-3 w-3 shrink-0 opacity-70 transition-transform", modalPeriodoAberto && "rotate-180")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+              {modalPeriodoAberto ? (
+                <PeriodoPersonalizadoModal
+                  deInicial={customDe}
+                  ateInicial={customAte}
+                  onFechar={() => setModalPeriodoAberto(false)}
+                  onAplicar={(de, ate) => {
+                    setCustomDe(de);
+                    setCustomAte(ate);
+                    setPeriodo("custom");
+                    setModalPeriodoAberto(false);
+                  }}
+                />
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={() => void load()}
+              disabled={loading}
+              className={cn(btnSecondaryCompactClass)}
+            >
+              {loading ? "Carregando..." : "Atualizar"}
+            </button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <PedidoCardSkeleton key={i} fields={4} />
+            ))}
+          </div>
+        ) : pedidos.length === 0 ? (
+          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-8 text-center">
+            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Nenhum pedido encontrado</p>
+            <p className="mt-2 text-sm text-neutral-500">
+              Após sincronizar a Olist em Integrações ERP, os pedidos aparecem aqui.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {gruposPedidos.map((grupo) =>
+              grupo.length === 1 ? (
+                <article
+                  key={grupo[0].id}
+                  ref={(el) => { pedidoRefs.current[grupo[0].id] = el; }}
+                  className={cn(
+                    "rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 sm:p-5 transition-shadow",
+                    destaqueId === grupo[0].id ? "ring-2 ring-emerald-500 ring-offset-2 ring-offset-[var(--background)]" : ""
+                  )}
+                >
+                  {renderConteudoPedido(grupo[0])}
                 </article>
-              );
-            })}
+              ) : (
+                <div
+                  key={grupo[0].marketplace_pack_id ?? grupo[0].id}
+                  className="divide-y divide-[var(--card-border)] overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--card)]"
+                >
+                  {grupo.map((p) => (
+                    <div
+                      key={p.id}
+                      ref={(el) => { pedidoRefs.current[p.id] = el; }}
+                      className={cn(
+                        "p-4 sm:p-5 transition-shadow",
+                        destaqueId === p.id ? "ring-2 ring-emerald-500 ring-offset-2 ring-offset-[var(--background)]" : ""
+                      )}
+                    >
+                      {renderConteudoPedido(p)}
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
           </div>
         )}
 

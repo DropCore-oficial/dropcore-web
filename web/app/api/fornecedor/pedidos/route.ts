@@ -40,11 +40,13 @@ type PedidoRow = {
   canal_venda?: string | null;
   e_teste?: boolean;
   ledger_id?: string | null;
+  pedido_origem_troca_id?: string | null;
+  pedido_reposicao_id?: string | null;
 };
 
 const STATUS_VALIDOS = [
   "enviado", "aguardando_repasse", "entregue", "em_devolucao", "devolvido",
-  "devolucao_sem_fornecedor", "cancelado", "erro_saldo", "pendente_estoque", "bloqueado",
+  "devolucao_sem_fornecedor", "devolucao_nao_procede", "troca_em_andamento", "troca_concluida", "cancelado", "erro_saldo", "pendente_estoque", "bloqueado",
 ];
 
 type PedidoItemRow = {
@@ -304,6 +306,12 @@ export async function GET(req: Request) {
         tem_etiqueta_oficial,
         etiqueta_ml_previsao: null as string | null,
         pack_pedido_ids: [p.id] as string[],
+        // Exposto explícito (não só via `...rest`) pro front agrupar visualmente cards de
+        // pacotes com status divergente (ver "Chave de agrupamento" abaixo) sem precisar
+        // confiar em leitura não tipada do spread.
+        marketplace_pack_id: (p as { marketplace_pack_id?: string | null }).marketplace_pack_id ?? null,
+        pedido_origem_troca_id: (p as { pedido_origem_troca_id?: string | null }).pedido_origem_troca_id ?? null,
+        pedido_reposicao_id: (p as { pedido_reposicao_id?: string | null }).pedido_reposicao_id ?? null,
       };
     });
 
@@ -311,8 +319,15 @@ export async function GET(req: Request) {
     // order_id/pedidos separados que são, na prática, 1 pacote/1 etiqueta só (confirmado
     // ao vivo 2026-09-23 — ver docs/SCHEMA.md). Agrupa nessa página antes da previsão de
     // etiqueta, pra não repetir a mesma chamada por irmão.
+    // Chave de agrupamento é pack + status (não só pack): itens do mesmo pacote com
+    // desfechos diferentes (ex.: 1 "devolucao_nao_procede" + 1 "devolvido") não podem virar
+    // 1 card só com 1 badge só — isso escondia o status de um dos dois atrás do outro
+    // (achado real 2026-11-14, mesmo depois do fix de prioridade: o card sempre mostra só UM
+    // status, então a solução é não fundir quando os status divergem, não só escolher qual
+    // "vence"). Itens com o mesmo pack E mesmo status continuam fundindo normal (ex.: 2 itens
+    // "enviado" do mesmo pacote = 1 etiqueta só).
     const idsPrincipais = new Set<string>();
-    const porPack = new Map<string, typeof items>();
+    const porPackEStatus = new Map<string, typeof items>();
     const itemsAgrupados: typeof items = [];
     for (const p of items) {
       const packId = (p as { marketplace_pack_id?: string | null }).marketplace_pack_id;
@@ -321,9 +336,10 @@ export async function GET(req: Request) {
         idsPrincipais.add(p.id);
         continue;
       }
-      const grupo = porPack.get(packId);
+      const chave = `${packId}::${(p as { status?: string }).status ?? ""}`;
+      const grupo = porPackEStatus.get(chave);
       if (!grupo) {
-        porPack.set(packId, [p]);
+        porPackEStatus.set(chave, [p]);
         itemsAgrupados.push(p);
         idsPrincipais.add(p.id);
         continue;
@@ -353,8 +369,26 @@ export async function GET(req: Request) {
       }
     }
 
+    // Pedido de reposição de troca referenciado pelo original — busca só o marketplace_numero
+    // pra mostrar o link direto no card de "Troca concluída", sem precisar procurar em
+    // Concluídos (achado real 2026-11-15: pedido ficava "perdido" no meio de 150 concluídos).
+    const reposicaoIds = [...new Set(
+      itemsAgrupados.map((it) => (it as { pedido_reposicao_id?: string | null }).pedido_reposicao_id).filter(Boolean)
+    )] as string[];
+    const { data: reposicaoRows } = reposicaoIds.length
+      ? await supabaseAdmin.from("pedidos").select("id, marketplace_numero").in("id", reposicaoIds)
+      : { data: [] as Array<{ id: string; marketplace_numero: string | null }> };
+    const reposicaoMap = new Map((reposicaoRows ?? []).map((r) => [r.id, r.marketplace_numero]));
+    const itemsComReposicao = itemsAgrupados.map((it) => {
+      const reposicaoId = (it as { pedido_reposicao_id?: string | null }).pedido_reposicao_id;
+      return {
+        ...it,
+        pedido_reposicao_marketplace_numero: reposicaoId ? reposicaoMap.get(reposicaoId) ?? null : null,
+      };
+    });
+
     return NextResponse.json({
-      items: itemsAgrupados,
+      items: itemsComReposicao,
       total: total ?? itemsAgrupados.length,
       page,
       limit,

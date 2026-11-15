@@ -15,21 +15,48 @@ const DEFAULT_STATUSES = ["BLOQUEADO", "ENTREGUE", "AGUARDANDO_REPASSE", "EM_DEV
 const CONTESTACAO_BUCKET = "disputas-evidencias";
 const SIGNED_URL_EXPIRA_SEGUNDOS = 60 * 10;
 
+const SELECT_LEDGER_ITEM =
+  "id, seller_id, fornecedor_id, tipo, valor_total, status, data_evento, ciclo_repasse, pedido_id, em_devolucao_desde, em_devolucao_entrega_confirmada_ml_em, fornecedor_contestou_em, fornecedor_contestacao_texto, fornecedor_contestacao_evidencias_paths";
+
 async function loadLedgerItems(orgId: string, statuses: string[]) {
-  const { data: rows, error } = await supabaseAdmin
-    .from("financial_ledger")
-    .select(
-      "id, seller_id, fornecedor_id, tipo, valor_total, status, data_evento, ciclo_repasse, pedido_id, em_devolucao_desde, em_devolucao_entrega_confirmada_ml_em, fornecedor_contestou_em, fornecedor_contestacao_texto, fornecedor_contestacao_evidencias_paths"
-    )
-    .eq("org_id", orgId)
-    .in("tipo", ["BLOQUEIO", "VENDA"])
-    .in("status", statuses.length ? statuses : DEFAULT_STATUSES)
-    .order("data_evento", { ascending: false })
-    .limit(100);
+  const statusesAlvo = statuses.length ? statuses : DEFAULT_STATUSES;
+  // EM_DEVOLUCAO nunca pode cair fora por limite de volume — é raro e sempre importa pro
+  // admin decidir (achado real 2026-11-11: um caso contestado há 8+ dias sumiu da tela
+  // porque o limit(100) combinado com BLOQUEADO/ENTREGUE/AGUARDANDO_REPASSE, que têm volume
+  // diário alto, empurrou ele pra fora da janela dos 100 mais recentes). Os outros status
+  // continuam com limite — só os mais recentes importam operacionalmente pra eles.
+  const statusesAltoVolume = statusesAlvo.filter((s) => s !== "EM_DEVOLUCAO");
+  const statusesSemLimite = statusesAlvo.filter((s) => s === "EM_DEVOLUCAO");
 
-  if (error) throw new Error(error.message);
+  const queries = [
+    statusesAltoVolume.length
+      ? supabaseAdmin
+          .from("financial_ledger")
+          .select(SELECT_LEDGER_ITEM)
+          .eq("org_id", orgId)
+          .in("tipo", ["BLOQUEIO", "VENDA"])
+          .in("status", statusesAltoVolume)
+          .order("data_evento", { ascending: false })
+          .limit(100)
+      : null,
+    statusesSemLimite.length
+      ? supabaseAdmin
+          .from("financial_ledger")
+          .select(SELECT_LEDGER_ITEM)
+          .eq("org_id", orgId)
+          .in("tipo", ["BLOQUEIO", "VENDA"])
+          .in("status", statusesSemLimite)
+          .order("data_evento", { ascending: false })
+          .limit(500)
+      : null,
+  ];
 
-  const list = Array.isArray(rows) ? rows : [];
+  const results = await Promise.all(queries.map((q) => q ?? Promise.resolve({ data: [], error: null })));
+  for (const r of results) if (r.error) throw new Error(r.error.message);
+
+  const list = results
+    .flatMap((r) => r.data ?? [])
+    .sort((a, b) => new Date(b.data_evento as string).getTime() - new Date(a.data_evento as string).getTime());
   const sellerIds = [...new Set(list.map((r) => r.seller_id).filter(Boolean))] as string[];
   const fornecedorIds = [...new Set(list.map((r) => r.fornecedor_id).filter(Boolean))] as string[];
   const ledgerIds = list.map((r) => r.id);

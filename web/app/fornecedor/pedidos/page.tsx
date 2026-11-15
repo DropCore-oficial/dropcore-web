@@ -31,7 +31,7 @@ const ABAS = [
   { key: "pra_enviar", label: "Pra enviar", statuses: ["enviado"], Icon: IconBox, bufferMl: "excluir" as "somente" | "excluir" | null, etiquetaImpressa: "excluir" as "somente" | "excluir" | null },
   { key: "retirada", label: "Para retirar", statuses: ["enviado"], Icon: IconPackage, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: "somente" as "somente" | "excluir" | null },
   { key: "enviados", label: "Enviados", statuses: ["aguardando_repasse"], Icon: IconArrowRight, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
-  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor"], Icon: IconDevolucao, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
+  { key: "devolucao", label: "Devolução", statuses: ["em_devolucao", "devolvido", "devolucao_sem_fornecedor", "devolucao_nao_procede", "troca_em_andamento", "troca_concluida"], Icon: IconDevolucao, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
   { key: "concluidos", label: "Concluídos", statuses: ["entregue"], Icon: IconCheck, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
   { key: "cancelados", label: "Cancelados", statuses: ["cancelado"], Icon: IconX, bufferMl: null as "somente" | "excluir" | null, etiquetaImpressa: null as "somente" | "excluir" | null },
 ] as const;
@@ -47,7 +47,7 @@ function abaFromStatusParam(raw: string | null): AbaKey {
 
 type Devolucao = {
   id: string;
-  valor_total: number;
+  valor_fornecedor: number;
   data_evento: string;
   entrega_confirmada_em: string | null;
   prazo_final: string | null;
@@ -66,13 +66,16 @@ const btnPrimaryCompactClass =
 // pílula com contorno.
 const STATUS_PILL: Record<string, string> = {
   bloqueado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
-  pendente_estoque: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  pendente_estoque: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   enviado: cn(AMBER_PREMIUM_TEXT_PRIMARY, "bg-[#fffbeb] dark:bg-amber-950/50"),
   aguardando_repasse: "bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
   entregue: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
-  em_devolucao: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  em_devolucao: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   devolvido: "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300",
-  devolucao_sem_fornecedor: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300",
+  devolucao_sem_fornecedor: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+  devolucao_nao_procede: "bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-300",
+  troca_em_andamento: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300",
+  troca_concluida: "bg-cyan-100 text-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300",
   erro_saldo: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   cancelado: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
 };
@@ -128,6 +131,14 @@ type Pedido = {
   /** Vários order_id do ML podem ser o mesmo pacote/etiqueta — este card representa todos
    * esses ids (ver pedidos.marketplace_pack_id em docs/SCHEMA.md). Sem pack, é só `[id]`. */
   pack_pedido_ids: string[];
+  /** Pacote original do ML — pode ser compartilhado por 2+ cards quando os status
+   * divergem (card não funde, mas ainda é visualmente agrupado, ver `agruparPorPacote`). */
+  marketplace_pack_id?: string | null;
+  /** Preenchido só no pedido de REPOSIÇÃO de uma troca — aponta pro pedido original. */
+  pedido_origem_troca_id?: string | null;
+  /** Preenchido só no pedido ORIGINAL de uma troca — aponta pra reposição. */
+  pedido_reposicao_id?: string | null;
+  pedido_reposicao_marketplace_numero?: string | null;
 };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -187,6 +198,9 @@ const statusLabel: Record<string, string> = {
   em_devolucao: "Em devolução",
   devolvido: "Devolvido",
   devolucao_sem_fornecedor: "Devolução — fornecedor não confirmado",
+  devolucao_nao_procede: "Venda mantida (devolução negada)",
+  troca_em_andamento: "Troca — aguardando confirmação",
+  troca_concluida: "Troca concluída",
   cancelado: "Cancelado",
   erro_saldo: "Erro saldo",
 };
@@ -615,6 +629,342 @@ export default function FornecedorPedidosPage() {
         })
       : pedidos;
 
+  // Itens do mesmo pacote ML com status diferentes não fundem num card só (ver backend,
+  // `app/api/fornecedor/pedidos/route.ts`) — mas ainda vieram da mesma caixa/comprador, então
+  // agrupa visualmente aqui: só junta pedidos ADJACENTES na lista que compartilham o mesmo
+  // `marketplace_pack_id` (a ordenação por data já deixa os irmãos um do lado do outro).
+  const gruposPedidos: Pedido[][] = [];
+  for (const p of pedidosExibidos) {
+    const ultimoGrupo = gruposPedidos[gruposPedidos.length - 1];
+    const ultimoPack = ultimoGrupo?.[0]?.marketplace_pack_id;
+    if (ultimoGrupo && p.marketplace_pack_id && p.marketplace_pack_id === ultimoPack) {
+      ultimoGrupo.push(p);
+    } else {
+      gruposPedidos.push([p]);
+    }
+  }
+
+  function renderConteudoPedido(p: Pedido) {
+    return (
+      <>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={p.pack_pedido_ids.every((id) => selectedIds.has(id))}
+                        onChange={() => toggleSelecionar(p.pack_pedido_ids)}
+                        disabled={p.status !== "enviado" || emBufferMl(p)}
+                        aria-label={`Incluir pedido ${p.id} no lote`}
+                        title={
+                          p.status !== "enviado"
+                            ? "Só pedidos aguardando postagem entram no lote"
+                            : emBufferMl(p)
+                              ? "Etiqueta ainda em buffer do Mercado Livre — não dá pra incluir no lote"
+                              : "Incluir no lote"
+                        }
+                        className="mt-1 shrink-0 rounded border-neutral-300 disabled:cursor-not-allowed dark:border-neutral-600"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-medium text-[var(--foreground)]">{tituloPedido(p)}</p>
+                        <p className="mt-1 text-sm text-neutral-500">{formatDate(p.criado_em)}</p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <span
+                        className={cn(
+                          "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
+                          emBufferMl(p)
+                            ? ML_BUFFER_BADGE_CLASS
+                            : STATUS_PILL[p.status] ?? "bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800"
+                        )}
+                      >
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                        {emBufferMl(p) ? "Etiqueta em buffer (ML)" : statusLabel[p.status] ?? p.status}
+                      </span>
+                      {etiquetaRecemLiberada(p) ? (
+                        <span
+                          className={cn(
+                            "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
+                            ETIQUETA_LIBERADA_BADGE_CLASS
+                          )}
+                          title="Etiqueta ficou pronta — já dá pra imprimir e despachar."
+                        >
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                          Etiqueta liberada
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <dt className="text-neutral-500">Seller</dt>
+                      <dd className="font-medium">{p.seller_nome}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-neutral-500">Custo total</dt>
+                      <dd className="font-medium">{BRL.format(p.valor_fornecedor ?? 0)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-neutral-500">Cor / Tamanho</dt>
+                      <dd>
+                        {p.itens.length > 1
+                          ? `${p.itens.length} variantes`
+                          : `${p.cor ?? "—"} · ${p.tamanho ?? "—"}`}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-neutral-500">Categoria</dt>
+                      <dd>{p.categoria ?? "—"}</dd>
+                    </div>
+                    {p.linha_despacho && p.linha_despacho !== expedicaoPadrao ? (
+                      <div className="col-span-2">
+                        <dt className="text-neutral-500">Onde despachar (diferente do padrão)</dt>
+                        <dd>{p.linha_despacho}</dd>
+                      </div>
+                    ) : null}
+                    {p.tracking_codigo ? (
+                      <div>
+                        <dt className="text-neutral-500">Rastreio</dt>
+                        <dd className="font-mono text-xs">{p.tracking_codigo}</dd>
+                      </div>
+                    ) : null}
+                    {p.marketplace_numero ? (
+                      <div>
+                        <dt className="text-neutral-500">Pedido marketplace</dt>
+                        <dd className="font-mono text-xs sm:text-sm">{p.marketplace_numero}</dd>
+                      </div>
+                    ) : null}
+                    {p.pedido_origem_troca_id ? (
+                      <div className="col-span-2">
+                        <dd className="text-xs font-medium text-cyan-700 dark:text-cyan-400">↩ Reposição de troca</dd>
+                      </div>
+                    ) : null}
+                    {p.pedido_reposicao_id ? (
+                      <div className="col-span-2">
+                        <dd className="text-xs font-medium">
+                          <a href={`/fornecedor/pedidos?destaque=${p.pedido_reposicao_id}`} className="text-cyan-700 underline hover:no-underline dark:text-cyan-400">
+                            ↪ Reposição enviada{p.pedido_reposicao_marketplace_numero ? `: ${p.pedido_reposicao_marketplace_numero}` : ""}
+                          </a>
+                        </dd>
+                      </div>
+                    ) : null}
+                    {[p.comprador_nome, p.comprador_cidade, p.comprador_uf].some(Boolean) ? (
+                      <div className="col-span-2">
+                        <dt className="text-neutral-500">Cliente / Destino</dt>
+                        <dd>
+                          {[p.comprador_nome, [p.comprador_cidade, p.comprador_uf].filter(Boolean).join(" / ")]
+                            .filter(Boolean)
+                            .join(" · ") || "—"}
+                        </dd>
+                      </div>
+                    ) : null}
+                  </dl>
+
+                  {p.itens.length > 1 ? (
+                    <ul className="mt-3 flex flex-wrap gap-2">
+                      {p.itens.map((item, idx) => (
+                        <li
+                          key={`${p.id}-${item.sku}-${idx}`}
+                          title={item.sku}
+                          className="rounded-lg bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                        >
+                          {[item.cor, item.tamanho].filter(Boolean).join(" · ") || item.sku} × {item.quantidade}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+
+                  {p.status === "bloqueado" && p.motivo_bloqueio ? (
+                    <p className={cn("mt-3 text-sm", DANGER_PREMIUM_TEXT_PRIMARY)}>{p.motivo_bloqueio}</p>
+                  ) : null}
+
+                  {p.status === "em_devolucao" && p.ledger_id && (() => {
+                    const devolucao = devolucoesPendentes.find((d) => d.id === p.ledger_id);
+                    if (!devolucao) return null;
+                    return (
+                      <FornecedorDevolucaoAcoes
+                        ledgerId={devolucao.id}
+                        contestado={devolucao.contestado}
+                        contestacaoTexto={devolucao.fornecedor_contestacao_texto}
+                        prazoFinal={devolucao.prazo_final}
+                        entregaConfirmadaEm={devolucao.entrega_confirmada_em}
+                        onAtualizar={() => void Promise.all([load({ preserveSelection: true }), loadDevolucoesPendentes()])}
+                        pedirConfirmacao={setConfirmandoDevolucaoId}
+                      />
+                    );
+                  })()}
+
+                  {p.status === "cancelado" && p.cancelado_motivo === "ml_sem_sync" && (
+                    <div
+                      role="status"
+                      className="relative mt-3 overflow-hidden rounded-xl border border-[var(--danger)]/55 bg-transparent shadow-sm shadow-red-500/10 dark:border-red-400/55 dark:bg-transparent dark:shadow-none"
+                    >
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-[var(--danger)] to-red-600 opacity-95 dark:from-red-400 dark:to-red-500 dark:opacity-100"
+                      />
+                      <div className="pl-4 pr-3 py-3 sm:pl-5 sm:pr-4 sm:py-3.5">
+                        <div className="flex min-w-0 items-start gap-2.5">
+                          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--danger)]/35 bg-[var(--danger)]/10 dark:border-red-400/55 dark:bg-transparent">
+                            <svg
+                              className="h-5 w-5 text-[var(--danger)] dark:text-red-300"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden
+                            >
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="15" y1="9" x2="9" y2="15" />
+                              <line x1="9" y1="9" x2="15" y2="15" />
+                            </svg>
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-base font-bold leading-snug tracking-tight text-[var(--danger)] dark:text-red-300">
+                              Cancelado pelo Mercado Livre
+                            </p>
+                            <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">
+                              Cancelado automaticamente antes da postagem (etiqueta nunca liberada — geralmente nota
+                              fiscal não emitida a tempo pelo seller). Não é necessário separar nem despachar.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {emBufferMl(p) && (
+                    <div
+                      role="status"
+                      className="relative mt-3 overflow-hidden rounded-xl border border-violet-500/40 bg-transparent dark:border-violet-400/45"
+                    >
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-violet-500/70 dark:bg-violet-400/70"
+                      />
+                      <div className="pl-4 pr-3 py-3 sm:pl-5 sm:pr-4 sm:py-3.5">
+                        <div className="flex min-w-0 items-start gap-2.5">
+                          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-violet-500/35 bg-violet-500/10 dark:border-violet-400/40 dark:bg-violet-500/12">
+                            <svg
+                              className={cn(ML_BUFFER_TEXT_PRIMARY, "h-5 w-5")}
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden
+                            >
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="12" y1="8" x2="12" y2="12" />
+                              <line x1="12" y1="16" x2="12.01" y2="16" />
+                            </svg>
+                          </span>
+                          <div className="min-w-0">
+                            <p className={cn(ML_BUFFER_TEXT_PRIMARY, "text-base font-bold leading-snug tracking-tight")}>
+                              Aguardando o Mercado Livre liberar a etiqueta
+                            </p>
+                            <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">
+                              {p.etiqueta_ml_previsao
+                                ? `Previsão: ${formatDate(p.etiqueta_ml_previsao)}. `
+                                : ""}
+                              Buffer automático do próprio ML (capacidade de transportadora) — não conta
+                              como atraso do fornecedor, nem depende do seller.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {p.status === "enviado" && !p.tem_etiqueta_oficial && p.canal_venda !== "mercado_livre" && (
+                    <div
+                      role="status"
+                      className="relative mt-3 overflow-hidden rounded-xl border border-[var(--danger)]/55 bg-transparent shadow-sm shadow-red-500/10 dark:border-red-400/55 dark:bg-transparent dark:shadow-none"
+                    >
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-[var(--danger)] to-red-600 opacity-95 dark:from-red-400 dark:to-red-500 dark:opacity-100"
+                      />
+                      <div className="pl-4 pr-3 py-3 sm:pl-5 sm:pr-4 sm:py-3.5">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-start gap-2.5">
+                            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--danger)]/35 bg-[var(--danger)]/10 dark:border-red-400/55 dark:bg-transparent">
+                              <svg
+                                className="h-5 w-5 text-[var(--danger)] dark:text-red-300"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden
+                              >
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                <line x1="12" y1="9" x2="12" y2="13" />
+                                <line x1="12" y1="17" x2="12.01" y2="17" />
+                              </svg>
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-base font-bold leading-snug tracking-tight text-[var(--danger)] dark:text-red-300">
+                                Sem etiqueta
+                              </p>
+                              <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">
+                                A Olist ainda não gerou a etiqueta real desse pedido — depende do
+                                seller (só ele acessa a Olist). Não é um problema seu.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
+                            <button
+                              type="button"
+                              onClick={() => void lembrarSeller(p.id)}
+                              disabled={lembrandoId === p.id}
+                              className="w-full shrink-0 rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:w-auto"
+                            >
+                              {lembrandoId === p.id ? "Avisando..." : "Lembrar seller"}
+                            </button>
+                            {(() => {
+                              const msg = lembrarMsg[p.id];
+                              if (!msg) return null;
+                              return (
+                                <span
+                                  className={
+                                    msg.tipo === "ok"
+                                      ? "text-[11px] text-emerald-600 dark:text-emerald-400"
+                                      : "text-[11px] text-[var(--danger)]"
+                                  }
+                                >
+                                  {msg.texto}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {p.status === "enviado" && p.tem_etiqueta_oficial && (
+                    <div className="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => confirmarReportarEtiquetaErrada(p.id)}
+                        disabled={reportandoId === p.id}
+                        title="A etiqueta não é do pedido certo (endereço/produto não bate)"
+                        className="w-full rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:w-auto"
+                      >
+                        {reportandoId === p.id ? "Reportando..." : "Etiqueta errada?"}
+                      </button>
+                    </div>
+                  )}
+      </>
+    );
+  }
+
   return (
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
       <style>{`
@@ -916,317 +1266,38 @@ export default function FornecedorPedidosPage() {
           <>
             {/* Cards em todas as larguras — padrão de web/app/seller/pedidos/page.tsx (article + dt/dd) */}
             <div className="space-y-3">
-              {pedidosExibidos.map((p) => (
-                <article
-                  key={p.id}
-                  ref={(el) => { pedidoCardRefs.current[p.id] = el; }}
-                  className={cn(
-                    "rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 transition-shadow",
-                    destaqueId === p.id ? "ring-2 ring-emerald-500 ring-offset-2 ring-offset-[var(--background)]" : ""
-                  )}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-start gap-2.5">
-                      <input
-                        type="checkbox"
-                        checked={p.pack_pedido_ids.every((id) => selectedIds.has(id))}
-                        onChange={() => toggleSelecionar(p.pack_pedido_ids)}
-                        disabled={p.status !== "enviado" || emBufferMl(p)}
-                        aria-label={`Incluir pedido ${p.id} no lote`}
-                        title={
-                          p.status !== "enviado"
-                            ? "Só pedidos aguardando postagem entram no lote"
-                            : emBufferMl(p)
-                              ? "Etiqueta ainda em buffer do Mercado Livre — não dá pra incluir no lote"
-                              : "Incluir no lote"
-                        }
-                        className="mt-1 shrink-0 rounded border-neutral-300 disabled:cursor-not-allowed dark:border-neutral-600"
-                      />
-                      <div className="min-w-0">
-                        <p className="font-medium text-[var(--foreground)]">{tituloPedido(p)}</p>
-                        <p className="mt-1 text-sm text-neutral-500">{formatDate(p.criado_em)}</p>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1.5">
-                      <span
+              {gruposPedidos.map((grupo) =>
+                grupo.length === 1 ? (
+                  <article
+                    key={grupo[0].id}
+                    ref={(el) => { pedidoCardRefs.current[grupo[0].id] = el; }}
+                    className={cn(
+                      "rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 transition-shadow",
+                      destaqueId === grupo[0].id ? "ring-2 ring-emerald-500 ring-offset-2 ring-offset-[var(--background)]" : ""
+                    )}
+                  >
+                    {renderConteudoPedido(grupo[0])}
+                  </article>
+                ) : (
+                  <div
+                    key={grupo[0].marketplace_pack_id ?? grupo[0].id}
+                    className="divide-y divide-[var(--card-border)] overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--card)]"
+                  >
+                    {grupo.map((p) => (
+                      <div
+                        key={p.id}
+                        ref={(el) => { pedidoCardRefs.current[p.id] = el; }}
                         className={cn(
-                          "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
-                          emBufferMl(p)
-                            ? ML_BUFFER_BADGE_CLASS
-                            : STATUS_PILL[p.status] ?? "bg-neutral-100 text-[var(--muted)] dark:bg-neutral-800"
+                          "p-4 transition-shadow",
+                          destaqueId === p.id ? "ring-2 ring-emerald-500 ring-offset-2 ring-offset-[var(--background)]" : ""
                         )}
                       >
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                        {emBufferMl(p) ? "Etiqueta em buffer (ML)" : statusLabel[p.status] ?? p.status}
-                      </span>
-                      {etiquetaRecemLiberada(p) ? (
-                        <span
-                          className={cn(
-                            "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium",
-                            ETIQUETA_LIBERADA_BADGE_CLASS
-                          )}
-                          title="Etiqueta ficou pronta — já dá pra imprimir e despachar."
-                        >
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                          Etiqueta liberada
-                        </span>
-                      ) : null}
-                    </div>
+                        {renderConteudoPedido(p)}
+                      </div>
+                    ))}
                   </div>
-
-                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <dt className="text-neutral-500">Seller</dt>
-                      <dd className="font-medium">{p.seller_nome}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-neutral-500">Custo total</dt>
-                      <dd className="font-medium">{BRL.format(p.valor_fornecedor ?? 0)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-neutral-500">Cor / Tamanho</dt>
-                      <dd>
-                        {p.itens.length > 1
-                          ? `${p.itens.length} variantes`
-                          : `${p.cor ?? "—"} · ${p.tamanho ?? "—"}`}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-neutral-500">Categoria</dt>
-                      <dd>{p.categoria ?? "—"}</dd>
-                    </div>
-                    {p.linha_despacho && p.linha_despacho !== expedicaoPadrao ? (
-                      <div className="col-span-2">
-                        <dt className="text-neutral-500">Onde despachar (diferente do padrão)</dt>
-                        <dd>{p.linha_despacho}</dd>
-                      </div>
-                    ) : null}
-                    {p.tracking_codigo ? (
-                      <div>
-                        <dt className="text-neutral-500">Rastreio</dt>
-                        <dd className="font-mono text-xs">{p.tracking_codigo}</dd>
-                      </div>
-                    ) : null}
-                    {p.marketplace_numero ? (
-                      <div>
-                        <dt className="text-neutral-500">Pedido marketplace</dt>
-                        <dd className="font-mono text-xs sm:text-sm">{p.marketplace_numero}</dd>
-                      </div>
-                    ) : null}
-                    {[p.comprador_nome, p.comprador_cidade, p.comprador_uf].some(Boolean) ? (
-                      <div className="col-span-2">
-                        <dt className="text-neutral-500">Cliente / Destino</dt>
-                        <dd>
-                          {[p.comprador_nome, [p.comprador_cidade, p.comprador_uf].filter(Boolean).join(" / ")]
-                            .filter(Boolean)
-                            .join(" · ") || "—"}
-                        </dd>
-                      </div>
-                    ) : null}
-                  </dl>
-
-                  {p.itens.length > 1 ? (
-                    <ul className="mt-3 flex flex-wrap gap-2">
-                      {p.itens.map((item, idx) => (
-                        <li
-                          key={`${p.id}-${item.sku}-${idx}`}
-                          title={item.sku}
-                          className="rounded-lg bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
-                        >
-                          {[item.cor, item.tamanho].filter(Boolean).join(" · ") || item.sku} × {item.quantidade}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-
-                  {p.status === "bloqueado" && p.motivo_bloqueio ? (
-                    <p className={cn("mt-3 text-sm", DANGER_PREMIUM_TEXT_PRIMARY)}>{p.motivo_bloqueio}</p>
-                  ) : null}
-
-                  {p.status === "em_devolucao" && p.ledger_id && (() => {
-                    const devolucao = devolucoesPendentes.find((d) => d.id === p.ledger_id);
-                    if (!devolucao) return null;
-                    return (
-                      <FornecedorDevolucaoAcoes
-                        ledgerId={devolucao.id}
-                        contestado={devolucao.contestado}
-                        contestacaoTexto={devolucao.fornecedor_contestacao_texto}
-                        prazoFinal={devolucao.prazo_final}
-                        entregaConfirmadaEm={devolucao.entrega_confirmada_em}
-                        onAtualizar={() => void Promise.all([load({ preserveSelection: true }), loadDevolucoesPendentes()])}
-                        pedirConfirmacao={setConfirmandoDevolucaoId}
-                      />
-                    );
-                  })()}
-
-                  {p.status === "cancelado" && p.cancelado_motivo === "ml_sem_sync" && (
-                    <div
-                      role="status"
-                      className="relative mt-3 overflow-hidden rounded-xl border border-[var(--danger)]/55 bg-transparent shadow-sm shadow-red-500/10 dark:border-red-400/55 dark:bg-transparent dark:shadow-none"
-                    >
-                      <div
-                        aria-hidden
-                        className="pointer-events-none absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-[var(--danger)] to-red-600 opacity-95 dark:from-red-400 dark:to-red-500 dark:opacity-100"
-                      />
-                      <div className="pl-4 pr-3 py-3 sm:pl-5 sm:pr-4 sm:py-3.5">
-                        <div className="flex min-w-0 items-start gap-2.5">
-                          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--danger)]/35 bg-[var(--danger)]/10 dark:border-red-400/55 dark:bg-transparent">
-                            <svg
-                              className="h-5 w-5 text-[var(--danger)] dark:text-red-300"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden
-                            >
-                              <circle cx="12" cy="12" r="10" />
-                              <line x1="15" y1="9" x2="9" y2="15" />
-                              <line x1="9" y1="9" x2="15" y2="15" />
-                            </svg>
-                          </span>
-                          <div className="min-w-0">
-                            <p className="text-base font-bold leading-snug tracking-tight text-[var(--danger)] dark:text-red-300">
-                              Cancelado pelo Mercado Livre
-                            </p>
-                            <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">
-                              Cancelado automaticamente antes da postagem (etiqueta nunca liberada — geralmente nota
-                              fiscal não emitida a tempo pelo seller). Não é necessário separar nem despachar.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {emBufferMl(p) && (
-                    <div
-                      role="status"
-                      className="relative mt-3 overflow-hidden rounded-xl border border-violet-500/40 bg-transparent dark:border-violet-400/45"
-                    >
-                      <div
-                        aria-hidden
-                        className="pointer-events-none absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-violet-500/70 dark:bg-violet-400/70"
-                      />
-                      <div className="pl-4 pr-3 py-3 sm:pl-5 sm:pr-4 sm:py-3.5">
-                        <div className="flex min-w-0 items-start gap-2.5">
-                          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-violet-500/35 bg-violet-500/10 dark:border-violet-400/40 dark:bg-violet-500/12">
-                            <svg
-                              className={cn(ML_BUFFER_TEXT_PRIMARY, "h-5 w-5")}
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden
-                            >
-                              <circle cx="12" cy="12" r="10" />
-                              <line x1="12" y1="8" x2="12" y2="12" />
-                              <line x1="12" y1="16" x2="12.01" y2="16" />
-                            </svg>
-                          </span>
-                          <div className="min-w-0">
-                            <p className={cn(ML_BUFFER_TEXT_PRIMARY, "text-base font-bold leading-snug tracking-tight")}>
-                              Aguardando o Mercado Livre liberar a etiqueta
-                            </p>
-                            <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">
-                              {p.etiqueta_ml_previsao
-                                ? `Previsão: ${formatDate(p.etiqueta_ml_previsao)}. `
-                                : ""}
-                              Buffer automático do próprio ML (capacidade de transportadora) — não conta
-                              como atraso do fornecedor, nem depende do seller.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {p.status === "enviado" && !p.tem_etiqueta_oficial && p.canal_venda !== "mercado_livre" && (
-                    <div
-                      role="status"
-                      className="relative mt-3 overflow-hidden rounded-xl border border-[var(--danger)]/55 bg-transparent shadow-sm shadow-red-500/10 dark:border-red-400/55 dark:bg-transparent dark:shadow-none"
-                    >
-                      <div
-                        aria-hidden
-                        className="pointer-events-none absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-[var(--danger)] to-red-600 opacity-95 dark:from-red-400 dark:to-red-500 dark:opacity-100"
-                      />
-                      <div className="pl-4 pr-3 py-3 sm:pl-5 sm:pr-4 sm:py-3.5">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="flex min-w-0 items-start gap-2.5">
-                            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--danger)]/35 bg-[var(--danger)]/10 dark:border-red-400/55 dark:bg-transparent">
-                              <svg
-                                className="h-5 w-5 text-[var(--danger)] dark:text-red-300"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                aria-hidden
-                              >
-                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                                <line x1="12" y1="9" x2="12" y2="13" />
-                                <line x1="12" y1="17" x2="12.01" y2="17" />
-                              </svg>
-                            </span>
-                            <div className="min-w-0">
-                              <p className="text-base font-bold leading-snug tracking-tight text-[var(--danger)] dark:text-red-300">
-                                Sem etiqueta
-                              </p>
-                              <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">
-                                A Olist ainda não gerou a etiqueta real desse pedido — depende do
-                                seller (só ele acessa a Olist). Não é um problema seu.
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
-                            <button
-                              type="button"
-                              onClick={() => void lembrarSeller(p.id)}
-                              disabled={lembrandoId === p.id}
-                              className="w-full shrink-0 rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:w-auto"
-                            >
-                              {lembrandoId === p.id ? "Avisando..." : "Lembrar seller"}
-                            </button>
-                            {(() => {
-                              const msg = lembrarMsg[p.id];
-                              if (!msg) return null;
-                              return (
-                                <span
-                                  className={
-                                    msg.tipo === "ok"
-                                      ? "text-[11px] text-emerald-600 dark:text-emerald-400"
-                                      : "text-[11px] text-[var(--danger)]"
-                                  }
-                                >
-                                  {msg.texto}
-                                </span>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {p.status === "enviado" && p.tem_etiqueta_oficial && (
-                    <div className="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:justify-end">
-                      <button
-                        type="button"
-                        onClick={() => confirmarReportarEtiquetaErrada(p.id)}
-                        disabled={reportandoId === p.id}
-                        title="A etiqueta não é do pedido certo (endereço/produto não bate)"
-                        className="w-full rounded-md bg-[var(--danger)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-400 dark:ring-1 dark:ring-inset dark:ring-white/20 sm:w-auto"
-                      >
-                        {reportandoId === p.id ? "Reportando..." : "Etiqueta errada?"}
-                      </button>
-                    </div>
-                  )}
-                </article>
-              ))}
+                )
+              )}
             </div>
 
             <div className="flex flex-col items-center gap-3 pt-1 sm:flex-row sm:justify-between">

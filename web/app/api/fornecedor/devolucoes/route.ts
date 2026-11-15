@@ -17,7 +17,7 @@ const PRAZO_HORAS = 72;
 
 type LedgerRow = {
   id: string;
-  valor_total: number;
+  valor_fornecedor: number;
   data_evento: string;
   em_devolucao_desde: string | null;
   em_devolucao_entrega_confirmada_ml_em: string | null;
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
     supabaseAdmin
       .from("financial_ledger")
       .select(
-        "id, valor_total, data_evento, em_devolucao_desde, em_devolucao_entrega_confirmada_ml_em, fornecedor_contestou_em, fornecedor_contestacao_texto"
+        "id, valor_fornecedor, data_evento, em_devolucao_desde, em_devolucao_entrega_confirmada_ml_em, fornecedor_contestou_em, fornecedor_contestacao_texto"
       )
       .eq("fornecedor_id", ctx.fornecedor_id)
       .eq("status", "EM_DEVOLUCAO")
@@ -63,7 +63,7 @@ export async function GET(req: Request) {
     ? await supabaseAdmin
         .from("financial_ledger")
         .select(
-        "id, valor_total, data_evento, em_devolucao_desde, em_devolucao_entrega_confirmada_ml_em, fornecedor_contestou_em, fornecedor_contestacao_texto"
+        "id, valor_fornecedor, data_evento, em_devolucao_desde, em_devolucao_entrega_confirmada_ml_em, fornecedor_contestou_em, fornecedor_contestacao_texto"
       )
         .in("id", idsFaltando)
         .eq("status", "EM_DEVOLUCAO")
@@ -80,7 +80,7 @@ export async function GET(req: Request) {
       : null;
     return {
       id: r.id,
-      valor_total: Number(r.valor_total),
+      valor_fornecedor: Number(r.valor_fornecedor),
       data_evento: r.data_evento,
       entrega_confirmada_em: entregaConfirmadaEm,
       prazo_final: prazoFinal,
