@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
@@ -224,52 +224,6 @@ export default function SellerProdutosPage() {
           faltando: skuReadinessLabelsFalha(i),
         })),
     [skusVisiveis],
-  );
-
-  const [exportandoOlistGrupo, setExportandoOlistGrupo] = useState<string | null>(null);
-
-  const baixarCsvOlistGrupo = useCallback(
-    async (grupoKey: string) => {
-      const grupo = grupoKey.trim().toUpperCase();
-      if (!grupo) return;
-      setExportandoOlistGrupo(grupo);
-      setError(null);
-      try {
-        const {
-          data: { session },
-        } = await supabaseBrowser.auth.getSession();
-        if (!session?.access_token) {
-          router.replace("/seller/login");
-          return;
-        }
-        const res = await fetch(
-          `/api/seller/catalogo/export-olist?grupo=${encodeURIComponent(grupo)}&scope=todos`,
-          {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-            cache: "no-store",
-          },
-        );
-        if (!res.ok) {
-          const json = await res.json().catch(() => ({}));
-          throw new Error(typeof json?.error === "string" ? json.error : "Erro ao exportar planilha para a Olist.");
-        }
-        const blob = await res.blob();
-        const disp = res.headers.get("Content-Disposition") ?? "";
-        const match = /filename="([^"]+)"/.exec(disp);
-        const filename = match?.[1] ?? `dropcore-olist-${grupo}.csv`;
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : "Erro ao exportar planilha para a Olist.");
-      } finally {
-        setExportandoOlistGrupo(null);
-      }
-    },
-    [router],
   );
 
   const OLIST_PRECO_AUTO_KEY = "dropcore-olist-precos-auto-v1";
@@ -597,9 +551,6 @@ export default function SellerProdutosPage() {
                     setModoListaVariantes={setModoListaVariantes}
                     mostrarFotosVariantes={mostrarFotosVariantes}
                     setMostrarFotosVariantes={setMostrarFotosVariantes}
-                    exportandoOlist={exportandoOlistGrupo === grupo.paiKey}
-                    onExportOlist={() => void baixarCsvOlistGrupo(grupo.paiKey)}
-                    exportOlistDisabled={catalogMeta.sem_armazem_ligado}
                     fornecedorLigadoId={fornecedorLigadoId}
                   />
                 </div>

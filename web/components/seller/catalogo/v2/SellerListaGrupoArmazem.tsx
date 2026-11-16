@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { ProdutoResumoListaGrupo } from "@/components/fornecedor/ProdutoResumoListaGrupo";
 import { ImagemMiniatura } from "@/components/ImagemMiniatura";
 import { CorCelulaProduto } from "@/components/fornecedor/CorCelulaProduto";
@@ -32,13 +33,11 @@ const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" 
 const BULK_MENU_WIDTH_PX = 216;
 
 function ProdutoAcoesMenu({
-  onExportOlist,
-  exportandoOlist = false,
-  exportOlistDisabled = false,
+  onPublicarMercadoLivre,
+  publicandoMl = false,
 }: {
-  onExportOlist?: () => void;
-  exportandoOlist?: boolean;
-  exportOlistDisabled?: boolean;
+  onPublicarMercadoLivre?: () => void;
+  publicandoMl?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -94,18 +93,18 @@ function ProdutoAcoesMenu({
             style={{ top: pos.top, left: pos.left, width: BULK_MENU_WIDTH_PX }}
             onClick={(e) => e.stopPropagation()}
           >
-            {onExportOlist ? (
+            {onPublicarMercadoLivre ? (
               <button
                 type="button"
                 role="menuitem"
-                disabled={exportOlistDisabled || exportandoOlist}
+                disabled={publicandoMl}
                 onClick={() => {
-                  onExportOlist();
+                  onPublicarMercadoLivre();
                   setOpen(false);
                 }}
                 className="flex w-full whitespace-nowrap px-3.5 py-2.5 text-left text-[13px] text-[var(--foreground)] hover:bg-[var(--muted)]/12 disabled:opacity-50"
               >
-                {exportandoOlist ? "Exportando…" : "Exportar para Olist"}
+                {publicandoMl ? "Publicando…" : "Publicar no Mercado Livre"}
               </button>
             ) : null}
           </div>,
@@ -120,8 +119,8 @@ function ProdutoAcoesMenu({
         type="button"
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label="Exportar para Olist · Ações em lote"
-        title="Exportar para Olist · Ações em lote"
+        aria-label="Mais ações do produto"
+        title="Mais ações do produto"
         onClick={(e) => {
           e.stopPropagation();
           setOpen((v) => {
@@ -266,9 +265,6 @@ type Props = {
   setModoListaVariantes: (m: "agrupado-cor" | "sku") => void;
   mostrarFotosVariantes: boolean;
   setMostrarFotosVariantes: (v: boolean | ((p: boolean) => boolean)) => void;
-  exportandoOlist?: boolean;
-  onExportOlist?: () => void;
-  exportOlistDisabled?: boolean;
   fornecedorLigadoId?: string | null;
 };
 
@@ -280,11 +276,49 @@ export function SellerListaGrupoArmazem({
   setModoListaVariantes,
   mostrarFotosVariantes,
   setMostrarFotosVariantes,
-  exportandoOlist = false,
-  onExportOlist,
-  exportOlistDisabled = false,
   fornecedorLigadoId = null,
 }: Props) {
+  const [publicandoMl, setPublicandoMl] = useState(false);
+  const [resultadoMl, setResultadoMl] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  async function handlePublicarMl() {
+    setPublicandoMl(true);
+    setResultadoMl(null);
+    try {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        setResultadoMl({ ok: false, msg: "Sessão expirada — atualize a página e tente de novo." });
+        return;
+      }
+      const res = await fetch("/api/seller/mercadolivre/publicar-anuncio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ sku: grupo.paiKey }),
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        publicadas?: { sku: string }[];
+        ignoradas?: { sku: string; motivo: string }[];
+      };
+      if (!res.ok) throw new Error(j?.error ?? "Erro ao publicar no Mercado Livre.");
+      const qtd = j.publicadas?.length ?? 0;
+      const qtdIgnoradas = j.ignoradas?.length ?? 0;
+      setResultadoMl({
+        ok: true,
+        msg:
+          qtdIgnoradas > 0
+            ? `${qtd} variante(s) publicada(s), ${qtdIgnoradas} ignorada(s) (sem estoque/foto/custo ou recusada pelo Mercado Livre).`
+            : `${qtd} variante(s) publicada(s) com sucesso.`,
+      });
+    } catch (e: unknown) {
+      setResultadoMl({ ok: false, msg: e instanceof Error ? e.message : "Erro ao publicar no Mercado Livre." });
+    } finally {
+      setPublicandoMl(false);
+    }
+  }
+
   const representante = grupo.pai ?? grupo.filhos[0];
   const linhas = linhasGrupo(grupo.pai, grupo.filhos).filter((it) => !isSemente(it) && !isGrupoOculto(it.sku));
   const todosParaLink = linhasGrupo(grupo.pai, grupo.filhos);
@@ -425,13 +459,19 @@ export function SellerListaGrupoArmazem({
                 </div>
               </div>
               <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                <ProdutoAcoesMenu
-                  onExportOlist={onExportOlist}
-                  exportandoOlist={exportandoOlist}
-                  exportOlistDisabled={exportOlistDisabled}
-                />
+                <ProdutoAcoesMenu onPublicarMercadoLivre={handlePublicarMl} publicandoMl={publicandoMl} />
               </span>
             </div>
+            {resultadoMl && (
+              <p
+                className={cn(
+                  "mt-2 text-[12px] leading-snug",
+                  resultadoMl.ok ? "text-emerald-700 dark:text-emerald-400" : "text-[var(--danger)]"
+                )}
+              >
+                {resultadoMl.msg}
+              </p>
+            )}
             <div className="mt-2 space-y-1 border-t border-[var(--card-border)]/60 pt-2 text-[12px] leading-snug text-[var(--muted)] sm:flex sm:flex-wrap sm:items-center sm:gap-x-2 sm:space-y-0 sm:text-[13px]">
               <p className="[overflow-wrap:anywhere] sm:shrink-0">
                 <span className="break-all font-mono text-[11px] text-[var(--foreground)] sm:text-xs">{grupo.paiKey}</span>

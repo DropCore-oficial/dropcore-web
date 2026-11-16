@@ -75,10 +75,12 @@ site, ex. "SHIRTS" — vem de `domain_discovery/search`, necessário pra guia de
 `atributos` (Marca/Modelo/Material/Gênero — **nunca** Cor/Tamanho, que são por
 variante/SKU, resolvidos só na publicação, ver `lib/mercadoLivreAtributoMatch.ts`).
 
-O seller clica em "Publicar no Mercado Livre" num SKU específico do catálogo do fornecedor
-(`components/seller/SellerCatalogoProdutoDetalheClient.tsx`) → `POST
-/api/seller/mercadolivre/publicar-anuncio`, que publica **o grupo inteiro** (pai + todo
-filho com estoque+foto+custo, "exceto o que não tem") — um anúncio por variante via
+O seller clica em "Publicar no Mercado Livre" no menu "⋮" de cada produto em
+`/seller/produtos` (`components/seller/catalogo/v2/SellerListaGrupoArmazem.tsx`, ação
+direta — 1 clique chama a API na hora, sem navegar pra outra tela; usa `grupo.paiKey` como
+sku de referência) → `POST /api/seller/mercadolivre/publicar-anuncio`, que publica **o
+grupo inteiro** (pai + todo filho com estoque+foto+custo, "exceto o que não tem") — um
+anúncio por variante via
 `mlCriarAnuncio` (`POST /items`), todos com o mesmo `family_name` (é assim que o ML agrupa
 variações visualmente nesse modelo "User Product"; **não** usar `variations[]` dentro de 1
 item — testado ao vivo 2026-11-15, o ML rejeita `variations`+`family_name` juntos, e
@@ -104,6 +106,16 @@ criada automaticamente, todos pausados em seguida (eram só teste).
 **Escopo conhecido, não é bug:** só `criar-variantes` (cobre criar E editar produto
 multi-variante) tem a aba nova — `criar-unico` (cadastro rápido, sem categoria/marca) e
 `editar/[grupoKey]` (tela de edição separada, mais simples) ainda não.
+
+**Entrada do botão mudou 2x (histórico, não repetir):** 1ª tentativa foi na tela de detalhe
+do catálogo do fornecedor (exigia navegar até lá); 2ª tentativa foi um link no menu "⋮" de
+`/seller/produtos` (virava atalho pra outra tela em vez de publicar — rejeitado, quebrava
+"1 clique sem revisar"). Versão final: ação direta no mesmo menu "⋮" (sem navegação), que
+só ficou possível depois do pivot pra "pai com filhos" — antes disso o menu "⋮" era por
+produto inteiro e publicar exigia saber qual variante específica, por isso não dava. Nesse
+mesmo lote, o item "Exportar para Olist" desse menu foi removido (Olist sem uso real, ver
+[[project_erp_desativado_temporariamente_2026_11_04]]) — não era deste recurso, mas o
+Sr Stark pediu junto ao notar a inconsistência.
 
 Tabela (`web/scripts/create-seller-produtos-ml-publicados.sql`):
 `seller_produtos_ml_publicados` (seller_id, sku, grupo_key, ml_item_id, ml_permalink, preco)
