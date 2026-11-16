@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 const SKU_FIELDS = `
   id, sku, nome_produto, cor, tamanho, status, fornecedor_id, fornecedor_org_id, org_id,
   estoque_atual, estoque_minimo, custo_base, peso_kg, categoria,
-  dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao,
+  dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, imagens_extra, descricao,
   ncm, origem, cest, peso_liquido_kg, peso_bruto_kg, criado_em,
   expedicao_override_linha, detalhes_produto_json
 `;
@@ -33,7 +33,7 @@ function valorNormalizadoComparacao(k: string, v: unknown): unknown {
     }
     return s;
   }
-  if (typeof v === "object" && !Array.isArray(v)) {
+  if (typeof v === "object") {
     try {
       return JSON.stringify(v);
     } catch {
@@ -120,6 +120,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       "peso_bruto_kg",
       "expedicao_override_linha",
       "detalhes_produto_json",
+      "imagens_extra",
     ] as const;
 
     const clean: Record<string, unknown> = {};
@@ -154,6 +155,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         } else clean[k] = null;
       } else if (k === "detalhes_produto_json" && (v == null || (typeof v === "object" && !Array.isArray(v)))) {
         clean[k] = v ?? null;
+      } else if (k === "imagens_extra") {
+        // Já chega como URL pública (upload feito antes, 1 por vez, via foto-upload/route.ts)
+        // — nunca base64 aqui, por isso não precisa do mesmo tratamento de decodificar/subir.
+        if (v == null) {
+          clean[k] = null;
+        } else if (Array.isArray(v)) {
+          const urls = v
+            .filter((u): u is string => typeof u === "string" && (u.startsWith("http://") || u.startsWith("https://")))
+            .slice(0, 7);
+          clean[k] = urls.length > 0 ? urls : null;
+        }
       }
     }
 
@@ -170,7 +182,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { data: sku, error: skuErr } = await supabaseAdmin
       .from("skus")
       .select(
-        "id, sku, nome_produto, cor, tamanho, descricao, imagem_url, peso_kg, estoque_atual, custo_base, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, ncm, origem, cest, peso_liquido_kg, peso_bruto_kg, expedicao_override_linha, detalhes_produto_json"
+        "id, sku, nome_produto, cor, tamanho, descricao, imagem_url, imagens_extra, peso_kg, estoque_atual, custo_base, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, ncm, origem, cest, peso_liquido_kg, peso_bruto_kg, expedicao_override_linha, detalhes_produto_json"
       )
       .eq("id", skuId)
       .eq("org_id", ctx.org_id)

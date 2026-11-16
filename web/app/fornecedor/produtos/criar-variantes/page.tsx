@@ -98,6 +98,7 @@ type ProdutoExistenteEdicao = {
   data_lancamento?: string | null;
   link_fotos?: string | null;
   imagem_url?: string | null;
+  imagens_extra?: string[] | null;
   ncm?: string | null;
   origem?: string | null;
   cest?: string | null;
@@ -555,8 +556,12 @@ function detectarTipoMedida(categoria: string): "camisa" | "calca" | "vestido" |
   return "geral";
 }
 
-/** Limite por arquivo na lista de variações (data URL no JSON). */
+/** Limite por arquivo na lista de variações (data URL no JSON do formulário inteiro). */
 const MAX_FOTO_COR_BYTES = 900 * 1024;
+/** Fotos extras sobem 1 por 1 via `/api/fornecedor/produtos/foto-upload` (não entram no JSON
+ * do formulário), por isso aceitam um arquivo bem maior que a capa sem arriscar estourar o
+ * limite de corpo de requisição do Vercel — só precisa caber numa chamada sozinha. */
+const MAX_FOTO_EXTRA_BYTES = 3 * 1024 * 1024;
 
 function estadoInicialRascunhoVazio(): RascunhoCriarVariantesV1 {
   return {
@@ -1158,7 +1163,24 @@ export default function CriarVariantesPage() {
     return (fotoUrlPorCor[ck] ? 1 : 0) + (fotosExtraPorCor[ck]?.length ?? 0);
   }
 
-  function aoEscolherArquivosFotoExtraCor(cor: string, e: React.ChangeEvent<HTMLInputElement>) {
+  function lerArquivoComoDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const s = typeof reader.result === "string" ? reader.result : "";
+        if (s) resolve(s);
+        else reject(new Error("Falha ao ler o arquivo."));
+      };
+      reader.onerror = () => reject(new Error("Falha ao ler o arquivo."));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /** Sobe 1 foto extra por vez pro storage assim que escolhida (não entra no JSON do
+   * formulário inteiro) — ver `foto-upload/route.ts` pro porquê: 3-7 fotos por cor juntadas
+   * em base64 num `POST` só estourava o limite de corpo do Vercel (~4.5MB), mesmo com cada
+   * arquivo individualmente dentro do limite. */
+  async function aoEscolherArquivosFotoExtraCor(cor: string, e: React.ChangeEvent<HTMLInputElement>) {
     setAvisoFoto(null);
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
@@ -1173,21 +1195,39 @@ export default function CriarVariantesPage() {
     if (files.length > aceitos.length) {
       setAvisoFoto(`Só cabem mais ${espacoLivre} foto(s) em "${cor}" (máximo 7 no total).`);
     }
+
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    if (!session?.access_token) {
+      setAvisoFoto("Sessão expirada — recarregue a página pra subir fotos.");
+      return;
+    }
+
     for (const file of aceitos) {
       if (!file.type.startsWith("image/")) {
         setAvisoFoto("Use JPEG, PNG, WebP ou GIF.");
         continue;
       }
-      if (file.size > MAX_FOTO_COR_BYTES) {
-        setAvisoFoto("Arquivo muito grande (máx. ~900 KB). Use uma URL pública ou comprima a imagem.");
+      if (file.size > MAX_FOTO_EXTRA_BYTES) {
+        setAvisoFoto(`"${file.name}" muito grande (máx. ~3 MB). Comprima a imagem.`);
         continue;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const s = typeof reader.result === "string" ? reader.result : "";
-        if (s) setFotosExtraPorCor((prev) => ({ ...prev, [ck]: [...(prev[ck] ?? []), s] }));
-      };
-      reader.readAsDataURL(file);
+      setAvisoFoto(`Enviando "${file.name}"...`);
+      try {
+        const dataUrl = await lerArquivoComoDataUrl(file);
+        const res = await fetch("/api/fornecedor/produtos/foto-upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ imagemBase64: dataUrl, cor }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+        if (!res.ok || !j.url) throw new Error(j.error ?? "Falha ao subir a foto.");
+        setFotosExtraPorCor((prev) => ({ ...prev, [ck]: [...(prev[ck] ?? []), j.url!] }));
+        setAvisoFoto(null);
+      } catch (err) {
+        setAvisoFoto(err instanceof Error ? err.message : `Falha ao subir "${file.name}".`);
+      }
     }
   }
 
@@ -2231,6 +2271,8 @@ export default function CriarVariantesPage() {
                 : parseMoney(custoPorCor[corNorm.trim().toLowerCase()] ?? "");
           const imgCorStr = (fotoUrlPorCor[corNorm.trim().toLowerCase()] ?? "").trim();
           const imgCor = imgCorStr || null;
+          const extrasCor = fotosExtraPorCor[corNorm.trim().toLowerCase()] ?? [];
+          const extrasAtuais = (valorRealEdicao(row, "imagens_extra") ?? []) as string[];
 
           const patchVariante: Record<string, unknown> = {};
           if ((valorRealEdicao(row, "cor") ?? "") !== (corNorm || null)) patchVariante.cor = corNorm || null;
@@ -2238,6 +2280,9 @@ export default function CriarVariantesPage() {
           if (estoqueAtual != null && estoqueAtual !== valorRealEdicao(row, "estoque_atual")) patchVariante.estoque_atual = estoqueAtual;
           if (custoAtual != null && custoAtual !== valorRealEdicao(row, "custo_base")) patchVariante.custo_base = custoAtual;
           if (imgCor !== (valorRealEdicao(row, "imagem_url") ?? null)) patchVariante.imagem_url = imgCor;
+          if (corNorm && (extrasCor.length !== extrasAtuais.length || extrasCor.some((u, i) => u !== extrasAtuais[i]))) {
+            patchVariante.imagens_extra = extrasCor.length > 0 ? extrasCor : null;
+          }
 
           const custoFinalCombo = custoAtual ?? valorRealEdicao(row, "custo_base");
           if (custoFinalCombo != null && Number.isFinite(custoFinalCombo)) custosFinaisFilhos.push(custoFinalCombo);

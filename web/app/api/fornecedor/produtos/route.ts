@@ -32,7 +32,7 @@ function iniciaisFromNome(nome: string | null | undefined): string {
 const SKU_FIELDS = `
   id, sku, nome_produto, cor, tamanho, status, fornecedor_id, fornecedor_org_id, org_id,
   estoque_atual, estoque_minimo, custo_base, peso_kg, categoria,
-  dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, descricao,
+  dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, link_fotos, imagem_url, imagens_extra, descricao,
   marca, data_lancamento,
   ncm, origem, cest, peso_liquido_kg, peso_bruto_kg, criado_em,
   expedicao_override_linha, detalhes_produto_json, ml_sync_status, ml_sync_at, ml_estoque_anterior
