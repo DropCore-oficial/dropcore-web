@@ -26,11 +26,110 @@ import { sellerGrupoToProdutoResumoListaGrupoProps } from "./mapSellerGrupoToPro
 import { linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
 import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
 import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { DANGER_PREMIUM_TEXT_PRIMARY, SUCCESS_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
+import { ModalOverlay } from "@/components/ui/ModalOverlay";
+import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { cn } from "@/lib/utils";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 const BULK_MENU_WIDTH_PX = 216;
+
+function ModalMercadoLivreResultado({
+  nome,
+  publicando,
+  resultado,
+  onFechar,
+}: {
+  nome: string;
+  publicando: boolean;
+  resultado: {
+    ok: boolean;
+    erro?: string;
+    publicadas: { sku: string; ml_permalink: string }[];
+    ignoradas: { sku: string; motivo: string }[];
+  } | null;
+  onFechar: () => void;
+}) {
+  return (
+    <ModalOverlay onBackdropClick={onFechar}>
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--card-border)] px-5 py-4">
+        <h2 className="min-w-0 truncate text-sm font-semibold text-[var(--foreground)]">Publicar no Mercado Livre</h2>
+        <button
+          type="button"
+          onClick={onFechar}
+          aria-label="Fechar"
+          className="shrink-0 rounded-md p-1 text-[var(--muted)] hover:bg-[var(--muted)]/10 hover:text-[var(--foreground)]"
+        >
+          ✕
+        </button>
+      </div>
+      <div className={cn(MODAL_PANEL_BODY_CLASS, "px-5 py-4 text-sm")}>
+        <p className="mb-3 truncate text-[var(--muted)]">{nome}</p>
+
+        {publicando ? (
+          <div className="flex items-center gap-2.5 py-3 text-[var(--foreground)]">
+            <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[var(--muted)]/30 border-t-emerald-600" aria-hidden />
+            Publicando no Mercado Livre — pode levar alguns segundos (1 anúncio por variante)…
+          </div>
+        ) : resultado?.erro ? (
+          <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "text-sm")}>{resultado.erro}</p>
+        ) : resultado ? (
+          <div className="space-y-4">
+            {resultado.publicadas.length > 0 && (
+              <div>
+                <p className={cn(SUCCESS_PREMIUM_TEXT_PRIMARY, "mb-1.5 text-[13px] font-semibold")}>
+                  {resultado.publicadas.length} variante(s) publicada(s)
+                </p>
+                <ul className="space-y-1 text-[12px]">
+                  {resultado.publicadas.map((p) => (
+                    <li key={p.sku} className="flex items-center justify-between gap-2">
+                      <span className="truncate font-mono text-[var(--muted)]">{p.sku}</span>
+                      <a
+                        href={p.ml_permalink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 font-medium text-emerald-700 underline underline-offset-2 dark:text-emerald-400"
+                      >
+                        Ver anúncio
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {resultado.ignoradas.length > 0 && (
+              <div>
+                <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "mb-1.5 text-[13px] font-semibold")}>
+                  {resultado.ignoradas.length} variante(s) ignorada(s)
+                </p>
+                <ul className="space-y-1.5 text-[12px] text-[var(--muted)]">
+                  {resultado.ignoradas.map((i) => (
+                    <li key={i.sku}>
+                      <span className="font-mono text-[var(--foreground)]">{i.sku}</span> — {i.motivo}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {resultado.publicadas.length === 0 && resultado.ignoradas.length === 0 && (
+              <p className="text-[var(--muted)]">Nenhuma variante processada.</p>
+            )}
+          </div>
+        ) : null}
+      </div>
+      <div className="border-t border-[var(--card-border)] px-5 py-3">
+        <button
+          type="button"
+          onClick={onFechar}
+          className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/10 sm:w-auto"
+        >
+          Fechar
+        </button>
+      </div>
+    </ModalOverlay>
+  );
+}
 
 function ProdutoAcoesMenu({
   onPublicarMercadoLivre,
@@ -278,10 +377,17 @@ export function SellerListaGrupoArmazem({
   setMostrarFotosVariantes,
   fornecedorLigadoId = null,
 }: Props) {
+  const [modalMlAberto, setModalMlAberto] = useState(false);
   const [publicandoMl, setPublicandoMl] = useState(false);
-  const [resultadoMl, setResultadoMl] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [resultadoMl, setResultadoMl] = useState<{
+    ok: boolean;
+    erro?: string;
+    publicadas: { sku: string; ml_permalink: string }[];
+    ignoradas: { sku: string; motivo: string }[];
+  } | null>(null);
 
   async function handlePublicarMl() {
+    setModalMlAberto(true);
     setPublicandoMl(true);
     setResultadoMl(null);
     try {
@@ -289,7 +395,7 @@ export function SellerListaGrupoArmazem({
         data: { session },
       } = await supabaseBrowser.auth.getSession();
       if (!session?.access_token) {
-        setResultadoMl({ ok: false, msg: "Sessão expirada — atualize a página e tente de novo." });
+        setResultadoMl({ ok: false, erro: "Sessão expirada — atualize a página e tente de novo.", publicadas: [], ignoradas: [] });
         return;
       }
       const res = await fetch("/api/seller/mercadolivre/publicar-anuncio", {
@@ -299,21 +405,16 @@ export function SellerListaGrupoArmazem({
       });
       const j = (await res.json().catch(() => ({}))) as {
         error?: string;
-        publicadas?: { sku: string }[];
+        publicadas?: { sku: string; ml_permalink: string }[];
         ignoradas?: { sku: string; motivo: string }[];
       };
-      if (!res.ok) throw new Error(j?.error ?? "Erro ao publicar no Mercado Livre.");
-      const qtd = j.publicadas?.length ?? 0;
-      const qtdIgnoradas = j.ignoradas?.length ?? 0;
-      setResultadoMl({
-        ok: true,
-        msg:
-          qtdIgnoradas > 0
-            ? `${qtd} variante(s) publicada(s), ${qtdIgnoradas} ignorada(s) (sem estoque/foto/custo ou recusada pelo Mercado Livre).`
-            : `${qtd} variante(s) publicada(s) com sucesso.`,
-      });
+      if (!res.ok) {
+        setResultadoMl({ ok: false, erro: j?.error ?? "Erro ao publicar no Mercado Livre.", publicadas: [], ignoradas: j.ignoradas ?? [] });
+        return;
+      }
+      setResultadoMl({ ok: true, publicadas: j.publicadas ?? [], ignoradas: j.ignoradas ?? [] });
     } catch (e: unknown) {
-      setResultadoMl({ ok: false, msg: e instanceof Error ? e.message : "Erro ao publicar no Mercado Livre." });
+      setResultadoMl({ ok: false, erro: e instanceof Error ? e.message : "Erro ao publicar no Mercado Livre.", publicadas: [], ignoradas: [] });
     } finally {
       setPublicandoMl(false);
     }
@@ -462,15 +563,13 @@ export function SellerListaGrupoArmazem({
                 <ProdutoAcoesMenu onPublicarMercadoLivre={handlePublicarMl} publicandoMl={publicandoMl} />
               </span>
             </div>
-            {resultadoMl && (
-              <p
-                className={cn(
-                  "mt-2 text-[12px] leading-snug",
-                  resultadoMl.ok ? "text-emerald-700 dark:text-emerald-400" : "text-[var(--danger)]"
-                )}
-              >
-                {resultadoMl.msg}
-              </p>
+            {modalMlAberto && (
+              <ModalMercadoLivreResultado
+                nome={nome}
+                publicando={publicandoMl}
+                resultado={resultadoMl}
+                onFechar={() => setModalMlAberto(false)}
+              />
             )}
             <div className="mt-2 space-y-1 border-t border-[var(--card-border)]/60 pt-2 text-[12px] leading-snug text-[var(--muted)] sm:flex sm:flex-wrap sm:items-center sm:gap-x-2 sm:space-y-0 sm:text-[13px]">
               <p className="[overflow-wrap:anywhere] sm:shrink-0">
