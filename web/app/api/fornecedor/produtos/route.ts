@@ -10,6 +10,7 @@ import { assertPodeAtivarMaisSkus } from "@/lib/planos";
 import { mergeDetalhesProdutoJson, propagarDetalhesProdutoJsonNoGrupo } from "@/lib/detalhesProdutoJson";
 import { prepararDetalhesProdutoJsonCatalogo } from "@/lib/catalogoSkusDetalhesEspelho";
 import { getTabelaMedidasComPendente } from "@/lib/produtoTabelaMedidasDb";
+import { PESO_KG_MIN_PLAUSIVEL } from "@/lib/sellerCatalogOlistExport";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -256,6 +257,12 @@ export async function POST(req: Request) {
 
     if (!nome_produto) {
       return NextResponse.json({ error: "Nome do produto é obrigatório." }, { status: 400 });
+    }
+
+    if (peso_kg != null && Number.isFinite(peso_kg) && peso_kg > 0 && peso_kg < PESO_KG_MIN_PLAUSIVEL) {
+      return NextResponse.json({
+        error: `Peso "${peso_kg}kg" parece errado (menos de 10g) — confira se não digitou grama no lugar de quilo.`,
+      }, { status: 400 });
     }
 
     let skuFinal = sku;

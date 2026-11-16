@@ -592,6 +592,7 @@ function estadoInicialRascunhoVazio(): RascunhoCriarVariantesV1 {
     estoqueMatriz: {},
     estoquePorCor: {},
     fotoUrlPorCor: {},
+    fotosExtraPorCor: {},
     massaCusto: "",
     massaEstoque: "",
     peso: "",
@@ -698,6 +699,9 @@ export default function CriarVariantesPage() {
   const [massaEstoque, setMassaEstoque] = useState("");
   /** Foto principal por cor (URL ou data URL); chave = cor em minúsculas. */
   const [fotoUrlPorCor, setFotoUrlPorCor] = useState<Record<string, string>>({});
+  /** Fotos além da capa (URL ou data URL), por cor — mínimo 3 no total (capa + extras), máximo
+   * 7, exigido pro anúncio no Mercado Livre não ficar marcado como "fotos incompletas". */
+  const [fotosExtraPorCor, setFotosExtraPorCor] = useState<Record<string, string[]>>({});
   const [avisoFoto, setAvisoFoto] = useState<string | null>(null);
   /** Aviso fino após aplicar rascunho ao abrir a página (o atalho principal fica em «Meus produtos»). */
   const [avisoRascunhoCarregado, setAvisoRascunhoCarregado] = useState<{
@@ -1147,6 +1151,92 @@ export default function CriarVariantesPage() {
     reader.readAsDataURL(file);
   }
 
+  /** Total de fotos já escolhidas pra essa cor (capa + extras) — usado pro contador "X/7" e
+   * pra travar o upload quando já bateu o máximo. */
+  function totalFotosCor(cor: string): number {
+    const ck = cor.trim().toLowerCase();
+    return (fotoUrlPorCor[ck] ? 1 : 0) + (fotosExtraPorCor[ck]?.length ?? 0);
+  }
+
+  function aoEscolherArquivosFotoExtraCor(cor: string, e: React.ChangeEvent<HTMLInputElement>) {
+    setAvisoFoto(null);
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    const ck = cor.trim().toLowerCase();
+    const espacoLivre = Math.max(0, 7 - totalFotosCor(cor));
+    if (espacoLivre === 0) {
+      setAvisoFoto(`"${cor}" já tem o máximo de 7 fotos.`);
+      return;
+    }
+    const aceitos = files.slice(0, espacoLivre);
+    if (files.length > aceitos.length) {
+      setAvisoFoto(`Só cabem mais ${espacoLivre} foto(s) em "${cor}" (máximo 7 no total).`);
+    }
+    for (const file of aceitos) {
+      if (!file.type.startsWith("image/")) {
+        setAvisoFoto("Use JPEG, PNG, WebP ou GIF.");
+        continue;
+      }
+      if (file.size > MAX_FOTO_COR_BYTES) {
+        setAvisoFoto("Arquivo muito grande (máx. ~900 KB). Use uma URL pública ou comprima a imagem.");
+        continue;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const s = typeof reader.result === "string" ? reader.result : "";
+        if (s) setFotosExtraPorCor((prev) => ({ ...prev, [ck]: [...(prev[ck] ?? []), s] }));
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  function removerFotoExtraCor(cor: string, index: number) {
+    const ck = cor.trim().toLowerCase();
+    setFotosExtraPorCor((prev) => ({ ...prev, [ck]: (prev[ck] ?? []).filter((_, i) => i !== index) }));
+  }
+
+  /** Mini-galeria de fotos extras (além da capa) de uma cor — mesmo bloco reaproveitado nos 3
+   * lugares que já renderizam a foto de capa (mobile / tabela cor×tamanho / tabela só-cor), pra
+   * não duplicar 3 implementações diferentes do mesmo contador/limite. */
+  function fotosExtraCorBloco(cor: string) {
+    const ck = cor.trim().toLowerCase();
+    const extras = fotosExtraPorCor[ck] ?? [];
+    const total = totalFotosCor(cor);
+    return (
+      <div className="mt-1 flex flex-wrap items-center gap-1">
+        {extras.map((url, i) => (
+          <span key={`${ck}-extra-${i}`} className="group relative h-6 w-6 shrink-0 overflow-hidden rounded border border-neutral-200 dark:border-neutral-600">
+            <img src={url} alt="" className="h-full w-full object-cover" />
+            <button
+              type="button"
+              onClick={() => removerFotoExtraCor(cor, i)}
+              aria-label={`Remover foto ${i + 2} de ${cor}`}
+              className="absolute inset-0 hidden items-center justify-center bg-black/55 text-[10px] font-bold text-white group-hover:flex"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        {total < 7 && (
+          <label className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded border border-dashed border-neutral-300 text-[12px] leading-none text-neutral-400 hover:border-neutral-500 dark:border-neutral-600 dark:text-neutral-500">
+            +
+            <input
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="sr-only"
+              onChange={(e) => aoEscolherArquivosFotoExtraCor(cor, e)}
+            />
+          </label>
+        )}
+        <span className={`text-[10px] ${total < 3 ? "font-semibold text-red-600 dark:text-red-400" : "text-neutral-500 dark:text-neutral-400"}`}>
+          {total}/7{total < 3 ? " (mín. 3)" : ""}
+        </span>
+      </div>
+    );
+  }
+
   function aplicarMassaTodos() {
     const es = massaEstoque.trim();
     const cu = massaCusto.trim();
@@ -1293,6 +1383,7 @@ export default function CriarVariantesPage() {
       estoqueMatriz: { ...estoqueMatriz },
       estoquePorCor: { ...estoquePorCor },
       fotoUrlPorCor: { ...fotoUrlPorCor },
+      fotosExtraPorCor: { ...fotosExtraPorCor },
       massaCusto,
       massaEstoque,
       peso,
@@ -1374,6 +1465,7 @@ export default function CriarVariantesPage() {
     setEstoqueMatriz({ ...(p.estoqueMatriz ?? {}) });
     setEstoquePorCor({ ...(p.estoquePorCor ?? {}) });
     setFotoUrlPorCor({ ...(p.fotoUrlPorCor ?? {}) });
+    setFotosExtraPorCor({ ...(p.fotosExtraPorCor ?? {}) });
     setMassaCusto(p.massaCusto ?? "");
     setMassaEstoque(p.massaEstoque ?? "");
     setPeso(p.peso ?? "");
@@ -1465,8 +1557,13 @@ export default function CriarVariantesPage() {
           for (const [k, v] of Object.entries(data.fotoUrlPorCor ?? {})) {
             if (typeof v === "string" && (v.startsWith("http://") || v.startsWith("https://"))) fotoSóHttp[k] = v;
           }
+          const extrasSóHttp: Record<string, string[]> = {};
+          for (const [k, lista] of Object.entries(data.fotosExtraPorCor ?? {})) {
+            const http = (lista ?? []).filter((v) => v.startsWith("http://") || v.startsWith("https://"));
+            if (http.length > 0) extrasSóHttp[k] = http;
+          }
           try {
-            gravarRascunhoLocal({ ...data, fotoUrlPorCor: fotoSóHttp });
+            gravarRascunhoLocal({ ...data, fotoUrlPorCor: fotoSóHttp, fotosExtraPorCor: extrasSóHttp });
             setMsgRascunho({
               tipo: "aviso",
               text: "Rascunho salvo neste aparelho sem fotos em base64 (limite). As URLs https das imagens foram mantidas. Salve de novo para tentar enviar à conta.",
@@ -1509,7 +1606,12 @@ export default function CriarVariantesPage() {
         for (const [k, v] of Object.entries(payload.fotoUrlPorCor ?? {})) {
           if (typeof v === "string" && (v.startsWith("http://") || v.startsWith("https://"))) fotoSóHttp[k] = v;
         }
-        corpo = { ...payload, fotoUrlPorCor: fotoSóHttp };
+        const extrasSóHttp: Record<string, string[]> = {};
+        for (const [k, lista] of Object.entries(payload.fotosExtraPorCor ?? {})) {
+          const http = (lista ?? []).filter((v) => v.startsWith("http://") || v.startsWith("https://"));
+          if (http.length > 0) extrasSóHttp[k] = http;
+        }
+        corpo = { ...payload, fotoUrlPorCor: fotoSóHttp, fotosExtraPorCor: extrasSóHttp };
         usouSóUrlsFotos = true;
         res = await fetch("/api/fornecedor/produtos/rascunho", {
           method: "PUT",
@@ -1855,6 +1957,16 @@ export default function CriarVariantesPage() {
         return;
       }
     }
+    if (coresFinais.length > 0) {
+      const coresComPoucasFotos = coresFinais.filter((cor) => totalFotosCor(cor) < 3);
+      if (coresComPoucasFotos.length > 0) {
+        setFormError(
+          `Cada cor precisa de no mínimo 3 fotos (máximo 7): falta completar ${coresComPoucasFotos.join(", ")}.`
+        );
+        setTabAtiva("lista-variacoes");
+        return;
+      }
+    }
     setFormLoading(true);
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
@@ -2012,6 +2124,14 @@ export default function CriarVariantesPage() {
           if (u) img[k] = u;
         }
         if (Object.keys(img).length > 0) body.imagem_url_por_cor = img;
+
+        const extras: Record<string, string[]> = {};
+        for (const cor of cores) {
+          const k = cor.trim().toLowerCase();
+          const lista = (fotosExtraPorCor[k] ?? []).map((u) => u.trim()).filter(Boolean);
+          if (lista.length > 0) extras[k] = lista;
+        }
+        if (Object.keys(extras).length > 0) body.imagens_extra_por_cor = extras;
       }
 
       if (modoEdicao) {
@@ -2887,6 +3007,7 @@ export default function CriarVariantesPage() {
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-xs font-semibold text-neutral-800 dark:text-neutral-100">{c.cor || "Sem cor"} · {c.tamanho || "Sem tamanho"}</p>
                                 <p className="mt-0.5 truncate font-mono text-[10px] text-neutral-500">{sku}</p>
+                                {c.cor ? fotosExtraCorBloco(c.cor) : null}
                               </div>
                             </div>
                             <div className="mt-2 space-y-2">
@@ -3013,6 +3134,7 @@ export default function CriarVariantesPage() {
                                               <p className="mt-0.5 truncate text-[11px] font-semibold leading-tight text-neutral-900 dark:text-neutral-100 md:text-xs">
                                                 {cor}
                                               </p>
+                                              {fotosExtraCorBloco(cor)}
                                             </div>
                                           </div>
                                         ) : (
@@ -3168,6 +3290,7 @@ export default function CriarVariantesPage() {
                                               className={`${inputBase} w-full py-1.5 text-xs`}
                                             />
                                             <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">{cor}</span>
+                                            {fotosExtraCorBloco(cor)}
                                           </div>
                                         );
                                       })()}

@@ -16,6 +16,7 @@ import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 import {
   getValidMercadoLivreAccessToken,
   mlCriarAnuncio,
+  mlAtualizarDescricao,
   mlBuscarAtributosCategoria,
   mlCriarGuiaMedidas,
   mlBuscarIdValorAtributo,
@@ -23,11 +24,26 @@ import {
 import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
 import { calcularPrecoAncora } from "@/lib/margemCalculo";
 import { resolverDetalhesProdutoJson, grupoKeyFromSku } from "@/lib/detalhesProdutoJson";
-import { melhorValorPermitidoMl, papelAtributoMl } from "@/lib/mercadoLivreAtributoMatch";
+import {
+  melhorValorPermitidoMl,
+  melhorValorPermitidoMlPorConteudo,
+  melhorValorPermitidoMlPorRadical,
+  papelAtributoMl,
+} from "@/lib/mercadoLivreAtributoMatch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+
+/** 3x o custo (multiplicador anterior) ficava caro demais frente à concorrência real do
+ * Mercado Livre (confirmado comparando com anúncio real do próprio fornecedor que vende bem) —
+ * 2,5x deixa o preço perto da faixa psicológica R$99,xx, com margem pra promoção depois. */
+const MULTIPLICADOR_PRECO_ANCORA_ML = 150;
+
+/** Abaixo de 10g em kg é lixo de cadastro (ver `PESO_KG_MIN_PLAUSIVEL` em
+ * `sellerCatalogOlistExport.ts`) — não manda pro Mercado Livre mesmo que já esteja salvo assim
+ * num SKU antigo (a validação no cadastro bloqueia daqui pra frente, mas não corrige retroativo). */
+const PESO_KG_MIN_PLAUSIVEL = 0.01;
 
 type SkuRow = {
   sku: string;
@@ -38,8 +54,13 @@ type SkuRow = {
   custo_base: number | null;
   custo_dropcore: number | null;
   imagem_url: string | null;
+  imagens_extra: string[] | null;
   descricao: string | null;
   fornecedor_id: string;
+  peso_kg: number | null;
+  comprimento_cm: number | null;
+  largura_cm: number | null;
+  altura_cm: number | null;
   detalhes_produto_json: unknown;
 };
 
@@ -60,7 +81,9 @@ export async function POST(req: Request) {
 
   const { data: linhasGrupo } = await supabaseAdmin
     .from("skus")
-    .select("sku, nome_produto, cor, tamanho, estoque_atual, custo_base, custo_dropcore, imagem_url, descricao, fornecedor_id, detalhes_produto_json")
+    .select(
+      "sku, nome_produto, cor, tamanho, estoque_atual, custo_base, custo_dropcore, imagem_url, imagens_extra, descricao, fornecedor_id, peso_kg, comprimento_cm, largura_cm, altura_cm, detalhes_produto_json"
+    )
     .eq("org_id", seller.org_id)
     .ilike("sku", `${grupoPrefixo}%`)
     .ilike("status", "ativo")
@@ -78,6 +101,9 @@ export async function POST(req: Request) {
     | { categoryId?: string; categoryName?: string; domainId?: string; atributos?: { id: string; valueName: string }[] }
     | undefined;
   const medidas = detalhes?.medidas as { linhas?: { tamanho?: string; busto?: number }[] } | undefined;
+  const caracteristicas = detalhes?.caracteristicas as { caimento?: string; ocasioes?: string[] } | undefined;
+  const guiado = detalhes?.guiado as { diferencial?: string; indicacao?: string } | undefined;
+  const qualidade = detalhes?.qualidade as { observacoes?: string } | undefined;
   const bustoPorTamanho = new Map<string, number>();
   for (const linha of medidas?.linhas ?? []) {
     if (linha.tamanho && typeof linha.busto === "number") bustoPorTamanho.set(linha.tamanho.trim().toUpperCase(), linha.busto);
@@ -129,42 +155,123 @@ export async function POST(req: Request) {
   const categoriaAtributos = await mlBuscarAtributosCategoria(mercadoLivre.categoryId);
   const titulo = (pai?.nome_produto ?? base.nome_produto ?? skuClicado).trim() || skuClicado;
 
-  // Categoria de roupa (ex. "Camisas") exige guia de medidas pra aceitar o anúncio — cria
-  // uma só pra cobrir todos os tamanhos do grupo, a partir da tabela de medidas que o
-  // fornecedor já preencheu. Se faltar domainId/medida/atributo pra isso, não bloqueia o
-  // resto — os itens que precisarem de SIZE_GRID_ID e não tiverem simplesmente falham
-  // adiante com o erro real do ML, capturado por item (não trava os outros).
+  // Categoria de roupa (ex. "Camisas") exige guia de medidas pra aceitar o anúncio. Primeiro
+  // tenta REAPROVEITAR uma guia já criada antes pra esse seller+grupo (o Mercado Livre rejeita
+  // criar uma guia duplicada — mesmo domain/marca/gênero/medidas — confirmado ao vivo
+  // 2026-11-16: um 2º lote de publicação do mesmo produto falhou em "SIZE_GRID_ID is missing"
+  // em todas as variantes porque a criação da 2ª guia foi recusada). Só cria uma nova se
+  // nenhuma reaproveitável for encontrada.
   let guiaMedidas: { chartId: string; rowIdPorTamanho: Record<string, string> } | null = null;
   const exigeGuiaMedidas = categoriaAtributos.some((a) => a.id === "SIZE_GRID_ID");
   if (exigeGuiaMedidas && mercadoLivre.domainId) {
-    const tamanhosNoGrupo = Array.from(new Set(pendentes.map((r) => r.tamanho?.trim().toUpperCase()).filter(Boolean))) as string[];
-    const linhasComMedida = tamanhosNoGrupo
-      .filter((t) => bustoPorTamanho.has(t))
-      .map((t) => ({ tamanho: t, bustoCm: bustoPorTamanho.get(t)! }));
-    const marcaAtributo = mercadoLivre.atributos?.find((a) => a.id === "BRAND")?.valueName;
-    const generoAtributo = mercadoLivre.atributos?.find((a) => a.id === "GENDER")?.valueName;
-    if (linhasComMedida.length > 0 && marcaAtributo && generoAtributo) {
-      const generoId = await mlBuscarIdValorAtributo(mercadoLivre.categoryId, "GENDER", generoAtributo);
-      if (generoId) {
-        const resultadoGuia = await mlCriarGuiaMedidas(
-          {
-            nome: `Guia de medidas - ${titulo}`,
-            domainId: mercadoLivre.domainId,
-            marca: marcaAtributo,
-            generoId,
-            generoNome: generoAtributo,
-            linhas: linhasComMedida,
-          },
-          ctx
-        );
-        if (resultadoGuia.ok) {
-          guiaMedidas = { chartId: resultadoGuia.chartId, rowIdPorTamanho: resultadoGuia.rowIdPorTamanho };
-        } else if (process.env.NODE_ENV === "development") {
-          console.error("[publicar-anuncio] mlCriarGuiaMedidas falhou:", resultadoGuia.erro);
+    const { data: guiaExistenteRows } = await supabaseAdmin.rpc("fn_seller_produto_ml_guia_medidas_grupo_get", {
+      p_seller_id: seller.id,
+      p_grupo_key: grupoKey,
+    });
+    const linhasGuiaExistente = Array.isArray(guiaExistenteRows) ? guiaExistenteRows : [];
+    if (linhasGuiaExistente.length > 0) {
+      const rowIdPorTamanho: Record<string, string> = {};
+      let chartIdExistente: string | null = null;
+      for (const row of linhasGuiaExistente as { sku: string; ml_chart_id: string | null; ml_chart_row_id: string | null }[]) {
+        const skuRow = linhasGrupo.find((s) => s.sku === row.sku);
+        const tam = skuRow?.tamanho?.trim().toUpperCase();
+        if (tam && row.ml_chart_row_id) rowIdPorTamanho[tam] = row.ml_chart_row_id;
+        if (row.ml_chart_id) chartIdExistente = row.ml_chart_id;
+      }
+      if (chartIdExistente && Object.keys(rowIdPorTamanho).length > 0) {
+        guiaMedidas = { chartId: chartIdExistente, rowIdPorTamanho };
+      }
+    }
+
+    if (!guiaMedidas) {
+      const tamanhosNoGrupo = Array.from(new Set(pendentes.map((r) => r.tamanho?.trim().toUpperCase()).filter(Boolean))) as string[];
+      const linhasComMedida = tamanhosNoGrupo
+        .filter((t) => bustoPorTamanho.has(t))
+        .map((t) => ({ tamanho: t, bustoCm: bustoPorTamanho.get(t)! }));
+      const marcaAtributo = mercadoLivre.atributos?.find((a) => a.id === "BRAND")?.valueName;
+      const generoAtributo = mercadoLivre.atributos?.find((a) => a.id === "GENDER")?.valueName;
+      if (linhasComMedida.length > 0 && marcaAtributo && generoAtributo) {
+        const generoId = await mlBuscarIdValorAtributo(mercadoLivre.categoryId, "GENDER", generoAtributo);
+        if (generoId) {
+          const resultadoGuia = await mlCriarGuiaMedidas(
+            {
+              nome: `Guia de medidas - ${titulo}`,
+              domainId: mercadoLivre.domainId,
+              marca: marcaAtributo,
+              generoId,
+              generoNome: generoAtributo,
+              linhas: linhasComMedida,
+            },
+            ctx
+          );
+          if (resultadoGuia.ok) {
+            guiaMedidas = { chartId: resultadoGuia.chartId, rowIdPorTamanho: resultadoGuia.rowIdPorTamanho };
+          } else if (process.env.NODE_ENV === "development") {
+            console.error("[publicar-anuncio] mlCriarGuiaMedidas falhou:", resultadoGuia.erro);
+          }
         }
       }
     }
   }
+
+  // Peso/dimensão real da embalagem (já cadastrados pelo fornecedor) — o Mercado Livre usa
+  // isso pra calcular o frete de verdade; sem isso o anúncio cai em "entrega a combinar com o
+  // vendedor" (achado ao vivo 2026-11-16). Unidade exigida: gramas pro peso, cm pra dimensão —
+  // confirmado via schema da categoria (`SELLER_PACKAGE_WEIGHT`/`_WIDTH`/`_LENGTH`/`_HEIGHT`).
+  const atributosEmbalagem: { id: string; valueName: string }[] = [];
+  if (base.peso_kg != null && base.peso_kg >= PESO_KG_MIN_PLAUSIVEL) {
+    atributosEmbalagem.push({ id: "SELLER_PACKAGE_WEIGHT", valueName: `${Math.round(base.peso_kg * 1000)} g` });
+  }
+  if (base.comprimento_cm != null && base.comprimento_cm > 0) {
+    atributosEmbalagem.push({ id: "SELLER_PACKAGE_LENGTH", valueName: `${base.comprimento_cm} cm` });
+  }
+  if (base.largura_cm != null && base.largura_cm > 0) {
+    atributosEmbalagem.push({ id: "SELLER_PACKAGE_WIDTH", valueName: `${base.largura_cm} cm` });
+  }
+  if (base.altura_cm != null && base.altura_cm > 0) {
+    atributosEmbalagem.push({ id: "SELLER_PACKAGE_HEIGHT", valueName: `${base.altura_cm} cm` });
+  }
+
+  // Tipo de manga / Gola / Caimento / Ocasiões — nunca pedidos de novo no cadastro, resolvidos
+  // aqui a partir do que já existe (nome do produto + características) com correspondência
+  // SEGURA: sem match confiável, o atributo simplesmente não é enviado (nunca força um valor
+  // incerto). Produto inteiro, não por variante — exceto Cor principal, que é por SKU.
+  const textoReferenciaProduto = [titulo, mercadoLivre.atributos?.find((a) => a.id === "MODEL")?.valueName]
+    .filter(Boolean)
+    .join(" ");
+  const atributosProdutoExtras: { id: string; valueName: string }[] = [];
+  const atributoSleeve = categoriaAtributos.find((a) => a.id === "SLEEVE_TYPE");
+  const valorManga = atributoSleeve?.valoresPermitidos.length
+    ? melhorValorPermitidoMlPorConteudo(textoReferenciaProduto, atributoSleeve.valoresPermitidos)
+    : null;
+  if (valorManga) atributosProdutoExtras.push({ id: "SLEEVE_TYPE", valueName: valorManga });
+
+  const atributoGola = categoriaAtributos.find((a) => a.id === "SHIRT_COLLAR");
+  const valorGola = atributoGola?.valoresPermitidos.length
+    ? melhorValorPermitidoMlPorRadical(textoReferenciaProduto, atributoGola.valoresPermitidos)
+    : null;
+  if (valorGola) atributosProdutoExtras.push({ id: "SHIRT_COLLAR", valueName: valorGola });
+
+  const atributoCaimento = categoriaAtributos.find((a) => a.id === "WEDGE_SHAPE");
+  const valorCaimento =
+    atributoCaimento?.valoresPermitidos.length && caracteristicas?.caimento
+      ? melhorValorPermitidoMl(caracteristicas.caimento, atributoCaimento.valoresPermitidos)
+      : null;
+  if (valorCaimento) atributosProdutoExtras.push({ id: "WEDGE_SHAPE", valueName: valorCaimento });
+
+  const atributoOcasioes = categoriaAtributos.find((a) => a.id === "OCCASIONS");
+  if (atributoOcasioes?.valoresPermitidos.length && caracteristicas?.ocasioes?.length) {
+    const valoresOcasioes = Array.from(
+      new Set(
+        caracteristicas.ocasioes
+          .map((o) => melhorValorPermitidoMl(o, atributoOcasioes.valoresPermitidos))
+          .filter((v): v is string => Boolean(v))
+      )
+    );
+    for (const v of valoresOcasioes) atributosProdutoExtras.push({ id: "OCCASIONS", valueName: v });
+  }
+
+  const atributoCorPrincipal = categoriaAtributos.find((a) => a.id === "MAIN_COLOR");
 
   const publicadas: { sku: string; ml_item_id: string; ml_permalink: string }[] = [];
   const ignoradas: { sku: string; motivo: string }[] = [];
@@ -204,19 +311,30 @@ export async function POST(req: Request) {
       atributosVariante.push({ id: "SIZE_GRID_ROW_ID", valueName: rowIdDaVariante });
     }
 
+    const valorCorPrincipal =
+      atributoCorPrincipal?.valoresPermitidos.length && r.cor
+        ? melhorValorPermitidoMlPorConteudo(r.cor, atributoCorPrincipal.valoresPermitidos)
+        : null;
+    if (valorCorPrincipal) atributosVariante.push({ id: "MAIN_COLOR", valueName: valorCorPrincipal });
+
     const custoTotal = sellerCustoTotalPagoUnitario(r.custo_base, r.custo_dropcore)!;
     const tituloVariante = [titulo, r.cor, r.tamanho].filter((p) => p && p.trim()).join(" ").trim();
+    const descricaoVariante = [r.descricao?.trim() || base.descricao?.trim(), guiado?.diferencial, guiado?.indicacao, qualidade?.observacoes]
+      .map((p) => p?.trim())
+      .filter(Boolean)
+      .join(" — ") || tituloVariante || r.sku;
+    const fotosVariante = [r.imagem_url!.trim(), ...((r.imagens_extra ?? []).filter((u) => Boolean(u?.trim())))];
 
     const resultado = await mlCriarAnuncio(
       {
         titulo: tituloVariante || r.sku,
         categoryId: mercadoLivre.categoryId,
-        preco: calcularPrecoAncora(custoTotal),
+        preco: calcularPrecoAncora(custoTotal, MULTIPLICADOR_PRECO_ANCORA_ML),
         quantidadeDisponivel: Math.floor(Number(r.estoque_atual ?? 0)),
         skuVendedor: r.sku,
-        fotosUrl: [r.imagem_url!.trim()],
-        descricao: r.descricao?.trim() || tituloVariante || r.sku,
-        atributos: [...(mercadoLivre.atributos ?? []), ...atributosVariante],
+        fotosUrl: fotosVariante,
+        descricao: descricaoVariante,
+        atributos: [...(mercadoLivre.atributos ?? []), ...atributosProdutoExtras, ...atributosEmbalagem, ...atributosVariante],
         familyName: titulo,
       },
       ctx
@@ -227,6 +345,14 @@ export async function POST(req: Request) {
       continue;
     }
 
+    // `description` inline no POST /items não é confiável pra essa categoria (confirmado ao
+    // vivo 2026-11-16: anúncio criado com descrição no corpo, painel do vendedor mostrava
+    // "você ainda não inseriu a descrição") — garante com um PUT explícito depois.
+    const descResultado = await mlAtualizarDescricao(resultado.itemId, descricaoVariante, ctx);
+    if (!descResultado.ok && process.env.NODE_ENV === "development") {
+      console.error("[publicar-anuncio] mlAtualizarDescricao falhou:", r.sku, descResultado.erro);
+    }
+
     const { error: registrarError } = await supabaseAdmin.rpc("fn_seller_produto_ml_publicar_registrar", {
       p_org_id: seller.org_id,
       p_seller_id: seller.id,
@@ -235,7 +361,9 @@ export async function POST(req: Request) {
       p_grupo_key: grupoKey,
       p_ml_item_id: resultado.itemId,
       p_ml_permalink: resultado.permalink,
-      p_preco: calcularPrecoAncora(custoTotal),
+      p_preco: calcularPrecoAncora(custoTotal, MULTIPLICADOR_PRECO_ANCORA_ML),
+      p_ml_chart_id: guiaMedidas?.chartId ?? null,
+      p_ml_chart_row_id: rowIdDaVariante ?? null,
     });
     if (registrarError && process.env.NODE_ENV === "development") {
       console.error("[publicar-anuncio] fn_seller_produto_ml_publicar_registrar:", r.sku, registrarError.message);

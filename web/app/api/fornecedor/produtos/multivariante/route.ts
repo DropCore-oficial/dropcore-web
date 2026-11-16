@@ -25,6 +25,7 @@ import { upsertProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
 import { parseTabelaMedidasRecord, type TabelaMedidasPayload } from "@/lib/fornecedorTabelaMedidas";
 import { parseDataImageUrl, BUCKET_PRODUTO_IMAGENS } from "@/lib/fornecedorImagemPublicaOlist";
 import { optimizeImageBuffer } from "@/lib/imageOptimize";
+import { PESO_KG_MIN_PLAUSIVEL } from "@/lib/sellerCatalogOlistExport";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -260,6 +261,67 @@ export async function POST(req: Request) {
       }
     }
 
+    // Fotos além da capa (mínimo 3, máximo 7 no total, validado no front) — mesmo tratamento
+    // de upload/otimização do mapa de capa acima, só que uma lista por cor em vez de 1 URL.
+    let imagensExtraPorCorMap: Record<string, string[]> | null = null;
+    if (
+      body?.imagens_extra_por_cor != null &&
+      typeof body.imagens_extra_por_cor === "object" &&
+      !Array.isArray(body.imagens_extra_por_cor)
+    ) {
+      imagensExtraPorCorMap = {};
+      const MAX_LEN = 600_000;
+      for (const [k, lista] of Object.entries(body.imagens_extra_por_cor as Record<string, unknown>)) {
+        if (!Array.isArray(lista)) continue;
+        const validas = lista
+          .map((v) => (typeof v === "string" ? v.trim() : ""))
+          .filter((s) => {
+            if (!s || s.length > MAX_LEN) return false;
+            return (
+              s.startsWith("https://") ||
+              s.startsWith("http://") ||
+              s.startsWith("data:image/jpeg") ||
+              s.startsWith("data:image/jpg") ||
+              s.startsWith("data:image/png") ||
+              s.startsWith("data:image/webp") ||
+              s.startsWith("data:image/gif")
+            );
+          })
+          .slice(0, 7);
+        if (validas.length > 0) imagensExtraPorCorMap[k.trim().toLowerCase()] = validas;
+      }
+      if (Object.keys(imagensExtraPorCorMap).length === 0) imagensExtraPorCorMap = null;
+
+      if (imagensExtraPorCorMap) {
+        for (const [cor, lista] of Object.entries(imagensExtraPorCorMap)) {
+          const urls: string[] = [];
+          for (let i = 0; i < lista.length; i++) {
+            const valor = lista[i];
+            if (!valor.startsWith("data:image/")) {
+              urls.push(valor);
+              continue;
+            }
+            const parsed = parseDataImageUrl(valor);
+            if (!parsed) continue;
+            const path = `${ctx.fornecedor_id}/multivariante/${Date.now()}-${cor.replace(/[^a-z0-9]/gi, "")}-extra${i}.${parsed.ext}`;
+            const otimizado = await optimizeImageBuffer(parsed.buffer, parsed.contentType);
+            const { error: uploadErr } = await supabaseAdmin.storage
+              .from(BUCKET_PRODUTO_IMAGENS)
+              .upload(path, otimizado, { upsert: true, contentType: parsed.contentType });
+            if (uploadErr) {
+              console.warn("[multivariante] upload imagens_extra_por_cor:", cor, i, uploadErr.message);
+              continue;
+            }
+            const { data: urlData } = supabaseAdmin.storage.from(BUCKET_PRODUTO_IMAGENS).getPublicUrl(path);
+            urls.push(urlData.publicUrl);
+          }
+          if (urls.length > 0) imagensExtraPorCorMap[cor] = urls;
+          else delete imagensExtraPorCorMap[cor];
+        }
+        if (Object.keys(imagensExtraPorCorMap).length === 0) imagensExtraPorCorMap = null;
+      }
+    }
+
     const custo_base = body?.custo_base != null ? (typeof body.custo_base === "number" ? body.custo_base : parseFloat(String(body.custo_base).replace(",", "."))) : null;
     const pesoRaw =
       body?.peso_kg != null
@@ -274,6 +336,15 @@ export async function POST(req: Request) {
 
     if (!nome_produto) {
       return NextResponse.json({ error: "Nome do produto é obrigatório." }, { status: 400 });
+    }
+
+    // Lixo de cadastro clássico: "0,25" digitado vira 0,00025 por erro de grama/kg — bloqueia
+    // salvar em vez de deixar passar e só filtrar depois na exportação Olist (achado real
+    // 2026-11-16: DJU003001 ficou com peso_kg=0.0002, quebrou o cálculo de frete no Mercado Livre).
+    if (peso_kg != null && peso_kg < PESO_KG_MIN_PLAUSIVEL) {
+      return NextResponse.json({
+        error: `Peso "${peso_kg}kg" parece errado (menos de 10g) — confira se não digitou grama no lugar de quilo.`,
+      }, { status: 400 });
     }
 
     if (cores.length === 0 && tamanhos.length === 0) {
@@ -436,6 +507,12 @@ export async function POST(req: Request) {
       return imagemUrlPorCorMap[cor.toLowerCase()] ?? null;
     }
 
+    function imagensExtraParaVariante(corRaw: string | null): string[] | null {
+      const cor = (corRaw ?? "").trim();
+      if (!cor || !imagensExtraPorCorMap) return null;
+      return imagensExtraPorCorMap[cor.toLowerCase()] ?? null;
+    }
+
     const filhosRows = combinacoes.map((c, i) => ({
       org_id: ctx.org_id,
       fornecedor_id: ctx.fornecedor_id,
@@ -447,6 +524,7 @@ export async function POST(req: Request) {
       status: "ativo",
       link_fotos: null,
       imagem_url: imagemUrlParaVariante(c.cor),
+      imagens_extra: imagensExtraParaVariante(c.cor),
       descricao,
       ...dims,
       ...estoqueParaVariante(c),

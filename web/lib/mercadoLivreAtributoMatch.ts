@@ -50,3 +50,41 @@ export function papelAtributoMl(attr: { id: string; name: string }): PapelAtribu
 export function papelResolvidoNaPublicacao(papel: PapelAtributoMl | null): boolean {
   return papel === "cor" || papel === "tamanho";
 }
+
+/** Acha o valor de `valoresPermitidos` cujo texto normalizado aparece DENTRO do texto livre já
+ * cadastrado (ex.: "azul" dentro de "azul denim", "longa" dentro de "gola italiana manga
+ * longa") — mais permissivo que `melhorValorPermitidoMl` (que exige igualdade exata). Só usar
+ * em atributo opcional/não-crítico: sem match, retorna `null` e quem chama simplesmente não
+ * preenche o atributo (nunca força um valor incerto). Ordena do valor mais longo pro mais
+ * curto pra "colarinho italiano" não perder pra um valor genérico de 3-4 letras que por acaso
+ * aparece solto no texto. */
+export function melhorValorPermitidoMlPorConteudo(textoLivre: string, valoresPermitidos: string[]): string | null {
+  const alvo = normalizarTextoMl(textoLivre);
+  if (!alvo) return null;
+  const candidatos = [...valoresPermitidos].sort((a, b) => b.length - a.length);
+  return candidatos.find((v) => alvo.includes(normalizarTextoMl(v))) ?? null;
+}
+
+/** Igual `melhorValorPermitidoMlPorConteudo`, mas pra quando nem o valor do ML nem o texto
+ * cadastrado contêm um ao outro por inteiro — só compartilham o "miolo" da palavra (ex.: "Gola
+ * Italiana" no cadastro vs "Colarinho italiano" no ML: nenhum é substring do outro, mas
+ * "italiana"/"italiano" têm o mesmo radical). Compara palavra a palavra (≥5 letras) cortando só
+ * a última letra de cada uma (gênero/plural em português). Mais arriscado que os matchers
+ * acima — usar só em atributo onde um match impreciso não tem consequência (não é filtro de
+ * devolução nem dado financeiro). */
+export function melhorValorPermitidoMlPorRadical(textoLivre: string, valoresPermitidos: string[]): string | null {
+  const palavrasTexto = normalizarTextoMl(textoLivre)
+    .split(/\s+/)
+    .filter((w) => w.length >= 5);
+  if (palavrasTexto.length === 0) return null;
+  for (const valor of valoresPermitidos) {
+    const palavrasValor = normalizarTextoMl(valor)
+      .split(/\s+/)
+      .filter((w) => w.length >= 5);
+    for (const pv of palavrasValor) {
+      const radical = pv.slice(0, pv.length - 1);
+      if (palavrasTexto.some((pt) => pt.startsWith(radical))) return valor;
+    }
+  }
+  return null;
+}

@@ -699,7 +699,11 @@ export async function mlBuscarAtributosCategoria(
     required: Boolean(a.tags?.required),
     hidden: Boolean(a.tags?.hidden),
     valueType: a.value_type ?? "string",
-    valoresPermitidos: a.value_type === "list" ? (a.values ?? []).map((v) => v.name) : [],
+    // Atributo tipo "string" (ex. OCCASIONS) também pode vir com uma lista sugerida de valores
+    // fechados — populamos sempre que o ML mandar `values`, não só quando `value_type==="list"`,
+    // pra correspondência segura (`melhorValorPermitidoMl*`) ter contra o que comparar. Quem
+    // decide exigir match exato de lista fechada continua checando `valueType==="list"` à parte.
+    valoresPermitidos: (a.values ?? []).map((v) => v.name),
     multivalued: Boolean(a.tags?.multivalued),
   }));
 }
@@ -790,7 +794,14 @@ export async function mlCriarAnuncio(
       seller_custom_field: input.skuVendedor,
       description: { plain_text: input.descricao },
       pictures: input.fotosUrl.map((url) => ({ source: url })),
-      attributes: input.atributos.map((a) => ({ id: a.id, value_name: a.valueName })),
+      // `seller_custom_field` acima sozinho não gravou o SKU nessa categoria (testado ao vivo
+      // 2026-11-16, coluna "SKU" do painel do vendedor ficou vazia em 15/15 variações) — essa
+      // categoria expõe um atributo dedicado `SELLER_SKU` (oculto, por variação); mandar os
+      // dois não tem custo, mas é o atributo que realmente aparece preenchido no painel.
+      attributes: [...input.atributos, { id: "SELLER_SKU", valueName: input.skuVendedor }].map((a) => ({
+        id: a.id,
+        value_name: a.valueName,
+      })),
       shipping: { mode: "me2", local_pick_up: false, free_shipping: false },
     }),
   });

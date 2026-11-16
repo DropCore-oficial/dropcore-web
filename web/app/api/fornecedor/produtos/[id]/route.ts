@@ -10,6 +10,7 @@ import { parseTabelaMedidasRecord } from "@/lib/fornecedorTabelaMedidas";
 import { upsertProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
 import { notifyAdminsAlteracaoProdutoPendente } from "@/lib/notifyAdminsAlteracaoProduto";
 import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
+import { PESO_KG_MIN_PLAUSIVEL } from "@/lib/sellerCatalogOlistExport";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -157,6 +158,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     const tabelaMedidas = parseTabelaMedidasRecord(body.tabela_medidas);
+
+    const pesoEditado = clean.peso_kg;
+    if (typeof pesoEditado === "number" && pesoEditado > 0 && pesoEditado < PESO_KG_MIN_PLAUSIVEL) {
+      return NextResponse.json({
+        error: `Peso "${pesoEditado}kg" parece errado (menos de 10g) — confira se não digitou grama no lugar de quilo.`,
+      }, { status: 400 });
+    }
 
     // Verificar se o SKU existe e pertence ao fornecedor
     const { data: sku, error: skuErr } = await supabaseAdmin

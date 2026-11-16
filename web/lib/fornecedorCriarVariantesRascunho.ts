@@ -112,6 +112,8 @@ export type RascunhoCriarVariantesV1 = {
   estoqueMatriz: Record<string, string>;
   estoquePorCor: Record<string, string>;
   fotoUrlPorCor: Record<string, string>;
+  /** Fotos além da capa, por cor — mínimo 3 no total (capa+extras), máximo 7. */
+  fotosExtraPorCor?: Record<string, string[]>;
   massaCusto: string;
   massaEstoque: string;
   peso: string;
@@ -207,6 +209,12 @@ export function rascunhoLeveParaEspelhoLocal(d: RascunhoCriarVariantesV1): Rascu
     fotoUrlPorCor[k] = v;
   }
 
+  const fotosExtraPorCor: Record<string, string[]> = {};
+  for (const [k, lista] of Object.entries(d.fotosExtraPorCor ?? {})) {
+    const semBase64 = (lista ?? []).filter((v) => typeof v === "string" && !v.startsWith("data:"));
+    if (semBase64.length > 0) fotosExtraPorCor[k] = semBase64;
+  }
+
   const variacoes = (d.produto?.variacoes ?? []).map((row) => ({
     ...row,
     imagem: row.imagem?.startsWith("data:") ? "" : row.imagem ?? "",
@@ -236,6 +244,7 @@ export function rascunhoLeveParaEspelhoLocal(d: RascunhoCriarVariantesV1): Rascu
   return {
     ...d,
     fotoUrlPorCor,
+    fotosExtraPorCor,
     midiaPrincipal: campoSemDataUrl(d.midiaPrincipal),
     midiaFrente: campoSemDataUrl(d.midiaFrente),
     midiaCostas: campoSemDataUrl(d.midiaCostas),
@@ -352,6 +361,7 @@ export function rascunhoTemConteudoSignificativo(d: RascunhoCriarVariantesV1): b
   if (mapaTemValorString(d.custoPorCor)) return true;
   if (mapaTemValorString(d.estoquePorCor)) return true;
   if (mapaFotoUrl(d.fotoUrlPorCor)) return true;
+  if (Object.values(d.fotosExtraPorCor ?? {}).some((lista) => (lista?.length ?? 0) > 0)) return true;
   return false;
 }
 

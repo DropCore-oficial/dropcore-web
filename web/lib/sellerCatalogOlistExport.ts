@@ -189,10 +189,13 @@ function posNum(v: number | null | undefined): v is number {
   return v != null && Number.isFinite(v) && v > 0;
 }
 
-/** Abaixo de 10 g em kg — lixo de cadastro (ex.: 0,25 digitado virou 0,00025 no multivariante). */
-const PESO_KG_MIN_PLAUSIVEL = 0.01;
+/** Abaixo de 10 g em kg — lixo de cadastro (ex.: 0,25 digitado virou 0,00025 no multivariante).
+ * Exportado pra reaproveito nas rotas de cadastro/edição de produto, que bloqueiam salvar com
+ * esse valor em vez de só filtrar na hora de exportar pro Olist (2026-11-16: dado ruim ainda
+ * entrava no banco, só sumia depois na exportação). */
+export const PESO_KG_MIN_PLAUSIVEL = 0.01;
 
-function pesoKgPlausivel(v: number | null | undefined): v is number {
+export function pesoKgPlausivel(v: number | null | undefined): v is number {
   return posNum(v) && v >= PESO_KG_MIN_PLAUSIVEL;
 }
 

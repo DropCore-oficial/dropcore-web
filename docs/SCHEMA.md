@@ -103,6 +103,66 @@ Se a categoria não exigir guia (a maioria não exige), esse passo inteiro é pu
 categoria Camisas): 28 anúncios publicados com sucesso num só clique, guia de medidas
 criada automaticamente, todos pausados em seguida (eram só teste).
 
+### Rodada 2 — qualidade do anúncio publicado (2026-11-16, mesmo dia)
+
+Comparando um anúncio real publicado via DropCore com um anúncio real do próprio Djulios
+(conta ML dele, vende de verdade — 4.187 visitas/55 vendas em 7 dias) achei vários gaps:
+descrição não gravava, SKU não aparecia no painel, frete caía em "a combinar", só 1 foto,
+preço 3x o custo (caro demais), atributos opcionais (manga/gola/ocasião) vazios. Corrigido:
+
+- **Guia de medidas reaproveitada**: o ML rejeita criar 2 guias idênticas pro mesmo
+  grupo+seller — 2º lote de publicação do mesmo produto falhava em "SIZE_GRID_ID is
+  missing" em todo o lote. `seller_produtos_ml_publicados` ganhou `ml_chart_id`/
+  `ml_chart_row_id`; nova RPC `fn_seller_produto_ml_guia_medidas_grupo_get(seller_id,
+  grupo_key)` busca guia já usada antes de tentar criar outra (script
+  `add-ml-chart-reuse-e-fotos-extra.sql`).
+- **SKU sumindo**: `seller_custom_field` no `POST /items` não aparecia na coluna "SKU" do
+  painel do vendedor pra essa categoria — `mlCriarAnuncio` agora também manda o atributo
+  dedicado `SELLER_SKU` (confirmado existir no schema da categoria, oculto/por variação).
+- **Frete "a combinar"**: a tabela `skus` já tem `peso_kg`/`comprimento_cm`/`largura_cm`/
+  `altura_cm` preenchidos pelo fornecedor — só não eram enviados. Agora vão como
+  `SELLER_PACKAGE_WEIGHT` (em **gramas**, não kg) e `SELLER_PACKAGE_LENGTH/WIDTH/HEIGHT`
+  (em cm) — unidades confirmadas via `allowed_units`/`default_unit` do schema da categoria.
+- **Descrição vazia**: `description` inline no `POST /items` não é confiável pra essa
+  categoria (painel mostrava "você ainda não inseriu a descrição" mesmo com o campo
+  preenchido no corpo) — `publicar-anuncio/route.ts` agora chama `mlAtualizarDescricao`
+  (PUT separado, já existia no client, usado em outro fluxo) logo após criar o anúncio.
+  Texto também ficou mais rico: junta `descricao` do SKU + `guiado.diferencial` +
+  `guiado.indicacao` + `qualidade.observacoes` (blocos que o fornecedor já preenche e
+  não eram usados em lugar nenhum).
+- **Preço**: multiplicador de `calcularPrecoAncora` 200%→150% (3x→2,5x o custo) só na
+  publicação do ML — valor validado comparando com o preço real (R$99,90) do anúncio do
+  próprio Djulios que vende bem.
+- **Atributos opcionais inferidos com segurança** (nunca forçados — sem match confiável,
+  simplesmente não envia): `SLEEVE_TYPE`/`SHIRT_COLLAR` a partir do nome/modelo do produto
+  (ex. "Manga Longa"/"Gola Italiana"), `WEDGE_SHAPE` a partir de
+  `caracteristicas.caimento`, `OCCASIONS` a partir de `caracteristicas.ocasioes` (só os
+  valores que batem exato com a lista fechada do ML — a maioria dos valores cadastrados
+  pelo fornecedor não tem equivalente e fica de fora de propósito), `MAIN_COLOR` a partir
+  da cor do SKU. Dois matchers novos em `mercadoLivreAtributoMatch.ts`:
+  `melhorValorPermitidoMlPorConteudo` (valor do ML é substring do texto cadastrado, ex.
+  "longa" dentro de "manga longa") e `melhorValorPermitidoMlPorRadical` (nenhum é substring
+  do outro, mas compartilham radical de palavra — "Gola Italiana" vs "Colarinho italiano").
+  `mlBuscarAtributosCategoria` também passou a popular `valoresPermitidos` pra qualquer
+  atributo com `values` no schema do ML, não só `value_type==="list"` (OCCASIONS é
+  `"string"` mas tem lista sugerida).
+- **Fotos extras**: `skus.imagens_extra text[]` (mesma migration) — mínimo 3, máximo 7
+  fotos por cor, bloqueado no cadastro (`criar-variantes`, upload múltiplo reaproveitando
+  o mesmo pipeline de otimização/upload da foto de capa). Publicação manda
+  `[imagem_url, ...imagens_extra]` pro ML. **Não coberto ainda**: edição de produto já
+  existente (`[id]/route.ts`) e adicionar cor nova a um grupo existente
+  (`grupo-adicionar-variantes/route.ts`) não têm UI de foto nenhuma hoje — só o fluxo de
+  criação (`multivariante/route.ts`) aceita `imagens_extra_por_cor`.
+- **Peso implausível bloqueia salvar**: `pesoKgPlausivel`/`PESO_KG_MIN_PLAUSIVEL` (10g em
+  kg) já existia em `sellerCatalogOlistExport.ts` só pra filtrar na exportação Olist —
+  exportado e reaproveitado nas 3 rotas que recebem peso cru do formulário (`produtos/
+  route.ts`, `produtos/multivariante/route.ts`, `produtos/[id]/route.ts`) pra rejeitar o
+  salvamento com erro claro, em vez de deixar entrar e só filtrar depois.
+- **Pendente, não implementado**: "Prazo de disponibilidade do produto" (fixar em 7 dias)
+  — não implementado ainda, não tenho certeza de qual campo real da API do ML seta isso
+  sem testar ao vivo. GTIN: decidido não mandar o atributo (categoria não exige de
+  verdade pra esse tipo de anúncio).
+
 **Escopo conhecido, não é bug:** só `criar-variantes` (cobre criar E editar produto
 multi-variante) tem a aba nova — `criar-unico` (cadastro rápido, sem categoria/marca) e
 `editar/[grupoKey]` (tela de edição separada, mais simples) ainda não.
