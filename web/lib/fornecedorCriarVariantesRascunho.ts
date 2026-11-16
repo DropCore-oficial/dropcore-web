@@ -13,6 +13,13 @@ export type CriarVariantesTabId =
   | "dados-guiados"
   | "logistica";
 
+export type ProdutoMercadoLivre = {
+  categoryId?: string;
+  categoryName?: string;
+  domainId?: string;
+  atributos?: { id: string; valueName: string }[];
+};
+
 export type ProdutoCaracteristicas = {
   tecido?: string;
   composicao?: string;
@@ -164,6 +171,7 @@ export type RascunhoCriarVariantesV1 = {
       unidadeComercial?: string;
       cdSaida?: string;
     };
+    mercadoLivre?: ProdutoMercadoLivre;
   };
 };
 

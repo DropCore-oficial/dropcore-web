@@ -20,6 +20,11 @@ import { chaveEstoqueVariante } from "@/lib/estoqueVarianteKeys";
 import { capaImagemUrlProduto } from "@/lib/fornecedorCapaProduto";
 import { resolverDetalhesProdutoJson, skuRowDestinoDetalhesGrupo } from "@/lib/detalhesProdutoJson";
 import {
+  ProdutoMercadoLivreCategoriaForm,
+  atributosMercadoLivreFaltando,
+  type ProdutoMercadoLivreValue,
+} from "@/components/fornecedor/ProdutoMercadoLivreCategoriaForm";
+import {
   buildTabelaMedidasPayloadFromForm,
   chaveTopicoMedida,
   medidasLinhasFromTabelaPayload,
@@ -217,6 +222,7 @@ function montarRascunhoEdicao(
   const logistica = asObj(detalhes?.logistica);
   const midia = asObj(detalhes?.midia);
   const medidasDet = asObj(detalhes?.medidas);
+  const mercadoLivreDet = asObj(detalhes?.mercadoLivre);
   const topicosFromDb: string[] = [];
   if (Array.isArray(medidasDet?.topicosSelecionados)) {
     for (const t of medidasDet.topicosSelecionados) {
@@ -393,6 +399,20 @@ function montarRascunhoEdicao(
         unidadeComercial: "UN",
         cdSaida: String(pai.expedicao_override_linha ?? "").trim() || undefined,
       },
+      mercadoLivre:
+        typeof mercadoLivreDet?.categoryId === "string" && mercadoLivreDet.categoryId
+          ? {
+              categoryId: mercadoLivreDet.categoryId,
+              categoryName: typeof mercadoLivreDet.categoryName === "string" ? mercadoLivreDet.categoryName : "",
+              domainId: typeof mercadoLivreDet.domainId === "string" ? mercadoLivreDet.domainId : "",
+              atributos: Array.isArray(mercadoLivreDet.atributos)
+                ? mercadoLivreDet.atributos.filter(
+                    (a): a is { id: string; valueName: string } =>
+                      !!a && typeof a === "object" && typeof (a as { id?: unknown }).id === "string"
+                  )
+                : [],
+            }
+          : undefined,
     },
   };
 }
@@ -646,6 +666,13 @@ export default function CriarVariantesPage() {
   // Informações de Variantes
   const [descricao, setDescricao] = useState("");
   const [marca, setMarca] = useState("");
+  const [mercadoLivre, setMercadoLivre] = useState<ProdutoMercadoLivreValue>({
+    categoryId: "",
+    categoryName: "",
+    domainId: "",
+    atributos: [],
+  });
+  const mlAtributosSchemaRef = useRef<{ id: string; name: string; required: boolean }[]>([]);
   const [coresSelecionadas, setCoresSelecionadas] = useState<Set<string>>(new Set());
   const [corCustom, setCorCustom] = useState("");
   const [tamanhosSelecionados, setTamanhosSelecionados] = useState<Set<string>>(new Set());
@@ -1296,6 +1323,14 @@ export default function CriarVariantesPage() {
         midia,
         guiado,
         logistica,
+        mercadoLivre: mercadoLivre.categoryId
+          ? {
+              categoryId: mercadoLivre.categoryId,
+              categoryName: mercadoLivre.categoryName,
+              domainId: mercadoLivre.domainId,
+              atributos: mercadoLivre.atributos,
+            }
+          : undefined,
       },
     };
   }
@@ -1307,6 +1342,13 @@ export default function CriarVariantesPage() {
     setCategoria(p.categoria ?? p.produto?.infoBasica?.categoria ?? "");
     setDescricao(p.descricao ?? "");
     setMarca(p.marca ?? "");
+    const mlDoRascunho = p.produto?.mercadoLivre;
+    setMercadoLivre({
+      categoryId: mlDoRascunho?.categoryId ?? "",
+      categoryName: mlDoRascunho?.categoryName ?? "",
+      domainId: mlDoRascunho?.domainId ?? "",
+      atributos: mlDoRascunho?.atributos ?? [],
+    });
     setModelo(p.modelo ?? p.produto?.infoBasica?.modelo ?? "");
     setTecido(p.tecido ?? p.produto?.caracteristicas?.tecido ?? "");
     setComposicao(p.composicao ?? p.produto?.caracteristicas?.composicao ?? "");
@@ -1803,6 +1845,16 @@ export default function CriarVariantesPage() {
       setTabAtiva("medidas");
       return;
     }
+    if (mercadoLivre.categoryId) {
+      const faltandoMl = atributosMercadoLivreFaltando(mercadoLivre, mlAtributosSchemaRef.current);
+      if (faltandoMl.length > 0) {
+        setFormError(
+          `Categoria do Mercado Livre escolhida, mas faltam atributos obrigatórios: ${faltandoMl.join(", ")}.`
+        );
+        setTabAtiva("info-basica");
+        return;
+      }
+    }
     setFormLoading(true);
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
@@ -1870,6 +1922,14 @@ export default function CriarVariantesPage() {
           topicosCustom: topicosMedidaCustom.trim() || null,
           linhas: medidasSincronizadas.filter((m) => m.tamanho.trim()),
         },
+        mercadoLivre: mercadoLivre.categoryId
+          ? {
+              categoryId: mercadoLivre.categoryId,
+              categoryName: mercadoLivre.categoryName,
+              domainId: mercadoLivre.domainId,
+              atributos: mercadoLivre.atributos,
+            }
+          : null,
       };
       const tabelaMedidasPayload = tabelaMedidasPreview;
       const body: Record<string, unknown> = {
@@ -2543,6 +2603,19 @@ export default function CriarVariantesPage() {
                     />
                     <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">{nomeProduto.length}/500</p>
                   </div>
+
+                  <ProdutoMercadoLivreCategoriaForm
+                    tituloBusca={nomeProduto}
+                    marca={marca}
+                    modelo={modelo}
+                    material={composicao || tecido}
+                    value={mercadoLivre}
+                    onChange={setMercadoLivre}
+                    onSchemaCarregado={(schema) => {
+                      mlAtributosSchemaRef.current = schema;
+                    }}
+                  />
+
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1.5">Categoria *</label>

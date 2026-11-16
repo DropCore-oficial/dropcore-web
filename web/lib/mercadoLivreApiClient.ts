@@ -8,6 +8,7 @@ import { PDFDocument, degrees } from "pdf-lib";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { decryptSellerErpSecret, encryptSellerErpSecret } from "@/lib/sellerErpSecretBox";
 import { refreshMercadoLivreAccessToken, computeMercadoLivreAccessTokenExpiresAt } from "@/lib/mercadoLivreOAuth";
+import { normalizarTextoMl } from "@/lib/mercadoLivreAtributoMatch";
 
 const ML_API_BASE = "https://api.mercadolibre.com";
 
@@ -666,24 +667,30 @@ export type MercadoLivreAtributoCategoria = {
   valorMaxLength: number | null;
 };
 
-/** Endpoint público (não precisa token), mas reaproveita o mesmo client por consistência.
- * É o schema de atributos da categoria — não o item em si — por isso dá pra cachear por
- * category_id entre vários anúncios da mesma categoria numa mesma rodada. */
+/** Endpoint público (não precisa token) — `ctx` é opcional, usado só quando quem chama já
+ * tem um token à mão (fluxos de edição de anúncio existente). O cadastro do fornecedor, que
+ * não tem token ML necessariamente, chama sem `ctx`. É o schema de atributos da categoria —
+ * não o item em si — por isso dá pra cachear por category_id entre vários anúncios da mesma
+ * categoria numa mesma rodada. */
 export async function mlBuscarAtributosCategoria(
   categoryId: string,
-  ctx: MercadoLivreAuthContext
+  ctx?: MercadoLivreAuthContext
 ): Promise<MercadoLivreAtributoCategoria[]> {
-  const json = await mlGet<
-    Array<{
-      id: string;
-      name: string;
-      relevance?: number;
-      tags?: { required?: boolean; hidden?: boolean; multivalued?: boolean };
-      value_type?: string;
-      value_max_length?: number;
-      values?: { name: string }[];
-    }>
-  >(`/categories/${categoryId}/attributes`, ctx.accessToken);
+  const res = await fetch(`${ML_API_BASE}/categories/${categoryId}/attributes`, {
+    headers: ctx ? { Authorization: `Bearer ${ctx.accessToken}` } : undefined,
+    cache: "no-store",
+  });
+  const json = res.ok
+    ? ((await res.json()) as Array<{
+        id: string;
+        name: string;
+        relevance?: number;
+        tags?: { required?: boolean; hidden?: boolean; multivalued?: boolean };
+        value_type?: string;
+        value_max_length?: number;
+        values?: { name: string }[];
+      }>)
+    : null;
   return (json ?? []).map((a) => ({
     id: a.id,
     name: a.name,
@@ -697,21 +704,32 @@ export async function mlBuscarAtributosCategoria(
   }));
 }
 
-export type MercadoLivreCategoriaSugerida = { categoryId: string; categoryName: string };
+export type MercadoLivreCategoriaSugerida = { categoryId: string; categoryName: string; domainId: string };
 
 /** Endpoint público de sugestão de categoria a partir de um texto de busca — testado ao
- * vivo (2026-08-24): aberto pra app de terceiro (não exige nada além do token de acesso),
- * e concorda com a categoria real em amostra de itens já bem categorizados (8/8 bateram).
- * Serve como sinal de "categoria pode estar errada" sem precisar de fonte de demanda nova. */
+ * vivo (2026-08-24): aberto pra app de terceiro (não exige token nenhum de verdade, `ctx` é
+ * opcional aqui só pra quem já tem um token à mão reaproveitar), e concorda com a categoria
+ * real em amostra de itens já bem categorizados (8/8 bateram). Serve como sinal de
+ * "categoria pode estar errada" sem precisar de fonte de demanda nova — e é o que o cadastro
+ * do fornecedor usa pra sugerir categoria do Mercado Livre sem precisar de token nenhum. */
 export async function mlSugerirCategoria(
   titulo: string,
-  ctx: MercadoLivreAuthContext
+  ctx?: MercadoLivreAuthContext
 ): Promise<MercadoLivreCategoriaSugerida[]> {
-  const json = await mlGet<Array<{ category_id: string; category_name: string }>>(
-    `/sites/MLB/domain_discovery/search?limit=3&q=${encodeURIComponent(titulo)}`,
-    ctx.accessToken
+  const res = await fetch(
+    `${ML_API_BASE}/sites/MLB/domain_discovery/search?limit=3&q=${encodeURIComponent(titulo)}`,
+    { headers: ctx ? { Authorization: `Bearer ${ctx.accessToken}` } : undefined, cache: "no-store" }
   );
-  return (json ?? []).map((s) => ({ categoryId: s.category_id, categoryName: s.category_name }));
+  const json = res.ok
+    ? ((await res.json()) as Array<{ category_id: string; category_name: string; domain_id?: string }>)
+    : null;
+  return (json ?? []).map((s) => ({
+    categoryId: s.category_id,
+    categoryName: s.category_name,
+    // domain_id vem com prefixo do site (ex. "MLB-SHIRTS") — as APIs de guia de medidas
+    // esperam sem prefixo (ex. "SHIRTS"), confirmado ao vivo 2026-11-16.
+    domainId: (s.domain_id ?? "").replace(/^[A-Z]+-/, ""),
+  }));
 }
 
 /** Caminho completo da categoria (ex.: "Calçados, Roupas e Bolsas > Roupas Masculinas > " +
@@ -719,10 +737,173 @@ export async function mlSugerirCategoria(
  * mais categorias com o MESMO nome curto (ex.: "Camisas" dentro de Masculino e dentro de
  * Feminino), impossível de diferenciar só pelo `category_name` isolado. Usar isso pra
  * mostrar o caminho inteiro em qualquer lista de categorias sugeridas pro usuário escolher. */
-export async function mlBuscarCaminhoCategoria(categoryId: string, ctx: MercadoLivreAuthContext): Promise<string> {
-  const json = await mlGet<{ path_from_root?: { name: string }[] }>(`/categories/${categoryId}`, ctx.accessToken);
+export async function mlBuscarCaminhoCategoria(categoryId: string, ctx?: MercadoLivreAuthContext): Promise<string> {
+  const res = await fetch(`${ML_API_BASE}/categories/${categoryId}`, {
+    headers: ctx ? { Authorization: `Bearer ${ctx.accessToken}` } : undefined,
+    cache: "no-store",
+  });
+  const json = res.ok ? ((await res.json()) as { path_from_root?: { name: string }[] }) : null;
   const caminho = json?.path_from_root?.map((p) => p.name) ?? [];
   return caminho.length > 0 ? caminho.join(" > ") : categoryId;
+}
+
+export type MercadoLivreCriarAnuncioInput = {
+  titulo: string;
+  categoryId: string;
+  /** Em reais — convertido pra centavos arredondados antes de mandar, igual o resto do arquivo. */
+  preco: number;
+  quantidadeDisponivel: number;
+  /** SKU do DropCore — vira `seller_custom_field`, pra decifrar depois em `seller_mercadolivre_sku_map`. */
+  skuVendedor: string;
+  fotosUrl: string[];
+  descricao: string;
+  /** Só `id`/`value_name` — atributo tipo "list" precisa vir com um valor de `valoresPermitidos`
+   * exato (ver `mlAtualizarAtributos`); quem monta isso é a tela que leu `mlBuscarAtributosCategoria`. */
+  atributos: { id: string; valueName: string }[];
+  /** Mesmo texto em todos os SKUs do mesmo produto pai — é assim que o ML agrupa variações
+   * visualmente (modelo "User Product"/catálogo da categoria), já que cada cor/tamanho é um
+   * anúncio (item) separado, não uma `variations[]` dentro de um item só (ver
+   * `mlCriarAnuncioComVariacoes`, removida — confirmado ao vivo 2026-11-15 que o ML rejeita
+   * `variations` + `family_name` juntos: "The field variations is invalid with family name"). */
+  familyName?: string;
+};
+
+/** Cria um anúncio novo do zero (`POST /items`) — testado ao vivo (2026-11-15). Pra produto
+ * com mais de uma cor/tamanho, chamar uma vez por SKU filho com o mesmo `familyName` — o ML
+ * agrupa os anúncios como variações do mesmo produto na busca/vitrine. */
+export async function mlCriarAnuncio(
+  input: MercadoLivreCriarAnuncioInput,
+  ctx: MercadoLivreAuthContext
+): Promise<{ ok: true; itemId: string; permalink: string } | { ok: false; erro: string }> {
+  const res = await fetch(`${ML_API_BASE}/items`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ctx.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...(input.familyName ? { family_name: input.familyName } : { title: input.titulo }),
+      category_id: input.categoryId,
+      price: Math.round(input.preco * 100) / 100,
+      currency_id: "BRL",
+      available_quantity: input.quantidadeDisponivel,
+      buying_mode: "buy_it_now",
+      condition: "new",
+      listing_type_id: "gold_special",
+      seller_custom_field: input.skuVendedor,
+      description: { plain_text: input.descricao },
+      pictures: input.fotosUrl.map((url) => ({ source: url })),
+      attributes: input.atributos.map((a) => ({ id: a.id, value_name: a.valueName })),
+      shipping: { mode: "me2", local_pick_up: false, free_shipping: false },
+    }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    id?: string;
+    permalink?: string;
+    message?: string;
+    error?: string;
+    cause?: { code?: string; message?: string; error_code?: string; error_message?: string }[];
+  };
+  if (!res.ok) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[mlCriarAnuncio] resposta crua do ML:", JSON.stringify(json));
+    }
+    const causa = json.cause
+      ?.map((c) => c.message ?? c.error_message ?? c.code ?? c.error_code)
+      .filter(Boolean)
+      .join("; ");
+    return { ok: false, erro: causa || json.message || json.error || `HTTP ${res.status}` };
+  }
+  if (!json.id) return { ok: false, erro: "Mercado Livre não retornou o id do anúncio criado." };
+  return { ok: true, itemId: json.id, permalink: json.permalink ?? mlItemPermalink(json.id) };
+}
+
+/** Acha o `id` numérico de uma opção de lista fechada (ex. GENDER) pelo nome — endpoint
+ * público de categoria, não precisa de token. Usado só pra montar a guia de medidas, que
+ * exige `{id, name}` pros atributos de lista (confirmado ao vivo 2026-11-16: `GENDER` sem
+ * `id` é rejeitado pela validação da guia). */
+export async function mlBuscarIdValorAtributo(
+  categoryId: string,
+  attributeId: string,
+  valueName: string
+): Promise<string | null> {
+  const atributos = await mlBuscarAtributosCategoriaComValoresId(categoryId);
+  const attr = atributos.find((a) => a.id === attributeId);
+  const alvo = normalizarTextoMl(valueName);
+  return attr?.values.find((v) => normalizarTextoMl(v.name) === alvo)?.id ?? null;
+}
+
+async function mlBuscarAtributosCategoriaComValoresId(
+  categoryId: string
+): Promise<{ id: string; values: { id: string; name: string }[] }[]> {
+  const res = await fetch(`${ML_API_BASE}/categories/${categoryId}/attributes`, { cache: "no-store" });
+  if (!res.ok) return [];
+  const json = (await res.json()) as Array<{ id: string; values?: { id: string; name: string }[] }>;
+  return json.map((a) => ({ id: a.id, values: a.values ?? [] }));
+}
+
+export type MercadoLivreMedidaLinha = { tamanho: string; bustoCm: number };
+
+export type MercadoLivreCriarGuiaMedidasInput = {
+  /** Máximo 60 caracteres — truncado aqui se vier maior (confirmado ao vivo: ML recusa nome maior). */
+  nome: string;
+  /** Sem prefixo do site (ex. "SHIRTS", não "MLB-SHIRTS") — ver `mlSugerirCategoria`. */
+  domainId: string;
+  marca: string;
+  generoId: string;
+  generoNome: string;
+  linhas: MercadoLivreMedidaLinha[];
+};
+
+/** Cria uma guia de medidas customizada (`measure_type: CLOTHING_MEASURE`) a partir da
+ * tabela de medidas que o fornecedor já preenche no cadastro (`skus.detalhes_produto_json.
+ * medidas`) — é isso que categorias de roupa (confirmado: "Camisas") exigem como
+ * `SIZE_GRID_ID`/`SIZE_GRID_ROW_ID` pra aceitar o anúncio, não dá pra criar o anúncio sem
+ * isso quando a categoria pede. Testado ao vivo 2026-11-16: só `GARMENT_CHEST_WIDTH_FROM`
+ * (busto) é exigido como medida da linha pra essa categoria — outras medidas da tabela
+ * (manga/ombro/cintura/comprimento) não foram testadas ainda, deixadas de fora por
+ * segurança até confirmar os IDs certos de atributo pra cada uma. */
+export async function mlCriarGuiaMedidas(
+  input: MercadoLivreCriarGuiaMedidasInput,
+  ctx: MercadoLivreAuthContext
+): Promise<{ ok: true; chartId: string; rowIdPorTamanho: Record<string, string> } | { ok: false; erro: string }> {
+  const res = await fetch(`${ML_API_BASE}/catalog/charts`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ctx.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      names: { MLB: input.nome.slice(0, 60) },
+      domain_id: input.domainId,
+      site_id: "MLB",
+      measure_type: "CLOTHING_MEASURE",
+      attributes: [
+        { id: "BRAND", values: [{ name: input.marca }] },
+        { id: "GENDER", values: [{ id: input.generoId, name: input.generoNome }] },
+      ],
+      main_attribute: { attributes: [{ site_id: "MLB", id: "SIZE" }] },
+      rows: input.linhas.map((l) => ({
+        attributes: [
+          { id: "SIZE", values: [{ name: l.tamanho }] },
+          { id: "FILTRABLE_SIZE", values: [{ name: l.tamanho }] },
+          { id: "GARMENT_CHEST_WIDTH_FROM", values: [{ name: `${l.bustoCm} cm` }] },
+        ],
+      })),
+    }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    id?: string | number;
+    rows?: { id: string; attributes?: { id: string; values?: { name?: string }[] }[] }[];
+    message?: string;
+    errors?: { message?: string }[];
+  };
+  if (!res.ok) {
+    const causa = json.errors?.map((e) => e.message).filter(Boolean).join("; ");
+    return { ok: false, erro: causa || json.message || `HTTP ${res.status}` };
+  }
+  if (!json.id) return { ok: false, erro: "Mercado Livre não retornou o id da guia de medidas criada." };
+  const rowIdPorTamanho: Record<string, string> = {};
+  for (const row of json.rows ?? []) {
+    const sizeAttr = row.attributes?.find((a) => a.id === "SIZE");
+    const tamanho = sizeAttr?.values?.[0]?.name;
+    if (tamanho) rowIdPorTamanho[tamanho] = row.id;
+  }
+  return { ok: true, chartId: String(json.id), rowIdPorTamanho };
 }
 
 /** Menor lado (largura ou altura) da maior resolução disponível da foto (`max_size`,

@@ -49,6 +49,71 @@ intactos — só os 4 crons de sync automático foram desligados
 `dropcore-olist-sync`, `dropcore-fornecedor-olist-sync-estoque`,
 `dropcore-olist-sync-precos`, `dropcore-etiqueta-olist-retry`.
 
+## `fn_fornecedor_pedidos_lista` — ordem sem prioridade de etiqueta — 2026-11-15
+
+Removido um `case` no `ORDER BY` que fazia pedido "aguardando postagem" com etiqueta já
+liberada pular pra frente de pedidos mais recentes sem etiqueta — bagunçava a ordem
+cronológica que o fornecedor espera na aba "Todos" (`web/app/fornecedor/pedidos/page.tsx`).
+Agora é só `order by criado_em desc`, sempre. Script:
+`web/scripts/fix-fn-fornecedor-pedidos-lista-ordem-sem-prioridade-etiqueta.sql`. Testado com
+`EXPLAIN ANALYZE` direto na query interna (o `EXPLAIN` na função em si não abre o plano,
+é `LANGUAGE sql`) — usa `idx_pedidos_criado`, 2.7ms. **Pendência de índice, não bloqueante:**
+esse índice é só em `criado_em` (global, não composto com `org_id`/`fornecedor_id`) — hoje
+rápido porque o volume por fornecedor ainda é pequeno; se crescer muito, vale considerar
+`(org_id, fornecedor_id, criado_em)` — não fiz agora porque não foi pedido e o ganho hoje é
+zero.
+
+## Seller publica anúncio no ML a partir do produto do fornecedor — 2026-11-15/16
+
+Fluxo: o fornecedor escolhe categoria + preenche atributos obrigatórios do Mercado Livre no
+cadastro de produto (`app/fornecedor/produtos/criar-variantes/page.tsx`, aba "Mercado Livre",
+logo após o campo Nome do Produto — usa `mlSugerirCategoria`/`mlBuscarAtributosCategoria`,
+`ctx` opcional em `lib/mercadoLivreApiClient.ts` porque são endpoints públicos do ML). Isso
+fica salvo em `skus.detalhes_produto_json.mercadoLivre` (bloco novo em `BLOCOS_DETALHES`,
+`lib/detalhesProdutoJson.ts`): `categoryId`, `categoryName`, `domainId` (sem prefixo do
+site, ex. "SHIRTS" — vem de `domain_discovery/search`, necessário pra guia de medidas) e
+`atributos` (Marca/Modelo/Material/Gênero — **nunca** Cor/Tamanho, que são por
+variante/SKU, resolvidos só na publicação, ver `lib/mercadoLivreAtributoMatch.ts`).
+
+O seller clica em "Publicar no Mercado Livre" num SKU específico do catálogo do fornecedor
+(`components/seller/SellerCatalogoProdutoDetalheClient.tsx`) → `POST
+/api/seller/mercadolivre/publicar-anuncio`, que publica **o grupo inteiro** (pai + todo
+filho com estoque+foto+custo, "exceto o que não tem") — um anúncio por variante via
+`mlCriarAnuncio` (`POST /items`), todos com o mesmo `family_name` (é assim que o ML agrupa
+variações visualmente nesse modelo "User Product"; **não** usar `variations[]` dentro de 1
+item — testado ao vivo 2026-11-15, o ML rejeita `variations`+`family_name` juntos, e
+`title` custom também é rejeitado junto com `family_name`).
+
+**Guia de medidas (categorias de roupa exigem `SIZE_GRID_ID`/`SIZE_GRID_ROW_ID`):**
+confirmado ao vivo 2026-11-16 que não dá pra criar o anúncio sem isso quando a categoria
+pede (ex. "Camisas", domínio `SHIRTS`) — não é o tamanho em si, é referência a uma guia de
+medidas num sistema à parte do ML (`POST /catalog/charts`, `measure_type:
+"CLOTHING_MEASURE"`). `mlCriarGuiaMedidas` cria 1 guia por grupo publicado, com 1 linha por
+tamanho, usando `busto` de `detalhes_produto_json.medidas.linhas` (tabela que o fornecedor
+já preenche) como `GARMENT_CHEST_WIDTH_FROM` — único atributo de medida confirmado
+obrigatório pra essa categoria; outras medidas da tabela (manga/ombro/cintura/comprimento)
+não têm IDs de atributo ML confirmados ainda, ficaram de fora por segurança. `GENDER` na
+guia precisa do `id` numérico do valor (não só o nome) — `mlBuscarIdValorAtributo` resolve
+isso. Nome da guia tem limite de 60 caracteres (ML recusa maior, truncado automaticamente).
+Se a categoria não exigir guia (a maioria não exige), esse passo inteiro é pulado.
+
+**Teste ao vivo confirmado 2026-11-16** (conta real Coimbra Company, fornecedor Djulios,
+categoria Camisas): 28 anúncios publicados com sucesso num só clique, guia de medidas
+criada automaticamente, todos pausados em seguida (eram só teste).
+
+**Escopo conhecido, não é bug:** só `criar-variantes` (cobre criar E editar produto
+multi-variante) tem a aba nova — `criar-unico` (cadastro rápido, sem categoria/marca) e
+`editar/[grupoKey]` (tela de edição separada, mais simples) ainda não.
+
+Tabela (`web/scripts/create-seller-produtos-ml-publicados.sql`):
+`seller_produtos_ml_publicados` (seller_id, sku, grupo_key, ml_item_id, ml_permalink, preco)
+— `unique (seller_id, sku)` evita publicar o mesmo SKU 2x (1 linha por variante publicada,
+mesmo `ml_item_id` não se repete entre linhas do mesmo grupo já que cada variante é um item
+próprio). RPCs (regra 9): `fn_seller_produto_ml_publicar_registrar` (escrita, chamada só
+depois do ML confirmar sucesso, uma vez por variante) e `fn_seller_produto_ml_publicado_get`
+(leitura, checa publicação existente antes de tentar de novo) — ambas `service_role` only,
+índice conferido com `EXPLAIN` (Index Scan via o `unique` composto).
+
 ## Índices de FK faltando (pedido/troca/devolução) — 2026-11-15
 
 Varredura de performance via Supabase Advisor achou `financial_troca_pendente`

@@ -18,6 +18,8 @@ import { ordenarTamanhosLista } from "@/lib/fornecedorVariantesUi";
 import { catalogoV2UrlImagem } from "@/components/seller/catalogo/v2/catalogoV2Imagem";
 import { sellerGrupoToProdutoResumoListaGrupoProps } from "@/components/seller/catalogo/v2/mapSellerGrupoToProdutoResumoLista";
 import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
+import { SUCCESS_PREMIUM_SHELL, SUCCESS_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
+import { resolverDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -37,6 +39,9 @@ export function SellerCatalogoProdutoDetalheClient({ fornecedorId, paiKey }: Pro
   const [error, setError] = useState<string | null>(null);
   const [corSelecionada, setCorSelecionada] = useState<string | null>(null);
   const [tamanhoSelecionado, setTamanhoSelecionado] = useState<string | null>(null);
+  const [publicandoMl, setPublicandoMl] = useState(false);
+  const [erroPublicarMl, setErroPublicarMl] = useState<string | null>(null);
+  const [publicadoMl, setPublicadoMl] = useState<{ ml_item_id: string; ml_permalink: string } | null>(null);
 
   const voltarHref = `/seller/catalogo#fornecedor-${encodeURIComponent(fornecedorId)}`;
 
@@ -120,6 +125,48 @@ export function SellerCatalogoProdutoDetalheClient({ fornecedorId, paiKey }: Pro
   }, [itemSelecionado, itensCor]);
 
   const nomeProduto = itensGrupo[0] ? str(itensGrupo[0].nome_produto) || paiKey : paiKey;
+
+  const mercadoLivreCategoria = useMemo(() => {
+    const detalhes = resolverDetalhesProdutoJson(itemSelecionado?.detalhes_produto_json, grupo?.pai?.detalhes_produto_json);
+    const ml = detalhes?.mercadoLivre as { categoryId?: string; categoryName?: string } | undefined;
+    return ml?.categoryId ? { categoryId: ml.categoryId, categoryName: ml.categoryName ?? "" } : null;
+  }, [itemSelecionado, grupo]);
+
+  useEffect(() => {
+    setPublicadoMl(null);
+    setErroPublicarMl(null);
+  }, [itemSelecionado?.sku]);
+
+  async function handlePublicarMl() {
+    if (!itemSelecionado?.sku) return;
+    setPublicandoMl(true);
+    setErroPublicarMl(null);
+    try {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/seller/login");
+        return;
+      }
+      const res = await fetch("/api/seller/mercadolivre/publicar-anuncio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ sku: itemSelecionado.sku }),
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        ml_item_id?: string;
+        ml_permalink?: string;
+      };
+      if (!res.ok) throw new Error(j?.error ?? "Erro ao publicar no Mercado Livre.");
+      setPublicadoMl({ ml_item_id: j.ml_item_id ?? "", ml_permalink: j.ml_permalink ?? "" });
+    } catch (e: unknown) {
+      setErroPublicarMl(e instanceof Error ? e.message : "Erro ao publicar no Mercado Livre.");
+    } finally {
+      setPublicandoMl(false);
+    }
+  }
 
   const resumoProps = useMemo(() => {
     if (!grupo) return null;
@@ -259,6 +306,33 @@ export function SellerCatalogoProdutoDetalheClient({ fornecedorId, paiKey }: Pro
                     <span className="ml-1.5 font-mono text-[11px] text-[var(--muted)]/80">· {itemSelecionado.sku}</span>
                   ) : null}
                 </p>
+
+                {mercadoLivreCategoria && (
+                  <div className="space-y-2">
+                    {publicadoMl ? (
+                      <div className={cn(SUCCESS_PREMIUM_SHELL, SUCCESS_PREMIUM_TEXT_PRIMARY, "rounded-xl p-3 text-sm")}>
+                        Publicado no Mercado Livre.{" "}
+                        {publicadoMl.ml_permalink && (
+                          <a href={publicadoMl.ml_permalink} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">
+                            Ver anúncio
+                          </a>
+                        )}
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handlePublicarMl}
+                        disabled={publicandoMl || !itemSelecionado?.estoque_atual}
+                        className="w-full rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 sm:w-auto"
+                      >
+                        {publicandoMl ? "Publicando..." : "Publicar no Mercado Livre"}
+                      </button>
+                    )}
+                    {erroPublicarMl && (
+                      <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "text-xs")}>{erroPublicarMl}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

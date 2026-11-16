@@ -40,14 +40,14 @@ export function normalizarRaizDetalhesProduto(det: Record<string, unknown>): Rec
   if (!prod) return det;
 
   const out: Record<string, unknown> = { ...det };
-  const blocos = ["infoBasica", "caracteristicas", "qualidade", "midia", "guiado", "logistica", "medidas"] as const;
+  const blocos = ["infoBasica", "caracteristicas", "qualidade", "midia", "guiado", "logistica", "medidas", "mercadoLivre"] as const;
   for (const k of blocos) {
     if (!asRecord(out[k]) && asRecord(prod[k])) out[k] = prod[k];
   }
   return out;
 }
 
-const BLOCOS_DETALHES = ["infoBasica", "caracteristicas", "qualidade", "midia", "guiado", "logistica", "medidas"] as const;
+const BLOCOS_DETALHES = ["infoBasica", "caracteristicas", "qualidade", "midia", "guiado", "logistica", "medidas", "mercadoLivre"] as const;
 
 /** Pontua quantos dados úteis existem (evita “ganhar” um JSON só com chaves null). */
 export function scoreDetalhesProduto(det: Record<string, unknown> | null): number {
