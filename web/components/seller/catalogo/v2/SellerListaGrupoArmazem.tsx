@@ -72,10 +72,9 @@ function ModalMercadoLivreResultado({
             <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[var(--muted)]/30 border-t-emerald-600" aria-hidden />
             Publicando no Mercado Livre — pode levar alguns segundos (1 anúncio por variante)…
           </div>
-        ) : resultado?.erro ? (
-          <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "text-sm")}>{resultado.erro}</p>
         ) : resultado ? (
           <div className="space-y-4">
+            {resultado.erro && <p className={cn(DANGER_PREMIUM_TEXT_PRIMARY, "text-sm")}>{resultado.erro}</p>}
             {resultado.publicadas.length > 0 && (
               <div>
                 <p className={cn(SUCCESS_PREMIUM_TEXT_PRIMARY, "mb-1.5 text-[13px] font-semibold")}>
@@ -112,7 +111,7 @@ function ModalMercadoLivreResultado({
                 </ul>
               </div>
             )}
-            {resultado.publicadas.length === 0 && resultado.ignoradas.length === 0 && (
+            {!resultado.erro && resultado.publicadas.length === 0 && resultado.ignoradas.length === 0 && (
               <p className="text-[var(--muted)]">Nenhuma variante processada.</p>
             )}
           </div>
