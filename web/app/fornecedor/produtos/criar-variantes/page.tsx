@@ -244,6 +244,7 @@ function montarRascunhoEdicao(
   const custoMatriz: Record<string, string> = {};
   const estoqueMatriz: Record<string, string> = {};
   const fotoUrlPorCor: Record<string, string> = {};
+  const fotosExtraPorCor: Record<string, string[]> = {};
 
   for (const v of variantes) {
     const cor = toTitleCase(String(v.cor ?? "").trim());
@@ -261,6 +262,13 @@ function montarRascunhoEdicao(
     if (cor && !fotoUrlPorCor[cor.toLowerCase()]) {
       const foto = String(v.imagem_url ?? "").trim();
       if (foto) fotoUrlPorCor[cor.toLowerCase()] = foto;
+    }
+    // Carrega as fotos extras já salvas pra não achar (incorretamente) que mudaram assim que
+    // a tela de edição abre — sem isso, o estado do front ficava vazio ("[]") enquanto o banco
+    // já tinha fotos, e todo PATCH mandava `imagens_extra: null` sem o fornecedor ter mexido
+    // em nada (achado real 2026-11-16, junto com o timeout de 40 PATCHs simultâneos).
+    if (cor && !fotosExtraPorCor[cor.toLowerCase()] && Array.isArray(v.imagens_extra) && v.imagens_extra.length > 0) {
+      fotosExtraPorCor[cor.toLowerCase()] = v.imagens_extra.filter((u): u is string => typeof u === "string" && Boolean(u.trim()));
     }
   }
 
@@ -314,6 +322,7 @@ function montarRascunhoEdicao(
     estoqueMatriz,
     estoquePorCor: {},
     fotoUrlPorCor,
+    fotosExtraPorCor,
     massaCusto: "",
     massaEstoque: "",
     peso: numToStr(pai.peso_kg),
@@ -554,6 +563,20 @@ function detectarTipoMedida(categoria: string): "camisa" | "calca" | "vestido" |
   if (/calca|calça|bermuda|short/.test(s)) return "calca";
   if (/vestido/.test(s)) return "vestido";
   return "geral";
+}
+
+/** Dispara `tarefas` com no máximo `tamanhoLote` em voo ao mesmo tempo — produto com muitas
+ * variantes (ex.: 40 SKUs) mandava todos os PATCHs de uma vez via `Promise.all`, e isso já
+ * derrubou o banco em "canceling statement due to statement timeout" (achado real 2026-11-16,
+ * DJU003000). Cada PATCH insere em `sku_alteracoes_pendentes` + notifica admins — 40 ao mesmo
+ * tempo satura o pool de conexões. */
+async function executarComConcorrenciaLimitada<T>(tarefas: (() => Promise<T>)[], tamanhoLote: number): Promise<T[]> {
+  const resultados: T[] = [];
+  for (let i = 0; i < tarefas.length; i += tamanhoLote) {
+    const lote = tarefas.slice(i, i + tamanhoLote);
+    resultados.push(...(await Promise.all(lote.map((t) => t()))));
+  }
+  return resultados;
 }
 
 /** Limite por arquivo na lista de variações (data URL no JSON do formulário inteiro). */
@@ -2244,7 +2267,7 @@ export default function CriarVariantesPage() {
         }
         if (tabelaMedidasPayload) patchPai.tabela_medidas = tabelaMedidasPayload;
 
-        const reqs: Promise<Response>[] = [];
+        const reqs: (() => Promise<Response>)[] = [];
         /** Custo final de cada filho (depois do patch desta tela) — usado pra sincronizar o
          * preço do SKU "pai" (sufixo 000), que não tem campo próprio de custo neste formulário
          * (ele não tem cor/tamanho). Sem isso o pai ficava com custo permanentemente
@@ -2289,7 +2312,7 @@ export default function CriarVariantesPage() {
 
           if (Object.keys(patchVariante).length === 0) continue;
 
-          reqs.push(
+          reqs.push(() =>
             fetch(`/api/fornecedor/produtos/${row.id}`, {
               method: "PATCH",
               headers,
@@ -2307,7 +2330,7 @@ export default function CriarVariantesPage() {
           patchPai.custo_base = maxF - minF < 0.015 ? minF : null;
         }
         if (skuDestinoDetalhes?.id) {
-          reqs.push(
+          reqs.push(() =>
             fetch(`/api/fornecedor/produtos/${skuDestinoDetalhes.id}`, {
               method: "PATCH",
               headers,
@@ -2316,7 +2339,7 @@ export default function CriarVariantesPage() {
           );
         }
 
-        const results = await Promise.all(reqs);
+        const results = await executarComConcorrenciaLimitada(reqs, 6);
         let enviadosParaAnalise = 0;
         let publicadosDireto = 0;
         let estoqueAtualizado = 0;
