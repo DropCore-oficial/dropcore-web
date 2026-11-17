@@ -162,6 +162,11 @@ export async function POST(req: Request) {
   // em todas as variantes porque a criação da 2ª guia foi recusada). Só cria uma nova se
   // nenhuma reaproveitável for encontrada.
   let guiaMedidas: { chartId: string; rowIdPorTamanho: Record<string, string> } | null = null;
+  // Motivo real de `guiaMedidas` ter ficado null — aparece na mensagem de cada variante
+  // ignorada (não só no log do servidor), porque os logs do CLI do Vercel se mostraram
+  // pouco confiáveis pra pegar isso ao vivo (achado 2026-11-16: 3 tentativas de log-tail
+  // sem capturar nada durante uma falha real reproduzida na hora).
+  let guiaMedidasDiagnostico: string | null = null;
   const exigeGuiaMedidas = categoriaAtributos.some((a) => a.id === "SIZE_GRID_ID");
   if (exigeGuiaMedidas && mercadoLivre.domainId) {
     const { data: guiaExistenteRows } = await supabaseAdmin.rpc("fn_seller_produto_ml_guia_medidas_grupo_get", {
@@ -207,16 +212,21 @@ export async function POST(req: Request) {
           if (resultadoGuia.ok) {
             guiaMedidas = { chartId: resultadoGuia.chartId, rowIdPorTamanho: resultadoGuia.rowIdPorTamanho };
           } else {
-            // Sempre loga (não só em dev) — essa falha nunca aparece pro seller (ele só vê o
-            // "SIZE_GRID_ID is missing" downstream em cada item), e sem isso não dava pra saber
-            // o motivo real sem reproduzir manualmente (achado 2026-11-16: precisei investigar
-            // às cegas quando isso aconteceu em produção).
+            guiaMedidasDiagnostico = `Mercado Livre recusou criar a guia de medidas: ${resultadoGuia.erro}`;
             console.error("[publicar-anuncio] mlCriarGuiaMedidas falhou:", grupoKey, resultadoGuia.erro);
           }
         } else {
+          guiaMedidasDiagnostico = `Não achei o id do valor "${generoAtributo}" pro atributo Gênero nessa categoria.`;
           console.error("[publicar-anuncio] mlBuscarIdValorAtributo não achou id do gênero:", grupoKey, generoAtributo);
         }
       } else {
+        guiaMedidasDiagnostico = `Guia de medidas não foi criada — faltou: ${[
+          linhasComMedida.length === 0 && "medida (busto) cadastrada pro tamanho",
+          !marcaAtributo && "atributo Marca",
+          !generoAtributo && "atributo Gênero",
+        ]
+          .filter(Boolean)
+          .join(", ")}.`;
         console.error(
           "[publicar-anuncio] guia de medidas pulada por falta de dado:",
           grupoKey,
@@ -314,6 +324,11 @@ export async function POST(req: Request) {
 
     if (falhaObrigatorio) {
       ignoradas.push({ sku: r.sku, motivo: falhaObrigatorio });
+      continue;
+    }
+
+    if (exigeGuiaMedidas && !guiaMedidas) {
+      ignoradas.push({ sku: r.sku, motivo: guiaMedidasDiagnostico ?? "Guia de medidas obrigatória não pôde ser criada/reaproveitada." });
       continue;
     }
 
