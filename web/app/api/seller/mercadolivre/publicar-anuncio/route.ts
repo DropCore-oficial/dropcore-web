@@ -200,7 +200,13 @@ export async function POST(req: Request) {
         if (generoId) {
           const resultadoGuia = await mlCriarGuiaMedidas(
             {
-              nome: `Guia de medidas - ${titulo}`,
+              // `grupoKey` sempre primeiro (nunca cortado pelo limite de 60 caracteres do ML) —
+              // o nome sozinho com o título do produto colide com a guia já criada antes pelo
+              // mesmo vendedor pra esse mesmo produto (ML rejeita nome duplicado com as mesmas
+              // características: "is already in use in another chart" — reproduzido ao vivo
+              // 2026-11-16 reaproveitando seller real, dado de antes do reaproveitamento por
+              // `ml_chart_id` existir, então a 2ª tentativa tentava criar "outra igual").
+              nome: `${grupoKey} - ${titulo}`,
               domainId: mercadoLivre.domainId,
               marca: marcaAtributo,
               generoId,
