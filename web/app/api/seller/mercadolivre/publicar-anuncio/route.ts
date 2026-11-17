@@ -24,6 +24,7 @@ import {
 import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
 import { calcularPrecoAncora } from "@/lib/margemCalculo";
 import { resolverDetalhesProdutoJson, grupoKeyFromSku } from "@/lib/detalhesProdutoJson";
+import { ordenarTamanhosLista } from "@/lib/fornecedorVariantesUi";
 import {
   melhorValorPermitidoMl,
   melhorValorPermitidoMlPorConteudo,
@@ -169,6 +170,16 @@ export async function POST(req: Request) {
   let guiaMedidasDiagnostico: string | null = null;
   const exigeGuiaMedidas = categoriaAtributos.some((a) => a.id === "SIZE_GRID_ID");
   if (exigeGuiaMedidas && mercadoLivre.domainId) {
+    // Tamanhos necessários NESTE lote (pra decidir se uma guia já existente serve) — mas a
+    // guia em SI (quando precisa ser criada) sempre cobre TODOS os tamanhos com medida
+    // cadastrada pro produto (`bustoPorTamanho`), não só os pendentes agora. Achado real
+    // 2026-11-17: uma guia criada só com os tamanhos pendentes daquele momento (só "M", porque
+    // P/G/GG já tinham sido tentados e falhado por outro motivo antes) ficou permanentemente
+    // incompleta — reaproveitada em lotes seguintes, sempre faltando SIZE_GRID_ID pros
+    // tamanhos que não entraram na primeira leva.
+    const tamanhosNecessariosAgora = new Set(
+      pendentes.map((r) => r.tamanho?.trim().toUpperCase()).filter(Boolean) as string[]
+    );
     const { data: guiaExistenteRows } = await supabaseAdmin.rpc("fn_seller_produto_ml_guia_medidas_grupo_get", {
       p_seller_id: seller.id,
       p_grupo_key: grupoKey,
@@ -183,16 +194,17 @@ export async function POST(req: Request) {
         if (tam && row.ml_chart_row_id) rowIdPorTamanho[tam] = row.ml_chart_row_id;
         if (row.ml_chart_id) chartIdExistente = row.ml_chart_id;
       }
-      if (chartIdExistente && Object.keys(rowIdPorTamanho).length > 0) {
+      // Só reaproveita se a guia encontrada cobrir TODOS os tamanhos que esse lote precisa —
+      // uma guia parcial não serve, mesmo que já exista (ver comentário acima).
+      const cobreTudo = [...tamanhosNecessariosAgora].every((t) => Boolean(rowIdPorTamanho[t]));
+      if (chartIdExistente && cobreTudo) {
         guiaMedidas = { chartId: chartIdExistente, rowIdPorTamanho };
       }
     }
 
     if (!guiaMedidas) {
-      const tamanhosNoGrupo = Array.from(new Set(pendentes.map((r) => r.tamanho?.trim().toUpperCase()).filter(Boolean))) as string[];
-      const linhasComMedida = tamanhosNoGrupo
-        .filter((t) => bustoPorTamanho.has(t))
-        .map((t) => ({ tamanho: t, bustoCm: bustoPorTamanho.get(t)! }));
+      const tamanhosComMedida = Array.from(bustoPorTamanho.keys());
+      const linhasComMedida = tamanhosComMedida.map((t) => ({ tamanho: t, bustoCm: bustoPorTamanho.get(t)! }));
       const marcaAtributo = mercadoLivre.atributos?.find((a) => a.id === "BRAND")?.valueName;
       const generoAtributo = mercadoLivre.atributos?.find((a) => a.id === "GENDER")?.valueName;
       if (linhasComMedida.length > 0 && marcaAtributo && generoAtributo) {
@@ -205,8 +217,11 @@ export async function POST(req: Request) {
               // mesmo vendedor pra esse mesmo produto (ML rejeita nome duplicado com as mesmas
               // características: "is already in use in another chart" — reproduzido ao vivo
               // 2026-11-16 reaproveitando seller real, dado de antes do reaproveitamento por
-              // `ml_chart_id` existir, então a 2ª tentativa tentava criar "outra igual").
-              nome: `${grupoKey} - ${titulo}`,
+              // `ml_chart_id` existir, então a 2ª tentativa tentava criar "outra igual"). Lista
+              // de tamanhos também entra no nome: uma guia criada incompleta antes (só 1
+              // tamanho, achado real 2026-11-17) tem o MESMO nome sem a lista — isso garante
+              // que a guia completa nova não colide com a quebrada antiga.
+              nome: `${grupoKey} ${ordenarTamanhosLista(tamanhosComMedida).join("")} - ${titulo}`,
               domainId: mercadoLivre.domainId,
               marca: marcaAtributo,
               generoId,
