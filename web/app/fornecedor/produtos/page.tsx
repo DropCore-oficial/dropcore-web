@@ -950,10 +950,20 @@ export default function FornecedorProdutosPage() {
           <div className="min-w-0 divide-y divide-[var(--card-border)]/60 overflow-hidden rounded-b-2xl">
             {gruposFiltrados.length === 0 ? (
               <div className="px-4 py-12 text-center">
-                <p className="text-sm text-[var(--muted)]">
-                  {filtrosAtivosCount > 0 ? "Nenhum produto encontrado com esses filtros." : "Nenhum produto cadastrado."}
-                </p>
-                <p className="mt-1 text-xs text-[var(--muted)]">Use Criar produto acima para cadastrar.</p>
+                {error ? (
+                  // Lista vazia por FALHA ao carregar (ex.: timeout do banco) nunca pode mostrar a
+                  // mesma mensagem de "nenhum produto cadastrado" — isso parece perda de catálogo
+                  // pro fornecedor (achado real 2026-11-16: susto de "sumiu tudo" que era só a
+                  // consulta falhando, nenhum produto tinha sido apagado).
+                  <p className="text-sm text-[var(--muted)]">Não foi possível carregar seus produtos agora — veja o aviso acima e tente de novo.</p>
+                ) : (
+                  <>
+                    <p className="text-sm text-[var(--muted)]">
+                      {filtrosAtivosCount > 0 ? "Nenhum produto encontrado com esses filtros." : "Nenhum produto cadastrado."}
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--muted)]">Use Criar produto acima para cadastrar.</p>
+                  </>
+                )}
               </div>
             ) : (
               gruposFiltrados.map((g) => {

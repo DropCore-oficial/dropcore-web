@@ -206,10 +206,22 @@ export async function POST(req: Request) {
           );
           if (resultadoGuia.ok) {
             guiaMedidas = { chartId: resultadoGuia.chartId, rowIdPorTamanho: resultadoGuia.rowIdPorTamanho };
-          } else if (process.env.NODE_ENV === "development") {
-            console.error("[publicar-anuncio] mlCriarGuiaMedidas falhou:", resultadoGuia.erro);
+          } else {
+            // Sempre loga (não só em dev) — essa falha nunca aparece pro seller (ele só vê o
+            // "SIZE_GRID_ID is missing" downstream em cada item), e sem isso não dava pra saber
+            // o motivo real sem reproduzir manualmente (achado 2026-11-16: precisei investigar
+            // às cegas quando isso aconteceu em produção).
+            console.error("[publicar-anuncio] mlCriarGuiaMedidas falhou:", grupoKey, resultadoGuia.erro);
           }
+        } else {
+          console.error("[publicar-anuncio] mlBuscarIdValorAtributo não achou id do gênero:", grupoKey, generoAtributo);
         }
+      } else {
+        console.error(
+          "[publicar-anuncio] guia de medidas pulada por falta de dado:",
+          grupoKey,
+          JSON.stringify({ temMedida: linhasComMedida.length > 0, marcaAtributo, generoAtributo })
+        );
       }
     }
   }
