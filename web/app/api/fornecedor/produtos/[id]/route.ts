@@ -11,6 +11,8 @@ import { upsertProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
 import { notifyAdminsAlteracaoProdutoPendente } from "@/lib/notifyAdminsAlteracaoProduto";
 import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
 import { PESO_KG_MIN_PLAUSIVEL } from "@/lib/sellerCatalogOlistExport";
+import { parseDataImageUrl, BUCKET_PRODUTO_IMAGENS } from "@/lib/fornecedorImagemPublicaOlist";
+import { optimizeImageBuffer } from "@/lib/imageOptimize";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -166,6 +168,29 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
             .slice(0, 7);
           clean[k] = urls.length > 0 ? urls : null;
         }
+      }
+    }
+
+    // `imagem_url` base64 cru (achado ao vivo 2026-11-16: 38 SKUs do mesmo produto ficaram
+    // assim, publicação no ML falhando com "Invalid value source. Maximum length is 1024" —
+    // essa rota nunca tinha o mesmo tratamento que `multivariante/route.ts` já tem pra criação
+    // de produto novo). Sobe pro storage e troca pela URL pública antes de salvar.
+    if (typeof clean.imagem_url === "string" && clean.imagem_url.startsWith("data:image/")) {
+      const parsed = parseDataImageUrl(clean.imagem_url);
+      if (parsed) {
+        const path = `${ctx.fornecedor_id}/editar-produto/${Date.now()}-${skuId.replace(/[^a-z0-9]/gi, "")}.${parsed.ext}`;
+        const otimizado = await optimizeImageBuffer(parsed.buffer, parsed.contentType);
+        const { error: uploadErr } = await supabaseAdmin.storage
+          .from(BUCKET_PRODUTO_IMAGENS)
+          .upload(path, otimizado, { upsert: true, contentType: parsed.contentType });
+        if (!uploadErr) {
+          const { data: urlData } = supabaseAdmin.storage.from(BUCKET_PRODUTO_IMAGENS).getPublicUrl(path);
+          clean.imagem_url = urlData.publicUrl;
+        } else {
+          return NextResponse.json({ error: `Falha ao subir a foto: ${uploadErr.message}` }, { status: 502 });
+        }
+      } else {
+        return NextResponse.json({ error: "Não consegui ler essa imagem — use JPEG, PNG, WebP ou GIF." }, { status: 400 });
       }
     }
 

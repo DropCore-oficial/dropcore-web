@@ -101,13 +101,37 @@ export async function POST(req: Request) {
   const mercadoLivre = detalhes?.mercadoLivre as
     | { categoryId?: string; categoryName?: string; domainId?: string; atributos?: { id: string; valueName: string }[] }
     | undefined;
-  const medidas = detalhes?.medidas as { linhas?: { tamanho?: string; busto?: number }[] } | undefined;
+  const medidas = detalhes?.medidas as
+    | {
+        linhas?: {
+          tamanho?: string;
+          busto?: number;
+          comprimento?: number;
+          ombro?: number;
+          manga?: number;
+          cintura?: number;
+          quadril?: number;
+        }[];
+      }
+    | undefined;
   const caracteristicas = detalhes?.caracteristicas as { caimento?: string; ocasioes?: string[] } | undefined;
-  const guiado = detalhes?.guiado as { diferencial?: string; indicacao?: string } | undefined;
   const qualidade = detalhes?.qualidade as { observacoes?: string } | undefined;
-  const bustoPorTamanho = new Map<string, number>();
+  // Mapa tamanho → linha de medida completa (não só busto) — cada domínio de categoria usa um
+  // subconjunto diferente desses campos pra montar a guia de medidas (ver
+  // `ATRIBUTO_MEDIDA_POR_DOMINIO` em `mercadoLivreApiClient.ts`).
+  type LinhaMedida = { busto?: number; comprimento?: number; ombro?: number; manga?: number; cintura?: number; quadril?: number };
+  const medidaPorTamanho = new Map<string, LinhaMedida>();
   for (const linha of medidas?.linhas ?? []) {
-    if (linha.tamanho && typeof linha.busto === "number") bustoPorTamanho.set(linha.tamanho.trim().toUpperCase(), linha.busto);
+    const tam = linha.tamanho?.trim().toUpperCase();
+    if (!tam) continue;
+    const row: LinhaMedida = {};
+    if (typeof linha.busto === "number") row.busto = linha.busto;
+    if (typeof linha.comprimento === "number") row.comprimento = linha.comprimento;
+    if (typeof linha.ombro === "number") row.ombro = linha.ombro;
+    if (typeof linha.manga === "number") row.manga = linha.manga;
+    if (typeof linha.cintura === "number") row.cintura = linha.cintura;
+    if (typeof linha.quadril === "number") row.quadril = linha.quadril;
+    if (Object.keys(row).length > 0) medidaPorTamanho.set(tam, row);
   }
   if (!mercadoLivre?.categoryId) {
     return NextResponse.json(
@@ -172,7 +196,7 @@ export async function POST(req: Request) {
   if (exigeGuiaMedidas && mercadoLivre.domainId) {
     // Tamanhos necessários NESTE lote (pra decidir se uma guia já existente serve) — mas a
     // guia em SI (quando precisa ser criada) sempre cobre TODOS os tamanhos com medida
-    // cadastrada pro produto (`bustoPorTamanho`), não só os pendentes agora. Achado real
+    // cadastrada pro produto (`medidaPorTamanho`), não só os pendentes agora. Achado real
     // 2026-11-17: uma guia criada só com os tamanhos pendentes daquele momento (só "M", porque
     // P/G/GG já tinham sido tentados e falhado por outro motivo antes) ficou permanentemente
     // incompleta — reaproveitada em lotes seguintes, sempre faltando SIZE_GRID_ID pros
@@ -203,8 +227,8 @@ export async function POST(req: Request) {
     }
 
     if (!guiaMedidas) {
-      const tamanhosComMedida = Array.from(bustoPorTamanho.keys());
-      const linhasComMedida = tamanhosComMedida.map((t) => ({ tamanho: t, bustoCm: bustoPorTamanho.get(t)! }));
+      const tamanhosComMedida = Array.from(medidaPorTamanho.keys());
+      const linhasComMedida = tamanhosComMedida.map((t) => ({ tamanho: t, ...medidaPorTamanho.get(t)! }));
       const marcaAtributo = mercadoLivre.atributos?.find((a) => a.id === "BRAND")?.valueName;
       const generoAtributo = mercadoLivre.atributos?.find((a) => a.id === "GENDER")?.valueName;
       if (linhasComMedida.length > 0 && marcaAtributo && generoAtributo) {
@@ -242,7 +266,7 @@ export async function POST(req: Request) {
         }
       } else {
         guiaMedidasDiagnostico = `Guia de medidas não foi criada — faltou: ${[
-          linhasComMedida.length === 0 && "medida (busto) cadastrada pro tamanho",
+          linhasComMedida.length === 0 && "medida cadastrada pro tamanho (ex. busto/cintura/comprimento)",
           !marcaAtributo && "atributo Marca",
           !generoAtributo && "atributo Gênero",
         ]
@@ -314,6 +338,43 @@ export async function POST(req: Request) {
     for (const v of valoresOcasioes) atributosProdutoExtras.push({ id: "OCCASIONS", valueName: v });
   }
 
+  // Estilos — atributo de texto livre no Mercado Livre (confirmado ao vivo: `value_type:
+  // "string"`, mesmo tendo uma lista "sugerida"), não precisa bater exato com nenhuma opção.
+  // Reaproveita o mesmo Caimento que já alimenta WEDGE_SHAPE — achado real conferindo o
+  // anúncio de um fornecedor de verdade: ele manda esse mesmo tipo de valor (ex. "Slim Fit")
+  // nesse campo, não um "estilo" no sentido de Casual/Esportivo.
+  const atributoEstilos = categoriaAtributos.find((a) => a.id === "STYLES");
+  const labelEstiloPorCaimento: Record<string, string> = { slim: "Slim Fit", regular: "Regular", oversized: "Oversized" };
+  if (atributoEstilos && caracteristicas?.caimento && labelEstiloPorCaimento[caracteristicas.caimento]) {
+    atributosProdutoExtras.push({ id: "STYLES", valueName: labelEstiloPorCaimento[caracteristicas.caimento] });
+  }
+
+  // Ano de lançamento — sem campo dedicado no cadastro do fornecedor; ano corrente é seguro
+  // pra qualquer produto publicado agora (não é um dado que muda por produto como medida/cor).
+  if (categoriaAtributos.some((a) => a.id === "RELEASE_YEAR")) {
+    atributosProdutoExtras.push({ id: "RELEASE_YEAR", valueName: String(new Date().getFullYear()) });
+  }
+
+  // Materiais reciclados — sem campo no cadastro; "Não" é o padrão seguro (maioria dos
+  // produtos não é feita de material reciclado) e bate exato com a lista fechada do ML.
+  const atributoReciclado = categoriaAtributos.find((a) => a.id === "WITH_RECYCLED_MATERIALS");
+  const valorReciclado = atributoReciclado?.valoresPermitidos.length
+    ? melhorValorPermitidoMl("Não", atributoReciclado.valoresPermitidos)
+    : null;
+  if (valorReciclado) atributosProdutoExtras.push({ id: "WITH_RECYCLED_MATERIALS", valueName: valorReciclado });
+
+  // Temporada de lançamento — sem campo no cadastro (decisão explícita: não pedir isso ao
+  // fornecedor). Inferida do tipo de manga já resolvido acima: manga longa → Outono/Inverno,
+  // qualquer outra coisa (curta/sem manga/regata) → Primavera/Verão. Só manda quando o nome
+  // do produto deu match confiável de manga — sem isso, não força nenhum dos dois.
+  const atributoEstacao = categoriaAtributos.find((a) => a.id === "RELEASE_SEASON");
+  if (atributoEstacao?.valoresPermitidos.length && valorManga) {
+    const mangaNorm = valorManga.toLowerCase();
+    const estacaoDesejada = mangaNorm.includes("longa") ? "Outono/Inverno" : "Primavera/Verão";
+    const valorEstacao = melhorValorPermitidoMl(estacaoDesejada, atributoEstacao.valoresPermitidos);
+    if (valorEstacao) atributosProdutoExtras.push({ id: "RELEASE_SEASON", valueName: valorEstacao });
+  }
+
   const atributoCorPrincipal = categoriaAtributos.find((a) => a.id === "MAIN_COLOR");
 
   const publicadas: { sku: string; ml_item_id: string; ml_permalink: string }[] = [];
@@ -367,10 +428,21 @@ export async function POST(req: Request) {
 
     const custoTotal = sellerCustoTotalPagoUnitario(r.custo_base, r.custo_dropcore)!;
     const tituloVariante = [titulo, r.cor, r.tamanho].filter((p) => p && p.trim()).join(" ").trim();
-    const descricaoVariante = [r.descricao?.trim() || base.descricao?.trim(), guiado?.diferencial, guiado?.indicacao, qualidade?.observacoes]
-      .map((p) => p?.trim())
-      .filter(Boolean)
-      .join(" — ") || tituloVariante || r.sku;
+    // `descricao` do SKU já vem montada no cadastro do fornecedor como
+    // `diferencial | indicacao | observacoesSeller` (ver handleSubmit de criar-variantes) —
+    // reacrescentar `guiado.diferencial`/`guiado.indicacao` aqui duplicava o mesmo texto 2x no
+    // anúncio publicado (achado ao vivo 2026-11-17, reproduzido num anúncio real). Só
+    // `qualidade.observacoes` é conteúdo genuinamente novo, não incluído em `descricao`.
+    const descricaoBase =
+      [r.descricao?.trim() || base.descricao?.trim(), qualidade?.observacoes]
+        .map((p) => p?.trim())
+        .filter(Boolean)
+        .join(" — ") || tituloVariante || r.sku;
+    // Garantia do vendedor — sempre 7 dias, fixo, sem campo no cadastro (decisão explícita: o
+    // fornecedor não preenche isso). Não existe atributo `WARRANTY` na API do Mercado Livre
+    // pra essa categoria (conferido ao vivo) — é texto solto dentro da própria descrição,
+    // igual o próprio fornecedor de referência faz.
+    const descricaoVariante = `${descricaoBase}\n\nGarantia do vendedor: 7 dias`;
     const fotosVariante = [r.imagem_url!.trim(), ...((r.imagens_extra ?? []).filter((u) => Boolean(u?.trim())))];
 
     const resultado = await mlCriarAnuncio(
@@ -395,10 +467,19 @@ export async function POST(req: Request) {
 
     // `description` inline no POST /items não é confiável pra essa categoria (confirmado ao
     // vivo 2026-11-16: anúncio criado com descrição no corpo, painel do vendedor mostrava
-    // "você ainda não inseriu a descrição") — garante com um PUT explícito depois.
-    const descResultado = await mlAtualizarDescricao(resultado.itemId, descricaoVariante, ctx);
-    if (!descResultado.ok && process.env.NODE_ENV === "development") {
-      console.error("[publicar-anuncio] mlAtualizarDescricao falhou:", r.sku, descResultado.erro);
+    // "você ainda não inseriu a descrição") — garante com um PUT explícito depois. Achado
+    // real 2026-11-17: 100% dos itens publicados (conferido ao vivo via API, Coimbra e
+    // Smooth) estavam SEM descrição nenhuma — o log de falha daqui só rodava com
+    // `NODE_ENV === "development"`, que nunca é verdade no Vercel, então uma falha real
+    // (provável timing: PUT logo após o POST que cria o item) ficava 100% invisível. Agora
+    // sempre loga, e tenta de novo uma vez antes de desistir (cobre o caso de timing).
+    let descResultado = await mlAtualizarDescricao(resultado.itemId, descricaoVariante, ctx);
+    if (!descResultado.ok) {
+      await new Promise((r2) => setTimeout(r2, 1500));
+      descResultado = await mlAtualizarDescricao(resultado.itemId, descricaoVariante, ctx);
+    }
+    if (!descResultado.ok) {
+      console.error("[publicar-anuncio] mlAtualizarDescricao falhou (2 tentativas):", r.sku, descResultado.erro);
     }
 
     const { error: registrarError } = await supabaseAdmin.rpc("fn_seller_produto_ml_publicar_registrar", {
@@ -413,7 +494,7 @@ export async function POST(req: Request) {
       p_ml_chart_id: guiaMedidas?.chartId ?? null,
       p_ml_chart_row_id: rowIdDaVariante ?? null,
     });
-    if (registrarError && process.env.NODE_ENV === "development") {
+    if (registrarError) {
       console.error("[publicar-anuncio] fn_seller_produto_ml_publicar_registrar:", r.sku, registrarError.message);
     }
 

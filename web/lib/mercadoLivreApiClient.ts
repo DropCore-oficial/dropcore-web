@@ -850,7 +850,57 @@ async function mlBuscarAtributosCategoriaComValoresId(
   return json.map((a) => ({ id: a.id, values: a.values ?? [] }));
 }
 
-export type MercadoLivreMedidaLinha = { tamanho: string; bustoCm: number };
+export type MercadoLivreMedidaLinha = {
+  tamanho: string;
+  busto?: number;
+  comprimento?: number;
+  ombro?: number;
+  manga?: number;
+  cintura?: number;
+  quadril?: number;
+};
+
+type CampoMedida = Exclude<keyof MercadoLivreMedidaLinha, "tamanho">;
+
+/** Atributo de atribuição da guia de medidas (`measure_type: CLOTHING_MEASURE`) por
+ * `domain_id`, confirmado ao vivo testando contra a API real (criação + leitura do erro de
+ * validação quando o atributo errado é mandado) — 2026-11-17. Cobre só os domínios que o
+ * catálogo DropCore usa hoje (Camisa/Camisa Mc → SHIRTS, Camiseta → T_SHIRTS, Vestido →
+ * DRESSES, Bermuda → SHORTS, Saia Jeans → SKIRTS, classificada como "calca" mas publicada
+ * em SKIRTS). `comprimento` mapeia pra "Comprimento da roupa" em qualquer domínio — mesmo
+ * atributo ML (`GARMENT_LENGTH_FROM`) seja camisa ou peça de baixo. `DRESSES` exige busto +
+ * cintura + quadril + comprimento todos juntos (testado: faltar quadril sozinho já rejeita
+ * a guia inteira com "Required attribute GARMENT_HIP_WIDTH_FROM was not found"). */
+const ATRIBUTO_MEDIDA_POR_DOMINIO: Record<string, Partial<Record<CampoMedida, string>>> = {
+  SHIRTS: {
+    busto: "GARMENT_CHEST_WIDTH_FROM",
+    comprimento: "GARMENT_LENGTH_FROM",
+    ombro: "GARMENT_SHOULDER_WIDTH_FROM",
+    manga: "GARMENT_SLEEVE_LENGTH_FROM",
+  },
+  T_SHIRTS: {
+    busto: "GARMENT_CHEST_WIDTH_FROM",
+    comprimento: "GARMENT_LENGTH_FROM",
+    ombro: "GARMENT_SHOULDER_WIDTH_FROM",
+    manga: "GARMENT_SLEEVE_LENGTH_FROM",
+  },
+  DRESSES: {
+    busto: "GARMENT_CHEST_WIDTH_FROM",
+    cintura: "GARMENT_WAIST_WIDTH_FROM",
+    quadril: "GARMENT_HIP_WIDTH_FROM",
+    comprimento: "GARMENT_LENGTH_FROM",
+  },
+  SHORTS: {
+    cintura: "GARMENT_WAIST_WIDTH_FROM",
+    quadril: "GARMENT_HIP_WIDTH_FROM",
+    comprimento: "GARMENT_LENGTH_FROM",
+  },
+  SKIRTS: {
+    cintura: "GARMENT_WAIST_WIDTH_FROM",
+    quadril: "GARMENT_HIP_WIDTH_FROM",
+    comprimento: "GARMENT_LENGTH_FROM",
+  },
+};
 
 export type MercadoLivreCriarGuiaMedidasInput = {
   /** Máximo 60 caracteres — truncado aqui se vier maior (confirmado ao vivo: ML recusa nome maior). */
@@ -865,16 +915,16 @@ export type MercadoLivreCriarGuiaMedidasInput = {
 
 /** Cria uma guia de medidas customizada (`measure_type: CLOTHING_MEASURE`) a partir da
  * tabela de medidas que o fornecedor já preenche no cadastro (`skus.detalhes_produto_json.
- * medidas`) — é isso que categorias de roupa (confirmado: "Camisas") exigem como
- * `SIZE_GRID_ID`/`SIZE_GRID_ROW_ID` pra aceitar o anúncio, não dá pra criar o anúncio sem
- * isso quando a categoria pede. Testado ao vivo 2026-11-16: só `GARMENT_CHEST_WIDTH_FROM`
- * (busto) é exigido como medida da linha pra essa categoria — outras medidas da tabela
- * (manga/ombro/cintura/comprimento) não foram testadas ainda, deixadas de fora por
- * segurança até confirmar os IDs certos de atributo pra cada uma. */
+ * medidas`) — é isso que categorias de roupa exigem como `SIZE_GRID_ID`/
+ * `SIZE_GRID_ROW_ID` pra aceitar o anúncio, não dá pra criar o anúncio sem isso quando a
+ * categoria pede. Manda só os campos de `ATRIBUTO_MEDIDA_POR_DOMINIO[domainId]` que a linha
+ * realmente tem preenchido — um domínio sem mapeamento (categoria fora do que já testamos)
+ * não manda nenhuma medida além de tamanho, mesmo comportamento de antes. */
 export async function mlCriarGuiaMedidas(
   input: MercadoLivreCriarGuiaMedidasInput,
   ctx: MercadoLivreAuthContext
 ): Promise<{ ok: true; chartId: string; rowIdPorTamanho: Record<string, string> } | { ok: false; erro: string }> {
+  const mapaAtributos = ATRIBUTO_MEDIDA_POR_DOMINIO[input.domainId] ?? {};
   const res = await fetch(`${ML_API_BASE}/catalog/charts`, {
     method: "POST",
     headers: { Authorization: `Bearer ${ctx.accessToken}`, "Content-Type": "application/json" },
@@ -888,13 +938,22 @@ export async function mlCriarGuiaMedidas(
         { id: "GENDER", values: [{ id: input.generoId, name: input.generoNome }] },
       ],
       main_attribute: { attributes: [{ site_id: "MLB", id: "SIZE" }] },
-      rows: input.linhas.map((l) => ({
-        attributes: [
-          { id: "SIZE", values: [{ name: l.tamanho }] },
-          { id: "FILTRABLE_SIZE", values: [{ name: l.tamanho }] },
-          { id: "GARMENT_CHEST_WIDTH_FROM", values: [{ name: `${l.bustoCm} cm` }] },
-        ],
-      })),
+      rows: input.linhas.map((l) => {
+        const atributosMedida = (Object.keys(mapaAtributos) as CampoMedida[])
+          .map((campo) => {
+            const valor = l[campo];
+            const attrId = mapaAtributos[campo];
+            return typeof valor === "number" && attrId ? { id: attrId, values: [{ name: `${valor} cm` }] } : null;
+          })
+          .filter((a): a is { id: string; values: { name: string }[] } => a !== null);
+        return {
+          attributes: [
+            { id: "SIZE", values: [{ name: l.tamanho }] },
+            { id: "FILTRABLE_SIZE", values: [{ name: l.tamanho }] },
+            ...atributosMedida,
+          ],
+        };
+      }),
     }),
   });
   const json = (await res.json().catch(() => ({}))) as {

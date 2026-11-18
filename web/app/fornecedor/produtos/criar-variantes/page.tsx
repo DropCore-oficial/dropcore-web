@@ -10,11 +10,7 @@ import {
   CORES_PREDEFINIDAS,
   TAMANHOS_PREDEFINIDOS,
   caimentoOptions,
-  climaOptions,
-  elasticidadeOptions,
   ordenarTamanhosLista,
-  posicionamentoOptions,
-  transparenciaOptions,
 } from "@/lib/fornecedorVariantesUi";
 import { chaveEstoqueVariante } from "@/lib/estoqueVarianteKeys";
 import { capaImagemUrlProduto } from "@/lib/fornecedorCapaProduto";
@@ -301,12 +297,8 @@ function montarRascunhoEdicao(
     tecido: typeof caracteristicas?.tecido === "string" ? caracteristicas.tecido : "",
     composicao: typeof caracteristicas?.composicao === "string" ? caracteristicas.composicao : "",
     caimento: typeof caracteristicas?.caimento === "string" ? (caracteristicas.caimento as "" | "slim" | "regular" | "oversized") : "",
-    elasticidade: typeof caracteristicas?.elasticidade === "string" ? (caracteristicas.elasticidade as "" | "baixa" | "media" | "alta") : "",
-    transparencia: typeof caracteristicas?.transparencia === "string" ? (caracteristicas.transparencia as "" | "nao" | "leve" | "alta") : "",
     amassa: typeof caracteristicas?.amassa === "boolean" ? caracteristicas.amassa : null,
-    clima: typeof caracteristicas?.clima === "string" ? (caracteristicas.clima as "" | "calor" | "frio" | "ambos") : "",
     ocasioesUso: Array.isArray(caracteristicas?.ocasioes) ? caracteristicas.ocasioes.filter((x): x is string => typeof x === "string") : [],
-    posicionamento: typeof caracteristicas?.posicionamento === "string" ? (caracteristicas.posicionamento as "" | "basico" | "intermediario" | "premium") : "",
     coresSelecionadas: Array.from(coresSelecionadas),
     corCustom: "",
     tamanhosSelecionados: Array.from(tamanhosSelecionados),
@@ -560,7 +552,7 @@ const MEDIDAS_PREDEFINIDAS = [
 function detectarTipoMedida(categoria: string): "camisa" | "calca" | "vestido" | "geral" {
   const s = categoria.toLowerCase();
   if (/camisa|camiseta|blusa|jaqueta|moletom/.test(s)) return "camisa";
-  if (/calca|calça|bermuda|short/.test(s)) return "calca";
+  if (/calca|calça|bermuda|short|saia/.test(s)) return "calca";
   if (/vestido/.test(s)) return "vestido";
   return "geral";
 }
@@ -599,12 +591,8 @@ function estadoInicialRascunhoVazio(): RascunhoCriarVariantesV1 {
     tecido: "",
     composicao: "",
     caimento: "",
-    elasticidade: "",
-    transparencia: "",
     amassa: null,
-    clima: "",
     ocasioesUso: [],
-    posicionamento: "",
     coresSelecionadas: [],
     corCustom: "",
     tamanhosSelecionados: [],
@@ -685,12 +673,8 @@ export default function CriarVariantesPage() {
   const [tecido, setTecido] = useState("");
   const [composicao, setComposicao] = useState("");
   const [caimento, setCaimento] = useState<"slim" | "regular" | "oversized" | "">("");
-  const [elasticidade, setElasticidade] = useState<"baixa" | "media" | "alta" | "">("");
-  const [transparencia, setTransparencia] = useState<"nao" | "leve" | "alta" | "">("");
   const [amassa, setAmassa] = useState<boolean | null>(null);
-  const [clima, setClima] = useState<"calor" | "frio" | "ambos" | "">("");
   const [ocasioesUsoTexto, setOcasioesUsoTexto] = useState("");
-  const [posicionamento, setPosicionamento] = useState<"basico" | "intermediario" | "premium" | "">("");
 
   // Informações de Variantes
   const [descricao, setDescricao] = useState("");
@@ -775,7 +759,7 @@ export default function CriarVariantesPage() {
   const [cdUsarDespachoCadastro, setCdUsarDespachoCadastro] = useState(false);
   const [perfilExpedicao, setPerfilExpedicao] = useState<PartesEnderecoCd | null>(null);
   const [buscandoCepCd, setBuscandoCepCd] = useState(false);
-  const [pickerCampo, setPickerCampo] = useState<null | "caimento" | "elasticidade" | "transparencia" | "clima" | "posicionamento">(null);
+  const [pickerCampo, setPickerCampo] = useState<null | "caimento">(null);
   const cdCepRef = useRef("");
   cdCepRef.current = cdCep;
 
@@ -900,9 +884,9 @@ export default function CriarVariantesPage() {
       set.add(toTitleCase(part));
     }
     if (set.size === 0) {
-      if (tipoMedida === "camisa") return ["Ombros", "Comprimento da manga", "Comprimento", "Bíceps"];
+      if (tipoMedida === "camisa") return ["Busto", "Ombros", "Comprimento da manga", "Comprimento"];
       if (tipoMedida === "calca") return ["Cintura", "Quadril", "Comprimento", "Entrepernas", "Gancho (altura · calça)"];
-      if (tipoMedida === "vestido") return ["Busto", "Cintura", "Comprimento"];
+      if (tipoMedida === "vestido") return ["Busto", "Cintura", "Quadril", "Comprimento"];
       return ["Largura", "Comprimento"];
     }
     return Array.from(set);
@@ -1380,12 +1364,8 @@ export default function CriarVariantesPage() {
       tecido,
       composicao,
       caimento: caimento || undefined,
-      elasticidade: elasticidade || undefined,
-      transparencia: transparencia || undefined,
       amassa: amassa ?? undefined,
-      clima: clima || undefined,
       ocasioes: ocasioesUsoLista,
-      posicionamento: posicionamento || undefined,
     };
     const qualidade = {
       naoDesbota: naoDesbota ?? undefined,
@@ -1425,12 +1405,8 @@ export default function CriarVariantesPage() {
       tecido,
       composicao,
       caimento,
-      elasticidade,
-      transparencia,
       amassa,
-      clima,
       ocasioesUso: ocasioesUsoLista,
-      posicionamento,
       coresSelecionadas: [...coresSelecionadas],
       corCustom,
       tamanhosSelecionados: [...tamanhosSelecionados],
@@ -1507,12 +1483,8 @@ export default function CriarVariantesPage() {
     setTecido(p.tecido ?? p.produto?.caracteristicas?.tecido ?? "");
     setComposicao(p.composicao ?? p.produto?.caracteristicas?.composicao ?? "");
     setCaimento((p.caimento ?? p.produto?.caracteristicas?.caimento ?? "") as "slim" | "regular" | "oversized" | "");
-    setElasticidade((p.elasticidade ?? p.produto?.caracteristicas?.elasticidade ?? "") as "baixa" | "media" | "alta" | "");
-    setTransparencia((p.transparencia ?? p.produto?.caracteristicas?.transparencia ?? "") as "nao" | "leve" | "alta" | "");
     setAmassa(p.amassa ?? p.produto?.caracteristicas?.amassa ?? null);
-    setClima((p.clima ?? p.produto?.caracteristicas?.clima ?? "") as "calor" | "frio" | "ambos" | "");
     setOcasioesUsoTexto((p.ocasioesUso ?? p.produto?.caracteristicas?.ocasioes ?? []).join(", "));
-    setPosicionamento((p.posicionamento ?? p.produto?.caracteristicas?.posicionamento ?? "") as "basico" | "intermediario" | "premium" | "");
     setCoresSelecionadas(new Set(p.coresSelecionadas ?? []));
     setCorCustom(p.corCustom ?? "");
     setTamanhosSelecionados(new Set(p.tamanhosSelecionados ?? []));
@@ -2053,12 +2025,8 @@ export default function CriarVariantesPage() {
           tecido: tecido.trim() || null,
           composicao: composicao.trim() || null,
           caimento: caimento || null,
-          elasticidade: elasticidade || null,
-          transparencia: transparencia || null,
           amassa,
-          clima: clima || null,
           ocasioes: ocasioesUsoLista,
-          posicionamento: posicionamento || null,
         },
         qualidade: {
           naoDesbota,
@@ -2484,50 +2452,6 @@ export default function CriarVariantesPage() {
                       </button>
                     </div>
                     <div>
-                      <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">Elasticidade</label>
-                      <select value={elasticidade} onChange={(e) => setElasticidade(e.target.value as "baixa" | "media" | "alta" | "")} className={`${inputDelicado} hidden md:block`}>
-                        <option value="">Selecione</option>
-                        {elasticidadeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </select>
-                      <button type="button" onClick={() => setPickerCampo("elasticidade")} className={`${inputDelicado} flex w-full items-center justify-between md:hidden`}>
-                        <span>{labelSelecionado(elasticidadeOptions, elasticidade)}</span>
-                        <span className="text-neutral-400">▾</span>
-                      </button>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">Transparência</label>
-                      <select value={transparencia} onChange={(e) => setTransparencia(e.target.value as "nao" | "leve" | "alta" | "")} className={`${inputDelicado} hidden md:block`}>
-                        <option value="">Selecione</option>
-                        {transparenciaOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </select>
-                      <button type="button" onClick={() => setPickerCampo("transparencia")} className={`${inputDelicado} flex w-full items-center justify-between md:hidden`}>
-                        <span>{labelSelecionado(transparenciaOptions, transparencia)}</span>
-                        <span className="text-neutral-400">▾</span>
-                      </button>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">Clima ideal</label>
-                      <select value={clima} onChange={(e) => setClima(e.target.value as "calor" | "frio" | "ambos" | "")} className={`${inputDelicado} hidden md:block`}>
-                        <option value="">Selecione</option>
-                        {climaOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </select>
-                      <button type="button" onClick={() => setPickerCampo("clima")} className={`${inputDelicado} flex w-full items-center justify-between md:hidden`}>
-                        <span>{labelSelecionado(climaOptions, clima)}</span>
-                        <span className="text-neutral-400">▾</span>
-                      </button>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">Posicionamento</label>
-                      <select value={posicionamento} onChange={(e) => setPosicionamento(e.target.value as "basico" | "intermediario" | "premium" | "")} className={`${inputDelicado} hidden md:block`}>
-                        <option value="">Selecione</option>
-                        {posicionamentoOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </select>
-                      <button type="button" onClick={() => setPickerCampo("posicionamento")} className={`${inputDelicado} flex w-full items-center justify-between md:hidden`}>
-                        <span>{labelSelecionado(posicionamentoOptions, posicionamento)}</span>
-                        <span className="text-neutral-400">▾</span>
-                      </button>
-                    </div>
-                    <div>
                       <label className="mb-1 block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">Amassa fácil?</label>
                       <div className="flex h-[34px] items-center gap-1.5 rounded-lg border border-[#e5e9ef] bg-white px-1.5 dark:border-[#394353] dark:bg-[#161c25]">
                       <button type="button" onClick={() => setAmassa(true)} className={`rounded-md border px-2 py-0.5 text-[11px] font-medium transition ${amassa === true ? "border-neutral-300 bg-neutral-100 text-neutral-700 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200" : "border-transparent text-neutral-600 dark:text-neutral-300"}`}>Sim</button>
@@ -2590,7 +2514,7 @@ export default function CriarVariantesPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          setTopicosMedidaSelecionados(new Set(["Ombros", "Comprimento da manga", "Comprimento", "Bíceps"]));
+                          setTopicosMedidaSelecionados(new Set(["Busto", "Ombros", "Comprimento da manga", "Comprimento"]));
                           setTopicosMedidaCustom("");
                         }}
                         className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
@@ -2612,7 +2536,7 @@ export default function CriarVariantesPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          setTopicosMedidaSelecionados(new Set(["Busto", "Cintura", "Comprimento"]));
+                          setTopicosMedidaSelecionados(new Set(["Busto", "Cintura", "Quadril", "Comprimento"]));
                           setTopicosMedidaCustom("");
                         }}
                         className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
@@ -3903,22 +3827,14 @@ export default function CriarVariantesPage() {
             <div className="mb-2 h-1 w-12 rounded-full bg-neutral-300 dark:bg-neutral-700 mx-auto" />
             <p className="mb-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
               {pickerCampo === "caimento" && "Caimento"}
-              {pickerCampo === "elasticidade" && "Elasticidade"}
-              {pickerCampo === "transparencia" && "Transparência"}
-              {pickerCampo === "clima" && "Clima ideal"}
-              {pickerCampo === "posicionamento" && "Posicionamento"}
             </p>
             <div className="space-y-1.5">
-              {(pickerCampo === "caimento" ? caimentoOptions : pickerCampo === "elasticidade" ? elasticidadeOptions : pickerCampo === "transparencia" ? transparenciaOptions : pickerCampo === "clima" ? climaOptions : posicionamentoOptions).map((o) => (
+              {caimentoOptions.map((o) => (
                 <button
                   key={o.value}
                   type="button"
                   onClick={() => {
                     if (pickerCampo === "caimento") setCaimento(o.value as "slim" | "regular" | "oversized");
-                    if (pickerCampo === "elasticidade") setElasticidade(o.value as "baixa" | "media" | "alta");
-                    if (pickerCampo === "transparencia") setTransparencia(o.value as "nao" | "leve" | "alta");
-                    if (pickerCampo === "clima") setClima(o.value as "calor" | "frio" | "ambos");
-                    if (pickerCampo === "posicionamento") setPosicionamento(o.value as "basico" | "intermediario" | "premium");
                     setPickerCampo(null);
                   }}
                   className="flex w-full items-center justify-between rounded-lg border border-neutral-200 px-3 py-2.5 text-left text-sm text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
