@@ -217,19 +217,28 @@ export async function POST(req: Request) {
     });
     const linhasGuiaExistente = Array.isArray(guiaExistenteRows) ? guiaExistenteRows : [];
     if (linhasGuiaExistente.length > 0) {
-      const rowIdPorTamanho: Record<string, string> = {};
-      let chartIdExistente: string | null = null;
+      // Agrupa por chart_id ANTES de montar o mapa de tamanho — o grupo pode ter registros de
+      // guias diferentes misturados (achado real 2026-11-17: 2 SKUs ainda apontavam pra uma
+      // guia de teste antiga enquanto as outras 22 já tinham migrado pra guia nova; juntar os
+      // row_ids de charts diferentes num mapa só manda SIZE_GRID_ID de uma guia com
+      // SIZE_GRID_ROW_ID de outra, e o ML recusa com "Attribute [SIZE_GRID_ROW_ID] is not
+      // valid"). Só reaproveita um chart específico se ELE SOZINHO cobrir todos os tamanhos.
+      const porChart = new Map<string, Record<string, string>>();
       for (const row of linhasGuiaExistente as { sku: string; ml_chart_id: string | null; ml_chart_row_id: string | null }[]) {
+        if (!row.ml_chart_id || !row.ml_chart_row_id) continue;
         const skuRow = linhasGrupo.find((s) => s.sku === row.sku);
         const tam = skuRow?.tamanho?.trim().toUpperCase();
-        if (tam && row.ml_chart_row_id) rowIdPorTamanho[tam] = row.ml_chart_row_id;
-        if (row.ml_chart_id) chartIdExistente = row.ml_chart_id;
+        if (!tam) continue;
+        const mapa = porChart.get(row.ml_chart_id) ?? {};
+        mapa[tam] = row.ml_chart_row_id;
+        porChart.set(row.ml_chart_id, mapa);
       }
-      // Só reaproveita se a guia encontrada cobrir TODOS os tamanhos que esse lote precisa —
-      // uma guia parcial não serve, mesmo que já exista (ver comentário acima).
-      const cobreTudo = [...tamanhosNecessariosAgora].every((t) => Boolean(rowIdPorTamanho[t]));
-      if (chartIdExistente && cobreTudo) {
-        guiaMedidas = { chartId: chartIdExistente, rowIdPorTamanho };
+      for (const [chartId, rowIdPorTamanho] of porChart) {
+        const cobreTudo = [...tamanhosNecessariosAgora].every((t) => Boolean(rowIdPorTamanho[t]));
+        if (cobreTudo) {
+          guiaMedidas = { chartId, rowIdPorTamanho };
+          break;
+        }
       }
     }
 
