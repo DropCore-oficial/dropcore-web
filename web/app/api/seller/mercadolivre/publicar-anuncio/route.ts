@@ -449,12 +449,15 @@ export async function POST(req: Request) {
 
     const custoTotal = sellerCustoTotalPagoUnitario(r.custo_base, r.custo_dropcore)!;
     const tituloVariante = [titulo, r.cor, r.tamanho].filter((p) => p && p.trim()).join(" ").trim();
-    // `descricao` do SKU já vem montada no cadastro do fornecedor como
     // Descrição é texto livre do fornecedor, direto — decisão explícita 2026-11-18: antes o
     // sistema colava fragmentos (diferencial/indicação/observações), o fornecedor não tinha
-    // como escrever uma descrição coesa. Agora `r.descricao` é exatamente o que ele escreveu,
-    // sem concatenar nada além da garantia fixa abaixo.
-    const descricaoBase = (r.descricao?.trim() || base.descricao?.trim() || tituloVariante || r.sku).trim();
+    // como escrever uma descrição coesa. É um campo ÚNICO por produto (preenchido uma vez,
+    // salvo no pai) — a edição do cadastro só atualiza `base.descricao` (pai), nunca
+    // `r.descricao` (cópia por SKU filho, só gravada na criação). Priorizar `r.descricao`
+    // aqui fazia a publicação sempre usar a cópia velha e esquecida do filho em vez da
+    // descrição nova editada (achado real 2026-11-18, reproduzido ao vivo na Smooth: pai com
+    // 2653 caracteres novos, filhos ainda com os 91 caracteres concatenados de antes do fix).
+    const descricaoBase = (base.descricao?.trim() || r.descricao?.trim() || tituloVariante || r.sku).trim();
     // Garantia do vendedor — sempre 7 dias, fixo, sem campo no cadastro (decisão explícita: o
     // fornecedor não preenche isso). Não existe atributo `WARRANTY` na API do Mercado Livre
     // pra essa categoria (conferido ao vivo) — é texto solto dentro da própria descrição,

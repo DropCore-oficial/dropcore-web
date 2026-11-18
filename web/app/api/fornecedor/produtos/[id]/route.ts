@@ -30,7 +30,7 @@ function valorNormalizadoComparacao(k: string, v: unknown): unknown {
   if (typeof v === "string") {
     const s = v.trim();
     if (!s) return null;
-    if (["nome_produto", "categoria", "cor", "tamanho", "dimensoes_pacote", "descricao"].includes(k)) {
+    if (["nome_produto", "categoria", "cor", "tamanho", "dimensoes_pacote"].includes(k)) {
       return toTitleCase(s);
     }
     return s;
@@ -146,7 +146,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (!(k in body)) continue;
       const v = body[k];
       if (textFields.includes(k as typeof textFields[number]) && (typeof v === "string" || v == null)) {
-        const trimOnly = ["link_fotos", "imagem_url", "ncm", "origem", "cest", "expedicao_override_linha"];
+        // `descricao` é texto livre do fornecedor (tópicos, quebra de linha) — `toTitleCase`
+        // faz `split(/\s+/)` e junta com 1 espaço só, destruindo quebra de linha e forçando
+        // Maiúscula Em Cada Palavra até no meio da frase (achado real 2026-11-18: descrição
+        // em tópicos da Smooth virou um parágrafo só, "misturada", depois de salvar).
+        const trimOnly = ["link_fotos", "imagem_url", "descricao", "ncm", "origem", "cest", "expedicao_override_linha"];
         clean[k] = v == null || v === "" ? null : (trimOnly.includes(k as typeof trimOnly[number]) ? v.trim() || null : toTitleCase(v));
       } else if (numFields.includes(k as typeof numFields[number])) {
         if (v == null || v === "") clean[k] = null;

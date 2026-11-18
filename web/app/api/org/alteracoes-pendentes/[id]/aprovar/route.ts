@@ -171,6 +171,21 @@ export async function POST(
         clean.detalhes_produto_json = v ?? null;
       }
     }
+    // `imagens_extra` não é texto nem número — ficava fora de TEXT_FIELDS/NUM_FIELDS e por
+    // isso NUNCA era aplicado no SKU mesmo com a pendência marcada "aprovado" (achado real
+    // 2026-11-18: 39/39 variantes da Smooth tinham pendência de imagens_extra aprovada, mas a
+    // coluna continuava null — a publicação no ML só pegava a foto de capa).
+    if ("imagens_extra" in dados) {
+      const v = dados.imagens_extra;
+      if (v == null) {
+        clean.imagens_extra = null;
+      } else if (Array.isArray(v)) {
+        const urls = v
+          .filter((u): u is string => typeof u === "string" && (u.startsWith("http://") || u.startsWith("https://")))
+          .slice(0, 7);
+        clean.imagens_extra = urls.length > 0 ? urls : null;
+      }
+    }
 
     if (Object.keys(clean).length > 0) {
       const { data: skuAtual, error: updErr } = await supabaseAdmin

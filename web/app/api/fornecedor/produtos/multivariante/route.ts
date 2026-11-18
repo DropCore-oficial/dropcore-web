@@ -105,7 +105,10 @@ export async function POST(req: Request) {
     const cores = parseList(body?.cores ?? []);
     const tamanhos = parseList(body?.tamanhos ?? []);
     const link_fotos = typeof body?.link_fotos === "string" ? body.link_fotos.trim() || null : null;
-    const descricao = typeof body?.descricao === "string" ? (body.descricao.trim() ? toTitleCase(body.descricao.trim()) : null) : null;
+    // Texto livre do fornecedor (tópicos, quebra de linha) — `toTitleCase` juntaria tudo com
+    // 1 espaço só e forçaria Maiúscula Em Cada Palavra, destruindo a formatação (mesmo achado
+    // de `[id]/route.ts`, 2026-11-18). Só trim, nunca title-case.
+    const descricao = typeof body?.descricao === "string" ? body.descricao.trim() || null : null;
     const marca = typeof body?.marca === "string" ? (body.marca.trim() ? toTitleCase(body.marca.trim()) : null) : null;
     const detalhes_produto_json = jsonObjectOrNull(body?.detalhes_produto_json ?? body?.detalhes_produto);
     const comprimento_cm = body?.comprimento_cm != null ? parseFloat(String(body.comprimento_cm).replace(",", ".")) : null;
