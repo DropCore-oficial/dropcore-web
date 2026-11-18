@@ -976,6 +976,34 @@ export async function mlCriarGuiaMedidas(
   return { ok: true, chartId: String(json.id), rowIdPorTamanho };
 }
 
+/** Confere se um chart já existente (candidato a reaproveitar) realmente tem TODOS os
+ * atributos de medida que `ATRIBUTO_MEDIDA_POR_DOMINIO[domainId]` espera pra essa
+ * categoria — não só se cobre os tamanhos. Achado real 2026-11-17: a checagem antiga só
+ * conferia tamanho, então uma guia criada ANTES do suporte a comprimento/ombro/manga
+ * (só com busto) continuava sendo reaproveitada pra sempre depois do fix, porque "cobre
+ * todos os tamanhos" continuava verdadeiro — só faltava o CAMPO, não a linha. `false`
+ * em qualquer falha de leitura (chart apagado, API fora) — chamador trata como "não
+ * reaproveita, cria nova" nesse caso. */
+export async function mlGuiaMedidasCompleta(
+  chartId: string,
+  domainId: string,
+  ctx: MercadoLivreAuthContext
+): Promise<boolean> {
+  const mapa = ATRIBUTO_MEDIDA_POR_DOMINIO[domainId];
+  if (!mapa) return true; // domínio sem mapeamento: não tem campo esperado, nada a conferir
+  const esperados = Object.values(mapa);
+  if (esperados.length === 0) return true;
+  const json = await mlGet<{ rows?: { attributes?: { id: string }[] }[] }>(`/catalog/charts/${chartId}`, ctx.accessToken);
+  if (!json?.rows?.length) return false;
+  // Basta UMA linha ter todos os campos esperados — o chart usa o mesmo schema de
+  // atributos em todas as linhas (confirmado ao vivo: todas as linhas de um chart têm o
+  // mesmo conjunto de atributos de medida, só o valor numérico muda por tamanho).
+  return json.rows.some((row) => {
+    const idsNaLinha = new Set((row.attributes ?? []).map((a) => a.id));
+    return esperados.every((id) => idsNaLinha.has(id));
+  });
+}
+
 /** Menor lado (largura ou altura) da maior resolução disponível da foto (`max_size`,
  * formato "WxH") — usado pra sinalizar foto de baixa qualidade, não só contagem. Retorna
  * null quando o dado não vem (não bloqueia nada, só deixa de sinalizar). */

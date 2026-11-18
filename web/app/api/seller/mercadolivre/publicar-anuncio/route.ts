@@ -21,6 +21,7 @@ import {
   mlCriarGuiaMedidas,
   mlBuscarIdValorAtributo,
   mlBuscarStatusItem,
+  mlGuiaMedidasCompleta,
 } from "@/lib/mercadoLivreApiClient";
 import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
 import { calcularPrecoAncora } from "@/lib/margemCalculo";
@@ -115,8 +116,7 @@ export async function POST(req: Request) {
         }[];
       }
     | undefined;
-  const caracteristicas = detalhes?.caracteristicas as { caimento?: string; ocasioes?: string[] } | undefined;
-  const qualidade = detalhes?.qualidade as { observacoes?: string } | undefined;
+  const caracteristicas = detalhes?.caracteristicas as { caimento?: string; ocasioes?: string[]; estilos?: string[] } | undefined;
   // Mapa tamanho → linha de medida completa (não só busto) — cada domínio de categoria usa um
   // subconjunto diferente desses campos pra montar a guia de medidas (ver
   // `ATRIBUTO_MEDIDA_POR_DOMINIO` em `mercadoLivreApiClient.ts`).
@@ -235,7 +235,14 @@ export async function POST(req: Request) {
       }
       for (const [chartId, rowIdPorTamanho] of porChart) {
         const cobreTudo = [...tamanhosNecessariosAgora].every((t) => Boolean(rowIdPorTamanho[t]));
-        if (cobreTudo) {
+        // Cobrir tamanho não basta — achado real 2026-11-17: uma guia criada ANTES do
+        // suporte a comprimento/ombro/manga (só com busto) continuava "cobrindo todos os
+        // tamanhos" pra sempre depois do fix, porque faltava CAMPO, não linha. Confere ao
+        // vivo se o chart realmente tem os atributos que a categoria espera hoje.
+        const temCampos = cobreTudo && mercadoLivre.domainId
+          ? await mlGuiaMedidasCompleta(chartId, mercadoLivre.domainId, ctx)
+          : cobreTudo;
+        if (temCampos) {
           guiaMedidas = { chartId, rowIdPorTamanho };
           break;
         }
@@ -342,27 +349,25 @@ export async function POST(req: Request) {
       : null;
   if (valorCaimento) atributosProdutoExtras.push({ id: "WEDGE_SHAPE", valueName: valorCaimento });
 
+  // Ocasiões — atributo de texto livre no ML (confirmado ao vivo: `value_type: "string"`,
+  // mesmo tendo lista "sugerida"). Achado real 2026-11-17: o fornecedor preenchia até 8
+  // ocasiões no cadastro e só 1 chegava a ir pro anúncio, porque antes exigia bater exato
+  // com a lista sugerida — manda TODAS que o fornecedor preencheu, direto, sem filtrar.
   const atributoOcasioes = categoriaAtributos.find((a) => a.id === "OCCASIONS");
-  if (atributoOcasioes?.valoresPermitidos.length && caracteristicas?.ocasioes?.length) {
-    const valoresOcasioes = Array.from(
-      new Set(
-        caracteristicas.ocasioes
-          .map((o) => melhorValorPermitidoMl(o, atributoOcasioes.valoresPermitidos))
-          .filter((v): v is string => Boolean(v))
-      )
-    );
+  if (atributoOcasioes && caracteristicas?.ocasioes?.length) {
+    const valoresOcasioes = Array.from(new Set(caracteristicas.ocasioes.map((o) => o.trim()).filter(Boolean)));
     for (const v of valoresOcasioes) atributosProdutoExtras.push({ id: "OCCASIONS", valueName: v });
   }
 
   // Estilos — atributo de texto livre no Mercado Livre (confirmado ao vivo: `value_type:
   // "string"`, mesmo tendo uma lista "sugerida"), não precisa bater exato com nenhuma opção.
-  // Reaproveita o mesmo Caimento que já alimenta WEDGE_SHAPE — achado real conferindo o
-  // anúncio de um fornecedor de verdade: ele manda esse mesmo tipo de valor (ex. "Slim Fit")
-  // nesse campo, não um "estilo" no sentido de Casual/Esportivo.
+  // Campo próprio no cadastro (`caracteristicas.estilos`, múltiplo) — achado real
+  // 2026-11-18: o fornecedor preenche vários estilos, mandar só 1 (derivado do Caimento)
+  // perdia o resto; manda todos os que o fornecedor preencheu, direto, sem filtrar.
   const atributoEstilos = categoriaAtributos.find((a) => a.id === "STYLES");
-  const labelEstiloPorCaimento: Record<string, string> = { slim: "Slim Fit", regular: "Regular", oversized: "Oversized" };
-  if (atributoEstilos && caracteristicas?.caimento && labelEstiloPorCaimento[caracteristicas.caimento]) {
-    atributosProdutoExtras.push({ id: "STYLES", valueName: labelEstiloPorCaimento[caracteristicas.caimento] });
+  if (atributoEstilos && caracteristicas?.estilos?.length) {
+    const valoresEstilos = Array.from(new Set(caracteristicas.estilos.map((e) => e.trim()).filter(Boolean)));
+    for (const v of valoresEstilos) atributosProdutoExtras.push({ id: "STYLES", valueName: v });
   }
 
   // Ano de lançamento — sem campo dedicado no cadastro do fornecedor; ano corrente é seguro
@@ -445,15 +450,11 @@ export async function POST(req: Request) {
     const custoTotal = sellerCustoTotalPagoUnitario(r.custo_base, r.custo_dropcore)!;
     const tituloVariante = [titulo, r.cor, r.tamanho].filter((p) => p && p.trim()).join(" ").trim();
     // `descricao` do SKU já vem montada no cadastro do fornecedor como
-    // `diferencial | indicacao | observacoesSeller` (ver handleSubmit de criar-variantes) —
-    // reacrescentar `guiado.diferencial`/`guiado.indicacao` aqui duplicava o mesmo texto 2x no
-    // anúncio publicado (achado ao vivo 2026-11-17, reproduzido num anúncio real). Só
-    // `qualidade.observacoes` é conteúdo genuinamente novo, não incluído em `descricao`.
-    const descricaoBase =
-      [r.descricao?.trim() || base.descricao?.trim(), qualidade?.observacoes]
-        .map((p) => p?.trim())
-        .filter(Boolean)
-        .join(" — ") || tituloVariante || r.sku;
+    // Descrição é texto livre do fornecedor, direto — decisão explícita 2026-11-18: antes o
+    // sistema colava fragmentos (diferencial/indicação/observações), o fornecedor não tinha
+    // como escrever uma descrição coesa. Agora `r.descricao` é exatamente o que ele escreveu,
+    // sem concatenar nada além da garantia fixa abaixo.
+    const descricaoBase = (r.descricao?.trim() || base.descricao?.trim() || tituloVariante || r.sku).trim();
     // Garantia do vendedor — sempre 7 dias, fixo, sem campo no cadastro (decisão explícita: o
     // fornecedor não preenche isso). Não existe atributo `WARRANTY` na API do Mercado Livre
     // pra essa categoria (conferido ao vivo) — é texto solto dentro da própria descrição,

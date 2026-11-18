@@ -30,6 +30,7 @@ export type ProdutoCaracteristicas = {
   clima?: "calor" | "frio" | "ambos";
   ocasioes?: string[];
   posicionamento?: "basico" | "intermediario" | "premium";
+  estilos?: string[];
 };
 
 export type ProdutoQualidade = {
@@ -95,6 +96,7 @@ export type RascunhoCriarVariantesV1 = {
   clima?: "" | "calor" | "frio" | "ambos";
   ocasioesUso?: string[];
   posicionamento?: "" | "basico" | "intermediario" | "premium";
+  estilos?: string[];
   coresSelecionadas: string[];
   corCustom: string;
   tamanhosSelecionados: string[];

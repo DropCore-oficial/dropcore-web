@@ -299,6 +299,7 @@ function montarRascunhoEdicao(
     caimento: typeof caracteristicas?.caimento === "string" ? (caracteristicas.caimento as "" | "slim" | "regular" | "oversized") : "",
     amassa: typeof caracteristicas?.amassa === "boolean" ? caracteristicas.amassa : null,
     ocasioesUso: Array.isArray(caracteristicas?.ocasioes) ? caracteristicas.ocasioes.filter((x): x is string => typeof x === "string") : [],
+    estilos: Array.isArray(caracteristicas?.estilos) ? caracteristicas.estilos.filter((x): x is string => typeof x === "string") : [],
     coresSelecionadas: Array.from(coresSelecionadas),
     corCustom: "",
     tamanhosSelecionados: Array.from(tamanhosSelecionados),
@@ -593,6 +594,7 @@ function estadoInicialRascunhoVazio(): RascunhoCriarVariantesV1 {
     caimento: "",
     amassa: null,
     ocasioesUso: [],
+    estilos: [],
     coresSelecionadas: [],
     corCustom: "",
     tamanhosSelecionados: [],
@@ -621,9 +623,6 @@ function estadoInicialRascunhoVazio(): RascunhoCriarVariantesV1 {
     encolhe: null,
     costuraReforcada: null,
     obsQualidade: "",
-    diferencial: "",
-    indicacao: "",
-    observacoesSeller: "",
     slaEnvio: "",
     ncm: "",
     cest: "",
@@ -675,6 +674,7 @@ export default function CriarVariantesPage() {
   const [caimento, setCaimento] = useState<"slim" | "regular" | "oversized" | "">("");
   const [amassa, setAmassa] = useState<boolean | null>(null);
   const [ocasioesUsoTexto, setOcasioesUsoTexto] = useState("");
+  const [estilosTexto, setEstilosTexto] = useState("");
 
   // Informações de Variantes
   const [descricao, setDescricao] = useState("");
@@ -738,10 +738,7 @@ export default function CriarVariantesPage() {
   const [costuraReforcada, setCosturaReforcada] = useState<boolean | null>(null);
   const [obsQualidade, setObsQualidade] = useState("");
 
-  // Dados guiados
-  const [diferencial, setDiferencial] = useState("");
-  const [indicacao, setIndicacao] = useState("");
-  const [observacoesSeller, setObservacoesSeller] = useState("");
+
 
   // Logística
   const [slaEnvio, setSlaEnvio] = useState<"24h" | "48h" | "72h" | "">("");
@@ -876,6 +873,14 @@ export default function CriarVariantesPage() {
         .map((s) => s.trim())
         .filter(Boolean),
     [ocasioesUsoTexto]
+  );
+  const estilosLista = useMemo(
+    () =>
+      estilosTexto
+        .split(/[,;\n]/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+    [estilosTexto]
   );
   const tipoMedida = useMemo(() => detectarTipoMedida(categoria), [categoria]);
   const topicosMedidaFinais = useMemo(() => {
@@ -1366,6 +1371,7 @@ export default function CriarVariantesPage() {
       caimento: caimento || undefined,
       amassa: amassa ?? undefined,
       ocasioes: ocasioesUsoLista,
+      estilos: estilosLista,
     };
     const qualidade = {
       naoDesbota: naoDesbota ?? undefined,
@@ -1379,11 +1385,7 @@ export default function CriarVariantesPage() {
       principal: linkFotosTrim || undefined,
       video: linkVideo.trim() || undefined,
     };
-    const guiado = {
-      diferencial: diferencial.trim() || undefined,
-      indicacao: indicacao.trim() || undefined,
-      observacoesSeller: observacoesSeller.trim() || undefined,
-    };
+    const guiado = {};
     const logistica = {
       slaEnvio: slaEnvio || undefined,
       ncm: ncm.trim() || undefined,
@@ -1407,6 +1409,7 @@ export default function CriarVariantesPage() {
       caimento,
       amassa,
       ocasioesUso: ocasioesUsoLista,
+      estilos: estilosLista,
       coresSelecionadas: [...coresSelecionadas],
       corCustom,
       tamanhosSelecionados: [...tamanhosSelecionados],
@@ -1435,9 +1438,6 @@ export default function CriarVariantesPage() {
       encolhe,
       costuraReforcada,
       obsQualidade,
-      diferencial,
-      indicacao,
-      observacoesSeller,
       slaEnvio,
       ncm,
       cest,
@@ -1485,6 +1485,7 @@ export default function CriarVariantesPage() {
     setCaimento((p.caimento ?? p.produto?.caracteristicas?.caimento ?? "") as "slim" | "regular" | "oversized" | "");
     setAmassa(p.amassa ?? p.produto?.caracteristicas?.amassa ?? null);
     setOcasioesUsoTexto((p.ocasioesUso ?? p.produto?.caracteristicas?.ocasioes ?? []).join(", "));
+    setEstilosTexto((p.estilos ?? p.produto?.caracteristicas?.estilos ?? []).join(", "));
     setCoresSelecionadas(new Set(p.coresSelecionadas ?? []));
     setCorCustom(p.corCustom ?? "");
     setTamanhosSelecionados(new Set(p.tamanhosSelecionados ?? []));
@@ -1524,9 +1525,6 @@ export default function CriarVariantesPage() {
     setEncolhe(p.encolhe ?? p.produto?.qualidade?.encolhe ?? null);
     setCosturaReforcada(p.costuraReforcada ?? p.produto?.qualidade?.costuraReforcada ?? null);
     setObsQualidade(p.obsQualidade ?? p.produto?.qualidade?.observacoes ?? "");
-    setDiferencial(p.diferencial ?? p.produto?.guiado?.diferencial ?? "");
-    setIndicacao(p.indicacao ?? p.produto?.guiado?.indicacao ?? "");
-    setObservacoesSeller(p.observacoesSeller ?? p.produto?.guiado?.observacoesSeller ?? "");
     setSlaEnvio((p.slaEnvio ?? p.produto?.logistica?.slaEnvio ?? "") as "24h" | "48h" | "72h" | "");
     setNcm(p.ncm ?? p.produto?.logistica?.ncm ?? "");
     setCest(p.cest ?? p.produto?.logistica?.cest ?? "");
@@ -1992,14 +1990,17 @@ export default function CriarVariantesPage() {
         return;
       }
     }
+    // Aviso, não bloqueio — achado real 2026-11-17: bloquear o salvamento inteiro quando
+    // QUALQUER cor tinha menos de 3 fotos jogava fora até as cores que já estavam prontas
+    // (ex. uma cor com 6/7 fotos enviadas nunca chegava a salvar só porque outra cor do
+    // mesmo produto ainda estava em 1/7). Completude de foto é requisito pra PUBLICAR no
+    // ML (checado na hora de publicar), não pra salvar o cadastro.
     if (coresFinais.length > 0) {
       const coresComPoucasFotos = coresFinais.filter((cor) => totalFotosCor(cor) < 3);
       if (coresComPoucasFotos.length > 0) {
-        setFormError(
-          `Cada cor precisa de no mínimo 3 fotos (máximo 7): falta completar ${coresComPoucasFotos.join(", ")}.`
+        setAvisoFoto(
+          `Salvo. Lembrete: ${coresComPoucasFotos.join(", ")} ainda ${coresComPoucasFotos.length > 1 ? "têm" : "tem"} menos de 3 fotos — complete antes de publicar no Mercado Livre.`
         );
-        setTabAtiva("lista-variacoes");
-        return;
       }
     }
     setFormLoading(true);
@@ -2011,7 +2012,6 @@ export default function CriarVariantesPage() {
       }
       const cores = coresFinais;
       const tamanhos = tamanhosFinais;
-      const descricaoGuiada = [diferencial, indicacao, observacoesSeller].filter((t) => t.trim()).join(" | ");
       const detalhesProdutoJson: Record<string, unknown> = {
         infoBasica: {
           nomeProduto: nomeProduto.trim() || null,
@@ -2027,6 +2027,7 @@ export default function CriarVariantesPage() {
           caimento: caimento || null,
           amassa,
           ocasioes: ocasioesUsoLista,
+          estilos: estilosLista,
         },
         qualidade: {
           naoDesbota,
@@ -2039,11 +2040,7 @@ export default function CriarVariantesPage() {
           principal: linkFotos.trim() || null,
           video: linkVideo.trim() || null,
         },
-        guiado: {
-          diferencial: diferencial.trim() || null,
-          indicacao: indicacao.trim() || null,
-          observacoesSeller: observacoesSeller.trim() || null,
-        },
+        guiado: {},
         logistica: {
           slaEnvio: slaEnvio || null,
           ncm: ncm.trim() || null,
@@ -2080,7 +2077,7 @@ export default function CriarVariantesPage() {
         cores,
         tamanhos,
         link_fotos: linkFotos.trim() || null,
-        descricao: descricaoGuiada || descricao.trim() || null,
+        descricao: descricao.trim() || null,
         marca: marca.trim() || null,
         comprimento_cm: comp.trim() ? parseFloat(comp.replace(",", ".")) : undefined,
         largura_cm: largura.trim() ? parseFloat(largura.replace(",", ".")) : undefined,
@@ -2208,7 +2205,6 @@ export default function CriarVariantesPage() {
           mapVariante.set(pairKeyFromValues(row.cor, row.tamanho), row);
         }
 
-        const descricaoGuiada = [diferencial, indicacao, observacoesSeller].filter((t) => t.trim()).join(" | ");
         const imagemPaiAlvo = capaImagemUrlProduto({
           fotoUrlPorCor,
           ordemCores: coresFinais,
@@ -2217,7 +2213,7 @@ export default function CriarVariantesPage() {
         const patchPai: Record<string, unknown> = {
           nome_produto: nomeProduto.trim(),
           categoria: categoria.trim() || null,
-          descricao: descricaoGuiada || descricao.trim() || null,
+          descricao: descricao.trim() || null,
           comprimento_cm: comp.trim() ? parseFloat(comp.replace(",", ".")) : null,
           largura_cm: largura.trim() ? parseFloat(largura.replace(",", ".")) : null,
           altura_cm: altura.trim() ? parseFloat(altura.replace(",", ".")) : null,
@@ -2472,6 +2468,20 @@ export default function CriarVariantesPage() {
                   />
                   <p className="mt-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
                     Você pode adicionar várias ocasiões. Digite uma opção e pressione Enter para salvar.
+                  </p>
+                </div>
+                <div>
+                  <p className="mb-2 text-[11px] font-medium tracking-wide text-neutral-600 dark:text-neutral-400">Estilos</p>
+                  <VarianteExtrasTagInput
+                    value={estilosTexto}
+                    onChange={setEstilosTexto}
+                    normalize="title"
+                    placeholder="Digite e pressione Enter (ex.: Slim Fit, Casual, Esportivo)"
+                    aria-label="Estilos"
+                    inputClassName="max-w-full"
+                  />
+                  <p className="mt-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+                    Você pode adicionar vários estilos. Digite uma opção e pressione Enter para salvar.
                   </p>
                 </div>
                 </div>
@@ -3452,18 +3462,21 @@ export default function CriarVariantesPage() {
 
             {tabAtiva === "dados-guiados" && (
               <div className="bg-[var(--card)] rounded-xl border border-[var(--card-border)] shadow-sm p-6 space-y-4">
-                <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Dados guiados para anúncio</h2>
+                <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Descrição completa do produto</h2>
                 <div>
-                  <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">Diferencial principal *</label>
-                  <textarea value={diferencial} onChange={(e) => setDiferencial(e.target.value)} rows={2} className={`${inputDelicado} resize-none`} required />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">Indicação de uso *</label>
-                  <textarea value={indicacao} onChange={(e) => setIndicacao(e.target.value)} rows={2} className={`${inputDelicado} resize-none`} required />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">Observações para o seller</label>
-                  <textarea value={observacoesSeller} onChange={(e) => setObservacoesSeller(e.target.value)} rows={2} className={`${inputDelicado} resize-none`} />
+                  <label className="mb-1.5 block text-xs text-neutral-600 dark:text-neutral-400">
+                    Escreva a descrição como preferir — vai direto pro anúncio, sem edição automática.
+                  </label>
+                  <textarea
+                    value={descricao}
+                    onChange={(e) => setDescricao(e.target.value.slice(0, 50000))}
+                    rows={12}
+                    maxLength={50000}
+                    className={`${inputDelicado} resize-y`}
+                  />
+                  <p className="mt-1 text-right text-[11px] text-neutral-500 dark:text-neutral-400">
+                    {descricao.length.toLocaleString("pt-BR")} / 50.000 caracteres (limite do Mercado Livre)
+                  </p>
                 </div>
               </div>
             )}
