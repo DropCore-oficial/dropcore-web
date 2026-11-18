@@ -772,6 +772,26 @@ export type MercadoLivreCriarAnuncioInput = {
   familyName?: string;
 };
 
+/** Agrupa por `id` antes de montar o array de `attributes` do ML — achado real 2026-11-18:
+ * atributo `multivalued` (ex. OCCASIONS, STYLES, confirmado via
+ * `GET /categories/{id}/attributes`) mandado como várias entradas `{id, value_name}` com o
+ * MESMO id só guardava a última (ML trata o array como mapa por id); formato correto pra mais
+ * de 1 valor é UMA entrada `{id, values: [{name}, ...]}`. Id com 1 valor só continua
+ * `{id, value_name}` (formato de sempre, sem mudança de comportamento). */
+function agruparAtributosMultivaluedMl(
+  atributos: { id: string; valueName: string }[]
+): { id: string; value_name?: string; values?: { name: string }[] }[] {
+  const porId = new Map<string, string[]>();
+  for (const a of atributos) {
+    const lista = porId.get(a.id) ?? [];
+    lista.push(a.valueName);
+    porId.set(a.id, lista);
+  }
+  return Array.from(porId.entries()).map(([id, valores]) =>
+    valores.length > 1 ? { id, values: valores.map((name) => ({ name })) } : { id, value_name: valores[0] }
+  );
+}
+
 /** Cria um anúncio novo do zero (`POST /items`) — testado ao vivo (2026-11-15). Pra produto
  * com mais de uma cor/tamanho, chamar uma vez por SKU filho com o mesmo `familyName` — o ML
  * agrupa os anúncios como variações do mesmo produto na busca/vitrine. */
@@ -798,10 +818,10 @@ export async function mlCriarAnuncio(
       // 2026-11-16, coluna "SKU" do painel do vendedor ficou vazia em 15/15 variações) — essa
       // categoria expõe um atributo dedicado `SELLER_SKU` (oculto, por variação); mandar os
       // dois não tem custo, mas é o atributo que realmente aparece preenchido no painel.
-      attributes: [...input.atributos, { id: "SELLER_SKU", valueName: input.skuVendedor }].map((a) => ({
-        id: a.id,
-        value_name: a.valueName,
-      })),
+      attributes: agruparAtributosMultivaluedMl([
+        ...input.atributos,
+        { id: "SELLER_SKU", valueName: input.skuVendedor },
+      ]),
       shipping: { mode: "me2", local_pick_up: false, free_shipping: false },
     }),
   });
