@@ -1019,6 +1019,18 @@ export type MercadoLivreItemTituloEstado = {
  * testando ao vivo, não é regra documentada claramente pelo ML. Inclui seller_id pra validar
  * dono do anúncio direto pela API do ML — não usar seller_mercadolivre_sku_map pra isso, a
  * cobertura dele é parcial (nem todo item tem SELLER_SKU preenchido). */
+/** Status real do item na API do ML — usado pra saber se um anúncio que a gente tem
+ * registrado como "já publicado" continua de pé de verdade. Achado ao vivo 2026-11-17:
+ * apagar um anúncio no painel do Mercado Livre NÃO soma o item (`GET /items/{id}` continua
+ * retornando 200) — o status vira `paused` ou `closed`, o item_id nunca desaparece. Sem
+ * checar isso, um produto cujo anúncio foi apagado manualmente fica pra sempre bloqueado de
+ * ser republicado (achava equivocadamente que "já tá publicado"). `null` quando a API falha
+ * (chamador deve tratar como "não sei", não como "deletado"). */
+export async function mlBuscarStatusItem(itemId: string, ctx: MercadoLivreAuthContext): Promise<string | null> {
+  const json = await mlGet<{ status?: string }>(`/items/${itemId}?attributes=id,status`, ctx.accessToken);
+  return json?.status ?? null;
+}
+
 export async function mlBuscarItemTituloEstado(
   itemId: string,
   ctx: MercadoLivreAuthContext

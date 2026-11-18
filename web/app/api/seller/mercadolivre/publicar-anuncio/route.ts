@@ -20,6 +20,7 @@ import {
   mlBuscarAtributosCategoria,
   mlCriarGuiaMedidas,
   mlBuscarIdValorAtributo,
+  mlBuscarStatusItem,
 } from "@/lib/mercadoLivreApiClient";
 import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
 import { calcularPrecoAncora } from "@/lib/margemCalculo";
@@ -159,7 +160,11 @@ export async function POST(req: Request) {
     );
   }
 
-  // Já publicada antes? Não tenta de novo (unique por seller+sku).
+  // Já publicada antes? Não tenta de novo (unique por seller+sku) — MAS só se o anúncio
+  // continuar de pé de verdade no Mercado Livre. Achado ao vivo 2026-11-17: apagar o anúncio
+  // no painel do ML não remove o item_id (vira `paused`/`closed`, `GET /items` continua
+  // 200) — sem checar o status real, um produto que o seller apagou manualmente ficava pra
+  // sempre travado como "já publicado", sem jeito de publicar de novo.
   const jaPublicadas = new Set<string>();
   for (const r of candidatas) {
     const { data } = await supabaseAdmin.rpc("fn_seller_produto_ml_publicado_get", {
@@ -167,7 +172,9 @@ export async function POST(req: Request) {
       p_sku: r.sku,
     });
     const existente = Array.isArray(data) ? data[0] : data;
-    if (existente?.ml_item_id) jaPublicadas.add(r.sku);
+    if (!existente?.ml_item_id) continue;
+    const status = await mlBuscarStatusItem(existente.ml_item_id, ctx);
+    if (status === null || status === "active") jaPublicadas.add(r.sku);
   }
   const pendentes = candidatas.filter((r) => !jaPublicadas.has(r.sku));
   if (pendentes.length === 0) {
