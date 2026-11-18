@@ -21,7 +21,11 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        # `npm ci` exige lockfile 100% fechado pra TODA plataforma — achado real 2026-11-18:
+        # @emnapi/* (dependência opcional nativa, resolução por SO/arch) falta pro Linux no
+        # lockfile gerado em macOS, então só quebra no runner (ubuntu-latest), nunca localmente.
+        # `npm install` resolve sem essa trava estrita, sem mudar nenhuma versão travada.
+        run: npm install
 
       - name: Unit tests (Vitest)
         run: npm run test
