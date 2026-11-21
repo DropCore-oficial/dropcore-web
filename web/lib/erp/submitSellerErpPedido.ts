@@ -81,6 +81,7 @@ type SkuRowResolved = {
   custo_base: number;
   custo_dropcore: number;
   expedicao_override_linha: string | null;
+  fornecedor_id: string;
 };
 
 export async function addPedidoEvento(params: {
@@ -209,6 +210,9 @@ export async function insertPedidoPlaceholder(params: {
       quantidade: item.quantidade,
       preco_unitario: precoUnit,
       valor_total: valorItem,
+      fornecedor_id: sku.fornecedor_id,
+      valor_fornecedor: sku.custo_base * item.quantidade,
+      valor_dropcore: sku.custo_dropcore * item.quantidade,
     });
     if (pedidoItemErr) {
       await supabaseAdmin.from("pedidos").update({ status: "cancelado" }).eq("id", pedidoPlaceholder.id);
@@ -328,7 +332,7 @@ export async function submitSellerErpPedido(
   const skuRows: SkuRowResolved[] = [];
 
   const SKU_SELECT =
-    "id, sku, nome_produto, estoque_atual, estoque_minimo, custo_base, custo_dropcore, expedicao_override_linha";
+    "id, sku, nome_produto, estoque_atual, estoque_minimo, custo_base, custo_dropcore, expedicao_override_linha, fornecedor_id";
 
   for (const item of items) {
     let { data: sku, error: skuErr } = await supabaseAdmin
@@ -423,6 +427,7 @@ export async function submitSellerErpPedido(
       nome_produto: sku.nome_produto ?? null,
       custo_base: custoBase,
       custo_dropcore: custoDropcore,
+      fornecedor_id: (sku as { fornecedor_id: string }).fornecedor_id,
       expedicao_override_linha: (sku as { expedicao_override_linha?: string | null }).expedicao_override_linha ?? null,
     });
   }
@@ -719,6 +724,9 @@ export async function submitSellerErpPedido(
       quantidade: item.quantidade,
       preco_unitario: precoUnit,
       valor_total: valorItem,
+      fornecedor_id: sku.fornecedor_id,
+      valor_fornecedor: sku.custo_base * item.quantidade,
+      valor_dropcore: sku.custo_dropcore * item.quantidade,
     });
     if (pedidoItemErr) {
       await tryReverterEstoque();
@@ -1144,6 +1152,7 @@ export async function tryPromoteBloqueadoPedido(params: {
       nome_produto: skuRaw.nome_produto ?? null,
       custo_base: custoBase,
       custo_dropcore: resolveTaxaDropcoreUnit(custoBase, skuRaw.custo_dropcore),
+      fornecedor_id,
       expedicao_override_linha: skuRaw.expedicao_override_linha ?? null,
     });
   }

@@ -566,6 +566,9 @@ export async function POST(req: Request) {
         quantidade: 1,
         preco_unitario: valorTotalCore,
         valor_total: valorTotalCore,
+        fornecedor_id,
+        valor_fornecedor: valorFornecedorCore,
+        valor_dropcore: valorDropcoreCore,
       });
       if (pedidoItensErr) {
         await tryReverterEstoque();

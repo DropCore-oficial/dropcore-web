@@ -587,6 +587,9 @@ export async function POST(req: Request) {
         quantidade: item.quantidade,
         preco_unitario: precoUnit,
         valor_total: valorItem,
+        fornecedor_id,
+        valor_fornecedor: sku.custo_base * item.quantidade,
+        valor_dropcore: sku.custo_dropcore * item.quantidade,
       });
       if (pedidoItemErr) {
         await tryReverterEstoque();

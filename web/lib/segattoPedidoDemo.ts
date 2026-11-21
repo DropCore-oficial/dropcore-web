@@ -97,6 +97,9 @@ export async function gerarPedidoDemoSegatto(): Promise<GerarPedidoDemoSegattoRe
     quantidade,
     preco_unitario: custoBase + custoDropcore,
     valor_total,
+    fornecedor_id: DJULIOS_FORNECEDOR_ID,
+    valor_fornecedor,
+    valor_dropcore,
   });
 
   await supabaseAdmin.from("pedido_eventos").insert({
