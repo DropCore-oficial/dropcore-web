@@ -212,10 +212,16 @@ export async function insertPedidoPlaceholder(params: {
     });
     if (pedidoItemErr) {
       await supabaseAdmin.from("pedidos").update({ status: "cancelado" }).eq("id", pedidoPlaceholder.id);
+      console.error(
+        `[submitSellerErpPedido] placeholder ${pedidoPlaceholder.id} pedido_itens insert falhou:`,
+        pedidoItemErr.code,
+        pedidoItemErr.message,
+        pedidoItemErr.details
+      );
       return {
         ok: false,
         error_code: "INTERNAL_ERROR",
-        error_message: "Erro ao criar itens do pedido.",
+        error_message: `Erro ao criar itens do pedido: ${pedidoItemErr.message}`,
         http_status: 500,
       };
     }
@@ -717,10 +723,16 @@ export async function submitSellerErpPedido(
     if (pedidoItemErr) {
       await tryReverterEstoque();
       await supabaseAdmin.from("pedidos").update({ status: "cancelado" }).eq("id", pedido.id);
+      console.error(
+        `[submitSellerErpPedido] pedido ${pedido.id} pedido_itens insert falhou (sku ${sku.sku}):`,
+        pedidoItemErr.code,
+        pedidoItemErr.message,
+        pedidoItemErr.details
+      );
       return {
         ok: false,
         error_code: "INTERNAL_ERROR",
-        error_message: "Erro ao criar itens do pedido.",
+        error_message: `Erro ao criar itens do pedido: ${pedidoItemErr.message}`,
         http_status: 500,
       };
     }

@@ -591,8 +591,16 @@ export async function POST(req: Request) {
       if (pedidoItemErr) {
         await tryReverterEstoque();
         await supabaseAdmin.from("pedidos").update({ status: "cancelado" }).eq("id", pedido.id);
-        console.error("[erp/pedidos] pedido_itens:", pedidoItemErr.message);
-        return NextResponse.json({ error: "Erro ao criar itens do pedido.", pedido_id: pedido.id }, { status: 500 });
+        console.error(
+          `[erp/pedidos] pedido ${pedido.id} pedido_itens insert falhou (sku ${sku.sku}):`,
+          pedidoItemErr.code,
+          pedidoItemErr.message,
+          pedidoItemErr.details
+        );
+        return NextResponse.json(
+          { error: `Erro ao criar itens do pedido: ${pedidoItemErr.message}`, pedido_id: pedido.id },
+          { status: 500 }
+        );
       }
     }
 
