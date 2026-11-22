@@ -23,17 +23,6 @@ export const LANDING_CTA_HERO_LABEL = "Comece a vender agora";
 export const LANDING_CTA_FINAL_LABEL = "Quero começar a vender";
 export const LANDING_CTA_FINAL_MESSAGE = "Olá! Terminei de ver a DropCore e quero começar a vender.";
 
-/** "Parceiros", não "Integra com" — Olist tem integração operacional real (sync de
- * estoque/pedido). Mercado Pago saiu daqui: é só a conta de pagamento usada pro PIX, não uma
- * integração operacional como a outra, misturar os dois dava a entender uma paridade
- * que não existe. Logos oficiais em `public/brand/partners/`. */
-export const LANDING_INTEGRATIONS_BAR = {
-  label: "Parceiros do DropCore",
-  items: [
-    { name: "Olist", logo: "/brand/partners/olist.svg" },
-  ],
-} as const;
-
 /** Só os 4 marketplaces que a calculadora (`web/app/seller/calculadora/page.tsx`) de fato
  * suporta hoje — não é uma lista aspiracional/genérica, é o que o produto atende. Logos
  * oficiais em `public/brand/marketplaces/`. */
@@ -126,7 +115,7 @@ export const LANDING_FOR_WHOM = {
   no: [
     "Quem quer controlar e negociar cada etapa da operação na mão",
     "Quem prefere fornecedor próprio fora de um fluxo integrado",
-    "Quem não vende em marketplace nem usa ERP",
+    "Quem não vende em marketplace",
   ],
 } as const;
 
@@ -146,10 +135,6 @@ export const LANDING_FAQ = [
   {
     q: "Como obtenho acesso?",
     a: "O acesso é por convite. Após cadastro, você já opera com catálogo e painel de seller.",
-  },
-  {
-    q: "Há integração com ERP?",
-    a: "Sim. Olist/Tiny com fluxo operacional organizado.",
   },
   {
     q: "Posso trocar de fornecedor depois?",

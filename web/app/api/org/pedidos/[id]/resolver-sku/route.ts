@@ -63,7 +63,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const { data: sellerRow, error: sellerErr } = await supabaseAdmin
       .from("sellers")
-      .select("id, org_id, fornecedor_id, plano, erp_estoque_webhook_url, erp_estoque_webhook_secret")
+      .select("id, org_id, fornecedor_id, plano")
       .eq("id", pedido.seller_id)
       .maybeSingle();
     if (sellerErr) return NextResponse.json({ error: sellerErr.message }, { status: 500 });
@@ -85,8 +85,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         id: sellerRow.id,
         fornecedor_id: sellerRow.fornecedor_id,
         plano: sellerRow.plano,
-        erp_estoque_webhook_url: sellerRow.erp_estoque_webhook_url,
-        erp_estoque_webhook_secret: sellerRow.erp_estoque_webhook_secret,
       },
       referencia_externa: pedido.referencia_externa,
       tracking_codigo: pedido.tracking_codigo,

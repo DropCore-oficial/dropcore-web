@@ -54,14 +54,9 @@ vi.mock("@/lib/notifyEstoqueBaixo", () => ({
   notifyEstoqueBaixo: (...args: unknown[]) => notifyEstoqueBaixoMock(...args),
 }));
 
-const fireErpEstoqueWebhookMock = vi.fn();
-vi.mock("@/lib/erpEstoqueOutbound", () => ({
-  fireErpEstoqueWebhook: (...args: unknown[]) => fireErpEstoqueWebhookMock(...args),
-}));
-
-const dispararSyncEstoqueOlistFornecedorSkusMock = vi.fn();
-vi.mock("@/lib/sellerOlistSyncEstoqueOnChange", () => ({
-  dispararSyncEstoqueOlistFornecedorSkus: (...args: unknown[]) => dispararSyncEstoqueOlistFornecedorSkusMock(...args),
+const dispararSyncEstoqueFornecedorSkusMock = vi.fn();
+vi.mock("@/lib/fornecedorEstoqueSyncOnChange", () => ({
+  dispararSyncEstoqueFornecedorSkus: (...args: unknown[]) => dispararSyncEstoqueFornecedorSkusMock(...args),
 }));
 
 vi.mock("@/lib/pedidoBloqueioResponsavel", () => ({
@@ -94,8 +89,6 @@ const sellerRow = {
   org_id: ORG_ID,
   fornecedor_id: FORNECEDOR_ID,
   plano: "start",
-  erp_estoque_webhook_url: null,
-  erp_estoque_webhook_secret: null,
 };
 
 function itemRows(estoqueAtual: number) {
@@ -143,8 +136,7 @@ beforeEach(() => {
   notifySellerPedidoAtencaoMock.mockClear();
   notifyFornecedorPedidoParaPostarMock.mockClear();
   notifyEstoqueBaixoMock.mockClear();
-  fireErpEstoqueWebhookMock.mockClear();
-  dispararSyncEstoqueOlistFornecedorSkusMock.mockClear();
+  dispararSyncEstoqueFornecedorSkusMock.mockClear();
 });
 
 describe("tryPromoteBloqueadoPedido", () => {

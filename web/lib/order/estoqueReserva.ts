@@ -122,7 +122,7 @@ async function chamarRpcPorItem(
   }
 }
 
-/** Incrementa `estoque_reservado` por item (pedido Olist em_aberto). */
+/** Incrementa `estoque_reservado` por item (pedido em_aberto). */
 export async function reservarEstoquePedido(items: EstoqueReservaItemInput[]): Promise<EstoqueReservaResult> {
   return chamarRpcPorItem(items, "rpc_reservar_estoque_sku");
 }

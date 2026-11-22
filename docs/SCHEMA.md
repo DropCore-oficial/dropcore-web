@@ -49,6 +49,45 @@ intactos — só os 4 crons de sync automático foram desligados
 `dropcore-olist-sync`, `dropcore-fornecedor-olist-sync-estoque`,
 `dropcore-olist-sync-precos`, `dropcore-etiqueta-olist-retry`.
 
+## Olist/ERP genérico removidos por completo (código + schema) — 2026-11-22
+
+Decisão: tirar Olist/Tiny de vez (não só pausar como em 2026-11-15) — zero pedido real já
+veio por esse caminho em produção (100% dos 1962 pedidos reais são `canal_venda =
+mercado_livre`). O mecanismo genérico "seller conecta o próprio ERP via API key + webhook"
+(`erp_api_key_hash`, `erp_estoque_webhook_url/secret`, `erp_event_logs`) também saiu — 0
+linhas em `erp_event_logs` desde sempre, nunca usado de verdade.
+
+Removido do schema (`web/scripts/drop-integracoes-erp-olist.sql`):
+- Tabelas: `seller_olist_integrations`, `fornecedor_olist_integrations`,
+  `olist_webhook_logs`, `fornecedor_olist_webhook_logs`, `erp_event_logs`,
+  `api_rate_limits` (rate limit genérico por rota, mas 100% das linhas existentes eram de
+  `/api/erp/pedidos`, já removida — confirmado zero código referenciando antes do DROP).
+- Colunas: `sellers.erp_api_key_hash/erp_api_key_prefix/erp_estoque_webhook_url/
+  erp_estoque_webhook_secret`, `orgs.erp_api_key_hash/erp_api_key_prefix`.
+- Funções: `dropcore_try_olist_sync_lock`, `dropcore_release_olist_sync_lock`,
+  `dropcore_try_fornecedor_olist_estoque_sync_lock`,
+  `dropcore_release_fornecedor_olist_estoque_sync_lock` (os 4 agora listados como
+  "órfãs" na rodada 2026-07-09 abaixo deixaram de existir — não são mais funções reais).
+  `dropcore_cron_http_post` continua existindo (genérico, usado por todo cron).
+
+Removido do código: todas as páginas/rotas/libs exclusivas de Olist/Tiny/Bling/ERP
+genérico (telas de integração, export/sync de preço/imagem/estoque pra Olist, webhook de
+pedido, etiqueta manual via link Olist). Funções genéricas que viviam por acidente dentro
+de arquivos "Olist" foram extraídas antes de apagar o resto: `fetchUrlAsPdfBase64`
+(`lib/fetchPdfFromUrl.ts`), `pesoKgPlausivel`/`PESO_KG_MIN_PLAUSIVEL`
+(`lib/skuPesoPlausivel.ts`), `parseDataImageUrl`/`BUCKET_PRODUTO_IMAGENS`
+(`lib/fornecedorImagemDataUrl.ts`), `estoqueDisponivelParaVenda`/`grupoKeyFromSkuString`
+(`lib/skuGrupoEstoqueCalculo.ts`), disparo de sync de estoque pro Mercado Livre
+(`lib/fornecedorEstoqueSyncOnChange.ts`, sucessor de `sellerOlistSyncEstoqueOnChange.ts`).
+Mercado Livre nunca dependeu de Olist — removidos também 3 guards mortos que ignoravam
+pedido/shipment ML quando o seller "tinha Olist ativo" (não pode mais acontecer).
+
+**Não apagado de propósito** (dados reais, não é código morto): o label
+`pedido_cancelado_erp` em `lib/notifySellerPedidoAtencao.ts` (142 notificações históricas
+reais no banco usam esse tipo — apagar o label quebraria a exibição dessas notificações
+antigas) e a constante `TIPO = "pedido_cancelado_erp"` em
+`lib/notifyAdminsPedidoCancelado.ts` (mesma razão).
+
 ## `fn_fornecedor_pedidos_lista` — ordem sem prioridade de etiqueta — 2026-11-15
 
 Removido um `case` no `ORDER BY` que fazia pedido "aguardando postagem" com etiqueta já

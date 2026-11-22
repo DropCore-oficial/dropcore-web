@@ -5,9 +5,6 @@
  * webhook sozinho não é confiável). Detecta quando o ML confirma que o pacote foi
  * coletado/postado ou entregue ao cliente e promove o pedido automaticamente, reaproveitando
  * o mesmo núcleo (`pedidoPostadoPromote.ts`) que o clique manual do fornecedor/admin já usa.
- *
- * Exclusivo com Olist: mesma guarda de sempre — se o seller tiver Olist ativo, quem cobre a
- * confirmação de envio/entrega é o checker que já lê a `situacao` da própria Olist.
  */
 import { getValidMercadoLivreAccessToken } from "@/lib/mercadoLivreApiClient";
 import { promoverPedidoParaEntregue, promoverPedidoParaPostado } from "@/lib/pedidoPostadoPromote";
@@ -35,8 +32,7 @@ export type ProcessarShipmentMlResultado =
         | "promovido_postado"
         | "promovido_entregue"
         | "sem_mudanca"
-        | "pedido_nao_encontrado"
-        | "ignorado_olist_ativo";
+        | "pedido_nao_encontrado";
     }
   | { ok: false; retryable: boolean; motivo: string };
 
@@ -57,15 +53,6 @@ export async function processarShipmentMercadoLivre(params: {
   sellerId: string;
   shipmentId: string;
 }): Promise<ProcessarShipmentMlResultado> {
-  const { data: olistRow } = await supabaseAdmin
-    .from("seller_olist_integrations")
-    .select("olist_token_ciphertext")
-    .eq("seller_id", params.sellerId)
-    .maybeSingle();
-  if (olistRow?.olist_token_ciphertext) {
-    return { ok: true, status: "ignorado_olist_ativo" };
-  }
-
   const ctx = await getValidMercadoLivreAccessToken(params.sellerId);
   if (!ctx) return { ok: false, retryable: true, motivo: "Sem token válido do Mercado Livre." };
 

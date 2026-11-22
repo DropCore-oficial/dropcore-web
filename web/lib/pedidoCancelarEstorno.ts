@@ -1,12 +1,9 @@
 /**
- * Núcleo compartilhado de "cancelamento sem sync" — achado original 2026-10-09 (ML), achado
- * generalizado 2026-10-12 (mesmo buraco existia no Olist e no Bling: o canal cancela o
- * pedido depois de já importado/postado, e o DropCore nunca fica sabendo — pedido trava,
- * saldo do seller fica bloqueado pra sempre). Cada canal (ML, Olist, Bling) tem sua própria
- * forma de DETECTAR o cancelamento (ver cancelamentoMlReconciliacao.ts,
- * sellerOlistPedidoImport.ts, sellerBlingPedidoImport.ts) — essa função é só a parte
- * compartilhada de EXECUTAR: chama a RPC que cancela o pedido + estorna o ledger, e avisa
- * seller/admin/fornecedor.
+ * Núcleo compartilhado de "cancelamento sem sync" — achado 2026-10-09: o marketplace cancela
+ * o pedido depois de já importado/postado, e o DropCore nunca fica sabendo — pedido trava,
+ * saldo do seller fica bloqueado pra sempre. A detecção do cancelamento fica em
+ * cancelamentoMlReconciliacao.ts — essa função é só a parte compartilhada de EXECUTAR: chama
+ * a RPC que cancela o pedido + estorna o ledger, e avisa seller/admin/fornecedor.
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { notifyAdminsPedidoCancelado } from "@/lib/notifyAdminsPedidoCancelado";
@@ -27,9 +24,6 @@ export async function cancelarPedidoEEstornar(params: {
   canal_label: string;
   motivo_tecnico: string;
   motivo_seller: string;
-  /** Tipo da notificação ao seller — mantém granularidade por canal pra quem já filtra por
-   * "pedido_cancelado_ml" (ML tinha isso desde 2026-10-09); novo canal usa o genérico. */
-  tipo_notificacao_seller?: "pedido_cancelado_ml" | "pedido_cancelado_erp";
 }): Promise<CancelarPedidoEEstornarResult> {
   const { data, error } = await supabaseAdmin
     .rpc("fn_pedido_cancelar_estorno", {
@@ -68,7 +62,7 @@ export async function cancelarPedidoEEstornar(params: {
       org_id: params.org_id,
       seller_id: resultado.seller_id,
       pedido_id: params.pedido_id,
-      tipo: params.tipo_notificacao_seller ?? "pedido_cancelado_erp",
+      tipo: "pedido_cancelado_ml",
       motivo: `${params.motivo_seller} O saldo bloqueado de R$ ${valorEstornado.toFixed(2)} já foi devolvido ao seu saldo disponível.`,
     }),
     notifyAdminsPedidoCancelado({

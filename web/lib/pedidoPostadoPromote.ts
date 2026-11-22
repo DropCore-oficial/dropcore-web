@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { resolveLedgerIdForPedido } from "@/lib/resolveLedgerForPedido";
+import { resolveLedgerIdsForPedido } from "@/lib/resolveLedgerForPedido";
 import { proximoCicloRepasse } from "@/lib/cicloRepasse";
 
 /**
@@ -9,7 +9,7 @@ import { proximoCicloRepasse } from "@/lib/cicloRepasse";
  * (status, financial_ledger, evento) é sempre a mesma:
  *  - fornecedor clica "marcar postado" (web/app/api/fornecedor/pedidos/[id]/marcar-postado)
  *  - admin clica "confirmar envio" (web/app/api/org/pedidos/[id]/entregar)
- *  - checker automático detecta situação "enviado"/"entregue" na Olist
+ *  - checker automático detecta shipment "enviado"/"entregue" no Mercado Livre
  *    (web/lib/pedidosEnviadoAutoPostadoRetry.ts)
  *
  * Quem chama já deve ter validado que `pedidos.status === "enviado"` antes de invocar.
@@ -49,21 +49,23 @@ export async function promoverPedidoParaPostado(params: {
     return { ok: false, error: "Pedido já foi processado (postado) por outra operação." };
   }
 
-  const ledgerId = await resolveLedgerIdForPedido(org_id, pedido_id, params.ledger_id);
+  const ledgerIds = await resolveLedgerIdsForPedido(org_id, pedido_id, params.ledger_id);
 
-  if (ledgerId && !params.ledger_id) {
-    await supabaseAdmin.from("pedidos").update({ ledger_id: ledgerId, atualizado_em: now }).eq("id", pedido_id);
+  if (ledgerIds.length > 0 && !params.ledger_id) {
+    await supabaseAdmin.from("pedidos").update({ ledger_id: ledgerIds[0], atualizado_em: now }).eq("id", pedido_id);
   }
 
   let ciclo_repasse: string | null = null;
-  if (ledgerId) {
+  if (ledgerIds.length > 0) {
     const { data: cicloRow } = await supabaseAdmin.rpc("fn_ciclo_repasse", { data_evento: now });
     ciclo_repasse = cicloRow ?? proximoCicloRepasse();
 
+    // 1 linha por fornecedor presente no pedido (ver blockSale.ts) — todas avançam juntas
+    // na mesma transição de status, cada uma com seu próprio valor_fornecedor/fulfillment.
     const { error: upLedgerErr } = await supabaseAdmin
       .from("financial_ledger")
       .update({ status: "AGUARDANDO_REPASSE", ciclo_repasse, atualizado_em: now })
-      .eq("id", ledgerId);
+      .in("id", ledgerIds);
 
     if (upLedgerErr) {
       console.error("[promoverPedidoParaPostado] ledger update:", upLedgerErr.message);
@@ -142,26 +144,26 @@ export async function repararExtratoBloqueado(params: {
   ledger_id: string | null;
 }): Promise<{ reparado: boolean }> {
   const now = new Date().toISOString();
-  const ledgerId = await resolveLedgerIdForPedido(params.org_id, params.pedido_id, params.ledger_id);
+  const ledgerIds = await resolveLedgerIdsForPedido(params.org_id, params.pedido_id, params.ledger_id);
 
-  if (ledgerId && !params.ledger_id) {
-    await supabaseAdmin.from("pedidos").update({ ledger_id: ledgerId, atualizado_em: now }).eq("id", params.pedido_id);
+  if (ledgerIds.length > 0 && !params.ledger_id) {
+    await supabaseAdmin.from("pedidos").update({ ledger_id: ledgerIds[0], atualizado_em: now }).eq("id", params.pedido_id);
   }
-  if (!ledgerId) return { reparado: false };
+  if (ledgerIds.length === 0) return { reparado: false };
 
-  const { data: led } = await supabaseAdmin
+  const { data: ledRows } = await supabaseAdmin
     .from("financial_ledger")
-    .select("status, ciclo_repasse")
-    .eq("id", ledgerId)
-    .maybeSingle();
+    .select("id, status, ciclo_repasse")
+    .in("id", ledgerIds);
 
-  if (led?.status !== "BLOQUEADO") return { reparado: false };
+  const bloqueados = (ledRows ?? []).filter((r) => r.status === "BLOQUEADO");
+  if (bloqueados.length === 0) return { reparado: false };
 
-  const ciclo = led.ciclo_repasse ?? proximoCicloRepasse();
+  const ciclo = bloqueados.find((r) => r.ciclo_repasse)?.ciclo_repasse ?? proximoCicloRepasse();
   const { error: upLedgerErr } = await supabaseAdmin
     .from("financial_ledger")
     .update({ status: "AGUARDANDO_REPASSE", ciclo_repasse: ciclo, atualizado_em: now })
-    .eq("id", ledgerId);
+    .in("id", bloqueados.map((r) => r.id));
 
   if (upLedgerErr) {
     console.error("[repararExtratoBloqueado] ledger update:", upLedgerErr.message);

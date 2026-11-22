@@ -16,9 +16,6 @@ export function getFornecedorSupportWhatsAppPrefill(pathname: string): string {
   if (p.startsWith("/fornecedor/integracoes-marketplace")) {
     return "Olá! Preciso de ajuda com a integração com Mercado Livre no DropCore (fornecedor).";
   }
-  if (p.startsWith("/fornecedor/integracoes-erp")) {
-    return "Olá! Preciso de ajuda com a integração ERP (Olist/Tiny) no DropCore (fornecedor).";
-  }
   if (p.startsWith("/fornecedor/produtos")) {
     return "Olá! Preciso de ajuda com produtos e catálogo no DropCore (fornecedor).";
   }

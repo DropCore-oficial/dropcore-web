@@ -261,9 +261,9 @@ export default function FornecedorPedidoEtiquetaPage() {
                             Sem etiqueta
                           </p>
                           <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">
-                            A Olist ainda não gerou a etiqueta real de envio desse pedido — isso
-                            depende do seller (só ele tem acesso à Olist). Não é um problema seu:
-                            use o botão ao lado pra lembrar o seller de ir buscar o link.
+                            A etiqueta real de envio desse pedido ainda não chegou — isso depende
+                            do seller (só ele tem acesso ao link no marketplace). Não é um problema
+                            seu: use o botão ao lado pra lembrar o seller de ir buscar o link.
                           </p>
                         </div>
                       </div>

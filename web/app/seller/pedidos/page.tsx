@@ -101,7 +101,6 @@ type Pedido = {
   etiqueta_tentativas: number;
   etiqueta_impressa_em?: string | null;
   etiqueta_liberada_em?: string | null;
-  is_reserva?: boolean;
   canal_venda?: string | null;
   etiqueta_ml_previsao?: string | null;
   /** Pacote original do ML — pode ser compartilhado por 2+ cards quando os status
@@ -137,19 +136,15 @@ function formatDate(s: string) {
   });
 }
 
-/** O label "Ref. Olist" ficava fixo pra todo pedido, mesmo vindo direto do ML ou do Bling —
- * `referencia_externa` carrega o prefixo de origem real (`ml:`, `olist:`, `bling:`, ver
- * mercadoLivrePedidoIngest.ts/sellerOlistPedidoImport.ts/sellerBlingPedidoImport.ts). */
+/** `referencia_externa` carrega o prefixo de origem real (`ml:`, ver mercadoLivrePedidoIngest.ts). */
 function referenciaExternaLabel(ref: string | null): string {
   if (ref?.startsWith("ml:")) return "Ref. ML";
-  if (ref?.startsWith("bling:")) return "Ref. Bling";
-  if (ref?.startsWith("olist:")) return "Ref. Olist";
   return "Ref. externa";
 }
 
 /**
  * Título do card sem repetir o nome do produto uma vez por item — usa o nome deduplicado
- * dos itens (não o `nome_produto` do pedido, que às vezes já vem concatenado do Olist).
+ * dos itens (não o `nome_produto` do pedido, que às vezes já vem concatenado do marketplace).
  * Mesmo padrão de web/app/fornecedor/pedidos/page.tsx (`tituloPedido`).
  */
 function tituloPedido(p: Pedido): string {
@@ -512,10 +507,10 @@ export default function SellerPedidosPage() {
                     <div>
                       <dt className="text-neutral-500">Custo total</dt>
                       <dd className="text-base font-semibold text-[var(--foreground)]">
-                        {p.is_reserva ? "—" : BRL.format(Number(p.valor_total ?? 0))}
+                        {BRL.format(Number(p.valor_total ?? 0))}
                       </dd>
                     </div>
-                    {!p.is_reserva && p.preco_venda != null && p.preco_venda > 0 ? (
+                    {p.preco_venda != null && p.preco_venda > 0 ? (
                       <div>
                         <dt className="text-neutral-500">Vendido por</dt>
                         <dd className="text-base font-semibold text-emerald-600 dark:text-emerald-400">
@@ -640,7 +635,7 @@ export default function SellerPedidosPage() {
 
                   {p.status === "pendente_estoque" ? (
                     <p className="mt-3 text-sm text-amber-800 dark:text-amber-200">
-                      Aguardando estoque no DropCore. O fornecedor precisa repor saldo ou sincronizar estoque da Olist.
+                      Aguardando estoque no DropCore. O fornecedor precisa repor saldo.
                     </p>
                   ) : null}
 
@@ -787,12 +782,6 @@ export default function SellerPedidosPage() {
                     </div>
                   ) : null}
 
-                  {p.is_reserva ? (
-                    <p className="mt-3 text-sm text-neutral-500">
-                      Aguardando confirmação de pagamento na Olist — assim que o cliente pagar, este pedido vira
-                      um pedido de verdade aqui automaticamente, sem precisar fazer nada.
-                    </p>
-                  ) : null}
       </>
     );
   }
@@ -821,7 +810,7 @@ export default function SellerPedidosPage() {
           title="Seus pedidos"
           subtitle={
             <>
-              Pedidos importados da Olist e do ERP.{" "}
+              Pedidos importados do marketplace.{" "}
               <span className="font-medium text-[var(--foreground)]">O extrato financeiro continua no Dashboard.</span>
             </>
           }
@@ -959,7 +948,7 @@ export default function SellerPedidosPage() {
           <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-8 text-center">
             <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Nenhum pedido encontrado</p>
             <p className="mt-2 text-sm text-neutral-500">
-              Após sincronizar a Olist em Integrações ERP, os pedidos aparecem aqui.
+              Quando um cliente comprar no seu anúncio, o pedido aparece aqui automaticamente.
             </p>
           </div>
         ) : (
@@ -1100,16 +1089,16 @@ export default function SellerPedidosPage() {
                 <div className="space-y-3">
                   <p>
                     {p.etiqueta_tentativas > 0
-                      ? `Já tentamos buscar na Olist ${p.etiqueta_tentativas}x sem sucesso. `
-                      : "Ainda não conseguimos buscar automaticamente na Olist. "}
-                    Entre no painel da Olist e pegue a etiqueta deste pedido pra não travar o envio.{" "}
+                      ? `Já tentamos buscar automaticamente ${p.etiqueta_tentativas}x sem sucesso. `
+                      : "Ainda não conseguimos buscar a etiqueta automaticamente. "}
+                    Entre no painel do marketplace e pegue a etiqueta deste pedido pra não travar o envio.{" "}
                     <strong className="text-[var(--foreground)]">
-                      Se a Olist só baixar o PDF pro seu computador (sem te dar um link) — comum em pedidos
+                      Se o marketplace só baixar o PDF pro seu computador (sem te dar um link) — comum em pedidos
                       Shopee — use a opção &quot;Arquivo PDF&quot; abaixo.
                     </strong>
                   </p>
                   <p className="font-medium text-[var(--foreground)]">
-                    Confira antes de enviar: o número do pedido na Olist tem que ser{" "}
+                    Confira antes de enviar: o número do pedido no marketplace tem que ser{" "}
                     <span className="font-mono">{p.referencia_externa ?? "—"}</span> — etiqueta de
                     pedido errado sai pro endereço/produto errado.
                   </p>

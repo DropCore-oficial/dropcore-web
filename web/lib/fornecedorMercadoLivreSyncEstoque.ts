@@ -1,9 +1,8 @@
 /**
  * Pull de estoque Mercado Livre (conta própria do fornecedor) → skus.estoque_atual →
- * propagação pros sellers. Equivalente a `fornecedorOlistSyncEstoquePull.ts`, mas lendo o
- * saldo (`available_quantity`) direto dos anúncios do fornecedor no ML em vez da Olist —
- * não importa como o fornecedor atualizou esse número no ML (manual, planilha de ERP
- * terceiro como Upseller, etc), o sync só lê o resultado final e substitui o valor em
+ * propagação pros sellers. Lê o saldo (`available_quantity`) direto dos anúncios do
+ * fornecedor no ML — não importa como o fornecedor atualizou esse número no ML (manual,
+ * planilha terceira, etc), o sync só lê o resultado final e substitui o valor em
  * `skus.estoque_atual` (pra cima ou pra baixo, não é baixa por venda).
  *
  * Agregação quando o mesmo SKU aparece em >1 anúncio/variação: usa o MENOR valor (MIN),
@@ -20,7 +19,7 @@ import {
   type MercadoLivreItemDetail,
 } from "@/lib/mercadoLivreApiClient";
 import { getValidMercadoLivreAccessTokenFornecedor } from "@/lib/mercadoLivreApiClientFornecedor";
-import { syncOlistEstoqueFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
+import { syncEstoqueFornecedorSkus } from "@/lib/fornecedorEstoqueSyncOnChange";
 
 const MAX_SKUS_PER_RUN = 500;
 
@@ -222,7 +221,7 @@ export async function pullFornecedorEstoqueFromMercadoLivre(opts: {
   }
 
   if (changedSkuCodes.length > 0) {
-    const push = await syncOlistEstoqueFornecedorSkus({
+    const push = await syncEstoqueFornecedorSkus({
       orgId: opts.orgId,
       fornecedorId: opts.fornecedorId,
       skuCodes: changedSkuCodes,

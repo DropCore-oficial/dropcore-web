@@ -45,7 +45,7 @@ export function AlteracoesCatalogoInfoBanner() {
           fotos no formulário) entram em <strong>análise da DropCore</strong>.
         </p>
         <p>
-          O seller e os pedidos ERP seguem com a <strong>última versão aprovada</strong> até a publicação em{" "}
+          O seller e os pedidos seguem com a <strong>última versão aprovada</strong> até a publicação em{" "}
           <strong>Alterações de produtos</strong>.
         </p>
         <p>

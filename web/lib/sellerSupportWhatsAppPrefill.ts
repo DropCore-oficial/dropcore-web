@@ -13,15 +13,6 @@ export function buildSellerSupportWhatsAppHref(prefill: string): string {
 export function getSellerSupportWhatsAppPrefill(pathname: string): string {
   const p = pathname || "";
 
-  if (p.startsWith("/seller/integracoes-erp/como-conectar")) {
-    return "Olá! Preciso de ajuda para conectar a Olist/Tiny (token API) no DropCore.";
-  }
-  if (p.startsWith("/seller/integracoes-erp/mapeamento")) {
-    return "Olá! Preciso de ajuda com SKUs e mapeamento na Olist/Tiny (DropCore).";
-  }
-  if (p.startsWith("/seller/integracoes-erp")) {
-    return "Olá! Preciso de ajuda com a integração ERP (Olist/Tiny) no DropCore.";
-  }
   if (p.startsWith("/seller/produtos")) {
     return "Olá! Preciso de ajuda com produtos e catálogo no DropCore (seller).";
   }

@@ -9,23 +9,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-import { grupoKeyFromSkuString, syncOlistImagensFornecedorGrupo } from "@/lib/sellerOlistSyncImagensOnChange";
 import { optimizeImageBuffer } from "@/lib/imageOptimize";
 
 export const runtime = "nodejs";
 
 const BUCKET = "produto-imagens";
-
-function dispararSyncImagensOlist(opts: { orgId: string; fornecedorId: string; sku: string }) {
-  const grupoKey = grupoKeyFromSkuString(opts.sku);
-  void syncOlistImagensFornecedorGrupo({
-    orgId: opts.orgId,
-    fornecedorId: opts.fornecedorId,
-    grupoKey,
-  }).catch((e: unknown) => {
-    console.error("[fornecedor/imagem olist sync]", opts.sku, e);
-  });
-}
 
 async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: string; org_id: string } | null> {
   const auth = req.headers.get("authorization") ?? "";
@@ -105,11 +93,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
     if (!sku) return NextResponse.json({ error: "Produto não encontrado." }, { status: 404 });
 
-    const skuCodigo = String((sku as { sku?: string }).sku ?? "");
-    if (skuCodigo) {
-      dispararSyncImagensOlist({ orgId: ctx.org_id, fornecedorId: ctx.fornecedor_id, sku: skuCodigo });
-    }
-
     return NextResponse.json({ imagem_url: imagemUrl, sku });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
@@ -152,11 +135,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       if (pathMatch) {
         await supabaseAdmin.storage.from(BUCKET).remove([pathMatch[1]]);
       }
-    }
-
-    const skuCodigo = String((sku as { sku?: string }).sku ?? "");
-    if (skuCodigo) {
-      dispararSyncImagensOlist({ orgId: ctx.org_id, fornecedorId: ctx.fornecedor_id, sku: skuCodigo });
     }
 
     return NextResponse.json({ imagem_url: null });

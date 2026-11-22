@@ -3,9 +3,8 @@
 import { FornecedorNav } from "../FornecedorNav";
 import { FornecedorMercadoLivreIntegrationPanel } from "@/components/fornecedor/FornecedorMercadoLivreIntegrationPanel";
 
-// Mesmo padrão de web/app/seller/integracoes-marketplace/page.tsx (commit fcd617b,
-// 2026-11-04): grid de 3 colunas iguais, ERP (Olist/Tiny) saiu do menu principal — só o
-// Mercado Livre fica ativo, Shopee/TikTok Shop aparecem como "Em breve".
+// Mesmo padrão de web/app/seller/integracoes-marketplace/page.tsx: grid de 3 colunas
+// iguais, só o Mercado Livre fica ativo, Shopee/TikTok Shop aparecem como "Em breve".
 const MARKETPLACES_EM_BREVE = [
   { nome: "Shopee", logo: "/brand/marketplaces/shopee.svg" },
   { nome: "TikTok Shop", logo: "/brand/marketplaces/tiktok-shop.png" },

@@ -153,7 +153,7 @@ type Mensalidade = {
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
-/** Rótulo de exibição por canal — mesmo enum normalizado em `normalizeCanalVenda` (olistTinyApi.ts). */
+/** Rótulo de exibição por canal (`pedidos.canal_venda`). */
 const CANAL_VENDA_LABEL: Record<string, string> = {
   shopee: "Shopee",
   mercado_livre: "Mercado Livre",
@@ -391,8 +391,6 @@ export default function SellerDashboardPage() {
   const [pixRestanteSec, setPixRestanteSec] = useState<number | null>(null);
   const [movimentacoesAberto, setMovimentacoesAberto] = useState(false);
   const [chartPeriodo, setChartPeriodo] = useState<7 | 14 | 30 | 60 | 90 | 120 | "month:current" | "month:last" | string>(14);
-  /** Olist/Tiny: token API salvo na integração. */
-  const [olistIntegrado, setOlistIntegrado] = useState<boolean | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<"" | "pedidos">("");
   const [extratoPage, setExtratoPage] = useState(1);
   const [extratoPageSize, setExtratoPageSize] = useState(10);
@@ -438,7 +436,6 @@ export default function SellerDashboardPage() {
       setExtrato(raw.filter((e: LedgerEntry) => { if (seen.has(e.id)) return false; seen.add(e.id); return true; }));
       setDepositos(json.depositos ?? []);
       setCreditoResumo(json.credito_resumo ?? null);
-      setOlistIntegrado(Boolean(json.olist_connected));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
@@ -1702,7 +1699,7 @@ export default function SellerDashboardPage() {
             <IconClipboard className="h-3.5 w-3.5 shrink-0" />
             Acesso rápido
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button onClick={() => router.push("/seller/calculadora")} className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 text-left transition-all hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md group">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1730,22 +1727,6 @@ export default function SellerDashboardPage() {
               </svg>
             </div>
             <span className="text-sm font-bold text-[var(--foreground)] truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">Produtos</span>
-          </button>
-          <button onClick={() => router.push("/seller/integracoes-erp")} className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-center gap-3 text-left transition-all hover:border-[var(--primary-blue)]/40 hover:shadow-md group relative">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-blue)]/10 dark:bg-[var(--primary-blue)]/14 text-[var(--primary-blue)]">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22v-5" />
-                <path d="M9 8V2" />
-                <path d="M15 8V2" />
-                <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
-              </svg>
-            </div>
-            <span className="text-sm font-bold text-[var(--foreground)] truncate transition-colors group-hover:text-[var(--primary-blue)]">ERP</span>
-            {olistIntegrado === true && (
-              <span className="absolute top-2 right-2 rounded-full bg-emerald-100 dark:bg-emerald-950/50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
-                Olist/Tiny ok
-              </span>
-            )}
           </button>
           </div>
         </section>

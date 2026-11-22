@@ -1,17 +1,15 @@
 /**
  * PATCH /api/seller/pedidos/[id]/etiqueta-link
  *
- * Válvula de escape manual pra etiqueta que não chegou automaticamente. Só o seller tem
- * login na Olist — por isso essa ação fica no portal dele, não no do fornecedor. Aceita
- * dois formatos de corpo:
- *  - JSON `{ url }`: o seller cola o link da etiqueta que pegou no painel da Olist.
- *  - `multipart/form-data` com campo `file`: alguns marketplaces (ex.: Shopee) não dão link
- *    nenhum na Olist — o botão "imprimir" da Olist já baixa o PDF direto pro computador do
- *    seller. Nesse caso ele anexa o arquivo baixado em vez de colar um link.
+ * Válvula de escape manual pra etiqueta que não chegou automaticamente (canal fora do
+ * Mercado Livre, sem anexo automático). Aceita dois formatos de corpo:
+ *  - JSON `{ url }`: o seller cola o link da etiqueta que conseguiu no marketplace/ERP.
+ *  - `multipart/form-data` com campo `file`: quando o marketplace só oferece "imprimir"
+ *    (baixa o PDF direto pro computador), o seller anexa o arquivo em vez de colar um link.
  */
 import { NextResponse } from "next/server";
 import { addPedidoEvento } from "@/lib/erp/submitSellerErpPedido";
-import { fetchUrlAsPdfBase64, MAX_ETIQUETA_PDF_BYTES } from "@/lib/olistTinyApi";
+import { fetchUrlAsPdfBase64, MAX_ETIQUETA_PDF_BYTES } from "@/lib/fetchPdfFromUrl";
 import { getSellerFromToken } from "@/lib/sellerSessionAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -86,14 +84,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         return NextResponse.json({ error: "O arquivo enviado não é um PDF válido." }, { status: 422 });
       }
       base64 = buf.toString("base64");
-      origemDescricao = "Seller enviou manualmente o arquivo PDF da etiqueta (marketplace sem link na Olist).";
+      origemDescricao = "Seller enviou manualmente o arquivo PDF da etiqueta (marketplace sem link direto).";
       metadata = { upload_manual: true, nome_arquivo: file.name };
     } else {
       /**
-       * Não confia no link cru: a Olist mesma descreve como "link temporário" (expira), e um
+       * Não confia no link cru: links de etiqueta costumam ser temporários (expiram), e um
        * link que não devolve PDF de verdade só seria descoberto pelo fornecedor dias depois,
-       * na hora de imprimir. Baixa e valida agora — mesma função que o fluxo automático usa
-       * (web/lib/olistTinyApi.ts) — e grava os bytes reais em etiqueta_pdf_base64, não a URL.
+       * na hora de imprimir. Baixa e valida agora, grava os bytes reais em
+       * etiqueta_pdf_base64, não a URL.
        */
       base64 = await fetchUrlAsPdfBase64(url);
       if (!base64) {
@@ -102,16 +100,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           { status: 422 }
         );
       }
-      origemDescricao = "Seller colou manualmente o link da etiqueta (baixado direto no painel da Olist).";
+      origemDescricao = "Seller colou manualmente o link da etiqueta.";
       metadata = { link_original: url };
     }
 
     /**
      * Etiqueta repetida quase sempre é o mesmo link colado em dois pedidos por engano
      * (cada pedido do marketplace tem etiqueta própria) — bloqueia e aponta qual outro
-     * pedido já usa esse PDF. Não cobre o caso raro de despacho agrupado de verdade (Olist
-     * gera uma única etiqueta pra vários pedidos juntos); se acontecer, pedir pro admin
-     * resolver manualmente por ora.
+     * pedido já usa esse PDF. Não cobre o caso raro de despacho agrupado de verdade (o
+     * marketplace gera uma única etiqueta pra vários pedidos juntos); se acontecer, pedir
+     * pro admin resolver manualmente por ora.
      */
     // Compara em memória (não via .eq() no banco) — o base64 pode passar de 1MB e
     // estouraria o limite de tamanho de URL do PostgREST se fosse usado como filtro.

@@ -175,7 +175,7 @@ export default function EditarVariantesPage() {
     [grupoProdutos]
   );
 
-  /** Linha do SKU pai (*000) — foto de capa do produto (export Olist). */
+  /** Linha do SKU pai (*000) — foto de capa do produto. */
   const skuPaiRow = useMemo(() => {
     const pk = grupoKey.trim().toUpperCase();
     return grupoProdutos.find((p) => p.sku.trim().toUpperCase() === pk) ?? null;
@@ -1419,7 +1419,7 @@ export default function EditarVariantesPage() {
                 <div>
                   <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Foto principal do produto <span className="font-normal text-neutral-500 dark:text-neutral-400">(opcional)</span></h3>
                   <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                    Se não enviar aqui, a exportação Olist usa as miniaturas que você já subiu em{" "}
+                    Se não enviar aqui, o catálogo usa as miniaturas que você já subiu em{" "}
                     <strong className="font-medium">Info. de Variantes</strong> (uma foto por cor na capa do SKU pai{" "}
                     <span className="font-mono">{grupoKey.toUpperCase()}</span> e a mesma foto em cada SKU filho).
                   </p>
@@ -1444,9 +1444,9 @@ export default function EditarVariantesPage() {
                       }}
                     />
                     <div className={cn("rounded-lg border px-3 py-2.5 text-xs max-w-md", AMBER_PREMIUM_SURFACE_TRANSPARENT, AMBER_PREMIUM_TEXT_BODY)}>
-                      <p className={cn("font-medium", AMBER_PREMIUM_TEXT_PRIMARY)}>Olist e URL pública</p>
+                      <p className={cn("font-medium", AMBER_PREMIUM_TEXT_PRIMARY)}>Upload e URL pública</p>
                       <p className="mt-1 leading-relaxed">
-                        Basta enviar a imagem aqui — não precisa colar link. O upload gera URL pública no DropCore e exporta para a Olist.
+                        Basta enviar a imagem aqui — não precisa colar link. O upload já gera uma URL pública no DropCore.
                       </p>
                     </div>
                   </div>
@@ -1478,7 +1478,7 @@ export default function EditarVariantesPage() {
                     />
                   </div>
                   <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                    Até 6 URLs públicas no total (upload + links). Álbum Drive genérico não entra na Olist — prefira o upload acima.
+                    Até 6 URLs públicas no total (upload + links). Álbum Drive genérico pode não abrir direto no marketplace — prefira o upload acima.
                   </p>
                   {formError && <p className="text-sm text-red-400">{formError}</p>}
                   <button
@@ -1530,7 +1530,7 @@ export default function EditarVariantesPage() {
                 </div>
                 <div className="sm:col-span-2">
                   <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
-                    CFOP não é cadastrado no DropCore — configure na Olist (natureza de operação) com sua contabilidade.
+                    CFOP não é cadastrado no DropCore — configure a natureza de operação com sua contabilidade.
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">

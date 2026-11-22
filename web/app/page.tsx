@@ -6,7 +6,7 @@ const site = getSiteUrl();
 
 const LANDING_TITLE = "DropCore — Venda no marketplace sem se preocupar com estoque";
 const LANDING_DESCRIPTION =
-  "Plataforma para sellers: catálogo, pedidos, saldo PIX e integração ERP em um painel refinado. Drop shipping com operação organizada.";
+  "Plataforma para sellers: catálogo, pedidos e saldo PIX em um painel refinado. Drop shipping com operação organizada.";
 
 export const metadata: Metadata = {
   title: LANDING_TITLE,

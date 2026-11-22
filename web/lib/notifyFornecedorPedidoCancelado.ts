@@ -1,9 +1,8 @@
 /**
- * Notifica o fornecedor (portal DropCore) quando o marketplace/ERP cancela um pedido depois
- * de já postado/bloqueado (achado 2026-10-09 pro ML, generalizado 2026-10-12 pra Olist/Bling
- * — mesmo buraco, canal diferente). Sem isso, o fornecedor só descobria entrando na tela de
- * Pedidos e vendo o badge mudar sozinho. Nunca menciona valor (nem `valor_fornecedor`) — é
- * só aviso de status, sem dado financeiro novo.
+ * Notifica o fornecedor (portal DropCore) quando o marketplace cancela um pedido depois de
+ * já postado/bloqueado (achado 2026-10-09). Sem isso, o fornecedor só descobria entrando na
+ * tela de Pedidos e vendo o badge mudar sozinho. Nunca menciona valor (nem
+ * `valor_fornecedor`) — é só aviso de status, sem dado financeiro novo.
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 

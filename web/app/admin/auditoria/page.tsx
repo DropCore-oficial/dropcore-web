@@ -109,7 +109,7 @@ export default function AdminAuditoriaPage() {
       <AdminPageHeader
         eyebrow="Operação"
         title="Auditoria"
-        subtitle="Quem fez o quê no sistema — exclusões, aprovações de PIX, mudança de permissão, integrações de ERP e outras ações administrativas, com IP de origem."
+        subtitle="Quem fez o quê no sistema — exclusões, aprovações de PIX, mudança de permissão e outras ações administrativas, com IP de origem."
       />
 
       <div className="mt-6 flex flex-col gap-6">

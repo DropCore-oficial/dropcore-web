@@ -57,15 +57,6 @@ const STATUS_FILTER = [
   "erro_saldo",
 ] as const;
 
-/** Mesmo grupo computado na RPC (total_count_pendencias) — usado aqui só pra decidir se a
- * reserva "aguardando pagamento" deve entrar junto (ela não tem fornecedor_id/não vem da
- * RPC, mas pertence ao mesmo balde visual "precisa de atenção"). */
-const STATUS_PENDENCIAS = ["bloqueado", "produto_nao_vinculado", "anuncio_sem_sku", "pendente_estoque", "erro_saldo"];
-
-/** Status sintético (não existe em `pedidos.status`) — pedido Olist "Em aberto"
- * (aguardando pagamento), montado a partir de `estoque_reservas`, sem valor nem ação. */
-const STATUS_AGUARDANDO_PAGAMENTO = "aguardando_pagamento";
-
 export async function GET(req: Request) {
   try {
     const seller = await getSellerFromToken(req);
@@ -271,10 +262,10 @@ export async function GET(req: Request) {
       }
     }
 
-    // Pedidos "enviado" sem etiqueta que vieram direto do ML (não via Olist) — busca a
-    // data em que o próprio Mercado Livre prevê liberar a etiqueta (buffer de
-    // transportadora, achado ao vivo 2026-09-22), pra não confundir com o caso Olist
-    // (onde o seller precisa colar o link manualmente — ver "Etiqueta pendente" no JSX).
+    // Pedidos "enviado" sem etiqueta que vieram direto do ML — busca a data em que o
+    // próprio Mercado Livre prevê liberar a etiqueta (buffer de transportadora, achado ao
+    // vivo 2026-09-22), pra não confundir com os demais canais (onde o seller precisa
+    // colar o link manualmente — ver "Etiqueta pendente" no JSX).
     const previsaoMlPorPedido = await buscarPrevisaoEtiquetaMlPendentes(
       items.map((p) => ({
         id: p.id,
@@ -292,101 +283,8 @@ export async function GET(req: Request) {
       }
     }
 
-    // Pedidos Olist "Em aberto" (aguardando pagamento) — reserva estoque mas ainda não
-    // vira `pedidos`/`financial_ledger`. Entra na aba "Todos" e na aba "Pendências"
-    // (a busca por produto não filtra reserva — RPC só olha `pedidos.nome_produto`).
-    const incluirReservas = !statusArray || statusArray.some((s) => STATUS_PENDENCIAS.includes(s));
-    let reservaItems: typeof items = [];
-
-    if (incluirReservas) {
-      let reservasQuery = supabaseAdmin
-        .from("estoque_reservas")
-        .select(
-          "referencia_externa, quantidade, comprador_nome, marketplace_numero, canal_venda, criado_em, skus(sku, nome_produto, cor, tamanho)"
-        )
-        .eq("org_id", seller.org_id)
-        .eq("seller_id", seller.id)
-        .eq("status", "ativa");
-      if (desdeValido) reservasQuery = reservasQuery.gte("criado_em", desdeValido);
-      if (ateValido) reservasQuery = reservasQuery.lte("criado_em", ateValido);
-      const { data: reservas, error: reservasErr } = await reservasQuery.order("criado_em", { ascending: false });
-
-      if (reservasErr) {
-        console.error("[seller/pedidos GET] reservas:", reservasErr.message);
-      }
-
-      const porReferencia = new Map<
-        string,
-        {
-          criado_em: string;
-          comprador_nome: string | null;
-          marketplace_numero: string | null;
-          canal_venda: string | null;
-          itens: Array<{ sku: string; quantidade: number; nome_produto: string | null }>;
-        }
-      >();
-
-      for (const row of reservas ?? []) {
-        const ref = row.referencia_externa as string;
-        const skuInfo = row.skus as { sku?: string; nome_produto?: string | null; cor?: string | null; tamanho?: string | null } | null;
-        const criadoEm = row.criado_em as string;
-        const grupo = porReferencia.get(ref) ?? {
-          criado_em: criadoEm,
-          comprador_nome: (row.comprador_nome as string | null) ?? null,
-          marketplace_numero: (row.marketplace_numero as string | null) ?? null,
-          canal_venda: (row.canal_venda as string | null) ?? null,
-          itens: [],
-        };
-        const nomeCompleto = skuInfo?.nome_produto
-          ? [skuInfo.nome_produto, skuInfo.cor, skuInfo.tamanho]
-              .map((p) => (p ? String(p).trim() : ""))
-              .filter(Boolean)
-              .join(" - ")
-          : null;
-        grupo.itens.push({
-          sku: skuInfo?.sku ?? "—",
-          quantidade: Number(row.quantidade ?? 1),
-          nome_produto: nomeCompleto,
-        });
-        if (criadoEm && criadoEm < grupo.criado_em) grupo.criado_em = criadoEm;
-        porReferencia.set(ref, grupo);
-      }
-
-      reservaItems = Array.from(porReferencia.entries()).map(([referenciaExterna, g]) => ({
-        id: `reserva:${referenciaExterna}`,
-        pack_pedido_ids: [`reserva:${referenciaExterna}`] as string[],
-        nome_produto: g.itens.map((i) => i.nome_produto).find(Boolean) ?? null,
-        valor_total: 0,
-        status: STATUS_AGUARDANDO_PAGAMENTO,
-        motivo_bloqueio: null,
-        criado_em: g.criado_em,
-        referencia_externa: referenciaExterna,
-        tracking_codigo: null,
-        metodo_envio: null,
-        marketplace_numero: g.marketplace_numero,
-        comprador_nome: g.comprador_nome,
-        comprador_cidade: null,
-        comprador_uf: null,
-        comprador_fone: null,
-        canal_venda: g.canal_venda,
-        itens: g.itens,
-        etiqueta_pdf_url: null,
-        etiqueta_pdf_base64: null,
-        etiqueta_tentativas: 0,
-        tem_etiqueta: false,
-        is_reserva: true,
-        etiqueta_ml_previsao: null as string | null,
-      }));
-    }
-
-    const byDateDesc = (a: { criado_em: string }, b: { criado_em: string }) =>
-      new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime();
-
-    // `pedidos` já vem paginado do banco (`.range()`). Reservas não têm página própria —
-    // como a lista costuma ser pequena, elas só entram inteiras na página 1 (mais recentes
-    // primeiro), sem tentar intercalar duas fontes paginadas separadamente.
-    const merged = page === 1 ? [...reservaItems, ...items].sort(byDateDesc) : items;
-    const total = pedidosCount + reservaItems.length;
+    const merged = items;
+    const total = pedidosCount;
 
     // Pedido de reposição de troca referenciado pelo original — busca só o marketplace_numero
     // pra mostrar o link direto no card de "Troca concluída" (achado real 2026-11-15: pedido
@@ -403,12 +301,6 @@ export async function GET(req: Request) {
         pedido_reposicao_marketplace_numero: reposicaoId ? reposicaoMap.get(reposicaoId) ?? null : null,
       };
     });
-
-    // Reserva engorda a mesma aba visual "Pendências" (e "Todos") — soma depois da RPC,
-    // que não sabe nada sobre `estoque_reservas`.
-    if (reservaItems.length > 0) {
-      abas = { ...abas, todos: abas.todos + reservaItems.length, pendencias: abas.pendencias + reservaItems.length };
-    }
 
     return NextResponse.json({ items: mergedComReposicao, total, page, limit: pageSize, abas });
   } catch (e: unknown) {

@@ -10,7 +10,7 @@ import { assertPodeAtivarMaisSkus } from "@/lib/planos";
 import { mergeDetalhesProdutoJson, propagarDetalhesProdutoJsonNoGrupo } from "@/lib/detalhesProdutoJson";
 import { prepararDetalhesProdutoJsonCatalogo } from "@/lib/catalogoSkusDetalhesEspelho";
 import { getTabelaMedidasComPendente } from "@/lib/produtoTabelaMedidasDb";
-import { PESO_KG_MIN_PLAUSIVEL } from "@/lib/sellerCatalogOlistExport";
+import { PESO_KG_MIN_PLAUSIVEL } from "@/lib/skuPesoPlausivel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

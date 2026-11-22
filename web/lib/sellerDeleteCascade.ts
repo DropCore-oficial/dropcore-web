@@ -10,8 +10,8 @@ function isMissingRelation(err: { message?: string; code?: string }): boolean {
  * `deleteFornecedorCascade`. Seller ativo com pedidos não pode ser excluído (deve virar
  * "inativo" antes); inativo com pedidos cascade-deleta pedidos e itens.
  * Antes desta função, o DELETE de seller só apagava `seller_movimentacoes` + pedidos —
- * `financial_ledger`, `estoque_reservas`, `seller_credit_lots`, `seller_depositos_pix` e
- * `erp_event_logs` têm FK `RESTRICT` pra sellers e travavam a exclusão sem mensagem clara;
+ * `financial_ledger`, `estoque_reservas`, `seller_credit_lots`, `seller_depositos_pix`
+ * têm FK `RESTRICT` pra sellers e travavam a exclusão sem mensagem clara;
  * `financial_mensalidades` não tem FK (entidade_id é polimórfico) e ficava órfã, contando
  * pra sempre como "inadimplente" numa entidade que não existe mais.
  */
@@ -90,13 +90,6 @@ export async function deleteSellerCascade(
     .eq("org_id", orgId)
     .eq("seller_id", sellerId);
   if (pixErr && !isMissingRelation(pixErr)) return { ok: false, message: pixErr.message };
-
-  const { error: erpLogErr } = await sb
-    .from("erp_event_logs")
-    .delete()
-    .eq("org_id", orgId)
-    .eq("seller_id", sellerId);
-  if (erpLogErr && !isMissingRelation(erpLogErr)) return { ok: false, message: erpLogErr.message };
 
   const { error: menErr } = await sb
     .from("financial_mensalidades")

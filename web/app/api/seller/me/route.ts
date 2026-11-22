@@ -287,7 +287,7 @@ export async function GET(req: Request) {
     const plano_pendente = !planoSellerDefinido(seller.plano);
     const cadastro_pendente = sellerCadastroPendente(seller.documento, seller.plano);
 
-    const [plano_precos_mensalidade, pedidosAtencaoRes, anunciosProblemaRes, olistLiteRow] = await Promise.all([
+    const [plano_precos_mensalidade, pedidosAtencaoRes, anunciosProblemaRes] = await Promise.all([
       fetchMensalidadeSellerPorPlano(supabaseAdmin),
       supabaseAdmin
         .from("pedidos")
@@ -304,15 +304,9 @@ export async function GET(req: Request) {
         .eq("org_id", seller.org_id)
         .eq("seller_id", seller.id)
         .in("status", ["produto_nao_vinculado", "anuncio_sem_sku"]),
-      supabaseAdmin
-        .from("seller_olist_integrations")
-        .select("olist_token_ciphertext")
-        .eq("seller_id", seller.id)
-        .maybeSingle(),
     ]);
     const pedidosAtencaoCount = pedidosAtencaoRes.count;
     const anunciosProblemaCount = anunciosProblemaRes.count;
-    const olist_connected = Boolean(olistLiteRow.data?.olist_token_ciphertext?.trim());
 
     return NextResponse.json({
       ok: true,
@@ -357,7 +351,6 @@ export async function GET(req: Request) {
       extrato: extratoEnriquecido,
       depositos: depositos ?? [],
       credito_resumo,
-      olist_connected,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";

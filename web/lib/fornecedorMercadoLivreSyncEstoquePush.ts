@@ -1,9 +1,9 @@
 /**
  * Push DIRETO de estoque DropCore→Mercado Livre do PRÓPRIO FORNECEDOR — fecha o gap que o
  * pull (fornecedorMercadoLivreSyncEstoque.ts) não cobre: até aqui, quando o seller vendia um
- * SKU, a baixa só era empurrada pro ML do seller (sellerMercadoLivreSyncEstoque.ts) e pra
- * Olist do fornecedor, nunca pro próprio anúncio ML do fornecedor. Se o fornecedor vende o
- * mesmo SKU direto no próprio anúncio, ficava uma janela de overselling até o próximo pull
+ * SKU, a baixa só era empurrada pro ML do seller (sellerMercadoLivreSyncEstoque.ts), nunca
+ * pro próprio anúncio ML do fornecedor. Se o fornecedor vende o mesmo SKU direto no próprio
+ * anúncio, ficava uma janela de overselling até o próximo pull
  * (até 5min, ou o webhook do fornecedor perceber a venda dele mesmo).
  *
  * Usa o vínculo sku↔anúncio em `fornecedor_mercadolivre_sku_map`, repopulado a cada rodada
@@ -14,7 +14,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { mlAtualizarEstoque, type MercadoLivreEstoqueAtualizacao } from "@/lib/mercadoLivreApiClient";
 import { getValidMercadoLivreAccessTokenFornecedor } from "@/lib/mercadoLivreApiClientFornecedor";
-import { estoqueDisponivelParaVenda } from "@/lib/sellerOlistSyncEstoque";
+import { estoqueDisponivelParaVenda } from "@/lib/skuGrupoEstoqueCalculo";
 
 const API_PAUSE_MS = 220;
 

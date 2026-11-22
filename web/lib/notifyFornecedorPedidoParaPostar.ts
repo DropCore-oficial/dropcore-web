@@ -1,6 +1,6 @@
 /**
  * Notifica o fornecedor (portal DropCore) de novo pedido aguardando postagem.
- * Usado após venda via ERP/Olist do seller — valor exibido é só valor_fornecedor.
+ * Usado após venda do seller — valor exibido é só valor_fornecedor.
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { notifyUserEmail } from "@/lib/notifyEmail";

@@ -1,5 +1,4 @@
 import { executeBlockSale } from "@/lib/blockSale";
-import { fireErpEstoqueWebhook } from "@/lib/erpEstoqueOutbound";
 import { isInadimplente } from "@/lib/inadimplencia";
 import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
 import { notifyFornecedorPedidoParaPostar } from "@/lib/notifyFornecedorPedidoParaPostar";
@@ -7,7 +6,7 @@ import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
 import { motivoBloqueioParaPortal, type PedidoBloqueioResponsavel } from "@/lib/pedidoBloqueioResponsavel";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
 import { resolveTaxaDropcoreUnit } from "@/lib/order/resolveTaxaDropcore";
-import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
+import { dispararSyncEstoqueFornecedorSkus } from "@/lib/fornecedorEstoqueSyncOnChange";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { skuBaseSemSufixoMarketplace } from "@/lib/skuMarketplaceSuffix";
 
@@ -22,8 +21,6 @@ export type SubmitSellerErpPedidoInput = {
     id: string;
     fornecedor_id: string | null;
     plano?: string | null;
-    erp_estoque_webhook_url?: string | null;
-    erp_estoque_webhook_secret?: string | null;
   };
   referencia_externa: string | null;
   tracking_codigo?: string | null;
@@ -37,9 +34,8 @@ export type SubmitSellerErpPedidoInput = {
     comprador_uf?: string | null;
     comprador_fone?: string | null;
     canal_venda?: string | null;
-    /** Valor de venda ao cliente final (já líquido de desconto do marketplace) — ver
-     * `OlistPedidoDetalhe.preco_venda` em `olistTinyApi.ts`. Só informativo pro seller ver
-     * a margem; não entra em nenhum cálculo de saldo/repasse. */
+    /** Valor de venda ao cliente final (já líquido de desconto do marketplace) — só
+     * informativo pro seller ver a margem; não entra em nenhum cálculo de saldo/repasse. */
     preco_venda?: number | null;
     /** Pack do Mercado Livre (ver pedidos.marketplace_pack_id em docs/SCHEMA.md) — só pra
      * a tela agrupar na exibição; não muda nada no processamento deste pedido. */
@@ -795,23 +791,6 @@ export async function submitSellerErpPedido(
     .update({ ledger_id: blockResult.ledger_id, atualizado_em: new Date().toISOString() })
     .eq("id", pedido.id);
 
-  fireErpEstoqueWebhook({
-    webhookUrl: seller.erp_estoque_webhook_url,
-    webhookSecret: seller.erp_estoque_webhook_secret,
-    payload: {
-      event: "dropcore.estoque_atualizado",
-      pedido_id: pedido.id,
-      referencia_externa,
-      seller_id: seller.id,
-      org_id,
-      items: items.map((it, i) => ({
-        sku: skuRows[i].sku,
-        quantidade_vendida: it.quantidade,
-        estoque_atual_dropcore: skuRows[i].estoque_atual - it.quantidade,
-      })),
-    },
-  });
-
   await addPedidoEvento({
     org_id,
     pedido_id: pedido.id,
@@ -824,7 +803,7 @@ export async function submitSellerErpPedido(
   });
 
   if (fornecedor_id) {
-    dispararSyncEstoqueOlistFornecedorSkus({
+    dispararSyncEstoqueFornecedorSkus({
       orgId: org_id,
       fornecedorId: fornecedor_id,
       skuCodes: skuRows.map((r) => r.sku).filter(Boolean),
@@ -1101,7 +1080,7 @@ export async function tryPromoteBloqueadoPedido(params: {
 
   const { data: sellerRow, error: sellerErr } = await supabaseAdmin
     .from("sellers")
-    .select("id, org_id, fornecedor_id, plano, erp_estoque_webhook_url, erp_estoque_webhook_secret")
+    .select("id, org_id, fornecedor_id, plano")
     .eq("id", pedido.seller_id)
     .maybeSingle();
   if (sellerErr || !sellerRow) {
@@ -1376,25 +1355,8 @@ export async function tryPromoteBloqueadoPedido(params: {
     metadata: { referencia_externa: pedido.referencia_externa },
   });
 
-  fireErpEstoqueWebhook({
-    webhookUrl: sellerRow.erp_estoque_webhook_url,
-    webhookSecret: sellerRow.erp_estoque_webhook_secret,
-    payload: {
-      event: "dropcore.estoque_atualizado",
-      pedido_id: pedido.id,
-      referencia_externa: pedido.referencia_externa,
-      seller_id: pedido.seller_id,
-      org_id: params.org_id,
-      items: items.map((it, i) => ({
-        sku: skuRows[i].sku,
-        quantidade_vendida: it.quantidade,
-        estoque_atual_dropcore: skuRows[i].estoque_atual - it.quantidade,
-      })),
-    },
-  });
-
   if (fornecedor_id) {
-    dispararSyncEstoqueOlistFornecedorSkus({
+    dispararSyncEstoqueFornecedorSkus({
       orgId: params.org_id,
       fornecedorId: fornecedor_id,
       skuCodes: skuRows.map((r) => r.sku).filter(Boolean),
@@ -1451,7 +1413,7 @@ export async function tryPromoteErroSaldoPedido(params: {
 
   const { data: sellerRow, error: sellerErr } = await supabaseAdmin
     .from("sellers")
-    .select("id, erp_estoque_webhook_url, erp_estoque_webhook_secret")
+    .select("id")
     .eq("id", pedido.seller_id)
     .maybeSingle();
   if (sellerErr || !sellerRow) {
@@ -1517,25 +1479,8 @@ export async function tryPromoteErroSaldoPedido(params: {
     };
   });
 
-  fireErpEstoqueWebhook({
-    webhookUrl: sellerRow.erp_estoque_webhook_url,
-    webhookSecret: sellerRow.erp_estoque_webhook_secret,
-    payload: {
-      event: "dropcore.estoque_atualizado",
-      pedido_id: pedido.id,
-      referencia_externa: pedido.referencia_externa,
-      seller_id: pedido.seller_id,
-      org_id: params.org_id,
-      items: skuItems.map((it) => ({
-        sku: it.sku,
-        quantidade_vendida: it.quantidade,
-        estoque_atual_dropcore: it.estoque_atual,
-      })),
-    },
-  });
-
   if (fornecedor_id) {
-    dispararSyncEstoqueOlistFornecedorSkus({
+    dispararSyncEstoqueFornecedorSkus({
       orgId: params.org_id,
       fornecedorId: fornecedor_id,
       skuCodes: skuItems.map((r) => r.sku).filter(Boolean),

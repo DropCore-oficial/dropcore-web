@@ -1,6 +1,6 @@
 /**
  * POST /api/seller/mercadolivre/oauth — Troca authorization_code do Mercado Livre por
- * tokens e persiste por seller. Espelho de /api/seller/bling/oauth.
+ * tokens e persiste por seller.
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -39,23 +39,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Sessão de autorização expirada ou inválida. Volte e conecte de novo." },
         { status: 400 },
-      );
-    }
-
-    // Exclusivo com Olist: mesmo motivo do guard espelhado em /api/seller/olist (PUT) —
-    // evita a mesma venda do ML entrar duas vezes (via sync Olist e via webhook ML direto).
-    const { data: olistIntegracao } = await supabaseAdmin
-      .from("seller_olist_integrations")
-      .select("olist_token_ciphertext")
-      .eq("seller_id", seller.id)
-      .maybeSingle();
-    if (olistIntegracao?.olist_token_ciphertext) {
-      return NextResponse.json(
-        {
-          error:
-            "Este seller já tem a Olist/Tiny conectada — desconecte-a antes de conectar o Mercado Livre direto, pra não duplicar pedido do mesmo marketplace.",
-        },
-        { status: 409 },
       );
     }
 

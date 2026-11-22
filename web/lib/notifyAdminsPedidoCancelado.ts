@@ -3,9 +3,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 const TIPO = "pedido_cancelado_erp" as const;
 
 /**
- * Notifica owners/admins da org quando o marketplace/ERP cancela um pedido sem o DropCore
- * nunca ficar sabendo (achado 2026-10-09 pro ML, generalizado 2026-10-12 pra Olist/Bling —
- * mesmo buraco, canal diferente). O seller já é avisado via notifySellerPedidoAtencao, mas
+ * Notifica owners/admins da org quando o marketplace cancela um pedido sem o DropCore nunca
+ * ficar sabendo (achado 2026-10-09). O seller já é avisado via notifySellerPedidoAtencao, mas
  * o estorno de saldo é um evento financeiro real que a org também precisa enxergar, não só
  * descobrir pela tela de Pedidos.
  */

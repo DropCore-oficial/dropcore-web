@@ -2,9 +2,6 @@
  * Núcleo compartilhado de ingestão de um pedido do Mercado Livre pro DropCore — usado
  * pelo webhook (tempo real) e pelo cron de reconciliação (rede de segurança, pega o que
  * o webhook perder). Mesma lógica nos dois, pra não divergir.
- *
- * Exclusivo com Olist: se o seller tiver os dois conectados, ignora (ver guards em
- * /api/seller/olist e /api/seller/mercadolivre/oauth — aqui é a segunda camada de defesa).
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getValidMercadoLivreAccessToken, mlBuscarShipmentDetalheBruto } from "@/lib/mercadoLivreApiClient";
@@ -66,7 +63,6 @@ export type IngerirPedidoMlResultado =
         | "pendente_estoque"
         | "produto_nao_vinculado"
         | "anuncio_sem_sku"
-        | "ignorado_olist_ativo"
         | "ignorado_anterior_conexao";
     }
   | { ok: false; retryable: boolean; motivo: string };
@@ -92,23 +88,11 @@ export async function ingerirPedidoMercadoLivrePorSeller(params: {
 }): Promise<IngerirPedidoMlResultado> {
   const { data: sellerRow, error: sellerErr } = await supabaseAdmin
     .from("sellers")
-    .select("id, org_id, fornecedor_id, plano, erp_estoque_webhook_url, erp_estoque_webhook_secret")
+    .select("id, org_id, fornecedor_id, plano")
     .eq("id", params.sellerId)
     .maybeSingle();
   if (sellerErr) return { ok: false, retryable: true, motivo: `Falha ao buscar seller: ${sellerErr.message}` };
   if (!sellerRow?.fornecedor_id) return { ok: false, retryable: false, motivo: "Seller sem fornecedor vinculado." };
-
-  const { data: olistRow } = await supabaseAdmin
-    .from("seller_olist_integrations")
-    .select("olist_token_ciphertext")
-    .eq("seller_id", sellerRow.id)
-    .maybeSingle();
-  if (olistRow?.olist_token_ciphertext) {
-    console.warn(
-      `[mercadoLivrePedidoIngest] seller ${sellerRow.id} tem Olist ativo — ignorando pedido ${params.orderId} pra não duplicar.`
-    );
-    return { ok: true, status: "ignorado_olist_ativo" };
-  }
 
   const ctx = await getValidMercadoLivreAccessToken(sellerRow.id);
   if (!ctx) return { ok: false, retryable: true, motivo: "Sem token válido do Mercado Livre." };
@@ -221,8 +205,6 @@ export async function ingerirPedidoMercadoLivrePorSeller(params: {
       id: sellerRow.id,
       fornecedor_id: sellerRow.fornecedor_id,
       plano: sellerRow.plano,
-      erp_estoque_webhook_url: sellerRow.erp_estoque_webhook_url,
-      erp_estoque_webhook_secret: sellerRow.erp_estoque_webhook_secret,
     },
     referencia_externa: `ml:${params.orderId}`,
     items,

@@ -27,16 +27,12 @@ type SellerRow = {
   id: string;
   fornecedor_id: string | null;
   plano: string | null;
-  erp_estoque_webhook_url: string | null;
-  erp_estoque_webhook_secret: string | null;
 };
 
 /**
- * Catch-all pro status "pendente_estoque": sem isso, um pedido só sai desse status
- * quando o sync da Olist tenta reimportar o MESMO pedido de novo e bate em duplicidade
- * (ver processOlistPedidoImport → tryPromotePendenteEstoquePedido) — o que não acontece
- * se o pedido já saiu da janela de busca por data. Espelha pedidosBloqueadosRetry.ts,
- * que já existe pro status "bloqueado".
+ * Catch-all pro status "pendente_estoque": reavalia periodicamente se já tem saldo pra
+ * promover o pedido sem depender de um evento externo pra disparar a reconferência.
+ * Espelha pedidosBloqueadosRetry.ts, que já existe pro status "bloqueado".
  */
 export async function runPedidosPendenteEstoqueRetry(): Promise<PedidosPendenteEstoqueRetrySummary> {
   const { data: rows, error } = await supabaseAdmin
@@ -64,7 +60,7 @@ export async function runPedidosPendenteEstoqueRetry(): Promise<PedidosPendenteE
   if (sellerIds.length > 0) {
     const { data: sellerRows } = await supabaseAdmin
       .from("sellers")
-      .select("id, fornecedor_id, plano, erp_estoque_webhook_url, erp_estoque_webhook_secret")
+      .select("id, fornecedor_id, plano")
       .in("id", sellerIds)
       .returns<SellerRow[]>();
     for (const s of sellerRows ?? []) sellersById.set(s.id, s);
@@ -84,8 +80,6 @@ export async function runPedidosPendenteEstoqueRetry(): Promise<PedidosPendenteE
         id: seller.id,
         fornecedor_id: seller.fornecedor_id,
         plano: seller.plano,
-        erp_estoque_webhook_url: seller.erp_estoque_webhook_url,
-        erp_estoque_webhook_secret: seller.erp_estoque_webhook_secret,
       },
     });
 

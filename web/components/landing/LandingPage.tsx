@@ -19,7 +19,6 @@ import {
   LANDING_HERO,
   LANDING_HERO_PROOF,
   LANDING_HERO_VIDEO,
-  LANDING_INTEGRATIONS_BAR,
   LANDING_MARKETPLACES_BAR,
   LANDING_SECTIONS,
   LANDING_STEPS,
@@ -431,19 +430,17 @@ function HeroSection() {
   );
 }
 
-/** Parceiros (integração operacional real) + marketplaces atendidos, numa fileira só rolando
- * automático — resolve o desalinho visual de logo com tamanho/estilo bem diferente (wordmark
- * fino do Olist ao lado do ícone+texto do TikTok Shop) sem precisar encaixar tudo estático
- * numa linha. Lista duplicada 2x pro loop do `animate-marquee` ficar contínuo. */
+/** Marketplaces atendidos, numa fileira só rolando automático. Lista duplicada 2x pro loop
+ * do `animate-marquee` ficar contínuo. */
 function IntegrationsBar() {
-  const items = [...LANDING_INTEGRATIONS_BAR.items, ...LANDING_MARKETPLACES_BAR.items];
+  const items = LANDING_MARKETPLACES_BAR.items;
   const looped = [...items, ...items];
 
   return (
     <div className="border-y border-[var(--border-subtle)] bg-white py-6 sm:py-12 lg:py-8">
       <div className="dropcore-shell-6xl flex flex-col items-center gap-6 sm:flex-row sm:gap-8">
         <p className="shrink-0 whitespace-nowrap text-2xl font-bold uppercase tracking-wider text-emerald-600 sm:text-lg lg:text-base">
-          {LANDING_INTEGRATIONS_BAR.label}
+          {LANDING_MARKETPLACES_BAR.label}
         </p>
         <div className="w-full overflow-hidden sm:min-w-0 sm:flex-1 [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
           <div className="flex w-max items-center gap-20 animate-marquee motion-reduce:animate-none">

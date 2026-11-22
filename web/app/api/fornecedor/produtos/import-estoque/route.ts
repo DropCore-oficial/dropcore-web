@@ -11,7 +11,7 @@ import {
 } from "@/lib/fornecedorEstoqueImport";
 import { notifyEstoqueBaixo } from "@/lib/notifyEstoqueBaixo";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
+import { dispararSyncEstoqueFornecedorSkus } from "@/lib/fornecedorEstoqueSyncOnChange";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -180,7 +180,7 @@ export async function POST(req: Request) {
     }
 
     if (updatedSkus.length > 0) {
-      dispararSyncEstoqueOlistFornecedorSkus({
+      dispararSyncEstoqueFornecedorSkus({
         orgId: ctx.org_id,
         fornecedorId: ctx.fornecedor_id,
         skuCodes: updatedSkus,

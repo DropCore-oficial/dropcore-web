@@ -2872,7 +2872,7 @@ export default function CriarVariantesPage() {
                       <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
                         Foto por <strong className="font-medium text-neutral-700 dark:text-neutral-300">cor</strong> (SKUs filhos). A{" "}
                         <strong className="font-medium text-neutral-700 dark:text-neutral-300">primeira cor com foto</strong> vira capa do SKU pai (
-                        <span className="font-mono">{modoEdicao ? grupoEdicao : "…000"}</span>) no catálogo seller e na Olist — igual ao resto do DropCore.
+                        <span className="font-mono">{modoEdicao ? grupoEdicao : "…000"}</span>) no catálogo seller — igual ao resto do DropCore.
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -3499,7 +3499,7 @@ export default function CriarVariantesPage() {
                     ))}
                   </div>
                   <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
-                    NCM e CEST são referências comuns para vestuário nacional — confira sempre com a sua contabilidade. CFOP fica na Olist (natureza de operação). O local de saída fica no bloco «Despacho / CD padrão» abaixo.
+                    NCM e CEST são referências comuns para vestuário nacional — confira sempre com a sua contabilidade. O local de saída fica no bloco «Despacho / CD padrão» abaixo.
                   </p>
                 </div>
                 <div className="grid gap-2.5 sm:grid-cols-2">
@@ -3529,7 +3529,7 @@ export default function CriarVariantesPage() {
                   </div>
                   <div className="sm:col-span-2">
                     <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
-                      CFOP não é cadastrado no DropCore — configure na Olist (natureza de operação) com sua contabilidade.
+                      CFOP não é cadastrado no DropCore — configure a natureza de operação com sua contabilidade.
                     </p>
                   </div>
                   <div>

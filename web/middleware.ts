@@ -46,7 +46,10 @@ function redirectVercelProductionToCanonical(req: NextRequest): NextResponse | n
   return NextResponse.redirect(dest, 308);
 }
 
-function redirectBlingOAuthTrailingDot(req: NextRequest): NextResponse | null {
+/** Alguns clientes de e-mail/apps de chat "embelezam" o link do callback OAuth e deixam um
+ * ponto final sobrando na URL — sem isso, o redirect_uri não bate com o cadastrado no
+ * provedor (ML, etc.) e a autorização falha com erro genérico. */
+function redirectOAuthTrailingDot(req: NextRequest): NextResponse | null {
   const { pathname, search } = req.nextUrl;
   if (!pathname.endsWith(".")) return null;
   const normalized = pathname.replace(/\.+$/, "");
@@ -59,8 +62,8 @@ export async function middleware(req: NextRequest) {
   const canonicalRedirect = redirectVercelProductionToCanonical(req);
   if (canonicalRedirect) return canonicalRedirect;
 
-  const blingOAuthRedirect = redirectBlingOAuthTrailingDot(req);
-  if (blingOAuthRedirect) return blingOAuthRedirect;
+  const oauthTrailingDotRedirect = redirectOAuthTrailingDot(req);
+  if (oauthTrailingDotRedirect) return oauthTrailingDotRedirect;
 
   let res = NextResponse.next();
 

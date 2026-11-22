@@ -1,7 +1,6 @@
 /**
  * GET/POST /api/cron/fornecedor-mercadolivre-sync-estoque — pull de estoque Mercado Livre
- * (conta do fornecedor) → DropCore (todos os fornecedores conectados). Espelho de
- * /api/cron/fornecedor-olist-sync-estoque.
+ * (conta do fornecedor) → DropCore (todos os fornecedores conectados).
  */
 import { NextResponse } from "next/server";
 import { runFornecedorMercadoLivreEstoquePullTodos } from "@/lib/fornecedorMercadoLivreSyncEstoque";

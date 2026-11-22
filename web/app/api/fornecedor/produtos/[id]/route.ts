@@ -9,9 +9,9 @@ import { mergeDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { parseTabelaMedidasRecord } from "@/lib/fornecedorTabelaMedidas";
 import { upsertProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
 import { notifyAdminsAlteracaoProdutoPendente } from "@/lib/notifyAdminsAlteracaoProduto";
-import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
-import { PESO_KG_MIN_PLAUSIVEL } from "@/lib/sellerCatalogOlistExport";
-import { parseDataImageUrl, BUCKET_PRODUTO_IMAGENS } from "@/lib/fornecedorImagemPublicaOlist";
+import { dispararSyncEstoqueFornecedorSkus } from "@/lib/fornecedorEstoqueSyncOnChange";
+import { PESO_KG_MIN_PLAUSIVEL } from "@/lib/skuPesoPlausivel";
+import { parseDataImageUrl, BUCKET_PRODUTO_IMAGENS } from "@/lib/fornecedorImagemDataUrl";
 import { optimizeImageBuffer } from "@/lib/imageOptimize";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -234,7 +234,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
     /** Estoque: aplica na hora, fora da fila de aprovação — diferente de preço/custo (onde
      * fraude/erro de precificação merece revisão humana), baixa de estoque atrasada pelo
-     * admin aprovar gera overselling real no ML/Olist (o anúncio continua vendendo com o
+     * admin aprovar gera overselling real no ML (o anúncio continua vendendo com o
      * número antigo enquanto a pendência espera). Mesmo tratamento que o import em massa
      * (import-estoque/route.ts) já dá. */
     let estoquePublicado = false;
@@ -251,7 +251,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
       const skuCode = String(sku.sku ?? "").trim().toUpperCase();
       if (skuCode) {
-        dispararSyncEstoqueOlistFornecedorSkus({
+        dispararSyncEstoqueFornecedorSkus({
           orgId: ctx.org_id,
           fornecedorId: ctx.fornecedor_id,
           skuCodes: [skuCode],

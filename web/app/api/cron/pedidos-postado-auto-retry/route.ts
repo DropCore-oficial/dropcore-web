@@ -1,15 +1,13 @@
 /**
  * GET/POST /api/cron/pedidos-postado-auto-retry — Frente 3: promove pedido "enviado" pra
  * "aguardando_repasse" (e "aguardando_repasse" pra "entregue") sozinho, sem o
- * fornecedor/admin precisar clicar em nada — pra seller na Olist, lendo a situação que ela
- * já atualiza sozinha; pra seller direto no ML, consultando o shipment na API do ML (rede
+ * fornecedor/admin precisar clicar em nada — consultando o shipment na API do ML (rede
  * de segurança pro webhook de shipments perder a notificação). Agendamento: Supabase
  * pg_cron a cada 30 min (web/scripts/add-pedidos-postado-auto-retry-cron.sql).
  */
 import { NextResponse } from "next/server";
 import {
   runExtratoBloqueadoRepair,
-  runPedidosEnviadoAutoPostadoRetry,
   runPedidosEnviadoMlAutoPostadoRetry,
 } from "@/lib/pedidosEnviadoAutoPostadoRetry";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -51,12 +49,10 @@ export async function GET(req: Request) {
   }
 
   try {
-    const result = await runPedidosEnviadoAutoPostadoRetry();
     const resultMl = await runPedidosEnviadoMlAutoPostadoRetry();
     const extratoRepair = await runExtratoBloqueadoRepair();
     return NextResponse.json({
       ok: true,
-      olist: result,
       mercado_livre: resultMl,
       extrato_bloqueado_repair: extratoRepair,
     });

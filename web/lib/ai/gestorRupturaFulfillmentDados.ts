@@ -1,7 +1,7 @@
 /**
  * Dado real pro gestor "Risco de Ruptura & Fulfillment": estoque dos SKUs ativos do
- * fornecedor vinculado ao seller (skus.estoque_atual/estoque_minimo, já sincronizado via
- * Olist/Bling) cruzado com a venda dos últimos 30 dias (pedido_itens, fonte de verdade de
+ * fornecedor vinculado ao seller (skus.estoque_atual/estoque_minimo) cruzado com a venda
+ * dos últimos 30 dias (pedido_itens, fonte de verdade de
  * item vendido — não pedidos.sku_id, que é campo legado de single-item), dias até ruptura
  * (cálculo puro, não pedido pra IA), pedido pago aguardando estoque, e fornecedor (pra
  * agrupar na tela).

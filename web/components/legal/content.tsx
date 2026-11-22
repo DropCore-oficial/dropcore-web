@@ -50,10 +50,6 @@ export function SobreBody() {
             <strong className="text-[var(--foreground)]">Financeiro automatizado:</strong> saldo, crédito (recarga via
             PIX) e repasse ao fornecedor rodam sozinhos, sem planilha paralela.
           </li>
-          <li>
-            <strong className="text-[var(--foreground)]">Integração com ERP:</strong> quem já usa Olist/Tiny
-            mantém o estoque e os pedidos sincronizados automaticamente.
-          </li>
         </ul>
       </LegalSection>
 
@@ -106,7 +102,7 @@ export function TermosDeUsoBody() {
       <LegalSection title="2. O que é o DropCore">
         <p>
           O DropCore é um hub B2B que conecta sellers a fornecedores, com uma camada financeira própria (crédito,
-          mensalidade e repasse) e integração com ERP externo (Olist/Tiny). O DropCore <strong className="text-[var(--foreground)]">não é
+          mensalidade e repasse). O DropCore <strong className="text-[var(--foreground)]">não é
           marketplace</strong> — não vende produtos ao consumidor final — e <strong className="text-[var(--foreground)]">não é ERP</strong> —
           não substitui a gestão fiscal/contábil do seller ou do fornecedor. O DropCore também{" "}
           <strong className="text-[var(--foreground)]">não intermedia o pagamento do cliente final</strong>; esse pagamento ocorre
@@ -246,7 +242,6 @@ export function PrivacidadeBody() {
         <ul className="list-disc space-y-2 pl-5">
           <li>Operar o cadastro, o vínculo entre seller e fornecedor, e o fluxo de pedidos.</li>
           <li>Processar recargas de saldo, mensalidades e repasses financeiros.</li>
-          <li>Sincronizar estoque e pedidos com integração de ERP (Olist/Tiny), quando habilitada pelo usuário.</li>
           <li>Verificar identidade e prevenir fraude no cadastro de sellers e fornecedores.</li>
           <li>Enviar notificações operacionais (pedido, SLA, financeiro) relacionadas ao uso da plataforma.</li>
           <li>Cumprir obrigações legais e regulatórias.</li>
@@ -256,8 +251,8 @@ export function PrivacidadeBody() {
       <LegalSection title="4. Com quem compartilhamos">
         <p>
           Compartilhamos dados apenas com terceiros necessários à operação: processador de pagamento (Mercado Pago,
-          para recargas via PIX), plataforma de ERP integrada por opção do próprio seller/fornecedor (Olist/Tiny),
-          e provedores de infraestrutura (banco de dados e armazenamento) que hospedam a plataforma.
+          para recargas via PIX) e provedores de infraestrutura (banco de dados e armazenamento) que hospedam a
+          plataforma.
         </p>
         <p>
           O fornecedor nunca tem acesso à taxa ou percentual cobrado pelo DropCore ao seller — vê apenas o valor que
@@ -363,10 +358,6 @@ const FAQ_AJUDA: { q: string; a: string; audience?: FaqAudience[] }[] = [
   {
     q: "Esqueci minha senha ou não consigo entrar",
     a: "Use a opção de recuperação de senha na tela de login. Se o problema continuar, fale com a gente pelos canais abaixo.",
-  },
-  {
-    q: "Como funciona a integração com Olist?",
-    a: "Nas configurações da sua conta é possível conectar sua integração de Olist/Tiny para manter estoque e pedidos sincronizados automaticamente.",
   },
 ];
 

@@ -1,11 +1,10 @@
 /**
  * GET/POST /api/cron/estoque-reserva-expira
- * Reavalia reservas ativas contra a situação atual na Olist (promove quem já foi pago/
- * aprovado) e libera as que ficaram paradas há mais de 72h sem resolver.
+ * Libera reservas de estoque que ficaram paradas há mais de 72h sem resolver.
  * Agendamento: Supabase pg_cron (web/scripts/supabase-cron-jobs.sql), não Vercel Cron.
  */
 import { NextResponse } from "next/server";
-import { processarEstoqueReservaExpiraCron, recheckReservasAtivas } from "@/lib/order/estoqueReservaExpira";
+import { processarEstoqueReservaExpiraCron } from "@/lib/order/estoqueReservaExpira";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,9 +38,8 @@ async function run(req: Request) {
   }
 
   try {
-    const recheck = await recheckReservasAtivas();
     const expira = await processarEstoqueReservaExpiraCron();
-    return NextResponse.json({ ok: true, recheck, expira });
+    return NextResponse.json({ ok: true, expira });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

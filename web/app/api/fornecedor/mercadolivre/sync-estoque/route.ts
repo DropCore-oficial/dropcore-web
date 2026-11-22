@@ -1,6 +1,6 @@
 /**
  * POST /api/fornecedor/mercadolivre/sync-estoque — Pull estoque do Mercado Livre do
- * fornecedor → DropCore → sellers. Espelho de /api/fornecedor/olist/sync-estoque.
+ * fornecedor → DropCore → sellers.
  */
 import { NextResponse } from "next/server";
 import { getFornecedorContextFromBearer } from "@/lib/fornecedorAuth";

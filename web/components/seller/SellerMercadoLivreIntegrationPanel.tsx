@@ -96,8 +96,7 @@ export function SellerMercadoLivreIntegrationPanel() {
 
   /** Desconecta pra liberar a conta ML pra outro seller — ml_user_id é UNIQUE (achado ao
    * vivo 2026-09-22: sem isso, trocar de conta ML exigia mexer direto no banco). Some com
-   * o dado real dos gestores de IA até reconectar, mesmo padrão de aviso que o Olist já
-   * mostra no "Remover" da tela de ERP (`app/seller/integracoes-erp/page.tsx`). */
+   * o dado real dos gestores de IA até reconectar. */
   async function desconectar() {
     setDisconnecting(true);
     setError(null);

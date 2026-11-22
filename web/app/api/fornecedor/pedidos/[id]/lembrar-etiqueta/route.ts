@@ -1,10 +1,11 @@
 /**
  * POST /api/fornecedor/pedidos/[id]/lembrar-etiqueta
  *
- * O fornecedor não tem acesso à Olist (quem tem é o seller) — quando o pedido está sem
- * etiqueta, a única ação que o fornecedor pode tomar é cutucar o seller pra ele ir buscar
- * o link manualmente. Compartilha o mesmo cooldown (`etiqueta_alerta_enviado_em`) do
- * lembrete automático em web/lib/etiquetaOlistRetry.ts, pra não virar spam.
+ * O fornecedor não tem acesso direto ao marketplace (quem tem é o seller) — quando o
+ * pedido está sem etiqueta, a única ação que o fornecedor pode tomar é cutucar o seller
+ * pra ele ir buscar o link manualmente. Compartilha o mesmo cooldown
+ * (`etiqueta_alerta_enviado_em`) do lembrete automático em web/lib/etiquetaMlRetry.ts,
+ * pra não virar spam.
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";

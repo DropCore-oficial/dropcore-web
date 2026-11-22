@@ -1,8 +1,8 @@
 /**
  * GET /api/seller/mercadolivre — status da conexão OAuth com o Mercado Livre.
- * DELETE /api/seller/mercadolivre — desconecta (remove a linha inteira). Mesmo padrão de
- * DELETE /api/seller/olist — precisa disso pra trocar de conta ML sem intervenção manual
- * (achado ao vivo 2026-09-22: ml_user_id é UNIQUE, uma conta ML só liga a 1 seller por vez).
+ * DELETE /api/seller/mercadolivre — desconecta (remove a linha inteira) — precisa disso
+ * pra trocar de conta ML sem intervenção manual (achado ao vivo 2026-09-22: ml_user_id é
+ * UNIQUE, uma conta ML só liga a 1 seller por vez).
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";

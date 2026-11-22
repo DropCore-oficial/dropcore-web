@@ -24,6 +24,7 @@ import {
   mlGuiaMedidasCompleta,
 } from "@/lib/mercadoLivreApiClient";
 import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
+import { PESO_KG_MIN_PLAUSIVEL } from "@/lib/skuPesoPlausivel";
 import { calcularPrecoAncora } from "@/lib/margemCalculo";
 import { resolverDetalhesProdutoJson, grupoKeyFromSku } from "@/lib/detalhesProdutoJson";
 import { ordenarTamanhosLista } from "@/lib/fornecedorVariantesUi";
@@ -42,11 +43,6 @@ export const maxDuration = 60;
  * Mercado Livre (confirmado comparando com anúncio real do próprio fornecedor que vende bem) —
  * 2,5x deixa o preço perto da faixa psicológica R$99,xx, com margem pra promoção depois. */
 const MULTIPLICADOR_PRECO_ANCORA_ML = 150;
-
-/** Abaixo de 10g em kg é lixo de cadastro (ver `PESO_KG_MIN_PLAUSIVEL` em
- * `sellerCatalogOlistExport.ts`) — não manda pro Mercado Livre mesmo que já esteja salvo assim
- * num SKU antigo (a validação no cadastro bloqueia daqui pra frente, mas não corrige retroativo). */
-const PESO_KG_MIN_PLAUSIVEL = 0.01;
 
 type SkuRow = {
   sku: string;

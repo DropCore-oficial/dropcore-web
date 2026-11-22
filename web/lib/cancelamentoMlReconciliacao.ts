@@ -63,7 +63,6 @@ export async function reconciliarCancelamentoPedidoMl(
       motivo_tecnico: "ml_sem_sync",
       motivo_seller:
         "O Mercado Livre cancelou este pedido (etiqueta de envio nunca liberada — confira se a nota fiscal foi emitida a tempo).",
-      tipo_notificacao_seller: "pedido_cancelado_ml",
     });
 
     return { cancelado: resultado.cancelado };

@@ -1,9 +1,6 @@
 /**
- * Sync DIRETO de estoque fornecedor→Mercado Livre — complementa o sync via Olist/Tiny
- * (sellerOlistSyncEstoque.ts): aquele depende da própria Olist propagar pro ML no tempo
- * dela (ou nem propagar, se o seller não tiver ERP conectado); este escreve direto na API
- * do ML usando o vínculo SKU↔anúncio já populado em seller_mercadolivre_sku_map
- * (mercadoLivreSkuSync.ts). Mesmo saldo (estoqueDisponivelParaVenda) dos dois caminhos.
+ * Sync direto de estoque fornecedor→Mercado Livre — escreve direto na API do ML usando o
+ * vínculo SKU↔anúncio já populado em seller_mercadolivre_sku_map (mercadoLivreSkuSync.ts).
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
@@ -11,7 +8,7 @@ import {
   mlAtualizarEstoque,
   type MercadoLivreEstoqueAtualizacao,
 } from "@/lib/mercadoLivreApiClient";
-import { estoqueDisponivelParaVenda } from "@/lib/sellerOlistSyncEstoque";
+import { estoqueDisponivelParaVenda } from "@/lib/skuGrupoEstoqueCalculo";
 import { sincronizarSkuMercadoLivre } from "@/lib/ai/mercadoLivreSkuSync";
 import { registrarMlSyncFalha } from "@/lib/mlSyncFalhas";
 import { registrarMlSyncLog } from "@/lib/mlSyncLog";

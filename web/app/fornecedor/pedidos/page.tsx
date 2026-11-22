@@ -161,7 +161,7 @@ function getPageNumbers(current: number, total: number): (number | "...")[] {
 /**
  * Título do card sem repetir "- Cor - Tamanho" (já tem campo próprio) nem o nome do
  * produto uma vez por variante — usa o nome base do item (não o `nome_produto` do
- * pedido, que já vem com o sufixo de cor/tamanho concatenado do Olist).
+ * pedido, que às vezes já vem com o sufixo de cor/tamanho concatenado).
  */
 function tituloPedido(p: Pedido): string {
   const itens = p.itens ?? [];
@@ -913,8 +913,8 @@ export default function FornecedorPedidosPage() {
                                 Sem etiqueta
                               </p>
                               <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">
-                                A Olist ainda não gerou a etiqueta real desse pedido — depende do
-                                seller (só ele acessa a Olist). Não é um problema seu.
+                                A etiqueta real desse pedido ainda não chegou — depende do seller
+                                (só ele acessa o link no marketplace). Não é um problema seu.
                               </p>
                             </div>
                           </div>

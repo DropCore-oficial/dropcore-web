@@ -1990,8 +1990,9 @@ export async function mlBuscarPrevisaoLiberacaoEtiqueta(
   return lead?.estimated_handling_limit?.date ?? null;
 }
 
-/** Mesmo teto usado pro PDF da Olist (`MAX_ETIQUETA_PDF_BYTES` em olistTinyApi.ts) — limite
- * de tamanho de coluna/linha no Postgres pra guardar o base64, não é limite do ML. */
+/** Mesmo teto usado pro PDF de etiqueta manual (`MAX_ETIQUETA_PDF_BYTES` em
+ * lib/fetchPdfFromUrl.ts) — limite de tamanho de coluna/linha no Postgres pra guardar o
+ * base64, não é limite do ML. */
 const MAX_ETIQUETA_PDF_BYTES_ML = Math.floor(1.35 * 1024 * 1024);
 
 /** Garante que uma etiqueta ML (bytes crus) está no formato final: só 1 página (sem a

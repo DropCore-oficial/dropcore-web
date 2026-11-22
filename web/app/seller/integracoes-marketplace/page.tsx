@@ -5,9 +5,8 @@ import { SellerPageHeader } from "@/components/seller/SellerPageHeader";
 import { SellerMercadoLivreIntegrationPanel } from "@/components/seller/SellerMercadoLivreIntegrationPanel";
 
 // Mesmo card de web/app/seller/gestores-ia-avulso/integracoes/page.tsx, mas em grid de 3
-// colunas iguais (não largura fixa) pra ocupar a largura inteira da tela — ERP (Olist/
-// Bling) saiu do menu principal por enquanto, só ML fica ativo; Shopee/TikTok Shop
-// aparecem como "Em breve" (sem integração real ainda).
+// colunas iguais (não largura fixa) pra ocupar a largura inteira da tela — só ML fica
+// ativo; Shopee/TikTok Shop aparecem como "Em breve" (sem integração real ainda).
 const MARKETPLACES_EM_BREVE = [
   { nome: "Shopee", logo: "/brand/marketplaces/shopee.svg" },
   { nome: "TikTok Shop", logo: "/brand/marketplaces/tiktok-shop.png" },

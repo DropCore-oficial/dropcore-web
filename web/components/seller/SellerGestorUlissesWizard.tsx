@@ -47,8 +47,8 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
 
 /**
  * Wizard mostrado só na primeira vez que o seller abre `/seller/gestores-ia/ads` (ou
- * `/seller/gestores-ia-avulso/ads`) sem ter preferência salva — mesmo espírito do wizard
- * guiado de Olist/Bling. Editável depois a qualquer momento pelo mesmo formulário (não é
+ * `/seller/gestores-ia-avulso/ads`) sem ter preferência salva. Editável depois a qualquer
+ * momento pelo mesmo formulário (não é
  * "configurou uma vez e travou"), por isso `onSalvo` também serve pra reabrir e atualizar.
  * `endpoint` muda entre hub e avulso (preferência guardada em tabela diferente); unificado
  * 2026-10-11 — hub e avulso reimplementavam esse guard-rail de margem mínima cada um no seu

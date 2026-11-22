@@ -42,23 +42,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Exclusivo com Olist: evita dois crons escrevendo skus.estoque_atual ao mesmo tempo
-    // com fontes divergentes (mesmo racional do guard espelhado em /api/seller/mercadolivre/oauth).
-    const { data: olistIntegracao } = await supabaseAdmin
-      .from("fornecedor_olist_integrations")
-      .select("olist_token_ciphertext")
-      .eq("fornecedor_id", ctx.fornecedor_id)
-      .maybeSingle();
-    if (olistIntegracao?.olist_token_ciphertext) {
-      return NextResponse.json(
-        {
-          error:
-            "Este fornecedor já tem a Olist/Tiny conectada — desconecte-a antes de conectar o Mercado Livre direto, pra não ter duas fontes de estoque ao mesmo tempo.",
-        },
-        { status: 409 },
-      );
-    }
-
     const tokens = await exchangeMercadoLivreFornecedorAuthorizationCode(code);
     const expiresAt = computeMercadoLivreFornecedorAccessTokenExpiresAt(tokens.expires_in);
 

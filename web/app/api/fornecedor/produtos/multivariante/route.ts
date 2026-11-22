@@ -23,9 +23,9 @@ import { linkFotosComoSrcMiniatura } from "@/lib/fornecedorProdutoImagemSrc";
 import { fornecedorSkuCatalogExtrasFromBody } from "@/lib/fornecedorSkuCatalogExtras";
 import { upsertProdutoTabelaMedidas } from "@/lib/produtoTabelaMedidasDb";
 import { parseTabelaMedidasRecord, type TabelaMedidasPayload } from "@/lib/fornecedorTabelaMedidas";
-import { parseDataImageUrl, BUCKET_PRODUTO_IMAGENS } from "@/lib/fornecedorImagemPublicaOlist";
+import { parseDataImageUrl, BUCKET_PRODUTO_IMAGENS } from "@/lib/fornecedorImagemDataUrl";
 import { optimizeImageBuffer } from "@/lib/imageOptimize";
-import { PESO_KG_MIN_PLAUSIVEL } from "@/lib/sellerCatalogOlistExport";
+import { PESO_KG_MIN_PLAUSIVEL } from "@/lib/skuPesoPlausivel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -237,8 +237,7 @@ export async function POST(req: Request) {
       // vários MB em qualquer tela que lista o catálogo do fornecedor (vitrine do seller
       // quebrava com "Erro inesperado" genérico pra fornecedor com bastante imagem assim).
       // Sobe pro storage aqui, antes de qualquer SKU existir, e troca pela URL pública —
-      // mesma lógica já usada pro caminho de exportação Olist (`ensurePublicImagemUrlForOlist`),
-      // reaproveitada via `parseDataImageUrl` pra não duplicar o parse do data URL.
+      // reaproveita `parseDataImageUrl` pra não duplicar o parse do data URL.
       if (imagemUrlPorCorMap) {
         for (const [cor, valor] of Object.entries(imagemUrlPorCorMap)) {
           if (!valor.startsWith("data:image/")) continue;
@@ -342,8 +341,8 @@ export async function POST(req: Request) {
     }
 
     // Lixo de cadastro clássico: "0,25" digitado vira 0,00025 por erro de grama/kg — bloqueia
-    // salvar em vez de deixar passar e só filtrar depois na exportação Olist (achado real
-    // 2026-11-16: DJU003001 ficou com peso_kg=0.0002, quebrou o cálculo de frete no Mercado Livre).
+    // salvar em vez de deixar passar (achado real 2026-11-16: DJU003001 ficou com
+    // peso_kg=0.0002, quebrou o cálculo de frete no Mercado Livre).
     if (peso_kg != null && peso_kg < PESO_KG_MIN_PLAUSIVEL) {
       return NextResponse.json({
         error: `Peso "${peso_kg}kg" parece errado (menos de 10g) — confira se não digitou grama no lugar de quilo.`,

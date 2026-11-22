@@ -1,34 +1,25 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sellerCustoTotalPagoUnitario } from "@/lib/sellerCustoTotalPago";
-import {
-  filterSkusByGrupo,
-  filterSkusForOlistExport,
-  type CatalogSkuForOlistExport,
-} from "@/lib/sellerCatalogOlistExport";
+import { filterSkusByGrupo, type SkuGrupoRow } from "@/lib/skuGrupoEstoqueCalculo";
 
-export type LoadCatalogOlistOpts = {
+export type LoadSkusGrupoOpts = {
   orgId: string;
-  sellerId: string;
   fornecedorId: string;
   grupoKey: string;
-  scope?: "habilitados" | "todos";
-  categoriaOlist?: string | null;
   supabase: SupabaseClient;
-  maxRows?: number;
 };
 
-export type LoadCatalogOlistResult =
-  | { ok: true; items: CatalogSkuForOlistExport[]; grupoKey: string }
+export type LoadSkusGrupoResult =
+  | { ok: true; items: SkuGrupoRow[]; grupoKey: string }
   | { ok: false; error: string; status: number };
 
-export async function loadCatalogSkusForOlistExport(opts: LoadCatalogOlistOpts): Promise<LoadCatalogOlistResult> {
+/** Carrega SKUs ativos de um grupo (pai + variações) do fornecedor — usado pelo disparo de
+ * sync de estoque pro Mercado Livre após venda/reposição/aprovação de alteração. */
+export async function loadSkusGrupoFornecedor(opts: LoadSkusGrupoOpts): Promise<LoadSkusGrupoResult> {
   const grupoKey = opts.grupoKey.trim().toUpperCase();
   if (!grupoKey) {
     return { ok: false, error: "Informe o grupo do produto (ex.: DJU001000).", status: 400 };
   }
-
-  const scope = opts.scope === "habilitados" ? "habilitados" : "todos";
-  const maxRows = opts.maxRows ?? 500;
 
   const { data: rows, error } = await opts.supabase
     .from("skus")
@@ -45,7 +36,7 @@ export async function loadCatalogSkusForOlistExport(opts: LoadCatalogOlistOpts):
     return { ok: false, error: "Erro ao carregar catálogo.", status: 500 };
   }
 
-  const mapped: CatalogSkuForOlistExport[] = (rows ?? []).map((row) => {
+  const mapped: SkuGrupoRow[] = (rows ?? []).map((row) => {
     const id = String((row as { id?: string }).id ?? "");
     const custoTotal = sellerCustoTotalPagoUnitario(
       (row as { custo_base?: unknown }).custo_base,
@@ -92,22 +83,9 @@ export async function loadCatalogSkusForOlistExport(opts: LoadCatalogOlistOpts):
     };
   });
 
-  let filtered = filterSkusForOlistExport(mapped, scope);
-  filtered = filterSkusByGrupo(filtered, grupoKey);
+  const filtered = filterSkusByGrupo(mapped, grupoKey);
   if (filtered.length === 0) {
     return { ok: false, error: `Nenhum SKU ativo encontrado para o grupo ${grupoKey}.`, status: 400 };
-  }
-
-  if (opts.categoriaOlist?.trim()) {
-    filtered = filtered.map((item) => ({ ...item, categoria: opts.categoriaOlist!.trim() }));
-  }
-
-  if (filtered.length > maxRows) {
-    return {
-      ok: false,
-      error: `Muitos itens (${filtered.length}). A Olist recomenda até ${maxRows} linhas por planilha.`,
-      status: 400,
-    };
   }
 
   return { ok: true, items: filtered, grupoKey };

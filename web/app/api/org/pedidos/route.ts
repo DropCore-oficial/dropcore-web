@@ -10,7 +10,7 @@ import { executeBlockSale } from "@/lib/blockSale";
 import { isInadimplente } from "@/lib/inadimplencia";
 import { createOrderCore } from "@/lib/order/createOrderCore";
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
-import { dispararSyncEstoqueOlistFornecedorSkus } from "@/lib/sellerOlistSyncEstoqueOnChange";
+import { dispararSyncEstoqueFornecedorSkus } from "@/lib/fornecedorEstoqueSyncOnChange";
 import { notifyFornecedorPedidoParaPostar } from "@/lib/notifyFornecedorPedidoParaPostar";
 import { notifySellerPedidoAtencao } from "@/lib/notifySellerPedidoAtencao";
 
@@ -646,12 +646,12 @@ export async function POST(req: Request) {
       motivo: `Novo pedido${referenciaExternaGerada ? ` ${referenciaExternaGerada}` : ""} de R$ ${blockResult.valor_total.toFixed(2)} recebido.${preco_venda ? ` Vendido por R$ ${preco_venda.toFixed(2)}.` : ""}`,
     });
 
-    const skuCodesOlist = estoqueDebitos.map((d) => d.sku).filter((s): s is string => Boolean(s?.trim()));
-    if (skuCodesOlist.length > 0) {
-      dispararSyncEstoqueOlistFornecedorSkus({
+    const skuCodesEstoque = estoqueDebitos.map((d) => d.sku).filter((s): s is string => Boolean(s?.trim()));
+    if (skuCodesEstoque.length > 0) {
+      dispararSyncEstoqueFornecedorSkus({
         orgId: org_id,
         fornecedorId: fornecedor_id,
-        skuCodes: skuCodesOlist,
+        skuCodes: skuCodesEstoque,
       });
     }
 

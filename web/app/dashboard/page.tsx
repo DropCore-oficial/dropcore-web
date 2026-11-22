@@ -827,39 +827,6 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {/* Treinamento: integração Olist/Tiny (abaixo do operacional do dia) */}
-        {isAdmin && (
-          <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">
-            <div className="relative p-4 sm:p-5">
-              <div
-                className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b from-emerald-500 to-emerald-600 opacity-90"
-                aria-hidden
-              />
-              <div className="flex flex-col gap-4 pl-4 sm:flex-row sm:items-center sm:justify-between sm:pl-5">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-                    Treinamento · onboarding
-                  </p>
-                  <h2 className="mt-1 text-base font-semibold text-[var(--foreground)]">Integrar seller na Olist/Tiny</h2>
-                  <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-[var(--muted)]">
-                    Roteiro para call com o seller: token, webhook, SKU e teste —{" "}
-                    <Link href="/admin/guia-integracao-tiny" className="font-medium text-emerald-600 hover:underline dark:text-emerald-400">
-                      abrir guia
-                    </Link>
-                    .
-                  </p>
-                </div>
-                <Link
-                  href="/admin/guia-integracao-tiny"
-                  className="inline-flex shrink-0 items-center justify-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:bg-emerald-800"
-                >
-                  Guia completo →
-                </Link>
-              </div>
-            </div>
-          </section>
-        )}
-
         {/* 2. Visão geral — card principal como seller/fornecedor */}
         {isAdmin && stats && (
           <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm overflow-hidden">

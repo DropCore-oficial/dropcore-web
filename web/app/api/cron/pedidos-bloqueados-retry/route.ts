@@ -1,9 +1,9 @@
 /**
  * GET/POST /api/cron/pedidos-bloqueados-retry — rede de segurança catch-all.
- * Reavalia pedidos `bloqueado` que os gatilhos pontuais (habilitar SKU, reimport
- * duplicado Olist/Bling) não pegaram, e também pedidos `pendente_estoque` (mesmo
- * problema: só saem desse status via reimport duplicado, que não acontece se o
- * pedido já saiu da janela de busca do sync). Agendamento: Supabase pg_cron a cada
+ * Reavalia pedidos `bloqueado` que os gatilhos pontuais (habilitar SKU) não pegaram, e
+ * também pedidos `pendente_estoque` (mesmo problema: só saem desse status via
+ * reprocessamento pontual, que não acontece se o pedido já saiu da janela de busca do
+ * sync). Agendamento: Supabase pg_cron a cada
  * 15 min (web/scripts/add-pedidos-bloqueados-retry-cron.sql).
  */
 import { NextResponse } from "next/server";

@@ -54,7 +54,7 @@ export function describeSellerErpSecretDecryptFailure(error: unknown): string {
     return "O servidor não tem SELLER_ERP_CREDENTIALS_KEY configurada para abrir o token salvo.";
   }
   if (message.includes("Formato de credencial inválido")) {
-    return "O token salvo está em formato inválido. Salve o token API da Olist/Tiny novamente.";
+    return "O token salvo está em formato inválido. Salve o token novamente.";
   }
   if (message.includes("SELLER_ERP_CREDENTIALS_KEY_MISMATCH")) {
     return "O token foi criptografado com outra chave de servidor. Use a mesma SELLER_ERP_CREDENTIALS_KEY deste ambiente ou cole o token de novo aqui.";

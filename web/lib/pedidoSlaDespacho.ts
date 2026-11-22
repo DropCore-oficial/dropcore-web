@@ -4,8 +4,8 @@ import { getValidMercadoLivreAccessToken, mlBuscarPrevisaoLiberacaoEtiqueta } fr
  * SLA de postagem por marketplace (Fase 2 — v1 só calcula/notifica, sem penalidade
  * financeira ainda). Regra de desenho já fechada: o relógio conta a partir da ETIQUETA
  * DISPONÍVEL (`etiqueta_impressa_em`), nunca da criação do pedido — atraso causado pela
- * etiqueta demorar (buffer do próprio ML, fila da Olist) não pode virar "culpa do
- * fornecedor". Mercado Livre é exceção: usa o prazo real que a própria API do ML devolve
+ * etiqueta demorar (buffer do próprio ML) não pode virar "culpa do fornecedor". Mercado
+ * Livre é exceção: usa o prazo real que a própria API do ML devolve
  * (`estimated_handling_limit`), independente de etiqueta impressa.
  *
  * Regras confirmadas com o Sr Stark em 2026-09-24:
@@ -185,11 +185,10 @@ export function calcularPrazoTiktok(gatilho: Date): Date {
 }
 
 /**
- * Calcula o prazo de despacho de um pedido. `canalVenda` usa os valores canônicos de
- * `normalizeCanalVenda()` (`olistTinyApi.ts`): "shopee" | "mercado_livre" | "shein" |
- * "tiktok_shop" | "outro". Devolve `null` quando não dá pra calcular ainda (sem etiqueta
- * impressa nos 3 canais Olist, sem token/pedido no ML) ou quando o canal não tem regra
- * definida ("outro").
+ * Calcula o prazo de despacho de um pedido. `canalVenda`: "shopee" | "mercado_livre" |
+ * "shein" | "tiktok_shop" | "outro". Devolve `null` quando não dá pra calcular ainda (sem
+ * etiqueta impressa, sem token/pedido no ML) ou quando o canal não tem regra definida
+ * ("outro").
  */
 export async function calcularPrazoDespachoPedido(params: {
   canalVenda: string | null;

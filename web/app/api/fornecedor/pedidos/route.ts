@@ -211,14 +211,17 @@ export async function GET(req: Request) {
     const expedicaoPadrao = String((fornecedorRow as { expedicao_padrao_linha?: string | null } | null)?.expedicao_padrao_linha ?? "").trim() || null;
 
     // Itens reais do pedido vêm de pedido_itens (multi-item) — pedidos.sku_id é legado
-    // (só populado no fluxo manual do admin) e fica nulo pros pedidos vindos do ERP/Olist.
+    // (só populado no fluxo manual do admin) e fica nulo nos demais casos.
     const pedidoIds = (data ?? []).map((p) => p.id);
     const itensPorPedido = new Map<string, PedidoItemRow[]>();
     if (pedidoIds.length > 0) {
+      // CD DropCore: pedido pode ter item de outro fornecedor junto — nunca mostrar o
+      // produto/valor de quem não é este fornecedor (regra inegociável #2).
       const { data: itens, error: itensErr } = await supabaseAdmin
         .from("pedido_itens")
         .select("pedido_id, quantidade, skus(sku, nome_produto, cor, tamanho, categoria, expedicao_override_linha)")
-        .in("pedido_id", pedidoIds);
+        .in("pedido_id", pedidoIds)
+        .eq("fornecedor_id", ctx.fornecedor_id);
       if (itensErr) {
         console.error("[fornecedor/pedidos GET] itens:", itensErr.message);
       }
@@ -359,8 +362,8 @@ export async function GET(req: Request) {
     const alvoParaMlAgrupado = alvoParaMl.filter((a) => idsPrincipais.has(a.id));
 
     // Mesma lógica do `/api/seller/pedidos`: pedido "enviado" sem etiqueta que veio direto
-    // do ML mostra a data real de liberação em vez do alerta "Sem etiqueta" (que é
-    // especificamente pro caso Olist, onde o seller precisa colar o link manualmente).
+    // do ML mostra a data real de liberação em vez do alerta "Sem etiqueta" (esse alerta é
+    // pros demais canais, onde o seller precisa colar o link manualmente).
     const previsaoMlPorPedido = await buscarPrevisaoEtiquetaMlPendentes(alvoParaMlAgrupado);
     for (let i = 0; i < itemsAgrupados.length; i++) {
       const previsao = previsaoMlPorPedido.get(itemsAgrupados[i].id);

@@ -1,8 +1,7 @@
 /**
- * Rede de segurança pro webhook do ML — mesma lição já aprendida com a Olist: webhook
- * sozinho não é confiável (notificação pode nunca chegar, API instável, deploy no meio,
- * seller reconectando token, etc.). Varre pedidos recentes de cada seller com ML direto
- * conectado (e sem Olist ativo, pra não duplicar) e importa o que o webhook não pegou.
+ * Rede de segurança pro webhook do ML — webhook sozinho não é confiável (notificação pode
+ * nunca chegar, API instável, deploy no meio, seller reconectando token, etc.). Varre
+ * pedidos recentes de cada seller com ML conectado e importa o que o webhook não pegou.
  *
  * Janela de 24h com cron a cada 15 min (achado real 2026-10-24: venda real no ML do seller
  * Vinz Collection nunca virou pedido no DropCore — a janela de 3h de antes não dava margem
@@ -77,13 +76,6 @@ export async function runMercadoLivrePedidosReconciliacao(): Promise<MercadoLivr
       const sellerRow = integ.sellers as { org_id?: string; fornecedor_id?: string } | null;
       const orgId = sellerRow?.org_id;
       const fornecedorId = sellerRow?.fornecedor_id ?? null;
-
-      const { data: olistRow } = await supabaseAdmin
-        .from("seller_olist_integrations")
-        .select("olist_token_ciphertext")
-        .eq("seller_id", integ.seller_id)
-        .maybeSingle();
-      if (olistRow?.olist_token_ciphertext) continue; // exclusivo — mesma trava do webhook
 
       const ctx = await getValidMercadoLivreAccessToken(integ.seller_id);
       if (!ctx) continue;

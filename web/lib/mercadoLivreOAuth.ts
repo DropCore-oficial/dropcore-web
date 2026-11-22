@@ -1,7 +1,7 @@
 /**
- * OAuth2 do Mercado Livre — mesmo formato de client credentials + troca/renovação de
- * `blingOAuth.ts`. Fluxo: authorization_code (redirect_uri estático, carrega seller/org via
- * `state`), token expira em 6h, renova com refresh_token.
+ * OAuth2 do Mercado Livre — client credentials + troca/renovação de token. Fluxo:
+ * authorization_code (redirect_uri estático, carrega seller/org via `state`), token expira
+ * em 6h, renova com refresh_token.
  * Docs: https://developers.mercadolivre.com.br/pt_br/autenticacao-e-autorizacao
  */
 import { CANONICAL_SITE_ORIGIN } from "@/lib/siteUrl";
