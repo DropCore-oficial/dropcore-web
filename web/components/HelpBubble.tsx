@@ -17,6 +17,12 @@ type TooltipFixedPos = { left: number; top: number; transform: string; width: nu
  * Botão ? discreto; painel em portal + fixed para não ser cortado por overflow.
  * Hover no botão ou no painel (igual à calculadora do seller).
  */
+type TriggerProps = {
+  "aria-label": string;
+  "aria-expanded": boolean;
+  "aria-describedby"?: string;
+};
+
 export function HelpBubble({
   open,
   onOpen,
@@ -25,6 +31,7 @@ export function HelpBubble({
   children,
   side = "below",
   align = "start",
+  trigger,
 }: {
   open: boolean;
   onOpen: () => void;
@@ -33,8 +40,11 @@ export function HelpBubble({
   children: ReactNode;
   side?: "below" | "above";
   align?: "start" | "end";
+  /** Substitui o botão "?" padrão — útil quando o próprio elemento que acompanha (ex.: um
+   * badge) já deve servir de gatilho de hover, sem duplicar um círculo "?" ao lado. */
+  trigger?: (props: TriggerProps) => ReactNode;
 }) {
-  const anchorRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLSpanElement>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tooltipId = useId();
   const [fixedPos, setFixedPos] = useState<TooltipFixedPos | null>(null);
@@ -127,23 +137,31 @@ export function HelpBubble({
     );
 
   return (
-    <div
+    <span
       ref={anchorRef}
       className="relative inline-flex shrink-0 items-center"
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
     >
-      <button
-        type="button"
-        className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full border border-neutral-300 bg-neutral-100 text-[10px] font-semibold leading-none text-neutral-500 transition hover:border-neutral-400 hover:bg-white hover:text-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-1 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:border-neutral-500 dark:hover:bg-neutral-700/60 dark:hover:text-neutral-200 dark:focus-visible:ring-neutral-500 dark:focus-visible:ring-offset-neutral-900"
-        aria-expanded={open}
-        aria-describedby={open ? tooltipId : undefined}
-        aria-label={ariaLabel}
-        onClick={(e) => e.preventDefault()}
-      >
-        ?
-      </button>
+      {trigger ? (
+        trigger({
+          "aria-label": ariaLabel,
+          "aria-expanded": open,
+          "aria-describedby": open ? tooltipId : undefined,
+        })
+      ) : (
+        <button
+          type="button"
+          className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full border border-neutral-300 bg-neutral-100 text-[10px] font-semibold leading-none text-neutral-500 transition hover:border-neutral-400 hover:bg-white hover:text-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-1 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:border-neutral-500 dark:hover:bg-neutral-700/60 dark:hover:text-neutral-200 dark:focus-visible:ring-neutral-500 dark:focus-visible:ring-offset-neutral-900"
+          aria-expanded={open}
+          aria-describedby={open ? tooltipId : undefined}
+          aria-label={ariaLabel}
+          onClick={(e) => e.preventDefault()}
+        >
+          ?
+        </button>
+      )}
       {tooltipNode}
-    </div>
+    </span>
   );
 }

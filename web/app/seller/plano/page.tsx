@@ -36,6 +36,9 @@ type SellerMe = {
   plano_ciclo_valor_travado?: number | null;
   plano_ciclo_compromisso_fim?: string | null;
   gestores_ia_addon_ativo?: boolean;
+  cd_fornecedor_extra_count?: number;
+  cd_fornecedor_extra_valor_mensal?: number;
+  cd_fornecedor_extra_cortesia_count?: number;
 };
 
 /** Versão do texto de aceite leve no upgrade em ciclo semestral/anual — mudar se o texto mudar. */
@@ -68,6 +71,48 @@ function FeatureLine({ children }: { children: ReactNode }) {
       </span>
       <span>{children}</span>
     </li>
+  );
+}
+
+function CdAddonBreakdown({
+  precoBase,
+  count,
+  valorExtra,
+  cortesiaCount,
+}: {
+  precoBase: number;
+  count: number;
+  valorExtra: number;
+  cortesiaCount: number;
+}) {
+  if (count <= 0 && cortesiaCount <= 0) return null;
+  return (
+    <div className="mt-4 rounded-xl border border-[var(--card-border)] bg-[var(--muted)]/10 p-3 text-xs">
+      <div className="flex items-center justify-between text-[var(--muted)]">
+        <span>Plano</span>
+        <span className="tabular-nums">{BRL.format(precoBase)}</span>
+      </div>
+      {count > 0 && (
+        <div className="mt-1 flex items-center justify-between text-[var(--muted)]">
+          <span>
+            + {count} {count === 1 ? "fornecedor extra" : "fornecedores extras"} do CD
+          </span>
+          <span className="tabular-nums">+{BRL.format(valorExtra)}</span>
+        </div>
+      )}
+      {cortesiaCount > 0 && (
+        <div className="mt-1 flex items-center justify-between text-emerald-600 dark:text-emerald-400">
+          <span>
+            + {cortesiaCount} {cortesiaCount === 1 ? "fornecedor extra" : "fornecedores extras"} do CD (cortesia)
+          </span>
+          <span className="tabular-nums">{BRL.format(0)}</span>
+        </div>
+      )}
+      <div className="mt-2 flex items-center justify-between border-t border-[var(--card-border)] pt-2 font-semibold text-[var(--foreground)]">
+        <span>Total mensal</span>
+        <span className="tabular-nums">{BRL.format(precoBase + valorExtra)}</span>
+      </div>
+    </div>
   );
 }
 
@@ -327,6 +372,9 @@ export default function SellerPlanoPage() {
   const precoStart = planoPrecos?.starter ?? VALOR_DEFAULT_MENSALIDADE_SELLER;
   const precoPro = planoPrecos?.pro ?? VALOR_DEFAULT_MENSALIDADE_SELLER_PRO;
   const diffUpgrade = Math.round((precoPro - precoStart) * 100) / 100;
+  const cdAddonCount = seller?.cd_fornecedor_extra_count ?? 0;
+  const cdAddonValor = Number(seller?.cd_fornecedor_extra_valor_mensal ?? 0);
+  const cdAddonCortesiaCount = seller?.cd_fornecedor_extra_cortesia_count ?? 0;
 
   const planoNc = String(seller?.plano ?? "").trim().toLowerCase();
   const isPro = planoNc === "pro";
@@ -458,6 +506,14 @@ export default function SellerPlanoPage() {
                 ))}
               </ul>
             </div>
+            {isStarter && (
+              <CdAddonBreakdown
+                precoBase={precoStart}
+                count={cdAddonCount}
+                valorExtra={cdAddonValor}
+                cortesiaCount={cdAddonCortesiaCount}
+              />
+            )}
             {isStarter && <p className="mt-5 text-center text-xs text-[var(--muted)]">Plano atual — upgrade no cartão ao lado.</p>}
           </section>
 
@@ -502,6 +558,14 @@ export default function SellerPlanoPage() {
                 <div className="rounded-xl border border-emerald-500/35 bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-800 dark:border-emerald-700/50 dark:bg-emerald-950/25 dark:text-emerald-300">
                   Você já está no plano <span translate="no" lang="en">Pro</span>.
                 </div>
+              )}
+              {isPro && (
+                <CdAddonBreakdown
+                  precoBase={precoPro}
+                  count={cdAddonCount}
+                  valorExtra={cdAddonValor}
+                  cortesiaCount={cdAddonCortesiaCount}
+                />
               )}
 
               {planoDefinido && isStarter && !docOk && (

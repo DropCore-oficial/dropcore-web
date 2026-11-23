@@ -72,11 +72,12 @@ export default function SellerCadastroPage() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
 
-  async function load() {
+  async function load(opts?: { signal?: AbortSignal }) {
     setLoading(true);
     setError(null);
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (opts?.signal?.aborted) return;
       if (!session?.access_token) {
         router.replace("/seller/login");
         return;
@@ -84,7 +85,9 @@ export default function SellerCadastroPage() {
       const res = await fetch("/api/seller/cadastro", {
         headers: { Authorization: `Bearer ${session.access_token}` },
         cache: "no-store",
+        signal: opts?.signal,
       });
+      if (opts?.signal?.aborted) return;
       const j = await res.json();
       if (!res.ok) {
         if (res.status === 401) {
@@ -118,14 +121,17 @@ export default function SellerCadastroPage() {
       const lu = j.logo_url;
       setLogoUrl(typeof lu === "string" && lu.length > 0 ? lu : null);
     } catch (e: unknown) {
+      if (opts?.signal?.aborted) return;
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
-      setLoading(false);
+      if (!opts?.signal?.aborted) setLoading(false);
     }
   }
 
   useEffect(() => {
-    void load();
+    const ac = new AbortController();
+    void load({ signal: ac.signal });
+    return () => ac.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- carregar uma vez na montagem
   }, []);
 

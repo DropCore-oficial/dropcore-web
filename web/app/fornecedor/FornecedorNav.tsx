@@ -57,11 +57,19 @@ function IconCadastro({ active }: { active: boolean }) {
     </svg>
   );
 }
+function IconWarehouse({ active }: { active: boolean }) {
+  return (
+    <svg className={`h-5 w-5 shrink-0 ${active ? "text-emerald-500" : "text-current"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 21h18M5 21V11l7-6 7 6v10" />
+      <path d="M9 21v-6h6v6" />
+    </svg>
+  );
+}
 
-type NavKey = "dashboard" | "produtos" | "pedidos" | "cadastro" | "integracoes";
+type NavKey = "dashboard" | "produtos" | "pedidos" | "cd" | "cadastro" | "integracoes";
 
-/** Só mobile agora — desktop mostra as 5 categorias direto na barra, sem "Mais". */
-const NAV_MAIS_MENU_KEYS_MOBILE = ["integracoes", "cadastro"] as const satisfies readonly NavKey[];
+/** Só mobile agora — desktop mostra as 6 categorias direto na barra, sem "Mais". */
+const NAV_MAIS_MENU_KEYS_MOBILE = ["cd", "integracoes", "cadastro"] as const satisfies readonly NavKey[];
 
 export function FornecedorNav({
   active,
@@ -132,6 +140,10 @@ export function FornecedorNav({
                 <IconTruck active={active === "pedidos"} />
                 Pedidos
               </Link>
+              <Link href="/fornecedor/cd" className={linkClass("cd")}>
+                <IconWarehouse active={active === "cd"} />
+                Centro de Distribuição
+              </Link>
               <Link href="/fornecedor/integracoes-marketplace" className={linkClass("integracoes")}>
                 <IconPlug active={active === "integracoes"} />
                 Integrações
@@ -159,6 +171,19 @@ export function FornecedorNav({
             role="menu"
             aria-label="Mais opções do fornecedor"
           >
+            <Link
+              href="/fornecedor/cd"
+              role="menuitem"
+              className={`mx-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+                active === "cd"
+                  ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
+                  : "text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-hover)]"
+              }`}
+              onClick={() => setMobileMaisOpen(false)}
+            >
+              <IconWarehouse active={active === "cd"} />
+              Centro de Distribuição
+            </Link>
             <Link
               href="/fornecedor/integracoes-marketplace"
               role="menuitem"

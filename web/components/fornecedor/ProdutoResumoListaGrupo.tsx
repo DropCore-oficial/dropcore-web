@@ -2,8 +2,10 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { resolverDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { enriquecerDetalhesProdutoLegado } from "@/lib/enriquecerDetalhesProdutoLegado";
+import type { ExpedicaoEnderecoParts } from "@/lib/expedicaoFornecedorFormat";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { ncmOrigemFromSkuRow } from "@/lib/fornecedorSkuCatalogExtras";
@@ -122,6 +124,8 @@ type Props = {
   somenteLeitura?: boolean;
   /** Armazém ligado do seller (query `fornecedor_id` na API de medidas). */
   fornecedorId?: string | null;
+  /** Endereço de despacho do cadastro do fornecedor — fallback quando o SKU não tem override próprio. */
+  fornecedorExpedicao?: (ExpedicaoEnderecoParts & { expedicao_padrao_linha?: string | null }) | null;
 };
 
 export function ProdutoResumoListaGrupo({
@@ -133,6 +137,7 @@ export function ProdutoResumoListaGrupo({
   editHref,
   somenteLeitura = false,
   fornecedorId = null,
+  fornecedorExpedicao = null,
 }: Props) {
   const base = pai ?? representante;
   const detalhesProdutoJson = useMemo(() => {
@@ -141,14 +146,18 @@ export function ProdutoResumoListaGrupo({
       representante.detalhes_produto_json,
       ...filhosVariantes.map((f) => f.detalhes_produto_json)
     );
-    return enriquecerDetalhesProdutoLegado(resolvido, {
-      nome_produto: base.nome_produto,
-      descricao: base.descricao,
-      categoria: base.categoria,
-      marca: base.marca,
-      data_lancamento: base.data_lancamento,
-      expedicao_override_linha: base.expedicao_override_linha,
-    });
+    return enriquecerDetalhesProdutoLegado(
+      resolvido,
+      {
+        nome_produto: base.nome_produto,
+        descricao: base.descricao,
+        categoria: base.categoria,
+        marca: base.marca,
+        data_lancamento: base.data_lancamento,
+        expedicao_override_linha: base.expedicao_override_linha,
+      },
+      fornecedorExpedicao
+    );
   }, [
     pai?.detalhes_produto_json,
     representante.detalhes_produto_json,
@@ -159,6 +168,7 @@ export function ProdutoResumoListaGrupo({
     base.marca,
     base.data_lancamento,
     base.expedicao_override_linha,
+    fornecedorExpedicao,
   ]);
   const [secaoAberta, setSecaoAberta] = useState<string | null>(null);
   const [resumoAberto, setResumoAberto] = useState(false);
@@ -432,15 +442,6 @@ export function ProdutoResumoListaGrupo({
           <FieldRow label="CEP" ok={filled(logisticaExtra?.cdSaidaCep)} value={asText(logisticaExtra?.cdSaidaCep) || "Pendente"} />
           <FieldRow label="Logradouro" ok={filled(logisticaExtra?.cdSaidaLogradouro)} value={asText(logisticaExtra?.cdSaidaLogradouro) || "Pendente"} />
           <FieldRow label="Número" ok={filled(logisticaExtra?.cdSaidaNumero)} value={asText(logisticaExtra?.cdSaidaNumero) || "Pendente"} />
-        </>
-      ),
-    },
-    {
-      key: "localizacao",
-      title: "Localização do CD",
-      subtitle: "Complemento do endereço de saída",
-      content: (
-        <>
           <FieldRow label="Complemento" ok={filled(logisticaExtra?.cdSaidaComplemento)} value={asText(logisticaExtra?.cdSaidaComplemento) || "Opcional"} optional />
           <FieldRow label="Bairro" ok={filled(logisticaExtra?.cdSaidaBairro)} value={asText(logisticaExtra?.cdSaidaBairro) || "Pendente"} />
           <FieldRow label="Cidade" ok={filled(logisticaExtra?.cdSaidaCidade)} value={asText(logisticaExtra?.cdSaidaCidade) || "Pendente"} />
@@ -678,24 +679,27 @@ export function ProdutoResumoListaGrupo({
         )}
       </CadastroResumoShell>
 
-      {secaoAtual && (
-        <ModalOverlay onBackdropClick={() => setSecaoAberta(null)} panelClassName="max-w-lg md:max-w-4xl">
-          <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
-            <div className="min-w-0">
-              <h3 className="font-semibold text-[var(--foreground)]">{secaoAtual.title}</h3>
-              <p className="text-xs text-[var(--muted)]">{secaoAtual.subtitle}</p>
+      {secaoAtual &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <ModalOverlay onBackdropClick={() => setSecaoAberta(null)} panelClassName="max-w-lg md:max-w-4xl">
+            <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
+              <div className="min-w-0">
+                <h3 className="font-semibold text-[var(--foreground)]">{secaoAtual.title}</h3>
+                <p className="text-xs text-[var(--muted)]">{secaoAtual.subtitle}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSecaoAberta(null)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xl leading-none text-[var(--muted)] hover:bg-[var(--muted)]/10"
+              >
+                ×
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setSecaoAberta(null)}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xl leading-none text-[var(--muted)] hover:bg-[var(--muted)]/10"
-            >
-              ×
-            </button>
-          </div>
-          <div className={cn(MODAL_PANEL_BODY_CLASS, "p-4")}>{secaoAtual.content}</div>
-        </ModalOverlay>
-      )}
+            <div className={cn(MODAL_PANEL_BODY_CLASS, "p-4")}>{secaoAtual.content}</div>
+          </ModalOverlay>,
+          document.body
+        )}
     </SummaryShell>
   );
 }

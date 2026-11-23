@@ -17,6 +17,7 @@ import { toTitleCase } from "@/lib/formatText";
 import { fornecedorProdutoImagemSrc } from "@/lib/fornecedorProdutoImagemSrc";
 import { getResumoRascunhoCriarVariantes, type ResumoRascunhoCriarVariantes } from "@/lib/fornecedorCriarVariantesRascunho";
 import { ProdutoResumoListaGrupo } from "@/components/fornecedor/ProdutoResumoListaGrupo";
+import type { ExpedicaoEnderecoParts } from "@/lib/expedicaoFornecedorFormat";
 import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_BODY, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
 import {
   DANGER_PREMIUM_SHELL,
@@ -26,6 +27,7 @@ import {
   SUCCESS_PREMIUM_SURFACE,
   SUCCESS_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/semanticPremium";
+import { PRIMARY_ACTION_BLUE_BADGE_SOLID } from "@/lib/primaryActionBlueUi";
 import { agruparVariantesPorCor } from "@/lib/armazemAgruparCor";
 import { parseDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { cn } from "@/lib/utils";
@@ -275,8 +277,15 @@ export default function FornecedorProdutosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [operaNoCd, setOperaNoCd] = useState(false);
+  const [cdFulfillmentTaxa, setCdFulfillmentTaxa] = useState<number | null>(null);
+  const [fornecedorExpedicao, setFornecedorExpedicao] = useState<
+    (ExpedicaoEnderecoParts & { expedicao_padrao_linha?: string | null }) | null
+  >(null);
   const [helpAlteracoesOpen, setHelpAlteracoesOpen] = useState(false);
   const [helpSellerPagaKey, setHelpSellerPagaKey] = useState<string | null>(null);
+  const [helpCdBadgeKey, setHelpCdBadgeKey] = useState<string | null>(null);
+  const [helpCdTaxaKey, setHelpCdTaxaKey] = useState<string | null>(null);
   const [modal, setModal] = useState<"none" | "edit">("none");
   const [editando, setEditando] = useState<Produto | null>(null);
   const [formLoading, setFormLoading] = useState(false);
@@ -364,6 +373,11 @@ export default function FornecedorProdutosPage() {
           por_sku: statusData.por_sku ?? {},
         });
       }
+      setOperaNoCd(Boolean(data.opera_no_cd));
+      setCdFulfillmentTaxa(typeof data.cd_fulfillment_taxa_valor === "number" ? data.cd_fulfillment_taxa_valor : null);
+      setFornecedorExpedicao(
+        data.fornecedor_expedicao && typeof data.fornecedor_expedicao === "object" ? data.fornecedor_expedicao : null
+      );
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro inesperado.");
     } finally {
@@ -951,6 +965,35 @@ export default function FornecedorProdutosPage() {
                                     Reprovado
                                   </span>
                                 )}
+                                {operaNoCd && (
+                                  <HelpBubble
+                                    open={helpCdBadgeKey === g.paiKey}
+                                    onOpen={() => setHelpCdBadgeKey(g.paiKey)}
+                                    onClose={() => setHelpCdBadgeKey((k) => (k === g.paiKey ? null : k))}
+                                    ariaLabel="Sobre o Centro de Distribuição"
+                                    trigger={(props) => (
+                                      <span
+                                        {...props}
+                                        className={cn(PRIMARY_ACTION_BLUE_BADGE_SOLID, "inline-flex shrink-0 cursor-help items-center rounded-full px-2.5 py-1 text-xs font-medium")}
+                                      >
+                                        CD
+                                      </span>
+                                    )}
+                                  >
+                                    <p>
+                                      Este produto é administrado pelo{" "}
+                                      <strong className="text-[var(--foreground)]">Centro de Distribuição DropCore</strong> —
+                                      o estoque só muda por conferência física da operação, não editando aqui.
+                                    </p>
+                                    <p className="mt-2">
+                                      Pra repor, declare remessa em{" "}
+                                      <a href="/fornecedor/cd" className="font-medium underline underline-offset-2">
+                                        Centro de Distribuição
+                                      </a>
+                                      .
+                                    </p>
+                                  </HelpBubble>
+                                )}
                               </p>
                             </div>
                             <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -1048,6 +1091,36 @@ export default function FornecedorProdutosPage() {
                                     </p>
                                   </HelpBubble>
                                 </span>
+                                {operaNoCd && cdFulfillmentTaxa != null && (
+                                  <>
+                                    <span className="hidden text-[var(--muted)] sm:inline"> · </span>
+                                    <span className="flex items-center gap-1">
+                                      <span>
+                                        Taxa CD:{" "}
+                                        <span className="font-semibold tabular-nums text-[var(--foreground)]">
+                                          {cdFulfillmentTaxa > 0
+                                            ? BRL_CUSTO_FORNECEDOR.format(cdFulfillmentTaxa)
+                                            : `${BRL_CUSTO_FORNECEDOR.format(0)} (isento)`}
+                                        </span>
+                                        <span className="text-[var(--muted)]"> / pedido</span>
+                                      </span>
+                                      <HelpBubble
+                                        open={helpCdTaxaKey === g.paiKey}
+                                        onOpen={() => setHelpCdTaxaKey(g.paiKey)}
+                                        onClose={() => setHelpCdTaxaKey((k) => (k === g.paiKey ? null : k))}
+                                        ariaLabel="Sobre a taxa de fulfillment do CD"
+                                      >
+                                        <p>
+                                          Taxa cobrada <strong className="text-[var(--foreground)]">1x por pedido</strong>{" "}
+                                          que sair do Centro de Distribuição com produto seu — não é por unidade/peça.
+                                        </p>
+                                        <p className="mt-2">
+                                          Sai do seu repasse (o que você recebe), nunca do valor que o seller paga.
+                                        </p>
+                                      </HelpBubble>
+                                    </span>
+                                  </>
+                                )}
                               </div>
                             );
                           })()}
@@ -1583,6 +1656,7 @@ export default function FornecedorProdutosPage() {
                             representante={representante}
                             linkAlbum={getLinkFotos(representante, produtos) || representante.link_fotos}
                             editHref={`/fornecedor/produtos/criar-variantes?editar=${encodeURIComponent(g.paiKey)}`}
+                            fornecedorExpedicao={fornecedorExpedicao}
                           />
                         </>
                       ) : null}
@@ -1702,16 +1776,31 @@ export default function FornecedorProdutosPage() {
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs text-[var(--muted)]">Estoque</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={editEstoque}
-                    onChange={(e) => setEditEstoque(e.target.value)}
-                    placeholder="0"
-                    className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
-                  />
+                  {operaNoCd ? (
+                    <div className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--muted)]/10 px-3 py-2.5 text-sm text-[var(--muted)]">
+                      {editEstoque || "0"} <span className="text-[11px]">(somente leitura — Centro de Distribuição)</span>
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={editEstoque}
+                      onChange={(e) => setEditEstoque(e.target.value)}
+                      placeholder="0"
+                      className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
+                    />
+                  )}
                 </div>
               </div>
+              {operaNoCd && (
+                <p className="text-[11px] text-[var(--muted)]">
+                  Esse SKU é administrado pelo Centro de Distribuição DropCore — o estoque só muda pela conferência
+                  física de entrada. Declare uma remessa em{" "}
+                  <a href="/fornecedor/cd" className="font-medium text-emerald-700 dark:text-emerald-400 hover:underline">
+                    Centro de Distribuição
+                  </a>.
+                </p>
+              )}
               <div>
                 <label className="mb-1.5 block text-xs text-[var(--muted)]">Link das fotos (esta variante)</label>
                 <input

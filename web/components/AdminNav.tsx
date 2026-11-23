@@ -29,6 +29,7 @@ const MAIS_GRUPOS = [
   {
     label: "Operação",
     items: [
+      { href: "/admin/cd", label: "Centro de Distribuição" },
       { href: "/admin/alteracoes-produtos", label: "Alterações de produtos" },
       { href: "/admin/enviar-pedido", label: "Enviar pedido" },
       { href: "/admin/relatorio-entrada-saida", label: "Relatório entrada/saída" },
@@ -44,7 +45,7 @@ const MAIS_PATHS = MAIS_GRUPOS.flatMap((g) => g.items.map((i) => i.href));
  * Largura padrão `dropcore-shell-6xl`, igual ao conteúdo de todas as páginas
  * admin (mesmo padrão da dashboard) — não trocar sem alinhar o container da página.
  */
-export function AdminNav() {
+export function AdminNav({ operacionalRestrito = false }: { operacionalRestrito?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const [maisOpen, setMaisOpen] = useState(false);
@@ -79,6 +80,32 @@ export function AdminNav() {
         ? "text-emerald-600 dark:text-emerald-400 border-emerald-600 hover:bg-emerald-600/10 dark:hover:bg-emerald-500/15"
         : "text-[var(--muted)] border-transparent hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
     }`;
+
+  if (operacionalRestrito) {
+    return (
+      <>
+        <MobileAppBar
+          logoHref="/admin/cd"
+          end={<AppBarEndMobileAuth context="admin" onLogout={sair} />}
+        />
+        <nav className="hidden md:flex fixed top-0 left-0 right-0 z-40 h-14 items-center border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/98 dark:bg-neutral-950/98 backdrop-blur-xl shadow-sm">
+          <div className="dropcore-shell-6xl flex w-full min-w-0 items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-1">
+              <DropCoreLogo variant="horizontal" href="/admin/cd" className="shrink-0 mr-6" />
+              <Link href="/admin/cd" className={navLinkClass(pathname?.startsWith("/admin/cd") ?? false)}>
+                <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M16.5 9.4 7.55 4.24" />
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                </svg>
+                Centro de Distribuição
+              </Link>
+            </div>
+            <AppBarEndDesktopAuth context="admin" onLogout={sair} />
+          </div>
+        </nav>
+      </>
+    );
+  }
 
   return (
     <>

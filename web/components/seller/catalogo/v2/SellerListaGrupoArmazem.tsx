@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { ProdutoResumoListaGrupo } from "@/components/fornecedor/ProdutoResumoListaGrupo";
+import type { ExpedicaoEnderecoParts } from "@/lib/expedicaoFornecedorFormat";
 import { ImagemMiniatura } from "@/components/ImagemMiniatura";
 import { CorCelulaProduto } from "@/components/fornecedor/CorCelulaProduto";
 import type { SellerCatalogoItem } from "@/components/seller/SellerCatalogoGrupoUi";
@@ -364,6 +365,7 @@ type Props = {
   mostrarFotosVariantes: boolean;
   setMostrarFotosVariantes: (v: boolean | ((p: boolean) => boolean)) => void;
   fornecedorLigadoId?: string | null;
+  fornecedorExpedicao?: (ExpedicaoEnderecoParts & { expedicao_padrao_linha?: string | null }) | null;
 };
 
 export function SellerListaGrupoArmazem({
@@ -375,6 +377,7 @@ export function SellerListaGrupoArmazem({
   mostrarFotosVariantes,
   setMostrarFotosVariantes,
   fornecedorLigadoId = null,
+  fornecedorExpedicao = null,
 }: Props) {
   const [modalMlAberto, setModalMlAberto] = useState(false);
   const [publicandoMl, setPublicandoMl] = useState(false);
@@ -889,7 +892,7 @@ export function SellerListaGrupoArmazem({
           )}
 
           {representante && resumoCadastroProps ? (
-            <ProdutoResumoListaGrupo {...resumoCadastroProps} somenteLeitura />
+            <ProdutoResumoListaGrupo {...resumoCadastroProps} somenteLeitura fornecedorExpedicao={fornecedorExpedicao} />
           ) : null}
         </>
       )}

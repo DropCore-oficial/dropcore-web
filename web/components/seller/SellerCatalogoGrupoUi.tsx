@@ -32,6 +32,7 @@ const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" 
 export type SellerCatalogoItem = {
   id: string;
   sku: string;
+  fornecedor_id: string | null;
   nome_produto: string;
   cor: string;
   tamanho: string;
@@ -96,6 +97,7 @@ export function normalizarItemsSellerCatalogo(raw: unknown): SellerCatalogoItem[
         return {
           id: str(row?.id),
           sku: str(row?.sku),
+          fornecedor_id: row?.fornecedor_id != null ? str(row.fornecedor_id) : null,
           nome_produto: str(row?.nome_produto),
           cor: str(row?.cor),
           tamanho: str(row?.tamanho),

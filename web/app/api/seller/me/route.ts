@@ -11,6 +11,12 @@ import { MESES_MINIMOS_COM_FORNECEDOR, dataMinimaTrocaFornecedor, podeTrocarForn
 import { cadastroSellerDocumentoPendente, planoSellerDefinido, sellerCadastroPendente } from "@/lib/sellerDocumento";
 import { fetchMensalidadeSellerPorPlano } from "@/lib/sellerPlanoPrecos";
 import { getSellerCreditoResumo } from "@/lib/sellerCreditLots";
+import {
+  qtdFornecedorCdExtraCobravel,
+  qtdFornecedorCdExtraCortesia,
+  valorAddonCdFornecedorExtra,
+} from "@/lib/cdFornecedorExtraAddonPrecos";
+import { hojeYmdSaoPaulo } from "@/lib/mensalidadeDiaVencimento";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,6 +101,24 @@ export async function GET(req: Request) {
         fornecedor_nome = forn?.nome ?? null;
       }
     }
+
+    // Fornecedor adicional do CD: o 1º vínculo é incluso na mensalidade, cada um a mais soma
+    // R$49,90/mês (ver cdFornecedorExtraAddonPrecos.ts) — mostrado aqui pro seller entender
+    // de onde vem o valor extra, mesma conta usada na geração real (gerarMensalidadesCicloOrg.ts).
+    const { data: vinculosCdRows } = await supabaseAdmin
+      .from("seller_fornecedor_vinculos")
+      .select("vinculado_em, cortesia, cortesia_ate")
+      .eq("seller_id", seller.id)
+      .is("desvinculado_em", null);
+    const vinculosCdParaCobranca = (vinculosCdRows ?? []) as {
+      vinculado_em: string;
+      cortesia: boolean;
+      cortesia_ate: string | null;
+    }[];
+    const hojeCdYmd = hojeYmdSaoPaulo();
+    const cd_fornecedor_extra_count = qtdFornecedorCdExtraCobravel(vinculosCdParaCobranca, hojeCdYmd);
+    const cd_fornecedor_extra_valor_mensal = valorAddonCdFornecedorExtra(cd_fornecedor_extra_count);
+    const cd_fornecedor_extra_cortesia_count = qtdFornecedorCdExtraCortesia(vinculosCdParaCobranca, hojeCdYmd);
 
     const podeTrocarArmazem = !fornecedor_id || podeTrocarFornecedorAgora(fornecedor_vinculado_em, fornecedor_desvinculo_liberado, false);
     const dataMinTroca = dataMinimaTrocaFornecedor(fornecedor_vinculado_em);
@@ -325,6 +349,9 @@ export async function GET(req: Request) {
         plano_ciclo_valor_travado: (seller as { plano_ciclo_valor_travado?: number | null }).plano_ciclo_valor_travado ?? null,
         plano_ciclo_compromisso_fim: (seller as { plano_ciclo_compromisso_fim?: string | null }).plano_ciclo_compromisso_fim ?? null,
         gestores_ia_addon_ativo: seller.gestores_ia_addon_ativo === true,
+        cd_fornecedor_extra_count,
+        cd_fornecedor_extra_valor_mensal,
+        cd_fornecedor_extra_cortesia_count,
         status: seller.status,
         saldo_atual: Number(seller.saldo_atual ?? 0),
         saldo_bloqueado: Number(seller.saldo_bloqueado ?? 0),

@@ -107,6 +107,7 @@ export default function FornecedorDashboardPage() {
     estoque_baixo: number;
     total_a_receber: number;
     pedidos_atencao?: number;
+    opera_no_cd?: boolean;
   } | null>(null);
   const [mensalidades, setMensalidades] = useState<Mensalidade[]>([]);
   const [trialAtivo, setTrialAtivo] = useState(false);
@@ -123,7 +124,7 @@ export default function FornecedorDashboardPage() {
   const [cicloDetalheAberto, setCicloDetalheAberto] = useState<string | null>(null);
   const [cicloDetalheLoading, setCicloDetalheLoading] = useState(false);
   const [cicloDetalhePorCiclo, setCicloDetalhePorCiclo] = useState<
-    Record<string, Array<{ tipo: "venda" | "devolucao"; pedido_id: string | null; marketplace_numero: string | null; valor_fornecedor: number; motivo: string }>>
+    Record<string, Array<{ tipo: "venda" | "devolucao"; pedido_id: string | null; marketplace_numero: string | null; valor_fornecedor: number; valor_fulfillment_dropcore?: number; valor_liquido?: number; motivo: string }>>
   >({});
   const [tooltipHover, setTooltipHover] = useState<{ dia: string; valor: number; count: number } | null>(null);
   const repasseRef = useRef<HTMLDivElement>(null);
@@ -1046,13 +1047,33 @@ export default function FornecedorDashboardPage() {
                                     </div>
                                   </div>
                                 )}
-                                <div className="space-y-1">
-                                  {itensDetalhe.filter((i) => i.tipo === "venda").map((i, idx) => (
-                                    <div key={`${i.pedido_id ?? idx}`} className="flex items-center justify-between gap-3 text-xs">
-                                      <span className="text-[var(--muted)]">Pedido #{i.marketplace_numero ?? "—"}</span>
-                                      <span className="tabular-nums text-[var(--foreground)]">{BRL.format(i.valor_fornecedor)}</span>
-                                    </div>
-                                  ))}
+                                <div className="space-y-2">
+                                  {itensDetalhe.filter((i) => i.tipo === "venda").map((i, idx) => {
+                                    const taxaFulfillment = i.valor_fulfillment_dropcore ?? 0;
+                                    const liquido = i.valor_liquido ?? i.valor_fornecedor;
+                                    return (
+                                      <div key={`${i.pedido_id ?? idx}`} className="text-xs">
+                                        <div className="flex items-center justify-between gap-3">
+                                          <span className="text-[var(--muted)]">Pedido #{i.marketplace_numero ?? "—"}</span>
+                                          <span className="tabular-nums text-[var(--foreground)]">{BRL.format(i.valor_fornecedor)}</span>
+                                        </div>
+                                        {stats?.opera_no_cd ? (
+                                          <>
+                                            <div className="flex items-center justify-between gap-3 pl-3">
+                                              <span className="text-[var(--muted)]">Taxa de fulfillment CD</span>
+                                              <span className="tabular-nums text-[var(--muted)]">
+                                                {taxaFulfillment > 0 ? `-${BRL.format(taxaFulfillment)}` : `${BRL.format(0)} (isento)`}
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-3 pl-3">
+                                              <span className="font-medium text-[var(--foreground)]">Você recebe</span>
+                                              <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{BRL.format(liquido)}</span>
+                                            </div>
+                                          </>
+                                        ) : null}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}

@@ -188,16 +188,56 @@ export async function GET(req: Request) {
       ? getTabelaMedidasComPendente(supabaseAdmin, ctx.org_id, ctx.fornecedor_id, grupoKey)
       : null;
     const includeWrapper = includeAlteracoesStatus || includeTabelaMedidas;
+    // CD DropCore: estoque_atual é somente leitura pro fornecedor que opera no CD — o front
+    // usa isso pra desabilitar o campo e mostrar "declarar remessa" no lugar.
+    const FORNECEDOR_EXPEDICAO_FIELDS =
+      "opera_no_cd, cd_fulfillment_taxa_valor, expedicao_padrao_linha, expedicao_cep, expedicao_logradouro, expedicao_numero, expedicao_complemento, expedicao_bairro, expedicao_cidade, expedicao_uf";
+    const operaNoCdPromise = includeWrapper
+      ? supabaseAdmin.from("fornecedores").select(FORNECEDOR_EXPEDICAO_FIELDS).eq("id", ctx.fornecedor_id).maybeSingle()
+      : null;
+
+    type FornecedorExpedicaoRow = {
+      opera_no_cd?: boolean;
+      cd_fulfillment_taxa_valor?: number;
+      expedicao_padrao_linha?: string | null;
+      expedicao_cep?: string | null;
+      expedicao_logradouro?: string | null;
+      expedicao_numero?: string | null;
+      expedicao_complemento?: string | null;
+      expedicao_bairro?: string | null;
+      expedicao_cidade?: string | null;
+      expedicao_uf?: string | null;
+    };
+
+    function fornecedorExpedicaoDe(row: FornecedorExpedicaoRow | null | undefined) {
+      if (!row) return undefined;
+      return {
+        expedicao_padrao_linha: row.expedicao_padrao_linha ?? null,
+        expedicao_cep: row.expedicao_cep ?? null,
+        expedicao_logradouro: row.expedicao_logradouro ?? null,
+        expedicao_numero: row.expedicao_numero ?? null,
+        expedicao_complemento: row.expedicao_complemento ?? null,
+        expedicao_bairro: row.expedicao_bairro ?? null,
+        expedicao_cidade: row.expedicao_cidade ?? null,
+        expedicao_uf: row.expedicao_uf ?? null,
+      };
+    }
 
     if (ids.length === 0) {
       const alteracoes_status = alteracoesStatusPromise ? await alteracoesStatusPromise : null;
       const tabela_medidas = tabelaMedidasPromise ? await tabelaMedidasPromise : null;
+      const operaNoCdData = operaNoCdPromise ? (await operaNoCdPromise).data : null;
+      const opera_no_cd = operaNoCdPromise ? Boolean(operaNoCdData?.opera_no_cd) : undefined;
+      const cd_fulfillment_taxa_valor = operaNoCdData?.cd_fulfillment_taxa_valor != null ? Number(operaNoCdData.cd_fulfillment_taxa_valor) : undefined;
+      const fornecedor_expedicao = fornecedorExpedicaoDe(operaNoCdData as FornecedorExpedicaoRow | null);
       return NextResponse.json(
-        includeWrapper ? { produtos: rows, alteracoes_status, tabela_medidas } : rows
+        includeWrapper
+          ? { produtos: rows, alteracoes_status, tabela_medidas, opera_no_cd, cd_fulfillment_taxa_valor, fornecedor_expedicao }
+          : rows
       );
     }
 
-    const [{ data: pendentesRows, error: errPend }, alteracoes_status, tabela_medidas] = await Promise.all([
+    const [{ data: pendentesRows, error: errPend }, alteracoes_status, tabela_medidas, operaNoCdRow] = await Promise.all([
       supabaseAdmin
         .from("sku_alteracoes_pendentes")
         .select("sku_id, dados_propostos")
@@ -207,7 +247,12 @@ export async function GET(req: Request) {
         .in("sku_id", ids),
       alteracoesStatusPromise ?? Promise.resolve(null),
       tabelaMedidasPromise ?? Promise.resolve(null),
+      operaNoCdPromise ?? Promise.resolve(null),
     ]);
+    const operaNoCdData = (operaNoCdRow as { data?: FornecedorExpedicaoRow } | null)?.data;
+    const opera_no_cd = operaNoCdPromise ? Boolean(operaNoCdData?.opera_no_cd) : undefined;
+    const cd_fulfillment_taxa_valor = operaNoCdData?.cd_fulfillment_taxa_valor != null ? Number(operaNoCdData.cd_fulfillment_taxa_valor) : undefined;
+    const fornecedor_expedicao = fornecedorExpedicaoDe(operaNoCdData);
 
     if (errPend) return NextResponse.json({ error: errPend.message }, { status: 500 });
 
@@ -227,7 +272,11 @@ export async function GET(req: Request) {
 
     const produtos = prepararDetalhesProdutoJsonCatalogo(propagarDetalhesProdutoJsonNoGrupo(merged));
 
-    return NextResponse.json(includeWrapper ? { produtos, alteracoes_status, tabela_medidas } : produtos);
+    return NextResponse.json(
+      includeWrapper
+        ? { produtos, alteracoes_status, tabela_medidas, opera_no_cd, cd_fulfillment_taxa_valor, fornecedor_expedicao }
+        : produtos
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

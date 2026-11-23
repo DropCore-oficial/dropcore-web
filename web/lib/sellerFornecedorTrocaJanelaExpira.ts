@@ -8,15 +8,6 @@ export type FornecedorTrocaJanelaExpiraResult = {
   falhas: string[];
 };
 
-function relockUpdate(agoraIso: string) {
-  return {
-    fornecedor_desvinculo_liberado: false,
-    fornecedor_desvinculo_liberado_em: null,
-    fornecedor_vinculado_em: agoraIso,
-    atualizado_em: agoraIso,
-  };
-}
-
 /**
  * Tranca de novo, sozinho, o seller que ficou livre pra trocar de fornecedor e não agiu em
  * DIAS_JANELA_ESCOLHA_FORNECEDOR dias — reinicia o compromisso mínimo com o fornecedor atual
@@ -31,13 +22,12 @@ function relockUpdate(agoraIso: string) {
 export async function processarFornecedorTrocaJanelaExpiraCron(): Promise<FornecedorTrocaJanelaExpiraResult> {
   const result: FornecedorTrocaJanelaExpiraResult = { processados: 0, falhas: [] };
   const agora = new Date();
-  const agoraIso = agora.toISOString();
 
   // Caso 1: liberação antecipada não usada em DIAS_JANELA_ESCOLHA_FORNECEDOR dias.
   const limiteLiberado = new Date(agora.getTime() - DIAS_JANELA_ESCOLHA_FORNECEDOR * 24 * 60 * 60 * 1000).toISOString();
   const { data: liberados, error: errLiberados } = await supabaseAdmin
     .from("sellers")
-    .select("id")
+    .select("id, org_id")
     .eq("fornecedor_desvinculo_liberado", true)
     .not("fornecedor_id", "is", null)
     .lt("fornecedor_desvinculo_liberado_em", limiteLiberado)
@@ -53,7 +43,7 @@ export async function processarFornecedorTrocaJanelaExpiraCron(): Promise<Fornec
   limiteNatural.setMonth(limiteNatural.getMonth() - MESES_MINIMOS_COM_FORNECEDOR);
   const { data: naturais, error: errNaturais } = await supabaseAdmin
     .from("sellers")
-    .select("id")
+    .select("id, org_id")
     .eq("fornecedor_desvinculo_liberado", false)
     .not("fornecedor_id", "is", null)
     .not("fornecedor_vinculado_em", "is", null)
@@ -64,14 +54,39 @@ export async function processarFornecedorTrocaJanelaExpiraCron(): Promise<Fornec
     result.falhas.push(`Erro ao buscar vínculos com prazo natural vencido: ${errNaturais.message}`);
   }
 
-  const idsUnicos = new Set<string>();
-  for (const row of liberados ?? []) idsUnicos.add(row.id as string);
-  for (const row of naturais ?? []) idsUnicos.add(row.id as string);
+  const sellersUnicos = new Map<string, string>();
+  for (const row of liberados ?? []) sellersUnicos.set(row.id as string, row.org_id as string);
+  for (const row of naturais ?? []) sellersUnicos.set(row.id as string, row.org_id as string);
 
-  for (const id of idsUnicos) {
-    const { error: updateErr } = await supabaseAdmin.from("sellers").update(relockUpdate(agoraIso)).eq("id", id);
-    if (updateErr) {
-      result.falhas.push(`Seller ${id}: ${updateErr.message}`);
+  for (const [sellerId, orgId] of sellersUnicos) {
+    // Fonte real do compromisso agora é a linha de vínculo, não sellers direto (que é só
+    // cache, sincronizado pela própria RPC abaixo).
+    const { data: vinculoRow, error: vinculoErr } = await supabaseAdmin
+      .from("seller_fornecedor_vinculos")
+      .select("id")
+      .eq("seller_id", sellerId)
+      .is("desvinculado_em", null)
+      .maybeSingle();
+    if (vinculoErr) {
+      result.falhas.push(`Seller ${sellerId}: ${vinculoErr.message}`);
+      continue;
+    }
+    if (!vinculoRow) {
+      // Cache desatualizada sem vínculo ativo correspondente (não deveria acontecer com o
+      // fluxo novo) — não há o que renovar.
+      continue;
+    }
+    const { data: renovado, error: renovarErr } = await supabaseAdmin.rpc("fn_seller_fornecedor_renovar_compromisso", {
+      p_vinculo_id: (vinculoRow as { id: string }).id,
+      p_org_id: orgId,
+    });
+    if (renovarErr) {
+      result.falhas.push(`Seller ${sellerId}: ${renovarErr.message}`);
+      continue;
+    }
+    const resultRpc = renovado as { ok: boolean; error_code?: string };
+    if (!resultRpc.ok) {
+      result.falhas.push(`Seller ${sellerId}: ${resultRpc.error_code ?? "falha ao renovar compromisso"}`);
       continue;
     }
     result.processados++;

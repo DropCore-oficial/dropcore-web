@@ -8,6 +8,7 @@ import { getValidMercadoLivreAccessToken, mlBuscarShipmentDetalheBruto } from "@
 import { submitSellerErpPedido, insertPedidoPlaceholder } from "@/lib/erp/submitSellerErpPedido";
 import { calcularPrazoDespachoPedido } from "@/lib/pedidoSlaDespacho";
 import { notifySellerAnuncioSemSku } from "@/lib/notifySellerAnuncioSemSku";
+import { resolverFornecedoresAtivosDoSeller } from "@/lib/sellerFornecedoresCdAtivos";
 
 type MlOrderDetalhe = {
   order_items?: Array<{
@@ -88,11 +89,19 @@ export async function ingerirPedidoMercadoLivrePorSeller(params: {
 }): Promise<IngerirPedidoMlResultado> {
   const { data: sellerRow, error: sellerErr } = await supabaseAdmin
     .from("sellers")
-    .select("id, org_id, fornecedor_id, plano")
+    .select("id, org_id, plano")
     .eq("id", params.sellerId)
     .maybeSingle();
   if (sellerErr) return { ok: false, retryable: true, motivo: `Falha ao buscar seller: ${sellerErr.message}` };
-  if (!sellerRow?.fornecedor_id) return { ok: false, retryable: false, motivo: "Seller sem fornecedor vinculado." };
+  if (!sellerRow) return { ok: false, retryable: false, motivo: "Seller não encontrado." };
+
+  // Todo vínculo ativo (avulso ou do CD) vive em seller_fornecedor_vinculos — seller que só
+  // tem fornecedor do CD (sem avulso) não pode mais cair aqui como "sem fornecedor".
+  const fornecedorIdsAtivos = await resolverFornecedoresAtivosDoSeller({
+    seller_id: sellerRow.id,
+    org_id: sellerRow.org_id,
+  });
+  if (fornecedorIdsAtivos.length === 0) return { ok: false, retryable: false, motivo: "Seller sem fornecedor vinculado." };
 
   const ctx = await getValidMercadoLivreAccessToken(sellerRow.id);
   if (!ctx) return { ok: false, retryable: true, motivo: "Sem token válido do Mercado Livre." };
@@ -152,7 +161,9 @@ export async function ingerirPedidoMercadoLivrePorSeller(params: {
     const placeholderResult = await insertPedidoPlaceholder({
       org_id: sellerRow.org_id,
       seller_id: sellerRow.id,
-      fornecedor_id: sellerRow.fornecedor_id,
+      // Representativo — ainda não sabemos de qual fornecedor é o SKU (nem cadastrado no
+      // anúncio ainda), placeholder só precisa de um FK válido pra exibição/agrupamento.
+      fornecedor_id: fornecedorIdsAtivos[0]!,
       referencia_externa: `ml:${params.orderId}`,
       tracking_codigo: null,
       metodo_envio: null,
@@ -203,7 +214,6 @@ export async function ingerirPedidoMercadoLivrePorSeller(params: {
     org_id: sellerRow.org_id,
     seller: {
       id: sellerRow.id,
-      fornecedor_id: sellerRow.fornecedor_id,
       plano: sellerRow.plano,
     },
     referencia_externa: `ml:${params.orderId}`,

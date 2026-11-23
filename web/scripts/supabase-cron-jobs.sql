@@ -8,7 +8,7 @@
 -- Pré-requisitos (Supabase Dashboard → Database → Extensions):
 --   pg_cron, pg_net, supabase_vault (Vault) — habilitados no projeto.
 --
--- Horários em UTC. Olist: a cada 1 minuto (automático; não depende do botão no painel).
+-- Horários em UTC.
 -- =============================================================================
 
 -- Extensões (idempotente; no hosted Supabase costuma já estar ativa)
@@ -72,54 +72,10 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.dropcore_cron_http_post IS
-  'Chama rota /api/cron/* em produção com CRON_SECRET do Vault. timeout padrão 5 min (sync preços Olist demora).';
+  'Chama rota /api/cron/* em produção com CRON_SECRET do Vault.';
 
 REVOKE ALL ON FUNCTION public.dropcore_cron_http_post(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.dropcore_cron_http_post(text) TO postgres;
-
--- Evita duas execuções do sync Olist ao mesmo tempo (cron a cada 1 min pode sobrepor)
-CREATE OR REPLACE FUNCTION public.dropcore_try_olist_sync_lock()
-RETURNS boolean
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT pg_try_advisory_lock(913001);
-$$;
-
-CREATE OR REPLACE FUNCTION public.dropcore_release_olist_sync_lock()
-RETURNS boolean
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT pg_advisory_unlock(913001);
-$$;
-
-GRANT EXECUTE ON FUNCTION public.dropcore_try_olist_sync_lock() TO postgres;
-GRANT EXECUTE ON FUNCTION public.dropcore_release_olist_sync_lock() TO postgres;
-
--- Evita duas execuções do pull de estoque fornecedor ao mesmo tempo (cron a cada 1 min)
-CREATE OR REPLACE FUNCTION public.dropcore_try_fornecedor_olist_estoque_sync_lock()
-RETURNS boolean
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT pg_try_advisory_lock(913002);
-$$;
-
-CREATE OR REPLACE FUNCTION public.dropcore_release_fornecedor_olist_estoque_sync_lock()
-RETURNS boolean
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT pg_advisory_unlock(913002);
-$$;
-
-GRANT EXECUTE ON FUNCTION public.dropcore_try_fornecedor_olist_estoque_sync_lock() TO postgres;
-GRANT EXECUTE ON FUNCTION public.dropcore_release_fornecedor_olist_estoque_sync_lock() TO postgres;
 
 -- -----------------------------------------------------------------------------
 -- 3) Remover jobs antigos (re-rodar o script é seguro)
@@ -131,30 +87,6 @@ WHERE jobname LIKE 'dropcore-%';
 -- -----------------------------------------------------------------------------
 -- 4) Agendar (UTC)
 -- -----------------------------------------------------------------------------
--- Olist sync automático — a cada 1 minuto (UTC). Caminho rápido: webhook /api/webhooks/olist (?w= token do seller).
--- Não aumentar o intervalo sem webhook ativo: o cron é rede de segurança, não a única via de pedido.
-SELECT cron.schedule(
-  'dropcore-olist-sync',
-  '* * * * *',
-  $$SELECT public.dropcore_cron_http_post('/api/cron/olist-sync');$$
-);
-
--- Preços/custos Olist — a cada 10 min (UTC). Sellers com token + armazém ligado.
-SELECT cron.schedule(
-  'dropcore-olist-sync-precos',
-  '*/10 * * * *',
-  $$SELECT public.dropcore_cron_http_post('/api/cron/olist-sync-precos');$$
-);
-
--- Estoque fornecedor Olist → DropCore → sellers — a cada 1 min (UTC).
--- Com webhook ativo na Olist: instantâneo + este cron como rede de segurança.
--- Sem extensão Webhooks (planos básicos): este cron é a via principal (~1 min de atraso).
-SELECT cron.schedule(
-  'dropcore-fornecedor-olist-sync-estoque',
-  '* * * * *',
-  $$SELECT public.dropcore_cron_http_post('/api/cron/fornecedor-olist-sync-estoque');$$
-);
-
 -- Mensalidades MP — a cada 5 min (UTC). Fallback ao webhook: marca pago quando PIX/cartão aprovado.
 SELECT cron.schedule(
   'dropcore-mensalidades-mp-sync',
@@ -183,7 +115,7 @@ SELECT cron.schedule(
   $$SELECT public.dropcore_cron_http_post('/api/cron/creditos-expiracao');$$
 );
 
--- Expira reservas de estoque de pedidos Olist em_aberto muito antigas (TTL) — a cada hora (UTC).
+-- Expira reservas de estoque muito antigas (TTL) — a cada hora (UTC).
 -- Rede de segurança para sellers sem webhook: cancelamento real-time já libera via webhook.
 SELECT cron.schedule(
   'dropcore-estoque-reserva-expira',

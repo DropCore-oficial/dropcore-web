@@ -2879,6 +2879,151 @@ automática (hoje `mlDevolucaoDeteccao.ts` só olha claims `status=opened` e nun
 (admin/fornecedor/seller); revisão da contestação pelo admin (reaproveitar o modal "Revisar
 contestação" já existente pra devolução normal).
 
+## Centro de Distribuição (CD) DropCore — vínculo múltiplo, estoque conferido, repasse por
+## item, taxa de fulfillment (2026-11-21)
+
+Fornecedores com estoque físico dentro de um CD operado pela própria DropCore (modelo Full
+do Mercado Livre). Dois eixos independentes: **quantos fornecedores** o seller tem vinculado
+(avulso 1:1 vs. CD multi-fornecedor) e **onde o estoque mora** (próprio endereço do
+fornecedor vs. CD — este último vale mesmo pra seller com 1 único fornecedor, se esse
+fornecedor estiver no CD).
+
+**Schema**:
+- `fornecedores.opera_no_cd boolean DEFAULT false` — sinalizador de quem está no CD.
+  `fornecedores.cd_fulfillment_taxa_valor numeric DEFAULT 0` — taxa fixa cobrada do
+  fornecedor por pedido fulfilled pelo CD (0 = isento), separada da comissão DropCore.
+- `seller_fornecedor_vinculos` (`web/scripts/create-seller-fornecedor-vinculos-cd.sql`):
+  vínculo múltiplo seller↔fornecedor, só pra fornecedores do CD — avulso fora do CD continua
+  em `sellers.fornecedor_id`, sem mudança. `desvinculado_em NULL` = ativo (soft-delete,
+  histórico de cobrança/cortesia preservado). Trava de 3 meses por linha (mesmas funções de
+  `web/lib/sellerFornecedorVinculo.ts`), só na hora de desvincular — adicionar não tem trava.
+  `cortesia`/`cortesia_ate` por linha (não por seller inteiro). `criado_por_tipo` registra se
+  foi o seller ou o admin que criou (admin pode vincular sem o seller pedir — sempre
+  notificado via `notifySellerVinculoFornecedorCd.ts`). RLS deny-all, só RPC/service_role.
+- `pedido_itens.fornecedor_id`/`valor_fornecedor`/`valor_dropcore`
+  (`web/scripts/add-pedido-itens-fornecedor-financeiro.sql`): `pedido_itens` já era escrita/
+  lida em todo pedido multi-item — faltava o split por fornecedor. `fornecedor_id` resolvido
+  por `skus.fornecedor_id`, nunca por `pedidos.fornecedor_id`/seller (mesmo padrão de
+  `buscarFornecedorViaSkuMap` em `mercadoLivreClaimResolucao.ts`). Backfill histórico +
+  `CHECK (valor_total = valor_fornecedor + valor_dropcore) NOT VALID` → `VALIDATE`.
+- `cd_movimentos_estoque` (`web/scripts/create-cd-movimentos-estoque.sql`): histórico
+  append-only de `remessa_declarada` (fornecedor) → `conferencia_entrada` (operador
+  DropCore, soma em `skus.estoque_atual`) → `baixa_manual` (desligamento do CD ou
+  avaria/perda, com `motivo` e `responsavel_custo` derivado do motivo — único mecanismo pra
+  os 2 casos). "Estoque conferido" não é coluna própria, é `SUM(conferencia_entrada) -
+  SUM(baixa_manual)` calculado nas RPCs de leitura; `skus.estoque_atual` continua sendo a
+  fonte que o resto do sistema já lê.
+- `financial_ledger.valor_fulfillment_dropcore` + `financial_repasse_fornecedor.
+  valor_bruto_fornecedor`/`valor_fulfillment_dropcore` + `financial_ciclos_repasse.
+  total_fulfillment_dropcore` (`web/scripts/add-cd-fulfillment-taxa.sql`): taxa capturada no
+  momento da criação da linha de ledger (não retroage se a taxa mudar depois), deduzida de
+  `valor_fornecedor` só na hora do repasse — nunca altera `valor_fornecedor`/`valor_dropcore`/
+  `valor_total`, que continuam representando o bruto. Receita de fulfillment rastreada
+  **separada** da comissão (`total_dropcore`) em todo relatório/tela.
+
+**RPCs** (`web/scripts/create-rpc-seller-fornecedor-cd-vinculo.sql`,
+`create-rpc-cd-estoque.sql`): `fn_seller_fornecedor_cd_vincular`/`_desvincular`/
+`_vinculos_lista`; `fn_cd_remessa_declarar`, `fn_cd_conferencia_confirmar`,
+`fn_cd_baixa_manual`, `fn_cd_estoque_conferido_por_sku`/`_lista`,
+`fn_cd_remessas_pendentes_lista`. Todas `SECURITY DEFINER`, `REVOKE ALL FROM PUBLIC/anon/
+authenticated` + `GRANT EXECUTE TO service_role`.
+
+`fn_cd_movimentos_historico_lista(p_org_id, p_fornecedor_id opcional, p_limit, p_offset)`
+(`web/scripts/create-rpc-cd-movimentos-historico-lista.sql`): histórico completo e paginado
+de `cd_movimentos_estoque` (remessa declarada, conferência — pareada com o declarado via
+`remessa_ref_id`, campo `declarado` no retorno — e baixa manual com `motivo`), usada tanto
+por `/api/fornecedor/cd/historico` (sempre com `p_fornecedor_id` do próprio fornecedor)
+quanto por `/api/org/cd/historico` (admin, `p_fornecedor_id` opcional pra filtrar). Índice:
+`idx_cd_mov_org`/`idx_cd_mov_fornecedor` já existentes cobrem o filtro, confirmado com
+`EXPLAIN ANALYZE` (Index Scan). `fn_cd_conferencia_confirmar` ganhou o campo `declarado` no
+JSON de retorno (`web/scripts/fix-fn-cd-conferencia-confirmar-retorna-declarado.sql`) pra
+alimentar a notificação sem query extra.
+
+Ao confirmar conferência ou registrar baixa manual, o fornecedor é sempre notificado (não
+só quando diverge) via `web/lib/notifyCdFornecedor.ts` — tipos `cd_remessa_conferida` e
+`cd_baixa_manual` liberados no sino pro contexto `fornecedor` em
+`web/lib/notificationContextFilter.ts`. Motivos de baixa centralizados em
+`web/lib/cdBaixaMotivos.ts` (usado pelo admin, pela notificação e pela tela de histórico do
+fornecedor — não duplicar a lista em mais nenhum lugar). Ao declarar remessa, o fornecedor
+dispara `web/lib/notifyAdminsCdRemessaDeclarada.ts`, que notifica todo `org_members` sem
+`fornecedor_id`/`seller_id` com `role_base` em `owner`/`admin`/`operacional` (todos têm
+acesso a `/admin/cd`) — tipo `cd_remessa_declarada` liberado no sino pro contexto `admin`.
+Todas as 3 notificações de CD (fornecedor × 2, admin × 1) também disparam e-mail via
+`web/lib/notifyEmail.ts` (Resend já configurado, mesmo padrão usado por outros avisos do
+sistema).
+
+`fn_fornecedor_sku_estoque_mercadolivre_set`
+(`web/scripts/fix-fn-fornecedor-sku-estoque-mercadolivre-set-cd-somente-leitura.sql`) e os
+pontos de escrita de `estoque_atual` pelo fornecedor (`PATCH /api/fornecedor/produtos/[id]`,
+import em massa, criação de multivariante, pull Olist, webhook Olist — gate centralizado em
+`web/lib/skuEstoqueCdSomenteLeitura.ts`) agora ignoram/bloqueiam a escrita quando
+`fornecedores.opera_no_cd = true`: o número que vale pra vender é só o conferido no CD.
+
+**Piloto ativo**: DJULIOS, LARAUNA e DIEGO PEREIRA marcados `opera_no_cd = true`
+(2026-11-21). Os 13 sellers já vinculados a eles no modo avulso (`sellers.fornecedor_id`)
+continuam funcionando sem nenhuma migração — o CD vale pra eles automaticamente pelo eixo
+"onde o estoque mora", sem precisar do vínculo múltiplo.
+
+**Ingestão multi-fornecedor (2026-11-21)**: `submitSellerErpPedido.ts` e
+`erp/pedidos/route.ts` resolvem SKU elegível por `.in("fornecedor_id", lista)` (via novo
+`web/lib/sellerFornecedoresCdAtivos.ts` — avulso se tiver, senão vínculos ativos do CD),
+não mais `.eq()` único. Inadimplência, trava de "linha de despacho única" e notificação de
+"pedido pra postar" passaram a considerar cada fornecedor distinto presente no pedido, não
+só 1 representativo. `pedidos.fornecedor_id` continua 1 coluna só (primeiro item,
+legado/leitura); o split real vive em `pedido_itens.fornecedor_id`.
+
+**`blockSale.ts` multi-ledger + taxa de fulfillment (2026-11-21)**: `executeBlockSale`
+aceita `itens: { fornecedor_id, valor_fornecedor, valor_dropcore }[]` (além da forma simples
+de 1 fornecedor, mantida por compatibilidade) — insere 1 linha de `financial_ledger` por
+fornecedor presente, checando saldo 1x contra a soma total. Cada linha captura
+`valor_fulfillment_dropcore` de `fornecedores.cd_fulfillment_taxa_valor` no momento da
+criação. `repasse-semanal` (GET preview e POST fechamento) deduz o fulfillment do
+`valor_total` pago ao fornecedor e grava o bruto/fulfillment separados em
+`financial_repasse_fornecedor.valor_bruto_fornecedor`/`valor_fulfillment_dropcore` e o total
+em `financial_ciclos_repasse.total_fulfillment_dropcore` — nunca mistura com
+`total_dropcore` (comissão).
+
+**Núcleo multi-ledger + devolução por item + telas (2026-11-21, completo)**:
+`resolveLedgerForPedido.ts` ganhou `resolveLedgerIdsForPedido` (array) —
+`pedidoPostadoPromote.ts` (`promoverPedidoParaPostado`/`repararExtratoBloqueado`) e a cópia
+em `erp/pedidos/route.ts` promovem todas as linhas de ledger de um pedido juntas, não só a
+representativa. `mlDevolucaoDeteccao.ts` resolve o ledger do fornecedor certo via
+`pedido_itens` (não mais `pedidos.ledger_id` representativo) antes de travar/debitar.
+Mensalidade com adicional de R$49,90/fornecedor extra em
+`gerarMensalidadesCicloOrg.ts` (1º vínculo incluso, cortesia por linha respeitada). Telas:
+`/admin/empresas` (toggle CD + taxa), `SellerDetailContent.tsx` (vínculo múltiplo +
+cortesia), `/admin/cd` (remessas/estoque/baixa manual — baixa manual é admin-only, resto
+liberado pro operador via role `operacional` em `/admin/cd` apenas), `/fornecedor/cd`
+(declarar remessa + histórico), `SellerFornecedoresCdSection` no dashboard do seller
+(auto-contida, só aparece sem avulso ativo).
+
+**`fn_fornecedor_pedidos_lista` — privacidade por item (2026-11-21)**: antes filtrava/
+devolvia tudo por `pedidos.fornecedor_id`/`valor_fornecedor` (nível do pedido inteiro) — num
+pedido com item de 2+ fornecedores do CD, o fornecedor "não representativo" nem apareceria
+na lista, e o representativo veria o valor de todos somado. Corrigido pra somar só os
+`pedido_itens` daquele `p_fornecedor_id` (fallback pro valor de `pedidos` quando não há
+`pedido_itens`, idêntico ao comportamento de hoje — validado contra dado real, mesmo
+valor). `fornecedor_id` retornado agora é sempre o do parâmetro, nunca o representativo do
+pedido. Rota `GET /api/fornecedor/pedidos` também ganhou `.eq("fornecedor_id", ...)` no
+fetch de `pedido_itens` (antes buscava itens de todos os fornecedores do pedido sem
+filtro). Índice `idx_pedido_itens_pedido_fornecedor (pedido_id, fornecedor_id)` — `EXPLAIN
+ANALYZE` confirmado Index Scan/Index Only Scan, sem Seq Scan.
+
+**Extrato do fornecedor com breakdown produto/taxa/líquido (2026-11-21, completo)**:
+`fn_fornecedor_repasse_detalhe` ganhou `valor_fulfillment_dropcore`/`valor_liquido` por
+linha de venda (drop+recreate, mudou o shape de colunas). `dashboard/page.tsx` do
+fornecedor mostra as 3 linhas (produto bruto / taxa de fulfillment, sempre visível com
+"(isento)" quando zero / você recebe) dentro do detalhe expandido de cada ciclo pago — só
+quando `opera_no_cd` é true pra esse fornecedor (`dashboard-stats` route expõe o flag),
+fornecedor fora do CD continua vendo exatamente como antes, sem a linha extra.
+
+**Pendente** (ainda não construído): funções de promoção
+(`tryPromotePendenteEstoquePedido`/`tryPromoteBloqueadoPedido`/`tryPromoteErroSaldoPedido`)
+ainda chamam `executeBlockSale` na forma simples (1 fornecedor representativo do pedido,
+não a lista completa) — sem impacto hoje porque nenhum seller tem vínculo múltiplo ativo;
+quando o primeiro vínculo múltiplo de verdade existir, revisitar essas 3 funções pra usar
+`itens: [...]` como o fluxo principal já faz.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

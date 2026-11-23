@@ -65,9 +65,9 @@ export async function GET(req: Request) {
     }
 
     const selExpedicaoBase =
-      "id, nome, org_id, status, trial_valido_ate, cnpj, telefone, email_comercial, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, expedicao_padrao_linha, expedicao_cep, expedicao_logradouro, expedicao_numero, expedicao_complemento, expedicao_bairro, expedicao_cidade, expedicao_uf, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta";
+      "id, nome, org_id, status, trial_valido_ate, cnpj, telefone, email_comercial, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, expedicao_padrao_linha, expedicao_cep, expedicao_logradouro, expedicao_numero, expedicao_complemento, expedicao_bairro, expedicao_cidade, expedicao_uf, opera_no_cd, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta";
     const selSemExpedicaoBase =
-      "id, nome, org_id, status, trial_valido_ate, cnpj, telefone, email_comercial, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, expedicao_padrao_linha, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta";
+      "id, nome, org_id, status, trial_valido_ate, cnpj, telefone, email_comercial, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, expedicao_padrao_linha, opera_no_cd, chave_pix, nome_banco, nome_no_banco, agencia, conta, tipo_conta";
 
     function isMissingColumn(err: { message?: string; code?: string } | null): boolean {
       return !!(err && (String(err.message ?? "").toLowerCase().includes("column") || err.code === "42703"));
@@ -200,6 +200,7 @@ export async function GET(req: Request) {
         conta: cadastro.conta,
         tipo_conta: cadastro.tipo_conta,
         logo_url: (forn as { logo_url?: string | null }).logo_url ?? null,
+        opera_no_cd: Boolean((forn as { opera_no_cd?: boolean | null }).opera_no_cd),
         cadastro_minimo_completo: cadastroMinimoCompleto(cadastro as FornecedorCadastroFields),
         trial_valido_ate: frow.trial_valido_ate ?? null,
         trial_ativo: isPortalTrialAtivo(frow.trial_valido_ate),

@@ -48,7 +48,7 @@ export async function GET(req: Request) {
     const [ledgerRes, ledgerAllRes] = await Promise.all([
       supabaseAdmin
         .from("financial_ledger")
-        .select("id, fornecedor_id, pedido_id, valor_fornecedor, valor_dropcore, valor_total")
+        .select("id, fornecedor_id, pedido_id, valor_fornecedor, valor_dropcore, valor_total, valor_fulfillment_dropcore")
         .eq("org_id", org_id)
         .eq("ciclo_repasse", ciclo_repasse)
         .in("tipo", ["BLOQUEIO", "VENDA"])
@@ -92,20 +92,21 @@ export async function GET(req: Request) {
     }
 
     const debitosList = await semPedidosDeTeste(debitos ?? []);
-    const porFornecedor: Record<string, { valor_fornecedor: number; valor_dropcore: number }> = {};
+    const porFornecedor: Record<string, { valor_fornecedor: number; valor_dropcore: number; valor_fulfillment_dropcore: number }> = {};
 
     for (const e of entries) {
       const fid = e.fornecedor_id ?? "sem_fornecedor";
       if (!porFornecedor[fid]) {
-        porFornecedor[fid] = { valor_fornecedor: 0, valor_dropcore: 0 };
+        porFornecedor[fid] = { valor_fornecedor: 0, valor_dropcore: 0, valor_fulfillment_dropcore: 0 };
       }
       porFornecedor[fid].valor_fornecedor += Number(e.valor_fornecedor);
       porFornecedor[fid].valor_dropcore += Number(e.valor_dropcore);
+      porFornecedor[fid].valor_fulfillment_dropcore += Number((e as { valor_fulfillment_dropcore?: number }).valor_fulfillment_dropcore ?? 0);
     }
     for (const deb of debitosList) {
       const fid = deb.fornecedor_id;
       if (!porFornecedor[fid]) {
-        porFornecedor[fid] = { valor_fornecedor: 0, valor_dropcore: 0 };
+        porFornecedor[fid] = { valor_fornecedor: 0, valor_dropcore: 0, valor_fulfillment_dropcore: 0 };
       }
       porFornecedor[fid].valor_fornecedor -= Number(deb.valor_fornecedor);
       porFornecedor[fid].valor_dropcore -= Number(deb.valor_dropcore);
@@ -113,15 +114,18 @@ export async function GET(req: Request) {
 
     let total_fornecedores = 0;
     let total_dropcore = 0;
+    let total_fulfillment_dropcore = 0;
     const fornecedorIds: string[] = [];
     for (const fid of Object.keys(porFornecedor)) {
       if (!uuidRegex.test(fid)) continue;
       const v = porFornecedor[fid];
       const vF = Math.max(0, v.valor_fornecedor);
       const vD = Math.max(0, v.valor_dropcore);
+      const vFull = Math.min(vF, Math.max(0, v.valor_fulfillment_dropcore));
       if (vF > 0 || vD > 0) {
-        total_fornecedores += vF;
+        total_fornecedores += vF - vFull;
         total_dropcore += vD;
+        total_fulfillment_dropcore += vFull;
         fornecedorIds.push(fid);
       }
     }
@@ -163,10 +167,14 @@ export async function GET(req: Request) {
 
     const por_fornecedor = fornecedorIds.map((fid) => {
       const v = porFornecedor[fid];
+      const bruto = Math.max(0, v.valor_fornecedor);
+      const fulfillment = Math.min(bruto, Math.max(0, v.valor_fulfillment_dropcore));
       return {
         fornecedor_id: fid,
         fornecedor_nome: fornecedorNomes[fid] ?? "—",
-        valor_fornecedor: Math.max(0, v.valor_fornecedor),
+        valor_fornecedor: bruto - fulfillment,
+        valor_bruto_fornecedor: bruto,
+        valor_fulfillment_dropcore: fulfillment,
         valor_dropcore: Math.max(0, v.valor_dropcore),
       };
     });
@@ -184,6 +192,7 @@ export async function GET(req: Request) {
       por_fornecedor,
       total_fornecedores,
       total_dropcore,
+      total_fulfillment_dropcore,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
@@ -210,7 +219,7 @@ export async function POST(req: Request) {
     // 1) Ledger do ciclo com status ENTREGUE ou AGUARDANDO_REPASSE
     const { data: ledgerRows, error: ledgerErr } = await supabaseAdmin
       .from("financial_ledger")
-      .select("id, fornecedor_id, pedido_id, valor_fornecedor, valor_dropcore, valor_total")
+      .select("id, fornecedor_id, pedido_id, valor_fornecedor, valor_dropcore, valor_total, valor_fulfillment_dropcore")
       .eq("org_id", org_id)
       .eq("ciclo_repasse", ciclo_repasse)
       .in("tipo", ["BLOQUEIO", "VENDA"])
@@ -376,7 +385,7 @@ export async function POST(req: Request) {
     // 7) Recalcular totais do ciclo a partir de TODOS os PAGO (não só os deste batch)
     const { data: allPago } = await supabaseAdmin
       .from("financial_ledger")
-      .select("fornecedor_id, valor_fornecedor, valor_dropcore")
+      .select("fornecedor_id, valor_fornecedor, valor_dropcore, valor_fulfillment_dropcore")
       .eq("org_id", org_id)
       .eq("ciclo_repasse", ciclo_repasse)
       .in("tipo", ["BLOQUEIO", "VENDA"])
@@ -389,25 +398,28 @@ export async function POST(req: Request) {
       .eq("ciclo_a_descontar", ciclo_repasse);
     const allDebitos = await semPedidosDeTeste(allDebitosRows ?? []);
 
-    const cicloTotais: Record<string, { vf: number; vd: number }> = {};
+    const cicloTotais: Record<string, { vf: number; vd: number; vfull: number }> = {};
     for (const row of allPago ?? []) {
       const fid = row.fornecedor_id ?? "sem";
-      if (!cicloTotais[fid]) cicloTotais[fid] = { vf: 0, vd: 0 };
+      if (!cicloTotais[fid]) cicloTotais[fid] = { vf: 0, vd: 0, vfull: 0 };
       cicloTotais[fid].vf += Number(row.valor_fornecedor);
       cicloTotais[fid].vd += Number(row.valor_dropcore);
+      cicloTotais[fid].vfull += Number(row.valor_fulfillment_dropcore ?? 0);
     }
     for (const row of allDebitos ?? []) {
       const fid = row.fornecedor_id ?? "sem";
-      if (!cicloTotais[fid]) cicloTotais[fid] = { vf: 0, vd: 0 };
+      if (!cicloTotais[fid]) cicloTotais[fid] = { vf: 0, vd: 0, vfull: 0 };
       cicloTotais[fid].vf -= Number(row.valor_fornecedor);
       cicloTotais[fid].vd -= Number(row.valor_dropcore);
     }
 
     let ciclo_total_fornecedores = 0;
     let ciclo_total_dropcore = 0;
+    let ciclo_total_fulfillment = 0;
     for (const v of Object.values(cicloTotais)) {
       ciclo_total_fornecedores += Math.max(0, v.vf);
       ciclo_total_dropcore += Math.max(0, v.vd);
+      ciclo_total_fulfillment += Math.max(0, v.vfull);
     }
 
     await supabaseAdmin.from("financial_ciclos_repasse").upsert(
@@ -417,23 +429,29 @@ export async function POST(req: Request) {
         status: "fechado",
         total_fornecedores: ciclo_total_fornecedores,
         total_dropcore: ciclo_total_dropcore,
+        total_fulfillment_dropcore: ciclo_total_fulfillment,
         fechado_em: now,
       },
       { onConflict: "org_id,ciclo_repasse" }
     );
 
-    // Recalcular repasse por fornecedor com totais completos
+    // Recalcular repasse por fornecedor com totais completos. valor_total é o LÍQUIDO
+    // efetivamente pago (bruto - taxa de fulfillment CD) — comissão DropCore nunca entra
+    // aqui, é receita separada já excluída do lado do fornecedor desde o ledger.
     for (const fid of Object.keys(cicloTotais)) {
       if (!uuidRegex.test(fid)) continue;
       const v = cicloTotais[fid];
       const vf = Math.max(0, v.vf);
       if (vf <= 0) continue;
+      const vfull = Math.min(vf, Math.max(0, v.vfull));
       await supabaseAdmin.from("financial_repasse_fornecedor").upsert(
         {
           org_id,
           fornecedor_id: fid,
           ciclo_repasse,
-          valor_total: vf,
+          valor_total: vf - vfull,
+          valor_bruto_fornecedor: vf,
+          valor_fulfillment_dropcore: vfull,
           status: "pendente",
           atualizado_em: now,
         },
@@ -449,6 +467,7 @@ export async function POST(req: Request) {
       debitos_adiados: debitosAdiadosIds.length,
       total_fornecedores: ciclo_total_fornecedores,
       total_dropcore: ciclo_total_dropcore,
+      total_fulfillment_dropcore: ciclo_total_fulfillment,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";

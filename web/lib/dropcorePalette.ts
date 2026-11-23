@@ -6,6 +6,10 @@
  * - **Verde UI:** apenas os steps abaixo; opacidades permitidas listadas em `ALLOWED_EMERALD_OPACITIES` e na regra `.cursor/rules/dropcore-paleta-cores.mdc`.
  * - **Alertas:** `amberPremium.ts` (âmbar), não usar emerald para warnings.
  * - **Azul CTA primário:** `PRIMARY_ACTION_BLUE_HEX` / vars `--primary-blue` em `globals.css` (links de sistema e botões que não usam emerald).
+ *   **Exceção (2026-11-21, pedido explícito):** selo "CD" (Centro de Distribuição) em
+ *   `fornecedor/produtos` e `seller/catalogo` usa esse azul como badge sólido
+ *   (`PRIMARY_ACTION_BLUE_BADGE_SOLID` em `primaryActionBlueUi.ts`) — emerald/âmbar/vermelho já
+ *   são Aprovado/Em análise/Reprovado. Não abrir precedente pra outro badge sem confirmar antes.
  * - **Erro / perigo:** `DANGER_HEX` / var `--danger` em `globals.css` + `semanticPremium.ts` — não espalhar outros HEX de erro.
  */
 

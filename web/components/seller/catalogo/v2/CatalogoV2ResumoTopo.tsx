@@ -17,6 +17,9 @@ type Props = {
   variant?: "cards" | "strip";
   /** Quando definido, o card "Pendências" vira botão (abre modal com o que falta por SKU). */
   onClickPendencias?: () => void;
+  /** Só aparece (como 1º card, antes de "Produtos") quando o seller tem mais de 1 fornecedor
+   * conectado (CD multi-vínculo) — com 1 só, fica igual sempre foi. */
+  fornecedoresCount?: number;
 };
 
 /** Mesmos tokens do dashboard seller (`globals.css` / `--card`, `--muted`). */
@@ -45,20 +48,38 @@ function MetricStrip({
   skusComPendencia,
   habilitadosMax,
   onClickPendencias,
+  fornecedoresCount,
 }: Props) {
+  const temFornecedores = Boolean(fornecedoresCount && fornecedoresCount > 1);
+  // Mobile: faixa com scroll lateral (mesmo padrão/estilo de app/seller/pedidos.tsx, barra
+  // escondida via .dropcore-tabs-scroll) em vez de quebrar em grid-cols-2 — com 5 métricas
+  // (CD) ficava tudo espremido e difícil de ler. sm+: volta a ser grid normal, sem scroll.
+  const cell = "min-w-[8rem] shrink-0 bg-[var(--card)] px-3 py-2.5 sm:min-w-0 sm:shrink";
   return (
     <div
-      className={`grid grid-cols-2 gap-px overflow-hidden rounded-lg border ${b} bg-[var(--surface-subtle)] sm:grid-cols-4`}
+      className={cn(
+        "dropcore-tabs-scroll flex gap-px overflow-x-auto rounded-lg border",
+        b,
+        "bg-[var(--surface-subtle)]",
+        "sm:grid sm:overflow-visible",
+        temFornecedores ? "sm:grid-cols-5" : "sm:grid-cols-4"
+      )}
     >
-      <div className="bg-[var(--card)] px-3 py-2.5">
+      {temFornecedores && (
+        <div className={cell}>
+          <p className={label}>Fornecedores</p>
+          <p className={value}>{fornecedoresCount}</p>
+        </div>
+      )}
+      <div className={cell}>
         <p className={label}>Produtos</p>
         <p className={value}>{totalProdutos}</p>
       </div>
-      <div className="bg-[var(--card)] px-3 py-2.5">
+      <div className={cell}>
         <p className={label}>SKUs</p>
         <p className={value}>{skusDisponiveis}</p>
       </div>
-      <div className="bg-[var(--card)] px-3 py-2.5">
+      <div className={cell}>
         <p className={label}>Cores na API</p>
         <p className={value}>
           {skusHabilitados}
@@ -72,7 +93,7 @@ function MetricStrip({
           type="button"
           onClick={onClickPendencias}
           disabled={skusComPendencia === 0}
-          className="bg-[var(--card)] px-3 py-2.5 text-left transition hover:bg-[var(--surface-hover)] disabled:cursor-default disabled:hover:bg-[var(--card)]"
+          className={cn(cell, "text-left transition hover:bg-[var(--surface-hover)] disabled:cursor-default disabled:hover:bg-[var(--card)]")}
         >
           <p className={cn("text-xs font-medium uppercase tracking-wide", AMBER_PREMIUM_TEXT_SOFT)}>Pendências</p>
           <p className={cn("text-lg font-semibold tabular-nums", AMBER_PREMIUM_TEXT_PRIMARY)}>
@@ -80,7 +101,7 @@ function MetricStrip({
           </p>
         </button>
       ) : (
-        <div className="bg-[var(--card)] px-3 py-2.5">
+        <div className={cell}>
           <p className={cn("text-xs font-medium uppercase tracking-wide", AMBER_PREMIUM_TEXT_SOFT)}>Pendências</p>
           <p className={cn("text-lg font-semibold tabular-nums", AMBER_PREMIUM_TEXT_PRIMARY)}>{skusComPendencia}</p>
         </div>
@@ -97,6 +118,7 @@ export function CatalogoV2ResumoTopo({
   habilitadosMax,
   variant = "cards",
   onClickPendencias,
+  fornecedoresCount,
 }: Props) {
   if (variant === "strip") {
     return (
@@ -107,11 +129,26 @@ export function CatalogoV2ResumoTopo({
         skusComPendencia={skusComPendencia}
         habilitadosMax={habilitadosMax}
         onClickPendencias={onClickPendencias}
+        fornecedoresCount={fornecedoresCount}
       />
     );
   }
+  const temFornecedores = Boolean(fornecedoresCount && fornecedoresCount > 1);
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5">
+    <div className={cn("grid grid-cols-2 gap-2 sm:gap-2.5", temFornecedores ? "sm:grid-cols-5" : "sm:grid-cols-4")}>
+      {temFornecedores && (
+        <div className={`flex items-center gap-2.5 rounded-lg border ${b} bg-[var(--card)] px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3`}>
+          <IconBox>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1M9 13h1M14 9h1M14 13h1" />
+            </svg>
+          </IconBox>
+          <div className="min-w-0">
+            <p className={label}>Fornecedores</p>
+            <p className={`${value} sm:text-xl`}>{fornecedoresCount}</p>
+          </div>
+        </div>
+      )}
       <div className={`flex items-center gap-2.5 rounded-lg border ${b} bg-[var(--card)] px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3`}>
         <IconBox>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>

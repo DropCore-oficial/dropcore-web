@@ -755,6 +755,7 @@ export default function CriarVariantesPage() {
   const [cdUf, setCdUf] = useState("");
   const [cdUsarDespachoCadastro, setCdUsarDespachoCadastro] = useState(false);
   const [perfilExpedicao, setPerfilExpedicao] = useState<PartesEnderecoCd | null>(null);
+  const [operaNoCd, setOperaNoCd] = useState(false);
   const [buscandoCepCd, setBuscandoCepCd] = useState(false);
   const [pickerCampo, setPickerCampo] = useState<null | "caimento">(null);
   const cdCepRef = useRef("");
@@ -1850,7 +1851,11 @@ export default function CriarVariantesPage() {
           expedicao_uf: typeof f.expedicao_uf === "string" ? f.expedicao_uf : null,
         });
         const perfil: PartesEnderecoCd = aplicarPartesCdNoEstado(partes);
-        if (!cancelled) setPerfilExpedicao(perfil);
+        if (cancelled) return;
+        setPerfilExpedicao(perfil);
+        const cdAtivo = Boolean(f.opera_no_cd);
+        setOperaNoCd(cdAtivo);
+        if (cdAtivo) setCdUsarDespachoCadastro(true);
       } catch {
         /* ignore */
       }
@@ -3569,12 +3574,18 @@ export default function CriarVariantesPage() {
                     você já informou um <strong className="text-neutral-800 dark:text-neutral-200">despacho / CD padrão</strong>, pode reutilizar com um clique. Com{" "}
                     <strong className="text-neutral-800 dark:text-neutral-200">8 dígitos no CEP</strong> (ou 7 se faltar o zero no início), logradouro, bairro, cidade e UF preenchem automaticamente (ViaCEP).
                   </p>
+                  {operaNoCd && (
+                    <p className="text-[11px] leading-snug text-neutral-500 dark:text-neutral-400">
+                      Você está no Centro de Distribuição DropCore — o despacho é sempre o do cadastro, travado aqui.
+                    </p>
+                  )}
                   <label className="flex cursor-pointer select-none items-start gap-2.5">
                     <input
                       type="checkbox"
                       checked={cdUsarDespachoCadastro}
+                      disabled={operaNoCd}
                       onChange={(e) => setCdUsarDespachoCadastro(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 text-emerald-600 dark:border-neutral-600"
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 text-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-600"
                     />
                     <span className="text-sm leading-snug text-neutral-800 dark:text-neutral-200">
                       Usar o endereço de despacho do meu cadastro (despacho / CD padrão)

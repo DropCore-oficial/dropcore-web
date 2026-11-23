@@ -125,6 +125,25 @@ async function processarReclamacaoDevolucao(
 
   const { pedido, fornecedorId } = await resolverPedidoEFornecedorPorReclamacao(sellerId, reclamacao, ctx);
 
+  // Pedido com item de mais de 1 fornecedor do CD gera 1 financial_ledger por fornecedor
+  // (ver blockSale.ts) — pedidos.ledger_id guarda só o primeiro/representativo, então não dá
+  // pra confiar nele aqui: resolve a linha que pertence de fato ao fornecedorId já apurado
+  // (via SKU, não via pedidos.fornecedor_id). Cai no representativo só se não achar nenhuma
+  // linha específica desse fornecedor (legado, ou fornecedorId não resolvido).
+  let ledgerIdDoFornecedor: string | null = pedido?.ledger_id ?? null;
+  if (pedido?.id && fornecedorId) {
+    const { data: ledgerMatch } = await supabaseAdmin
+      .from("financial_ledger")
+      .select("id")
+      .eq("pedido_id", pedido.id)
+      .eq("fornecedor_id", fornecedorId)
+      .in("tipo", ["BLOQUEIO", "VENDA"])
+      .order("data_evento", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (ledgerMatch?.id) ledgerIdDoFornecedor = ledgerMatch.id;
+  }
+
   const { data: registro } = await supabaseAdmin
     .rpc("fn_ml_devolucao_detectada_registrar", {
       p_org_id: orgId,
@@ -136,7 +155,7 @@ async function processarReclamacaoDevolucao(
       p_ml_rules_engine_triage: classificacao.rulesEngineTriage,
       p_criterio: classificacao.criterio,
       p_pedido_id: pedido?.id ?? null,
-      p_ledger_id: pedido?.ledger_id ?? null,
+      p_ledger_id: ledgerIdDoFornecedor,
       p_fornecedor_id: fornecedorId,
     })
     .single();
@@ -147,13 +166,13 @@ async function processarReclamacaoDevolucao(
   // Trava automática — só existe dinheiro pra travar quando o pedido tem ledger_id (nem
   // todo pedido resolvido tem: ex. "produto fora do catálogo" nunca gerou saldo).
   let devolucaoPosRepasseRegistrada = false;
-  if (pedido?.ledger_id) {
+  if (ledgerIdDoFornecedor) {
     const { data: travaResultado } = await supabaseAdmin
-      .rpc("fn_devolucao_auto_travar", { p_ledger_id: pedido.ledger_id })
+      .rpc("fn_devolucao_auto_travar", { p_ledger_id: ledgerIdDoFornecedor })
       .single();
     const travou = (travaResultado as { ok: boolean } | null)?.ok ?? false;
 
-    if (travou && !fornecedorId) {
+    if (travou && !fornecedorId && pedido?.id) {
       // Travou o dinheiro, mas não dá pra saber de qual fornecedor é o produto (SKU não
       // mapeado em lugar nenhum) — mesmo padrão visual de "produto fora do catálogo":
       // mostra o problema no card do pedido em vez de silenciosamente escolher errado.
@@ -176,15 +195,15 @@ async function processarReclamacaoDevolucao(
       const { data: ledgerAtual } = await supabaseAdmin
         .from("financial_ledger")
         .select("status")
-        .eq("id", pedido.ledger_id)
+        .eq("id", ledgerIdDoFornecedor)
         .maybeSingle();
       if (ledgerAtual?.status === "PAGO") {
-        const resultado = await registrarDevolucaoPosRepasse(orgId, pedido.ledger_id);
+        const resultado = await registrarDevolucaoPosRepasse(orgId, ledgerIdDoFornecedor);
         if (resultado.ok) {
           devolucaoPosRepasseRegistrada = true;
         } else {
           console.error(
-            `[mlDevolucaoDeteccao] falha ao registrar devolução pós-repasse (ledger ${pedido.ledger_id}):`,
+            `[mlDevolucaoDeteccao] falha ao registrar devolução pós-repasse (ledger ${ledgerIdDoFornecedor}):`,
             resultado.error
           );
         }
@@ -215,8 +234,8 @@ async function processarReclamacaoDevolucao(
     // com a mensagem certa (desconto no próximo ciclo) — mandar também o aviso genérico de
     // "48h pra confirmar" aqui seria contraditório, já que não existe nada travado pra
     // confirmar nesse caso.
-    fornecedorId && pedido?.ledger_id && !devolucaoPosRepasseRegistrada
-      ? notifyFornecedorDevolucao({ org_id: orgId, fornecedor_id: fornecedorId, ledger_id: pedido.ledger_id })
+    fornecedorId && ledgerIdDoFornecedor && !devolucaoPosRepasseRegistrada
+      ? notifyFornecedorDevolucao({ org_id: orgId, fornecedor_id: fornecedorId, ledger_id: ledgerIdDoFornecedor })
       : Promise.resolve(),
   ]);
 

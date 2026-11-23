@@ -38,7 +38,9 @@ export async function GET(req: Request) {
 
     const { data: forn, error: fornErr } = await supabaseAdmin
       .from("fornecedores")
-      .select("id")
+      .select(
+        "id, opera_no_cd, expedicao_padrao_linha, expedicao_cep, expedicao_logradouro, expedicao_numero, expedicao_complemento, expedicao_bairro, expedicao_cidade, expedicao_uf"
+      )
       .eq("id", fornecedorId)
       .eq("org_id", seller.org_id)
       .maybeSingle();
@@ -50,7 +52,7 @@ export async function GET(req: Request) {
     let query = supabaseAdmin
       .from("skus")
       .select(
-        "id, sku, nome_produto, cor, tamanho, status, fornecedor_id, estoque_atual, estoque_minimo, custo_dropcore, custo_base, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, peso_kg, imagem_url, link_fotos, descricao, ncm, origem, cest, detalhes_produto_json",
+        "id, sku, nome_produto, cor, tamanho, status, fornecedor_id, estoque_atual, estoque_minimo, custo_dropcore, custo_base, categoria, dimensoes_pacote, comprimento_cm, largura_cm, altura_cm, peso_kg, imagem_url, link_fotos, descricao, ncm, origem, cest, expedicao_override_linha, detalhes_produto_json",
       )
       .eq("org_id", seller.org_id)
       .eq("fornecedor_id", fornecedorId)
@@ -78,9 +80,32 @@ export async function GET(req: Request) {
       };
     });
 
+    const fornRow = forn as {
+      opera_no_cd?: boolean | null;
+      expedicao_padrao_linha?: string | null;
+      expedicao_cep?: string | null;
+      expedicao_logradouro?: string | null;
+      expedicao_numero?: string | null;
+      expedicao_complemento?: string | null;
+      expedicao_bairro?: string | null;
+      expedicao_cidade?: string | null;
+      expedicao_uf?: string | null;
+    };
+
     return NextResponse.json({
       ok: true,
       fornecedor_id: fornecedorId,
+      opera_no_cd: Boolean(fornRow.opera_no_cd),
+      fornecedor_expedicao: {
+        expedicao_padrao_linha: fornRow.expedicao_padrao_linha ?? null,
+        expedicao_cep: fornRow.expedicao_cep ?? null,
+        expedicao_logradouro: fornRow.expedicao_logradouro ?? null,
+        expedicao_numero: fornRow.expedicao_numero ?? null,
+        expedicao_complemento: fornRow.expedicao_complemento ?? null,
+        expedicao_bairro: fornRow.expedicao_bairro ?? null,
+        expedicao_cidade: fornRow.expedicao_cidade ?? null,
+        expedicao_uf: fornRow.expedicao_uf ?? null,
+      },
       items,
     });
   } catch (e: unknown) {

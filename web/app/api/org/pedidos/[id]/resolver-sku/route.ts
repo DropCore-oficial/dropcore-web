@@ -63,7 +63,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const { data: sellerRow, error: sellerErr } = await supabaseAdmin
       .from("sellers")
-      .select("id, org_id, fornecedor_id, plano")
+      .select("id, org_id, plano")
       .eq("id", pedido.seller_id)
       .maybeSingle();
     if (sellerErr) return NextResponse.json({ error: sellerErr.message }, { status: 500 });
@@ -83,7 +83,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       org_id,
       seller: {
         id: sellerRow.id,
-        fornecedor_id: sellerRow.fornecedor_id,
         plano: sellerRow.plano,
       },
       referencia_externa: pedido.referencia_externa,

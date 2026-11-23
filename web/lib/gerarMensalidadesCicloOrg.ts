@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { clampMensalidadeDiaVencimento, hojeYmdSaoPaulo, vencimentoEmNoCiclo } from "@/lib/mensalidadeDiaVencimento";
 import { isPortalTrialAtivo } from "@/lib/portalTrial";
 import { valorAddonGestoresIaPorPlano } from "@/lib/gestoresIaAddonPrecos";
+import { qtdFornecedorCdExtraCobravel, valorAddonCdFornecedorExtra } from "@/lib/cdFornecedorExtraAddonPrecos";
 import {
   calcularValorMensalSellerPlano,
   isSellerPlanoDescontoTipo,
@@ -37,7 +38,7 @@ export async function gerarMensalidadesParaOrgCiclo(orgId: string, cicloYYYY_MM:
   const primeiroDia = cicloStr + "-01";
   const hoje = hojeYmdSaoPaulo();
 
-  const [{ data: planos }, sellersRes, fornRes, inadRes, cicloAtualRes] = await Promise.all([
+  const [{ data: planos }, sellersRes, fornRes, inadRes, cicloAtualRes, vinculosCdRes] = await Promise.all([
     supabaseAdmin.from("financial_planos").select("plano, valor_seller, valor_fornecedor"),
     supabaseAdmin
       .from("sellers")
@@ -49,11 +50,30 @@ export async function gerarMensalidadesParaOrgCiclo(orgId: string, cicloYYYY_MM:
     supabaseAdmin.from("fornecedores").select("id, nome, mensalidade_dia_vencimento, trial_valido_ate").eq("org_id", orgId).ilike("status", "ativo"),
     supabaseAdmin.from("financial_mensalidades").select("tipo, entidade_id").eq("org_id", orgId).eq("status", "inadimplente"),
     supabaseAdmin.from("financial_mensalidades").select("tipo, entidade_id, status").eq("org_id", orgId).eq("ciclo", primeiroDia),
+    supabaseAdmin
+      .from("seller_fornecedor_vinculos")
+      .select("seller_id, vinculado_em, cortesia, cortesia_ate")
+      .eq("org_id", orgId)
+      .is("desvinculado_em", null),
   ]);
   const planosMap = new Map((planos ?? []).map((p) => [p.plano, p]));
 
   const sellers = sellersRes.data ?? [];
   const fornecedores = fornRes.data ?? [];
+
+  // Fornecedor adicional do CD: o primeiro vínculo (mais antigo) de cada seller já está
+  // incluso na mensalidade normal — só o 2º em diante cobra, e só se não tiver cortesia
+  // vigente naquela linha específica (cortesia é por vínculo, não por seller inteiro).
+  const vinculosPorSeller = new Map<string, { vinculado_em: string; cortesia: boolean; cortesia_ate: string | null }[]>();
+  for (const v of vinculosCdRes.data ?? []) {
+    const lista = vinculosPorSeller.get(v.seller_id) ?? [];
+    lista.push({ vinculado_em: v.vinculado_em as string, cortesia: !!v.cortesia, cortesia_ate: (v.cortesia_ate as string | null) ?? null });
+    vinculosPorSeller.set(v.seller_id, lista);
+  }
+  const qtdFornecedorExtraCobravelPorSeller = new Map<string, number>();
+  for (const [sellerId, lista] of vinculosPorSeller) {
+    qtdFornecedorExtraCobravelPorSeller.set(sellerId, qtdFornecedorCdExtraCobravel(lista, hoje));
+  }
 
   const inadSellerIds = new Set(
     (inadRes.data ?? []).filter((r) => r.tipo === "seller").map((r) => r.entidade_id)
@@ -119,7 +139,8 @@ export async function gerarMensalidadesParaOrgCiclo(orgId: string, cicloYYYY_MM:
     const valorTravadoCiclo = (s as { plano_ciclo_valor_travado?: number | string | null }).plano_ciclo_valor_travado;
     const dentroDoCompromisso = planoCiclo !== "mensal" && !!compromissoFim && compromissoFim >= hoje && valorTravadoCiclo != null;
     const valorPlanoFinal = dentroDoCompromisso ? Number(valorTravadoCiclo) : valorComDesconto;
-    const valor = valorTravado != null ? Number(valorTravado) : valorPlanoFinal + addonValor;
+    const cdExtraValor = valorAddonCdFornecedorExtra(qtdFornecedorExtraCobravelPorSeller.get(s.id) ?? 0);
+    const valor = valorTravado != null ? Number(valorTravado) : valorPlanoFinal + addonValor + cdExtraValor;
     const diaRaw = (s as { mensalidade_dia_vencimento?: number | null }).mensalidade_dia_vencimento;
     const dia = diaRaw == null ? 10 : clampMensalidadeDiaVencimento(Number(diaRaw));
     const vencimento_em = vencimentoEmNoCiclo(primeiroDia, dia);

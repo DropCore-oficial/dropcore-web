@@ -19,6 +19,7 @@ function thenable(data: unknown, error: unknown = null) {
     select: () => builder,
     eq: () => builder,
     ilike: () => builder,
+    is: () => builder,
     then: (resolve: (v: { data: unknown; error: unknown }) => void) => resolve({ data, error }),
   };
   return builder;
@@ -35,12 +36,14 @@ function setupMocks(opts: {
   fornecedores?: Row[];
   inadimplentes?: Row[];
   cicloAtual?: Row[];
+  vinculosCd?: Row[];
   upsertSpy: (rows: Row[], options?: unknown) => void;
 }) {
   fromMock.mockImplementation((table: string) => {
     if (table === "financial_planos") return thenable(PLANOS);
     if (table === "sellers") return thenable(opts.sellers);
     if (table === "fornecedores") return thenable(opts.fornecedores ?? []);
+    if (table === "seller_fornecedor_vinculos") return thenable(opts.vinculosCd ?? []);
     if (table === "financial_mensalidades") {
       return {
         select: () => {
@@ -252,6 +255,106 @@ describe("gerarMensalidadesParaOrgCiclo — desconto do admin", () => {
     expect(result.ok).toBe(true);
     expect(upsertSpy).toHaveBeenCalledWith(
       [expect.objectContaining({ entidade_id: "seller-5", valor: 50 })],
+      expect.anything()
+    );
+  });
+});
+
+describe("gerarMensalidadesParaOrgCiclo — adicional de fornecedor extra do CD", () => {
+  it("1 vínculo só (o primeiro) não cobra adicional nenhum", async () => {
+    const upsertSpy = vi.fn();
+    setupMocks({
+      sellers: [sellerBase({ id: "seller-cd-1", plano: "Starter" })],
+      vinculosCd: [{ seller_id: "seller-cd-1", vinculado_em: "2026-01-01", cortesia: false, cortesia_ate: null }],
+      upsertSpy,
+    });
+
+    const result = await gerarMensalidadesParaOrgCiclo("org-1", CICLO_FUTURO);
+
+    expect(result.ok).toBe(true);
+    expect(upsertSpy).toHaveBeenCalledWith(
+      [expect.objectContaining({ entidade_id: "seller-cd-1", valor: 97.9 })],
+      expect.anything()
+    );
+  });
+
+  it("2º vínculo sem cortesia soma R$49,90 ao valor do plano", async () => {
+    const upsertSpy = vi.fn();
+    setupMocks({
+      sellers: [sellerBase({ id: "seller-cd-2", plano: "Starter" })],
+      vinculosCd: [
+        { seller_id: "seller-cd-2", vinculado_em: "2026-01-01", cortesia: false, cortesia_ate: null },
+        { seller_id: "seller-cd-2", vinculado_em: "2026-02-01", cortesia: false, cortesia_ate: null },
+      ],
+      upsertSpy,
+    });
+
+    const result = await gerarMensalidadesParaOrgCiclo("org-1", CICLO_FUTURO);
+
+    expect(result.ok).toBe(true);
+    expect(upsertSpy).toHaveBeenCalledWith(
+      [expect.objectContaining({ entidade_id: "seller-cd-2", valor: 97.9 + 49.9 })],
+      expect.anything()
+    );
+  });
+
+  it("2º vínculo com cortesia sem prazo não cobra adicional", async () => {
+    const upsertSpy = vi.fn();
+    setupMocks({
+      sellers: [sellerBase({ id: "seller-cd-3", plano: "Starter" })],
+      vinculosCd: [
+        { seller_id: "seller-cd-3", vinculado_em: "2026-01-01", cortesia: false, cortesia_ate: null },
+        { seller_id: "seller-cd-3", vinculado_em: "2026-02-01", cortesia: true, cortesia_ate: null },
+      ],
+      upsertSpy,
+    });
+
+    const result = await gerarMensalidadesParaOrgCiclo("org-1", CICLO_FUTURO);
+
+    expect(result.ok).toBe(true);
+    expect(upsertSpy).toHaveBeenCalledWith(
+      [expect.objectContaining({ entidade_id: "seller-cd-3", valor: 97.9 })],
+      expect.anything()
+    );
+  });
+
+  it("cortesia com prazo já vencido volta a cobrar o adicional", async () => {
+    const upsertSpy = vi.fn();
+    setupMocks({
+      sellers: [sellerBase({ id: "seller-cd-4", plano: "Starter" })],
+      vinculosCd: [
+        { seller_id: "seller-cd-4", vinculado_em: "2026-01-01", cortesia: false, cortesia_ate: null },
+        { seller_id: "seller-cd-4", vinculado_em: "2026-02-01", cortesia: true, cortesia_ate: "2020-01-01" },
+      ],
+      upsertSpy,
+    });
+
+    const result = await gerarMensalidadesParaOrgCiclo("org-1", CICLO_FUTURO);
+
+    expect(result.ok).toBe(true);
+    expect(upsertSpy).toHaveBeenCalledWith(
+      [expect.objectContaining({ entidade_id: "seller-cd-4", valor: 97.9 + 49.9 })],
+      expect.anything()
+    );
+  });
+
+  it("3 vínculos, só o 1º é de graça — cobra 2x o adicional", async () => {
+    const upsertSpy = vi.fn();
+    setupMocks({
+      sellers: [sellerBase({ id: "seller-cd-5", plano: "Starter" })],
+      vinculosCd: [
+        { seller_id: "seller-cd-5", vinculado_em: "2026-01-01", cortesia: false, cortesia_ate: null },
+        { seller_id: "seller-cd-5", vinculado_em: "2026-02-01", cortesia: false, cortesia_ate: null },
+        { seller_id: "seller-cd-5", vinculado_em: "2026-03-01", cortesia: false, cortesia_ate: null },
+      ],
+      upsertSpy,
+    });
+
+    const result = await gerarMensalidadesParaOrgCiclo("org-1", CICLO_FUTURO);
+
+    expect(result.ok).toBe(true);
+    expect(upsertSpy).toHaveBeenCalledWith(
+      [expect.objectContaining({ entidade_id: "seller-cd-5", valor: 97.9 + 2 * 49.9 })],
       expect.anything()
     );
   });

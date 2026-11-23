@@ -13,6 +13,7 @@ export type NotificationRow = {
 /** Tipos permitidos por portal — evita misturar alerta de admin com seller/fornecedor. */
 export const NOTIFICATION_TIPOS_POR_CONTEXTO: Record<NotificationPortalContext, string[]> = {
   admin: [
+    "cd_remessa_declarada",
     "deposito_entrou",
     "mensalidade_inadimplentes_org",
     "mensalidade_vencendo",
@@ -49,6 +50,9 @@ export const NOTIFICATION_TIPOS_POR_CONTEXTO: Record<NotificationPortalContext, 
     "devolucao_nao_procede_seller",
   ],
   fornecedor: [
+    "cd_remessa_conferida",
+    "cd_baixa_manual",
+    "cd_remessa_declarada_admin",
     "mensalidade_paga_fornecedor",
     "mensalidade_vencida",
     "mensalidade_vencendo",

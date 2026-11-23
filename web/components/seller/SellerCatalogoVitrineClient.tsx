@@ -13,11 +13,13 @@ import {
   type SellerCatalogoItem,
 } from "@/components/seller/SellerCatalogoGrupoUi";
 import { SellerCatalogoProdutoLinha } from "@/components/seller/SellerCatalogoProdutoLinha";
-import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
+import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY, INFO_PREMIUM_SHELL, INFO_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY } from "@/lib/amberPremium";
+import { PRIMARY_ACTION_BLUE_BADGE_SOLID } from "@/lib/primaryActionBlueUi";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { cn } from "@/lib/utils";
 import { ProdutoLinhaSkeleton, Skeleton } from "@/components/ui/Skeleton";
+import { HelpBubble } from "@/components/HelpBubble";
 
 type FornecedorState = {
   items: SellerCatalogoItem[];
@@ -42,6 +44,8 @@ export function SellerCatalogoVitrineClient() {
   const [vinculando, setVinculando] = useState<string | null>(null);
   const [vinculoErro, setVinculoErro] = useState<string | null>(null);
   const [vinculoErroCode, setVinculoErroCode] = useState<string | null>(null);
+  const [vinculosCdIds, setVinculosCdIds] = useState<Set<string>>(new Set());
+  const [helpCdKey, setHelpCdKey] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,10 +61,10 @@ export function SellerCatalogoVitrineClient() {
           return;
         }
         const authH = { Authorization: `Bearer ${session.access_token}` };
-        const res = await fetch("/api/seller/catalogo?include_fornecedores=1", {
-          headers: authH,
-          cache: "no-store",
-        });
+        const [res, resVinculos] = await Promise.all([
+          fetch("/api/seller/catalogo?include_fornecedores=1", { headers: authH, cache: "no-store" }),
+          fetch("/api/seller/fornecedor-vinculo", { headers: authH, cache: "no-store" }),
+        ]);
         const json = await res.json().catch(() => ({}));
         if (cancelled) return;
         if (!res.ok) throw new Error(json.error || "Erro ao carregar fornecedores");
@@ -69,6 +73,14 @@ export function SellerCatalogoVitrineClient() {
         const fid = typeof json.fornecedor_id === "string" && json.fornecedor_id.trim() ? json.fornecedor_id.trim() : null;
         setFornecedorLigadoId(fid);
         setVinculo((json.vinculo ?? null) as VinculoMeta | null);
+
+        const jsonVinculos = await resVinculos.json().catch(() => ({}));
+        if (!cancelled && resVinculos.ok && jsonVinculos.ok) {
+          const ids = new Set<string>(
+            ((jsonVinculos.vinculos ?? []) as { fornecedor_id: string }[]).map((v) => v.fornecedor_id)
+          );
+          setVinculosCdIds(ids);
+        }
 
         for (const f of lista) {
           setPorFornecedor((prev) => ({ ...prev, [f.id]: { items: [], loading: true, error: null } }));
@@ -104,7 +116,9 @@ export function SellerCatalogoVitrineClient() {
     };
   }, [router]);
 
-  async function vincularFornecedor(fornecedorId: string) {
+  /** Vincula (ou troca, se for fornecedor fora do CD) — mesma rota e mesma regra de
+   * admissão pro backend, seja fornecedor do CD (aditivo) ou avulso (1:1, substitui). */
+  async function vincularFornecedor(fornecedorId: string, operaNoCd: boolean) {
     setVinculando(fornecedorId);
     setVinculoErro(null);
     setVinculoErroCode(null);
@@ -130,13 +144,17 @@ export function SellerCatalogoVitrineClient() {
         setVinculoErroCode(typeof json.code === "string" ? json.code : null);
         return;
       }
-      const newId = typeof json.fornecedor_id === "string" && json.fornecedor_id ? json.fornecedor_id : null;
-      setFornecedorLigadoId(newId);
+      if (operaNoCd) {
+        setVinculosCdIds((prev) => new Set(prev).add(fornecedorId));
+      } else {
+        const newId = typeof json.fornecedor_id === "string" && json.fornecedor_id ? json.fornecedor_id : null;
+        setFornecedorLigadoId(newId);
+        const r2 = await fetch("/api/seller/fornecedores", { headers: { Authorization: `Bearer ${session.access_token}` } });
+        const j2 = await r2.json().catch(() => ({}));
+        if (r2.ok && j2.ok) setVinculo((j2.vinculo ?? null) as VinculoMeta | null);
+      }
       setConfirmandoId(null);
       setAceiteUso(false);
-      const r2 = await fetch("/api/seller/fornecedores", { headers: { Authorization: `Bearer ${session.access_token}` } });
-      const j2 = await r2.json().catch(() => ({}));
-      if (r2.ok && j2.ok) setVinculo((j2.vinculo ?? null) as VinculoMeta | null);
     } catch (e: unknown) {
       setVinculoErro(e instanceof Error ? e.message : "Erro inesperado");
       setVinculoErroCode(null);
@@ -223,7 +241,7 @@ export function SellerCatalogoVitrineClient() {
 
         {fornecedoresVisiveis?.map((f) => {
           const estado = porFornecedor[f.id];
-          const escolhido = f.id === fornecedorLigadoId;
+          const escolhido = f.id === fornecedorLigadoId || vinculosCdIds.has(f.id);
           const temProdutos = Boolean(estado && !estado.loading && !estado.error && estado.items.length > 0);
           return (
             <section
@@ -254,10 +272,39 @@ export function SellerCatalogoVitrineClient() {
                         {f.local_resumido}
                       </p>
                     )}
+                    {f.opera_no_cd && (
+                      <HelpBubble
+                        open={helpCdKey === f.id}
+                        onOpen={() => setHelpCdKey(f.id)}
+                        onClose={() => setHelpCdKey((k) => (k === f.id ? null : k))}
+                        ariaLabel="Sobre o Centro de Distribuição"
+                        trigger={(props) => (
+                          <span
+                            {...props}
+                            className={cn(
+                              PRIMARY_ACTION_BLUE_BADGE_SOLID,
+                              "inline-flex shrink-0 cursor-help items-center rounded-full px-2.5 py-1 text-xs font-medium"
+                            )}
+                          >
+                            CD
+                          </span>
+                        )}
+                      >
+                        <p>
+                          Esse fornecedor está no{" "}
+                          <strong className="text-[var(--foreground)]">Centro de Distribuição DropCore</strong> —
+                          o estoque fica guardado e conferido lá, e o despacho sai numa etiqueta só por pedido.
+                        </p>
+                        <p className="mt-2">
+                          Você pode vincular a <strong className="text-[var(--foreground)]">vários fornecedores do CD ao mesmo tempo</strong>,
+                          sem precisar trocar de um pro outro.
+                        </p>
+                      </HelpBubble>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  {!escolhido && temProdutos && confirmandoId !== f.id && !(vinculo && !vinculo.pode_trocar_agora) && (
+                  {!escolhido && temProdutos && confirmandoId !== f.id && (f.opera_no_cd || !(vinculo && !vinculo.pode_trocar_agora)) && (
                     <button
                       type="button"
                       disabled={vinculo === null}
@@ -269,12 +316,16 @@ export function SellerCatalogoVitrineClient() {
                       }}
                       className={cn(
                         "hidden shrink-0 rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex",
-                        fornecedorLigadoId
-                          ? "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
-                          : "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                        f.opera_no_cd || !fornecedorLigadoId
+                          ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                          : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
                       )}
                     >
-                      {fornecedorLigadoId ? "Trocar para este fornecedor" : "Vincular a este fornecedor"}
+                      {f.opera_no_cd
+                        ? "Vincular este fornecedor do CD"
+                        : fornecedorLigadoId
+                          ? "Trocar para este fornecedor"
+                          : "Vincular a este fornecedor"}
                     </button>
                   )}
                   <Link
@@ -286,15 +337,23 @@ export function SellerCatalogoVitrineClient() {
                 </div>
               </div>
 
-              {!escolhido && temProdutos && (confirmandoId === f.id || (vinculo && !vinculo.pode_trocar_agora)) && (
+              {!escolhido && temProdutos && (confirmandoId === f.id || (!f.opera_no_cd && vinculo && !vinculo.pode_trocar_agora)) && (
                 <div className="mb-3 space-y-2">
                   {confirmandoId === f.id ? (
                     <div className="space-y-3 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-3">
-                      {fornecedorLigadoId && (
-                        <div className={cn(AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY, "rounded-lg p-3 text-[13px] leading-relaxed")}>
-                          Você já tem <strong>{fornecedorAtualNome ?? "outro fornecedor"}</strong> vinculado. Trocar para{" "}
-                          <strong>{f.nome_publico}</strong> substitui esse vínculo agora, e a próxima troca só é liberada depois do prazo mínimo.
+                      {f.opera_no_cd ? (
+                        <div className={cn(INFO_PREMIUM_SHELL, INFO_PREMIUM_TEXT_PRIMARY, "rounded-lg p-3 text-[13px] leading-relaxed")}>
+                          Esse vínculo é adicional — você continua conectado aos outros fornecedores do Centro de
+                          Distribuição que já tiver. Pedidos com produtos de fornecedores diferentes do CD saem numa
+                          etiqueta só.
                         </div>
+                      ) : (
+                        fornecedorLigadoId && (
+                          <div className={cn(AMBER_PREMIUM_SHELL, AMBER_PREMIUM_TEXT_PRIMARY, "rounded-lg p-3 text-[13px] leading-relaxed")}>
+                            Você já tem <strong>{fornecedorAtualNome ?? "outro fornecedor"}</strong> vinculado. Trocar para{" "}
+                            <strong>{f.nome_publico}</strong> substitui esse vínculo agora, e a próxima troca só é liberada depois do prazo mínimo.
+                          </div>
+                        )
                       )}
                       <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--foreground)]">
                         <input
@@ -304,19 +363,27 @@ export function SellerCatalogoVitrineClient() {
                           className="mt-1 h-4 w-4 accent-[var(--accent)]"
                         />
                         <span>
-                          {fornecedorLigadoId
-                            ? "Confirmo que quero trocar de fornecedor e usar os dados deste fornecedor para operação na DropCore."
-                            : "Confirmo o uso operacional deste fornecedor ao vincular."}
+                          {f.opera_no_cd
+                            ? "Confirmo que quero vincular este fornecedor do Centro de Distribuição e usar os dados dele para operação na DropCore."
+                            : fornecedorLigadoId
+                              ? "Confirmo que quero trocar de fornecedor e usar os dados deste fornecedor para operação na DropCore."
+                              : "Confirmo o uso operacional deste fornecedor ao vincular."}
                         </span>
                       </label>
                       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                         <button
                           type="button"
                           disabled={!aceiteUso || vinculando === f.id}
-                          onClick={() => void vincularFornecedor(f.id)}
+                          onClick={() => void vincularFornecedor(f.id, f.opera_no_cd)}
                           className="w-full rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                         >
-                          {vinculando === f.id ? "Vinculando..." : fornecedorLigadoId ? "Confirmar troca" : "Confirmar vínculo"}
+                          {vinculando === f.id
+                            ? "Vinculando..."
+                            : f.opera_no_cd
+                              ? "Confirmar vínculo"
+                              : fornecedorLigadoId
+                                ? "Confirmar troca"
+                                : "Confirmar vínculo"}
                         </button>
                         <button
                           type="button"
@@ -347,7 +414,7 @@ export function SellerCatalogoVitrineClient() {
                 </div>
               )}
 
-              {!escolhido && temProdutos && confirmandoId !== f.id && !(vinculo && !vinculo.pode_trocar_agora) && (
+              {!escolhido && temProdutos && confirmandoId !== f.id && (f.opera_no_cd || !(vinculo && !vinculo.pode_trocar_agora)) && (
                 <div className="mb-3 sm:hidden">
                   <button
                     type="button"
@@ -359,12 +426,16 @@ export function SellerCatalogoVitrineClient() {
                     }}
                     className={cn(
                       "w-full rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
-                      fornecedorLigadoId
-                        ? "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
-                        : "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                      f.opera_no_cd || !fornecedorLigadoId
+                        ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                        : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
                     )}
                   >
-                    {fornecedorLigadoId ? "Trocar para este fornecedor" : "Vincular a este fornecedor"}
+                    {f.opera_no_cd
+                      ? "Vincular este fornecedor do CD"
+                      : fornecedorLigadoId
+                        ? "Trocar para este fornecedor"
+                        : "Vincular a este fornecedor"}
                   </button>
                 </div>
               )}

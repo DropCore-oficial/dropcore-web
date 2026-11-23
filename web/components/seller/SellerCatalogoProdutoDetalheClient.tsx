@@ -20,6 +20,7 @@ import { sellerGrupoToProdutoResumoListaGrupoProps } from "@/components/seller/c
 import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
+import type { ExpedicaoEnderecoParts } from "@/lib/expedicaoFornecedorFormat";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -37,6 +38,9 @@ export function SellerCatalogoProdutoDetalheClient({ fornecedorId, paiKey }: Pro
   const [error, setError] = useState<string | null>(null);
   const [corSelecionada, setCorSelecionada] = useState<string | null>(null);
   const [tamanhoSelecionado, setTamanhoSelecionado] = useState<string | null>(null);
+  const [fornecedorExpedicao, setFornecedorExpedicao] = useState<
+    (ExpedicaoEnderecoParts & { expedicao_padrao_linha?: string | null }) | null
+  >(null);
 
   const voltarHref = `/seller/catalogo#fornecedor-${encodeURIComponent(fornecedorId)}`;
 
@@ -60,6 +64,9 @@ export function SellerCatalogoProdutoDetalheClient({ fornecedorId, paiKey }: Pro
         if (cancelled) return;
         if (!res.ok) throw new Error(json.error || "Erro ao carregar produto");
         setItems(normalizarItems(json.items));
+        setFornecedorExpedicao(
+          json.fornecedor_expedicao && typeof json.fornecedor_expedicao === "object" ? json.fornecedor_expedicao : null
+        );
       } catch (e: unknown) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Erro inesperado");
@@ -266,6 +273,7 @@ export function SellerCatalogoProdutoDetalheClient({ fornecedorId, paiKey }: Pro
               <ProdutoResumoListaGrupo
                 {...resumoProps}
                 somenteLeitura
+                fornecedorExpedicao={fornecedorExpedicao}
               />
             )}
           </>

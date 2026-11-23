@@ -15,3 +15,11 @@ export const PRIMARY_ACTION_BLUE_TEXT_PRIMARY =
 /** Hover em controlo sobre fundo de cartão. */
 export const PRIMARY_ACTION_BLUE_OUTLINE_HOVER =
   "hover:bg-[var(--primary-blue)]/10 dark:hover:bg-[var(--primary-blue)]/14";
+
+/**
+ * Selo sólido (badge) — **exceção pontual** (2026-11-21, pedido explícito): o azul CTA normalmente
+ * não vira badge (só CTA/link), mas pro selo "CD" (Centro de Distribuição) não sobrou nenhum tom
+ * vivo livre no sistema — emerald/âmbar/vermelho já são Aprovado/Em análise/Reprovado. Não abrir
+ * precedente pra outro badge sem confirmar antes.
+ */
+export const PRIMARY_ACTION_BLUE_BADGE_SOLID = "bg-[var(--primary-blue)] text-white";

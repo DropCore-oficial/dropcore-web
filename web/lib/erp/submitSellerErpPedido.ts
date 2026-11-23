@@ -7,6 +7,7 @@ import { motivoBloqueioParaPortal, type PedidoBloqueioResponsavel } from "@/lib/
 import { debitarEstoquePedido, reverterEstoquePedido } from "@/lib/order/estoquePedido";
 import { resolveTaxaDropcoreUnit } from "@/lib/order/resolveTaxaDropcore";
 import { dispararSyncEstoqueFornecedorSkus } from "@/lib/fornecedorEstoqueSyncOnChange";
+import { resolverFornecedoresAtivosDoSeller } from "@/lib/sellerFornecedoresCdAtivos";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { skuBaseSemSufixoMarketplace } from "@/lib/skuMarketplaceSuffix";
 
@@ -19,7 +20,6 @@ export type SubmitSellerErpPedidoInput = {
   org_id: string;
   seller: {
     id: string;
-    fornecedor_id: string | null;
     plano?: string | null;
   };
   referencia_externa: string | null;
@@ -312,8 +312,14 @@ export async function submitSellerErpPedido(
     }
   }
 
-  const fornecedor_id = seller.fornecedor_id;
-  if (!fornecedor_id) {
+  // Todo vínculo ativo (avulso ou do CD) vive em seller_fornecedor_vinculos. O pedido ainda
+  // pode ter SKU de só 1 fornecedor por vez (ver bloqueio FORNECEDOR_CD_MISTO abaixo); isso
+  // só amplia QUAL fornecedor é aceito, não permite produto de mais de 1 no mesmo pedido.
+  const fornecedorIdsAtivos = await resolverFornecedoresAtivosDoSeller({
+    seller_id: seller.id,
+    org_id,
+  });
+  if (fornecedorIdsAtivos.length === 0) {
     return {
       ok: false,
       error_code: "FORNECEDOR_NOT_LINKED",
@@ -335,7 +341,7 @@ export async function submitSellerErpPedido(
       .from("skus")
       .select(SKU_SELECT)
       .eq("org_id", org_id)
-      .eq("fornecedor_id", fornecedor_id)
+      .in("fornecedor_id", fornecedorIdsAtivos)
       .ilike("sku", item.sku)
       .eq("status", "ativo")
       .maybeSingle();
@@ -347,7 +353,7 @@ export async function submitSellerErpPedido(
           .from("skus")
           .select(SKU_SELECT)
           .eq("org_id", org_id)
-          .eq("fornecedor_id", fornecedor_id)
+          .in("fornecedor_id", fornecedorIdsAtivos)
           .ilike("sku", skuBase)
           .eq("status", "ativo")
           .maybeSingle();
@@ -365,17 +371,16 @@ export async function submitSellerErpPedido(
       };
     }
 
-    // SKU de verdade não existe no catálogo do fornecedor vinculado a este seller — hoje
-    // DropCore só suporta 1 fornecedor por seller (sem esse vínculo, não tem como saber se
-    // o produto é de outro fornecedor ou só um cadastro faltando). Em vez de sumir sem
-    // ninguém saber (era o comportamento antigo — ver incidente Galileus), grava um
-    // placeholder visível pro seller conferir, sem entrar no saldo/repasse/etiqueta.
+    // SKU de verdade não existe no catálogo de nenhum fornecedor ativo deste seller (avulso
+    // ou CD). Em vez de sumir sem ninguém saber (era o comportamento antigo — ver incidente
+    // Galileus), grava um placeholder visível pro seller conferir, sem entrar no
+    // saldo/repasse/etiqueta. Representativo: ainda não sabemos de qual fornecedor seria.
     if (!sku) {
       const motivoSeller = `O produto vendido (SKU "${item.sku}") não está no catálogo do fornecedor vinculado à sua conta. Essa venda não gera saldo nem etiqueta automática — confira se o SKU está certo ou se esse produto precisa ser cadastrado.`;
       return insertPedidoPlaceholder({
         org_id,
         seller_id: seller.id,
-        fornecedor_id,
+        fornecedor_id: fornecedorIdsAtivos[0]!,
         referencia_externa,
         tracking_codigo,
         metodo_envio,
@@ -428,15 +433,35 @@ export async function submitSellerErpPedido(
     });
   }
 
+  // Representativo pro resto da função (pedidos.fornecedor_id é 1 coluna só — o split real
+  // por item vive em pedido_itens.fornecedor_id, gravado mais abaixo).
+  const fornecedorIdsNoPedido = [...new Set(skuRows.map((r) => r.fornecedor_id))];
+  const fornecedor_id = fornecedorIdsNoPedido[0] ?? fornecedorIdsAtivos[0]!;
+
   let bloqueio: { error_code: string; error_message: string; responsavel: PedidoBloqueioResponsavel } | null = null;
 
-  const [sellerInad, fornInad] = await Promise.all([
-    isInadimplente(supabaseAdmin, org_id, "seller", seller.id),
-    isInadimplente(supabaseAdmin, org_id, "fornecedor", fornecedor_id),
-  ]);
-  if (sellerInad) {
+  // financial_ledger/executeBlockSale só sabe lidar com 1 fornecedor por pedido hoje — um
+  // pedido com produto de 2+ fornecedores do CD ao mesmo tempo jogaria o dinheiro inteiro
+  // pro fornecedor representativo (errado). Bloqueia visível em vez de cobrar errado; tirar
+  // essa trava exige blockSale.ts aceitar 1 linha de ledger por fornecedor primeiro.
+  if (fornecedorIdsNoPedido.length > 1) {
+    bloqueio = {
+      error_code: "FORNECEDOR_CD_MISTO",
+      error_message:
+        "Este pedido tem produtos de mais de 1 fornecedor do Centro de Distribuição — ainda não suportado num pedido só. Fale com o time DropCore.",
+      responsavel: "fornecedor",
+    };
+  }
+
+  const [sellerInad, fornInad] = bloqueio
+    ? [false, false]
+    : await Promise.all([
+        isInadimplente(supabaseAdmin, org_id, "seller", seller.id),
+        isInadimplente(supabaseAdmin, org_id, "fornecedor", fornecedor_id),
+      ]);
+  if (!bloqueio && sellerInad) {
     bloqueio = { error_code: "SELLER_INADIMPLENTE", error_message: "Seller inadimplente.", responsavel: "seller" };
-  } else if (fornInad) {
+  } else if (!bloqueio && fornInad) {
     bloqueio = { error_code: "FORNECEDOR_INADIMPLENTE", error_message: "Fornecedor inadimplente.", responsavel: "fornecedor" };
   }
 

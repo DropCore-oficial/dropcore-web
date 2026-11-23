@@ -23,7 +23,7 @@ export async function GET(req: Request) {
     const { data, error } = await supabaseAdmin
       .from("fornecedores")
       .select(
-        "id, nome, org_id, status, premium, sla_postagem_dias, janela_validacao_dias, criado_em, cnpj, telefone, email_comercial"
+        "id, nome, org_id, status, premium, sla_postagem_dias, janela_validacao_dias, criado_em, cnpj, telefone, email_comercial, opera_no_cd, cd_fulfillment_taxa_valor"
       )
       .eq("org_id", orgId)
       .order("nome", { ascending: true });

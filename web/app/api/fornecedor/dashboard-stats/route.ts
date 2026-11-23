@@ -121,7 +121,7 @@ export async function GET(req: Request) {
     const modo = searchParams.get("modo") ?? "dias";
     const periodoParam = searchParams.get("periodo") ?? searchParams.get("dias") ?? "14";
 
-    const [rpc, pedidosAtencaoRes, repasse, desempenho] = await Promise.all([
+    const [rpc, pedidosAtencaoRes, repasse, desempenho, fornecedorRow] = await Promise.all([
       fetchFornecedorDashboardStats(
         ctx.org_id,
         ctx.fornecedor_id,
@@ -137,7 +137,11 @@ export async function GET(req: Request) {
         .in("status", ["bloqueado", "pendente_estoque"]),
       loadFornecedorRepasseList(ctx.org_id, ctx.fornecedor_id, { includePreview: true }),
       loadFornecedorDesempenho(ctx.org_id, ctx.fornecedor_id, modo, periodoParam).catch(() => null),
+      supabaseAdmin.from("fornecedores").select("opera_no_cd, cd_fulfillment_taxa_valor").eq("id", ctx.fornecedor_id).maybeSingle(),
     ]);
+    const opera_no_cd = Boolean(fornecedorRow.data?.opera_no_cd);
+    const cd_fulfillment_taxa_valor =
+      fornecedorRow.data?.cd_fulfillment_taxa_valor != null ? Number(fornecedorRow.data.cd_fulfillment_taxa_valor) : null;
 
     const stats =
       rpc ??
@@ -148,6 +152,8 @@ export async function GET(req: Request) {
       pedidos_atencao: pedidosAtencaoRes.count ?? 0,
       repasse,
       desempenho,
+      opera_no_cd,
+      cd_fulfillment_taxa_valor,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";

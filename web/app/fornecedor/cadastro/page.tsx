@@ -16,6 +16,8 @@ import {
 import {
   DANGER_PREMIUM_SURFACE_TRANSPARENT,
   DANGER_PREMIUM_TEXT_BODY,
+  INFO_PREMIUM_SHELL,
+  INFO_PREMIUM_TEXT_PRIMARY,
   SUCCESS_PREMIUM_SURFACE_TRANSPARENT,
   SUCCESS_PREMIUM_TEXT_BODY,
 } from "@/lib/semanticPremium";
@@ -113,6 +115,7 @@ export default function FornecedorCadastroPage() {
   const [confirmoRepasseTitularCnpj, setConfirmoRepasseTitularCnpj] = useState(false);
   /** Quando activo, o endereço de despacho copia o da matriz (sede) em tempo real. */
   const [envioIgualMatriz, setEnvioIgualMatriz] = useState(false);
+  const [operaNoCd, setOperaNoCd] = useState(false);
   const [buscandoCepMatriz, setBuscandoCepMatriz] = useState(false);
   const [buscandoCepDespacho, setBuscandoCepDespacho] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -216,6 +219,7 @@ export default function FornecedorCadastroPage() {
       };
       setForm(nextForm);
       setEnvioIgualMatriz(enderecoDespachoIgualMatriz(nextForm));
+      setOperaNoCd(Boolean(f.opera_no_cd));
       const lu = f.logo_url;
       setLogoUrl(typeof lu === "string" && lu.length > 0 ? lu : null);
       setPendenteBancarioExpiraEm(
@@ -882,10 +886,19 @@ export default function FornecedorCadastroPage() {
                     fica o local de <strong className="text-[var(--foreground)]">expedição</strong> por padrão; em
                     produtos específicos você pode definir outro endereço ao editar o SKU.
                   </p>
+                  {operaNoCd && (
+                    <div className={cn(INFO_PREMIUM_SHELL, INFO_PREMIUM_TEXT_PRIMARY, "mb-3 rounded-lg p-3 text-[13px] leading-relaxed")}>
+                      Esse endereço está travado porque você está no{" "}
+                      <strong className="text-[var(--foreground)]">Centro de Distribuição DropCore</strong> — todo
+                      pedido despacha de lá, não mais do seu endereço próprio. Pra mudar, fale com o admin da
+                      organização.
+                    </div>
+                  )}
                   <label className="flex items-start gap-2.5 mb-3 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={envioIgualMatriz}
+                      disabled={operaNoCd}
                       onChange={(e) => {
                         const on = e.target.checked;
                         setEnvioIgualMatriz(on);
@@ -893,7 +906,7 @@ export default function FornecedorCadastroPage() {
                           setForm((f) => ({ ...f, ...copiarMatrizParaDespacho(f) }));
                         }
                       }}
-                      className="mt-0.5 h-4 w-4 rounded border-[var(--card-border)] bg-[var(--card)] text-emerald-600 shrink-0"
+                      className="mt-0.5 h-4 w-4 rounded border-[var(--card-border)] bg-[var(--card)] text-emerald-600 shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                     <span className="text-sm text-[var(--foreground)] leading-snug">
                       Endereço de envio é o mesmo endereço da matriz
@@ -905,7 +918,7 @@ export default function FornecedorCadastroPage() {
                       <input
                         type="text"
                         inputMode="numeric"
-                        disabled={envioIgualMatriz}
+                        disabled={envioIgualMatriz || operaNoCd}
                         value={form.expedicao_cep}
                         onChange={(e) => {
                           setEnvioIgualMatriz(false);
@@ -929,7 +942,7 @@ export default function FornecedorCadastroPage() {
                       <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Logradouro</label>
                       <input
                         type="text"
-                        disabled={envioIgualMatriz}
+                        disabled={envioIgualMatriz || operaNoCd}
                         value={form.expedicao_logradouro}
                         onChange={(e) => {
                           setEnvioIgualMatriz(false);
@@ -944,7 +957,7 @@ export default function FornecedorCadastroPage() {
                       <div className="mb-1.5 flex flex-wrap gap-1">
                         <button
                           type="button"
-                          disabled={envioIgualMatriz}
+                          disabled={envioIgualMatriz || operaNoCd}
                           onClick={() => {
                             setEnvioIgualMatriz(false);
                             setForm((f) => ({ ...f, expedicao_numero: "S/N" }));
@@ -955,7 +968,7 @@ export default function FornecedorCadastroPage() {
                         </button>
                         <button
                           type="button"
-                          disabled={envioIgualMatriz}
+                          disabled={envioIgualMatriz || operaNoCd}
                           onClick={() => {
                             setEnvioIgualMatriz(false);
                             setForm((f) => ({ ...f, expedicao_numero: "SEM NUMERO" }));
@@ -967,7 +980,7 @@ export default function FornecedorCadastroPage() {
                       </div>
                       <input
                         type="text"
-                        disabled={envioIgualMatriz}
+                        disabled={envioIgualMatriz || operaNoCd}
                         value={form.expedicao_numero}
                         onChange={(e) => {
                           setEnvioIgualMatriz(false);
@@ -982,7 +995,7 @@ export default function FornecedorCadastroPage() {
                       <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Complemento</label>
                       <input
                         type="text"
-                        disabled={envioIgualMatriz}
+                        disabled={envioIgualMatriz || operaNoCd}
                         value={form.expedicao_complemento}
                         onChange={(e) => {
                           setEnvioIgualMatriz(false);
@@ -996,7 +1009,7 @@ export default function FornecedorCadastroPage() {
                       <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Bairro</label>
                       <input
                         type="text"
-                        disabled={envioIgualMatriz}
+                        disabled={envioIgualMatriz || operaNoCd}
                         value={form.expedicao_bairro}
                         onChange={(e) => {
                           setEnvioIgualMatriz(false);
@@ -1010,7 +1023,7 @@ export default function FornecedorCadastroPage() {
                       <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Cidade</label>
                       <input
                         type="text"
-                        disabled={envioIgualMatriz}
+                        disabled={envioIgualMatriz || operaNoCd}
                         value={form.expedicao_cidade}
                         onChange={(e) => {
                           setEnvioIgualMatriz(false);
@@ -1024,7 +1037,7 @@ export default function FornecedorCadastroPage() {
                       <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">UF</label>
                       <input
                         type="text"
-                        disabled={envioIgualMatriz}
+                        disabled={envioIgualMatriz || operaNoCd}
                         value={form.expedicao_uf}
                         onChange={(e) => {
                           setEnvioIgualMatriz(false);

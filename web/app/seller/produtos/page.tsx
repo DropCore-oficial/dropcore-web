@@ -20,13 +20,12 @@ import { skuProntoParaVender, skuReadinessLabelsFalha } from "@/lib/sellerSkuRea
 import { toTitleCase } from "@/lib/formatText";
 import { CatalogoV2ResumoTopo } from "@/components/seller/catalogo/v2/CatalogoV2ResumoTopo";
 import { SellerListaGrupoArmazem } from "@/components/seller/catalogo/v2/SellerListaGrupoArmazem";
-import { SellerOlistEstoqueGradeCallout } from "@/components/seller/SellerOlistEstoqueGradeCallout";
+import type { ExpedicaoEnderecoParts } from "@/lib/expedicaoFornecedorFormat";
 import {
   AMBER_PREMIUM_SHELL,
   AMBER_PREMIUM_SURFACE_TRANSPARENT,
   AMBER_PREMIUM_TEXT_PRIMARY,
 } from "@/lib/amberPremium";
-import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { DANGER_PREMIUM_SHELL, DANGER_PREMIUM_TEXT_PRIMARY } from "@/lib/semanticPremium";
 import { MODAL_OVERLAY_CLASS, MODAL_PANEL_CLASS, MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { ProdutoRowSkeleton } from "@/components/ui/Skeleton";
@@ -67,8 +66,11 @@ export default function SellerProdutosPage() {
     sem_armazem_ligado: boolean;
   }>({ plano: null, habilitados_count: 0, habilitados_max: null, sem_armazem_ligado: false });
   const [fornecedorLigadoId, setFornecedorLigadoId] = useState<string | null>(null);
+  const [fornecedorIdsConectados, setFornecedorIdsConectados] = useState<string[]>([]);
+  const [fornecedorExpedicao, setFornecedorExpedicao] = useState<
+    (ExpedicaoEnderecoParts & { expedicao_padrao_linha?: string | null }) | null
+  >(null);
   const [fornecedoresLista, setFornecedoresLista] = useState<FornecedorSellerListaRow[] | null>(null);
-  const [modalErpSkuAberto, setModalErpSkuAberto] = useState(false);
   const [ajudaProdutosArmazemAberta, setAjudaProdutosArmazemAberta] = useState(false);
   /** Lista renderiza paginado (não tudo de uma vez) — catálogo grande travava o scroll
    * com centenas de cards montados ao mesmo tempo. Busca/filtro continuam instantâneos
@@ -76,13 +78,24 @@ export default function SellerProdutosPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
+  const nomeFornecedorPorId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const f of fornecedoresLista ?? []) m.set(f.id, f.nome_publico);
+    return m;
+  }, [fornecedoresLista]);
+
   const nomeArmazemLigado = useMemo(() => {
+    if (!fornecedoresLista) return null;
+    if (fornecedorIdsConectados.length > 1) {
+      const nomes = fornecedorIdsConectados.map((id) => nomeFornecedorPorId.get(id)).filter(Boolean) as string[];
+      return nomes.length > 0 ? nomes.join(" + ") : null;
+    }
     const id = fornecedorLigadoId?.trim();
-    if (!id || !fornecedoresLista) return null;
+    if (!id) return null;
     const row = fornecedoresLista.find((f) => f.id === id);
     if (!row) return null;
     return row.local_resumido ? `${row.nome_publico} · ${row.local_resumido}` : row.nome_publico;
-  }, [fornecedorLigadoId, fornecedoresLista]);
+  }, [fornecedorLigadoId, fornecedoresLista, fornecedorIdsConectados, nomeFornecedorPorId]);
 
   function toggleExpandido(key: string) {
     setExpandido((prev) => {
@@ -115,6 +128,12 @@ export default function SellerProdutosPage() {
         const fid = jsonCat.fornecedor_id;
         const fidNorm = typeof fid === "string" && fid.trim() ? fid.trim() : null;
         setFornecedorLigadoId(fidNorm);
+        setFornecedorIdsConectados(
+          Array.isArray(jsonCat.fornecedor_ids) ? jsonCat.fornecedor_ids.filter((x: unknown) => typeof x === "string") : fidNorm ? [fidNorm] : []
+        );
+        setFornecedorExpedicao(
+          jsonCat.fornecedor_expedicao && typeof jsonCat.fornecedor_expedicao === "object" ? jsonCat.fornecedor_expedicao : null
+        );
         setCatalogMeta({
           plano: jsonCat.seller_plano ?? null,
           habilitados_count: typeof jsonCat.habilitados_count === "number" ? jsonCat.habilitados_count : 0,
@@ -226,63 +245,6 @@ export default function SellerProdutosPage() {
     [skusVisiveis],
   );
 
-  const OLIST_PRECO_AUTO_KEY = "dropcore-olist-precos-auto-v1";
-  const OLIST_PRECO_AUTO_MS = 5 * 60 * 1000;
-
-  useEffect(() => {
-    if (loading || !fornecedorLigadoId || gruposResumo.length === 0) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const lastRaw = sessionStorage.getItem(OLIST_PRECO_AUTO_KEY);
-        const last = lastRaw ? Number.parseInt(lastRaw, 10) : 0;
-        if (Number.isFinite(last) && Date.now() - last < OLIST_PRECO_AUTO_MS) return;
-
-        const {
-          data: { session },
-        } = await supabaseBrowser.auth.getSession();
-        if (!session?.access_token || cancelled) return;
-
-        const res = await fetch("/api/seller/catalogo/sync-olist-custos?grupo=all&scope=todos", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${session.access_token}` },
-          cache: "no-store",
-        });
-
-        if (cancelled) return;
-
-        if (res.status === 400) {
-          const j = await res.json().catch(() => ({}));
-          if (j?.code === "olist_not_connected") return;
-        }
-        if (!res.ok) return;
-
-        const sync = (await res.json()) as { ok?: number; falhas?: Array<{ sku?: string; erro?: string }> };
-        const ok = typeof sync.ok === "number" ? sync.ok : 0;
-        const falhasBrutas = Array.isArray(sync.falhas) ? sync.falhas : [];
-        const falhas = falhasBrutas.filter((f) => {
-          const m = String(f.erro ?? "").toLowerCase();
-          if (m.includes("produto não localizado") || m.includes("produto nao localizado")) return false;
-          if (m.includes("não localizado") || m.includes("nao localizado")) return false;
-          return true;
-        });
-        if (ok > 0) {
-          sessionStorage.setItem(OLIST_PRECO_AUTO_KEY, String(Date.now()));
-          setError(null);
-        } else if (falhas.length > 0) {
-          setError(`Sync Olist (${falhas[0]?.sku ?? "?"}): ${falhas[0]?.erro ?? "não foi possível atualizar preços."}`);
-        }
-      } catch {
-        /* sync silencioso em background */
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [loading, fornecedorLigadoId, gruposResumo.length]);
-
   return (
     <div className="bg-[var(--background)] text-[var(--foreground)] app-bg pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 pb-5">
       <div className="dropcore-shell-6xl pt-4 sm:pt-6 lg:pt-8 pb-5 md:pb-7">
@@ -290,24 +252,7 @@ export default function SellerProdutosPage() {
             surface="hero"
             className="mb-0 sm:mb-0"
             title="Produtos"
-            subtitle={
-              <>
-                O fornecedor mantém o cadastro no armazém;{" "}
-                <span className="font-medium text-[var(--foreground)]">aqui você escolhe o que pode vender com a Olist/Tiny ligada</span>.
-              </>
-            }
-            right={
-              <button
-                type="button"
-                onClick={() => setModalErpSkuAberto(true)}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition hover:bg-[var(--muted)]/10"
-              >
-                <svg className="h-3.5 w-3.5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
-                ERP e SKU
-              </button>
-            }
+            subtitle="O fornecedor mantém o cadastro no armazém; aqui você escolhe o que pode vender."
           />
           <div className="mt-3.5 flex flex-nowrap gap-2 sm:mt-5">
             <input
@@ -364,6 +309,7 @@ export default function SellerProdutosPage() {
                 skusComPendencia={resumoTopo.skusComPendencia}
                 habilitadosMax={catalogMeta.habilitados_max}
                 onClickPendencias={() => setModalPendenciasAberto(true)}
+                fornecedoresCount={fornecedorIdsConectados.length}
               />
             </div>
           )}
@@ -531,30 +477,48 @@ export default function SellerProdutosPage() {
             )}
 
             {!loading &&
-              gruposPaginados.map((grupo) => (
-                <div
-                  key={grupo.paiKey}
-                  ref={(el) => {
-                    grupoRefs.current[grupo.paiKey] = el;
-                  }}
-                  className={cn(
-                    abrirPaiKey === grupo.paiKey
-                      ? "rounded-xl ring-2 ring-emerald-500 ring-offset-2 ring-offset-[var(--background)]"
-                      : "",
-                  )}
-                >
-                  <SellerListaGrupoArmazem
-                    grupo={grupo}
-                    exp={expandido.has(grupo.paiKey)}
-                    onToggleExpand={() => toggleExpandido(grupo.paiKey)}
-                    modoListaVariantes={modoListaVariantes}
-                    setModoListaVariantes={setModoListaVariantes}
-                    mostrarFotosVariantes={mostrarFotosVariantes}
-                    setMostrarFotosVariantes={setMostrarFotosVariantes}
-                    fornecedorLigadoId={fornecedorLigadoId}
-                  />
-                </div>
-              ))}
+              (() => {
+                const separarPorFornecedor = fornecedorIdsConectados.length > 1;
+                let fornecedorAnterior: string | null = null;
+                return gruposPaginados.map((grupo) => {
+                  const fornecedorDoGrupo = grupo.pai?.fornecedor_id ?? grupo.filhos[0]?.fornecedor_id ?? null;
+                  const mostrarCabecalho = separarPorFornecedor && fornecedorDoGrupo !== fornecedorAnterior;
+                  fornecedorAnterior = fornecedorDoGrupo;
+                  return (
+                    <div key={grupo.paiKey}>
+                      {mostrarCabecalho && (
+                        <div className="mb-3 mt-8 border-b border-[var(--card-border)] pb-2 first:mt-0">
+                          <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                            {nomeFornecedorPorId.get(fornecedorDoGrupo ?? "") ?? "Fornecedor"}
+                          </h3>
+                        </div>
+                      )}
+                      <div
+                        ref={(el) => {
+                          grupoRefs.current[grupo.paiKey] = el;
+                        }}
+                        className={cn(
+                          abrirPaiKey === grupo.paiKey
+                            ? "rounded-xl ring-2 ring-emerald-500 ring-offset-2 ring-offset-[var(--background)]"
+                            : "",
+                        )}
+                      >
+                        <SellerListaGrupoArmazem
+                          grupo={grupo}
+                          exp={expandido.has(grupo.paiKey)}
+                          onToggleExpand={() => toggleExpandido(grupo.paiKey)}
+                          modoListaVariantes={modoListaVariantes}
+                          setModoListaVariantes={setModoListaVariantes}
+                          mostrarFotosVariantes={mostrarFotosVariantes}
+                          setMostrarFotosVariantes={setMostrarFotosVariantes}
+                          fornecedorLigadoId={fornecedorLigadoId}
+                          fornecedorExpedicao={fornecedorExpedicao}
+                        />
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
           </div>
         </div>
 
@@ -638,48 +602,6 @@ export default function SellerProdutosPage() {
           </div>
         )}
       </div>
-
-      {modalErpSkuAberto && (
-        <div className={MODAL_OVERLAY_CLASS} onClick={() => setModalErpSkuAberto(false)}>
-          {/* `style` em vez de classe: MODAL_PANEL_CLASS já embute `max-w-sm`, e `cn()` não
-          desduplica — um 2º `max-w-*` perdia sempre pra `.max-w-sm` na ordem do CSS
-          compilado (achado real 2026-10-14, esse modal nunca passou de 384px). */}
-          <div className={cn(MODAL_PANEL_CLASS)} style={{ maxWidth: "32rem" }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
-              <h3 className="font-semibold text-[var(--foreground)]">ERP e SKU</h3>
-              <button
-                type="button"
-                onClick={() => setModalErpSkuAberto(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-lg text-xl leading-none text-[var(--muted)] hover:bg-[var(--muted)]/10"
-              >
-                ×
-              </button>
-            </div>
-            <div className={cn(MODAL_PANEL_BODY_CLASS, "p-4 space-y-3")}>
-              <AmberPremiumCallout title="Olist/Tiny e código no catálogo (SKU)" className="rounded-2xl px-4 py-3.5 sm:px-5">
-                <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-                  No cadastro de produtos da <strong className="text-[var(--foreground)]">Olist/Tiny</strong>, use o mesmo código que
-                  aparece como <strong className="text-[var(--foreground)]">SKU</strong> aqui no DropCore. Em cada produto da lista,
-                  expanda e use <strong className="text-[var(--foreground)]">Exportar para Olist</strong> para baixar a planilha daquele
-                  grupo (pai + variações). O <strong className="text-[var(--foreground)]">token API</strong> fica em{" "}
-                  <Link
-                    href="/seller/integracoes-erp"
-                    className="font-semibold text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-400"
-                  >
-                    Mais → ERP
-                  </Link>
-                  .
-                </p>
-                <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
-                  Na Olist: Cadastros → Produtos → Mais ações → Importar planilha (reconhecimento por SKU). SKU do produto na Olist deve
-                  estar em <strong className="text-[var(--foreground)]">Manual</strong> (Configurações → Cadastros → Código SKU).
-                </p>
-              </AmberPremiumCallout>
-              <SellerOlistEstoqueGradeCallout className="rounded-2xl px-4 py-3.5 sm:px-5" compact />
-            </div>
-          </div>
-        </div>
-      )}
 
       {modalPendenciasAberto && (
         <div className={MODAL_OVERLAY_CLASS} onClick={() => setModalPendenciasAberto(false)}>

@@ -157,9 +157,19 @@ export async function PATCH(req: Request) {
     if (expedicaoTouched) {
       const { data: curExp, error: curExpErr } = await supabaseAdmin
         .from("fornecedores")
-        .select(EXPEDICAO_FIELDS.join(", "))
+        .select(`${EXPEDICAO_FIELDS.join(", ")}, opera_no_cd`)
         .eq("id", fornecedor_id)
         .maybeSingle();
+      if (curExp && (curExp as { opera_no_cd?: boolean | null }).opera_no_cd) {
+        return NextResponse.json(
+          {
+            error:
+              "Endereço de despacho travado — você está no Centro de Distribuição DropCore, o endereço é fixo. Fale com o admin da organização.",
+            code: "EXPEDICAO_TRAVADA_CD",
+          },
+          { status: 403 },
+        );
+      }
       if (curExpErr) {
         const colMissing =
           String(curExpErr.message ?? "").toLowerCase().includes("column") || curExpErr.code === "42703";

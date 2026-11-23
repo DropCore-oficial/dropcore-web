@@ -107,6 +107,16 @@ export async function deleteFornecedorCascade(
     .eq("fornecedor_id", fornecedorId);
   if (sellErr) return { ok: false, message: sellErr.message };
 
+  // Vínculos do CD (avulso já tratado acima) — sem isso, a FK (ON DELETE RESTRICT) barra a
+  // exclusão do fornecedor com um erro cru do Postgres em vez de simplesmente desfazer o
+  // vínculo, mesmo racional do unlink de `sellers.fornecedor_id` logo acima.
+  const { error: cdVinErr } = await sb
+    .from("seller_fornecedor_vinculos")
+    .delete()
+    .eq("org_id", orgId)
+    .eq("fornecedor_id", fornecedorId);
+  if (cdVinErr && !isMissingRelation(cdVinErr)) return { ok: false, message: cdVinErr.message };
+
   const { error: memErr } = await sb
     .from("org_members")
     .update({ fornecedor_id: null })

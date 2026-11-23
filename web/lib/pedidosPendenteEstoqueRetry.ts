@@ -25,7 +25,6 @@ type PedidoPendenteEstoqueRow = {
 
 type SellerRow = {
   id: string;
-  fornecedor_id: string | null;
   plano: string | null;
 };
 
@@ -60,7 +59,7 @@ export async function runPedidosPendenteEstoqueRetry(): Promise<PedidosPendenteE
   if (sellerIds.length > 0) {
     const { data: sellerRows } = await supabaseAdmin
       .from("sellers")
-      .select("id, fornecedor_id, plano")
+      .select("id, plano")
       .in("id", sellerIds)
       .returns<SellerRow[]>();
     for (const s of sellerRows ?? []) sellersById.set(s.id, s);
@@ -78,7 +77,6 @@ export async function runPedidosPendenteEstoqueRetry(): Promise<PedidosPendenteE
       pedido_id: pedido.id,
       seller: {
         id: seller.id,
-        fornecedor_id: seller.fornecedor_id,
         plano: seller.plano,
       },
     });

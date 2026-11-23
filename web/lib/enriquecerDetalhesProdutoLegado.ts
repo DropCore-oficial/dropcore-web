@@ -2,7 +2,12 @@
  * Preenche blocos de `detalhes_produto_json` a partir de colunas legadas (`descricao`, `expedicao_override_linha`, nome).
  */
 
-import { parseExpedicaoPadraoLinha } from "@/lib/expedicaoFornecedorFormat";
+import {
+  buildExpedicaoPadraoLinha,
+  parseExpedicaoPadraoLinha,
+  resolveExpedicaoEndereco,
+  type ExpedicaoEnderecoParts,
+} from "@/lib/expedicaoFornecedorFormat";
 import { tecidoFromTexto } from "@/lib/produtoTecidoInferencia";
 
 function asRecord(v: unknown): Record<string, unknown> | null {
@@ -53,7 +58,11 @@ export type SkuRowLegadoDetalhes = {
 /** Completa JSON ausente/parcial com dados já gravados nas colunas do SKU. */
 export function enriquecerDetalhesProdutoLegado(
   detalhes: Record<string, unknown> | null,
-  base: SkuRowLegadoDetalhes
+  base: SkuRowLegadoDetalhes,
+  /** Endereço de despacho do fornecedor (cadastro) — usado quando o SKU não tem override
+   * próprio, pra "Usa despacho do cadastro" refletir a realidade (Sim) em vez de aparecer
+   * tudo "Pendente" só porque o SKU nunca teve override preenchido. */
+  fornecedorExpedicao?: (ExpedicaoEnderecoParts & { expedicao_padrao_linha?: string | null }) | null
 ): Record<string, unknown> {
   const out: Record<string, unknown> = detalhes ? { ...detalhes } : {};
   const infoBasica = { ...asRecord(out.infoBasica) };
@@ -104,6 +113,25 @@ export function enriquecerDetalhesProdutoLegado(
       if (!filled(logistica.cdSaidaCidade) && parsed.expedicao_cidade) logistica.cdSaidaCidade = parsed.expedicao_cidade;
       if (!filled(logistica.cdSaidaUf) && parsed.expedicao_uf) logistica.cdSaidaUf = parsed.expedicao_uf;
       if (logistica.cdUsarDespachoCadastro == null) logistica.cdUsarDespachoCadastro = false;
+    }
+  } else if (fornecedorExpedicao) {
+    // SKU sem override próprio: cai no endereço do cadastro do fornecedor — é isso que
+    // "usa despacho do cadastro" significa, não deveria aparecer "Pendente".
+    const doCadastro = resolveExpedicaoEndereco(fornecedorExpedicao);
+    if (doCadastro.expedicao_cep || doCadastro.expedicao_logradouro) {
+      if (!filled(logistica.cdSaida)) logistica.cdSaida = buildExpedicaoPadraoLinha(doCadastro) ?? undefined;
+      if (!filled(logistica.cdSaidaCep) && doCadastro.expedicao_cep) logistica.cdSaidaCep = doCadastro.expedicao_cep;
+      if (!filled(logistica.cdSaidaLogradouro) && doCadastro.expedicao_logradouro) {
+        logistica.cdSaidaLogradouro = doCadastro.expedicao_logradouro;
+      }
+      if (!filled(logistica.cdSaidaNumero) && doCadastro.expedicao_numero) logistica.cdSaidaNumero = doCadastro.expedicao_numero;
+      if (!filled(logistica.cdSaidaComplemento) && doCadastro.expedicao_complemento) {
+        logistica.cdSaidaComplemento = doCadastro.expedicao_complemento;
+      }
+      if (!filled(logistica.cdSaidaBairro) && doCadastro.expedicao_bairro) logistica.cdSaidaBairro = doCadastro.expedicao_bairro;
+      if (!filled(logistica.cdSaidaCidade) && doCadastro.expedicao_cidade) logistica.cdSaidaCidade = doCadastro.expedicao_cidade;
+      if (!filled(logistica.cdSaidaUf) && doCadastro.expedicao_uf) logistica.cdSaidaUf = doCadastro.expedicao_uf;
+      if (logistica.cdUsarDespachoCadastro == null) logistica.cdUsarDespachoCadastro = true;
     }
   }
 

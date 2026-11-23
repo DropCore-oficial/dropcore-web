@@ -59,6 +59,7 @@ export async function loadSellerFornecedoresList(
   fornecedorDesvinculoLiberado: boolean
 ): Promise<SellerFornecedoresList> {
   const selectTries: string[] = [
+    "id, nome, nome_exibicao, status, premium, endereco_cidade, endereco_uf, expedicao_cidade, expedicao_uf, criado_em, sla_postagem_dias, janela_validacao_dias, opera_no_cd",
     "id, nome, nome_exibicao, status, premium, endereco_cidade, endereco_uf, expedicao_cidade, expedicao_uf, criado_em, sla_postagem_dias, janela_validacao_dias",
     "id, nome, status, premium, endereco_cidade, endereco_uf, expedicao_cidade, expedicao_uf, criado_em, sla_postagem_dias, janela_validacao_dias",
     "id, nome, status, premium, endereco_cidade, endereco_uf, expedicao_cidade, expedicao_uf",

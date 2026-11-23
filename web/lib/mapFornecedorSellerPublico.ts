@@ -6,6 +6,7 @@ export type FornecedorSellerListaRow = {
   status: string | null;
   premium: boolean | null;
   local_resumido: string | null;
+  opera_no_cd: boolean;
 };
 
 /** Resposta GET /api/seller/fornecedores → linhas tipadas */
@@ -17,6 +18,7 @@ export function normalizarFornecedoresSellerApi(raw: unknown): FornecedorSellerL
     status: r.status != null ? String(r.status) : null,
     premium: typeof r.premium === "boolean" ? r.premium : null,
     local_resumido: r.local_resumido != null ? String(r.local_resumido) : null,
+    opera_no_cd: Boolean(r.opera_no_cd),
   }));
 }
 
@@ -38,5 +40,6 @@ export function mapFornecedorRowSellerPublico(row: Record<string, unknown>) {
     status: row.status != null ? String(row.status) : null,
     premium: typeof row.premium === "boolean" ? row.premium : null,
     local_resumido: local || null,
+    opera_no_cd: Boolean(row.opera_no_cd),
   };
 }

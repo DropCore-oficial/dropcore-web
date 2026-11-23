@@ -98,16 +98,19 @@ const items: { href: string; label: string; match: (p: string) => boolean }[] = 
  * em z-50 (padrão do sistema), cobrindo o rodapé do modal no mobile. Troca intencional:
  * prioriza modal correto em produção sobre o indicador de dev (só aparece em `next dev`).
  */
-export function AdminMobileBottomNav() {
+export function AdminMobileBottomNav({ operacionalRestrito = false }: { operacionalRestrito?: boolean }) {
   const pathname = usePathname() ?? "";
+  const itemsVisiveis = operacionalRestrito
+    ? [{ href: "/admin/cd", label: "Centro de Distribuição", match: (p: string) => p.startsWith("/admin/cd") }]
+    : items;
 
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--card-border)] bg-[var(--background)] pb-[env(safe-area-inset-bottom)] md:hidden backdrop-blur-xl shadow-[var(--shadow-chrome-up)] text-[var(--foreground)]"
       aria-label="Navegação admin"
     >
-      <div className="mx-auto grid min-h-[56px] max-w-3xl grid-cols-4 items-stretch">
-        {items.map((item) => {
+      <div className={`mx-auto grid min-h-[56px] max-w-3xl items-stretch ${operacionalRestrito ? "grid-cols-1" : "grid-cols-4"}`}>
+        {itemsVisiveis.map((item) => {
           const active = item.match(pathname);
           const icon =
             item.href === "/dashboard" ? (

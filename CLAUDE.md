@@ -96,6 +96,16 @@ mensalidades, repasses) e integrações com ERPs externos (Olist, Bling).
    `fn_calculadora_assinante_ulisses_preferencias_get/upsert` e as RPC de leitura
    (`fn_calculadora_assinante_ai_runs_recentes`, `_ml_status_get`, `_byok_configurado`,
    `_por_user_id`) em `docs/SCHEMA.md`.
+10. **Migração destrutiva (DROP COLUMN/DROP TABLE/ALTER que remove algo que código em
+    produção ainda usa) nunca roda sem o deploy do código correspondente já estar no ar.**
+    Incidente de 2026-11-23: `DROP COLUMN sellers.erp_estoque_webhook_url` rodou direto em
+    produção enquanto o commit com o código já corrigido (sem essa coluna no select) ficou
+    só local, sem `git push` — produção ficou **23h sem conseguir ingerir nenhum pedido do
+    Mercado Livre**, de nenhum seller, porque a query de ingestão quebrava logo na 1ª linha.
+    Ordem obrigatória daqui pra frente: 1) código que já não depende mais da coluna/tabela
+    vai pro `origin/main` E é deployado (confirmar no ar, não só commitado), 2) só depois a
+    migração destrutiva roda. Se a migração precisar ir primeiro por algum motivo, o deploy
+    do código correspondente é **imediato, na mesma sessão** — nunca "depois"/"mais tarde".
 
 ## Checklist obrigatório — banco de dados
 Sempre que criar tabela, alterar RLS, criar função ou query, seguir:
@@ -143,6 +153,8 @@ Sempre que criar tabela, alterar RLS, criar função ou query, seguir:
 - NUNCA reescrever um script já aplicado em produção — criar um novo script corretivo.
 - Por enquanto existe um único ambiente (sem staging) — validar com cuidado antes de rodar
   em produção; quando existir staging, testar lá antes.
+- **Migração destrutiva (DROP) e deploy do código andam juntos, nunca um sem o outro** —
+  ver regra inegociável 10.
 
 ## Schema = fonte de verdade
 - Hoje o schema técnico vive espalhado em `web/scripts/*.sql`; `docs/` cobre regras de

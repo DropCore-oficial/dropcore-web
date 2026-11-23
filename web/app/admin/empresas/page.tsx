@@ -27,6 +27,8 @@ type Fornecedor = {
   telefone?: string | null;
   email_comercial?: string | null;
   convite_pendente_expira_em?: string | null;
+  opera_no_cd?: boolean;
+  cd_fulfillment_taxa_valor?: number;
 };
 
 function diasParaVencerConvite(iso: string): number {
@@ -46,6 +48,8 @@ export default function AdminEmpresasPage() {
   const [novoNome, setNovoNome] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [cdTaxaRascunho, setCdTaxaRascunho] = useState<Record<string, string>>({});
+  const [salvandoCdId, setSalvandoCdId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadOrg() {
@@ -188,6 +192,31 @@ export default function AdminEmpresasPage() {
       setError(e instanceof Error ? e.message : "Erro ao excluir empresa.");
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function salvarConfigCd(emp: Fornecedor, patch: { opera_no_cd?: boolean; cd_fulfillment_taxa_valor?: number }) {
+    if (!orgId) return;
+    setSalvandoCdId(emp.id);
+    setError(null);
+    try {
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) {
+        router.replace("/login");
+        return;
+      }
+      const res = await fetch(`/api/org/fornecedores/${encodeURIComponent(emp.id)}?orgId=${encodeURIComponent(orgId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify(patch),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Erro ao salvar configuração do CD.");
+      setEmpresas((prev) => prev.map((e) => (e.id === emp.id ? { ...e, ...json } : e)));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro ao salvar configuração do CD.");
+    } finally {
+      setSalvandoCdId(null);
     }
   }
 
@@ -371,6 +400,69 @@ export default function AdminEmpresasPage() {
                 <p className="text-[11px] text-[var(--muted)] mt-1.5">
                   Preenchidos pelo fornecedor no painel (Cadastro).
                 </p>
+
+                <div className="mt-3 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--foreground)]">Centro de Distribuição DropCore</p>
+                      <p className="text-[11px] text-[var(--muted)]">
+                        {emp.opera_no_cd
+                          ? "Estoque conferido no CD — fornecedor fica com estoque somente leitura."
+                          : "Fornecedor avulso — despacha do próprio endereço."}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => salvarConfigCd(emp, { opera_no_cd: !emp.opera_no_cd })}
+                      disabled={salvandoCdId === emp.id}
+                      className={cn(
+                        "rounded-md px-2.5 py-1.5 text-[11px] font-semibold shadow-sm shrink-0",
+                        emp.opera_no_cd
+                          ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                          : "border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]/10"
+                      )}
+                    >
+                      {salvandoCdId === emp.id ? "Salvando..." : emp.opera_no_cd ? "Opera no CD" : "Fora do CD"}
+                    </button>
+                  </div>
+
+                  {emp.opera_no_cd && (
+                    <div className="mt-3 border-t border-[var(--card-border)] pt-3">
+                      <label htmlFor={`cd-taxa-${emp.id}`} className="text-[12px] text-[var(--muted)] block mb-1">
+                        Taxa de fulfillment por pedido (R$) — 0 = isento
+                      </label>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Input
+                          id={`cd-taxa-${emp.id}`}
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          className="max-w-[7rem] h-9 text-sm"
+                          value={cdTaxaRascunho[emp.id] ?? String(emp.cd_fulfillment_taxa_valor ?? 0)}
+                          onChange={(e) => setCdTaxaRascunho((prev) => ({ ...prev, [emp.id]: e.target.value }))}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const raw = cdTaxaRascunho[emp.id];
+                            const valor = raw == null ? emp.cd_fulfillment_taxa_valor ?? 0 : Math.max(0, parseFloat(raw.replace(",", ".")) || 0);
+                            salvarConfigCd(emp, { cd_fulfillment_taxa_valor: valor });
+                          }}
+                          disabled={salvandoCdId === emp.id}
+                          className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
+                        >
+                          Salvar taxa
+                        </button>
+                        <span className="text-[11px] text-[var(--muted)]">
+                          {(emp.cd_fulfillment_taxa_valor ?? 0) === 0
+                            ? "R$ 0,00 (isento)"
+                            : `Hoje: R$ ${(emp.cd_fulfillment_taxa_valor ?? 0).toFixed(2).replace(".", ",")} por pedido`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="mt-3 flex gap-2 flex-wrap">
                   <Button variant="success" size="sm" onClick={() => irParaCatalogo(emp)}>
                     Editar catálogo

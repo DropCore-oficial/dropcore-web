@@ -16,6 +16,7 @@ export default function AdminLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [checking, setChecking] = useState(true);
+  const [roleBase, setRoleBase] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,11 +55,16 @@ export default function AdminLayout({
       }
 
       const role = json.role_base;
-      if (role !== "owner" && role !== "admin") {
+      const isAdminOuOwner = role === "owner" || role === "admin";
+      // Operador do CD: role "operacional" existente ganha acesso só à rota do Centro de
+      // Distribuição — resto do admin continua bloqueado pra esse papel, como já era.
+      const isOperacionalNoCd = role === "operacional" && pathname?.startsWith("/admin/cd");
+      if (!isAdminOuOwner && !isOperacionalNoCd) {
         router.replace("/login");
         return;
       }
 
+      setRoleBase(role);
       setChecking(false);
     }
 
@@ -78,9 +84,9 @@ export default function AdminLayout({
   return (
     <>
       <AppVersionUpdateBanner surface="admin" requireAuth />
-      <AdminNav />
+      <AdminNav operacionalRestrito={roleBase === "operacional"} />
       <div className="pt-[calc(3.5rem+env(safe-area-inset-top,0px))] md:pt-14 min-h-0 pb-0">{children}</div>
-      <AdminMobileBottomNav />
+      <AdminMobileBottomNav operacionalRestrito={roleBase === "operacional"} />
     </>
   );
 }
