@@ -115,13 +115,13 @@ export async function PATCH(
       .select("id, fornecedor_id, fornecedores(opera_no_cd)")
       .eq("seller_id", id)
       .is("desvinculado_em", null);
-    const vinculosAtivos = (vinculosAtivosRows ?? []) as {
+    const vinculosAtivos = (vinculosAtivosRows ?? []) as unknown as {
       id: string;
       fornecedor_id: string;
-      fornecedores: { opera_no_cd: boolean }[] | null;
+      fornecedores: { opera_no_cd: boolean } | null;
     }[];
     const vinculoAtual =
-      vinculosAtivos.length === 1 && vinculosAtivos[0].fornecedores?.[0]?.opera_no_cd === false
+      vinculosAtivos.length === 1 && vinculosAtivos[0].fornecedores?.opera_no_cd === false
         ? vinculosAtivos[0]
         : null;
 

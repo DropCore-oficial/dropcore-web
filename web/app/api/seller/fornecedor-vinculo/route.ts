@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { notifySellerVinculoFornecedorProprio } from "@/lib/notifySellerVinculoFornecedorCd";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -139,12 +140,12 @@ export async function POST(req: Request) {
         .select("id, fornecedor_id, fornecedores(opera_no_cd)")
         .eq("seller_id", seller.id)
         .is("desvinculado_em", null);
-      const lista = (ativos ?? []) as {
+      const lista = (ativos ?? []) as unknown as {
         id: string;
         fornecedor_id: string;
-        fornecedores: { opera_no_cd: boolean }[] | null;
+        fornecedores: { opera_no_cd: boolean } | null;
       }[];
-      const atual = lista.length === 1 && lista[0].fornecedores?.[0]?.opera_no_cd === false ? lista[0] : undefined;
+      const atual = lista.length === 1 && lista[0].fornecedores?.opera_no_cd === false ? lista[0] : undefined;
       if (atual && atual.fornecedor_id !== fornecedorId) {
         const { data: desv, error: desvErr } = await supabaseAdmin.rpc("fn_seller_fornecedor_desvincular", {
           p_vinculo_id: atual.id,
@@ -194,6 +195,8 @@ export async function POST(req: Request) {
 
     const fid = result.vinculo?.fornecedor_id ?? fornecedorId;
     const { data: fn } = await supabaseAdmin.from("fornecedores").select("nome").eq("id", fid).maybeSingle();
+
+    await notifySellerVinculoFornecedorProprio({ org_id: seller.org_id, seller_id: seller.id, fornecedor_id: fid });
 
     return NextResponse.json({
       ok: true,

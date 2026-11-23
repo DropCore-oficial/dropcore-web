@@ -26,6 +26,8 @@ export const NOTIFICATION_TIPOS_POR_CONTEXTO: Record<NotificationPortalContext, 
     "devolucao_contestada_fornecedor_admin",
   ],
   seller: [
+    "fornecedor_cd_vinculado_admin",
+    "fornecedor_cd_desvinculado_admin",
     "deposito_aprovado",
     "estoque_baixo",
     "mensalidade_paga_seller",
