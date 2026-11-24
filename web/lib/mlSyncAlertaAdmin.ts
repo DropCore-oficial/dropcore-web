@@ -6,7 +6,7 @@
  * problema persiste — um aviso por "episódio" já é suficiente pro admin agir).
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { notifyAdminsMlSyncFalhaRecorrente } from "@/lib/notifyAdminsMlSyncProblema";
+import { notifyAdminsMlSyncFalhaRecorrente, notifySellerMlSyncFalhaRecorrente } from "@/lib/notifyAdminsMlSyncProblema";
 
 const LIMITE_FALHAS = 5;
 const JANELA_DEDUP_HORAS = 2;
@@ -22,12 +22,16 @@ type ResumoFalha = {
   ultima_tentativa: string;
 };
 
-async function jaAvisadoRecentemente(orgId: string, sellerId: string, fornecedorId: string | null): Promise<boolean> {
+async function jaAvisadoRecentemente(
+  tipo: "ml_sync_falha_recorrente_admin" | "ml_sync_falha_recorrente_seller",
+  sellerId: string,
+  fornecedorId: string | null
+): Promise<boolean> {
   const desde = new Date(Date.now() - JANELA_DEDUP_HORAS * 60 * 60 * 1000).toISOString();
   const { data } = await supabaseAdmin
     .from("notifications")
     .select("id, metadata")
-    .eq("tipo", "ml_sync_falha_recorrente_admin")
+    .eq("tipo", tipo)
     .gte("criado_em", desde)
     .limit(50);
   return (data ?? []).some((n) => {
@@ -51,10 +55,12 @@ export async function runMlSyncAlertaAdmin(): Promise<{ orgs_avaliadas: number; 
       console.error("[runMlSyncAlertaAdmin] resumo", orgId, error.message);
       continue;
     }
-    for (const linha of (resumo ?? []) as ResumoFalha[]) {
+    const linhas = (resumo ?? []) as ResumoFalha[];
+
+    for (const linha of linhas) {
       const total = linha.qtd_pendente + linha.qtd_esgotado;
       if (total < LIMITE_FALHAS) continue;
-      if (await jaAvisadoRecentemente(orgId, linha.seller_id, linha.fornecedor_id)) continue;
+      if (await jaAvisadoRecentemente("ml_sync_falha_recorrente_admin", linha.seller_id, linha.fornecedor_id)) continue;
 
       await notifyAdminsMlSyncFalhaRecorrente({
         org_id: orgId,
@@ -65,6 +71,36 @@ export async function runMlSyncAlertaAdmin(): Promise<{ orgs_avaliadas: number; 
         qtd_pendente: linha.qtd_pendente,
         qtd_esgotado: linha.qtd_esgotado,
         ultimo_erro: linha.ultimo_erro,
+      });
+      avisos += 1;
+    }
+
+    // Aviso pro próprio seller (dono da conta) — junta todas as linhas dele (pode ter mais
+    // de 1 fornecedor falhando) numa conta só, pra não mandar 2 e-mails separados pro mesmo
+    // problema. Pedido explícito 2026-11-24: o dono da conta precisa ser avisado direto,
+    // não só o admin — fornecedor nunca entra nesse aviso, só seller.
+    const porSeller = new Map<string, { nome: string; qtd_pendente: number; qtd_esgotado: number; ultimo_erro: string | null }>();
+    for (const linha of linhas) {
+      const atual = porSeller.get(linha.seller_id) ?? { nome: linha.seller_nome, qtd_pendente: 0, qtd_esgotado: 0, ultimo_erro: null };
+      atual.qtd_pendente += linha.qtd_pendente;
+      atual.qtd_esgotado += linha.qtd_esgotado;
+      atual.ultimo_erro = linha.ultimo_erro ?? atual.ultimo_erro;
+      porSeller.set(linha.seller_id, atual);
+    }
+    for (const [sellerId, dados] of porSeller) {
+      const total = dados.qtd_pendente + dados.qtd_esgotado;
+      if (total < LIMITE_FALHAS) continue;
+      if (await jaAvisadoRecentemente("ml_sync_falha_recorrente_seller", sellerId, null)) continue;
+
+      const { data: sellerRow } = await supabaseAdmin.from("sellers").select("user_id").eq("id", sellerId).maybeSingle();
+      if (!sellerRow?.user_id) continue;
+
+      await notifySellerMlSyncFalhaRecorrente({
+        seller_id: sellerId,
+        seller_user_id: sellerRow.user_id,
+        qtd_pendente: dados.qtd_pendente,
+        qtd_esgotado: dados.qtd_esgotado,
+        ultimo_erro: dados.ultimo_erro,
       });
       avisos += 1;
     }

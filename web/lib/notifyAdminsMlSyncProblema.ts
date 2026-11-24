@@ -9,6 +9,7 @@ import { notifyUserEmail } from "@/lib/notifyEmail";
 
 const TIPO_DIVERGENCIA = "ml_sync_divergencia_admin" as const;
 const TIPO_FALHA_RECORRENTE = "ml_sync_falha_recorrente_admin" as const;
+const TIPO_FALHA_RECORRENTE_SELLER = "ml_sync_falha_recorrente_seller" as const;
 
 async function destinatariosAdmin(orgId: string): Promise<string[]> {
   const { data } = await supabaseAdmin
@@ -110,4 +111,34 @@ export async function notifyAdminsMlSyncFalhaRecorrente(params: {
   );
 }
 
-export { TIPO_DIVERGENCIA as NOTIFICACAO_TIPO_ML_SYNC_DIVERGENCIA_ADMIN, TIPO_FALHA_RECORRENTE as NOTIFICACAO_TIPO_ML_SYNC_FALHA_RECORRENTE_ADMIN };
+/** Avisa o PRÓPRIO seller (sino + e-mail) — ele é quem precisa reconectar o Mercado Livre,
+ * não o admin. Pedido explícito 2026-11-24 (Sr Stark): dono da conta precisa ser avisado
+ * direto, com urgência, não só o admin descobrir sozinho. Dedup por janela de tempo é
+ * responsabilidade de quem chama (ver cron ml-sync-alerta-admin) — repete a cada 2h
+ * enquanto a falha persistir, não é aviso único. */
+export async function notifySellerMlSyncFalhaRecorrente(params: {
+  seller_id: string;
+  seller_user_id: string;
+  qtd_pendente: number;
+  qtd_esgotado: number;
+  ultimo_erro: string | null;
+}): Promise<void> {
+  const titulo = "Sua conexão com o Mercado Livre está com problema";
+  const mensagem = `O estoque dos seus anúncios não está sendo atualizado no Mercado Livre — ${params.qtd_pendente} tentativa(s) ainda em andamento e ${params.qtd_esgotado} que já desistiram de tentar. Último erro: "${params.ultimo_erro ?? "sem detalhe"}". Isso pode fazer você vender produto que não tem mais estoque. Reconecte agora em Integrações.`;
+
+  await supabaseAdmin.from("notifications").insert({
+    user_id: params.seller_user_id,
+    tipo: TIPO_FALHA_RECORRENTE_SELLER,
+    titulo,
+    mensagem,
+    metadata: { seller_id: params.seller_id, qtd_pendente: params.qtd_pendente, qtd_esgotado: params.qtd_esgotado },
+  });
+
+  await notifyUserEmail({ userId: params.seller_user_id, subject: `🚨 ${titulo}`, titulo, mensagem });
+}
+
+export {
+  TIPO_DIVERGENCIA as NOTIFICACAO_TIPO_ML_SYNC_DIVERGENCIA_ADMIN,
+  TIPO_FALHA_RECORRENTE as NOTIFICACAO_TIPO_ML_SYNC_FALHA_RECORRENTE_ADMIN,
+  TIPO_FALHA_RECORRENTE_SELLER as NOTIFICACAO_TIPO_ML_SYNC_FALHA_RECORRENTE_SELLER,
+};

@@ -7,6 +7,7 @@ import { SellerCadastroRedirect } from "@/components/seller/SellerCadastroRedire
 import { SellerDepositoObrigatorioGate } from "@/components/seller/SellerDepositoObrigatorioGate";
 import { SellerLayoutWhatsAppSupportFab } from "@/components/seller/SellerLayoutWhatsAppSupportFab";
 import { SellerPortalGate } from "@/components/seller/SellerPortalGate";
+import { MlSyncFalhaBanner } from "@/components/seller/MlSyncFalhaBanner";
 import { AppVersionUpdateBanner } from "@/components/AppVersionUpdateBanner";
 
 export default function SellerLayout({ children }: { children: ReactNode }) {
@@ -32,6 +33,7 @@ export default function SellerLayout({ children }: { children: ReactNode }) {
   return (
     <SellerPortalGate>
       <AppVersionUpdateBanner surface="seller" requireAuth />
+      <MlSyncFalhaBanner />
       <MensalidadeBloqueioGate context="seller" logoHref="/seller/dashboard">
         <SellerDepositoObrigatorioGate>
           <SellerCadastroRedirect>{children}</SellerCadastroRedirect>

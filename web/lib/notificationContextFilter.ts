@@ -29,6 +29,7 @@ export const NOTIFICATION_TIPOS_POR_CONTEXTO: Record<NotificationPortalContext, 
     "devolucao_contestada_fornecedor_admin",
   ],
   seller: [
+    "ml_sync_falha_recorrente_seller",
     "fornecedor_cd_vinculado_admin",
     "fornecedor_cd_desvinculado_admin",
     "deposito_aprovado",
