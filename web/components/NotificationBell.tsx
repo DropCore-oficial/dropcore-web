@@ -360,6 +360,15 @@ export function NotificationBell({
                                 Ir ao dashboard →
                               </a>
                             )}
+                            {(n.tipo === "fornecedor_cd_vinculado_admin" || n.tipo === "fornecedor_cd_desvinculado_admin") && (
+                              <a
+                                href="/seller/plano"
+                                onClick={(e) => e.stopPropagation()}
+                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
+                              >
+                                Ver meu plano →
+                              </a>
+                            )}
                             {n.tipo === "plano_upgrade_pro" && (
                               <a
                                 href="/seller/plano"
