@@ -3330,6 +3330,29 @@ literal e inequívoca, fix é direto. A mesma resposta de erro trazia outros fra
 parecem avisos/notas do ML empacotados junto, não necessariamente bloqueantes — não mexidos
 ainda; aguardar próximo retry real pra ver se algum deles precisa de correção separada.
 
+**Atualização — resultado real, Lannabella**: **21 de 22 variantes publicadas com sucesso**
+depois dos 4 fixes em cadeia (guia de medidas, `title`, `family_name`, título de 60
+caracteres). Os fragmentos de aviso ("FILTRABLE_SIZE ignored", "Mandatory free shipping
+added") não bloquearam nada — eram mesmo só ruído junto do erro real de cada tentativa.
+Sobrou 1 variante com um erro novo, isolado e não relacionado — ver próxima seção.
+
+## `papelAtributoMl` casava `MAIN_COLOR` como "cor" genérico — duplicava com o tratamento dedicado (achado 2026-11-24, confiança alta)
+
+Única variante que falhou das 22 (Lannabella, `DJU003001`, cor "Preto"): `"Attribute
+MAIN_COLOR has too many values (2). Maximum values..."`. Causa: `papelAtributoMl` (
+`lib/mercadoLivreAtributoMatch.ts`) classifica qualquer atributo cujo id/nome contenha
+"color" como papel `"cor"` — isso inclui `MAIN_COLOR` (contém "color"). O loop genérico de
+`publicar-anuncio/route.ts` processa TODO atributo papel `"cor"` e empurra um valor pra ele
+(`melhorValorPermitidoMl`), **mas `MAIN_COLOR` já tem tratamento dedicado separado** mais
+abaixo no mesmo arquivo (`melhorValorPermitidoMlPorConteudo`, matcher mais permissivo) — sem
+exclusão, os dois empurravam valor pro MESMO atributo, virando `values: [a, b]` (2 valores,
+categoria só aceita 1). Só apareceu nessa variante porque "Preto" é simples o bastante pra
+bater nos dois matchers ao mesmo tempo (os outros 21 cores provavelmente só bateram em um
+dos dois). Corrigido com o mesmo princípio já usado pra `SIZE_GRID_ID` na mesma função:
+`idNorm === "main_color"` retorna `null` (não classifica como papel "cor"), deixando o
+tratamento dedicado ser o único a mexer nesse atributo. **Confiança alta** — causa rastreada
+no código linha a linha, não é suposição por correlação como os 2 fixes anteriores.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

@@ -40,6 +40,13 @@ export function papelAtributoMl(attr: { id: string; name: string }): PapelAtribu
   // o papel "tamanho" sem essa exclusão, mandando "P"/"M" num campo que espera um ID técnico
   // (confirmado ao vivo 2026-11-15: ML recusa com "Attribute [SIZE_GRID_ID] is not valid").
   if (idNorm.includes("grid")) return null;
+  // MAIN_COLOR já tem tratamento dedicado em publicar-anuncio/route.ts (matcher mais
+  // permissivo, `melhorValorPermitidoMlPorConteudo`) — "main_color" contém "color", então sem
+  // essa exclusão o loop genérico de "cor" casava de novo e empurrava um 2º valor pro MESMO
+  // atributo (achado real 2026-11-24, Lannabella/DJU003001: ML recusou "Attribute MAIN_COLOR
+  // has too many values (2)" só pra cor "Preto", simples o bastante pra bater nos dois
+  // matchers ao mesmo tempo — mesmo princípio da exclusão de SIZE_GRID_ID acima).
+  if (idNorm === "main_color") return null;
   for (const papel of Object.keys(CHAVES_POR_PAPEL) as PapelAtributoMl[]) {
     if (CHAVES_POR_PAPEL[papel].some((k) => idNorm.includes(k) || nameNorm.includes(k))) return papel;
   }
