@@ -3024,6 +3024,36 @@ não a lista completa) — sem impacto hoje porque nenhum seller tem vínculo m�
 quando o primeiro vínculo múltiplo de verdade existir, revisitar essas 3 funções pra usar
 `itens: [...]` como o fluxo principal já faz.
 
+**Incidente real de oversell no Mercado Livre (2026-11-24)** — 3 causas achadas e corrigidas
+juntas (ver `web/scripts/add-gestores-ia-sync-sku-ml-lock-e-crons-mais-curtas.sql`):
+1. `fornecedorEstoqueSyncOnChange.ts` buscava sellers afetados via `sellers.fornecedor_id`
+   (cache só do caso avulso) em vez de `seller_fornecedor_vinculos` — sellers só com vínculo
+   do CD nunca recebiam push de estoque. Corrigido pra consultar `seller_fornecedor_vinculos`
+   direto nas duas funções (`syncEstoqueFornecedorSkus`/`syncEstoqueFornecedorGrupo`).
+2. `sellerMercadoLivreSyncEstoque.ts`: a função `mapaPrecisaResync` (removida) só
+   re-sincronizava o mapa SKU↔anúncio quando o mapa inteiro "parecia velho" (>10min sem
+   nenhuma linha tocada) — numa conta de alto volume isso quase nunca acontece, mascarando
+   um SKU específico faltando indefinidamente. Agora sempre tenta resync quando falta
+   algum SKU.
+3. Trava de segurança nova (`skuGrupoEstoqueCalculo.ts`, `ESTOQUE_SEGURANCA_ML_LIMITE = 5`,
+   `aplicarEstoqueSegurancaMl`): todo SKU anunciado no ML (seller ou fornecedor, mesmo com
+   só 1 seller vinculado) manda "esgotado" (0) pro ML quando o saldo real cai pra 5 unidades
+   ou menos — aplicado em `sellerMercadoLivreSyncEstoque.ts` e
+   `fornecedorMercadoLivreSyncEstoquePush.ts`, logo antes de montar o payload pro
+   `mlAtualizarEstoque`. `ml_sync_log` passa a registrar o valor **enviado** (já com a trava
+   aplicada), não o saldo real.
+
+Infra: cron `gestores-ia-sync-sku-ml` (mapeador SKU↔anúncio) ganhou trava anti-sobreposição
+nova (`dropcore_try_gestores_ia_sync_sku_ml_lock`/`dropcore_release_...`, advisory lock
+`913026`) e foi de 1x/dia pra 1 em 1 minuto; `ml-sync-retry` foi de 15min pra 1 em 1 minuto
+(já tinha trava). `ml_sync_log` ganhou limpeza diária (retenção 7 dias,
+`dropcore-cleanup-ml-sync-log` + `dropcore-vacuum-ml-sync-log`) — crons mais frequentes
+geram bem mais log.
+
+**Pendente, prioridade máxima (pedido explícito do Sr Stark)**: construir alerta pro admin
+quando houver falha recorrente de sync com o ML — hoje nada avisa, só se descobre vendo a
+tela. Ver memória `incidente_sync_estoque_ml_2026_11_24` e `alerta_erro_producao_celular`.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

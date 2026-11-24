@@ -8,20 +8,12 @@ import {
   mlAtualizarEstoque,
   type MercadoLivreEstoqueAtualizacao,
 } from "@/lib/mercadoLivreApiClient";
-import { estoqueDisponivelParaVenda } from "@/lib/skuGrupoEstoqueCalculo";
+import { estoqueDisponivelParaVenda, aplicarEstoqueSegurancaMl } from "@/lib/skuGrupoEstoqueCalculo";
 import { sincronizarSkuMercadoLivre } from "@/lib/ai/mercadoLivreSkuSync";
 import { registrarMlSyncFalha } from "@/lib/mlSyncFalhas";
 import { registrarMlSyncLog } from "@/lib/mlSyncLog";
 
 const API_PAUSE_MS = 220;
-
-/** O cron `gestores-ia-sync-sku-ml` só roda 1x/dia — sem isso, um seller que acabou de
- * conectar o ML (ou publicou um anúncio novo hoje) fica até 24h com a baixa de estoque
- * passando em branco (SKU não encontrado no mapa, sem erro visível). Reconsulta o vínculo
- * na hora quando falta algum SKU, mas só se o mapa desse seller estiver "velho" (ou nunca
- * tiver rodado) — evita bater na API do ML a cada venda pra SKU que genuinamente não está
- * anunciado lá. */
-const RESYNC_MAPA_MIN_INTERVALO_MS = 10 * 60 * 1000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -36,18 +28,6 @@ async function buscarMapaSku(sellerId: string, codes: string[]): Promise<LinhaMa
     .eq("seller_id", sellerId)
     .in("sku", codes);
   return (data ?? []) as LinhaMapaSku[];
-}
-
-async function mapaPrecisaResync(sellerId: string): Promise<boolean> {
-  const { data } = await supabaseAdmin
-    .from("seller_mercadolivre_sku_map")
-    .select("atualizado_em")
-    .eq("seller_id", sellerId)
-    .order("atualizado_em", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (!data?.atualizado_em) return true;
-  return Date.now() - new Date(data.atualizado_em).getTime() > RESYNC_MAPA_MIN_INTERVALO_MS;
 }
 
 export type SyncMercadoLivreEstoqueResult = {
@@ -79,7 +59,13 @@ export async function syncMercadoLivreEstoqueSkusSeller(opts: {
   const codesMapeados = new Set(mapRows.map((r) => r.sku.toUpperCase()));
   const codesFaltando = codes.filter((c) => !codesMapeados.has(c));
 
-  if (codesFaltando.length > 0 && (await mapaPrecisaResync(opts.sellerId))) {
+  // Sempre tenta re-sincronizar o mapa quando algum SKU some dele — antes isso só rodava
+  // se o mapa inteiro "parecesse velho" (>10min sem nenhuma linha tocada), o que numa conta
+  // de alto volume quase nunca acontece (outra venda qualquer sempre refresca o relógio) e
+  // mascarava um SKU específico faltando indefinidamente. Achado real 2026-11-24: foi
+  // exatamente isso que deixou o seller Felipão vender um pedido do SKU DJU003031 já sem
+  // estoque — o push nunca chegou a tentar re-mapear esse SKU porque o mapa "parecia" OK.
+  if (codesFaltando.length > 0) {
     try {
       await sincronizarSkuMercadoLivre(opts.sellerId);
       mapRows = await buscarMapaSku(opts.sellerId, codes);
@@ -112,11 +98,14 @@ export async function syncMercadoLivreEstoqueSkusSeller(opts: {
     }
   }
 
+  const saldoEnviadoPorSku = new Map<string, number>();
   const porItem = new Map<string, MercadoLivreEstoqueAtualizacao[]>();
   for (const row of mapRows) {
     const sku = String((row as { sku: string }).sku).toUpperCase();
-    const saldo = saldoPorSku.get(sku);
-    if (saldo == null) continue;
+    const saldoReal = saldoPorSku.get(sku);
+    if (saldoReal == null) continue;
+    const saldo = aplicarEstoqueSegurancaMl(saldoReal);
+    saldoEnviadoPorSku.set(sku, saldo);
     const itemId = String((row as { ml_item_id: string }).ml_item_id);
     const variationId = Number((row as { ml_variation_id: number }).ml_variation_id ?? 0);
     const lista = porItem.get(itemId) ?? [];
@@ -160,7 +149,7 @@ export async function syncMercadoLivreEstoqueSkusSeller(opts: {
         fornecedorId: opts.fornecedorId,
         sku,
         mlItemId: itemId,
-        estoqueEnviado: saldoPorSku.get(sku.toUpperCase()) ?? null,
+        estoqueEnviado: saldoEnviadoPorSku.get(sku.toUpperCase()) ?? null,
         sucesso: r.ok,
         erro: r.ok ? null : r.erro,
       });

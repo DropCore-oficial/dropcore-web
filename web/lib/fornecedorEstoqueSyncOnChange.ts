@@ -111,20 +111,21 @@ export async function syncEstoqueFornecedorSkus(
     }
   }
 
-  const { data: sellers, error } = await supabaseAdmin
-    .from("sellers")
-    .select("id, org_id, fornecedor_id")
+  const { data: vinculos, error } = await supabaseAdmin
+    .from("seller_fornecedor_vinculos")
+    .select("seller_id")
     .eq("org_id", opts.orgId)
-    .eq("fornecedor_id", opts.fornecedorId);
+    .eq("fornecedor_id", opts.fornecedorId)
+    .is("desvinculado_em", null);
 
   if (error) {
-    console.error("[syncEstoqueFornecedorSkus] sellers:", error.message);
+    console.error("[syncEstoqueFornecedorSkus] seller_fornecedor_vinculos:", error.message);
     return { sellers: 0, fornecedorMlOk };
   }
 
   let synced = 0;
-  for (const row of sellers ?? []) {
-    const sellerId = String((row as { id: string }).id);
+  for (const row of vinculos ?? []) {
+    const sellerId = String((row as { seller_id: string }).seller_id);
     try {
       await syncMercadoLivreEstoqueSkusSeller({
         sellerId,
@@ -180,20 +181,21 @@ export async function syncEstoqueFornecedorGrupo(
     }
   }
 
-  const { data: sellers, error } = await supabaseAdmin
-    .from("sellers")
-    .select("id, org_id, fornecedor_id")
+  const { data: vinculos, error } = await supabaseAdmin
+    .from("seller_fornecedor_vinculos")
+    .select("seller_id")
     .eq("org_id", opts.orgId)
-    .eq("fornecedor_id", opts.fornecedorId);
+    .eq("fornecedor_id", opts.fornecedorId)
+    .is("desvinculado_em", null);
 
   if (error) {
-    console.error("[syncEstoqueFornecedorGrupo] sellers:", error.message);
+    console.error("[syncEstoqueFornecedorGrupo] seller_fornecedor_vinculos:", error.message);
     return { sellers: 0, fornecedorMlOk };
   }
 
   let synced = 0;
-  for (const row of sellers ?? []) {
-    const sellerId = String((row as { id: string }).id);
+  for (const row of vinculos ?? []) {
+    const sellerId = String((row as { seller_id: string }).seller_id);
     try {
       const loaded = await loadSkusGrupoFornecedor({
         orgId: opts.orgId,

@@ -14,7 +14,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { mlAtualizarEstoque, type MercadoLivreEstoqueAtualizacao } from "@/lib/mercadoLivreApiClient";
 import { getValidMercadoLivreAccessTokenFornecedor } from "@/lib/mercadoLivreApiClientFornecedor";
-import { estoqueDisponivelParaVenda } from "@/lib/skuGrupoEstoqueCalculo";
+import { estoqueDisponivelParaVenda, aplicarEstoqueSegurancaMl } from "@/lib/skuGrupoEstoqueCalculo";
 
 const API_PAUSE_MS = 220;
 
@@ -86,8 +86,9 @@ export async function pushEstoqueToFornecedorMercadoLivre(opts: {
   const porItem = new Map<string, MercadoLivreEstoqueAtualizacao[]>();
   for (const linha of linhas) {
     const sku = linha.sku.toUpperCase();
-    const saldo = saldoPorSku.get(sku);
-    if (saldo == null) continue;
+    const saldoReal = saldoPorSku.get(sku);
+    if (saldoReal == null) continue;
+    const saldo = aplicarEstoqueSegurancaMl(saldoReal);
     const lista = porItem.get(linha.ml_item_id) ?? [];
     lista.push({ variationId: Number(linha.ml_variation_id ?? 0), availableQuantity: saldo });
     porItem.set(linha.ml_item_id, lista);

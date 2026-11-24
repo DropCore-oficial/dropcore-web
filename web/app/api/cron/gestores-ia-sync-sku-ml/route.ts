@@ -3,6 +3,10 @@
  * todo seller com ML conectado. Não usa IA (zero custo de token), só leitura da API do ML +
  * upsert. Roda separado dos crons de gestor porque não depende do plano Pro nem do resto do
  * pipeline de IA — é infra de vínculo, útil mesmo pra Starter que conectou o ML.
+ * Agendamento: pg_cron a cada 1 minuto (achado real 2026-11-24: rodar só 1x/dia deixou um
+ * SKU sem controle de estoque por horas até vender um pedido real já sem estoque — ver
+ * add-gestores-ia-sync-sku-ml-lock-e-crons-mais-curtas.sql). Trava anti-sobreposição porque
+ * esse loop é sequencial por seller e pode ultrapassar 1min com muitos conectados.
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -37,6 +41,20 @@ async function run(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { data: gotLock, error: lockErr } = await supabaseAdmin.rpc("dropcore_try_gestores_ia_sync_sku_ml_lock");
+  if (lockErr) {
+    const msg = String(lockErr.message ?? "").toLowerCase();
+    if (msg.includes("dropcore_try_gestores_ia_sync_sku_ml_lock") || lockErr.code === "42883") {
+      console.warn(
+        "[cron/gestores-ia-sync-sku-ml] lock RPC ausente — rode add-gestores-ia-sync-sku-ml-lock-e-crons-mais-curtas.sql"
+      );
+    } else {
+      console.error("[cron/gestores-ia-sync-sku-ml] lock:", lockErr.message);
+    }
+  } else if (gotLock === false) {
+    return NextResponse.json({ ok: true, skipped: true, reason: "sync_anterior_ainda_em_andamento" });
+  }
+
   try {
     const { data: sellersConectados, error } = await supabaseAdmin
       .from("seller_mercadolivre_integrations")
@@ -62,5 +80,11 @@ async function run(req: Request) {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });
+  } finally {
+    try {
+      await supabaseAdmin.rpc("dropcore_release_gestores_ia_sync_sku_ml_lock");
+    } catch {
+      /* ignore */
+    }
   }
 }

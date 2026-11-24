@@ -50,6 +50,18 @@ export function estoqueDisponivelParaVenda(estoque_atual: unknown, estoque_reser
   return Math.max(0, estoqueInteiroNaoNegativo(estoque_atual) - estoqueInteiroNaoNegativo(estoque_reservado));
 }
 
+/** Trava de segurança contra overselling em canal externo (ML) — decisão 2026-11-24 (Sr
+ * Stark) depois de overselling real do SKU DJU003031 pro seller Felipão (sync atrasado
+ * deixou o anúncio mostrando disponível um SKU já sem estoque real). Vale pra todo SKU
+ * anunciado no ML, mesmo com um único seller vinculado — abaixo do limite, o anúncio mostra
+ * esgotado mesmo o DropCore ainda tendo esse tanto de verdade, pra sobrar margem contra
+ * atraso de sync ou venda quase simultânea em outro canal. */
+export const ESTOQUE_SEGURANCA_ML_LIMITE = 5;
+
+export function aplicarEstoqueSegurancaMl(saldoReal: number): number {
+  return saldoReal <= ESTOQUE_SEGURANCA_ML_LIMITE ? 0 : saldoReal;
+}
+
 export function filterSkusByGrupo<T extends { sku: string }>(items: T[], grupoKey: string): T[] {
   const key = str(grupoKey).toUpperCase();
   if (!key) return [];
