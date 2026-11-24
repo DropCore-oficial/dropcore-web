@@ -17,6 +17,7 @@ import { MODAL_PANEL_BODY_CLASS } from "@/lib/modalOverlay";
 import { FornecedorDevolucaoAcoes } from "@/components/fornecedor/FornecedorDevolucaoAcoes";
 import { PeriodoPersonalizadoModal } from "@/components/fornecedor/PeriodoPersonalizadoModal";
 import { useDragScroll } from "@/lib/useDragScroll";
+import { useVisibilityAwareInterval } from "@/lib/useVisibilityAwareInterval";
 import { cn } from "@/lib/utils";
 
 /** Grupo de abas da tela — cada uma pode cobrir vários status reais de uma vez (ex:
@@ -370,6 +371,15 @@ export default function FornecedorPedidosPage() {
   useEffect(() => {
     setPage(1);
   }, [buscaSellerAplicada, periodo, customDe, customAte]);
+
+  // Atualiza a lista sozinha a cada 60s (mesmo ritmo do sino de notificação) — sem isso o
+  // fornecedor só via pedido novo clicando em "Atualizar Pedidos" ou recarregando a página.
+  // Pausa durante ação em lote/modal de devolução aberto, pra não puxar o tapete no meio.
+  useVisibilityAwareInterval(
+    () => load({ preserveSelection: true }),
+    60_000,
+    imprimindoLote || marcandoLote || confirmandoDevolucaoId !== null || modalPeriodoAberto
+  );
 
   useEffect(() => {
     if (destaqueId && pedidos.length > 0 && !loading) {

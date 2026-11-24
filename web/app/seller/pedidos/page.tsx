@@ -34,6 +34,7 @@ import { AmberPremiumCallout } from "@/components/ui/AmberPremiumCallout";
 import { IconClipboard, IconAjuste, IconBox, IconArrowRight, IconDevolucao, IconCheck, IconX, IconClock, IconPackage } from "@/components/seller/Icons";
 import { PeriodoPersonalizadoModal } from "@/components/fornecedor/PeriodoPersonalizadoModal";
 import { useDragScroll } from "@/lib/useDragScroll";
+import { useVisibilityAwareInterval } from "@/lib/useVisibilityAwareInterval";
 import { cn } from "@/lib/utils";
 
 // Padrão compacto de toolbar — mesmo teste de web/app/fornecedor/pedidos/page.tsx
@@ -443,6 +444,11 @@ export default function SellerPedidosPage() {
   useEffect(() => {
     setPage(1);
   }, [buscaProdutoAplicada, periodo, customDe, customAte]);
+
+  // Atualiza a lista sozinha a cada 60s (mesmo ritmo do sino de notificação) — sem isso o
+  // seller só via pedido novo clicando em "Atualizar Pedidos" ou recarregando a página.
+  // Pausa com o modal de período customizado aberto, pra não puxar o tapete no meio.
+  useVisibilityAwareInterval(() => void load(), 60_000, modalPeriodoAberto);
 
   /** "Esta variação não está habilitada; ative a cor no catálogo." — texto legado de
    * pedidos bloqueados antes da remoção do teto/gate de habilitação (2026-11-08); o cron

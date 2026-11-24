@@ -5,10 +5,13 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 const POLL_MS = 60_000;
 
-/** Banner fixo, insistente, sem botão de fechar — aparece quando a conexão do seller com o
+/** Banner insistente, sem botão de fechar — aparece quando a conexão do seller com o
  * Mercado Livre está com falha recorrente (≥5 falhas pendentes/esgotadas nas últimas 48h).
  * Não bloqueia o resto do painel (decisão 2026-11-24, Sr Stark: extremo mas não trava tudo),
- * só insiste até reconectar. */
+ * só insiste até reconectar. `sticky` (não `fixed`) de propósito — achado real 2026-11-24:
+ * `fixed` tirava o banner do fluxo normal e ele cobria o menu/header em cima, mobile e
+ * desktop. `sticky` ocupa espaço de verdade (empurra tudo pra baixo) e ainda gruda no topo
+ * ao rolar a página. */
 export function MlSyncFalhaBanner() {
   const [falhaAtiva, setFalhaAtiva] = useState(false);
   const [ultimoErro, setUltimoErro] = useState<string | null>(null);
@@ -48,7 +51,7 @@ export function MlSyncFalhaBanner() {
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-[200] border-b border-red-900 bg-[var(--danger)] px-3 py-2.5 text-center text-sm text-white shadow-sm sm:px-4 dark:bg-red-600"
+      className="sticky top-0 z-[200] border-b border-red-900 bg-[var(--danger)] px-3 py-2.5 text-center text-sm text-white shadow-sm sm:px-4 dark:bg-red-600"
       role="alert"
       aria-live="assertive"
     >

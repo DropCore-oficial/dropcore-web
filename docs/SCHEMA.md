@@ -3101,6 +3101,62 @@ se falhar). Índice dedicado `ml_sync_falhas_resolver_idx` (`seller_id, tipo,
 COALESCE(sku,''), COALESCE(referencia_externa,'')` WHERE `status IN
 ('pendente','esgotado')`) — sem ele seria Seq Scan.
 
+**Resumo do banner/admin só considera `tipo='estoque_push'` (2026-11-24,
+`fix-ml-sync-resumo-so-estoque-push.sql`)**: `fn_ml_sync_falha_resumo_seller` e
+`fn_ml_sync_falhas_resumo_admin` contavam/misturavam `estoque_push` e `pedido_ingest` na
+mesma soma e no mesmo `ultimo_erro` — mas o banner e a notificação falam especificamente de
+estoque não sincronizar. Achado real: banner da Coimbra Company preso mostrando um erro de
+`pedido_ingest` de dias atrás (bug antigo, coluna que nem existe mais) só por desempate de
+`ORDER BY atualizado_em DESC`, mesmo com o estoque dela 100% sincronizando havia horas.
+Filtrado `tipo='estoque_push'` nas duas RPCs; `pedido_ingest` segue tendo seu próprio retry
+(`ml_sync_retry`), só não entra mais nesse alerta específico. Catch-up pontual: as 13 linhas
+estoque_push da Coimbra (12 zumbi reclassificado + 1 órfã de anúncio já removido do
+mapeamento pelo sku-mapper, nunca mais seria retentada por nada) foram marcadas `resolvido`
+na hora.
+
+**Banner `fixed` cobria o menu/header (mobile e desktop) — trocado pra `sticky`
+(2026-11-24)**: `MlSyncFalhaBanner.tsx` usava `fixed top-0` (mesmo padrão de
+`AppVersionUpdateBanner.tsx`), que tira o elemento do fluxo normal — nada reservava espaço
+pra ele, então ele flutuava por cima do header/menu da página em vez de empurrar pra baixo.
+Trocado pra `sticky top-0`: ocupa espaço de verdade no fluxo (nunca cobre nada) e continua
+grudado no topo ao rolar. `AppVersionUpdateBanner.tsx` usa o mesmo padrão `fixed` e
+provavelmente tem o mesmo problema, mas não foi tocado agora (fora de escopo desse achado,
+aparece raro/só durante deploy de versão nova).
+
+## Liberação automática de devolução — gatilho trocado pra entrega ML + cron nunca agendado (bug achado e corrigido 2026-11-24)
+
+A seção "Liberação automática de saldo em devolução — 48h (2026-10-29)" acima descreve a
+versão original (gatilho = `em_devolucao_desde`, 48h). Isso mudou em 2026-10-30/2026-11-10
+(ver comentário em `web/lib/devolucaoLiberacaoAutomatica.ts`) sem nunca ter sido documentado
+aqui: achado real (Galileus/Djulios) que devolução física demora 10+ dias no mundo real, então
+48h desde o registro não tinha relação nenhuma com a peça ter voltado de verdade. Gatilho
+correto desde então: **72h contadas a partir de `em_devolucao_entrega_confirmada_ml_em`**
+(sinal real do próprio Mercado Livre de que o pacote chegou fisicamente no endereço do
+fornecedor, via `verificarEntregasFisicasDevolucao` em `mlDevolucaoDeteccao.ts`), não mais
+`em_devolucao_desde`. `fn_devolucao_liberar_automatico` já tinha essa lógica certa.
+
+**Bug achado**: a migração que deveria terminar de ligar isso
+(`add-financial-ledger-devolucao-prazo-fornecedor.sql`) só foi aplicada parcialmente em
+produção — a RPC `fn_devolucao_liberar_automatico` existia e estava correta, mas as 2 funções
+de trava (`dropcore_try/release_devolucao_liberacao_automatica_lock`) e o
+`cron.schedule('dropcore-devolucao-liberacao-automatica', ...)` **nunca foram criados no
+banco**. Resultado: a liberação automática nunca rodou nem uma vez desde que foi "religada" —
+código morto por semanas. Achado 10 devoluções com entrega ML confirmada há mais de 72h (a
+mais antiga, 11 dias), sem contestação, travando R$350 de 2 sellers (Coimbra Company, Vinz
+Collection) — fornecedor Djulios nos 10 casos.
+
+**Corrigido** (`web/scripts/fix-devolucao-liberacao-automatica-cron-nunca-agendado.sql`):
+criadas as 2 funções de trava + `cron.schedule` de hora em hora (lock advisory `913020`, como
+o script original já previa). As 10 linhas vencidas foram liberadas manualmente chamando a
+própria `fn_devolucao_liberar_automatico` (mesma RPC que o cron usaria) + notificação
+seller/fornecedor inserida à mão pra essa leva específica, já que o cron nunca tinha rodado
+pra mandar isso sozinho. Dali em diante o cron cuida sozinho, de hora em hora.
+
+**Lição**: script com múltiplas partes (RPC + trava + cron) pode ser aplicado pela metade sem
+erro aparente — a RPC funcionando isoladamente não garante que o cron que a aciona existe de
+verdade. Vale conferir `cron.job` depois de aplicar qualquer script que termine em
+`cron.schedule(...)`.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
