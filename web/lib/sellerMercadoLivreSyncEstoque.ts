@@ -12,6 +12,7 @@ import { estoqueDisponivelParaVenda, aplicarEstoqueSegurancaMl } from "@/lib/sku
 import { sincronizarSkuMercadoLivre } from "@/lib/ai/mercadoLivreSkuSync";
 import { registrarMlSyncFalha } from "@/lib/mlSyncFalhas";
 import { registrarMlSyncLog } from "@/lib/mlSyncLog";
+import { notifyAdminsMlSyncDivergencia } from "@/lib/notifyAdminsMlSyncProblema";
 
 const API_PAUSE_MS = 220;
 
@@ -99,6 +100,7 @@ export async function syncMercadoLivreEstoqueSkusSeller(opts: {
   }
 
   const saldoEnviadoPorSku = new Map<string, number>();
+  const variationPorSku = new Map<string, number>();
   const porItem = new Map<string, MercadoLivreEstoqueAtualizacao[]>();
   for (const row of mapRows) {
     const sku = String((row as { sku: string }).sku).toUpperCase();
@@ -108,6 +110,7 @@ export async function syncMercadoLivreEstoqueSkusSeller(opts: {
     saldoEnviadoPorSku.set(sku, saldo);
     const itemId = String((row as { ml_item_id: string }).ml_item_id);
     const variationId = Number((row as { ml_variation_id: number }).ml_variation_id ?? 0);
+    variationPorSku.set(`${itemId}:${sku}`, variationId);
     const lista = porItem.get(itemId) ?? [];
     lista.push({ variationId, availableQuantity: saldo });
     porItem.set(itemId, lista);
@@ -143,15 +146,53 @@ export async function syncMercadoLivreEstoqueSkusSeller(opts: {
       });
     }
     for (const sku of skusDoItem) {
+      const skuUpper = sku.toUpperCase();
+      const enviado = saldoEnviadoPorSku.get(skuUpper) ?? null;
+      const variationId = variationPorSku.get(`${itemId}:${skuUpper}`) ?? 0;
+      const confirmado = r.ok ? r.confirmado.get(variationId) ?? null : null;
+      // O ML responder HTTP 200 não garante que o valor gravado é o que mandamos — alguns
+      // anúncios (catálogo, fulfillment, promoção ativa) aceitam o PUT mas ignoram/clampam
+      // o available_quantity silenciosamente. Divergência vira falha de verdade (não só
+      // aviso), porque é exatamente esse silêncio que já causou overselling real.
+      const divergente = r.ok && confirmado != null && enviado != null && confirmado !== enviado;
+      const sucesso = r.ok && !divergente;
+      const erro = !r.ok
+        ? r.erro
+        : divergente
+          ? `ML confirmou ${confirmado} no lugar de ${enviado} (PUT aceito mas valor final diferente)`
+          : null;
+      if (divergente) {
+        await registrarMlSyncFalha({
+          orgId: opts.orgId,
+          sellerId: opts.sellerId,
+          fornecedorId: opts.fornecedorId,
+          tipo: "estoque_push",
+          sku,
+          mlItemId: itemId,
+          erro: erro ?? "divergência de estoque confirmado",
+        });
+        const { data: sellerRow } = await supabaseAdmin.from("sellers").select("nome").eq("id", opts.sellerId).maybeSingle();
+        await notifyAdminsMlSyncDivergencia({
+          org_id: opts.orgId,
+          seller_id: opts.sellerId,
+          seller_nome: sellerRow?.nome ?? null,
+          fornecedor_id: opts.fornecedorId,
+          sku,
+          ml_item_id: itemId,
+          enviado: enviado as number,
+          confirmado: confirmado as number,
+        });
+      }
       await registrarMlSyncLog({
         orgId: opts.orgId,
         sellerId: opts.sellerId,
         fornecedorId: opts.fornecedorId,
         sku,
         mlItemId: itemId,
-        estoqueEnviado: saldoEnviadoPorSku.get(sku.toUpperCase()) ?? null,
-        sucesso: r.ok,
-        erro: r.ok ? null : r.erro,
+        estoqueEnviado: enviado,
+        estoqueConfirmado: confirmado,
+        sucesso,
+        erro,
       });
     }
     if (i + 1 < itens.length) await sleep(API_PAUSE_MS);

@@ -3050,6 +3050,16 @@ nova (`dropcore_try_gestores_ia_sync_sku_ml_lock`/`dropcore_release_...`, adviso
 `dropcore-cleanup-ml-sync-log` + `dropcore-vacuum-ml-sync-log`) — crons mais frequentes
 geram bem mais log.
 
+`ml_sync_log` ganhou coluna `estoque_confirmado` — o PUT do ML ecoa o item inteiro
+atualizado na resposta, usado como confirmação de leitura sem precisar de GET extra
+(`mlAtualizarEstoque` retorna `confirmado: Map<variationId, quantidade>`). Se o valor
+confirmado diverge do enviado, `sincronizarMercadoLivreEstoqueSkusSeller` marca a linha como
+falha de verdade (entra na fila de retry), não só HTTP 200 = sucesso.
+
+Limpeza nova pras duas tabelas que nunca tinham (achado 2026-11-24, Sr Stark): `ml_sync_falhas`
+(`dropcore-cleanup-ml-sync-falhas`, 14 dias, só resolvido/esgotado — pendente nunca apaga) e
+`notifications` (`dropcore-cleanup-notifications`, 180 dias, só lido=true).
+
 **Pendente, prioridade máxima (pedido explícito do Sr Stark)**: construir alerta pro admin
 quando houver falha recorrente de sync com o ML — hoje nada avisa, só se descobre vendo a
 tela. Ver memória `incidente_sync_estoque_ml_2026_11_24` e `alerta_erro_producao_celular`.

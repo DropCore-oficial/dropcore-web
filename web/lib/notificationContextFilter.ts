@@ -13,6 +13,8 @@ export type NotificationRow = {
 /** Tipos permitidos por portal — evita misturar alerta de admin com seller/fornecedor. */
 export const NOTIFICATION_TIPOS_POR_CONTEXTO: Record<NotificationPortalContext, string[]> = {
   admin: [
+    "ml_sync_divergencia_admin",
+    "ml_sync_falha_recorrente_admin",
     "seller_vinculou_fornecedor_cd",
     "cd_remessa_declarada",
     "deposito_entrou",

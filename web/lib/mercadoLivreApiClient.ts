@@ -1159,8 +1159,8 @@ export async function mlAtualizarEstoque(
   itemId: string,
   atualizacoes: MercadoLivreEstoqueAtualizacao[],
   ctx: MercadoLivreAuthContext
-): Promise<{ ok: true } | { ok: false; erro: string }> {
-  if (atualizacoes.length === 0) return { ok: true };
+): Promise<{ ok: true; confirmado: Map<number, number> } | { ok: false; erro: string }> {
+  if (atualizacoes.length === 0) return { ok: true, confirmado: new Map() };
 
   const semVariacao = atualizacoes.find((a) => a.variationId === 0);
   const comVariacao = atualizacoes.filter((a) => a.variationId !== 0);
@@ -1179,12 +1179,24 @@ export async function mlAtualizarEstoque(
     message?: string;
     error?: string;
     cause?: { code?: string; message?: string }[];
+    available_quantity?: number;
+    variations?: { id: number; available_quantity?: number }[];
   };
   if (!res.ok) {
     const causa = json.cause?.map((c) => c.message ?? c.code).filter(Boolean).join("; ");
     return { ok: false, erro: causa || json.message || json.error || `HTTP ${res.status}` };
   }
-  return { ok: true };
+
+  // O PUT do ML ecoa o item inteiro atualizado na resposta (mesmo shape do GET) — usa isso
+  // como confirmação de leitura de que o valor realmente gravou lá, sem precisar de uma
+  // chamada extra. Achado 2026-11-24 (Sr Stark pediu confirmação "por dentro", não só
+  // confiar no HTTP 200): nunca tínhamos lido essa parte da resposta.
+  const confirmado = new Map<number, number>();
+  if (typeof json.available_quantity === "number") confirmado.set(0, json.available_quantity);
+  for (const v of json.variations ?? []) {
+    if (typeof v.available_quantity === "number") confirmado.set(v.id, v.available_quantity);
+  }
+  return { ok: true, confirmado };
 }
 
 /** Atualiza o preço do anúncio (`PUT /items/{id}`). Usada pelo Ulisses pra aplicar o

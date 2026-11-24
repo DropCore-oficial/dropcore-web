@@ -30,6 +30,7 @@ const MAIS_GRUPOS = [
     label: "Operação",
     items: [
       { href: "/admin/cd", label: "Centro de Distribuição" },
+      { href: "/admin/ml-sync", label: "Sincronização Mercado Livre" },
       { href: "/admin/alteracoes-produtos", label: "Alterações de produtos" },
       { href: "/admin/enviar-pedido", label: "Enviar pedido" },
       { href: "/admin/relatorio-entrada-saida", label: "Relatório entrada/saída" },

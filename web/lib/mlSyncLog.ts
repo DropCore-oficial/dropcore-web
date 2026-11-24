@@ -15,6 +15,9 @@ export async function registrarMlSyncLog(opts: {
   estoqueEnviado: number | null;
   sucesso: boolean;
   erro?: string | null;
+  /** Valor que o próprio Mercado Livre ecoou na resposta do PUT — confirmação de que
+   * gravou lá, não só que o HTTP voltou 200 (ver mlAtualizarEstoque). */
+  estoqueConfirmado?: number | null;
 }): Promise<void> {
   const { error } = await supabaseAdmin.rpc("fn_ml_sync_log_registrar", {
     p_org_id: opts.orgId,
@@ -25,6 +28,7 @@ export async function registrarMlSyncLog(opts: {
     p_estoque_enviado: opts.estoqueEnviado,
     p_sucesso: opts.sucesso,
     p_erro: opts.erro ? opts.erro.slice(0, 2000) : null,
+    p_estoque_confirmado: opts.estoqueConfirmado ?? null,
   });
   if (error) console.error("[registrarMlSyncLog]", opts.sellerId, opts.sku, error.message);
 }
@@ -36,6 +40,7 @@ export type MlSyncLogEntrada = {
   sku: string;
   ml_item_id: string | null;
   estoque_enviado: number | null;
+  estoque_confirmado: number | null;
   sucesso: boolean;
   erro: string | null;
   criado_em: string;
