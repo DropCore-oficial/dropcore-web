@@ -3300,6 +3300,21 @@ sempre, e colide com a guia-fantasma que ela mesma criou antes.
    anterior; só precisa ser aceito pelo ML na hora. Isso também destrava na hora qualquer
    tentativa já presa colidindo com o nome antigo (como a da Ravelle).
 
+**Atualização**: retry real da Ravelle passou da guia de medidas sem erro (confirma os 2 fixes
+acima), mas bateu num 3º erro — ver próxima seção.
+
+## `family_name` + `SIZE_GRID_ID` juntos rejeitados pelo ML (achado 2026-11-24, confiança média)
+
+3º retry real da Ravelle: guia de medidas OK, mas 22/22 variantes recusadas com `"The field
+family name is invalid"` (sem mais reclamar de `title` — confirma que o fix de title ajudou).
+Mesma família de restrição já documentada pra `variations` + `family_name` juntos (ver
+comentário em `mlCriarAnuncioComVariacoes`, removida) — aqui é `family_name` +
+`SIZE_GRID_ID`/`SIZE_GRID_ROW_ID` (toda categoria que exige guia de medidas). Corrigido: não
+manda mais `family_name` quando a categoria exige guia de medidas — cada variante publica
+como item independente, sem agrupamento visual por família (perde só o agrupamento
+cosmético, não a venda). **Confiança média** — é a mesma lógica de correlação do fix anterior,
+não testado ao vivo (sem acesso à API do ML neste ambiente); confirmar no próximo retry real.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

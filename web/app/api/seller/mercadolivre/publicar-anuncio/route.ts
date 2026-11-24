@@ -512,7 +512,14 @@ export async function POST(req: Request) {
         fotosUrl: fotosVariante,
         descricao: descricaoVariante,
         atributos: [...(mercadoLivre.atributos ?? []), ...atributosProdutoExtras, ...atributosEmbalagem, ...atributosVariante],
-        familyName: titulo,
+        // Achado real 2026-11-24 (Ravelle, depois do fix de title acima): ML ainda recusa com
+        // "The field family name is invalid" quando `family_name` vai junto com
+        // `SIZE_GRID_ID`/`SIZE_GRID_ROW_ID` (categoria que exige guia de medidas) — mesma
+        // família de restrição já conhecida de "`variations` + `family_name` juntos" (ver
+        // `mlCriarAnuncioComVariacoes`, removida). Categoria com guia de medidas publica cada
+        // variante como item independente (sem agrupamento visual por `family_name`) em vez
+        // de falhar 100% das variantes.
+        familyName: exigeGuiaMedidas ? undefined : titulo,
       },
       ctx
     );
