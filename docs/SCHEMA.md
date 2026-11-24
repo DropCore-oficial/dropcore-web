@@ -3060,9 +3060,46 @@ Limpeza nova pras duas tabelas que nunca tinham (achado 2026-11-24, Sr Stark): `
 (`dropcore-cleanup-ml-sync-falhas`, 14 dias, só resolvido/esgotado — pendente nunca apaga) e
 `notifications` (`dropcore-cleanup-notifications`, 180 dias, só lido=true).
 
-**Pendente, prioridade máxima (pedido explícito do Sr Stark)**: construir alerta pro admin
-quando houver falha recorrente de sync com o ML — hoje nada avisa, só se descobre vendo a
-tela. Ver memória `incidente_sync_estoque_ml_2026_11_24` e `alerta_erro_producao_celular`.
+**Alerta de falha recorrente + dashboard ao vivo (construído 2026-11-24)**: cron
+`ml-sync-alerta-admin` (10min, lock `913027`, `web/lib/mlSyncAlertaAdmin.ts`) varre
+`ml_sync_falhas` com `status IN ('pendente','esgotado')` por org, chama
+`fn_ml_sync_falhas_resumo_admin` (janela de 48h) e, quando total ≥5 por (seller,fornecedor),
+notifica admin (`ml_sync_divergencia_admin`/`ml_sync_falha_recorrente_admin`) **e**, agrupado
+só por seller (nunca fornecedor — pedido explícito do Sr Stark), o dono da conta
+(`ml_sync_falha_recorrente_seller`) por notificação+email. Dedup de 2h por
+(seller,fornecedor) e por seller via `jaAvisadoRecentemente`. Painel ao vivo em
+`/admin/ml-sync` (`web/app/admin/ml-sync/page.tsx`, polling 30s) lendo
+`fn_ml_sync_log_listar_admin`/`fn_ml_sync_falhas_resumo_admin`. No portal do seller, banner
+fixo não-dismissível (`MlSyncFalhaBanner.tsx`, polling 60s, lido via
+`fn_ml_sync_falha_resumo_seller`) aparece quando o total passa de 5 — só reconectar não
+limpa instantaneamente (ver RPC `fn_ml_sync_falha_resolver` abaixo). Reconciliação completa
+horária (`ml-sync-reconciliacao-completa`, lock `913029`, `mlSyncReconciliacaoCompleta.ts`)
+reempurra o estoque real de todo SKU mapeado de todo seller conectado, mesmo sem venda
+nenhuma — testada manualmente antes de agendar (471 pushes/0 erro em ~5min).
+
+**Bug zumbi de retry + sobrecarga (corrigido 2026-11-24,
+`web/scripts/fix-ml-sync-falhas-desistencia-e-backoff.sql`)**: `fn_ml_sync_falha_registrar`
+(chamada por qualquer tentativa falha, não só o retry) nunca checava
+`tentativas >= max_tentativas` — só `fn_ml_sync_falha_marcar_resultado` (usada só pelo retry)
+tinha essa checagem. Linha batida por 3-4 robôs diferentes (push reativo + reconciliação +
+retry) passava de 100 tentativas rápido, ficava invisível pro retry mas nunca virava
+`esgotado` — zumbi preso pra sempre. Corrigido: `fn_ml_sync_falha_registrar` agora também
+transiciona pra `esgotado` no upsert; `fn_ml_sync_falha_listar_pendentes` ganhou backoff
+graduado (1min/5min/15min/1h/4h conforme `tentativas`) pra não bater no mesmo item quebrado
+toda rodada (contribuiu pro próprio ML bloquear por `too_many_requests`); limpeza única
+retroativa converteu ~370 linhas zumbis existentes pra `esgotado`.
+
+**`fn_ml_sync_falha_resolver` (2026-11-24, `add-ml-sync-falha-resolver-on-success.sql`)**:
+antes, uma falha só virava `resolvido` via o robô de retry dedicado — o caminho normal (SKU
+sincronizar com sucesso de novo no push reativo ou na reconciliação horária) nunca avisava
+`ml_sync_falhas`, então o banner do seller só caía depois da janela de 48h expirar no
+relógio, mesmo com a conexão já corrigida. RPC nova resolve na hora a falha daquele
+seller+tipo+sku específico quando ele sincroniza com sucesso — chamada em
+`sellerMercadoLivreSyncEstoque.ts` (`resolverMlSyncFalha`, helper em `mlSyncFalhas.ts`)
+sempre que `sucesso` é true. Nunca lança erro (é bookkeeping, não pode derrubar o sync real
+se falhar). Índice dedicado `ml_sync_falhas_resolver_idx` (`seller_id, tipo,
+COALESCE(sku,''), COALESCE(referencia_externa,'')` WHERE `status IN
+('pendente','esgotado')`) — sem ele seria Seq Scan.
 
 ## Pendências conhecidas
 

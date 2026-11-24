@@ -10,7 +10,7 @@ import {
 } from "@/lib/mercadoLivreApiClient";
 import { estoqueDisponivelParaVenda, aplicarEstoqueSegurancaMl } from "@/lib/skuGrupoEstoqueCalculo";
 import { sincronizarSkuMercadoLivre } from "@/lib/ai/mercadoLivreSkuSync";
-import { registrarMlSyncFalha } from "@/lib/mlSyncFalhas";
+import { registrarMlSyncFalha, resolverMlSyncFalha } from "@/lib/mlSyncFalhas";
 import { registrarMlSyncLog } from "@/lib/mlSyncLog";
 import { notifyAdminsMlSyncDivergencia } from "@/lib/notifyAdminsMlSyncProblema";
 
@@ -182,6 +182,8 @@ export async function syncMercadoLivreEstoqueSkusSeller(opts: {
           enviado: enviado as number,
           confirmado: confirmado as number,
         });
+      } else if (sucesso) {
+        await resolverMlSyncFalha({ sellerId: opts.sellerId, tipo: "estoque_push", sku });
       }
       await registrarMlSyncLog({
         orgId: opts.orgId,

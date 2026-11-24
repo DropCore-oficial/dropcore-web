@@ -60,3 +60,24 @@ export async function marcarResultadoMlSyncFalha(id: string, sucesso: boolean, e
   });
   if (error) console.error("[marcarResultadoMlSyncFalha]", id, error.message);
 }
+
+/**
+ * Chamar sempre que o mesmo seller+tipo+sku sincronizar com sucesso de novo — resolve na
+ * hora qualquer falha antiga daquele item em vez de esperar a janela de 48h do resumo
+ * expirar sozinha. Nunca lança erro: isso é limpeza de bookkeeping, não pode derrubar o
+ * sync real do estoque se falhar.
+ */
+export async function resolverMlSyncFalha(opts: {
+  sellerId: string;
+  tipo: MlSyncFalhaTipo;
+  sku?: string | null;
+  referenciaExterna?: string | null;
+}): Promise<void> {
+  const { error } = await supabaseAdmin.rpc("fn_ml_sync_falha_resolver", {
+    p_seller_id: opts.sellerId,
+    p_tipo: opts.tipo,
+    p_sku: opts.sku ?? null,
+    p_referencia_externa: opts.referenciaExterna ?? null,
+  });
+  if (error) console.error("[resolverMlSyncFalha]", opts.tipo, opts.sellerId, error.message);
+}
