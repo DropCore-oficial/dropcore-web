@@ -255,16 +255,18 @@ export async function POST(req: Request) {
         if (generoId) {
           const resultadoGuia = await mlCriarGuiaMedidas(
             {
-              // `grupoKey` sempre primeiro (nunca cortado pelo limite de 60 caracteres do ML) —
-              // o nome sozinho com o título do produto colide com a guia já criada antes pelo
-              // mesmo vendedor pra esse mesmo produto (ML rejeita nome duplicado com as mesmas
-              // características: "is already in use in another chart" — reproduzido ao vivo
-              // 2026-11-16 reaproveitando seller real, dado de antes do reaproveitamento por
-              // `ml_chart_id` existir, então a 2ª tentativa tentava criar "outra igual"). Lista
-              // de tamanhos também entra no nome: uma guia criada incompleta antes (só 1
+              // `grupoKey` + pedaço do seller.id sempre primeiro (nunca cortado pelo limite de
+              // 60 caracteres do ML) — sem isso, dois SELLERS DIFERENTES publicando o MESMO
+              // produto do fornecedor (comum no Centro de Distribuição, vários revendendo o
+              // mesmo item) geram o nome idêntico e colidem: o 2º seller a publicar esse
+              // produto falha 100% das variantes com "is already in use in another chart",
+              // mesmo nunca tendo tentado publicar antes (achado real 2026-11-24 — a causa
+              // original achada em 2026-11-16, "mesmo vendedor retentando", era só metade do
+              // problema; o grosso dos casos é vendedor DIFERENTE publicando pela 1ª vez).
+              // Lista de tamanhos também entra no nome: uma guia criada incompleta antes (só 1
               // tamanho, achado real 2026-11-17) tem o MESMO nome sem a lista — isso garante
               // que a guia completa nova não colide com a quebrada antiga.
-              nome: `${grupoKey} ${ordenarTamanhosLista(tamanhosComMedida).join("")} - ${titulo}`,
+              nome: `${grupoKey}-${seller.id.slice(0, 8)} ${ordenarTamanhosLista(tamanhosComMedida).join("")} - ${titulo}`,
               domainId: mercadoLivre.domainId,
               marca: marcaAtributo,
               generoId,

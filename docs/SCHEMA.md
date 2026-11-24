@@ -3237,6 +3237,29 @@ pertence a outro seller), `seller_fornecedor_vinculos`, `ml_sync_falhas`, `ml_sy
 schema cresce, função auxiliar escrita uma vez só fica pra trás — vale reconferir contra
 `information_schema` da próxima vez que uma exclusão travar com erro de FK sem mensagem clara.
 
+## Nome da guia de medidas não escopava por seller — 2º seller a publicar sempre colidia (bug achado e corrigido 2026-11-24)
+
+`app/api/seller/mercadolivre/publicar-anuncio/route.ts` monta o nome da guia de medidas
+(`SIZE_GRID_ID`) como `${grupoKey} ${tamanhos} - ${titulo}` — determinístico só por
+produto do fornecedor + lista de tamanhos + título, **sem nada do seller**. Isso foi pensado
+em 2026-11-16 pra evitar o MESMO seller recriar uma guia duplicada numa 2ª tentativa, mas
+como o Centro de Distribuição tem **vários sellers vendendo o mesmo produto do mesmo
+fornecedor**, o nome gerado é **idêntico pra todo mundo** que tenta publicar aquele produto —
+o Mercado Livre scopa chart por nome+domínio+marca+gênero, não por seller. Resultado real:
+o 1º seller a publicar cria a guia normalmente; **todo seller seguinte que tentar publicar o
+mesmo produto pela 1ª vez falha 100% das variantes** com `"is already in use in another
+chart"`, mesmo nunca tendo tentado antes — o reaproveitamento por `ml_chart_id`
+(`fn_seller_produto_ml_guia_medidas_grupo_get`) é escopado por `seller_id`, então nunca
+encontra a guia do OUTRO seller, e a tentativa de criar uma nova sempre colide com o nome já
+usado por ele.
+
+**Corrigido**: nome agora inclui os 8 primeiros caracteres do `seller.id` logo depois do
+`grupoKey` (mesma parte "nunca cortada pelos 60 caracteres" que o `grupoKey` já usava) —
+`${grupoKey}-${seller.id.slice(0,8)} ${tamanhos} - ${titulo}`. Cada seller passa a ter seu
+próprio nome de guia, único de verdade, sem colidir com o de outro seller vendendo o mesmo
+produto. Não corrige retroativamente guias já travadas com o nome antigo (cada seller afetado
+precisa só tentar publicar de novo — o novo nome não vai colidir).
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
