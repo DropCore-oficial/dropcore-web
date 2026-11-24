@@ -3260,6 +3260,16 @@ próprio nome de guia, único de verdade, sem colidir com o de outro seller vend
 produto. Não corrige retroativamente guias já travadas com o nome antigo (cada seller afetado
 precisa só tentar publicar de novo — o novo nome não vai colidir).
 
+## `mlCriarAnuncio` omitia `title` quando usava `family_name` — quebrava em categoria de roupa (achado 2026-11-24, confiança média)
+
+Assim que o fix da guia de medidas acima desbloqueou a Ravelle a tentar publicar de novo, bateu
+num erro DIFERENTE, 22/22 variantes: `"The field family name is invalid; The body does not
+contains... [title]"`. `mlCriarAnuncio` mandava `family_name` OU `title`, nunca os dois juntos
+(ver comentário original: testado ao vivo 2026-11-15, mas pra um cenário/categoria diferente).
+Corrigido pra mandar `title` sempre, com `family_name` somado quando aplicável — resposta
+direta ao que o próprio erro do ML pediu. **Não testado ao vivo ainda** (sem acesso à API do ML
+neste ambiente) — confirmar no próximo retry real do seller antes de considerar fechado.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

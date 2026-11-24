@@ -803,7 +803,12 @@ export async function mlCriarAnuncio(
     method: "POST",
     headers: { Authorization: `Bearer ${ctx.accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      ...(input.familyName ? { family_name: input.familyName } : { title: input.titulo }),
+      // Achado real 2026-11-24: omitir `title` quando `family_name` está presente (testado ao
+      // vivo 2026-11-15 pra outra categoria) quebrou nessa categoria de roupa — ML recusou com
+      // "The field family name is invalid; The body does not contains... [title]". Manda os
+      // dois sempre: `title` é exigido independente de `family_name` agrupar o anúncio depois.
+      title: input.titulo,
+      ...(input.familyName ? { family_name: input.familyName } : {}),
       category_id: input.categoryId,
       price: Math.round(input.preco * 100) / 100,
       currency_id: "BRL",
