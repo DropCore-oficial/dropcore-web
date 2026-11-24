@@ -3157,6 +3157,32 @@ erro aparente — a RPC funcionando isoladamente não garante que o cron que a a
 verdade. Vale conferir `cron.job` depois de aplicar qualquer script que termine em
 `cron.schedule(...)`.
 
+## Checagem de consistência dos contadores de pedido — "ground truth" desatualizada (bug achado e corrigido 2026-11-24)
+
+Rotina `dropcore-pedidos-contadores-consistencia` (hora em hora, `lib/pedidosContadoresConsistencia.ts`)
+compara o contador real da tela (`fn_fornecedor_pedidos_lista`/`fn_seller_pedidos_lista`)
+contra um cálculo "verdade" feito por fora de propósito
+(`fn_fornecedor_pedidos_contadores_ground_truth`/`fn_seller_pedidos_contadores_ground_truth`,
+escritas 2026-11-11 sem reaproveitar a lógica de produção — se reaproveitasse, um bug em
+produção se repetiria aqui e a checagem nunca acusaria nada). Avisa admin
+(`contador_pedidos_divergente_admin`), não corrige nada sozinha.
+
+**Bug achado**: as duas "verdade" só consideravam `em_devolucao`/`devolvido`/
+`devolucao_sem_fornecedor` como aba "Devolução" — ficaram desatualizadas desde que Troca
+(`financial_troca_pendente`, 2026-11-14, depois da checagem ter sido escrita) passou a somar
+`troca_em_andamento`/`troca_concluida` nessa mesma aba em produção (`devolucao_nao_procede`
+também nunca tinha entrado). Resultado: alarme falso todo pacote que só tem pedido nesses 3
+status sem nenhum outro no mesmo pacote já cobrindo a contagem — achado real: fornecedor
+Djulios acusado "42 mostrado vs 41 real" só por causa de 1 pedido `troca_concluida`
+isolado no próprio pacote. **Não era pedido sumido nenhum**, confirmado comparando pedido a
+pedido antes de mexer.
+
+**Corrigido** (`web/scripts/fix-pedidos-contadores-ground-truth-troca-nao-procede.sql`): as
+duas "verdade" agora incluem os mesmos 6 status que produção já usa pra "Devolução".
+Lição: função "verdade" não reaproveita a lógica de produção de propósito, mas isso também
+significa que ela não acompanha sozinha quando produção ganha status novo — vale conferir as
+duas em conjunto sempre que um novo status entrar na aba "Devolução" de qualquer lado.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
