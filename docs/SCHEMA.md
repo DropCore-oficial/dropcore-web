@@ -3212,6 +3212,31 @@ anúncios no ML já publicados com esse peso quase zero nunca foram corrigidos.
    (`etiqueta_tentativas` resetado pra baixo do teto) voltam a ser pegos pelo
    `dropcore-etiqueta-ml-retry` (15 em 15 min) assim que o ML processar o peso novo.
 
+**Resultado do disparo (2026-11-24)**: 210 vínculos avaliados, 138 corrigidos no ML com
+sucesso, 72 falharam só por "sem token ML pro seller" — 100% explicado por exatamente 2
+sellers com a conexão Mercado Livre quebrada (36 itens cada, bate exato: 36+36=72):
+**Galileus Comércio De Roupas Ltda** (nunca conectou, sem linha em
+`seller_mercadolivre_integrations`) e **Segattovestuário Ltda** (token nulo desde 01/10).
+Segattovestuário foi excluída da base no mesmo dia (conta de teste, pedido do Sr Stark —
+ver seção de exclusão de seller abaixo). Galileus segue precisando reconectar manualmente
+pra esses 36 anúncios corrigirem.
+
+## `deleteSellerCascade` — tabelas novas sem FK coberta (bug achado e corrigido 2026-11-24)
+
+Exclusão real da seller Segattovestuário Ltda (conta de teste, 1135 pedidos + 704 lançamentos
+financeiros) travou repetidas vezes em `DELETE FROM sellers` por FK de tabelas que nasceram
+depois da função (`seller_ai_runs`, `seller_ulisses_preferencias`, etc.) nunca terem sido
+adicionadas a `lib/sellerDeleteCascade.ts`. Conferido contra `information_schema` todas as FK
+`seller_id -> sellers.id` existentes hoje e adicionadas à função: `seller_mercadolivre_sku_map`,
+`seller_mercadolivre_integrations` (+ `linked_seller_id`, que vira `NULL` em vez de apagar —
+pertence a outro seller), `seller_fornecedor_vinculos`, `ml_sync_falhas`, `ml_sync_log`,
+`seller_ai_preferences`, `seller_ai_runs`, `seller_ai_acoes`, `seller_ai_disputas_fornecedor`,
+`seller_ulisses_preferencias`, `seller_ai_chat_sessions`, `seller_ml_devolucoes_detectadas`,
+`ml_devolucao_calibracao_log`, `financial_troca_pendente`, `seller_produtos_ml_publicados`,
+`seller_invites`, `org_members`. Mesma lição do fix de `fn_devolucao_liberar_automatico`:
+schema cresce, função auxiliar escrita uma vez só fica pra trás — vale reconferir contra
+`information_schema` da próxima vez que uma exclusão travar com erro de FK sem mensagem clara.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
