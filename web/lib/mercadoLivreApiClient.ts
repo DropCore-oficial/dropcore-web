@@ -807,7 +807,11 @@ export async function mlCriarAnuncio(
       // vivo 2026-11-15 pra outra categoria) quebrou nessa categoria de roupa — ML recusou com
       // "The field family name is invalid; The body does not contains... [title]". Manda os
       // dois sempre: `title` é exigido independente de `family_name` agrupar o anúncio depois.
-      title: input.titulo,
+      // Achado real 2026-11-24 (Lannabella): título de variante = produto + cor + tamanho
+      // passa de 60 caracteres pra categorias que limitam isso (ex. MLB107292) — ML recusa
+      // com "does not support titles greater than 60 characters long". Trunca aqui, não só
+      // no chamador, pra cobrir qualquer caller futuro (mesmo padrão de `mlCriarGuiaMedidas`).
+      title: input.titulo.slice(0, 60),
       ...(input.familyName ? { family_name: input.familyName } : {}),
       category_id: input.categoryId,
       price: Math.round(input.preco * 100) / 100,

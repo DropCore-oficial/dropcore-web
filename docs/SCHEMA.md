@@ -3315,6 +3315,21 @@ como item independente, sem agrupamento visual por família (perde só o agrupam
 cosmético, não a venda). **Confiança média** — é a mesma lógica de correlação do fix anterior,
 não testado ao vivo (sem acesso à API do ML neste ambiente); confirmar no próximo retry real.
 
+**Atualização**: retry real (seller Lannabella, não Ravelle — ambas bateram na mesma cadeia de
+bugs do mesmo fluxo) confirmou que o erro de `family_name` sumiu de vez. Apareceu um 4º erro,
+já corrigido — ver próxima seção.
+
+## Título de variante passava de 60 caracteres pra categoria MLB107292 (achado 2026-11-24, confiança alta)
+
+4º erro da cadeia, seller Lannabella: `"Category MLB107292 does not support titles greater
+than 60 characters long"` — `[produto, cor, tamanho].join(" ")` passa de 60 pra produto+cor+
+tamanho mais longos. Corrigido: `mlCriarAnuncio` trunca `title` em 60 caracteres (mesmo padrão
+já usado em `mlCriarGuiaMedidas` pro nome da guia). **Confiança alta** — mensagem do ML é
+literal e inequívoca, fix é direto. A mesma resposta de erro trazia outros fragmentos
+("FILTRABLE_SIZE ignored", "User has not mode me1", "Mandatory free shipping added") que
+parecem avisos/notas do ML empacotados junto, não necessariamente bloqueantes — não mexidos
+ainda; aguardar próximo retry real pra ver se algum deles precisa de correção separada.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
