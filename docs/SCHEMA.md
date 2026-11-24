@@ -3183,6 +3183,35 @@ Lição: função "verdade" não reaproveita a lógica de produção de propósi
 significa que ela não acompanha sozinha quando produção ganha status novo — vale conferir as
 duas em conjunto sempre que um novo status entrar na aba "Devolução" de qualquer lado.
 
+## Etiqueta ML travada em "status: pending" por semanas — peso de embalagem quase zero (achado e corrigido 2026-11-24)
+
+Achado ao investigar 2 pedidos específicos sem etiqueta: **38 pedidos sem etiqueta** no
+total (8,8% do volume de 30 dias), crescendo rápido — 0% até a semana de 09/11, 12,9% na
+semana de 16/11, **32% na semana de 23/11**. Quase todos com o mesmo erro do ML
+(`SHPLAB0200`, `"status is pending"` — shipment nunca sai do estado inicial).
+
+**Causa raiz**: 28 SKUs do fornecedor Djulios (`DJU002001-012`, `DJU003001-016`) nasceram
+com `peso_kg = 0.0002` (0,2 grama — bug de unidade kg/grama numa importação antiga; o pai do
+grupo e os irmãos criados depois tinham `0.25` certo). Mercado Livre não consegue calcular
+frete com peso praticamente zero, então o shipment desses anúncios fica preso em `pending`
+pra sempre — explica o salto a partir da semana de 16/11. O bug no código que cria variante
+**já tinha sido corrigido em 2026-11-16** (`app/api/fornecedor/produtos/multivariante/route.ts`,
+guard `PESO_KG_MIN_PLAUSIVEL` rejeita peso < 10g desde então — ver comentário no código
+citando esse mesmo achado), mas os 28 SKUs já existentes continuaram com o dado ruim, e os
+anúncios no ML já publicados com esse peso quase zero nunca foram corrigidos.
+
+**Corrigido**:
+1. `UPDATE skus SET peso_kg = 0.25` nos 28 SKUs (direto no banco, confirmado contra os
+   irmãos/pai do mesmo grupo).
+2. Correção do dado local sozinha não muda o que já estava publicado no ML — criada rota
+   pontual `web/app/api/cron/fix-peso-embalagem-djulios/route.ts` (não é cron agendado, só
+   reusa o padrão `CRON_SECRET`) que reenvia `SELLER_PACKAGE_WEIGHT/_LENGTH/_WIDTH/_HEIGHT`
+   pros 254 vínculos seller×anúncio×SKU afetados (10 sellers), disparada uma única vez via
+   `dropcore_cron_http_post`.
+3. Os pedidos que já tinham esgotado as 500 tentativas automáticas de buscar a etiqueta
+   (`etiqueta_tentativas` resetado pra baixo do teto) voltam a ser pegos pelo
+   `dropcore-etiqueta-ml-retry` (15 em 15 min) assim que o ML processar o peso novo.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
