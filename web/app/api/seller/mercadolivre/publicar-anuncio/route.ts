@@ -245,6 +245,29 @@ export async function POST(req: Request) {
       }
     }
 
+    // Achado real 2026-11-24 (Ravelle): fn_seller_produto_ml_guia_medidas_grupo_get só acha
+    // guia via seller_produtos_ml_publicados, que exige um ITEM publicado com sucesso. Se a
+    // guia foi criada no ML mas TODAS as variantes falharam depois por outro motivo (ex: bug
+    // de family_name/title), a guia já criada nunca aparece ali — tentativa seguinte recria
+    // com o MESMO nome determinístico e o ML recusa por duplicidade. Cache dedicado
+    // (gravado logo abaixo, antes de tentar publicar qualquer variante) cobre esse buraco.
+    if (!guiaMedidas) {
+      const { data: cacheRows } = await supabaseAdmin.rpc("fn_seller_produto_ml_guia_medidas_cache_get", {
+        p_seller_id: seller.id,
+        p_grupo_key: grupoKey,
+      });
+      const cache = (Array.isArray(cacheRows) ? cacheRows[0] : cacheRows) as
+        | { ml_chart_id: string; rows_por_tamanho: Record<string, string> }
+        | undefined;
+      if (cache?.ml_chart_id && cache.rows_por_tamanho) {
+        const cobreTudo = [...tamanhosNecessariosAgora].every((t) => Boolean(cache.rows_por_tamanho[t]));
+        const temCampos = cobreTudo && mercadoLivre.domainId
+          ? await mlGuiaMedidasCompleta(cache.ml_chart_id, mercadoLivre.domainId, ctx)
+          : cobreTudo;
+        if (temCampos) guiaMedidas = { chartId: cache.ml_chart_id, rowIdPorTamanho: cache.rows_por_tamanho };
+      }
+    }
+
     if (!guiaMedidas) {
       const tamanhosComMedida = Array.from(medidaPorTamanho.keys());
       const linhasComMedida = tamanhosComMedida.map((t) => ({ tamanho: t, ...medidaPorTamanho.get(t)! }));
@@ -265,8 +288,14 @@ export async function POST(req: Request) {
               // problema; o grosso dos casos é vendedor DIFERENTE publicando pela 1ª vez).
               // Lista de tamanhos também entra no nome: uma guia criada incompleta antes (só 1
               // tamanho, achado real 2026-11-17) tem o MESMO nome sem a lista — isso garante
-              // que a guia completa nova não colide com a quebrada antiga.
-              nome: `${grupoKey}-${seller.id.slice(0, 8)} ${ordenarTamanhosLista(tamanhosComMedida).join("")} - ${titulo}`,
+              // que a guia completa nova não colide com a quebrada antiga. Sufixo de tempo
+              // (base36) garante nome único em TODA tentativa — reaproveitamento deixou de
+              // depender do nome bater (achado real 2026-11-24: guia criada com sucesso mas
+              // publicação de toda variante falhando depois por outro motivo nunca persistia
+              // o chart, e a tentativa seguinte recriava com nome idêntico e colidia — agora
+              // o cache dedicado acima resolve reaproveitamento, nome só precisa ser aceito
+              // pelo ML na hora).
+              nome: `${grupoKey}-${seller.id.slice(0, 8)}-${Date.now().toString(36)} ${ordenarTamanhosLista(tamanhosComMedida).join("")} - ${titulo}`,
               domainId: mercadoLivre.domainId,
               marca: marcaAtributo,
               generoId,
@@ -277,6 +306,16 @@ export async function POST(req: Request) {
           );
           if (resultadoGuia.ok) {
             guiaMedidas = { chartId: resultadoGuia.chartId, rowIdPorTamanho: resultadoGuia.rowIdPorTamanho };
+            // Salva na hora — antes de tentar publicar qualquer variante. Se tudo falhar
+            // depois, a próxima tentativa encontra essa guia em vez de recriar e colidir.
+            const { error: cacheErr } = await supabaseAdmin.rpc("fn_seller_produto_ml_guia_medidas_cache_upsert", {
+              p_seller_id: seller.id,
+              p_org_id: seller.org_id,
+              p_grupo_key: grupoKey,
+              p_ml_chart_id: resultadoGuia.chartId,
+              p_rows_por_tamanho: resultadoGuia.rowIdPorTamanho,
+            });
+            if (cacheErr) console.error("[publicar-anuncio] guia_medidas_cache_upsert:", grupoKey, cacheErr.message);
           } else {
             guiaMedidasDiagnostico = `Mercado Livre recusou criar a guia de medidas: ${resultadoGuia.erro}`;
             console.error("[publicar-anuncio] mlCriarGuiaMedidas falhou:", grupoKey, resultadoGuia.erro);

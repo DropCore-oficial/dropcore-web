@@ -3270,6 +3270,36 @@ Corrigido pra mandar `title` sempre, com `family_name` somado quando aplicável 
 direta ao que o próprio erro do ML pediu. **Não testado ao vivo ainda** (sem acesso à API do ML
 neste ambiente) — confirmar no próximo retry real do seller antes de considerar fechado.
 
+**Atualização**: retry real da Ravelle bateu de novo na colisão de nome da guia, mesmo já
+com o sufixo do seller — ver próxima seção, causa raiz mais profunda encontrada e corrigida.
+
+## Guia de medidas criada com sucesso no ML mas nunca persistida se a publicação falhar depois (causa raiz real, 2026-11-24)
+
+Retry real da Ravelle, já com o nome da guia incluindo o `seller.id` (seção acima), bateu na
+MESMA colisão de novo: `"DJU003000-a93458e3 PMGGG - ..." is already in use in another
+chart"`. Causa: `fn_seller_produto_ml_publicar_registrar` (que grava `ml_chart_id`/
+`ml_chart_row_id`) só roda **depois de um item publicar com sucesso** — está dentro do loop
+por variante, depois do `if (!resultado.ok) continue`. Na tentativa anterior (bloqueada pelo
+bug de `family_name`/`title` da seção acima), a guia foi criada com SUCESSO no ML, mas como
+**todas** as 22 variantes falharam na sequência, a guia nunca foi salva em
+`seller_produtos_ml_publicados` (que exige `ml_item_id NOT NULL` — não dá pra guardar só a
+guia ali). A tentativa seguinte não encontra nada, recria com o nome determinístico de
+sempre, e colide com a guia-fantasma que ela mesma criou antes.
+
+**Corrigido**:
+1. Tabela nova `seller_produto_ml_guia_medidas_cache` (`seller_id, grupo_key` PK, RLS própria
+   — só leitura via `fn_user_can_access_seller`) + RPCs `fn_seller_produto_ml_guia_medidas_
+   cache_upsert`/`_get` (`service_role` only). Gravada **imediatamente** depois de
+   `mlCriarGuiaMedidas` suceder, antes de tentar publicar qualquer variante — não depende
+   mais do resto da publicação dar certo.
+2. Lookup de reaproveitamento (`publicar-anuncio/route.ts`) agora checa esse cache como 2º
+   fallback (depois de `seller_produtos_ml_publicados`, antes de tentar criar uma guia nova),
+   com a mesma conferência de cobertura de tamanho + `mlGuiaMedidasCompleta` de sempre.
+3. Nome da guia ganhou sufixo de timestamp (base36) — com o cache cobrindo reaproveitamento
+   de verdade, o nome não precisa mais ser determinístico pra "bater" com uma tentativa
+   anterior; só precisa ser aceito pelo ML na hora. Isso também destrava na hora qualquer
+   tentativa já presa colidindo com o nome antigo (como a da Ravelle).
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").
