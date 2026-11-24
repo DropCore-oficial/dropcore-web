@@ -82,5 +82,26 @@ export async function sincronizarSkuMercadoLivre(sellerId: string): Promise<Sinc
     if (error) throw new Error(error.message);
   }
 
+  // Remove do mapa qualquer anúncio que não apareceu nessa varredura (nem ativo, nem
+  // pausado) — achado real 2026-11-24: quando o seller republica o mesmo SKU (ganha um
+  // ml_item_id novo), o anúncio antigo morre no ML mas nunca saía do nosso mapa, porque até
+  // aqui só fazíamos upsert (nunca delete). O sync de estoque continuava tentando escrever
+  // nos dois pra sempre — o antigo falhando com "available_quantity is not modifiable"
+  // porque já estava fechado, gerando falha recorrente sem nenhum motivo real pra existir
+  // (DJU003037 do Smooth Modas tinha 3 ml_item_id acumulados pro mesmo SKU, só 1 vivo).
+  // `ids` já é a varredura completa (ativos + pausados) — qualquer linha fora dessa lista
+  // está morta de verdade, não é suposição.
+  if (ids.length > 0) {
+    const { error: delErr } = await supabaseAdmin
+      .from("seller_mercadolivre_sku_map")
+      .delete()
+      .eq("seller_id", sellerId)
+      .not("ml_item_id", "in", `(${ids.join(",")})`);
+    if (delErr) console.error("[sincronizarSkuMercadoLivre] limpeza de anúncio morto:", sellerId, delErr.message);
+  } else {
+    const { error: delErr } = await supabaseAdmin.from("seller_mercadolivre_sku_map").delete().eq("seller_id", sellerId);
+    if (delErr) console.error("[sincronizarSkuMercadoLivre] limpeza de anúncio morto:", sellerId, delErr.message);
+  }
+
   return { conectado: true, itens_escaneados: itens.length, skus_encontrados: linhas.length, itens_sem_sku: itensSemSku };
 }
