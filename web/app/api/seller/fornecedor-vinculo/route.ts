@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { notifySellerVinculoFornecedorProprio } from "@/lib/notifySellerVinculoFornecedorCd";
+import { notifyAdminsSellerVinculouFornecedorCd } from "@/lib/notifyAdminsSellerVinculouFornecedorCd";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -197,6 +198,9 @@ export async function POST(req: Request) {
     const { data: fn } = await supabaseAdmin.from("fornecedores").select("nome").eq("id", fid).maybeSingle();
 
     await notifySellerVinculoFornecedorProprio({ org_id: seller.org_id, seller_id: seller.id, fornecedor_id: fid });
+    if (forn.opera_no_cd) {
+      await notifyAdminsSellerVinculouFornecedorCd({ org_id: seller.org_id, seller_id: seller.id, fornecedor_id: fid });
+    }
 
     return NextResponse.json({
       ok: true,
