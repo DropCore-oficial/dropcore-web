@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { toTitleCase } from "@/lib/formatText";
 import { PlanLimitsBadge, PLAN_LIMITS_REFRESH_EVENT } from "@/components/PlanLimitsBadge";
@@ -1016,6 +1017,14 @@ export default function AdminCatalogoPage() {
                 Catálogo (todas as empresas)
               </button>
             )}
+            {fornecedorId && (
+              <Link
+                href={`/admin/produtos-fornecedor/criar-variantes?fornecedor_id=${encodeURIComponent(fornecedorId)}`}
+                style={{ padding: "6px 12px", fontSize: 13, borderRadius: 6, border: "1px solid var(--card-border)", background: "var(--card)", color: "var(--foreground)", textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+              >
+                Criar produto completo
+              </Link>
+            )}
           </div>
         }
       />
@@ -1304,6 +1313,14 @@ export default function AdminCatalogoPage() {
                   >
                     Editar grupo
                   </button>
+                  {fornecedorId && (
+                    <Link
+                      href={`/admin/produtos-fornecedor/editar/${encodeURIComponent(grupo.paiKey)}?fornecedor_id=${encodeURIComponent(fornecedorId)}`}
+                      style={{ padding: "4px 10px", fontSize: 12, border: "1px solid var(--card-border)", background: "var(--card)", color: "var(--foreground)", borderRadius: 6, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+                    >
+                      Editar completo
+                    </Link>
+                  )}
                   <button
                     type="button"
                     onClick={() => handleAtivarGrupo(grupo)}

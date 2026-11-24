@@ -7,6 +7,7 @@ import Link from "next/link";
 import { DropCoreLogo } from "@/components/DropCoreLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AlteracoesCatalogoInfoBanner } from "@/components/fornecedor/AlteracoesCatalogoInfoBanner";
+import { useFornecedorAdminContexto } from "@/lib/useFornecedorAdminContexto";
 import { FotoVariacaoCell } from "@/components/FotoVariacaoCell";
 import { toTitleCase } from "@/lib/formatText";
 import { CORES_PREDEFINIDAS, TAMANHOS_PREDEFINIDOS } from "@/lib/fornecedorVariantesUi";
@@ -104,6 +105,8 @@ export default function EditarVariantesPage() {
   const router = useRouter();
   const params = useParams();
   const grupoKey = (params?.grupoKey as string) || "";
+  const { modoAdmin, fornecedorIdAdmin } = useFornecedorAdminContexto();
+  const voltarHref = modoAdmin ? `/admin/produtos-fornecedor?fornecedor_id=${fornecedorIdAdmin}` : "/fornecedor/produtos";
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -823,7 +826,7 @@ export default function EditarVariantesPage() {
       <div className="bg-[var(--background)] p-4">
         <div className="dropcore-shell-6xl text-center py-12">
           <p className="text-neutral-600 dark:text-neutral-400 text-sm">Produto não encontrado.</p>
-          <Link href="/fornecedor/produtos" className="text-blue-600 dark:text-blue-400 hover:underline text-sm mt-2 inline-block">
+          <Link href={voltarHref} className="text-blue-600 dark:text-blue-400 hover:underline text-sm mt-2 inline-block">
             Voltar aos produtos
           </Link>
         </div>
@@ -837,10 +840,10 @@ export default function EditarVariantesPage() {
       <div className="bg-[var(--card)] border-b border-[var(--card-border)] sticky top-0 z-30">
         <div className="dropcore-shell-6xl py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
-            <DropCoreLogo variant="horizontal" href="/fornecedor/dashboard" className="shrink-0" />
+            <DropCoreLogo variant="horizontal" href={modoAdmin ? "/dashboard" : "/fornecedor/dashboard"} className="shrink-0" />
             <ThemeToggle className="shrink-0" />
             <Link
-              href="/fornecedor/produtos"
+              href={voltarHref}
               className="flex items-center gap-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white shrink-0"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

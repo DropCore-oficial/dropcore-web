@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { FornecedorNav } from "../../FornecedorNav";
+import { useFornecedorAdminContexto } from "@/lib/useFornecedorAdminContexto";
 import { toTitleCase } from "@/lib/formatText";
 import {
   CORES_PREDEFINIDAS,
@@ -653,6 +654,7 @@ function estadoInicialRascunhoVazio(): RascunhoCriarVariantesV1 {
 export default function CriarVariantesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { modoAdmin } = useFornecedorAdminContexto();
   const grupoEdicao = (searchParams.get("editar") ?? "").trim().toUpperCase();
   const modoEdicao = grupoEdicao.length > 0;
   const tabsNavRef = useRef<HTMLDivElement | null>(null);
@@ -1573,6 +1575,9 @@ export default function CriarVariantesPage() {
   }
 
   async function salvarRascunho() {
+    // Admin usando essa tela em nome de um fornecedor não salva rascunho — fora do escopo
+    // combinado com o Sr Stark 2026-11-24 (admin só edita produto já publicado).
+    if (modoAdmin) return;
     setMsgRascunho(null);
     setRascunhoSalvando(true);
     const payload = construirRascunho();
@@ -1714,6 +1719,7 @@ export default function CriarVariantesPage() {
   }
 
   async function descartarRascunhoGuardado() {
+    if (modoAdmin) return;
     try {
       const {
         data: { session },
@@ -2362,10 +2368,12 @@ export default function CriarVariantesPage() {
         if (!res.ok) throw new Error(j?.error ?? "Erro ao criar variantes.");
       }
       try {
-        await fetch("/api/fornecedor/produtos/rascunho", {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
+        if (!modoAdmin) {
+          await fetch("/api/fornecedor/produtos/rascunho", {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+        }
       } catch {
         /* ignore */
       }
@@ -3926,7 +3934,7 @@ export default function CriarVariantesPage() {
           </div>
         </div>
       )}
-      <FornecedorNav active="produtos" wide />
+      {!modoAdmin && <FornecedorNav active="produtos" wide />}
     </div>
   );
 }

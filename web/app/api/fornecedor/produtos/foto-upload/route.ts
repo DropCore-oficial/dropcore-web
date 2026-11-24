@@ -8,7 +8,7 @@
  * aqui carrega só 1 arquivo, então o limite de corpo deixa de ser problema.
  */
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { resolverFornecedorContexto } from "@/lib/fornecedorAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { parseDataImageUrl, BUCKET_PRODUTO_IMAGENS } from "@/lib/fornecedorImagemDataUrl";
 import { optimizeImageBuffer } from "@/lib/imageOptimize";
@@ -19,33 +19,8 @@ export const dynamic = "force-dynamic";
 /** Bem abaixo do limite de corpo do Vercel (~4.5MB) mesmo depois da inflação de ~37% do base64. */
 const MAX_DATA_URL_BYTES = 3 * 1024 * 1024;
 
-async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: string } | null> {
-  const auth = req.headers.get("authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  if (!token) return null;
-
-  const sbAnon = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { persistSession: false } }
-  );
-  const { data: userData, error: userErr } = await sbAnon.auth.getUser(token);
-  if (userErr || !userData?.user) return null;
-
-  const { data: member } = await supabaseAdmin
-    .from("org_members")
-    .select("fornecedor_id")
-    .eq("user_id", userData.user.id)
-    .not("fornecedor_id", "is", null)
-    .limit(1)
-    .maybeSingle();
-
-  if (!member?.fornecedor_id) return null;
-  return { fornecedor_id: member.fornecedor_id };
-}
-
 export async function POST(req: Request) {
-  const ctx = await getFornecedorFromToken(req);
+  const ctx = await resolverFornecedorContexto(req);
   if (!ctx) {
     return NextResponse.json({ error: "Não autenticado como fornecedor." }, { status: 401 });
   }

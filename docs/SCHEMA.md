@@ -3353,6 +3353,45 @@ dos dois). Corrigido com o mesmo princípio já usado pra `SIZE_GRID_ID` na mesm
 tratamento dedicado ser o único a mexer nesse atributo. **Confiança alta** — causa rastreada
 no código linha a linha, não é suposição por correlação como os 2 fixes anteriores.
 
+## Admin ganha o mesmo assistente de produto completo do fornecedor (2026-11-24)
+
+Pedido do Sr Stark (ver memória `admin-editar-produto-fornecedor`): admin só editava campos
+soltos em `/admin/catalogo` — sem categoria ML, atributos obrigatórios, fotos por variação ou
+guia de medidas. Em vez de desenhar uma tela nova, reaproveitada a tela/wizard que o
+fornecedor já usa, parametrizando o fornecedor por fora da sessão.
+
+- **`lib/fornecedorAuth.ts`** ganhou `resolverFornecedorContexto(req, fornecedorIdExplicito?)`:
+  tenta a sessão de fornecedor normal primeiro; se não resolver, lê `fornecedor_id` do header
+  `x-fornecedor-id` (nunca de dentro de um token de fornecedor), valida via `requireAdmin` que
+  quem chama é staff admin/owner, confere que o fornecedor pertence à org do admin, e retorna o
+  mesmo formato `{fornecedor_id, org_id, user_id}` de sempre + `via: "admin"|"fornecedor"`.
+- As 9 rotas de `app/api/fornecedor/produtos/*` que o wizard usa (`route`, `[id]`,
+  `[id]/imagem`, `desativar-categoria`, `foto-upload`, `grupo-adicionar-variantes`,
+  `multivariante`, `tabela-medidas`, `solicitar-exclusao-grupo`) trocaram a cópia local da
+  função de auth (eram 9 cópias idênticas, uma por arquivo) por essa função compartilhada —
+  zero mudança na lógica de negócio de cada rota. `rascunho/route.ts` ficou de fora
+  (decisão explícita: admin não mexe em rascunho do fornecedor).
+- **`solicitar-exclusao-grupo`**: quando `via === "admin"`, exclui o grupo na hora (mesma
+  lógica que já existia só em `alteracoes-pendentes/[id]/aprovar/route.ts` pro branch
+  `exclusao_grupo`) em vez de criar pedido de aprovação — decisão explícita: admin é quem
+  aprovaria mesmo, pedir aprovação pra si mesmo não faz sentido.
+- **Frontend**: em vez de editar as ~34 chamadas `fetch` das 4 telas
+  (`app/fornecedor/produtos/{page,criar-unico,criar-variantes,editar/[grupoKey]}`) uma a uma,
+  `lib/useFornecedorAdminContexto.ts` intercepta `window.fetch` só enquanto a tela está
+  montada e só pra `/api/fornecedor/produtos*`, injetando `x-fornecedor-id` — ativa quando a
+  URL tem `?fornecedor_id=...`. Mesmas 4 telas ganharam: nav do fornecedor escondida em modo
+  admin (`!modoAdmin &&`), links "voltar"/"criar variante"/"editar" apontando pro equivalente
+  `/admin/produtos-fornecedor/*` em vez de `/fornecedor/produtos/*`, e os 4 pontos de
+  rascunho (`criar-variantes`) pulados (`if (modoAdmin) return`).
+- **`app/admin/produtos-fornecedor/{page,criar-unico,criar-variantes,editar/[grupoKey]}`**:
+  não duplicam as telas — são reexport puro (`export { default } from "@/app/fornecedor/..."`)
+  do mesmo componente, só existindo nesse caminho pra herdar o layout/nav do admin em vez do
+  fornecedor. Build de produção confirmado gerando as 4 rotas com bundle quase idêntico ao
+  original.
+- Entrada pro fluxo: `/admin/catalogo` (tela de campos soltos existente) ganhou os botões
+  "Editar completo" (por grupo) e "Criar produto completo" (com fornecedor selecionado),
+  linkando pro wizard novo com `?fornecedor_id=...`.
+
 ## Pendências conhecidas
 
 - Leaked password protection (HaveIBeenPwned): **ativado** em 2026-07-09 no Supabase Auth (Sign In / Providers → Email → "Prevent use of leaked passwords").

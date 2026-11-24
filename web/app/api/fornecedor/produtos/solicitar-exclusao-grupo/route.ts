@@ -3,7 +3,7 @@
  * Envia pedido para a DropCore (admin) aprovar a exclusão de todo o grupo de variantes.
  */
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { resolverFornecedorContexto } from "@/lib/fornecedorAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { notifyAdminsAlteracaoProdutoPendente } from "@/lib/notifyAdminsAlteracaoProduto";
 
@@ -17,34 +17,9 @@ function paiKey(sku: string): string {
   return `${m[1]}${m[2]}000`;
 }
 
-async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: string; org_id: string } | null> {
-  const auth = req.headers.get("authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  if (!token) return null;
-
-  const sbAnon = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { persistSession: false } }
-  );
-  const { data: userData, error: userErr } = await sbAnon.auth.getUser(token);
-  if (userErr || !userData?.user) return null;
-
-  const { data: member } = await supabaseAdmin
-    .from("org_members")
-    .select("org_id, fornecedor_id")
-    .eq("user_id", userData.user.id)
-    .not("fornecedor_id", "is", null)
-    .limit(1)
-    .maybeSingle();
-
-  if (!member?.fornecedor_id) return null;
-  return { fornecedor_id: member.fornecedor_id, org_id: member.org_id };
-}
-
 export async function POST(req: Request) {
   try {
-    const ctx = await getFornecedorFromToken(req);
+    const ctx = await resolverFornecedorContexto(req);
     if (!ctx) {
       return NextResponse.json({ error: "Não autenticado como fornecedor." }, { status: 401 });
     }
@@ -72,6 +47,49 @@ export async function POST(req: Request) {
     }
 
     const idsGrupo = noGrupo.map((s) => s.id);
+
+    // Admin usando o mesmo assistente do fornecedor (achado 2026-11-24, Sr Stark: admin é
+    // quem aprovaria mesmo, então pedir aprovação pra si mesmo não faz sentido) — exclui na
+    // hora, mesma lógica que já existia só em
+    // app/api/org/alteracoes-pendentes/[id]/aprovar/route.ts pro branch exclusao_grupo.
+    if (ctx.via === "admin") {
+      const { error: delErr } = await supabaseAdmin
+        .from("skus")
+        .delete()
+        .in("id", idsGrupo)
+        .eq("org_id", ctx.org_id)
+        .eq("fornecedor_id", ctx.fornecedor_id);
+
+      if (delErr) {
+        return NextResponse.json(
+          {
+            error: delErr.message.includes("violates")
+              ? "Não foi possível excluir (pode haver pedidos ou vínculos)."
+              : delErr.message,
+          },
+          { status: 500 }
+        );
+      }
+
+      const { data: fornMember } = await supabaseAdmin
+        .from("org_members")
+        .select("user_id")
+        .eq("org_id", ctx.org_id)
+        .eq("fornecedor_id", ctx.fornecedor_id)
+        .limit(1)
+        .maybeSingle();
+      if (fornMember?.user_id) {
+        await supabaseAdmin.from("notifications").insert({
+          user_id: fornMember.user_id,
+          tipo: "alteracao_aprovada",
+          titulo: "Produto excluído",
+          mensagem: `A DropCore excluiu o produto (${grupoKey}).`,
+          metadata: { grupo_key: grupoKey },
+        });
+      }
+
+      return NextResponse.json({ ok: true, mensagem: "Grupo excluído do catálogo." });
+    }
     const { data: pendentes, error: pendErr } = await supabaseAdmin
       .from("sku_alteracoes_pendentes")
       .select("id, dados_propostos")

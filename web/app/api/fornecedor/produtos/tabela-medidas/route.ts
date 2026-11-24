@@ -3,7 +3,7 @@
  * Retorna tabela de medidas aprovada do grupo e, se houver, a proposta pendente.
  */
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { resolverFornecedorContexto } from "@/lib/fornecedorAuth";
 import { parseTabelaMedidasRecord, tamanhosFaltantesNaTabelaMedidas } from "@/lib/fornecedorTabelaMedidas";
 import { mergeDetalhesProdutoJson } from "@/lib/detalhesProdutoJson";
 import { ordenarTamanhosLista } from "@/lib/fornecedorVariantesUi";
@@ -17,34 +17,9 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function getFornecedorFromToken(req: Request): Promise<{ fornecedor_id: string; org_id: string } | null> {
-  const auth = req.headers.get("authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  if (!token) return null;
-
-  const sbAnon = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { persistSession: false } }
-  );
-  const { data: userData, error: userErr } = await sbAnon.auth.getUser(token);
-  if (userErr || !userData?.user) return null;
-
-  const { data: member } = await supabaseAdmin
-    .from("org_members")
-    .select("org_id, fornecedor_id")
-    .eq("user_id", userData.user.id)
-    .not("fornecedor_id", "is", null)
-    .limit(1)
-    .maybeSingle();
-
-  if (!member?.fornecedor_id) return null;
-  return { fornecedor_id: member.fornecedor_id, org_id: member.org_id };
-}
-
 export async function GET(req: Request) {
   try {
-    const ctx = await getFornecedorFromToken(req);
+    const ctx = await resolverFornecedorContexto(req);
     if (!ctx) return NextResponse.json({ error: "Não autenticado como fornecedor." }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
@@ -80,7 +55,7 @@ export async function GET(req: Request) {
 /** PUT — grava tabela aprovada (uso na criação do produto; edições seguem via PATCH do SKU + aprovação admin). */
 export async function PUT(req: Request) {
   try {
-    const ctx = await getFornecedorFromToken(req);
+    const ctx = await resolverFornecedorContexto(req);
     if (!ctx) return NextResponse.json({ error: "Não autenticado como fornecedor." }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));

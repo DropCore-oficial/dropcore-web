@@ -5,6 +5,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { FornecedorNav } from "../FornecedorNav";
+import { useFornecedorAdminContexto } from "@/lib/useFornecedorAdminContexto";
 import { CorCelulaProduto } from "@/components/fornecedor/CorCelulaProduto";
 import { HelpBubble } from "@/components/HelpBubble";
 import {
@@ -271,6 +272,15 @@ export default function FornecedorProdutosPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { modoAdmin, fornecedorIdAdmin } = useFornecedorAdminContexto();
+  const criarVariantesBase = modoAdmin ? "/admin/produtos-fornecedor/criar-variantes" : "/fornecedor/produtos/criar-variantes";
+  const criarVariantesQs = modoAdmin ? `fornecedor_id=${fornecedorIdAdmin}` : "";
+  function hrefCriarVariantes(editarGrupo?: string): string {
+    const qs = new URLSearchParams(criarVariantesQs);
+    if (editarGrupo) qs.set("editar", editarGrupo);
+    const s = qs.toString();
+    return s ? `${criarVariantesBase}?${s}` : criarVariantesBase;
+  }
   const filtroEstoqueBaixo = searchParams.get("estoqueBaixo") === "1";
   const filtroInativo = searchParams.get("inativo") === "1";
   const filtroPendente = searchParams.get("pendente") === "1";
@@ -345,7 +355,7 @@ export default function FornecedorProdutosPage() {
       const token = session.access_token;
       const headers = { Authorization: `Bearer ${token}` };
       const [resumo, res] = await Promise.all([
-        getResumoRascunhoCriarVariantes(token),
+        modoAdmin ? Promise.resolve(null) : getResumoRascunhoCriarVariantes(token),
         fetch("/api/fornecedor/produtos?include_alteracoes_status=1", { headers, cache: "no-store" }),
       ]);
       setRascunhoCriarVariantes(resumo);
@@ -502,7 +512,7 @@ export default function FornecedorProdutosPage() {
 
   function openEdit(p: Produto) {
     const grupo = paiKey(p.sku);
-    router.push(`/fornecedor/produtos/criar-variantes?editar=${encodeURIComponent(grupo)}`);
+    router.push(hrefCriarVariantes(grupo));
   }
 
   const [confirmacaoExclusaoGrupo, setConfirmacaoExclusaoGrupo] = useState<{ titulo: string; mensagem: string; g: GrupoProduto } | null>(
@@ -693,7 +703,7 @@ export default function FornecedorProdutosPage() {
               </span>
               <div className="flex shrink-0 items-center gap-2">
                 <Link
-                  href="/fornecedor/produtos/criar-variantes"
+                  href={hrefCriarVariantes()}
                   className="hidden shrink-0 items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 active:brightness-[0.92] sm:flex"
                 >
                   Criar produto
@@ -761,7 +771,7 @@ export default function FornecedorProdutosPage() {
                   <div className="absolute right-0 z-20 mt-1.5 min-w-[15rem] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-1 shadow-md">
                     {rascunhoCriarVariantes && (
                       <Link
-                        href="/fornecedor/produtos/criar-variantes"
+                        href={hrefCriarVariantes()}
                         onClick={fecharMenusAcoesAbertos}
                         className="block rounded-md px-3 py-2 text-left text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12"
                       >
@@ -808,7 +818,7 @@ export default function FornecedorProdutosPage() {
             <p className="mt-0.5 text-sm text-[var(--muted)]">Gerencie seus produtos e links de fotos</p>
             <div className="mt-3 flex gap-2 sm:hidden">
               <Link
-                href="/fornecedor/produtos/criar-variantes"
+                href={hrefCriarVariantes()}
                 className="flex-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-center text-[11px] font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 active:brightness-[0.92]"
               >
                 Criar produto
@@ -1006,13 +1016,13 @@ export default function FornecedorProdutosPage() {
                                 </summary>
                                 <div className="absolute right-0 z-20 mt-1.5 min-w-[10rem] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-1 shadow-md">
                                   <Link
-                                    href={`/fornecedor/produtos/criar-variantes?editar=${encodeURIComponent(g.paiKey)}`}
+                                    href={hrefCriarVariantes(g.paiKey)}
                                     className="block rounded-md px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12"
                                   >
                                     Editar
                                   </Link>
                                   <Link
-                                    href={`/fornecedor/produtos/criar-variantes?editar=${encodeURIComponent(g.paiKey)}#midia`}
+                                    href={`${hrefCriarVariantes(g.paiKey)}#midia`}
                                     className="block rounded-md px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]/12"
                                   >
                                     Trocar foto
@@ -1878,7 +1888,7 @@ export default function FornecedorProdutosPage() {
         </ModalOverlay>
       ) : null}
 
-      <FornecedorNav active="produtos" wide />
+      {!modoAdmin && <FornecedorNav active="produtos" wide />}
     </div>
   );
 }

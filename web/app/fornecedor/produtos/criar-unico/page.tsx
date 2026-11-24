@@ -10,6 +10,7 @@ import { toTitleCase } from "@/lib/formatText";
 import { CORES_PREDEFINIDAS } from "@/lib/fornecedorVariantesUi";
 import { HelpBubble } from "@/components/HelpBubble";
 import { calcularCustoTotal, TAXA_DROPCORE_PERCENT } from "@/lib/taxaDropcore";
+import { useFornecedorAdminContexto } from "@/lib/useFornecedorAdminContexto";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -17,6 +18,8 @@ const inputClass = "w-full rounded-lg bg-white dark:bg-neutral-800 border border
 
 export default function CriarUnicoPage() {
   const router = useRouter();
+  const { modoAdmin, fornecedorIdAdmin } = useFornecedorAdminContexto();
+  const voltarHref = modoAdmin ? `/admin/produtos-fornecedor?fornecedor_id=${fornecedorIdAdmin}` : "/fornecedor/produtos";
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -67,7 +70,7 @@ export default function CriarUnicoPage() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j?.error ?? "Erro ao adicionar.");
-      router.push("/fornecedor/produtos");
+      router.push(voltarHref);
     } catch (e: unknown) {
       setFormError(e instanceof Error ? e.message : "Erro ao adicionar.");
     } finally {
@@ -79,13 +82,13 @@ export default function CriarUnicoPage() {
     <div className="bg-[var(--background)] text-[var(--foreground)]">
       <div className="dropcore-shell-6xl pt-6 pb-10 md:pb-12">
         <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-4 mb-6">
-          <DropCoreLogo variant="horizontal" href="/fornecedor/dashboard" />
+          <DropCoreLogo variant="horizontal" href={modoAdmin ? "/dashboard" : "/fornecedor/dashboard"} />
           <ThemeToggle />
         </div>
         <div className="mb-6 space-y-1">
           <div className="flex items-center gap-3">
             <Link
-              href="/fornecedor/produtos"
+              href={voltarHref}
               className="flex items-center gap-2 text-[var(--muted)] hover:text-[var(--foreground)]"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -231,7 +234,7 @@ export default function CriarUnicoPage() {
             {formError && <p className="text-sm text-red-500">{formError}</p>}
 
             <div className="flex gap-2 pt-2">
-              <Link href="/fornecedor/produtos" className="flex-1 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10 text-center">
+              <Link href={voltarHref} className="flex-1 rounded-md border border-[var(--card-border)] bg-[var(--card)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--muted)] hover:bg-[var(--muted)]/10 text-center">
                 Cancelar
               </Link>
               <button type="submit" disabled={formLoading} className="flex-1 rounded-md bg-[var(--primary-blue)] text-white font-semibold px-2.5 py-1.5 text-[11px] hover:bg-[var(--primary-blue-hover)] disabled:opacity-60">
