@@ -1315,7 +1315,7 @@ export default function AdminCatalogoPage() {
                   </button>
                   {fornecedorId && (
                     <Link
-                      href={`/admin/produtos-fornecedor/editar/${encodeURIComponent(grupo.paiKey)}?fornecedor_id=${encodeURIComponent(fornecedorId)}`}
+                      href={`/admin/produtos-fornecedor/criar-variantes?editar=${encodeURIComponent(grupo.paiKey)}&fornecedor_id=${encodeURIComponent(fornecedorId)}`}
                       style={{ padding: "4px 10px", fontSize: 12, border: "1px solid var(--card-border)", background: "var(--card)", color: "var(--foreground)", borderRadius: 6, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
                     >
                       Editar completo
